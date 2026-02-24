@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, List, ShoppingCart, CheckSquare, Utensils, Heart } from 'lucide-react'
 import Link from 'next/link'
 
@@ -15,14 +15,17 @@ export default function CreateListPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
-    const urlType = searchParams.get('type')
-    if (urlType && ['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'].includes(urlType)) {
-      setType(urlType)
+    // Use window.location to avoid useSearchParams() Suspense issue
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      const urlType = searchParams.get('type')
+      if (urlType && ['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'].includes(urlType)) {
+        setType(urlType)
+      }
     }
-  }, [searchParams])
+  }, [])
 
   const listTypes = [
     {

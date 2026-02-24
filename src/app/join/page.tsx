@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -15,17 +15,20 @@ export default function JoinFamilyPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [familyInfo, setFamilyInfo] = useState<any>(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   // Check for code in URL
   useEffect(() => {
-    const urlCode = searchParams.get('code')
-    if (urlCode) {
-      setCode(urlCode)
-      checkFamilyCode(urlCode)
+    // Use window.location to avoid useSearchParams() Suspense issue
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      const urlCode = searchParams.get('code')
+      if (urlCode) {
+        setCode(urlCode)
+        checkFamilyCode(urlCode)
+      }
     }
-  }, [searchParams])
+  }, [])
 
   const checkFamilyCode = async (familyCode: string) => {
     try {
