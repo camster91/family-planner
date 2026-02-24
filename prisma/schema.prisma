@@ -1,0 +1,148 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Extended from Supabase Auth users table
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  role         String    // 'parent', 'child', 'teen'
+  age          Int?
+  family_id    String
+  avatar_url   String?
+  created_at   DateTime  @default(now())
+  
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  assigned_chores Chore[] @relation("AssignedChores")
+  created_chores Chore[]  @relation("CreatedChores")
+  sent_messages Message[] @relation("SentMessages")
+  claimed_rewards Reward[] @relation("ClaimedRewards")
+  notifications Notification[]
+  
+  @@index([family_id])
+}
+
+model Family {
+  id              String    @id @default(cuid())
+  name            String
+  subscription_tier String  @default("free") // 'free', 'premium', 'family'
+  created_at      DateTime  @default(now())
+  
+  // Relations
+  members       User[]
+  chores        Chore[]
+  events        Event[]
+  messages      Message[]
+  rewards       Reward[]
+  notifications Notification[]
+}
+
+model Chore {
+  id           String    @id @default(cuid())
+  family_id    String
+  title        String
+  description  String?
+  points       Int       @default(10)
+  assigned_to  String    // user_id
+  due_date     DateTime
+  status       String    @default("pending") // 'pending', 'in_progress', 'completed', 'verified', 'overdue'
+  frequency    String    @default("once") // 'once', 'daily', 'weekly', 'monthly'
+  difficulty   String    @default("medium") // 'easy', 'medium', 'hard'
+  verified_at  DateTime?
+  completed_at DateTime?
+  created_at   DateTime  @default(now())
+  created_by   String    // user_id
+  
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  assignee     User      @relation("AssignedChores", fields: [assigned_to], references: [id])
+  creator      User      @relation("CreatedChores", fields: [created_by], references: [id])
+  
+  @@index([family_id])
+  @@index([assigned_to])
+  @@index([status])
+  @@index([due_date])
+}
+
+model Event {
+  id           String    @id @default(cuid())
+  family_id    String
+  title        String
+  description  String?
+  start_time   DateTime
+  end_time     DateTime
+  location     String?
+  recurrence   String?   // RRULE string for recurring events
+  created_by   String    // user_id
+  created_at   DateTime  @default(now())
+  
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User      @relation(fields: [created_by], references: [id])
+  
+  @@index([family_id])
+  @@index([start_time])
+}
+
+model Message {
+  id           String    @id @default(cuid())
+  family_id    String
+  sender_id    String
+  content      String
+  type         String    @default("text") // 'text', 'image', 'voice', 'announcement'
+  attachments  String[]  // Array of file URLs
+  read_by      String[]  // Array of user_ids who have read the message
+  created_at   DateTime  @default(now())
+  
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  sender       User      @relation("SentMessages", fields: [sender_id], references: [id])
+  
+  @@index([family_id])
+  @@index([sender_id])
+  @@index([created_at])
+}
+
+model Reward {
+  id           String    @id @default(cuid())
+  family_id    String
+  title        String
+  description  String?
+  point_cost   Int
+  claimed_by   String?   // user_id
+  claimed_at   DateTime?
+  created_at   DateTime  @default(now())
+  
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  claimant     User?     @relation("ClaimedRewards", fields: [claimed_by], references: [id])
+  
+  @@index([family_id])
+  @@index([claimed_by])
+}
+
+model Notification {
+  id           String    @id @default(cuid())
+  user_id      String
+  title        String
+  message      String
+  type         String    // 'chore', 'event', 'message', 'reward', 'system'
+  read         Boolean   @default(false)
+  created_at   DateTime  @default(now())
+  
+  // Relations
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([read])
+  @@index([created_at])
+}
