@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Save, List, ShoppingCart, CheckSquare, Utensils, Heart } from 'lucide-react'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 export default function CreateListPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')

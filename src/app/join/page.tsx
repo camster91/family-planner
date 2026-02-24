@@ -6,6 +6,8 @@ import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
+export const dynamic = 'force-dynamic'
+
 export default function JoinFamilyPage() {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
