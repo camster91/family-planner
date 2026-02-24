@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Family planner web app for chore tracking, calendar management, and family communication",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +16,9 @@
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "validate": "npm run type-check && npx prisma validate",
+    "health": "curl -f http://localhost:3000/api/health || exit 1"
   },
   "dependencies": {
     "@prisma/client": "^7.4.1",
