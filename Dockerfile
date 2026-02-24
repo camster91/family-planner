@@ -54,10 +54,6 @@ RUN chown -R nextjs:nodejs /app/.next
 # Copy public files
 COPY --from=builder /app/public ./public
 
-# Copy entrypoint script
-COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -69,10 +65,12 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV HOST="0.0.0.0"
 
 # Health check for container orchestration (Coolify, Docker, etc.)
 # More lenient health check for initial startup
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Start server with logging
+CMD ["sh", "-c", "echo '=== Family Planner Starting ===' && echo 'Current directory:' && pwd && echo 'Files:' && ls -la && echo 'Environment:' && printenv | grep -E '(NODE_ENV|PORT|HOST|NEXT_PUBLIC)' && echo 'Starting Next.js server...' && exec node server.js"]
