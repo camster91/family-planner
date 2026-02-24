@@ -72,5 +72,5 @@ ENV HOST="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# Start server with logging
-CMD ["sh", "-c", "echo '=== Family Planner Starting ===' && echo 'Current directory:' && pwd && echo 'Files:' && ls -la && echo 'Environment:' && printenv | grep -E '(NODE_ENV|PORT|HOST|NEXT_PUBLIC)' && echo 'Starting Next.js server...' && exec node server.js"]
+# Start test server for debugging
+CMD ["sh", "-c", "echo '=== Family Planner Test Server ===' && echo 'Current directory:' && pwd && echo 'Files in root:' && ls -la && echo 'Checking for server.js:' && ls -la server.js 2>&1 || echo 'server.js not found' && echo 'Starting test server...' && exec node test-server.js"]
