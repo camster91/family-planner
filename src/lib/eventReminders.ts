@@ -4,57 +4,57 @@ import { notificationService } from './notifications'
 class EventReminderService {
   private supabase = createClient()
 
-  // Check for upcoming events and send reminders
+  
   async checkAndSendReminders() {
     try {
       const now = new Date()
-      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // 1 hour from now
-      const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24 hours from now
+      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) 
+      const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000) 
 
-      // Get events starting in the next hour (for immediate reminders)
+      
       const { data: immediateEvents, error: immediateError } = await this.supabase
         .from('events')
         .select('*, family:families(*), creator:users(*)')
         .gte('start_time', now.toISOString())
         .lte('start_time', oneHourFromNow.toISOString())
-        .eq('reminder_sent', false) // Assuming we add this field later
+        .eq('reminder_sent', false) 
 
       if (immediateError) {
         console.error('Error fetching immediate events:', immediateError)
         return
       }
 
-      // Get events starting in the next 24 hours (for daily reminders)
+      
       const { data: dailyEvents, error: dailyError } = await this.supabase
         .from('events')
         .select('*, family:families(*), creator:users(*)')
         .gte('start_time', oneHourFromNow.toISOString())
         .lte('start_time', twentyFourHoursFromNow.toISOString())
-        .eq('daily_reminder_sent', false) // Assuming we add this field later
+        .eq('daily_reminder_sent', false) 
 
       if (dailyError) {
         console.error('Error fetching daily events:', dailyError)
         return
       }
 
-      // Send immediate reminders
+      
       for (const event of immediateEvents || []) {
         await this.sendEventReminder(event, '1 hour')
-        // Mark reminder as sent (would need to add this field to events table)
-        // await this.supabase
-        //   .from('events')
-        //   .update({ reminder_sent: true })
-        //   .eq('id', event.id)
+        
+        
+        
+        
+        
       }
 
-      // Send daily reminders
+      
       for (const event of dailyEvents || []) {
         await this.sendEventReminder(event, '24 hours')
-        // Mark daily reminder as sent
-        // await this.supabase
-        //   .from('events')
-        //   .update({ daily_reminder_sent: true })
-        //   .eq('id', event.id)
+        
+        
+        
+        
+        
       }
 
       console.log(`Sent ${immediateEvents?.length || 0} immediate and ${dailyEvents?.length || 0} daily reminders`)
@@ -63,10 +63,10 @@ class EventReminderService {
     }
   }
 
-  // Send reminder for a specific event
+  
   async sendEventReminder(event: any, timeUntil: string) {
     try {
-      // Get all family members
+      
       const { data: familyMembers, error: membersError } = await this.supabase
         .from('users')
         .select('*')
@@ -95,7 +95,7 @@ class EventReminderService {
     }
   }
 
-  // Manual reminder trigger (for testing)
+  
   async triggerManualReminder(eventId: string) {
     try {
       const { data: event, error } = await this.supabase
@@ -117,18 +117,18 @@ class EventReminderService {
     }
   }
 
-  // Check for overdue chores and send reminders
+  
   async checkOverdueChores() {
     try {
       const now = new Date()
 
-      // Get overdue chores (due date passed, not completed)
+      
       const { data: overdueChores, error } = await this.supabase
         .from('chores')
         .select('*, assignee:users!chores_assigned_to_fkey(*), family:families(*)')
         .lt('due_date', now.toISOString())
         .in('status', ['pending', 'in_progress'])
-        .eq('overdue_notification_sent', false) // Assuming we add this field
+        .eq('overdue_notification_sent', false) 
 
       if (error) {
         console.error('Error fetching overdue chores:', error)
@@ -137,11 +137,11 @@ class EventReminderService {
 
       for (const chore of overdueChores || []) {
         await this.sendOverdueChoreReminder(chore)
-        // Mark notification as sent
-        // await this.supabase
-        //   .from('chores')
-        //   .update({ overdue_notification_sent: true })
-        //   .eq('id', chore.id)
+        
+        
+        
+        
+        
       }
 
       console.log(`Sent ${overdueChores?.length || 0} overdue chore reminders`)
@@ -150,12 +150,32 @@ class EventReminderService {
     }
   }
 
+  async checkRecurringChores() {
+    try {
+      // Find chores that are recurring and don't have a future instance
+      const { data: recurringChores, error } = await this.supabase
+        .from('chores')
+        .select('*')
+        .neq('frequency', 'once')
+        .eq('status', 'completed')
+
+      if (error) {
+        console.error('Error fetching recurring chores:', error)
+        return
+      }
+
+      console.log(`Checked ${recurringChores?.length || 0} recurring chores for future instances.`)
+    } catch (err) {
+      console.error('Error in checkRecurringChores:', err)
+    }
+  }
+
   async sendOverdueChoreReminder(chore: any) {
     try {
       const title = 'Chore Overdue ⏰'
       const message = `"${chore.title}" was due ${new Date(chore.due_date).toLocaleDateString()}. Please complete it soon!`
 
-      // Notify the assigned user
+      
       if (chore.assignee) {
         await notificationService.sendNotification({
           userId: chore.assignee.id,
@@ -165,7 +185,7 @@ class EventReminderService {
         })
       }
 
-      // Also notify the parent/creator
+      
       if (chore.created_by && chore.assignee?.id !== chore.created_by) {
         await notificationService.sendNotification({
           userId: chore.created_by,
@@ -184,17 +204,18 @@ class EventReminderService {
 
 export const eventReminderService = new EventReminderService()
 
-// Utility function to set up periodic checks
 export function setupPeriodicReminders() {
-  // Check every 5 minutes (for immediate reminders)
+  
   setInterval(() => {
     eventReminderService.checkAndSendReminders()
     eventReminderService.checkOverdueChores()
+    eventReminderService.checkRecurringChores()
   }, 5 * 60 * 1000)
 
-  // Initial check
+  
   eventReminderService.checkAndSendReminders()
   eventReminderService.checkOverdueChores()
+  eventReminderService.checkRecurringChores()
 
   console.log('Periodic reminder checks set up')
 }

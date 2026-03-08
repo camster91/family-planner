@@ -1,6 +1,7 @@
-import { PlusCircle, Calendar as CalendarIcon } from 'lucide-react'
+import { PlusCircle, Calendar as CalendarIcon, Edit, Download } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import ExportButton from '@/components/common/ExportButton'
 
 export default async function CalendarPage() {
   const supabase = await createClient()
@@ -50,13 +51,18 @@ export default async function CalendarPage() {
             View and manage family events, appointments, and activities.
           </p>
         </div>
-        <Link
-          href="/dashboard/calendar/create"
-          className="btn-primary inline-flex items-center"
-        >
-          <PlusCircle className="w-5 h-5 mr-2" />
-          New Event
-        </Link>
+        <div className="flex gap-2">
+          {events && events.length > 0 && (
+            <ExportButton data={events} filename="calendar-events" label="Export" />
+          )}
+          <Link
+            href="/dashboard/calendar/create"
+            className="btn-primary inline-flex items-center"
+          >
+            <PlusCircle className="w-5 h-5 mr-2" />
+            New Event
+          </Link>
+        </div>
       </div>
 
       {/* Calendar view placeholder */}
@@ -116,6 +122,12 @@ export default async function CalendarPage() {
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
+                          <Link
+                            href={`/dashboard/calendar/${event.id}/edit`}
+                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Link>
                           <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                             Event
                           </span>

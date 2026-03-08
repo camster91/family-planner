@@ -15,7 +15,16 @@ export default function SettingsPage() {
     newMessages: true,
     weeklyReports: false,
   })
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState(localStorage.getItem('familyPlanner_theme') || 'light')
+  
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    localStorage.setItem('familyPlanner_theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+  }
   const [language, setLanguage] = useState('en')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)

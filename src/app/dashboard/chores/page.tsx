@@ -1,7 +1,8 @@
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, Download } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import ChoreList from '@/components/chores/ChoreList'
+import ExportButton from '@/components/common/ExportButton'
 
 export default async function ChoresPage() {
   const supabase = await createClient()
@@ -49,13 +50,18 @@ export default async function ChoresPage() {
             Manage household chores and responsibilities for your family.
           </p>
         </div>
-        <Link
-          href="/dashboard/chores/create"
-          className="btn-primary inline-flex items-center"
-        >
-          <PlusCircle className="w-5 h-5 mr-2" />
-          New Chore
-        </Link>
+        <div className="flex gap-2">
+          {chores && chores.length > 0 && (
+            <ExportButton data={chores} filename="chores" label="Export" />
+          )}
+          <Link
+            href="/dashboard/chores/create"
+            className="btn-primary inline-flex items-center"
+          >
+            <PlusCircle className="w-5 h-5 mr-2" />
+            New Chore
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

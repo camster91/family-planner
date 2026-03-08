@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Trophy, Gift, CheckCircle, AlertCircle } from 'lucide-react'
+import { Trophy, Gift, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { Reward } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { notificationService } from '@/lib/notifications'
@@ -75,8 +76,21 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
     } catch (err) {
       console.error('Error claiming reward:', err)
       setError('Failed to claim reward. Please try again.')
-    } finally {
-      setClaimingRewardId(null)
+    const handleDeleteReward = async (rewardId: string) => {
+    if (!confirm('Are you sure you want to delete this reward?')) return
+
+    try {
+      const { error } = await supabase
+        .from('rewards')
+        .delete()
+        .eq('id', rewardId)
+
+      if (error) throw error
+      
+      window.location.reload()
+    } catch (err) {
+      console.error('Error deleting reward:', err)
+      setError('Failed to delete reward. Please try again.')
     }
   }
 
@@ -147,7 +161,7 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
                   {userPoints >= reward.point_cost && (
                     <button
                       onClick={() => handleClaimReward(reward.id, reward.point_cost)}
-                      disabled={claimingRewardId === reward.id || userRole !== 'parent'}
+                      disabled={claimingRewardId === reward.id}
                       className="btn-primary w-full"
                     >
                       {claimingRewardId === reward.id ? (
@@ -161,10 +175,23 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
                     </button>
                   )}
 
-                  {userRole !== 'parent' && (
-                    <p className="text-sm text-gray-500 text-center mt-2">
-                      Ask a parent to claim this reward for you
-                    </p>
+                  {userRole === 'parent' && (
+                    <div className="flex space-x-2 mt-4">
+                      <Link
+                        href={`/dashboard/rewards/${reward.id}/edit`}
+                        className="flex-1 btn-secondary text-center"
+                      >
+                        <Edit className="w-4 h-4 inline mr-2" />
+                        Edit
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteReward(reward.id)}
+                        className="flex-1 btn-secondary text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4 inline mr-2" />
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

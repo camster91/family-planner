@@ -2,6 +2,7 @@ import { Trophy, PlusCircle, Star } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import RewardList from '@/components/rewards/RewardList'
+import ExportButton from '@/components/common/ExportButton'
 
 export default async function RewardsPage() {
   const supabase = await createClient()
@@ -49,15 +50,20 @@ export default async function RewardsPage() {
             Redeem your points for awesome rewards!
           </p>
         </div>
-        {user.role === 'parent' && (
-          <Link
-            href="/dashboard/rewards/create"
-            className="btn-primary inline-flex items-center"
-          >
-            <PlusCircle className="w-5 h-5 mr-2" />
-            Create Reward
-          </Link>
-        )}
+        <div className="flex gap-2">
+          {rewards && rewards.length > 0 && (
+            <ExportButton data={rewards} filename="rewards" label="Export" />
+          )}
+          {user.role === 'parent' && (
+            <Link
+              href="/dashboard/rewards/create"
+              className="btn-primary inline-flex items-center"
+            >
+              <PlusCircle className="w-5 h-5 mr-2" />
+              Create Reward
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Points Summary */}

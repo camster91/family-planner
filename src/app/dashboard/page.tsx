@@ -72,11 +72,10 @@ export default async function DashboardPage() {
     pointsProgress,
     nextReward,
     unreadMessages: messages?.length || 0,
+    completionRate: chores && chores.length > 0 
+      ? Math.round((chores.filter(c => c.status === 'completed' || c.status === 'verified').length / chores.length) * 100)
+      : 0
   }
-
-  const completionRate = stats.totalChores > 0 
-    ? Math.round((stats.completedChores / stats.totalChores) * 100)
-    : 0
 
   return (
     <div className="space-y-8">
@@ -87,10 +86,42 @@ export default async function DashboardPage() {
         </h1>
         <p className="mt-2 text-gray-600">
           {user?.family_id 
-            ? `Here's what's happening with your family today.`
+            ? `Here's your summary for today.`
             : `Get started by creating or joining a family.`
           }
         </p>
+      </div>
+      
+      {/* Stats Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="card">
+          <div className="flex items-center">
+            <CheckCircle className="w-6 h-6 text-green-500 mr-3" />
+            <h3 className="text-lg font-semibold text-gray-900">Completion Rate</h3>
+          </div>
+          <p className="text-3xl font-bold mt-2">{stats.completionRate}%</p>
+        </div>
+        <div className="card">
+          <div className="flex items-center">
+            <TrendingUp className="w-6 h-6 text-yellow-500 mr-3" />
+            <h3 className="text-lg font-semibold text-gray-900">Total Points</h3>
+          </div>
+          <p className="text-3xl font-bold mt-2">{stats.userPoints}</p>
+        </div>
+        <div className="card">
+          <div className="flex items-center">
+            <Calendar className="w-6 h-6 text-blue-500 mr-3" />
+            <h3 className="text-lg font-semibold text-gray-900">Events</h3>
+          </div>
+          <p className="text-3xl font-bold mt-2">{stats.upcomingEvents}</p>
+        </div>
+        <div className="card">
+          <div className="flex items-center">
+            <MessageSquare className="w-6 h-6 text-purple-500 mr-3" />
+            <h3 className="text-lg font-semibold text-gray-900">Unread</h3>
+          </div>
+          <p className="text-3xl font-bold mt-2">{stats.unreadMessages}</p>
+        </div>
       </div>
 
       {/* Family status */}
