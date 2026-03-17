@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Save, Bell, User, Shield, Moon, Globe } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -20,7 +19,6 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
-  const supabase = createClient()
 
   // Load user data
   useEffect(() => {
@@ -30,20 +28,14 @@ export default function SettingsPage() {
   const loadUserData = async () => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/users')
+      const data = await res.json()
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (userData) {
-        setName(userData.name || '')
-        setEmail(userData.email || '')
-        setRole(userData.role || '')
-        setAge(userData.age?.toString() || '')
+      if (res.ok && data.user) {
+        setName(data.user.name || '')
+        setEmail(data.user.email || '')
+        setRole(data.user.role || '')
+        setAge(data.user.age?.toString() || '')
       }
     } catch (err) {
       console.error('Error loading user data:', err)
@@ -58,18 +50,17 @@ export default function SettingsPage() {
     setMessage(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { error } = await supabase
-        .from('users')
-        .update({
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           name,
           age: age ? parseInt(age) : null,
-        })
-        .eq('id', user.id)
+        }),
+      })
+      const data = await res.json()
 
-      if (error) throw error
+      if (!res.ok) throw new Error(data.error || 'Failed to update profile')
 
       setMessage({ type: 'success', text: 'Profile updated successfully!' })
     } catch (err) {

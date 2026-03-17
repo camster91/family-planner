@@ -1,7 +1,6 @@
-import { createBrowserClient } from '@supabase/ssr'
-
-export const createClient = () =>
-  createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
+// Stub: Supabase client has been removed.
+// Client components should use fetch('/api/auth/me') for auth
+// and fetch('/api/...') for data operations.
+export function createClient(): never {
+  throw new Error('Supabase has been removed. Use fetch API instead.')
+}

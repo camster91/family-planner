@@ -1,29 +1,21 @@
-import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { verifyToken } from '@/lib/auth'
 
-export const createClient = async () => {
+// Stub: returns the authenticated user ID from the JWT cookie.
+// Used by server components that previously called supabase.auth.getSession().
+export async function getServerUser(): Promise<{ id: string; email: string } | null> {
   const cookieStore = await cookies()
+  const token = cookieStore.get('session_token')?.value
+  if (!token) return null
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
-  )
+  const payload = verifyToken(token)
+  if (!payload || !payload.userId) return null
+
+  return { id: payload.userId, email: payload.email as string }
+}
+
+// Legacy export kept so existing imports don't break during migration.
+// Callers should migrate to getServerUser() + prisma directly.
+export async function createClient() {
+  throw new Error('Supabase has been removed. Use getServerUser() + prisma instead.')
 }

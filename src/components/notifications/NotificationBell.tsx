@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Bell, Check, X, Clock, Calendar, MessageSquare, Award } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
 
 export default function NotificationBell() {
@@ -10,29 +9,30 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Load notifications
   useEffect(() => {
     loadNotifications()
-    subscribeToNotifications()
+
+    // Poll for new notifications every 10 seconds
+    pollIntervalRef.current = setInterval(loadNotifications, 10000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
   }, [])
 
   const loadNotifications = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/notifications')
+      const data = await res.json()
 
-      const { data: notificationsData } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      if (notificationsData) {
-        setNotifications(notificationsData)
-        const unread = notificationsData.filter(n => !n.read).length
+      if (res.ok && data.notifications) {
+        setNotifications(data.notifications)
+        const unread = data.notifications.filter((n: any) => !n.read).length
         setUnreadCount(unread)
       }
     } catch (err) {
@@ -42,36 +42,15 @@ export default function NotificationBell() {
     }
   }
 
-  const subscribeToNotifications = () => {
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-        },
-        (payload) => {
-          setNotifications(prev => [payload.new, ...prev])
-          setUnreadCount(prev => prev + 1)
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }
-
   const handleMarkAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId)
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId }),
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error('Failed to mark as read')
 
       setNotifications(prev =>
         prev.map(n =>
@@ -86,16 +65,13 @@ export default function NotificationBell() {
 
   const handleMarkAllAsRead = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true }),
+      })
 
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id)
-        .eq('read', false)
-
-      if (error) throw error
+      if (!res.ok) throw new Error('Failed to mark all as read')
 
       setNotifications(prev =>
         prev.map(n => ({ ...n, read: true }))
@@ -108,15 +84,16 @@ export default function NotificationBell() {
 
   const handleDeleteNotification = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId)
+      const res = await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId }),
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error('Failed to delete notification')
 
-      setNotifications(prev => prev.filter(n => n.id !== notificationId))
       const wasUnread = notifications.find(n => n.id === notificationId)?.read === false
+      setNotifications(prev => prev.filter(n => n.id !== notificationId))
       if (wasUnread) {
         setUnreadCount(prev => Math.max(0, prev - 1))
       }

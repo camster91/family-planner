@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 interface NotificationData {
   userId: string
@@ -10,23 +10,15 @@ interface NotificationData {
 export class NotificationServiceServer {
   async sendNotification(data: NotificationData) {
     try {
-      const supabase = await createClient()
-      const { error } = await supabase
-        .from('notifications')
-        .insert([
-          {
-            user_id: data.userId,
-            title: data.title,
-            message: data.message,
-            type: data.type,
-            read: false,
-          },
-        ])
-
-      if (error) {
-        console.error('Error sending notification:', error)
-        return false
-      }
+      await prisma!.notification.create({
+        data: {
+          user_id: data.userId,
+          title: data.title,
+          message: data.message,
+          type: data.type,
+          read: false,
+        },
+      })
 
       return true
     } catch (error) {
@@ -45,13 +37,24 @@ export class NotificationServiceServer {
         type: 'chore'
       })
     }
-    
+
     // Send notification to the person who completed it
     await this.sendNotification({
       userId: assignee.id,
       title: 'Great Job!',
       message: `You completed "${chore.title}"`,
       type: 'reward'
+    })
+  }
+  async notifyChoreAssignment(chore: any, assignedTo: any, assignedBy: any) {
+    const title = 'New Chore Assigned'
+    const message = `${assignedBy.name} assigned you "${chore.title}" (due ${new Date(chore.due_date).toLocaleDateString()})`
+
+    await this.sendNotification({
+      userId: assignedTo.id,
+      title,
+      message,
+      type: 'chore',
     })
   }
 }

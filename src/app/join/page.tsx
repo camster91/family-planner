@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,11 +14,9 @@ export default function JoinFamilyPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [familyInfo, setFamilyInfo] = useState<any>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   // Check for code in URL
   useEffect(() => {
-    // Use window.location to avoid useSearchParams() Suspense issue
     if (typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search)
       const urlCode = searchParams.get('code')
@@ -32,27 +29,15 @@ export default function JoinFamilyPage() {
 
   const checkFamilyCode = async (familyCode: string) => {
     try {
-      // Extract family ID from code (in MVP, code is FAM-{family_id_slice})
-      const familyIdMatch = familyCode.match(/FAM-([A-Z0-9]+)/)
-      if (!familyIdMatch) {
-        setError('Invalid family code format')
+      const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Family not found. Please check the code.')
         return
       }
 
-      // In a real app, you would have an invites table
-      // For MVP, we'll simulate by checking if family exists
-      const { data: family, error: familyError } = await supabase
-        .from('families')
-        .select('id, name')
-        .ilike('id', `%${familyIdMatch[1].toLowerCase()}%`)
-        .single()
-
-      if (familyError || !family) {
-        setError('Family not found. Please check the code.')
-        return
-      }
-
-      setFamilyInfo(family)
+      setFamilyInfo(data.family)
       setError(null)
     } catch (err) {
       console.error('Error checking family code:', err)
@@ -66,61 +51,36 @@ export default function JoinFamilyPage() {
     setError(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        // Redirect to login with redirect back to join
+      // Check if user is logged in
+      const meRes = await fetch('/api/auth/me')
+      const meData = await meRes.json()
+
+      if (!meRes.ok || !meData.user) {
         router.push(`/login?redirect=/join?code=${code}`)
         return
       }
 
-      // Check if user already has a family
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single()
-
-      if (userData?.family_id) {
-        setError('You already belong to a family. Leave your current family first.')
+      if (!familyInfo) {
+        setError('Please check the family code first')
         setLoading(false)
         return
       }
 
-      // Extract family ID from code
-      const familyIdMatch = code.match(/FAM-([A-Z0-9]+)/)
-      if (!familyIdMatch) {
-        setError('Invalid family code format')
+      // Join the family
+      const joinRes = await fetch('/api/family/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ familyId: familyInfo.id }),
+      })
+      const joinData = await joinRes.json()
+
+      if (!joinRes.ok) {
+        setError(joinData.error || 'Failed to join family')
         setLoading(false)
         return
       }
 
-      // Find family by ID (simplified for MVP)
-      const { data: family, error: familyError } = await supabase
-        .from('families')
-        .select('id, name')
-        .ilike('id', `%${familyIdMatch[1].toLowerCase()}%`)
-        .single()
-
-      if (familyError || !family) {
-        setError('Family not found. Please check the code.')
-        setLoading(false)
-        return
-      }
-
-      // Update user to join family
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ family_id: family.id })
-        .eq('id', user.id)
-
-      if (updateError) {
-        setError(updateError.message)
-        setLoading(false)
-        return
-      }
-
-      setSuccess(`Successfully joined ${family.name}!`)
+      setSuccess(`Successfully joined ${joinData.familyName || familyInfo.name}!`)
       setTimeout(() => {
         router.push('/dashboard')
         router.refresh()

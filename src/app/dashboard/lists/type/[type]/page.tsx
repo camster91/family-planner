@@ -1,6 +1,7 @@
 import { ArrowLeft, PlusCircle, ShoppingCart, CheckSquare, Utensils, Heart, List } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 const typeConfigs = {
   grocery: {
@@ -36,20 +37,16 @@ const typeConfigs = {
 }
 
 export default async function ListsByTypePage({ params }: { params: { type: string } }) {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true },
+  })
 
   if (!user) {
     return null
@@ -67,7 +64,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Lists
         </Link>
-        
+
         <div className="card text-center py-12">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <List className="w-8 h-8 text-gray-400" />
@@ -92,16 +89,14 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
   // Get lists of this type
   let lists: any[] = []
   try {
-    const { data: listsData, error: listsError } = await supabase
-      .from('lists')
-      .select('*, items:list_items(count), creator:users(name)')
-      .eq('family_id', user.family_id)
-      .eq('type', params.type)
-      .order('updated_at', { ascending: false })
-    
-    if (!listsError) {
-      lists = listsData || []
-    }
+    lists = await (prisma as any).list.findMany({
+      where: { family_id: user.family_id, type: params.type },
+      include: {
+        items: true,
+        creator: { select: { name: true } },
+      },
+      orderBy: { updated_at: 'desc' },
+    })
   } catch (error) {
     console.warn('Error fetching lists:', error)
   }
@@ -158,7 +153,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
             <div>
               <p className="text-sm font-medium text-gray-600">Total Items</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {lists.reduce((total, list) => total + (list.items?.count || 0), 0)}
+                {lists.reduce((total: number, list: any) => total + (list.items?.length || 0), 0)}
               </p>
             </div>
           </div>
@@ -190,7 +185,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
 
         {lists.length > 0 ? (
           <div className="space-y-4">
-            {lists.map((list) => (
+            {lists.map((list: any) => (
               <Link
                 key={list.id}
                 href={`/dashboard/lists/${list.id}`}
@@ -209,7 +204,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
                       <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                         <span>Created by {list.creator?.name}</span>
                         <span>•</span>
-                        <span>{list.items?.count || 0} items</span>
+                        <span>{list.items?.length || 0} items</span>
                         <span>•</span>
                         <span>Updated {new Date(list.updated_at).toLocaleDateString()}</span>
                       </div>
@@ -272,7 +267,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
               </div>
             </>
           )}
-          
+
           {params.type === 'todo' && (
             <>
               <div className="flex items-start">
@@ -301,7 +296,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
               </div>
             </>
           )}
-          
+
           {params.type === 'meal_plan' && (
             <>
               <div className="flex items-start">

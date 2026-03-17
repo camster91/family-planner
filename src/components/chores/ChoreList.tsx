@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { CheckCircle, Clock, AlertCircle, User, Edit, Trash2, CheckCheck, Repeat } from 'lucide-react'
 import { Chore, BasicUser } from '@/types'
 import { formatDate, getChoreStatusColor, timeRemaining, fileToBase64 } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
-import { notificationService } from '@/lib/notifications'
 
 interface ChoreListProps {
   chores: (Chore & {
@@ -20,7 +18,6 @@ export default function ChoreList({ chores, familyMembers, currentUserId }: Chor
   const [editingChore, setEditingChore] = useState<string | null>(null)
   const [deletingChore, setDeletingChore] = useState<string | null>(null)
   const [photoFiles, setPhotoFiles] = useState<Record<string, File>>({})
-  const supabase = createClient()
 
   const handleCompleteChore = async (choreId: string) => {
     try {
@@ -78,7 +75,7 @@ export default function ChoreList({ chores, familyMembers, currentUserId }: Chor
     try {
       const photoFile = photoFiles[choreId]
       let photoUrl = null
-      
+
       if (photoFile) {
         // Convert to base64 for now (in production, upload to storage)
         const base64 = await fileToBase64(photoFile)
@@ -118,12 +115,18 @@ export default function ChoreList({ chores, familyMembers, currentUserId }: Chor
     if (!confirm('Are you sure you want to delete this chore?')) return
 
     try {
-      const { error } = await supabase
-        .from('chores')
-        .delete()
-        .eq('id', choreId)
+      const response = await fetch('/api/chores', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ choreId }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete chore')
+      }
 
       // Refresh the page
       window.location.reload()
@@ -170,7 +173,7 @@ export default function ChoreList({ chores, familyMembers, currentUserId }: Chor
                 <CheckCircle className="w-4 h-4 text-white" />
               )}
             </button>
-            
+
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-medium text-gray-900">{chore.title}</h3>
@@ -183,28 +186,28 @@ export default function ChoreList({ chores, familyMembers, currentUserId }: Chor
                   </span>
                 )}
               </div>
-              
+
               {chore.description && (
                 <p className="text-sm text-gray-600 mt-1">{chore.description}</p>
               )}
-              
+
               <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
                 <div className="flex items-center">
                   <Clock className="w-4 h-4 mr-1" />
                   Due {formatDate(chore.due_date)} ({timeRemaining(chore.due_date)})
                 </div>
-                
+
                 <div className="flex items-center">
                   <User className="w-4 h-4 mr-1" />
                   {chore.assignee?.name || 'Unassigned'}
                 </div>
-                
+
                 {chore.difficulty && (
                   <span className="capitalize">
                     Difficulty: {chore.difficulty}
                   </span>
                 )}
-                
+
                 {chore.frequency && chore.frequency !== 'once' && (
                   <div className="flex items-center">
                     <Repeat className="w-4 h-4 mr-1" />

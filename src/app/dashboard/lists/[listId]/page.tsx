@@ -1,23 +1,20 @@
 import { ArrowLeft, PlusCircle, CheckCircle, CheckSquare, Trash2, Edit, Share } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import ListItems from '@/components/lists/ListItems'
 
 export default async function ListDetailPage({ params }: { params: { listId: string } }) {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true },
+  })
 
   if (!user) {
     return null
@@ -26,27 +23,22 @@ export default async function ListDetailPage({ params }: { params: { listId: str
   // Get the list
   let list: any = null
   let items: any[] = []
-  
+
   try {
-    const { data: listData, error: listError } = await supabase
-      .from('lists')
-      .select('*, creator:users(name, avatar_url)')
-      .eq('id', params.listId)
-      .single()
-    
-    if (!listError && listData) {
-      list = listData
-      
-      // Get list items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('list_items')
-        .select('*, added_by:users(name, avatar_url), checked_by:users(name)')
-        .eq('list_id', params.listId)
-        .order('position', { ascending: true })
-      
-      if (!itemsError) {
-        items = itemsData || []
-      }
+    list = await (prisma as any).list.findUnique({
+      where: { id: params.listId },
+      include: { creator: { select: { name: true, avatar_url: true } } },
+    })
+
+    if (list) {
+      items = await (prisma as any).list_item.findMany({
+        where: { list_id: params.listId },
+        include: {
+          added_by_user: { select: { name: true, avatar_url: true } },
+          checked_by_user: { select: { name: true } },
+        },
+        orderBy: { position: 'asc' },
+      })
     }
   } catch (error) {
     console.error('Error fetching list:', error)
@@ -62,7 +54,7 @@ export default async function ListDetailPage({ params }: { params: { listId: str
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Lists
         </Link>
-        
+
         <div className="card text-center py-12">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckSquare className="w-8 h-8 text-gray-400" />
@@ -134,7 +126,7 @@ export default async function ListDetailPage({ params }: { params: { listId: str
                 <p className="text-gray-600 mt-2">{list.description}</p>
               </div>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-2">
@@ -144,18 +136,18 @@ export default async function ListDetailPage({ params }: { params: { listId: str
                 </div>
                 Created by {list.creator?.name || 'Unknown'}
               </div>
-              
+
               <div>
                 Updated {new Date(list.updated_at).toLocaleDateString()}
               </div>
-              
+
               <div className="flex items-center">
                 <CheckCircle className="w-4 h-4 mr-1" />
                 {checkedItems} of {totalItems} items completed
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <button
               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -180,8 +172,8 @@ export default async function ListDetailPage({ params }: { params: { listId: str
               <span className="text-gray-600">{progressPercentage}% complete</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-green-600 h-2 rounded-full transition-all duration-300" 
+              <div
+                className="bg-green-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
@@ -190,11 +182,11 @@ export default async function ListDetailPage({ params }: { params: { listId: str
       </div>
 
       {/* List Items */}
-      <ListItems 
+      <ListItems
         listId={list.id}
         initialItems={items}
         listType={list.type}
-        userId={session.user.id}
+        userId={sessionUser.id}
       />
 
       {/* Quick Stats */}
@@ -231,7 +223,7 @@ export default async function ListDetailPage({ params }: { params: { listId: str
             <div>
               <p className="text-sm font-medium text-gray-600">Contributors</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {new Set(items.map(item => item.added_by?.id)).size || 1}
+                {new Set(items.map(item => item.added_by)).size || 1}
               </p>
             </div>
           </div>

@@ -1,34 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Settings, Bell, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { eventReminderService } from '@/lib/eventReminders'
 
 export default function AdminControls() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
-  const supabase = createClient()
 
   // Check if user is admin (parent role)
   const [isAdmin, setIsAdmin] = useState(false)
 
-  useState(() => {
+  useEffect(() => {
     checkUserRole()
-  })
+  }, [])
 
   const checkUserRole = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: userData } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-      if (userData?.role === 'parent') {
+      const res = await fetch('/api/auth/me')
+      const data = await res.json()
+      if (res.ok && data.user?.role === 'parent') {
         setIsAdmin(true)
       }
     } catch (err) {
@@ -71,15 +62,13 @@ export default function AdminControls() {
     setMessage(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearAll: true }),
+      })
 
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('user_id', user.id)
-
-      if (error) throw error
+      if (!res.ok) throw new Error('Failed to clear notifications')
 
       setMessage({ type: 'success', text: 'Notifications cleared!' })
       // Refresh page to update notification count
@@ -108,8 +97,8 @@ export default function AdminControls() {
 
       {message && (
         <div className={`mb-6 p-4 rounded-md ${
-          message.type === 'success' 
-            ? 'bg-green-50 text-green-800 border border-green-200' 
+          message.type === 'success'
+            ? 'bg-green-50 text-green-800 border border-green-200'
             : 'bg-red-50 text-red-800 border border-red-200'
         }`}>
           <div className="flex items-center">
@@ -184,7 +173,7 @@ export default function AdminControls() {
 
       <div className="mt-6 text-sm text-gray-500">
         <p>
-          💡 <strong>Note:</strong> These controls are for testing purposes only. 
+          💡 <strong>Note:</strong> These controls are for testing purposes only.
           In production, reminders would be sent automatically.
         </p>
       </div>

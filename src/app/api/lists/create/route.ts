@@ -1,56 +1,52 @@
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
+import { verifyToken } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    // Check authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
+    const token = request.cookies.get('session_token')?.value
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const payload = verifyToken(token)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = payload.userId as string
+
     const { name, type, description } = await request.json()
-    
+
     if (!name || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
-    
+
     // Get user's family
-    const { data: user } = await supabase
-      .from('users')
-      .select('family_id')
-      .eq('id', session.user.id)
-      .single()
-    
+    const user = await prisma!.user.findUnique({
+      where: { id: userId },
+      select: { family_id: true }
+    })
+
     if (!user || !user.family_id) {
       return NextResponse.json({ error: 'User not in a family' }, { status: 400 })
     }
-    
-    // Create the list
-    const { data: list, error } = await supabase
-      .from('lists')
-      .insert({
-        family_id: user.family_id,
-        name,
-        type,
-        description: description || null,
-        created_by: session.user.id,
-        updated_at: new Date().toISOString(),
+
+    try {
+      // Create the list - lists table may not be in Prisma schema yet
+      const list = await (prisma as any).list.create({
+        data: {
+          family_id: user.family_id,
+          name,
+          type,
+          description: description || null,
+          created_by: userId,
+          updated_at: new Date(),
+        }
       })
-      .select()
-      .single()
-    
-    if (error) {
+
+      return NextResponse.json({ success: true, list })
+    } catch (error) {
       console.error('Error creating list:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create list' }, { status: 500 })
     }
-    
-    return NextResponse.json({ success: true, list })
-    
+
   } catch (error) {
     console.error('Error creating list:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -1,5 +1,3 @@
-import { createClient } from '@/lib/supabase/client'
-
 interface NotificationData {
   userId: string
   title: string
@@ -8,28 +6,14 @@ interface NotificationData {
 }
 
 class NotificationService {
-  private supabase = createClient()
-
   async sendNotification(data: NotificationData) {
     try {
-      const { error } = await this.supabase
-        .from('notifications')
-        .insert([
-          {
-            user_id: data.userId,
-            title: data.title,
-            message: data.message,
-            type: data.type,
-            read: false,
-          },
-        ])
-
-      if (error) {
-        console.error('Error sending notification:', error)
-        return false
-      }
-
-      return true
+      const res = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      return res.ok
     } catch (err) {
       console.error('Error in sendNotification:', err)
       return false
@@ -39,24 +23,12 @@ class NotificationService {
   // Send notification to multiple users
   async sendNotificationsToUsers(users: string[], data: Omit<NotificationData, 'userId'>) {
     try {
-      const notifications = users.map(userId => ({
-        user_id: userId,
-        title: data.title,
-        message: data.message,
-        type: data.type,
-        read: false,
-      }))
-
-      const { error } = await this.supabase
-        .from('notifications')
-        .insert(notifications)
-
-      if (error) {
-        console.error('Error sending notifications to users:', error)
-        return false
-      }
-
-      return true
+      const results = await Promise.all(
+        users.map(userId =>
+          this.sendNotification({ ...data, userId })
+        )
+      )
+      return results.every(Boolean)
     } catch (err) {
       console.error('Error in sendNotificationsToUsers:', err)
       return false
@@ -66,23 +38,12 @@ class NotificationService {
   // Send notification to all family members
   async sendNotificationToFamily(familyId: string, data: Omit<NotificationData, 'userId'>) {
     try {
-      // Get all users in the family
-      const { data: users, error: usersError } = await this.supabase
-        .from('users')
-        .select('id')
-        .eq('family_id', familyId)
-
-      if (usersError) {
-        console.error('Error getting family users:', usersError)
-        return false
-      }
-
-      if (!users || users.length === 0) {
-        return false
-      }
-
-      const userIds = users.map(user => user.id)
-      return this.sendNotificationsToUsers(userIds, data)
+      const res = await fetch(`/api/notifications/family`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ familyId, ...data }),
+      })
+      return res.ok
     } catch (err) {
       console.error('Error in sendNotificationToFamily:', err)
       return false

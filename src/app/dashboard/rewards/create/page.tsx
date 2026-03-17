@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, Trophy, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 
 export default function CreateRewardPage() {
   const [title, setTitle] = useState('')
@@ -14,7 +13,6 @@ export default function CreateRewardPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,40 +21,24 @@ export default function CreateRewardPage() {
     setSuccess(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in')
-        return
-      }
-
-      // Get user's family
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id, role')
-        .eq('id', user.id)
-        .single()
-
-      if (!userData || userData.role !== 'parent') {
-        setError('Only parents can create rewards')
-        return
-      }
-
-      const { error: insertError } = await supabase
-        .from('rewards')
-        .insert({
-          family_id: userData.family_id,
+      const res = await fetch('/api/rewards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title,
           description: description || null,
           point_cost: pointCost,
-        })
+        }),
+      })
+      const data = await res.json()
 
-      if (insertError) {
-        setError(insertError.message)
+      if (!res.ok) {
+        setError(data.error || 'Failed to create reward')
         return
       }
 
       setSuccess('Reward created successfully!')
-      
+
       // Redirect after a brief delay
       setTimeout(() => {
         router.push('/dashboard/rewards')
@@ -159,7 +141,7 @@ export default function CreateRewardPage() {
                 <div className="text-sm text-gray-600">points</div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-4 gap-2 mt-4">
               {[10, 25, 50, 100].map((points) => (
                 <button

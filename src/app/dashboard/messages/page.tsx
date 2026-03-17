@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Paperclip, Smile, User, CheckCheck, Users } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
 
 export default function MessagesPage() {
@@ -11,87 +10,38 @@ export default function MessagesPage() {
   const [familyMembers, setFamilyMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const supabase = createClient()
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Load messages and family members
   useEffect(() => {
     loadData()
-    subscribeToMessages()
+
+    // Poll for new messages every 5 seconds
+    pollIntervalRef.current = setInterval(loadData, 5000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
   }, [])
 
   const loadData = async () => {
-    setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/messages')
+      const data = await res.json()
 
-      // Get user's family
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!userData?.family_id) return
-
-      // Load messages
-      const { data: messagesData } = await supabase
-        .from('messages')
-        .select('*, sender:users!messages_sender_id_fkey(name, avatar_url)')
-        .eq('family_id', userData.family_id)
-        .order('created_at', { ascending: true })
-        .limit(50)
-
-      if (messagesData) {
-        setMessages(messagesData)
-      }
-
-      // Load family members
-      const { data: members } = await supabase
-        .from('users')
-        .select('id, name, role, avatar_url')
-        .eq('family_id', userData.family_id)
-        .order('name')
-
-      if (members) {
-        setFamilyMembers(members)
+      if (res.ok) {
+        if (data.messages) setMessages(data.messages)
+        if (data.members) setFamilyMembers(data.members)
+        if (data.userId) setCurrentUserId(data.userId)
       }
     } catch (err) {
       console.error('Error loading data:', err)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const subscribeToMessages = () => {
-    const channel = supabase
-      .channel('messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        (payload) => {
-          // Fetch the new message with sender details
-          supabase
-            .from('messages')
-            .select('*, sender:users!messages_sender_id_fkey(name, avatar_url)')
-            .eq('id', payload.new.id)
-            .single()
-            .then(({ data }) => {
-              if (data) {
-                setMessages(prev => [...prev, data])
-              }
-            })
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
     }
   }
 
@@ -109,30 +59,19 @@ export default function MessagesPage() {
 
     setSending(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newMessage.trim(), type: 'text' }),
+      })
+      const data = await res.json()
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single()
+      if (!res.ok) throw new Error(data.error || 'Failed to send message')
 
-      if (!userData?.family_id) return
-
-      const { error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            family_id: userData.family_id,
-            sender_id: user.id,
-            content: newMessage.trim(),
-            type: 'text',
-            read_by: [user.id],
-          },
-        ])
-
-      if (error) throw error
+      // Add the new message to the list immediately
+      if (data.message) {
+        setMessages(prev => [...prev, data.message])
+      }
 
       setNewMessage('')
     } catch (err) {
@@ -217,7 +156,7 @@ export default function MessagesPage() {
                 </div>
               ) : (
                 messages.map((message) => {
-                  const isCurrentUser = message.sender_id === supabase.auth.getUser().then(u => u.data.user?.id)
+                  const isCurrentUser = message.sender_id === currentUserId
                   return (
                     <div
                       key={message.id}
@@ -337,7 +276,7 @@ export default function MessagesPage() {
               </div>
             ) : (
               messages.map((message) => {
-                const isCurrentUser = message.sender_id === supabase.auth.getUser().then(u => u.data.user?.id)
+                const isCurrentUser = message.sender_id === currentUserId
                 return (
                   <div
                     key={message.id}
@@ -423,4 +362,3 @@ export default function MessagesPage() {
     </div>
   )
 }
-

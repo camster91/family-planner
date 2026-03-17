@@ -3,12 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { 
-  Home, 
-  Calendar, 
-  CheckSquare, 
-  MessageSquare, 
-  Users, 
+import {
+  Home,
+  Calendar,
+  CheckSquare,
+  MessageSquare,
+  Users,
   Settings,
   LogOut,
   Menu,
@@ -17,7 +17,6 @@ import {
   List,
   BarChart3
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { User } from '@/types'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -30,7 +29,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -45,7 +43,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   ]
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
     router.refresh()
   }
@@ -64,7 +62,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 <span className="ml-2 text-xl font-bold text-gray-900">Family Planner</span>
               </Link>
             </div>
-            
+
             <div className="hidden md:ml-8 md:flex md:space-x-1">
               {navigation.map((item) => {
                 const isActive = pathname === item.href

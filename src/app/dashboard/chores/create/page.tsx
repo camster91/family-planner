@@ -1,11 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, PlusCircle } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { notificationService } from '@/lib/notifications'
 
 export default function CreateChorePage() {
   const [title, setTitle] = useState('')
@@ -22,36 +20,21 @@ export default function CreateChorePage() {
   const [error, setError] = useState<string | null>(null)
   const [familyMembers, setFamilyMembers] = useState<any[]>([])
   const router = useRouter()
-  const supabase = createClient()
 
   // Load family members on component mount
-  useState(() => {
+  useEffect(() => {
     loadFamilyMembers()
-  })
+  }, [])
 
   const loadFamilyMembers = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const res = await fetch('/api/family/members')
+      const data = await res.json()
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!userData?.family_id) return
-
-      const { data: members } = await supabase
-        .from('users')
-        .select('id, name, role, age')
-        .eq('family_id', userData.family_id)
-        .order('role', { ascending: false })
-
-      if (members) {
-        setFamilyMembers(members)
-        if (members.length > 0 && !assignedTo) {
-          setAssignedTo(members[0].id)
+      if (res.ok && data.members) {
+        setFamilyMembers(data.members)
+        if (data.members.length > 0 && !assignedTo) {
+          setAssignedTo(data.members[0].id)
         }
       }
     } catch (err) {
@@ -65,80 +48,32 @@ export default function CreateChorePage() {
     setError(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        setError('You must be logged in to create a chore')
-        return
-      }
-
-      // Get user's family
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!userData?.family_id) {
-        setError('You must belong to a family to create chores')
-        return
-      }
-
       // Combine date and time
       let dueDateTime = dueDate
       if (dueTime) {
         dueDateTime = `${dueDate}T${dueTime}`
       }
 
-      // Create chore
-      const { data: newChore, error: choreError } = await supabase
-        .from('chores')
-        .insert([
-          {
-            family_id: userData.family_id,
-            title,
-            description: description || null,
-            points,
-            assigned_to: assignedTo,
-            due_date: dueDateTime,
-            difficulty,
-            frequency,
-            status: 'pending',
-            created_by: user.id,
-            age_min: ageMin || null,
-            age_max: ageMax || null,
-          },
-        ])
-        .select()
-        .single()
+      const res = await fetch('/api/chores/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: description || null,
+          points,
+          assigned_to: assignedTo,
+          due_date: dueDateTime,
+          difficulty,
+          frequency,
+          age_min: ageMin || null,
+          age_max: ageMax || null,
+        }),
+      })
+      const data = await res.json()
 
-      if (choreError) {
-        setError(choreError.message)
+      if (!res.ok) {
+        setError(data.error || 'Failed to create chore')
         return
-      }
-
-      // Send notification to assigned user
-      if (newChore) {
-        // Get assigned user and creator details
-        const { data: assignedUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', assignedTo)
-          .single()
-
-        const { data: creatorUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-
-        if (assignedUser && creatorUser) {
-          await notificationService.notifyChoreAssignment(
-            newChore,
-            assignedUser,
-            creatorUser
-          )
-        }
       }
 
       // Success - redirect to chores page

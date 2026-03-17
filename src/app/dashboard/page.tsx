@@ -1,64 +1,56 @@
 import { Calendar, CheckCircle, MessageSquare, TrendingUp, Users, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import AdminControls from '@/components/admin/AdminControls'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null // Should be handled by layout
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true }
+  })
 
   // Get chore stats
-  const { data: chores } = await supabase
-    .from('chores')
-    .select('*')
-    .eq('family_id', user?.family_id)
-    .eq('assigned_to', session.user.id)
+  const chores = await prisma!.chore.findMany({
+    where: { family_id: user?.family_id, assigned_to: sessionUser.id }
+  })
 
   // Get upcoming events
-  const { data: events } = await supabase
-    .from('events')
-    .select('*')
-    .eq('family_id', user?.family_id)
-    .gte('start_time', new Date().toISOString())
-    .order('start_time', { ascending: true })
-    .limit(5)
+  const events = await prisma!.event.findMany({
+    where: { family_id: user?.family_id, start_time: { gte: new Date() } },
+    orderBy: { start_time: 'asc' },
+    take: 5
+  })
 
   // Get unread messages
-  const { data: messages } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('family_id', user?.family_id)
-    .not('read_by', 'cs', `{${session.user.id}}`)
-    .limit(10)
+  const messages = await prisma!.message.findMany({
+    where: {
+      family_id: user?.family_id,
+      NOT: { read_by: { has: sessionUser.id } }
+    },
+    take: 10
+  })
 
   // Calculate user points from completed chores
-  const { data: completedChores } = await supabase
-    .from('chores')
-    .select('points')
-    .eq('assigned_to', session.user.id)
-    .eq('status', 'completed')
+  const completedChores = await prisma!.chore.findMany({
+    where: { assigned_to: sessionUser.id, status: 'completed' },
+    select: { points: true }
+  })
 
   const userPoints = completedChores?.reduce((total, chore) => total + chore.points, 0) || 0
 
   // Get rewards to see what can be claimed
-  const { data: rewards } = await supabase
-    .from('rewards')
-    .select('point_cost')
-    .eq('family_id', user?.family_id)
-    .is('claimed_by', null)
-    .order('point_cost', { ascending: true })
+  const rewards = await prisma!.reward.findMany({
+    where: { family_id: user?.family_id, claimed_by: null },
+    select: { point_cost: true },
+    orderBy: { point_cost: 'asc' }
+  })
 
   const nextReward = rewards?.[0]?.point_cost || 100
   const pointsProgress = Math.min((userPoints / nextReward) * 100, 100)
@@ -74,7 +66,7 @@ export default async function DashboardPage() {
     unreadMessages: messages?.length || 0,
   }
 
-  const completionRate = stats.totalChores > 0 
+  const completionRate = stats.totalChores > 0
     ? Math.round((stats.completedChores / stats.totalChores) * 100)
     : 0
 
@@ -86,7 +78,7 @@ export default async function DashboardPage() {
           Welcome back, {user?.name}!
         </h1>
         <p className="mt-2 text-gray-600">
-          {user?.family_id 
+          {user?.family_id
             ? `Here's what's happening with your family today.`
             : `Get started by creating or joining a family.`
           }
@@ -136,8 +128,8 @@ export default async function DashboardPage() {
           </div>
           <div className="mt-4">
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-green-600 h-2 rounded-full" 
+              <div
+                className="bg-green-600 h-2 rounded-full"
                 style={{ width: `${completionRate}%` }}
               />
             </div>
@@ -160,8 +152,8 @@ export default async function DashboardPage() {
               <span>{stats.userPoints}/{stats.nextReward}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-yellow-500 h-2 rounded-full" 
+              <div
+                className="bg-yellow-500 h-2 rounded-full"
                 style={{ width: `${stats.pointsProgress}%` }}
               />
             </div>
@@ -281,9 +273,9 @@ export default async function DashboardPage() {
                     <p className="font-medium text-gray-900">{event.title}</p>
                     <p className="text-sm text-gray-600">
                       {new Date(event.start_time).toLocaleDateString()} •{' '}
-                      {new Date(event.start_time).toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
+                      {new Date(event.start_time).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit'
                       })}
                     </p>
                     {event.location && (

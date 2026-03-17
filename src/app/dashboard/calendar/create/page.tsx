@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 
 export default function CreateEventPage() {
   const [title, setTitle] = useState('')
@@ -17,7 +16,6 @@ export default function CreateEventPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,25 +23,6 @@ export default function CreateEventPage() {
     setError(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        setError('You must be logged in to create an event')
-        return
-      }
-
-      // Get user's family
-      const { data: userData } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!userData?.family_id) {
-        setError('You must belong to a family to create events')
-        return
-      }
-
       // Validate dates
       const startDateTime = `${startDate}T${startTime || '00:00'}`
       const endDateTime = endDate ? `${endDate}T${endTime || '23:59'}` : startDateTime
@@ -54,23 +33,21 @@ export default function CreateEventPage() {
         return
       }
 
-      // Create event
-      const { error: eventError } = await supabase
-        .from('events')
-        .insert([
-          {
-            family_id: userData.family_id,
-            title,
-            description: description || null,
-            start_time: startDateTime,
-            end_time: endDateTime,
-            location: location || null,
-            created_by: user.id,
-          },
-        ])
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: description || null,
+          start_time: startDateTime,
+          end_time: endDateTime,
+          location: location || null,
+        }),
+      })
+      const data = await res.json()
 
-      if (eventError) {
-        setError(eventError.message)
+      if (!res.ok) {
+        setError(data.error || 'Failed to create event')
         return
       }
 
@@ -257,7 +234,7 @@ export default function CreateEventPage() {
 
       <div className="mt-8 text-sm text-gray-500">
         <p>
-          💡 <strong>Tip:</strong> Add all family events to the shared calendar so everyone 
+          💡 <strong>Tip:</strong> Add all family events to the shared calendar so everyone
           knows what's happening. You can set reminders and recurring events in future updates.
         </p>
       </div>

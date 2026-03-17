@@ -1,37 +1,37 @@
 import { PlusCircle } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import ChoreList from '@/components/chores/ChoreList'
 
 export default async function ChoresPage() {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true }
+  })
 
   // Get all chores for the family
-  const { data: chores } = await supabase
-    .from('chores')
-    .select('*, assignee:users!chores_assigned_to_fkey(name), creator:users!chores_created_by_fkey(name)')
-    .eq('family_id', user?.family_id)
-    .order('due_date', { ascending: true })
+  const chores = await prisma!.chore.findMany({
+    where: { family_id: user?.family_id },
+    include: {
+      assignee: { select: { name: true } },
+      creator: { select: { name: true } }
+    },
+    orderBy: { due_date: 'asc' }
+  })
 
   // Get family members for assignment
-  const { data: familyMembers } = await supabase
-    .from('users')
-    .select('id, name, role, age')
-    .eq('family_id', user?.family_id)
-    .order('role', { ascending: false }) // Parents first
+  const familyMembers = await prisma!.user.findMany({
+    where: { family_id: user?.family_id },
+    select: { id: true, name: true, role: true, age: true },
+    orderBy: { role: 'desc' }
+  })
 
   const stats = {
     total: chores?.length || 0,
@@ -107,10 +107,10 @@ export default async function ChoresPage() {
         </div>
 
         {chores && chores.length > 0 ? (
-          <ChoreList 
-            chores={chores} 
-            familyMembers={familyMembers || []}
-            currentUserId={session.user.id}
+          <ChoreList
+            chores={chores as any}
+            familyMembers={familyMembers as any || []}
+            currentUserId={sessionUser.id}
           />
         ) : (
           <div className="text-center py-12">

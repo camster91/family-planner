@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { UserPlus } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -14,7 +13,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,56 +34,18 @@ export default function RegisterPage() {
     }
 
     try {
-      // First, sign up the user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
-        },
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
       })
-
-      if (authError) {
-        setError(authError.message)
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Registration failed')
         return
       }
 
-      if (authData.user) {
-        // Create user profile in our database
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: authData.user.id,
-              email,
-              name,
-              role: 'parent', // Default role for new registrants
-              family_id: null, // Will be set when they create/join a family
-            },
-          ])
-
-        if (profileError) {
-          console.error('Error creating user profile:', profileError)
-          // Continue anyway - we can handle this in the dashboard
-        }
-
-        // Check if email confirmation is required
-        if (authData.user.identities?.length === 0) {
-          // Email might already exist
-          setError('This email is already registered. Try signing in instead.')
-          return
-        }
-
-        if (authData.user.confirmed_at) {
-          // Email confirmed, redirect to dashboard
-          router.push('/dashboard')
-        } else {
-          // Email confirmation sent
-          router.push('/register/confirm-email')
-        }
-      }
+      router.push('/dashboard')
     } catch (err) {
       setError('An unexpected error occurred')
       console.error(err)

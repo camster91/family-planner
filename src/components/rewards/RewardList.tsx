@@ -3,8 +3,6 @@
 import { useState } from 'react'
 import { Trophy, Gift, CheckCircle, AlertCircle } from 'lucide-react'
 import { Reward } from '@/types'
-import { createClient } from '@/lib/supabase/client'
-import { notificationService } from '@/lib/notifications'
 
 interface RewardListProps {
   rewards: (Reward & { claimant?: { name: string } })[]
@@ -17,7 +15,6 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
   const [claimingRewardId, setClaimingRewardId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const supabase = createClient()
 
   const availableRewards = rewards.filter(reward => !reward.claimed_by)
   const claimedRewards = rewards.filter(reward => reward.claimed_by === userId)
@@ -33,41 +30,17 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
     setSuccess(null)
 
     try {
-      const { error: updateError } = await supabase
-        .from('rewards')
-        .update({
-          claimed_by: userId,
-          claimed_at: new Date().toISOString(),
-        })
-        .eq('id', rewardId)
+      const res = await fetch('/api/rewards', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rewardId }),
+      })
+      const data = await res.json()
 
-      if (updateError) throw updateError
-
-      // Send notification to parents
-      const { data: parents } = await supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'parent')
-        .eq('family_id', (await supabase.auth.getUser()).data.user?.id ? 
-          await supabase.from('users').select('family_id').eq('id', userId).single().then(r => r.data?.family_id) : null)
-
-      if (parents && parents.length > 0) {
-        const reward = rewards.find(r => r.id === rewardId)
-        const { data: { user } } = await supabase.auth.getUser()
-        const userName = user?.user_metadata?.name || 'A family member'
-        
-        await Promise.all(parents.map(parent => 
-          notificationService.sendNotification({
-            userId: parent.id,
-            title: 'Reward Claimed! 🎉',
-            message: `${userName} claimed "${reward?.title}" for ${pointCost} points`,
-            type: 'reward'
-          })
-        ))
-      }
+      if (!res.ok) throw new Error(data.error || 'Failed to claim reward')
 
       setSuccess(`You successfully claimed the reward for ${pointCost} points!`)
-      
+
       // Refresh page after a delay
       setTimeout(() => {
         window.location.reload()
@@ -126,24 +99,24 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
                     {reward.point_cost} pts
                   </div>
                 </div>
-                
+
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm text-gray-600">Your points:</span>
                     <span className="font-semibold text-gray-900">{userPoints}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between mb-6">
                     <span className="text-sm text-gray-600">Can you afford it?</span>
                     <span className={`font-medium ${
-                      userPoints >= reward.point_cost 
-                        ? 'text-green-600' 
+                      userPoints >= reward.point_cost
+                        ? 'text-green-600'
                         : 'text-red-600'
                     }`}>
                       {userPoints >= reward.point_cost ? 'Yes!' : `${reward.point_cost - userPoints} more needed`}
                     </span>
                   </div>
-                  
+
                   {userPoints >= reward.point_cost && (
                     <button
                       onClick={() => handleClaimReward(reward.id, reward.point_cost)}
@@ -175,8 +148,8 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
             <Gift className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Rewards Available</h3>
             <p className="text-gray-600">
-              {userRole === 'parent' 
-                ? 'Create some rewards for your family!' 
+              {userRole === 'parent'
+                ? 'Create some rewards for your family!'
                 : 'Ask a parent to create some rewards!'}
             </p>
           </div>
@@ -206,7 +179,7 @@ export default function RewardList({ rewards, userPoints, userId, userRole }: Re
                     {reward.point_cost} pts
                   </div>
                 </div>
-                
+
                 <div className="flex items-center text-sm text-gray-600">
                   <Trophy className="w-4 h-4 mr-2" />
                   Claimed on {new Date(reward.claimed_at!).toLocaleDateString()}

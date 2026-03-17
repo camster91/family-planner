@@ -1,31 +1,30 @@
 import { PlusCircle, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 export default async function CalendarPage() {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true }
+  })
 
   // Get events for the family
-  const { data: events } = await supabase
-    .from('events')
-    .select('*, creator:users!events_created_by_fkey(name)')
-    .eq('family_id', user?.family_id)
-    .gte('start_time', new Date().toISOString())
-    .order('start_time', { ascending: true })
-    .limit(20)
+  const events = await prisma!.event.findMany({
+    where: {
+      family_id: user?.family_id,
+      start_time: { gte: new Date() }
+    },
+    include: { creator: { select: { name: true } } },
+    orderBy: { start_time: 'asc' },
+    take: 20
+  })
 
   // Group events by date
   const eventsByDate: Record<string, any[]> = {}

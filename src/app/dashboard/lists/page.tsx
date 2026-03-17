@@ -1,22 +1,19 @@
 import { List, PlusCircle, ShoppingCart, CheckSquare, Utensils, Heart } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 export default async function ListsPage() {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true }
+  })
 
   if (!user) {
     return null
@@ -25,17 +22,15 @@ export default async function ListsPage() {
   // Get family lists
   let lists: any[] = []
   try {
-    const { data: listsData, error: listsError } = await supabase
-      .from('lists')
-      .select('*, items:list_items(count), creator:users(name)')
-      .eq('family_id', user.family_id)
-      .order('updated_at', { ascending: false })
-    
-    if (!listsError) {
-      lists = listsData || []
-    } else {
-      console.warn('Lists table might not exist yet:', listsError.message)
-    }
+    const listsData = await (prisma as any).list.findMany({
+      where: { family_id: user.family_id },
+      include: {
+        items: true,
+        creator: { select: { name: true } }
+      },
+      orderBy: { updated_at: 'desc' }
+    })
+    lists = listsData || []
   } catch (error) {
     console.warn('Error fetching lists:', error)
     // Table might not exist yet - that's okay for now
@@ -142,7 +137,7 @@ export default async function ListsPage() {
                     <div>
                       <h3 className="font-medium text-gray-900">{list.name}</h3>
                       <p className="text-sm text-gray-600">
-                        Created by {list.creator?.name} • {list.items?.count || 0} items
+                        Created by {list.creator?.name} • {list.items?.length || 0} items
                       </p>
                     </div>
                   </div>

@@ -1,63 +1,21 @@
-import { createClient } from '@/lib/supabase/client'
 import { notificationService } from './notifications'
 
 class EventReminderService {
-  private supabase = createClient()
-
   // Check for upcoming events and send reminders
   async checkAndSendReminders() {
     try {
-      const now = new Date()
-      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // 1 hour from now
-      const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24 hours from now
+      const res = await fetch('/api/reminders/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
 
-      // Get events starting in the next hour (for immediate reminders)
-      const { data: immediateEvents, error: immediateError } = await this.supabase
-        .from('events')
-        .select('*, family:families(*), creator:users(*)')
-        .gte('start_time', now.toISOString())
-        .lte('start_time', oneHourFromNow.toISOString())
-        .eq('reminder_sent', false) // Assuming we add this field later
-
-      if (immediateError) {
-        console.error('Error fetching immediate events:', immediateError)
+      if (!res.ok) {
+        console.error('Error checking reminders:', await res.text())
         return
       }
 
-      // Get events starting in the next 24 hours (for daily reminders)
-      const { data: dailyEvents, error: dailyError } = await this.supabase
-        .from('events')
-        .select('*, family:families(*), creator:users(*)')
-        .gte('start_time', oneHourFromNow.toISOString())
-        .lte('start_time', twentyFourHoursFromNow.toISOString())
-        .eq('daily_reminder_sent', false) // Assuming we add this field later
-
-      if (dailyError) {
-        console.error('Error fetching daily events:', dailyError)
-        return
-      }
-
-      // Send immediate reminders
-      for (const event of immediateEvents || []) {
-        await this.sendEventReminder(event, '1 hour')
-        // Mark reminder as sent (would need to add this field to events table)
-        // await this.supabase
-        //   .from('events')
-        //   .update({ reminder_sent: true })
-        //   .eq('id', event.id)
-      }
-
-      // Send daily reminders
-      for (const event of dailyEvents || []) {
-        await this.sendEventReminder(event, '24 hours')
-        // Mark daily reminder as sent
-        // await this.supabase
-        //   .from('events')
-        //   .update({ daily_reminder_sent: true })
-        //   .eq('id', event.id)
-      }
-
-      console.log(`Sent ${immediateEvents?.length || 0} immediate and ${dailyEvents?.length || 0} daily reminders`)
+      const data = await res.json()
+      console.log(`Sent ${data.immediateCount || 0} immediate and ${data.dailyCount || 0} daily reminders`)
     } catch (err) {
       console.error('Error in checkAndSendReminders:', err)
     }
@@ -66,22 +24,21 @@ class EventReminderService {
   // Send reminder for a specific event
   async sendEventReminder(event: any, timeUntil: string) {
     try {
-      // Get all family members
-      const { data: familyMembers, error: membersError } = await this.supabase
-        .from('users')
-        .select('*')
-        .eq('family_id', event.family_id)
-
-      if (membersError || !familyMembers) {
-        console.error('Error getting family members:', membersError)
+      // Get all family members via API
+      const membersRes = await fetch(`/api/family/members?familyId=${event.family_id}`)
+      if (!membersRes.ok) {
+        console.error('Error getting family members')
         return
       }
+
+      const { members: familyMembers } = await membersRes.json()
+      if (!familyMembers || familyMembers.length === 0) return
 
       const title = `Event Reminder: ${event.title}`
       const message = `"${event.title}" starts in ${timeUntil} (${new Date(event.start_time).toLocaleString()})`
 
       await notificationService.sendNotificationsToUsers(
-        familyMembers.map(member => member.id),
+        familyMembers.map((member: any) => member.id),
         {
           title,
           message,
@@ -98,19 +55,13 @@ class EventReminderService {
   // Manual reminder trigger (for testing)
   async triggerManualReminder(eventId: string) {
     try {
-      const { data: event, error } = await this.supabase
-        .from('events')
-        .select('*, family:families(*), creator:users(*)')
-        .eq('id', eventId)
-        .single()
+      const res = await fetch(`/api/reminders/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId }),
+      })
 
-      if (error || !event) {
-        console.error('Error fetching event:', error)
-        return false
-      }
-
-      await this.sendEventReminder(event, 'now')
-      return true
+      return res.ok
     } catch (err) {
       console.error('Error in triggerManualReminder:', err)
       return false
@@ -120,31 +71,18 @@ class EventReminderService {
   // Check for overdue chores and send reminders
   async checkOverdueChores() {
     try {
-      const now = new Date()
+      const res = await fetch('/api/reminders/overdue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
 
-      // Get overdue chores (due date passed, not completed)
-      const { data: overdueChores, error } = await this.supabase
-        .from('chores')
-        .select('*, assignee:users!chores_assigned_to_fkey(*), family:families(*)')
-        .lt('due_date', now.toISOString())
-        .in('status', ['pending', 'in_progress'])
-        .eq('overdue_notification_sent', false) // Assuming we add this field
-
-      if (error) {
-        console.error('Error fetching overdue chores:', error)
+      if (!res.ok) {
+        console.error('Error checking overdue chores:', await res.text())
         return
       }
 
-      for (const chore of overdueChores || []) {
-        await this.sendOverdueChoreReminder(chore)
-        // Mark notification as sent
-        // await this.supabase
-        //   .from('chores')
-        //   .update({ overdue_notification_sent: true })
-        //   .eq('id', chore.id)
-      }
-
-      console.log(`Sent ${overdueChores?.length || 0} overdue chore reminders`)
+      const data = await res.json()
+      console.log(`Sent ${data.count || 0} overdue chore reminders`)
     } catch (err) {
       console.error('Error in checkOverdueChores:', err)
     }

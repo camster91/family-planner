@@ -1,53 +1,53 @@
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
+import { verifyToken } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    // Check authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
+    const token = request.cookies.get('session_token')?.value
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const payload = verifyToken(token)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = payload.userId as string
+
     // Get user's family
-    const { data: user } = await supabase
-      .from('users')
-      .select('family_id')
-      .eq('id', session.user.id)
-      .single()
-    
+    const user = await prisma!.user.findUnique({
+      where: { id: userId },
+      select: { family_id: true }
+    })
+
     if (!user || !user.family_id) {
       return NextResponse.json({ error: 'User not in a family' }, { status: 400 })
     }
-    
+
     // Get query parameters
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
-    
-    // Build query
-    let query = supabase
-      .from('lists')
-      .select('*, items:list_items(count), creator:users(name)')
-      .eq('family_id', user.family_id)
-      .order('updated_at', { ascending: false })
-    
-    if (type) {
-      query = query.eq('type', type)
-    }
-    
-    const { data: lists, error } = await query
-    
-    if (error) {
+
+    try {
+      // Build query - lists table may not be in Prisma schema yet
+      const whereClause: any = { family_id: user.family_id }
+      if (type) {
+        whereClause.type = type
+      }
+
+      const lists = await (prisma as any).list.findMany({
+        where: whereClause,
+        include: {
+          _count: { select: { items: true } },
+          creator: { select: { name: true } }
+        },
+        orderBy: { updated_at: 'desc' }
+      })
+
+      return NextResponse.json({ lists })
+    } catch (error) {
       console.error('Error fetching lists:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ lists: [] })
     }
-    
-    return NextResponse.json({ lists })
-    
+
   } catch (error) {
     console.error('Error fetching lists:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

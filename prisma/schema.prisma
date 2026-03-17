@@ -9,10 +9,10 @@ datasource db {
   provider = "postgresql"
 }
 
-// Extended from Supabase Auth users table
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
+  password     String?
   name         String
   role         String    // 'parent', 'child', 'teen'
   age          Int?

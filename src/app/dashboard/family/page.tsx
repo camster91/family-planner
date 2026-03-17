@@ -1,41 +1,35 @@
 import { Users, UserPlus, Settings, Award, Calendar } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 
 export default async function FamilyPage() {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true }
+  })
 
   // Get family members
-  const { data: familyMembers } = await supabase
-    .from('users')
-    .select('id, name, email, role, age, avatar_url, created_at')
-    .eq('family_id', user?.family_id)
-    .order('role', { ascending: false }) // Parents first
+  const familyMembers = await prisma!.user.findMany({
+    where: { family_id: user?.family_id },
+    select: { id: true, name: true, email: true, role: true, age: true, avatar_url: true, created_at: true },
+    orderBy: { role: 'desc' }
+  })
 
   // Get family stats
-  const { data: chores } = await supabase
-    .from('chores')
-    .select('*')
-    .eq('family_id', user?.family_id)
+  const chores = await prisma!.chore.findMany({
+    where: { family_id: user?.family_id }
+  })
 
-  const { data: events } = await supabase
-    .from('events')
-    .select('*')
-    .eq('family_id', user?.family_id)
-    .gte('start_time', new Date().toISOString())
+  const events = await prisma!.event.findMany({
+    where: { family_id: user?.family_id, start_time: { gte: new Date() } }
+  })
 
   const stats = {
     totalMembers: familyMembers?.length || 0,
@@ -157,11 +151,11 @@ export default async function FamilyPage() {
                     <div className="text-sm text-gray-600">
                       Joined {new Date(member.created_at).toLocaleDateString()}
                     </div>
-                    {member.id === session.user.id && (
+                    {member.id === sessionUser.id && (
                       <div className="text-xs text-blue-600 font-medium mt-1">You</div>
                     )}
                   </div>
-                  {user?.role === 'parent' && member.id !== session.user.id && (
+                  {user?.role === 'parent' && member.id !== sessionUser.id && (
                     <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-md">
                       <Settings className="w-4 h-4" />
                     </button>
@@ -234,9 +228,9 @@ export default async function FamilyPage() {
                 <div className="font-medium text-gray-900">{event.title}</div>
                 <div className="text-sm text-gray-600">
                   {new Date(event.start_time).toLocaleDateString()} •{' '}
-                  {new Date(event.start_time).toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
+                  {new Date(event.start_time).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
                   })}
                 </div>
               </div>

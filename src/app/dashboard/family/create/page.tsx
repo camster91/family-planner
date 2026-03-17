@@ -4,14 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 
 export default function CreateFamilyPage() {
   const [familyName, setFamilyName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleCreateFamily = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -19,34 +17,15 @@ export default function CreateFamilyPage() {
     setError(null)
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        setError('You must be logged in to create a family')
-        return
-      }
+      const res = await fetch('/api/family', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: familyName }),
+      })
+      const data = await res.json()
 
-      // Create family
-      const { data: family, error: familyError } = await supabase
-        .from('families')
-        .insert([{ name: familyName }])
-        .select()
-        .single()
-
-      if (familyError) {
-        setError(familyError.message)
-        return
-      }
-
-      // Update user to join this family
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ family_id: family.id })
-        .eq('id', user.id)
-
-      if (userError) {
-        setError(userError.message)
+      if (!res.ok) {
+        setError(data.error || 'Failed to create family')
         return
       }
 

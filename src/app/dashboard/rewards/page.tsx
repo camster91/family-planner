@@ -1,41 +1,37 @@
 import { Trophy, PlusCircle, Star } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getServerUser } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import RewardList from '@/components/rewards/RewardList'
 
 export default async function RewardsPage() {
-  const supabase = await createClient()
-  
-  // Get user and family data
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session) {
+  const sessionUser = await getServerUser()
+
+  if (!sessionUser) {
     return null
   }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, family:families(*)')
-    .eq('id', session.user.id)
-    .single()
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    include: { family: true }
+  })
 
   if (!user) {
     return null
   }
 
   // Get rewards for the family
-  const { data: rewards } = await supabase
-    .from('rewards')
-    .select('*, claimant:users!rewards_claimed_by_fkey(name)')
-    .eq('family_id', user.family_id)
-    .order('point_cost', { ascending: true })
+  const rewards = await prisma!.reward.findMany({
+    where: { family_id: user!.family_id },
+    include: { claimant: { select: { name: true } } },
+    orderBy: { point_cost: 'asc' }
+  })
 
   // Get user's total points from completed chores
-  const { data: completedChores } = await supabase
-    .from('chores')
-    .select('points')
-    .eq('assigned_to', session.user.id)
-    .eq('status', 'completed')
+  const completedChores = await prisma!.chore.findMany({
+    where: { assigned_to: sessionUser.id, status: 'completed' },
+    select: { points: true }
+  })
 
   const userPoints = completedChores?.reduce((total, chore) => total + chore.points, 0) || 0
 
@@ -83,10 +79,10 @@ export default async function RewardsPage() {
       </div>
 
       {/* Reward List Component */}
-      <RewardList 
-        rewards={rewards || []}
+      <RewardList
+        rewards={rewards as any || []}
         userPoints={userPoints}
-        userId={session.user.id}
+        userId={sessionUser.id}
         userRole={user.role}
       />
 
