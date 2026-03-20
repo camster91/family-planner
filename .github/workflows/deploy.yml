@@ -1,0 +1,53 @@
+﻿name: Build, Test & Deploy to Coolify
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: 'true'
+          NODE_ENV: production
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests --ci
+        env:
+          CI: true
+
+      - name: Trigger Coolify Deployment
+        run: |
+          echo "Triggering Coolify redeploy for $COOLIFY_APP_UUID"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+            "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID&force=true" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Deployment triggered!"
+          else
+            echo "Failed (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
