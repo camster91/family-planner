@@ -28,7 +28,7 @@ export default async function CalendarPage() {
 
   // Group events by date
   const eventsByDate: Record<string, any[]> = {}
-  events?.forEach(event => {
+  events?.forEach((event: any) => {
     const date = new Date(event.start_time).toDateString()
     if (!eventsByDate[date]) {
       eventsByDate[date] = []
