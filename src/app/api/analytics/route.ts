@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
       const dateEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
 
-      const dayChores = recentCompletedChores?.filter(chore => {
+      const dayChores = recentCompletedChores?.filter((chore: any) => {
         if (!chore.completed_at) return false
         const completedDate = new Date(chore.completed_at)
         return completedDate >= dateStart && completedDate < dateEnd
@@ -65,14 +65,14 @@ export async function GET(request: NextRequest) {
         date: date.toISOString().split('T')[0],
         day: date.toLocaleDateString('en-US', { weekday: 'short' }),
         count: dayChores.length,
-        points: dayChores.reduce((sum, chore) => sum + (chore.points || 0), 0)
+        points: dayChores.reduce((sum: number, chore: any) => sum + (chore.points || 0), 0)
       }
     })
 
     // Get member participation
     const memberParticipation = familyMembers?.map(member => {
-      const memberChores = allChores?.filter(chore => chore.assigned_to === member.id) || []
-      const completedChores = memberChores.filter(chore =>
+      const memberChores = allChores?.filter((chore: any) => chore.assigned_to === member.id) || []
+      const completedChores = memberChores.filter((chore: any) =>
         chore.status === 'completed' || chore.status === 'verified'
       )
 
@@ -85,13 +85,13 @@ export async function GET(request: NextRequest) {
         completionRate: memberChores.length > 0
           ? Math.round((completedChores.length / memberChores.length) * 100)
           : 0,
-        totalPoints: completedChores.reduce((sum, chore) => sum + (chore.points || 0), 0)
+        totalPoints: completedChores.reduce((sum: number, chore: any) => sum + (chore.points || 0), 0)
       }
     }) || []
 
     // Calculate family statistics
     const totalChores = allChores?.length || 0
-    const completedChores = allChores?.filter(chore =>
+    const completedChores = allChores?.filter((chore: any) =>
       chore.status === 'completed' || chore.status === 'verified'
     ).length || 0
     const completionRate = totalChores > 0
@@ -100,14 +100,14 @@ export async function GET(request: NextRequest) {
 
     // Calculate points statistics
     const totalPoints = completedChores > 0
-      ? allChores?.filter(chore =>
+      ? allChores?.filter((chore: any) =>
           chore.status === 'completed' || chore.status === 'verified'
-        ).reduce((sum, chore) => sum + (chore.points || 0), 0) || 0
+        ).reduce((sum: number, chore: any) => sum + (chore.points || 0), 0) || 0
       : 0
 
     // Get most active day
     const dayCounts: Record<string, number> = {}
-    recentCompletedChores?.forEach(chore => {
+    recentCompletedChores?.forEach((chore: any) => {
       if (chore.completed_at) {
         const day = new Date(chore.completed_at).toLocaleDateString('en-US', { weekday: 'long' })
         dayCounts[day] = (dayCounts[day] || 0) + 1
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate streaks (simplified)
     const sortedCompletedDates = recentCompletedChores
-      ?.map(chore => chore.completed_at ? new Date(chore.completed_at).toISOString().split('T')[0] : null)
+      ?.map((chore: any) => chore.completed_at ? new Date(chore.completed_at).toISOString().split('T')[0] : null)
       .filter(Boolean)
       .sort()
       .reverse() || []
@@ -160,9 +160,9 @@ export async function GET(request: NextRequest) {
 
     // Get chore difficulty distribution
     const difficultyDistribution = {
-      easy: allChores?.filter(chore => chore.difficulty === 'easy').length || 0,
-      medium: allChores?.filter(chore => chore.difficulty === 'medium').length || 0,
-      hard: allChores?.filter(chore => chore.difficulty === 'hard').length || 0
+      easy: allChores?.filter((chore: any) => chore.difficulty === 'easy').length || 0,
+      medium: allChores?.filter((chore: any) => chore.difficulty === 'medium').length || 0,
+      hard: allChores?.filter((chore: any) => chore.difficulty === 'hard').length || 0
     }
 
     return NextResponse.json({
@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
       memberParticipation,
       topPerformers,
       difficultyDistribution,
-      recentActivity: recentCompletedChores?.slice(0, 10).map(chore => ({
+      recentActivity: recentCompletedChores?.slice(0, 10).map((chore: any) => ({
         id: chore.id,
         title: chore.title,
         points: chore.points,
