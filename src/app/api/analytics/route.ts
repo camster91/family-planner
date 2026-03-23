@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Get member participation
-    const memberParticipation = familyMembers?.map(member => {
+    const memberParticipation = familyMembers?.map((member: any) => {
       const memberChores = allChores?.filter((chore: any) => chore.assigned_to === member.id) || []
       const completedChores = memberChores.filter((chore: any) =>
         chore.status === 'completed' || chore.status === 'verified'
