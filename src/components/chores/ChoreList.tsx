@@ -74,7 +74,7 @@ export default function ChoreList({ chores, familyMembers, currentUserId }: Chor
   const handleCompleteWithPhoto = async (choreId: string) => {
     try {
       const photoFile = photoFiles[choreId]
-      let photoUrl = null
+      let photoUrl: string | null = null
 
       if (photoFile) {
         // Convert to base64 for now (in production, upload to storage)
