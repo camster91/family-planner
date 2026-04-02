@@ -1,0 +1,118 @@
+name: CI - Lint, Test & Docker Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-type-check:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-type-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://placeholder/placeholder
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests --ci
+        env:
+          CI: true
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: lint-and-type-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: family-planner:test
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder
+            NEXT_PUBLIC_APP_URL=https://family.ashbi.ca
+            DATABASE_URL=postgresql://placeholder/placeholder
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image exists
+        run: docker images family-planner:test --format '{{.Repository}}:{{.Tag}}'
+
+      - name: Run container health check
+        run: |
+          container_id=$(docker run -d --rm \
+            -e NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co \
+            -e NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder \
+            -e NEXT_PUBLIC_APP_URL=https://family.ashbi.ca \
+            -e DATABASE_URL=postgresql://placeholder/placeholder \
+            -p 3333:3000 \
+            family-planner:test)
+          
+          echo "Container started: $container_id"
+          
+          # Wait for container to be healthy or timeout
+          for i in {1..30}; do
+            if docker exec "$container_id" wget --spider -q http://localhost:3000/ 2>/dev/null; then
+              echo "Container is responding on port 3000"
+              break
+            fi
+            echo "Waiting for container... ($i/30)"
+            sleep 2
+          done
+          
+          # Check if container is still running
+          if docker ps -q --filter "id=$container_id" | grep -q .; then
+            echo "Container stayed healthy!"
+            docker stop "$container_id" 2>/dev/null || true
+          else
+            echo "Container exited unexpectedly"
+            docker logs "$container_id" 2>/dev/null || true
+            exit 1
+          fi
