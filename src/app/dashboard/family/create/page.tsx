@@ -91,7 +91,7 @@ export default function CreateFamilyPage() {
             <ul className="text-sm text-blue-800 space-y-2">
               <li className="flex items-start">
                 <div className="flex-shrink-0 mt-0.5">✓</div>
-                <span className="ml-2">You'll become the family admin (parent role)</span>
+                <span className="ml-2">You&apos;ll become the family admin (parent role)</span>
               </li>
               <li className="flex items-start">
                 <div className="flex-shrink-0 mt-0.5">✓</div>

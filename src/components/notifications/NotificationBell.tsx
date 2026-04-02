@@ -172,7 +172,7 @@ export default function NotificationBell() {
               <div className="p-8 text-center">
                 <Bell className="w-8 h-8 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-600">No notifications yet</p>
-                <p className="text-sm text-gray-500 mt-1">You're all caught up!</p>
+                <p className="text-sm text-gray-500 mt-1">You&apos;re all caught up!</p>
               </div>
             ) : (
               <div className="divide-y">

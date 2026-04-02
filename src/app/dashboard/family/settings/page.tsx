@@ -181,7 +181,7 @@ export default function FamilySettingsPage() {
           <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-4">No Family Found</h2>
           <p className="text-gray-600 mb-6">
-            You don't belong to a family yet. Create or join a family to access settings.
+            You don&apos;t belong to a family yet. Create or join a family to access settings.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -221,7 +221,7 @@ export default function FamilySettingsPage() {
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Family Settings</h2>
-              <p className="text-gray-600">Manage your family's information and preferences</p>
+              <p className="text-gray-600">Manage your family&apos;s information and preferences</p>
             </div>
           </div>
 

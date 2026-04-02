@@ -61,7 +61,7 @@ export default async function ListDetailPage({ params }: { params: { listId: str
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">List Not Found</h2>
           <p className="text-gray-600 mb-6">
-            The list you're looking for doesn't exist or you don't have access to it.
+            The list you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
           </p>
           <Link
             href="/dashboard/lists"

@@ -23,24 +23,23 @@ export default function CreateChorePage() {
 
   // Load family members on component mount
   useEffect(() => {
-    loadFamilyMembers()
-  }, [])
+    const loadFamilyMembers = async () => {
+      try {
+        const res = await fetch('/api/family/members')
+        const data = await res.json()
 
-  const loadFamilyMembers = async () => {
-    try {
-      const res = await fetch('/api/family/members')
-      const data = await res.json()
-
-      if (res.ok && data.members) {
-        setFamilyMembers(data.members)
-        if (data.members.length > 0 && !assignedTo) {
-          setAssignedTo(data.members[0].id)
+        if (res.ok && data.members) {
+          setFamilyMembers(data.members)
+          if (data.members.length > 0 && !assignedTo) {
+            setAssignedTo(data.members[0].id)
+          }
         }
+      } catch (err) {
+        console.error('Error loading family members:', err)
       }
-    } catch (err) {
-      console.error('Error loading family members:', err)
     }
-  }
+    loadFamilyMembers()
+  }, [assignedTo])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -316,13 +315,13 @@ export default function CreateChorePage() {
           <div>
             <h4 className="font-medium text-blue-800 mb-2">Clear Titles</h4>
             <p className="text-sm text-blue-700">
-              Use specific, actionable titles like "Vacuum living room" instead of "Clean house".
+              Use specific, actionable titles like &quot;Vacuum living room&quot; instead of &quot;Clean house&quot;.
             </p>
           </div>
           <div>
             <h4 className="font-medium text-blue-800 mb-2">Age-Appropriate</h4>
             <p className="text-sm text-blue-700">
-              Match chore difficulty to the child's age and ability level for best results.
+              Match chore difficulty to the child&apos;s age and ability level for best results.
             </p>
           </div>
           <div>

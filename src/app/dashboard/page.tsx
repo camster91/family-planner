@@ -309,7 +309,7 @@ export default async function DashboardPage() {
               <BarChart3 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Track Your Family's Progress</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Track Your Family&apos;s Progress</h3>
               <p className="text-sm text-gray-600">See detailed analytics, trends, and achievements</p>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default async function DashboardPage() {
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">Top Performers</div>
-            <p className="text-sm text-gray-600 mt-2">Discover who's contributing the most in your family</p>
+            <p className="text-sm text-gray-600 mt-2">Discover who&apos;s contributing the most in your family</p>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pink-600">Achievement Tracking</div>
@@ -352,7 +352,7 @@ export default async function DashboardPage() {
           <div>
             <h4 className="font-medium text-gray-900 mb-2">Schedule Events</h4>
             <p className="text-sm text-gray-600">
-              Add family events to the shared calendar so everyone knows what's happening.
+              Add family events to the shared calendar so everyone knows what&apos;s happening.
             </p>
           </div>
           <div>

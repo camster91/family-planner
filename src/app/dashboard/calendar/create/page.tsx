@@ -79,7 +79,7 @@ export default function CreateEventPage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Create New Event</h1>
           <p className="mt-2 text-gray-600">
-            Add an event to your family's shared calendar.
+            Add an event to your family&apos;s shared calendar.
           </p>
         </div>
 
@@ -235,7 +235,7 @@ export default function CreateEventPage() {
       <div className="mt-8 text-sm text-gray-500">
         <p>
           💡 <strong>Tip:</strong> Add all family events to the shared calendar so everyone
-          knows what's happening. You can set reminders and recurring events in future updates.
+          knows what&apos;s happening. You can set reminders and recurring events in future updates.
         </p>
       </div>
     </div>

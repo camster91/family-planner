@@ -152,7 +152,7 @@ export default async function CalendarPage() {
           <ul className="space-y-3">
             <li className="flex items-start">
               <div className="flex-shrink-0 mt-1">📅</div>
-              <span className="ml-3 text-gray-700">Add all family members' schedules in one place</span>
+              <span className="ml-3 text-gray-700">Add all family members&apos; schedules in one place</span>
             </li>
             <li className="flex items-start">
               <div className="flex-shrink-0 mt-1">🔔</div>

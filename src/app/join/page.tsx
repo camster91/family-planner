@@ -165,7 +165,7 @@ export default function JoinFamilyPage() {
                 </button>
               </div>
               <p className="mt-2 text-sm text-gray-600">
-                Get this code from your family admin. It looks like "FAM-ABCD1234".
+                Get this code from your family admin. It looks like &quot;FAM-ABCD1234&quot;.
               </p>
             </div>
 
@@ -195,7 +195,7 @@ export default function JoinFamilyPage() {
 
           <div className="mt-6 pt-6 border-t">
             <div className="text-center text-sm text-gray-600">
-              <p className="mb-4">Don't have a family code?</p>
+              <p className="mb-4">Don&apos;t have a family code?</p>
               <div className="space-y-3">
                 <p>
                   Ask your family admin to send you an invitation or share the family code with you.

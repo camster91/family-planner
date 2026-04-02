@@ -71,7 +71,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">List Type Not Found</h2>
           <p className="text-gray-600 mb-6">
-            The list type "{params.type}" doesn't exist.
+            The list type &quot;{params.type}&quot; doesn&apos;t exist.
           </p>
           <Link
             href="/dashboard/lists"

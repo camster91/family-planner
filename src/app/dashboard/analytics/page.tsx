@@ -55,7 +55,7 @@ export default async function AnalyticsPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Family Analytics</h1>
             <p className="text-gray-600 mt-2">
-              Track your family's progress, participation, and achievements
+              Track your family&apos;s progress, participation, and achievements
             </p>
           </div>
         </div>
