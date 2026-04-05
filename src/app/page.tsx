@@ -31,7 +31,7 @@ export default function Home() {
       </section>
 
       {/* Features Grid */}
-      <section className="mb-16">
+      <section id="features" className="mb-16">
         <h2 className="text-3xl font-bold text-center mb-12">Everything Your Family Needs</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           <div className="card text-center">
@@ -140,12 +140,12 @@ export default function Home() {
           >
             Start Free 14-Day Trial
           </Link>
-          <Link 
-            href="/demo" 
+          <a
+            href="#features"
             className="bg-transparent border-2 border-white hover:bg-white/10 text-lg font-semibold px-8 py-3 rounded-full transition"
           >
-            Watch Demo
-          </Link>
+            See Features
+          </a>
         </div>
         <p className="mt-6 text-blue-100">
           No credit card required • Cancel anytime
