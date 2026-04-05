@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Trigger Coolify Deploy
         run: |
-          response=$(curl -s -w "\n%{http_code}" \
+          response=$(curl -sk -w "\n%{http_code}" \
             "${{ secrets.COOLIFY_WEBHOOK }}" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
           http_code=$(echo "$response" | tail -1)
