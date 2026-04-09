@@ -70,9 +70,7 @@ export default function AdminControls() {
 
       if (!res.ok) throw new Error('Failed to clear notifications')
 
-      setMessage({ type: 'success', text: 'Notifications cleared!' })
-      // Refresh page to update notification count
-      setTimeout(() => window.location.reload(), 1000)
+      setMessage({ type: 'success', text: 'Notifications cleared! Refresh the page to see updated counts.' })
     } catch (err) {
       console.error('Error clearing notifications:', err)
       setMessage({ type: 'error', text: 'Failed to clear notifications' })

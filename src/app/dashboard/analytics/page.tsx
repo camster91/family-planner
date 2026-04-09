@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ProgressVisualization from '@/components/analytics/ProgressVisualization'
+import Leaderboard from '@/components/gamification/Leaderboard'
+import ActivityFeed from '@/components/activity/ActivityFeed'
 
 export default async function AnalyticsPage() {
   const sessionUser = await getServerUser()
@@ -114,6 +116,18 @@ export default async function AnalyticsPage() {
 
       {/* Main Analytics Content */}
       <ProgressVisualization />
+
+      {/* Leaderboard and Activity Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Family Leaderboard</h2>
+          <Leaderboard currentUserId={sessionUser.id} />
+        </div>
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
+          <ActivityFeed />
+        </div>
+      </div>
 
       {/* How to Improve */}
       <div className="card bg-gradient-to-r from-indigo-50 to-purple-50">

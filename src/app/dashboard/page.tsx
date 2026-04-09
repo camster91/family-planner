@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import AdminControls from '@/components/admin/AdminControls'
+import ActivityFeed from '@/components/activity/ActivityFeed'
 
 export default async function DashboardPage() {
   const sessionUser = await getServerUser()
@@ -302,6 +303,22 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Activity Feed */}
+      {user?.family_id && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Family Activity</h2>
+            <Link
+              href="/dashboard/analytics"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+            >
+              View all
+            </Link>
+          </div>
+          <ActivityFeed />
+        </div>
+      )}
 
       {/* Progress Analytics Preview */}
       <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
