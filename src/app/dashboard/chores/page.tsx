@@ -16,22 +16,24 @@ export default async function ChoresPage() {
     include: { family: true }
   })
 
+  const familyId = user?.family_id || undefined
+
   // Get all chores for the family
-  const chores = await prisma!.chore.findMany({
-    where: { family_id: user?.family_id },
+  const chores = familyId ? await prisma!.chore.findMany({
+    where: { family_id: familyId },
     include: {
       assignee: { select: { name: true } },
       creator: { select: { name: true } }
     },
     orderBy: { due_date: 'asc' }
-  })
+  }) : []
 
   // Get family members for assignment
-  const familyMembers = await prisma!.user.findMany({
-    where: { family_id: user?.family_id },
+  const familyMembers = familyId ? await prisma!.user.findMany({
+    where: { family_id: familyId },
     select: { id: true, name: true, role: true, age: true },
     orderBy: { role: 'desc' }
-  })
+  }) : []
 
   const stats = {
     total: chores?.length || 0,

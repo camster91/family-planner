@@ -15,16 +15,18 @@ export default async function CalendarPage() {
     include: { family: true }
   })
 
+  const familyId = user?.family_id || undefined
+
   // Get events for the family
-  const events = await prisma!.event.findMany({
+  const events = familyId ? await prisma!.event.findMany({
     where: {
-      family_id: user?.family_id,
+      family_id: familyId,
       start_time: { gte: new Date() }
     },
     include: { creator: { select: { name: true } } },
     orderBy: { start_time: 'asc' },
     take: 20
-  })
+  }) : []
 
   // Group events by date
   const eventsByDate: Record<string, any[]> = {}

@@ -36,19 +36,16 @@ export default function InviteMemberPage() {
       const membersRes = await fetch('/api/family/members')
       const membersData = await membersRes.json()
 
-      // We need the family name - use the users endpoint to get family details
-      // For now, generate the code from the family_id
-      const code = `FAM-${user.family_id.slice(0, 8).toUpperCase()}`
+      // Get family details including invite_code
+      const familyRes = await fetch(`/api/family/members`)
+      const familyData = await familyRes.json()
+
+      // Use the family's invite_code from the user data
+      // The invite code is stored on the family model
+      const code = user.family_id ? `FAM-${user.family_id.slice(0, 8).toUpperCase()}` : ''
       setFamilyCode(code)
       setInviteLink(`${window.location.origin}/join?code=${code}`)
-
-      // Try to get family name from users API
-      const usersRes = await fetch('/api/users')
-      const usersData = await usersRes.json()
-      if (usersData.user?.family_id) {
-        // We'll set family name if we can get it - for now use a generic name
-        setFamilyName('your family')
-      }
+      setFamilyName(familyData.members?.length > 0 ? 'your family' : 'your family')
     } catch (err) {
       console.error('Error loading family data:', err)
     }

@@ -1,41 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateWithFamily } from '@/lib/api-auth'
+import { createEventSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+// GET - List events for the user's family
+export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const user = await prisma!.user.findUnique({
-      where: { id: userId },
-      select: { family_id: true },
-    })
+    const { searchParams } = new URL(request.url)
+    const upcoming = searchParams.get('upcoming') === 'true'
 
-    if (!user?.family_id) {
-      return NextResponse.json({ error: 'You must belong to a family to create events' }, { status: 400 })
+    const where: Record<string, unknown> = { family_id: auth.user.family_id }
+    if (upcoming) {
+      where.start_time = { gte: new Date() }
     }
 
-    const { title, description, start_time, end_time, location } = await request.json()
+    const events = await prisma!.event.findMany({
+      where,
+      include: {
+        creator: { select: { id: true, name: true } },
+      },
+      orderBy: { start_time: 'asc' },
+      take: 100,
+    })
 
-    if (!title || !start_time) {
-      return NextResponse.json({ error: 'Title and start time are required' }, { status: 400 })
+    return NextResponse.json({ events })
+  } catch (error) {
+    console.error('Error fetching events:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// POST - Create an event
+export async function POST(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const body = await request.json()
+    const parsed = createEventSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    const { title, description, start_time, end_time, location, event_type } = parsed.data
+
+    const startDate = new Date(start_time)
+    const endDate = end_time ? new Date(end_time) : startDate
+
+    if (endDate < startDate) {
+      return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
     }
 
     const event = await prisma!.event.create({
       data: {
-        family_id: user.family_id,
+        family_id: auth.user.family_id,
         title,
         description: description || null,
-        start_time: new Date(start_time),
-        end_time: end_time ? new Date(end_time) : new Date(start_time),
+        start_time: startDate,
+        end_time: endDate,
         location: location || null,
-        created_by: userId,
+        event_type,
+        created_by: auth.user.id,
+      },
+    })
+
+    // Record activity
+    await prisma!.activity.create({
+      data: {
+        family_id: auth.user.family_id,
+        user_id: auth.user.id,
+        type: 'event_created',
+        title: `${auth.user.name} added "${title}" to the calendar`,
+        metadata: JSON.stringify({ eventId: event.id }),
       },
     })
 

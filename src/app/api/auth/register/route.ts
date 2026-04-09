@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword, signToken } from '@/lib/auth'
+import { hashPassword, signToken, checkRateLimit } from '@/lib/auth'
+import { registerSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name, role } = await request.json()
-
-    if (!email || !password || !name) {
-      return NextResponse.json({ error: 'Email, password, and name are required' }, { status: 400 })
+    // Rate limiting by IP
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const rateCheck = checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000) // 5 per hour
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+      )
     }
 
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+    const body = await request.json()
+    const parsed = registerSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+
+    const { email, password, name, role } = parsed.data
 
     const existing = await prisma!.user.findUnique({ where: { email } })
     if (existing) {
@@ -26,8 +35,8 @@ export async function POST(request: NextRequest) {
         email,
         password: hashed,
         name,
-        role: role || 'parent',
-        family_id: '', // Will be set when they create/join a family
+        role,
+        // family_id is null until they create/join a family
       },
     })
 

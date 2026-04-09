@@ -1,55 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateRequest } from '@/lib/api-auth'
+import { updateUserSchema } from '@/lib/validations'
+import { getLevelTitle } from '@/lib/gamification'
 
 export const dynamic = 'force-dynamic'
 
 // GET - Get current user's full profile
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [payload, error] = await authenticateRequest(request)
+    if (error) return error
 
     const user = await prisma!.user.findUnique({
-      where: { id: userId },
+      where: { id: payload.userId },
+      include: {
+        badges: true,
+      },
     })
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ user })
+    const { password: _, ...userWithoutPassword } = user
+
+    return NextResponse.json({
+      user: {
+        ...userWithoutPassword,
+        levelTitle: getLevelTitle(user.level),
+      },
+    })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PATCH - Update user profile
+// PATCH - Update user profile (no family_id changes allowed)
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [payload, error] = await authenticateRequest(request)
+    if (error) return error
 
-    const { name, age, family_id } = await request.json()
+    const body = await request.json()
+    const parsed = updateUserSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
 
-    const updateData: any = {}
-    if (name !== undefined) updateData.name = name
-    if (age !== undefined) updateData.age = age ? parseInt(age) : null
-    if (family_id !== undefined) updateData.family_id = family_id
+    const updateData: Record<string, unknown> = {}
+    if (parsed.data.name !== undefined) updateData.name = parsed.data.name
+    if (parsed.data.age !== undefined) {
+      updateData.age = parsed.data.age ? parseInt(String(parsed.data.age)) : null
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
 
     const user = await prisma!.user.update({
-      where: { id: userId },
+      where: { id: payload.userId },
       data: updateData,
     })
 
-    return NextResponse.json({ user })
+    const { password: _, ...userWithoutPassword } = user
+
+    return NextResponse.json({ user: userWithoutPassword })
   } catch (error) {
     console.error('Error updating user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
+import { ToastProvider } from '@/components/ui/toast'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Family Planner - Organize Your Family Life',
@@ -17,11 +15,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className="font-sans">
         <PostHogProvider>
-          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-            {children}
-          </div>
+          <ToastProvider>
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+              {children}
+            </div>
+          </ToastProvider>
         </PostHogProvider>
       </body>
     </html>

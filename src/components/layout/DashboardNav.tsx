@@ -15,7 +15,9 @@ import {
   X,
   Trophy,
   List,
-  BarChart3
+  BarChart3,
+  Flame,
+  Star
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { User } from '@/types'
@@ -92,6 +94,21 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {/* User menu */}
             <div className="ml-3 relative">
               <div className="flex items-center space-x-3">
+                {/* Gamification mini-stats */}
+                <div className="hidden lg:flex items-center gap-3 mr-2 text-xs">
+                  {(user as any)?.streak > 0 && (
+                    <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full font-medium">
+                      <Flame className="w-3.5 h-3.5" />
+                      {(user as any).streak}d
+                    </div>
+                  )}
+                  {(user as any)?.level > 0 && (
+                    <div className="flex items-center gap-1 bg-purple-50 text-purple-600 px-2 py-1 rounded-full font-medium">
+                      <Star className="w-3.5 h-3.5" />
+                      Lv.{(user as any).level}
+                    </div>
+                  )}
+                </div>
                 <div className="text-sm text-right hidden md:block">
                   <div className="font-medium text-gray-900">{user?.name}</div>
                   <div className="text-gray-500 capitalize">{user?.role}</div>

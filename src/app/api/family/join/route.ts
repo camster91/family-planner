@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateRequest } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [payload, error] = await authenticateRequest(request)
+    if (error) return error
 
-    const { familyId } = await request.json()
-    if (!familyId) {
-      return NextResponse.json({ error: 'familyId is required' }, { status: 400 })
-    }
+    const { familyId, inviteCode } = await request.json()
 
     // Check if user already has a family
     const user = await prisma!.user.findUnique({
-      where: { id: userId },
+      where: { id: payload.userId },
       select: { family_id: true },
     })
 
@@ -27,11 +21,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You already belong to a family. Leave your current family first.' }, { status: 400 })
     }
 
-    // Verify family exists
-    const family = await prisma!.family.findUnique({
-      where: { id: familyId },
-      select: { id: true, name: true },
-    })
+    let family
+
+    if (inviteCode) {
+      // Join by invite code
+      family = await prisma!.family.findUnique({
+        where: { invite_code: inviteCode },
+        select: { id: true, name: true },
+      })
+    } else if (familyId) {
+      // Join by direct ID
+      family = await prisma!.family.findUnique({
+        where: { id: familyId },
+        select: { id: true, name: true },
+      })
+    } else {
+      return NextResponse.json({ error: 'familyId or inviteCode is required' }, { status: 400 })
+    }
 
     if (!family) {
       return NextResponse.json({ error: 'Family not found' }, { status: 404 })
@@ -39,8 +45,8 @@ export async function POST(request: NextRequest) {
 
     // Update user to join family
     await prisma!.user.update({
-      where: { id: userId },
-      data: { family_id: familyId },
+      where: { id: payload.userId },
+      data: { family_id: family.id },
     })
 
     return NextResponse.json({ success: true, familyName: family.name })

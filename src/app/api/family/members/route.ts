@@ -1,35 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateWithFamily } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
-
-    const user = await prisma!.user.findUnique({
-      where: { id: userId },
-      select: { family_id: true },
-    })
-
-    if (!user?.family_id) {
-      return NextResponse.json({ members: [] })
-    }
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
     const members = await prisma!.user.findMany({
-      where: { family_id: user.family_id },
+      where: { family_id: auth.user.family_id },
       select: {
         id: true,
         name: true,
-        email: true,
+        email: auth.user.role === 'parent' ? true : false, // Only parents see emails
         role: true,
         age: true,
         avatar_url: true,
+        points: true,
+        level: true,
+        xp: true,
+        streak: true,
+        best_streak: true,
+        badges: true,
       },
       orderBy: { role: 'desc' },
     })

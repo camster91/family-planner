@@ -1,30 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
+import { createFamilySchema, updateFamilySchema, deleteFamilySchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
 // POST - Create a new family
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [payload, error] = await authenticateRequest(request)
+    if (error) return error
 
-    const { name } = await request.json()
-    if (!name) {
-      return NextResponse.json({ error: 'Family name is required' }, { status: 400 })
+    const body = await request.json()
+    const parsed = createFamilySchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    // Check if user already has a family
+    const existingUser = await prisma!.user.findUnique({
+      where: { id: payload.userId },
+      select: { family_id: true },
+    })
+
+    if (existingUser?.family_id) {
+      return NextResponse.json({ error: 'You already belong to a family' }, { status: 400 })
     }
 
     const family = await prisma!.family.create({
-      data: { name },
+      data: { name: parsed.data.name },
     })
 
     // Update user to join this family
     await prisma!.user.update({
-      where: { id: userId },
+      where: { id: payload.userId },
       data: { family_id: family.id },
     })
 
@@ -35,32 +44,31 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH - Update family settings
+// PATCH - Update family settings (parents only, must be in that family)
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const { familyId, name, subscription_tier } = await request.json()
-    if (!familyId) {
-      return NextResponse.json({ error: 'familyId is required' }, { status: 400 })
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
+
+    const body = await request.json()
+    const parsed = updateFamilySchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    // Verify user belongs to this family
-    const user = await prisma!.user.findUnique({ where: { id: userId } })
-    if (!user || user.family_id !== familyId) {
+    if (parsed.data.familyId !== auth.user.family_id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const updateData: any = {}
-    if (name) updateData.name = name
-    if (subscription_tier) updateData.subscription_tier = subscription_tier
+    const updateData: Record<string, unknown> = {}
+    if (parsed.data.name) updateData.name = parsed.data.name
+    if (parsed.data.subscription_tier) updateData.subscription_tier = parsed.data.subscription_tier
 
     const family = await prisma!.family.update({
-      where: { id: familyId },
+      where: { id: parsed.data.familyId },
       data: updateData,
     })
 
@@ -71,29 +79,27 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE - Delete a family
+// DELETE - Delete a family (parents only)
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const { familyId } = await request.json()
-    if (!familyId) {
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
+
+    const body = await request.json()
+    const parsed = deleteFamilySchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json({ error: 'familyId is required' }, { status: 400 })
     }
 
-    // Verify user belongs to this family and is a parent
-    const user = await prisma!.user.findUnique({ where: { id: userId } })
-    if (!user || user.family_id !== familyId || user.role !== 'parent') {
+    if (parsed.data.familyId !== auth.user.family_id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Delete the family (cascade will handle users via onDelete: Cascade)
     await prisma!.family.delete({
-      where: { id: familyId },
+      where: { id: parsed.data.familyId },
     })
 
     return NextResponse.json({ success: true })
