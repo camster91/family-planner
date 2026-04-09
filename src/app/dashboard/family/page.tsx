@@ -15,21 +15,23 @@ export default async function FamilyPage() {
     include: { family: true }
   })
 
+  const familyId = user?.family_id || undefined
+
   // Get family members
-  const familyMembers = await prisma!.user.findMany({
-    where: { family_id: user?.family_id },
+  const familyMembers = familyId ? await prisma!.user.findMany({
+    where: { family_id: familyId },
     select: { id: true, name: true, email: true, role: true, age: true, avatar_url: true, created_at: true },
     orderBy: { role: 'desc' }
-  })
+  }) : []
 
   // Get family stats
-  const chores = await prisma!.chore.findMany({
-    where: { family_id: user?.family_id }
-  })
+  const chores = familyId ? await prisma!.chore.findMany({
+    where: { family_id: familyId }
+  }) : []
 
-  const events = await prisma!.event.findMany({
-    where: { family_id: user?.family_id, start_time: { gte: new Date() } }
-  })
+  const events = familyId ? await prisma!.event.findMany({
+    where: { family_id: familyId, start_time: { gte: new Date() } }
+  }) : []
 
   const stats = {
     totalMembers: familyMembers?.length || 0,

@@ -16,61 +16,80 @@ model User {
   name         String
   role         String    // 'parent', 'child', 'teen'
   age          Int?
-  family_id    String
+  family_id    String?
   avatar_url   String?
+  points       Int       @default(0)
+  level        Int       @default(1)
+  xp           Int       @default(0)
+  streak       Int       @default(0)
+  best_streak  Int       @default(0)
+  last_chore_date DateTime?
   created_at   DateTime  @default(now())
-  
+
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  family       Family?   @relation(fields: [family_id], references: [id], onDelete: SetNull)
   assigned_chores Chore[] @relation("AssignedChores")
   created_chores Chore[]  @relation("CreatedChores")
   created_events Event[]  @relation("CreatedEvents")
   sent_messages Message[] @relation("SentMessages")
   claimed_rewards Reward[] @relation("ClaimedRewards")
   notifications Notification[]
-  
+  badges       UserBadge[]
+  created_lists List[]    @relation("CreatedLists")
+  list_items_added ListItem[] @relation("AddedItems")
+  list_items_checked ListItem[] @relation("CheckedItems")
+  activities   Activity[] @relation("UserActivities")
+
   @@index([family_id])
 }
 
 model Family {
   id              String    @id @default(cuid())
   name            String
+  invite_code     String    @unique @default(cuid())
   subscription_tier String  @default("free") // 'free', 'premium', 'family'
   created_at      DateTime  @default(now())
-  
+
   // Relations
   members       User[]
   chores        Chore[]
   events        Event[]
   messages      Message[]
   rewards       Reward[]
+  lists         List[]
+  activities    Activity[]
 }
 
 model Chore {
-  id           String    @id @default(cuid())
-  family_id    String
-  title        String
-  description  String?
-  points       Int       @default(10)
-  assigned_to  String    // user_id
-  due_date     DateTime
-  status       String    @default("pending") // 'pending', 'in_progress', 'completed', 'verified', 'overdue'
-  frequency    String    @default("once") // 'once', 'daily', 'weekly', 'monthly'
-  difficulty   String    @default("medium") // 'easy', 'medium', 'hard'
-  verified_at  DateTime?
-  completed_at DateTime?
-  created_at   DateTime  @default(now())
-  created_by   String    // user_id
-  
+  id             String    @id @default(cuid())
+  family_id      String
+  title          String
+  description    String?
+  points         Int       @default(10)
+  assigned_to    String    // user_id
+  due_date       DateTime
+  status         String    @default("pending") // 'pending', 'in_progress', 'completed', 'verified', 'overdue'
+  frequency      String    @default("once") // 'once', 'daily', 'weekly', 'monthly'
+  difficulty     String    @default("medium") // 'easy', 'medium', 'hard'
+  photo_url      String?
+  photo_verified Boolean   @default(false)
+  verified_at    DateTime?
+  verified_notes String?
+  completed_at   DateTime?
+  created_at     DateTime  @default(now())
+  created_by     String    // user_id
+
   // Relations
   family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee     User      @relation("AssignedChores", fields: [assigned_to], references: [id])
   creator      User      @relation("CreatedChores", fields: [created_by], references: [id])
-  
+
   @@index([family_id])
   @@index([assigned_to])
   @@index([status])
   @@index([due_date])
+  @@index([family_id, status])
+  @@index([family_id, assigned_to])
 }
 
 model Event {
@@ -81,16 +100,18 @@ model Event {
   start_time   DateTime
   end_time     DateTime
   location     String?
+  event_type   String    @default("other") // 'school', 'sports', 'appointment', 'family', 'work', 'other'
   recurrence   String?   // RRULE string for recurring events
   created_by   String    // user_id
   created_at   DateTime  @default(now())
-  
+
   // Relations
   family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator      User      @relation("CreatedEvents", fields: [created_by], references: [id])
-  
+
   @@index([family_id])
   @@index([start_time])
+  @@index([family_id, start_time])
 }
 
 model Message {
@@ -102,14 +123,15 @@ model Message {
   attachments  String[]  // Array of file URLs
   read_by      String[]  // Array of user_ids who have read the message
   created_at   DateTime  @default(now())
-  
+
   // Relations
   family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
   sender       User      @relation("SentMessages", fields: [sender_id], references: [id])
-  
+
   @@index([family_id])
   @@index([sender_id])
   @@index([created_at])
+  @@index([family_id, created_at])
 }
 
 model Reward {
@@ -118,16 +140,18 @@ model Reward {
   title        String
   description  String?
   point_cost   Int
+  icon         String    @default("gift") // lucide icon name
   claimed_by   String?   // user_id
   claimed_at   DateTime?
   created_at   DateTime  @default(now())
-  
+
   // Relations
   family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
   claimant     User?     @relation("ClaimedRewards", fields: [claimed_by], references: [id])
-  
+
   @@index([family_id])
   @@index([claimed_by])
+  @@index([family_id, claimed_by])
 }
 
 model Notification {
@@ -135,14 +159,91 @@ model Notification {
   user_id      String
   title        String
   message      String
-  type         String    // 'chore', 'event', 'message', 'reward', 'system'
+  type         String    // 'chore', 'event', 'message', 'reward', 'system', 'achievement', 'streak'
   read         Boolean   @default(false)
+  action_url   String?   // optional link to navigate to
   created_at   DateTime  @default(now())
-  
+
   // Relations
   user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([read])
   @@index([created_at])
+  @@index([user_id, read])
+}
+
+model List {
+  id           String    @id @default(cuid())
+  family_id    String
+  name         String
+  type         String    @default("grocery") // 'grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'
+  description  String?
+  created_by   String
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User      @relation("CreatedLists", fields: [created_by], references: [id])
+  items        ListItem[]
+
+  @@index([family_id])
+  @@index([family_id, type])
+}
+
+model ListItem {
+  id           String    @id @default(cuid())
+  list_id      String
+  content      String
+  checked      Boolean   @default(false)
+  quantity     Int       @default(1)
+  category     String?
+  notes        String?
+  added_by     String
+  checked_by   String?
+  checked_at   DateTime?
+  position     Int       @default(0)
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  // Relations
+  list         List      @relation(fields: [list_id], references: [id], onDelete: Cascade)
+  adder        User      @relation("AddedItems", fields: [added_by], references: [id])
+  checker      User?     @relation("CheckedItems", fields: [checked_by], references: [id])
+
+  @@index([list_id])
+  @@index([list_id, checked])
+}
+
+model UserBadge {
+  id           String    @id @default(cuid())
+  user_id      String
+  badge_id     String    // references badge definitions in constants
+  earned_at    DateTime  @default(now())
+
+  // Relations
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, badge_id])
+  @@index([user_id])
+}
+
+model Activity {
+  id           String    @id @default(cuid())
+  family_id    String
+  user_id      String
+  type         String    // 'chore_completed', 'chore_verified', 'reward_claimed', 'badge_earned', 'streak_milestone', 'level_up', 'list_completed', 'event_created'
+  title        String
+  description  String?
+  metadata     String?   // JSON string for extra data (points earned, badge name, etc.)
+  created_at   DateTime  @default(now())
+
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user         User      @relation("UserActivities", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id])
+  @@index([family_id, created_at])
+  @@index([user_id])
 }

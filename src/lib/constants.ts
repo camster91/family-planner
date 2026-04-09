@@ -99,10 +99,13 @@ export const FEATURE_FLAGS = {
     FAMILY_SETUP: true,
   },
   PHASE_2: {
-    REWARDS_SYSTEM: false,
-    RECURRING_CHORES: false,
-    PHOTO_SHARING: false,
-    SHARED_LISTS: false,
+    REWARDS_SYSTEM: true,
+    RECURRING_CHORES: true,
+    PHOTO_SHARING: true,
+    SHARED_LISTS: true,
+    GAMIFICATION: true,
+    ACTIVITY_FEED: true,
+    LEADERBOARD: true,
   },
   PHASE_3: {
     MOBILE_APPS: false,
@@ -111,7 +114,7 @@ export const FEATURE_FLAGS = {
     PUSH_NOTIFICATIONS: false,
   },
   PHASE_4: {
-    ADVANCED_ANALYTICS: false,
+    ADVANCED_ANALYTICS: true,
     FAMILY_WELLNESS: false,
     EXTENDED_FAMILY: false,
     SUBSCRIPTIONS: false,

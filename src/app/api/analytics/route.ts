@@ -1,78 +1,68 @@
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
+import { authenticateWithFamily } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    // Get user's family
-    const user = await prisma!.user.findUnique({
-      where: { id: userId },
-      select: { family_id: true }
-    })
-
-    if (!user || !user.family_id) {
-      return NextResponse.json({ error: 'User not in a family' }, { status: 400 })
-    }
-
-    // Get date ranges for analytics
+    const familyId = auth.user.family_id
     const now = new Date()
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-    // Get family members
-    const familyMembers = await prisma!.user.findMany({
-      where: { family_id: user.family_id },
-      select: { id: true, name: true, role: true }
-    })
+    // Parallel queries for efficiency
+    const [familyMembers, allChores, recentCompletedChores, recentActivities] = await Promise.all([
+      prisma!.user.findMany({
+        where: { family_id: familyId },
+        select: { id: true, name: true, role: true, points: true, level: true, xp: true, streak: true, best_streak: true },
+      }),
+      prisma!.chore.findMany({
+        where: { family_id: familyId },
+        select: { id: true, assigned_to: true, status: true, points: true, difficulty: true, completed_at: true },
+      }),
+      prisma!.chore.findMany({
+        where: {
+          family_id: familyId,
+          status: { in: ['completed', 'verified'] },
+          completed_at: { gte: oneMonthAgo },
+        },
+        select: { id: true, assigned_to: true, points: true, completed_at: true },
+        orderBy: { completed_at: 'desc' },
+      }),
+      prisma!.activity.findMany({
+        where: { family_id: familyId },
+        include: { user: { select: { name: true } } },
+        orderBy: { created_at: 'desc' },
+        take: 10,
+      }),
+    ])
 
-    // Get all chores for the family
-    const allChores = await prisma!.chore.findMany({
-      where: { family_id: user.family_id },
-      include: { assignee: { select: { name: true } } }
-    })
-
-    // Get completed chores in the last 30 days
-    const recentCompletedChores = await prisma!.chore.findMany({
-      where: {
-        family_id: user.family_id,
-        status: { in: ['completed', 'verified'] },
-        completed_at: { gte: oneMonthAgo }
-      },
-      include: { assignee: { select: { name: true } } }
-    })
-
-    // Get weekly completion data
+    // Weekly completion data
     const weeklyData = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(now.getTime() - (6 - i) * 24 * 60 * 60 * 1000)
-      const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-      const dateEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+      const dateStr = date.toISOString().split('T')[0]
 
-      const dayChores = recentCompletedChores?.filter((chore: any) => {
+      const dayChores = recentCompletedChores.filter(chore => {
         if (!chore.completed_at) return false
-        const completedDate = new Date(chore.completed_at)
-        return completedDate >= dateStart && completedDate < dateEnd
-      }) || []
+        return new Date(chore.completed_at).toISOString().split('T')[0] === dateStr
+      })
 
       return {
-        date: date.toISOString().split('T')[0],
+        date: dateStr,
         day: date.toLocaleDateString('en-US', { weekday: 'short' }),
         count: dayChores.length,
-        points: dayChores.reduce((sum: number, chore: any) => sum + (chore.points || 0), 0)
+        points: dayChores.reduce((sum, chore) => sum + (chore.points || 0), 0),
       }
     })
 
-    // Get member participation
-    const memberParticipation = familyMembers?.map((member: any) => {
-      const memberChores = allChores?.filter((chore: any) => chore.assigned_to === member.id) || []
-      const completedChores = memberChores.filter((chore: any) =>
+    // Member participation
+    const memberParticipation = familyMembers.map(member => {
+      const memberChores = allChores.filter(chore => chore.assigned_to === member.id)
+      const completedChores = memberChores.filter(chore =>
         chore.status === 'completed' || chore.status === 'verified'
       )
 
@@ -85,84 +75,64 @@ export async function GET(request: NextRequest) {
         completionRate: memberChores.length > 0
           ? Math.round((completedChores.length / memberChores.length) * 100)
           : 0,
-        totalPoints: completedChores.reduce((sum: number, chore: any) => sum + (chore.points || 0), 0)
+        totalPoints: member.points,
+        level: member.level,
+        xp: member.xp,
+        streak: member.streak,
+        bestStreak: member.best_streak,
       }
-    }) || []
+    })
 
-    // Calculate family statistics
-    const totalChores = allChores?.length || 0
-    const completedChores = allChores?.filter((chore: any) =>
-      chore.status === 'completed' || chore.status === 'verified'
-    ).length || 0
-    const completionRate = totalChores > 0
-      ? Math.round((completedChores / totalChores) * 100)
-      : 0
+    // Family statistics
+    const totalChores = allChores.length
+    const completedChores = allChores.filter(c => c.status === 'completed' || c.status === 'verified').length
+    const completionRate = totalChores > 0 ? Math.round((completedChores / totalChores) * 100) : 0
+    const totalPoints = familyMembers.reduce((sum, m) => sum + m.points, 0)
 
-    // Calculate points statistics
-    const totalPoints = completedChores > 0
-      ? allChores?.filter((chore: any) =>
-          chore.status === 'completed' || chore.status === 'verified'
-        ).reduce((sum: number, chore: any) => sum + (chore.points || 0), 0) || 0
-      : 0
-
-    // Get most active day
+    // Most active day
     const dayCounts: Record<string, number> = {}
-    recentCompletedChores?.forEach((chore: any) => {
+    recentCompletedChores.forEach(chore => {
       if (chore.completed_at) {
         const day = new Date(chore.completed_at).toLocaleDateString('en-US', { weekday: 'long' })
         dayCounts[day] = (dayCounts[day] || 0) + 1
       }
     })
-
     const mostActiveDay = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0]
 
-    // Calculate streaks (simplified)
-    const sortedCompletedDates = recentCompletedChores
-      ?.map((chore: any) => chore.completed_at ? new Date(chore.completed_at).toISOString().split('T')[0] : null)
-      .filter(Boolean)
-      .sort()
-      .reverse() || []
+    // Streak calculation
+    const uniqueDatesSet = new Set(
+      recentCompletedChores
+        .map(c => c.completed_at ? new Date(c.completed_at).toISOString().split('T')[0] : '')
+        .filter(d => d !== '')
+    )
+    const uniqueDates = Array.from(uniqueDatesSet).sort().reverse()
 
     let currentStreak = 0
-    if (sortedCompletedDates.length > 0) {
+    if (uniqueDates.length > 0) {
       const today = now.toISOString().split('T')[0]
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const yesterday = new Date(now.getTime() - 86400000).toISOString().split('T')[0]
 
-      // Check if we have completion today or yesterday for streak calculation
-      if (sortedCompletedDates[0] === today) {
+      if (uniqueDates[0] === today || uniqueDates[0] === yesterday) {
         currentStreak = 1
-        for (let i = 1; i < sortedCompletedDates.length; i++) {
-          const expectedDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          if (sortedCompletedDates[i] === expectedDate) {
-            currentStreak++
-          } else {
-            break
-          }
-        }
-      } else if (sortedCompletedDates[0] === yesterday) {
-        currentStreak = 1
-        // Check backwards from yesterday
-        for (let i = 1; i < sortedCompletedDates.length; i++) {
-          const expectedDate = new Date(now.getTime() - (i + 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          if (sortedCompletedDates[i] === expectedDate) {
-            currentStreak++
-          } else {
-            break
-          }
+        const startDate = uniqueDates[0] === today ? now : new Date(now.getTime() - 86400000)
+        for (let i = 1; i < uniqueDates.length; i++) {
+          const expected = new Date(startDate.getTime() - i * 86400000).toISOString().split('T')[0]
+          if (uniqueDates[i] === expected) currentStreak++
+          else break
         }
       }
     }
 
-    // Get top performers
+    // Top performers
     const topPerformers = [...memberParticipation]
-      .sort((a, b) => b.completedChores - a.completedChores)
+      .sort((a, b) => b.totalPoints - a.totalPoints)
       .slice(0, 3)
 
-    // Get chore difficulty distribution
+    // Difficulty distribution
     const difficultyDistribution = {
-      easy: allChores?.filter((chore: any) => chore.difficulty === 'easy').length || 0,
-      medium: allChores?.filter((chore: any) => chore.difficulty === 'medium').length || 0,
-      hard: allChores?.filter((chore: any) => chore.difficulty === 'hard').length || 0
+      easy: allChores.filter(c => c.difficulty === 'easy').length,
+      medium: allChores.filter(c => c.difficulty === 'medium').length,
+      hard: allChores.filter(c => c.difficulty === 'hard').length,
     }
 
     return NextResponse.json({
@@ -172,24 +142,21 @@ export async function GET(request: NextRequest) {
         completionRate,
         totalPoints,
         currentStreak,
-        mostActiveDay: mostActiveDay ? {
-          day: mostActiveDay[0],
-          count: mostActiveDay[1]
-        } : null
+        mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null,
       },
       weeklyTrend: weeklyData,
       memberParticipation,
       topPerformers,
       difficultyDistribution,
-      recentActivity: recentCompletedChores?.slice(0, 10).map((chore: any) => ({
-        id: chore.id,
-        title: chore.title,
-        points: chore.points,
-        completedAt: chore.completed_at,
-        assignee: chore.assignee?.name
-      })) || []
+      recentActivity: recentActivities.map(a => ({
+        id: a.id,
+        type: a.type,
+        title: a.title,
+        description: a.description,
+        createdAt: a.created_at,
+        userName: a.user.name,
+      })),
     })
-
   } catch (error) {
     console.error('Error fetching analytics:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

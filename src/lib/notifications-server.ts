@@ -4,7 +4,18 @@ interface NotificationData {
   userId: string
   title: string
   message: string
-  type: 'chore' | 'event' | 'message' | 'reward' | 'system'
+  type: 'chore' | 'event' | 'message' | 'reward' | 'system' | 'achievement' | 'streak'
+}
+
+interface ChoreInfo {
+  id: string
+  title: string
+  creator?: { id: string; name: string } | null
+}
+
+interface UserInfo {
+  id: string
+  name: string
 }
 
 export class NotificationServiceServer {
@@ -19,7 +30,6 @@ export class NotificationServiceServer {
           read: false,
         },
       })
-
       return true
     } catch (error) {
       console.error('Error in notification service:', error)
@@ -27,33 +37,31 @@ export class NotificationServiceServer {
     }
   }
 
-  async notifyChoreCompletion(chore: any, assignee: any) {
-    // Send notification to parent/creator
+  async notifyChoreCompletion(chore: ChoreInfo, assignee: UserInfo) {
+    // Notify the creator/parent
     if (chore.creator && chore.creator.id !== assignee.id) {
       await this.sendNotification({
         userId: chore.creator.id,
-        title: 'Chore Completed! 🎉',
+        title: 'Chore Completed!',
         message: `${assignee.name} completed "${chore.title}"`,
-        type: 'chore'
+        type: 'chore',
       })
     }
 
-    // Send notification to the person who completed it
+    // Notify the person who completed it
     await this.sendNotification({
       userId: assignee.id,
       title: 'Great Job!',
       message: `You completed "${chore.title}"`,
-      type: 'reward'
+      type: 'reward',
     })
   }
-  async notifyChoreAssignment(chore: any, assignedTo: any, assignedBy: any) {
-    const title = 'New Chore Assigned'
-    const message = `${assignedBy.name} assigned you "${chore.title}" (due ${new Date(chore.due_date).toLocaleDateString()})`
 
+  async notifyChoreAssignment(chore: ChoreInfo & { due_date: Date | string }, assignedTo: UserInfo, assignedBy: UserInfo) {
     await this.sendNotification({
       userId: assignedTo.id,
-      title,
-      message,
+      title: 'New Chore Assigned',
+      message: `${assignedBy.name} assigned you "${chore.title}" (due ${new Date(chore.due_date).toLocaleDateString()})`,
       type: 'chore',
     })
   }

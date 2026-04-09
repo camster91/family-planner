@@ -15,8 +15,8 @@ export default function NotificationBell() {
   useEffect(() => {
     loadNotifications()
 
-    // Poll for new notifications every 10 seconds
-    pollIntervalRef.current = setInterval(loadNotifications, 10000)
+    // Poll for new notifications every 30 seconds
+    pollIntervalRef.current = setInterval(loadNotifications, 30000)
 
     return () => {
       if (pollIntervalRef.current) {

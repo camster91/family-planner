@@ -1,45 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateWithFamily } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
+import { createChoreSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const user = await prisma!.user.findUnique({
-      where: { id: userId },
-      select: { family_id: true },
-    })
-
-    if (!user?.family_id) {
-      return NextResponse.json({ error: 'You must belong to a family to create chores' }, { status: 400 })
+    const body = await request.json()
+    const parsed = createChoreSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, points, assigned_to, due_date, difficulty, frequency } = await request.json()
+    const { title, description, points, assigned_to, due_date, difficulty, frequency } = parsed.data
 
-    if (!title || !assigned_to || !due_date) {
-      return NextResponse.json({ error: 'Title, assigned_to, and due_date are required' }, { status: 400 })
+    // Verify the assigned user belongs to the same family
+    const assignee = await prisma!.user.findUnique({
+      where: { id: assigned_to },
+      select: { id: true, family_id: true, name: true },
+    })
+
+    if (!assignee || assignee.family_id !== auth.user.family_id) {
+      return NextResponse.json({ error: 'Assigned user must be in your family' }, { status: 400 })
     }
 
     const newChore = await prisma!.chore.create({
       data: {
-        family_id: user.family_id,
+        family_id: auth.user.family_id,
         title,
         description: description || null,
-        points: points || 10,
+        points,
         assigned_to,
         due_date: new Date(due_date),
-        difficulty: difficulty || 'medium',
-        frequency: frequency || 'once',
+        difficulty,
+        frequency,
         status: 'pending',
-        created_by: userId,
+        created_by: auth.user.id,
       },
       include: {
         assignee: true,

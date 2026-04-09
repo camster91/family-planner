@@ -20,20 +20,17 @@ export default async function RewardsPage() {
     return null
   }
 
+  const familyId = user.family_id || undefined
+
   // Get rewards for the family
-  const rewards = await prisma!.reward.findMany({
-    where: { family_id: user!.family_id },
+  const rewards = familyId ? await prisma!.reward.findMany({
+    where: { family_id: familyId },
     include: { claimant: { select: { name: true } } },
     orderBy: { point_cost: 'asc' }
-  })
+  }) : []
 
-  // Get user's total points from completed chores
-  const completedChores = await prisma!.chore.findMany({
-    where: { assigned_to: sessionUser.id, status: 'completed' },
-    select: { points: true }
-  })
-
-  const userPoints = completedChores?.reduce((total, chore) => total + chore.points, 0) || 0
+  // Use stored user points (from gamification system)
+  const userPoints = user.points || 0
 
   return (
     <div className="space-y-8">

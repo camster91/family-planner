@@ -1,43 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
+import { createRewardSchema, claimRewardSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
-// POST - Create a reward
-export async function POST(request: NextRequest) {
+// GET - List rewards for the user's family
+export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const user = await prisma!.user.findUnique({
-      where: { id: userId },
-      select: { family_id: true, role: true },
+    const rewards = await prisma!.reward.findMany({
+      where: { family_id: auth.user.family_id },
+      include: {
+        claimant: { select: { id: true, name: true } },
+      },
+      orderBy: { created_at: 'desc' },
     })
 
-    if (!user || user.role !== 'parent') {
-      return NextResponse.json({ error: 'Only parents can create rewards' }, { status: 403 })
+    return NextResponse.json({ rewards })
+  } catch (error) {
+    console.error('Error fetching rewards:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// POST - Create a reward (parents only)
+export async function POST(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
+
+    const body = await request.json()
+    const parsed = createRewardSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    if (!user.family_id) {
-      return NextResponse.json({ error: 'You must belong to a family' }, { status: 400 })
-    }
-
-    const { title, description, point_cost } = await request.json()
-
-    if (!title || !point_cost) {
-      return NextResponse.json({ error: 'Title and point_cost are required' }, { status: 400 })
-    }
+    const { title, description, point_cost, icon } = parsed.data
 
     const reward = await prisma!.reward.create({
       data: {
-        family_id: user.family_id,
+        family_id: auth.user.family_id,
         title,
         description: description || null,
         point_cost,
+        icon,
       },
     })
 
@@ -48,29 +60,71 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH - Claim a reward
+// PATCH - Claim a reward (family-scoped, points check)
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const payload = verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = payload.userId as string
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const { rewardId } = await request.json()
-    if (!rewardId) {
+    const body = await request.json()
+    const parsed = claimRewardSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json({ error: 'rewardId is required' }, { status: 400 })
     }
 
-    const reward = await prisma!.reward.update({
-      where: { id: rewardId },
+    // Verify reward belongs to user's family and is unclaimed
+    const reward = await prisma!.reward.findUnique({
+      where: { id: parsed.data.rewardId },
+    })
+
+    if (!reward) {
+      return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
+    }
+
+    const familyError = requireFamilyMatch(reward.family_id, auth.user.family_id)
+    if (familyError) return familyError
+
+    if (reward.claimed_by) {
+      return NextResponse.json({ error: 'Reward already claimed' }, { status: 400 })
+    }
+
+    // Check user has enough points
+    if (auth.user.points < reward.point_cost) {
+      return NextResponse.json({
+        error: `Not enough points. You need ${reward.point_cost - auth.user.points} more points.`,
+      }, { status: 400 })
+    }
+
+    // Claim reward and deduct points atomically
+    const [updatedReward] = await prisma!.$transaction([
+      prisma!.reward.update({
+        where: { id: parsed.data.rewardId },
+        data: {
+          claimed_by: auth.user.id,
+          claimed_at: new Date(),
+        },
+      }),
+      prisma!.user.update({
+        where: { id: auth.user.id },
+        data: {
+          points: { decrement: reward.point_cost },
+        },
+      }),
+    ])
+
+    // Record activity
+    await prisma!.activity.create({
       data: {
-        claimed_by: userId,
-        claimed_at: new Date(),
+        family_id: auth.user.family_id,
+        user_id: auth.user.id,
+        type: 'reward_claimed',
+        title: `${auth.user.name} claimed "${reward.title}"`,
+        description: `Spent ${reward.point_cost} points`,
+        metadata: JSON.stringify({ rewardId: reward.id, pointCost: reward.point_cost }),
       },
     })
 
-    return NextResponse.json({ reward })
+    return NextResponse.json({ reward: updatedReward, pointsDeducted: reward.point_cost })
   } catch (error) {
     console.error('Error claiming reward:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
