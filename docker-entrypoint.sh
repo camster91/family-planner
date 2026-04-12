@@ -2,25 +2,14 @@
 set -e
 
 echo "=== Family Planner Container Startup ==="
-echo "Current directory: $(pwd)"
-echo "Listing files:"
-ls -la
-echo "=== Environment Variables ==="
-echo "NODE_ENV: ${NODE_ENV:-not set}"
-echo "PORT: ${PORT:-not set}"
-echo "HOSTNAME: ${HOSTNAME:-not set}"
-echo "NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-not set}"
-echo "NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-not set}"
-echo "NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-not set}"
-echo "=== Starting Next.js Server ==="
 
-# Check if server.js exists
-if [ -f "server.js" ]; then
-    echo "Found server.js, starting Node.js server..."
-    exec node server.js
+# Run Prisma schema push if DATABASE_URL is set
+if [ -n "$DATABASE_URL" ]; then
+  echo "Pushing database schema..."
+  npx prisma db push --accept-data-loss 2>&1 || echo "WARNING: Schema push failed, continuing anyway..."
 else
-    echo "ERROR: server.js not found!"
-    echo "Contents of current directory:"
-    ls -la
-    exit 1
+  echo "WARNING: DATABASE_URL not set, skipping schema push"
 fi
+
+echo "Starting Next.js server..."
+exec node server.js

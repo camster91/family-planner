@@ -5,11 +5,9 @@ FROM node:20-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts
 
@@ -19,13 +17,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Set build-time environment variables with defaults for compilation
-ARG NEXT_PUBLIC_SUPABASE_URL="https://placeholder.supabase.co"
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY="placeholder"
+# Set build-time environment variables with defaults
 ARG NEXT_PUBLIC_APP_URL="https://family.ashbi.ca"
-ARG DATABASE_URL="postgresql://user:password@localhost:5432/family_planner"
-ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV DATABASE_URL=${DATABASE_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -37,21 +31,17 @@ RUN npx prisma generate
 # Build Next.js application
 RUN npm run build
 
-# Production image, copy all the files and run next
+# Production image
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Set default environment variables for runtime (can be overridden)
-ENV NEXT_PUBLIC_SUPABASE_URL="https://placeholder.supabase.co"
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY="placeholder"
-ENV NEXT_PUBLIC_APP_URL="https://family.ashbi.ca"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install wget for health checks
+# Install wget for health checks and prisma CLI for migrations
 RUN apk add --no-cache wget
 
 # Create necessary directories and set permissions
@@ -61,10 +51,20 @@ RUN chown -R nextjs:nodejs /app/.next
 # Copy public files
 COPY --from=builder /app/public ./public
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
+# Copy standalone Next.js output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy Prisma files for runtime migrations
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+
+# Install prisma CLI for db push at startup
+RUN npm install -g prisma@7.4.1
+
+# Copy entrypoint script
+COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 USER nextjs
 
@@ -74,10 +74,8 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV HOST="0.0.0.0"
 
-# Health check for container orchestration (Coolify, Docker, etc.)
-# More lenient health check for initial startup
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
-# Start server with logging
-CMD ["sh", "-c", "echo '=== Family Planner Starting ===' && echo 'Current directory:' && pwd && echo 'Files:' && ls -la && echo 'Checking for server.js:' && ls -la server.js && echo 'Environment:' && printenv | grep -E '(NODE_ENV|PORT|HOST|NEXT_PUBLIC)' && echo 'Starting Next.js server...' && exec node server.js"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
