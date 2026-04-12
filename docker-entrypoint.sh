@@ -3,12 +3,12 @@ set -e
 
 echo "=== Family Planner Container Startup ==="
 
-# Run Prisma schema push if DATABASE_URL is set
+# Run database migration if DATABASE_URL is set
 if [ -n "$DATABASE_URL" ]; then
-  echo "Pushing database schema..."
-  npx prisma db push --accept-data-loss 2>&1 || echo "WARNING: Schema push failed, continuing anyway..."
+  echo "Running database migration..."
+  node /app/scripts/migrate.js || echo "WARNING: Migration had issues, continuing anyway..."
 else
-  echo "WARNING: DATABASE_URL not set, skipping schema push"
+  echo "WARNING: DATABASE_URL not set, skipping migration"
 fi
 
 echo "Starting Next.js server..."
