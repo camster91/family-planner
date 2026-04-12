@@ -1,5 +1,7 @@
-// One-time database schema setup script
-// Creates tables using raw SQL if they don't exist
+// Database migration script
+// 1. Connects to the PostgreSQL server
+// 2. Creates the target database if it doesn't exist
+// 3. Creates tables and indexes if they don't exist
 // Called from docker-entrypoint.sh before starting the server
 
 const { Client } = require('pg')
@@ -142,7 +144,7 @@ CREATE TABLE IF NOT EXISTS "Activity" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add foreign key constraints (IF NOT EXISTS handled by DROP IF EXISTS first)
+-- Foreign keys
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -238,7 +240,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- Create indexes
+-- Indexes
 CREATE INDEX IF NOT EXISTS "User_family_id_idx" ON "User"("family_id");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_idx" ON "Chore"("family_id");
 CREATE INDEX IF NOT EXISTS "Chore_assigned_to_idx" ON "Chore"("assigned_to");
@@ -269,7 +271,7 @@ CREATE INDEX IF NOT EXISTS "Activity_family_id_idx" ON "Activity"("family_id");
 CREATE INDEX IF NOT EXISTS "Activity_family_id_created_at_idx" ON "Activity"("family_id", "created_at");
 CREATE INDEX IF NOT EXISTS "Activity_user_id_idx" ON "Activity"("user_id");
 
--- Add unique constraint for UserBadge (user_id, badge_id)
+-- Unique constraint for UserBadge
 DO $$ BEGIN
   ALTER TABLE "UserBadge" ADD CONSTRAINT "UserBadge_user_id_badge_id_key" UNIQUE ("user_id", "badge_id");
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -283,18 +285,70 @@ async function migrate() {
     process.exit(0)
   }
 
-  console.log('Running database migration...')
-  const client = new Client({ connectionString: databaseUrl })
+  // Parse the DATABASE_URL to extract the target database name and server URL
+  const url = new URL(databaseUrl)
+  const targetDb = url.pathname.replace(/^\//, '') // e.g., 'familyplanner'
+
+  // Step 1: Connect to the default 'postgres' database to create the target database if needed
+  const serverUrl = new URL(databaseUrl)
+  serverUrl.pathname = '/postgres'
+
+  console.log(`Checking if database '${targetDb}' exists...`)
+  const serverClient = new Client({ connectionString: serverUrl.toString() })
 
   try {
-    await client.connect()
-    await client.query(CREATE_TABLES_SQL)
+    await serverClient.connect()
+    const result = await serverClient.query(
+      `SELECT 1 FROM pg_database WHERE datname = $1`,
+      [targetDb]
+    )
+
+    if (result.rows.length === 0) {
+      console.log(`Creating database '${targetDb}'...`)
+      await serverClient.query(`CREATE DATABASE "${targetDb}"`)
+      console.log(`Database '${targetDb}' created successfully`)
+    } else {
+      console.log(`Database '${targetDb}' already exists`)
+    }
+  } catch (error) {
+    // If connecting to 'postgres' db fails, try 'glowos' (for Coolify-managed databases)
+    const fallbackUrl = new URL(databaseUrl)
+    fallbackUrl.pathname = '/glowos'
+    console.log(`Failed to connect to 'postgres' db, trying 'glowos'...`)
+    const fallbackClient = new Client({ connectionString: fallbackUrl.toString() })
+    try {
+      await fallbackClient.connect()
+      const result = await fallbackClient.query(
+        `SELECT 1 FROM pg_database WHERE datname = $1`,
+        [targetDb]
+      )
+      if (result.rows.length === 0) {
+        console.log(`Creating database '${targetDb}'...`)
+        await fallbackClient.query(`CREATE DATABASE "${targetDb}"`)
+        console.log(`Database '${targetDb}' created successfully`)
+      } else {
+        console.log(`Database '${targetDb}' already exists`)
+      }
+      await fallbackClient.end()
+    } catch (err2) {
+      console.error('Could not create database:', err2.message)
+    }
+  } finally {
+    try { await serverClient.end() } catch {}
+  }
+
+  // Step 2: Connect to the target database and create tables
+  console.log('Creating tables...')
+  const dbClient = new Client({ connectionString: databaseUrl })
+
+  try {
+    await dbClient.connect()
+    await dbClient.query(CREATE_TABLES_SQL)
     console.log('Database migration completed successfully')
   } catch (error) {
     console.error('Database migration failed:', error.message)
-    // Continue anyway - tables may already exist
   } finally {
-    await client.end()
+    await dbClient.end()
   }
 }
 
