@@ -41,8 +41,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install wget for health checks and pg client for migrations
+# Install wget for health checks and pg for migration script
 RUN apk add --no-cache wget
+RUN npm install -g pg
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/.next/cache
@@ -57,16 +58,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy migration script
 COPY --from=builder /app/scripts/migrate.js /app/scripts/migrate.js
-
-# Copy pg module for migration script (from builder's node_modules)
-COPY --from=builder /app/node_modules/pg /app/node_modules/pg
-COPY --from=builder /app/node_modules/pg-connection-string /app/node_modules/pg-connection-string
-COPY --from=builder /app/node_modules/pg-pool /app/node_modules/pg-pool
-COPY --from=builder /app/node_modules/pg-types /app/node_modules/pg-types
-COPY --from=builder /app/node_modules/pg-protocol /app/node_modules/pg-protocol
-COPY --from=builder /app/node_modules/buffer-encoder /app/node_modules/buffer-encoder
-COPY --from=builder /app/node_modules/pg-pass /app/node_modules/pg-pass
-COPY --from=builder /app/node_modules/split2 /app/node_modules/split2
 
 # Copy entrypoint script
 COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
