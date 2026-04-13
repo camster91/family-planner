@@ -121,8 +121,8 @@ export function fileToBase64(file: File): Promise<string> {
   })
 }
 
-export function exportToCSV(data: any[], filename: string) {
-  const csvRows = []
+export function exportToCSV(data: Record<string, unknown>[], filename: string) {
+  const csvRows: string[] = []
   const headers = Object.keys(data[0])
   csvRows.push(headers.join(','))
 
