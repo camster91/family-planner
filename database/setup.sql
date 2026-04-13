@@ -24,23 +24,9 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- Create chores table
-CREATE TABLE IF NOT EXISTS chores (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  points INTEGER NOT NULL DEFAULT 10,
-  assigned_to UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  due_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'verified', 'overdue')),
-  frequency TEXT NOT NULL DEFAULT 'once' CHECK (frequency IN ('once', 'daily', 'weekly', 'monthly')),
-  difficulty TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
-  verified_at TIMESTAMP WITH TIME ZONE,
-  completed_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-  created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE
-);
+-- Update chores table to add photo support
+ALTER TABLE chores ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE chores ADD COLUMN IF NOT EXISTS photo_verified BOOLEAN DEFAULT false;
 
 -- Create events table
 CREATE TABLE IF NOT EXISTS events (
