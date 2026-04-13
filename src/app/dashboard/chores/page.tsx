@@ -4,7 +4,11 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoreList from '@/components/chores/ChoreList'
 
-export default async function ChoresPage() {
+export default async function ChoresPage({
+  searchParams,
+}: {
+  searchParams: { status?: string; assigned_to?: string }
+}) {
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
@@ -18,14 +22,29 @@ export default async function ChoresPage() {
 
   const familyId = user?.family_id || undefined
 
-  // Get all chores for the family
+  // Build where clause from searchParams
+  const where: Record<string, unknown> = { family_id: familyId }
+  if (searchParams.status) {
+    where.status = searchParams.status
+  }
+  if (searchParams.assigned_to) {
+    where.assigned_to = searchParams.assigned_to
+  }
+
+  // Get all chores for the family (filtered)
   const chores = familyId ? await prisma!.chore.findMany({
-    where: { family_id: familyId },
+    where,
     include: {
       assignee: { select: { name: true } },
       creator: { select: { name: true } }
     },
     orderBy: { due_date: 'asc' }
+  }) : []
+
+  // Get all chores for stats (unfiltered)
+  const allChores = familyId ? await prisma!.chore.findMany({
+    where: { family_id: familyId },
+    select: { status: true },
   }) : []
 
   // Get family members for assignment
@@ -36,11 +55,21 @@ export default async function ChoresPage() {
   }) : []
 
   const stats = {
-    total: chores?.length || 0,
-    completed: chores?.filter(c => c.status === 'completed' || c.status === 'verified').length || 0,
-    pending: chores?.filter(c => c.status === 'pending' || c.status === 'in_progress').length || 0,
-    overdue: chores?.filter(c => c.status === 'overdue').length || 0,
+    total: allChores?.length || 0,
+    completed: allChores?.filter(c => c.status === 'completed' || c.status === 'verified').length || 0,
+    pending: allChores?.filter(c => c.status === 'pending' || c.status === 'in_progress').length || 0,
+    overdue: allChores?.filter(c => c.status === 'overdue').length || 0,
   }
+
+  const currentFilter = searchParams.status || 'all'
+  const currentAssigned = searchParams.assigned_to || ''
+
+  const filterButtonClass = (active: boolean) =>
+    `px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+      active
+        ? 'bg-blue-600 text-white'
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`
 
   return (
     <div className="space-y-8">
@@ -62,47 +91,54 @@ export default async function ChoresPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card text-center">
+        <Link href="/dashboard/chores" className="card text-center hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
           <div className="text-sm text-gray-600">Total Chores</div>
-        </div>
-        <div className="card text-center">
+        </Link>
+        <Link href="/dashboard/chores?status=completed" className="card text-center hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
           <div className="text-sm text-gray-600">Completed</div>
-        </div>
-        <div className="card text-center">
+        </Link>
+        <Link href="/dashboard/chores?status=pending" className="card text-center hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
           <div className="text-sm text-gray-600">Pending</div>
-        </div>
-        <div className="card text-center">
+        </Link>
+        <Link href="/dashboard/chores?status=overdue" className="card text-center hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
           <div className="text-sm text-gray-600">Overdue</div>
-        </div>
+        </Link>
       </div>
 
       {/* Chore filters */}
       <div className="flex flex-wrap gap-2">
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium">
+        <Link href="/dashboard/chores" className={filterButtonClass(currentFilter === 'all')}>
           All
-        </button>
-        <button className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full text-sm font-medium">
+        </Link>
+        <Link href="/dashboard/chores?status=pending" className={filterButtonClass(currentFilter === 'pending')}>
           Pending
-        </button>
-        <button className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full text-sm font-medium">
+        </Link>
+        <Link href="/dashboard/chores?status=in_progress" className={filterButtonClass(currentFilter === 'in_progress')}>
           In Progress
-        </button>
-        <button className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full text-sm font-medium">
+        </Link>
+        <Link href="/dashboard/chores?status=completed" className={filterButtonClass(currentFilter === 'completed')}>
           Completed
-        </button>
-        <button className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full text-sm font-medium">
-          My Chores
-        </button>
+        </Link>
+        {sessionUser && (
+          <Link
+            href={`/dashboard/chores?assigned_to=${sessionUser.id}`}
+            className={filterButtonClass(currentAssigned === sessionUser.id)}
+          >
+            My Chores
+          </Link>
+        )}
       </div>
 
       {/* Chore list */}
       <div className="card">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">All Chores</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            {currentFilter === 'all' ? 'All Chores' : `${currentFilter.replace('_', ' ')} Chores`}
+          </h2>
           <div className="text-sm text-gray-600">
             {stats.completed} of {stats.total} completed ({stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%)
           </div>
@@ -119,9 +155,12 @@ export default async function ChoresPage() {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <PlusCircle className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No chores yet</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No chores found</h3>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Create your first chore to start tracking family responsibilities.
+              {currentFilter !== 'all'
+                ? 'No chores match the current filter. Try a different filter or create a new chore.'
+                : 'Create your first chore to start tracking family responsibilities.'
+              }
             </p>
             <Link
               href="/dashboard/chores/create"

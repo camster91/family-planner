@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { CheckCircle, Clock, AlertCircle, User, Trash2, CheckCheck, Repeat, Flame, Sparkles } from 'lucide-react'
+import { CheckCircle, Clock, AlertCircle, User, Trash2, CheckCheck, Repeat, Flame, Sparkles, Pencil } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { Chore, BasicUser } from '@/types'
 import { formatDate, getChoreStatusColor, timeRemaining } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
@@ -21,6 +22,7 @@ export default function ChoreList({ chores, familyMembers, currentUserId, onChor
   const [localChores, setLocalChores] = useState(chores)
   const [loadingChore, setLoadingChore] = useState<string | null>(null)
   const { addToast } = useToast()
+  const router = useRouter()
 
   // Sync when props change
   if (chores !== localChores && !loadingChore) {
@@ -263,6 +265,16 @@ export default function ChoreList({ chores, familyMembers, currentUserId, onChor
             </div>
 
             <div className="flex items-center space-x-1 ml-11 sm:ml-0">
+              {(currentUserRole === 'parent' || chore.assigned_to === currentUserId) && (
+                <button
+                  onClick={() => router.push(`/dashboard/chores/edit?id=${chore.id}`)}
+                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Edit chore"
+                  aria-label="Edit chore"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
               {currentUserRole === 'parent' && (
                 <>
                   {chore.status === 'completed' && (

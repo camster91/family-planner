@@ -106,7 +106,7 @@ export default async function DashboardPage() {
                   Create Family
                 </Link>
                 <Link
-                  href="/dashboard/family/join"
+                  href="/join"
                   className="btn-secondary"
                 >
                   Join Family

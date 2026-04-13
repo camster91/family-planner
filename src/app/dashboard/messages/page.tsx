@@ -14,6 +14,20 @@ export default function MessagesPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const [hasMarkedRead, setHasMarkedRead] = useState(false)
+
+  // Mark messages as read on initial load
+  useEffect(() => {
+    if (currentUserId && messages.length > 0 && !hasMarkedRead) {
+      fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true }),
+      }).catch(() => {/* silent fail */})
+      setHasMarkedRead(true)
+    }
+  }, [currentUserId, messages.length, hasMarkedRead])
+
   // Load messages and family members
   useEffect(() => {
     loadData()

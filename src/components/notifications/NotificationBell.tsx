@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Bell, Check, X, Clock, Calendar, MessageSquare, Award } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
@@ -10,6 +11,7 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const router = useRouter()
 
   // Load notifications
   useEffect(() => {
@@ -229,7 +231,7 @@ export default function NotificationBell() {
             <button
               onClick={() => {
                 setIsOpen(false)
-                // Navigate to notifications page (to be created)
+                router.push('/dashboard/notifications')
               }}
               className="text-sm text-blue-600 hover:text-blue-500 w-full text-center"
             >

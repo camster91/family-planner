@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, Bell, User, Shield, Moon, Globe } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound } from 'lucide-react'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -19,6 +19,13 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
 
   // Load user data
   useEffect(() => {
@@ -87,6 +94,44 @@ export default function SettingsPage() {
       setMessage({ type: 'error', text: 'Failed to save preferences.' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError(null)
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('New passwords do not match')
+      return
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters')
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to change password')
+
+      setPasswordSuccess(true)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+      setTimeout(() => {
+        setShowPasswordModal(false)
+        setPasswordSuccess(false)
+      }, 2000)
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : 'Failed to change password')
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -331,7 +376,10 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
-              <button className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg">
+              <button
+                onClick={() => setShowPasswordModal(true)}
+                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"
+              >
                 Change Password
               </button>
               <button className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg">
@@ -356,15 +404,110 @@ export default function SettingsPage() {
             <p className="text-gray-600">Version 1.0.0 • Phase 1 MVP</p>
           </div>
           <div className="mt-4 md:mt-0 text-sm text-gray-500">
-            <p>© {new Date().getFullYear()} Family Planner. All rights reserved.</p>
-            <div className="flex space-x-4 mt-2">
-              <button className="text-blue-600 hover:text-blue-500">Terms of Service</button>
-              <button className="text-blue-600 hover:text-blue-500">Privacy Policy</button>
-              <button className="text-blue-600 hover:text-blue-500">Help Center</button>
-            </div>
+            <p>&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                  <KeyRound className="w-5 h-5 text-blue-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">Change Password</h2>
+              </div>
+              <button
+                onClick={() => { setShowPasswordModal(false); setPasswordError(null); setPasswordSuccess(false) }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {passwordSuccess ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <KeyRound className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Password Changed</h3>
+                <p className="text-gray-600 mt-2">Your password has been updated successfully.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                {passwordError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+                    {passwordError}
+                  </div>
+                )}
+                <div>
+                  <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                  </label>
+                  <input
+                    id="currentPassword"
+                    type="password"
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="input-field"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="input-field"
+                    autoComplete="new-password"
+                    minLength={8}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
+                </div>
+                <div>
+                  <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    id="confirmNewPassword"
+                    type="password"
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="input-field"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="flex space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setShowPasswordModal(false); setPasswordError(null) }}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={changingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+                    className="btn-primary flex-1"
+                  >
+                    {changingPassword ? 'Changing...' : 'Change Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

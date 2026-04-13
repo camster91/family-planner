@@ -2,6 +2,7 @@ import { PlusCircle, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import EventCard from '@/components/calendar/EventCard'
 
 export default async function CalendarPage() {
   const sessionUser = await getServerUser()
@@ -85,44 +86,7 @@ export default async function CalendarPage() {
                 </div>
                 <div className="space-y-4 ml-5 pl-5 border-l border-gray-200">
                   {dateEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-medium text-gray-900">{event.title}</h4>
-                          {event.description && (
-                            <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-                          )}
-                          <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
-                            <div>
-                              🕒 {new Date(event.start_time).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                              {event.end_time && (
-                                <> - {new Date(event.end_time).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}</>
-                              )}
-                            </div>
-                            {event.location && (
-                              <div>📍 {event.location}</div>
-                            )}
-                            {event.creator && (
-                              <div>👤 Created by {event.creator.name}</div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                            Event
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <EventCard key={event.id} event={event} userRole={user?.role || ''} />
                   ))}
                 </div>
               </div>

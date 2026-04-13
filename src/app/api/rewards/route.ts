@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
-import { createRewardSchema, claimRewardSchema } from '@/lib/validations'
+import { createRewardSchema, claimRewardSchema, updateRewardSchema, deleteRewardSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,6 +127,90 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ reward: updatedReward, pointsDeducted: reward.point_cost })
   } catch (error) {
     console.error('Error claiming reward:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// PUT - Edit a reward (parents only, unclaimed only)
+export async function PUT(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
+
+    const body = await request.json()
+    const parsed = updateRewardSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    const { rewardId, ...updates } = parsed.data
+
+    const reward = await prisma!.reward.findUnique({ where: { id: rewardId } })
+    if (!reward) {
+      return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
+    }
+
+    const familyError = requireFamilyMatch(reward.family_id, auth.user.family_id)
+    if (familyError) return familyError
+
+    if (reward.claimed_by) {
+      return NextResponse.json({ error: 'Cannot edit a claimed reward' }, { status: 400 })
+    }
+
+    const data: Record<string, unknown> = {}
+    if (updates.title !== undefined) data.title = updates.title
+    if (updates.description !== undefined) data.description = updates.description
+    if (updates.point_cost !== undefined) data.point_cost = updates.point_cost
+    if (updates.icon !== undefined) data.icon = updates.icon
+
+    const updated = await prisma!.reward.update({
+      where: { id: rewardId },
+      data,
+      include: { claimant: { select: { name: true } } },
+    })
+
+    return NextResponse.json({ reward: updated })
+  } catch (error) {
+    console.error('Error updating reward:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE - Delete a reward (parents only, unclaimed only)
+export async function DELETE(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
+
+    const body = await request.json()
+    const parsed = deleteRewardSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'rewardId is required' }, { status: 400 })
+    }
+
+    const reward = await prisma!.reward.findUnique({ where: { id: parsed.data.rewardId } })
+    if (!reward) {
+      return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
+    }
+
+    const familyError = requireFamilyMatch(reward.family_id, auth.user.family_id)
+    if (familyError) return familyError
+
+    if (reward.claimed_by) {
+      return NextResponse.json({ error: 'Cannot delete a claimed reward' }, { status: 400 })
+    }
+
+    await prisma!.reward.delete({ where: { id: parsed.data.rewardId } })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting reward:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

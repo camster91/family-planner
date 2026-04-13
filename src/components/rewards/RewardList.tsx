@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Trophy, Gift, Star } from 'lucide-react'
+import { Trophy, Gift, Star, Pencil, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { Reward } from '@/types'
 import { useToast } from '@/components/ui/toast'
 
@@ -17,7 +18,9 @@ export default function RewardList({ rewards, userPoints, userId, userRole, onRe
   const [localRewards, setLocalRewards] = useState(rewards)
   const [localPoints, setLocalPoints] = useState(userPoints)
   const [claimingRewardId, setClaimingRewardId] = useState<string | null>(null)
+  const [deletingRewardId, setDeletingRewardId] = useState<string | null>(null)
   const { addToast } = useToast()
+  const router = useRouter()
 
   const availableRewards = localRewards.filter(reward => !reward.claimed_by)
   const claimedRewards = localRewards.filter(reward => reward.claimed_by === userId)
@@ -68,6 +71,33 @@ export default function RewardList({ rewards, userPoints, userId, userRole, onRe
     }
   }, [localPoints, userId, addToast, onRewardClaimed])
 
+  const handleDeleteReward = useCallback(async (rewardId: string) => {
+    if (!confirm('Are you sure you want to delete this reward?')) return
+
+    setDeletingRewardId(rewardId)
+    try {
+      const res = await fetch('/api/rewards', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rewardId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to delete reward')
+
+      setLocalRewards(prev => prev.filter(r => r.id !== rewardId))
+      addToast({ type: 'success', title: 'Reward deleted' })
+      onRewardClaimed?.()
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Failed to delete reward',
+        message: err instanceof Error ? err.message : 'Please try again.',
+      })
+    } finally {
+      setDeletingRewardId(null)
+    }
+  }, [addToast, onRewardClaimed])
+
   return (
     <div className="space-y-8">
       {/* Points display */}
@@ -107,16 +137,37 @@ export default function RewardList({ rewards, userPoints, userId, userRole, onRe
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-gray-900">{reward.title}</h3>
                       {reward.description && (
                         <p className="text-sm text-gray-600 mt-1">{reward.description}</p>
                       )}
                     </div>
-                    <div className={`px-3 py-1 rounded-lg font-bold text-sm ${
-                      canAfford ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {reward.point_cost} pts
+                    <div className="flex items-center gap-2">
+                      {userRole === 'parent' && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => router.push(`/dashboard/rewards/edit?id=${reward.id}`)}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Edit reward"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteReward(reward.id)}
+                            disabled={deletingRewardId === reward.id}
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete reward"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <div className={`px-3 py-1 rounded-lg font-bold text-sm ${
+                        canAfford ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {reward.point_cost} pts
+                      </div>
                     </div>
                   </div>
 

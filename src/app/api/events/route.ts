@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { createEventSchema } from '@/lib/validations'
+import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +83,86 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ event })
   } catch (error) {
     console.error('Error creating event:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// PATCH - Update an event (family-scoped)
+export async function PATCH(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const body = await request.json()
+    const parsed = updateEventSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    const { eventId, ...updates } = parsed.data
+
+    const event = await prisma!.event.findUnique({
+      where: { id: eventId },
+      select: { family_id: true },
+    })
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    }
+
+    const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
+    if (familyError) return familyError
+
+    const data: Record<string, unknown> = {}
+    if (updates.title !== undefined) data.title = updates.title
+    if (updates.description !== undefined) data.description = updates.description
+    if (updates.start_time !== undefined) data.start_time = new Date(updates.start_time)
+    if (updates.end_time !== undefined) data.end_time = new Date(updates.end_time)
+    if (updates.location !== undefined) data.location = updates.location
+    if (updates.event_type !== undefined) data.event_type = updates.event_type
+
+    const updated = await prisma!.event.update({
+      where: { id: eventId },
+      data,
+      include: { creator: { select: { id: true, name: true } } },
+    })
+
+    return NextResponse.json({ event: updated })
+  } catch (error) {
+    console.error('Error updating event:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE - Delete an event (family-scoped)
+export async function DELETE(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const body = await request.json()
+    const parsed = deleteEventSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'eventId is required' }, { status: 400 })
+    }
+
+    const event = await prisma!.event.findUnique({
+      where: { id: parsed.data.eventId },
+      select: { family_id: true },
+    })
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    }
+
+    const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
+    if (familyError) return familyError
+
+    await prisma!.event.delete({ where: { id: parsed.data.eventId } })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting event:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

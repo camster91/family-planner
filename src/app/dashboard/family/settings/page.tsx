@@ -35,24 +35,11 @@ export default function FamilySettingsPage() {
 
       if (!user.family_id) return
 
-      // Get family details via users endpoint (which has family_id)
-      // We need a way to get family name - let's use the family PATCH endpoint pattern
-      // For now, fetch from the users endpoint which returns the full user with family_id
-      const usersRes = await fetch('/api/users')
-      const usersData = await usersRes.json()
-
-      // We need family details - let's try the family lookup approach
-      // Actually we can just store what we need from the me endpoint
-      // For the family name, we need to call a family endpoint
-      // Let's just set what we know and fetch members to get family context
-      if (usersData.user) {
-        setFamilyName(usersData.user.name || '') // This is user name, not family name
+      // Use family data from /api/auth/me response
+      if (user.family) {
+        setFamilyName(user.family.name || '')
+        setSubscriptionTier(user.family.subscription_tier || 'free')
       }
-
-      // Fetch family name by looking up via the lookup endpoint with the family ID
-      // Actually simpler: we'll add the family name to the response later
-      // For now: the family name needs to come from somewhere
-      // Let's use a direct fetch with a query pattern
     } catch (err) {
       console.error('Error loading family data:', err)
       setError('Failed to load family data')

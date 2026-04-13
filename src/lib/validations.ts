@@ -127,6 +127,63 @@ export const updateListItemSchema = z.object({
   notes: z.string().max(500).trim().optional(),
 })
 
+// Chores (update)
+export const updateChoreSchema = z.object({
+  choreId: z.string().min(1),
+  title: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(1000).trim().optional(),
+  points: z.number().int().min(0).max(1000).optional(),
+  assigned_to: z.string().min(1).optional(),
+  due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
+})
+
+// Events (update + delete)
+export const updateEventSchema = z.object({
+  eventId: z.string().min(1),
+  title: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(1000).trim().optional(),
+  start_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start time').optional(),
+  end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
+  location: z.string().max(200).trim().optional(),
+  event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).optional(),
+})
+
+export const deleteEventSchema = z.object({
+  eventId: z.string().min(1),
+})
+
+// Rewards (update + delete)
+export const updateRewardSchema = z.object({
+  rewardId: z.string().min(1),
+  title: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(500).trim().optional(),
+  point_cost: z.number().int().min(1).max(100000).optional(),
+  icon: z.string().max(50).optional(),
+})
+
+export const deleteRewardSchema = z.object({
+  rewardId: z.string().min(1),
+})
+
+// Lists (delete)
+export const deleteListSchema = z.object({
+  listId: z.string().min(1),
+})
+
+// Messages (mark as read)
+export const markMessagesReadSchema = z.object({
+  messageIds: z.array(z.string().min(1)).optional(),
+  markAll: z.boolean().optional(),
+})
+
+// Auth (change password)
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters').max(128),
+})
+
 // Users
 export const updateUserSchema = z.object({
   name: z.string().min(1).max(100).trim().optional(),

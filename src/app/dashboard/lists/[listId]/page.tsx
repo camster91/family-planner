@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ListItems from '@/components/lists/ListItems'
+import DeleteListButton from '@/components/lists/DeleteListButton'
 
 export default async function ListDetailPage({ params }: { params: { listId: string } }) {
   const sessionUser = await getServerUser()
@@ -161,6 +162,7 @@ export default async function ListDetailPage({ params }: { params: { listId: str
             >
               <Edit className="w-5 h-5" />
             </button>
+            <DeleteListButton listId={list.id} listName={list.name} />
           </div>
         </div>
 

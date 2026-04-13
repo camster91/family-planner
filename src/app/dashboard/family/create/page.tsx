@@ -125,7 +125,7 @@ export default function CreateFamilyPage() {
       <div className="mt-8 text-center text-sm text-gray-500">
         <p>
           Already have a family?{' '}
-          <Link href="/dashboard/family/join" className="text-blue-600 hover:text-blue-500 font-medium">
+          <Link href="/join" className="text-blue-600 hover:text-blue-500 font-medium">
             Join an existing family
           </Link>
         </p>

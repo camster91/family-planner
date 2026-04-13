@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
-import { sendMessageSchema } from '@/lib/validations'
+import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +85,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message })
   } catch (error) {
     console.error('Error sending message:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// PATCH - Mark messages as read
+export async function PATCH(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const body = await request.json()
+    const parsed = markMessagesReadSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    const { messageIds, markAll } = parsed.data
+
+    if (markAll) {
+      // Mark all unread family messages as read by this user
+      await prisma!.message.updateMany({
+        where: {
+          family_id: auth.user.family_id,
+          NOT: { read_by: { has: auth.user.id } },
+        },
+        data: {
+          read_by: { push: auth.user.id },
+        },
+      })
+    } else if (messageIds && messageIds.length > 0) {
+      // Mark specific messages as read
+      await prisma!.message.updateMany({
+        where: {
+          id: { in: messageIds },
+          family_id: auth.user.family_id,
+          NOT: { read_by: { has: auth.user.id } },
+        },
+        data: {
+          read_by: { push: auth.user.id },
+        },
+      })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error marking messages as read:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

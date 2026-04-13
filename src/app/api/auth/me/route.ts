@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
         streak: true,
         best_streak: true,
         created_at: true,
+        family: {
+          select: { id: true, name: true, subscription_tier: true },
+        },
       },
     })
 
