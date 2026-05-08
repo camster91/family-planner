@@ -1,0 +1,18 @@
+name: Auto Merge
+on:
+  pull_request_target:
+    types: [labeled, unlabeled, synchronize, opened, edited, reopened]
+jobs:
+  auto-merge:
+    if: contains(github.event.pull_request.labels.*.name, 'auto-merge')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pascalgn/automerge-action@v0.16.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_LABELS: "auto-merge"
+          MERGE_DELETE_BRANCH: true
+          MERGE_FORKS: false
+          MERGE_METHOD: squash
+          MERGE_RETRIES: 5
+          MERGE_RETRY_SLEEP: 60000
