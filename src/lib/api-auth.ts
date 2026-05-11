@@ -26,13 +26,13 @@ export async function authenticateRequest(
  */
 export async function authenticateWithUser(
   request: NextRequest
-): Promise<[{ payload: TokenPayload; user: { id: string; family_id: string | null; role: string; name: string; points: number; xp: number; level: number; streak: number; best_streak: number; last_chore_date: Date | null } }, null] | [null, NextResponse]> {
+): Promise<[{ payload: TokenPayload; user: { id: string; family_id: string | null; role: string; name: string; last_chore_date: Date | null } }, null] | [null, NextResponse]> {
   const [payload, error] = await authenticateRequest(request)
   if (error) return [null, error]
 
   const user = await prisma!.user.findUnique({
     where: { id: payload.userId },
-    select: { id: true, family_id: true, role: true, name: true, points: true, xp: true, level: true, streak: true, best_streak: true, last_chore_date: true },
+    select: { id: true, family_id: true, role: true, name: true, last_chore_date: true },
   })
 
   if (!user) {
@@ -47,7 +47,7 @@ export async function authenticateWithUser(
  */
 export async function authenticateWithFamily(
   request: NextRequest
-): Promise<[{ payload: TokenPayload; user: { id: string; family_id: string; role: string; name: string; points: number; xp: number; level: number; streak: number; best_streak: number; last_chore_date: Date | null } }, null] | [null, NextResponse]> {
+): Promise<[{ payload: TokenPayload; user: { id: string; family_id: string; role: string; name: string; last_chore_date: Date | null } }, null] | [null, NextResponse]> {
   const [result, error] = await authenticateWithUser(request)
   if (error) return [null, error]
 

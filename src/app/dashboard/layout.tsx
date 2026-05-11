@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     )
   }
 
-  // Get user profile with gamification data
+  // Get user profile
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
     select: {
@@ -33,11 +33,6 @@ export default async function DashboardLayout({
       age: true,
       family_id: true,
       avatar_url: true,
-      points: true,
-      level: true,
-      xp: true,
-      streak: true,
-      best_streak: true,
       created_at: true,
     },
   })

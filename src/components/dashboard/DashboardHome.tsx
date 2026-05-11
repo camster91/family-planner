@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle, Calendar, TrendingUp, Users, BarChart3, PlusCircle } from 'lucide-react'
+import { CheckCircle, Calendar, TrendingUp, Users, BarChart3, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import ActivityFeed from '@/components/activity/ActivityFeed'
@@ -24,9 +24,6 @@ interface Stats {
   completedChores: number
   pendingChores: number
   upcomingEvents: number
-  userPoints: number
-  pointsProgress: number
-  nextReward: number
   unreadMessages: number
 }
 
@@ -107,36 +104,6 @@ export default function DashboardHome({ user, chores, events, stats, completionR
               <span className="text-xl font-bold text-yellow-600">⭐</span>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">{t('dashboard.yourPoints')}</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.userPoints}</p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span>{t('dashboard.progressToNext')}</span>
-              <span>{stats.userPoints}/{stats.nextReward}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-yellow-500 h-2 rounded-full"
-                style={{ width: `${stats.pointsProgress}%` }}
-              />
-            </div>
-            <Link
-              href="/dashboard/rewards"
-              className="mt-2 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
-            >
-              {stats.pointsProgress >= 100 ? t('dashboard.claimReward') + ' →' : t('dashboard.viewRewards') + ' →'}
-            </Link>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">{t('dashboard.pendingChores')}</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.pendingChores}</p>
             </div>
@@ -151,8 +118,8 @@ export default function DashboardHome({ user, chores, events, stats, completionR
 
         <div className="card">
           <div className="flex items-center">
-            <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-purple-600" />
+            <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">{t('dashboard.upcomingEvents')}</p>
@@ -164,6 +131,24 @@ export default function DashboardHome({ user, chores, events, stats, completionR
             className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
           >
             {t('dashboard.viewCalendar')} →
+          </Link>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center">
+            <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <MessageSquare className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">{t('dashboard.unreadMessages')}</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.unreadMessages}</p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/messages"
+            className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
+          >
+            {t('dashboard.viewMessages')} →
           </Link>
         </div>
       </div>
@@ -344,8 +329,6 @@ export default function DashboardHome({ user, chores, events, stats, completionR
           </div>
         </div>
       </div>
-
-      {/* Admin controls (only visible to parents) - imported dynamically to avoid SSR issues */}
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Home,
   Calendar,
@@ -13,15 +13,10 @@ import {
   LogOut,
   Menu,
   X,
-  Trophy,
   List,
   BarChart3,
-  Flame,
-  Star
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { User } from '@/types'
-import NotificationBell from '@/components/notifications/NotificationBell'
 import { useTranslation } from '@/i18n'
 
 interface DashboardNavProps {
@@ -37,7 +32,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const navigation = [
     { name: t('nav.dashboard'), href: '/dashboard', icon: Home },
     { name: t('nav.chores'), href: '/dashboard/chores', icon: CheckSquare },
-    { name: t('nav.rewards'), href: '/dashboard/rewards', icon: Trophy },
     { name: t('nav.analytics'), href: '/dashboard/analytics', icon: BarChart3 },
     { name: t('nav.lists'), href: '/dashboard/lists', icon: List },
     { name: t('nav.calendar'), href: '/dashboard/calendar', icon: Calendar },
@@ -88,29 +82,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             </div>
           </div>
 
-          {/* Right side: notifications and user menu */}
+          {/* Right side: user menu */}
           <div className="flex items-center">
-            {/* Notifications */}
-            <NotificationBell />
-
-            {/* User menu */}
             <div className="ml-3 relative">
               <div className="flex items-center space-x-3">
-                {/* Gamification mini-stats */}
-                <div className="hidden lg:flex items-center gap-3 mr-2 text-xs">
-                  {(user as any)?.streak > 0 && (
-                    <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full font-medium">
-                      <Flame className="w-3.5 h-3.5" />
-                      {(user as any).streak}d
-                    </div>
-                  )}
-                  {(user as any)?.level > 0 && (
-                    <div className="flex items-center gap-1 bg-purple-50 text-purple-600 px-2 py-1 rounded-full font-medium">
-                      <Star className="w-3.5 h-3.5" />
-                      Lv.{(user as any).level}
-                    </div>
-                  )}
-                </div>
                 <div className="text-sm text-right hidden md:block">
                   <div className="font-medium text-gray-900">{user?.name}</div>
                   <div className="text-gray-500 capitalize">{user?.role}</div>

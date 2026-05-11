@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { CheckCircle, Clock, AlertCircle, User, Trash2, CheckCheck, Repeat, Flame, Sparkles, Pencil } from 'lucide-react'
+import { CheckCircle, Clock, AlertCircle, User, Trash2, CheckCheck, Repeat, Sparkles, Pencil } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Chore, BasicUser } from '@/types'
 import { formatDate, getChoreStatusColor, timeRemaining } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
-import { getBadgeById } from '@/lib/gamification'
 
 interface ChoreListProps {
   chores: (Chore & {
@@ -41,58 +40,11 @@ export default function ChoreList({ chores, familyMembers, currentUserId, onChor
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to complete chore')
 
-      // Update local state
       setLocalChores(prev => prev.map(c =>
         c.id === choreId ? { ...c, status: 'completed' as const, completed_at: new Date().toISOString() } : c
       ))
 
-      // Show gamification toasts
-      const g = data.gamification
-      if (g) {
-        addToast({
-          type: 'success',
-          title: 'Chore Completed!',
-          message: `+${g.pointsEarned} points, +${g.xpEarned} XP${g.multiplier > 1 ? ` (${g.multiplier}x streak bonus!)` : ''}`,
-        })
-
-        if (g.leveledUp) {
-          setTimeout(() => {
-            addToast({
-              type: 'levelup',
-              title: `Level Up! Level ${g.level}`,
-              message: 'Keep up the amazing work!',
-              duration: 5000,
-            })
-          }, 1000)
-        }
-
-        if (g.streak > 1 && g.streak % 3 === 0) {
-          setTimeout(() => {
-            addToast({
-              type: 'streak',
-              title: `${g.streak}-Day Streak!`,
-              message: `You're on fire! ${g.multiplier}x bonus active`,
-              duration: 4000,
-            })
-          }, g.leveledUp ? 2500 : 1500)
-        }
-
-        if (g.newBadges && g.newBadges.length > 0) {
-          g.newBadges.forEach((badgeId: string, index: number) => {
-            const badge = getBadgeById(badgeId)
-            if (badge) {
-              setTimeout(() => {
-                addToast({
-                  type: 'achievement',
-                  title: `Badge Earned: ${badge.icon} ${badge.name}`,
-                  message: badge.description,
-                  duration: 5000,
-                })
-              }, 2000 + index * 1500)
-            }
-          })
-        }
-      }
+      addToast({ type: 'success', title: 'Chore completed!', message: 'Great work.' })
 
       onChoreUpdated?.()
     } catch (error) {
@@ -122,7 +74,7 @@ export default function ChoreList({ chores, familyMembers, currentUserId, onChor
         c.id === choreId ? { ...c, status: 'verified' as const, verified_at: new Date().toISOString() } : c
       ))
 
-      addToast({ type: 'success', title: 'Chore Verified!', message: 'Great parenting!' })
+      addToast({ type: 'success', title: 'Chore verified!', message: 'Great parenting!' })
       onChoreUpdated?.()
     } catch (error) {
       addToast({
@@ -231,7 +183,7 @@ export default function ChoreList({ chores, familyMembers, currentUserId, onChor
                   </span>
                   {chore.points > 0 && (
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
-                      +{chore.points} pts
+                      +{chore.points}
                     </span>
                   )}
                   {chore.difficulty === 'hard' && (

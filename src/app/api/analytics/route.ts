@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const [familyMembers, allChores, recentCompletedChores, recentActivities] = await Promise.all([
       prisma!.user.findMany({
         where: { family_id: familyId },
-        select: { id: true, name: true, role: true, points: true, level: true, xp: true, streak: true, best_streak: true },
+        select: { id: true, name: true, role: true, avatar_url: true },
       }),
       prisma!.chore.findMany({
         where: { family_id: familyId },
@@ -75,11 +75,6 @@ export async function GET(request: NextRequest) {
         completionRate: memberChores.length > 0
           ? Math.round((completedChores.length / memberChores.length) * 100)
           : 0,
-        totalPoints: member.points,
-        level: member.level,
-        xp: member.xp,
-        streak: member.streak,
-        bestStreak: member.best_streak,
       }
     })
 
@@ -87,7 +82,6 @@ export async function GET(request: NextRequest) {
     const totalChores = allChores.length
     const completedChores = allChores.filter(c => c.status === 'completed' || c.status === 'verified').length
     const completionRate = totalChores > 0 ? Math.round((completedChores / totalChores) * 100) : 0
-    const totalPoints = familyMembers.reduce((sum, m) => sum + m.points, 0)
 
     // Most active day
     const dayCounts: Record<string, number> = {}
@@ -123,9 +117,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Top performers
+    // Top performers — sort by completed chores
     const topPerformers = [...memberParticipation]
-      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .sort((a, b) => b.completedChores - a.completedChores)
       .slice(0, 3)
 
     // Difficulty distribution
@@ -140,7 +134,6 @@ export async function GET(request: NextRequest) {
         totalChores,
         completedChores,
         completionRate,
-        totalPoints,
         currentStreak,
         mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null,
       },

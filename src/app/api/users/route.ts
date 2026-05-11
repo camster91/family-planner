@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { updateUserSchema } from '@/lib/validations'
-import { getLevelTitle } from '@/lib/gamification'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +13,6 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma!.user.findUnique({
       where: { id: payload.userId },
-      include: {
-        badges: true,
-      },
     })
 
     if (!user) {
@@ -25,12 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { password: _, ...userWithoutPassword } = user
 
-    return NextResponse.json({
-      user: {
-        ...userWithoutPassword,
-        levelTitle: getLevelTitle(user.level),
-      },
-    })
+    return NextResponse.json({ user: userWithoutPassword })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
