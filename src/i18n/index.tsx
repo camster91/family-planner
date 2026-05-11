@@ -81,9 +81,115 @@ const messages = {
     nav: {
       dashboard: 'Dashboard',
       settings: 'Settings',
+      signOut: 'Sign out',
+      chores: 'Chores',
+      rewards: 'Rewards',
+      analytics: 'Analytics',
+      lists: 'Lists',
+      calendar: 'Calendar',
+      messages: 'Messages',
+      family: 'Family',
+    },
+    dashboard: {
+      welcomeBack: 'Welcome back, {name}!',
+      whatsHappening: "Here's what's happening with your family today.",
+      getStarted: 'Get started by creating or joining a family.',
+      noFamilyYet: 'No Family Yet',
+      noFamilyDesc: 'Create a new family or join an existing one to start using Family Planner.',
+      createFamily: 'Create Family',
+      joinFamily: 'Join Family',
+      completionRate: 'Completion Rate',
+      yourPoints: 'Your Points',
+      pendingChores: 'Pending Chores',
+      upcomingEvents: 'Upcoming Events',
+      progressToNext: 'Progress to next reward',
+      viewRewards: 'View rewards',
+      claimReward: 'Claim reward!',
+      viewAllChores: 'View all chores',
+      viewCalendar: 'View calendar',
+      recentChores: 'Recent Chores',
+      viewAll: 'View all',
+      noChoresAssigned: 'No chores assigned yet',
+      createFirstChore: 'Create your first chore',
+      due: 'Due',
+      upcomingEventsTitle: 'Upcoming Events',
+      noUpcomingEvents: 'No upcoming events',
+      addEvent: 'Add an event',
+      familyActivity: 'Family Activity',
+      trackProgress: "Track Your Family's Progress",
+      seeDetailedAnalytics: 'See detailed analytics, trends, and achievements',
+      viewAnalytics: 'View Analytics',
+      weeklyTrends: 'Weekly Trends',
+      weeklyTrendsDesc: 'See chore completion and points earned over time',
+      topPerformers: 'Top Performers',
+      topPerformersDesc: "Discover who's contributing the most in your family",
+      achievementTracking: 'Achievement Tracking',
+      achievementTrackingDesc: 'Monitor streaks and celebrate family milestones',
+      quickTips: 'Quick Tips',
+      assignChores: 'Assign Chores',
+      assignChoresDesc: 'Create age-appropriate chores and assign them to family members to build responsibility.',
+      scheduleEvents: 'Schedule Events',
+      scheduleEventsDesc: 'Add family events to the shared calendar so everyone knows what\'s happening.',
+      communicate: 'Communicate',
+      communicateDesc: 'Use the family messaging system to share announcements and stay connected.',
     },
   },
   es: {
+    nav: {
+      dashboard: 'Panel',
+      settings: 'Configuracion',
+      signOut: 'Cerrar sesion',
+      chores: 'Tareas',
+      rewards: 'Recompensas',
+      analytics: 'Analiticas',
+      lists: 'Listas',
+      calendar: 'Calendario',
+      messages: 'Mensajes',
+      family: 'Familia',
+    },
+    dashboard: {
+      welcomeBack: 'Bienvenido de nuevo, {name}!',
+      whatsHappening: 'Esto es lo que esta pasando con tu familia hoy.',
+      getStarted: 'Comienza creando o uniendo a una familia.',
+      noFamilyYet: 'Sin familia todavia',
+      noFamilyDesc: 'Crea una nueva familia o unete a una existente para comenzar a usar Family Planner.',
+      createFamily: 'Crear familia',
+      joinFamily: 'Unirse a familia',
+      completionRate: 'Tasa de completado',
+      yourPoints: 'Tus puntos',
+      pendingChores: 'Tareas pendientes',
+      upcomingEvents: 'Proximos eventos',
+      progressToNext: 'Progreso hacia la siguiente recompensa',
+      viewRewards: 'Ver recompensas',
+      claimReward: 'Reclamar recompensa!',
+      viewAllChores: 'Ver todas las tareas',
+      viewCalendar: 'Ver calendario',
+      recentChores: 'Tareas recientes',
+      viewAll: 'Ver todo',
+      noChoresAssigned: 'No hay tareas asignadas todavia',
+      createFirstChore: 'Crea tu primera tarea',
+      due: 'Vence',
+      upcomingEventsTitle: 'Proximos eventos',
+      noUpcomingEvents: 'No hay eventos proximos',
+      addEvent: 'Agregar un evento',
+      familyActivity: 'Actividad familiar',
+      trackProgress: 'Rastrea el progreso de tu familia',
+      seeDetailedAnalytics: 'Ve analisis detallados, tendencias y logros',
+      viewAnalytics: 'Ver Analiticas',
+      weeklyTrends: 'Tendencias semanales',
+      weeklyTrendsDesc: 'Ve el completado de tareas y puntos ganados a lo largo del tiempo',
+      topPerformers: 'Mejores participantes',
+      topPerformersDesc: 'Descubre quien contribuye mas en tu familia',
+      achievementTracking: 'Seguimiento de logros',
+      achievementTrackingDesc: 'Monitorea rachas y celebra hitos familiares',
+      quickTips: 'Consejos rapidos',
+      assignChores: 'Asignar tareas',
+      assignChoresDesc: 'Crea tareas apropiadas para la edad y asignalas a los miembros de la familia.',
+      scheduleEvents: 'Programar eventos',
+      scheduleEventsDesc: 'Agrega eventos familiares al calendario compartido para que todos sepan que pasa.',
+      communicate: 'Comunicarse',
+      communicateDesc: 'Usa el sistema de mensajeria familiar para compartir anuncios y mantenerte conectado.',
+    },
     auth: {
       welcomeBack: 'Bienvenido de nuevo',
       signInSubtitle: 'Inicia sesion en tu cuenta de Family Planner',
@@ -156,10 +262,6 @@ const messages = {
       yes: 'Si',
       no: 'No',
     },
-    nav: {
-      dashboard: 'Panel',
-      settings: 'Configuracion',
-    },
   },
 } as const
 
@@ -167,7 +269,7 @@ type Messages = typeof messages.en
 
 interface I18nContextType {
   locale: Locale
-  t: (key: string) => string
+  t: (key: string, params?: Record<string, string | number>) => string
   setLocale: (locale: Locale) => void
 }
 
@@ -181,7 +283,7 @@ export function I18nProvider({ children, locale = 'en' }: { children: React.Reac
   const [currentLocale, setCurrentLocale] = useState<Locale>(locale)
 
   const t = useCallback(
-    (key: string): string => {
+    (key: string, params?: Record<string, string | number>): string => {
       const keys = key.split('.')
       let value: unknown = messages[currentLocale]
       for (const k of keys) {
@@ -191,7 +293,9 @@ export function I18nProvider({ children, locale = 'en' }: { children: React.Reac
           return key
         }
       }
-      return typeof value === 'string' ? value : key
+      if (typeof value !== 'string') return key
+      if (!params) return value
+      return value.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`))
     },
     [currentLocale]
   )

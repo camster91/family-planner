@@ -22,6 +22,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { User } from '@/types'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import { useTranslation } from '@/i18n'
 
 interface DashboardNavProps {
   user: User | null
@@ -31,17 +32,18 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const { t } = useTranslation()
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: Home },
-    { name: 'Chores', href: '/dashboard/chores', icon: CheckSquare },
-    { name: 'Rewards', href: '/dashboard/rewards', icon: Trophy },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-    { name: 'Lists', href: '/dashboard/lists', icon: List },
-    { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
-    { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
-    { name: 'Family', href: '/dashboard/family', icon: Users },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+    { name: t('nav.dashboard'), href: '/dashboard', icon: Home },
+    { name: t('nav.chores'), href: '/dashboard/chores', icon: CheckSquare },
+    { name: t('nav.rewards'), href: '/dashboard/rewards', icon: Trophy },
+    { name: t('nav.analytics'), href: '/dashboard/analytics', icon: BarChart3 },
+    { name: t('nav.lists'), href: '/dashboard/lists', icon: List },
+    { name: t('nav.calendar'), href: '/dashboard/calendar', icon: Calendar },
+    { name: t('nav.messages'), href: '/dashboard/messages', icon: MessageSquare },
+    { name: t('nav.family'), href: '/dashboard/family', icon: Users },
+    { name: t('nav.settings'), href: '/dashboard/settings', icon: Settings },
   ]
 
   const handleSignOut = async () => {
@@ -121,10 +123,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 <button
                   onClick={handleSignOut}
                   className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md"
-                  title="Sign out"
+                  title={t('nav.signOut')}
                 >
                   <LogOut className="w-5 h-5" />
-                  <span className="sr-only">Sign out</span>
+                  <span className="sr-only">{t('nav.signOut')}</span>
                 </button>
               </div>
             </div>
