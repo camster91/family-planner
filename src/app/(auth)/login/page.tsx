@@ -4,8 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LogIn } from 'lucide-react'
+import { useTranslation } from '@/i18n'
 
 export default function LoginPage() {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -25,15 +27,14 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Login failed')
+        setError(data.error || t('auth.loginFailed'))
         return
       }
 
-      // Redirect to dashboard
       router.push('/dashboard')
       router.refresh()
-    } catch (err) {
-      setError('An unexpected error occurred')
+    } catch {
+      setError(t('auth.unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -48,9 +49,9 @@ export default function LoginPage() {
               <LogIn className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('auth.welcomeBack')}</h1>
           <p className="mt-2 text-gray-600">
-            Sign in to your Family Planner account
+            {t('auth.signInSubtitle')}
           </p>
         </div>
 
@@ -64,7 +65,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                {t('auth.email')}
               </label>
               <input
                 id="email"
@@ -80,7 +81,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                {t('auth.password')}
               </label>
               <input
                 id="password"
@@ -97,7 +98,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <div className="text-sm">
                 <Link href="/forgot-password" className="text-blue-600 hover:text-blue-500">
-                  Forgot your password?
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
             </div>
@@ -107,22 +108,22 @@ export default function LoginPage() {
               disabled={loading}
               className="btn-primary w-full py-3"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? t('auth.signingIn') : t('auth.signIn')}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don&apos;t have an account?{' '}
+              {t('auth.noAccount')}{' '}
               <Link href="/register" className="text-blue-600 hover:text-blue-500 font-medium">
-                Sign up
+                {t('auth.signUp')}
               </Link>
             </p>
           </div>
         </div>
 
         <div className="text-center text-sm text-gray-500">
-          <p>By signing in, you agree to our Terms and Privacy Policy</p>
+          <p>{t('auth.bySigningIn')}</p>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { ToastProvider } from '@/components/ui/toast'
+import { I18nProvider } from '@/i18n'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -18,9 +19,11 @@ export default function RootLayout({
       <body className="font-sans">
         <PostHogProvider>
           <ToastProvider>
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-              {children}
-            </div>
+            <I18nProvider locale="en">
+              <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+                {children}
+              </div>
+            </I18nProvider>
           </ToastProvider>
         </PostHogProvider>
       </body>

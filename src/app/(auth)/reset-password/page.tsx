@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { KeyRound } from 'lucide-react'
 import { Suspense } from 'react'
+import { useTranslation } from '@/i18n'
 
 function ResetPasswordForm() {
+  const { t } = useTranslation()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,11 +21,11 @@ function ResetPasswordForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('auth.passwordMismatch'))
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long')
+      setError(t('auth.passwordTooShort'))
       return
     }
 
@@ -38,12 +40,12 @@ function ResetPasswordForm() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to reset password')
+        setError(data.error || t('common.error'))
         return
       }
       setSuccess(true)
     } catch {
-      setError('An unexpected error occurred')
+      setError(t('auth.unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -59,7 +61,7 @@ function ResetPasswordForm() {
                 <KeyRound className="w-8 h-8 text-green-600" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Password Reset</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{t('auth.resetPasswordTitle')}</h1>
             <p className="mt-2 text-gray-600">
               Your password has been reset successfully.
             </p>
@@ -68,7 +70,7 @@ function ResetPasswordForm() {
             onClick={() => router.push('/login')}
             className="btn-primary w-full py-3"
           >
-            Sign In
+            {t('auth.signIn')}
           </button>
         </div>
       </div>
@@ -87,7 +89,7 @@ function ResetPasswordForm() {
           </div>
           <div className="text-center">
             <Link href="/forgot-password" className="text-blue-600 hover:text-blue-500 font-medium">
-              Request a new reset link
+              {t('auth.sendResetLink')}
             </Link>
           </div>
         </div>
@@ -104,9 +106,9 @@ function ResetPasswordForm() {
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Set New Password</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('auth.setNewPassword')}</h1>
           <p className="mt-2 text-gray-600">
-            Enter your new password below
+            {t('auth.setNewPassword')}
           </p>
         </div>
 
@@ -120,7 +122,7 @@ function ResetPasswordForm() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                New Password
+                {t('auth.password')}
               </label>
               <input
                 id="password"
@@ -133,13 +135,13 @@ function ResetPasswordForm() {
                 placeholder="••••••••"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Must be at least 8 characters long
+                {t('auth.passwordHint')}
               </p>
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm New Password
+                {t('auth.confirmPassword')}
               </label>
               <input
                 id="confirmPassword"
@@ -158,7 +160,7 @@ function ResetPasswordForm() {
               disabled={loading}
               className="btn-primary w-full py-3"
             >
-              {loading ? 'Resetting...' : 'Reset Password'}
+              {loading ? t('auth.resetting') : t('auth.resetPasswordBtn')}
             </button>
           </form>
         </div>

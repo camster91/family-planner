@@ -4,8 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { UserPlus } from 'lucide-react'
+import { useTranslation } from '@/i18n'
 
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,16 +21,14 @@ export default function RegisterPage() {
     setLoading(true)
     setError(null)
 
-    // Validate passwords match
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('auth.passwordMismatch'))
       setLoading(false)
       return
     }
 
-    // Validate password strength
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long')
+      setError(t('auth.passwordTooShort'))
       setLoading(false)
       return
     }
@@ -41,13 +41,13 @@ export default function RegisterPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Registration failed')
+        setError(data.error || t('auth.registrationFailed'))
         return
       }
 
       router.push('/dashboard')
     } catch (err) {
-      setError('An unexpected error occurred')
+      setError(t('auth.unexpectedError'))
       console.error(err)
     } finally {
       setLoading(false)
@@ -63,9 +63,9 @@ export default function RegisterPage() {
               <UserPlus className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Create Your Account</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('auth.createAccount')}</h1>
           <p className="mt-2 text-gray-600">
-            Start organizing your family life with Family Planner
+            {t('auth.createAccountSubtitle')}
           </p>
         </div>
 
@@ -79,7 +79,7 @@ export default function RegisterPage() {
 
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
+                {t('auth.fullName')}
               </label>
               <input
                 id="name"
@@ -95,7 +95,7 @@ export default function RegisterPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                {t('auth.email')}
               </label>
               <input
                 id="email"
@@ -111,7 +111,7 @@ export default function RegisterPage() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                {t('auth.password')}
               </label>
               <input
                 id="password"
@@ -124,13 +124,13 @@ export default function RegisterPage() {
                 placeholder="••••••••"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Must be at least 8 characters long
+                {t('auth.passwordHint')}
               </p>
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
+                {t('auth.confirmPassword')}
               </label>
               <input
                 id="confirmPassword"
@@ -152,13 +152,13 @@ export default function RegisterPage() {
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded"
               />
               <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
-                I agree to the{' '}
+                {t('auth.agreeToTerms')}{' '}
                 <Link href="/terms" className="text-blue-600 hover:text-blue-500">
-                  Terms of Service
+                  {t('auth.termsOfService')}
                 </Link>{' '}
-                and{' '}
+                {t('auth.and')}{' '}
                 <Link href="/privacy" className="text-blue-600 hover:text-blue-500">
-                  Privacy Policy
+                  {t('auth.privacyPolicy')}
                 </Link>
               </label>
             </div>
@@ -168,15 +168,15 @@ export default function RegisterPage() {
               disabled={loading}
               className="btn-primary w-full py-3"
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? t('auth.creatingAccount') : t('auth.createAccountBtn')}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Already have an account?{' '}
+              {t('auth.alreadyHaveAccount')}{' '}
               <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
-                Sign in
+                {t('auth.signInLink')}
               </Link>
             </p>
           </div>
@@ -184,10 +184,10 @@ export default function RegisterPage() {
 
         <div className="text-center">
           <p className="text-sm text-gray-500">
-            By creating an account, you agree to our Terms and Privacy Policy
+            {t('auth.bySigningIn')}
           </p>
           <p className="mt-2 text-xs text-gray-400">
-            14-day free trial • No credit card required
+            {t('auth.freeTrial')} - {t('auth.noCreditCard')}
           </p>
         </div>
       </div>

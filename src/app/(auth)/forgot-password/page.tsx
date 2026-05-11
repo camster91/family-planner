@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { KeyRound } from 'lucide-react'
+import { useTranslation } from '@/i18n'
 
 export default function ForgotPasswordPage() {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,12 +25,12 @@ export default function ForgotPasswordPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Something went wrong')
+        setError(data.error || t('common.error'))
         return
       }
       setSuccess(true)
     } catch {
-      setError('An unexpected error occurred')
+      setError(t('auth.unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -51,7 +53,7 @@ export default function ForgotPasswordPage() {
           </div>
           <div className="text-center">
             <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
-              Back to Sign In
+              {t('auth.backToSignIn')}
             </Link>
           </div>
         </div>
@@ -68,9 +70,9 @@ export default function ForgotPasswordPage() {
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Reset Password</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('auth.forgotPasswordTitle')}</h1>
           <p className="mt-2 text-gray-600">
-            Enter your email and we&apos;ll send you a reset link
+            {t('auth.forgotPasswordSubtitle')}
           </p>
         </div>
 
@@ -84,7 +86,7 @@ export default function ForgotPasswordPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                {t('auth.email')}
               </label>
               <input
                 id="email"
@@ -103,15 +105,15 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="btn-primary w-full py-3"
             >
-              {loading ? 'Sending...' : 'Send Reset Link'}
+              {loading ? t('auth.sendingResetLink') : t('auth.sendResetLink')}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Remember your password?{' '}
+              {t('auth.alreadyHaveAccount')}{' '}
               <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
-                Sign in
+                {t('auth.signInLink')}
               </Link>
             </p>
           </div>
