@@ -4,6 +4,7 @@ import { CheckCircle, Calendar, TrendingUp, Users, BarChart3, PlusCircle } from 
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import ActivityFeed from '@/components/activity/ActivityFeed'
+import GamificationCard from '@/components/dashboard/GamificationCard'
 
 interface Chore {
   id: string
@@ -28,6 +29,11 @@ interface Stats {
   pointsProgress: number
   nextReward: number
   unreadMessages: number
+  userStreak?: number
+  userBestStreak?: number
+  userXp?: number
+  userLevel?: number
+  recentBadges?: { badge_id: string; created_at: string }[]
 }
 
 interface DashboardHomeProps {
@@ -55,6 +61,16 @@ export default function DashboardHome({ user, chores, events, stats, completionR
           }
         </p>
       </div>
+
+      {/* Gamification achievements */}
+      <GamificationCard
+        streak={stats.userStreak || 0}
+        bestStreak={stats.userBestStreak || 0}
+        xp={stats.userXp || 0}
+        level={stats.userLevel || 1}
+        points={stats.userPoints || 0}
+        badges={stats.recentBadges || []}
+      />
 
       {/* Family status */}
       {!user?.family_id && (

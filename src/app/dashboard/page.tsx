@@ -18,7 +18,13 @@ export default async function DashboardPage() {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true }
+    include: {
+      family: true,
+      badges: {
+        orderBy: { earned_at: 'desc' },
+        take: 10
+      }
+    }
   })
 
   const familyId = user?.family_id || undefined
@@ -71,6 +77,14 @@ export default async function DashboardPage() {
     pointsProgress,
     nextReward,
     unreadMessages: messages?.length || 0,
+    userStreak: user?.streak || 0,
+    userBestStreak: user?.best_streak || 0,
+    userXp: user?.xp || 0,
+    userLevel: user?.level || 1,
+    recentBadges: user?.badges?.map(b => ({
+      badge_id: b.badge_id,
+      created_at: b.earned_at.toISOString()
+    })) || [],
   }
 
   const completionRate = stats.totalChores > 0

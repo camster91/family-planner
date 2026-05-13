@@ -10,6 +10,12 @@ export interface User {
   age?: number
   family_id: string
   avatar_url?: string
+  points?: number
+  level?: number
+  xp?: number
+  streak?: number
+  best_streak?: number
+  last_chore_date?: string
   created_at: string
 }
 
