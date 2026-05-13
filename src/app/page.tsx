@@ -1,3 +1,5 @@
+'use client'
+
 import { Calendar, CheckCircle, MessageSquare, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'

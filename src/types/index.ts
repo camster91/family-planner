@@ -48,7 +48,10 @@ export interface Chore {
   status: ChoreStatus
   frequency: ChoreFrequency
   difficulty: 'easy' | 'medium' | 'hard'
+  photo_url?: string
+  photo_verified?: boolean
   verified_at?: string
+  verified_notes?: string
   completed_at?: string
   created_at: string
 }

@@ -33,13 +33,12 @@ function EditChoreForm() {
     const fetchData = async () => {
       try {
         const [choreRes, membersRes] = await Promise.all([
-          fetch('/api/chores'),
+          fetch(`/api/chores/${choreId}`),
           fetch('/api/family/members'),
         ])
 
         if (choreRes.ok) {
-          const choresData = await choreRes.json()
-          const chore = choresData.chores?.find((c: any) => c.id === choreId)
+          const { chore } = await choreRes.json()
           if (chore) {
             setTitle(chore.title)
             setDescription(chore.description || '')
@@ -53,6 +52,8 @@ function EditChoreForm() {
           } else {
             setError('Chore not found')
           }
+        } else {
+          setError('Failed to load chore')
         }
 
         if (membersRes.ok) {
@@ -85,11 +86,10 @@ function EditChoreForm() {
         dueDateTime = `${dueDate}T${dueTime}`
       }
 
-      const res = await fetch('/api/chores', {
+      const res = await fetch(`/api/chores/${choreId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          choreId,
           title,
           description: description || null,
           points,
@@ -216,10 +216,15 @@ function EditChoreForm() {
               <label htmlFor="frequency" className="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
               <select id="frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)} className="input-field">
                 <option value="once">Once</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="daily">Daily — repeats each day after completion</option>
+                <option value="weekly">Weekly — repeats every 7 days after completion</option>
+                <option value="monthly">Monthly — repeats every 30 days after completion</option>
               </select>
+              {frequency !== 'once' && (
+                <p className="mt-1 text-xs text-purple-600">
+                  This chore will automatically create the next one when completed and verified.
+                </p>
+              )}
             </div>
           </div>
 
