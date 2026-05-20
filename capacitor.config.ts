@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://family.ashbi.ca',
     cleartext: true,
-    allowNavigation: ['*'],
+    allowNavigation: ['family.ashbi.ca'],
   },
   android: {
     buildOptions: {
