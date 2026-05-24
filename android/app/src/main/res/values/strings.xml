@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Family Planner</string>
+    <string name="title_activity_main">Family Planner</string>
+    <string name="package_name">com.ashbi.familyplanner</string>
+    <string name="custom_url_scheme">com.ashbi.familyplanner</string>
+</resources>
