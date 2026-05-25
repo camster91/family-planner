@@ -26,7 +26,7 @@ export const createChoreSchema = z.object({
 
 export const completeChoreSchema = z.object({
   choreId: z.string().min(1),
-  photoUrl: z.string().max(500000).optional(), // base64 can be large
+  photoUrl: z.string().max(500000).optional().nullable(),
 })
 
 export const verifyChoreSchema = z.object({

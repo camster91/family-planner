@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
         family_id: true,
         avatar_url: true,
         created_at: true,
+        xp: true,
+        level: true,
+        streak: true,
+        best_streak: true,
+        last_chore_date: true,
         family: {
           select: { id: true, name: true, subscription_tier: true },
         },
