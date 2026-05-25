@@ -44,6 +44,13 @@ export default async function DashboardPage() {
     take: 10
   }) : []
 
+  // Get family leaderboard data
+  const familyMembers = familyId ? await prisma!.user.findMany({
+    where: { family_id: familyId },
+    orderBy: { xp: 'desc' },
+    select: { id: true, name: true, xp: true, level: true, streak: true, best_streak: true, avatar_url: true, role: true },
+  }) : []
+
   const stats = {
     totalChores: chores?.length || 0,
     completedChores: chores?.filter(c => c.status === 'completed' || c.status === 'verified').length || 0,
@@ -64,6 +71,7 @@ export default async function DashboardPage() {
         events={events as any}
         stats={stats}
         completionRate={completionRate}
+        leaderboard={familyMembers as any}
       />
       <AdminControls />
     </>

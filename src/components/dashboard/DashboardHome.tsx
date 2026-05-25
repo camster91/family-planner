@@ -27,15 +27,28 @@ interface Stats {
   unreadMessages: number
 }
 
+interface LeaderboardMember {
+  rank: number
+  id: string
+  name: string
+  xp: number
+  level: number
+  streak: number
+  bestStreak: number
+  avatar?: string | null
+  role: string
+}
+
 interface DashboardHomeProps {
   user: { name?: string; family_id?: string | null }
   chores: Chore[]
   events: Event[]
   stats: Stats
   completionRate: number
+  leaderboard?: LeaderboardMember[]
 }
 
-export default function DashboardHome({ user, chores, events, stats, completionRate }: DashboardHomeProps) {
+export default function DashboardHome({ user, chores, events, stats, completionRate, leaderboard }: DashboardHomeProps) {
   const { t } = useTranslation()
 
   return (
@@ -267,40 +280,75 @@ export default function DashboardHome({ user, chores, events, stats, completionR
         </div>
       )}
 
-      {/* Progress Analytics Preview */}
-      <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center mr-4">
-              <BarChart3 className="w-5 h-5 text-white" />
+      {/* Progress Analytics Preview — Live Leaderboard + Streaks */}
+      {user?.family_id && leaderboard && leaderboard.length > 0 && (
+        <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center mr-4">
+                <BarChart3 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Family Leaderboard</h3>
+                <p className="text-sm text-gray-600">Ranked by XP</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">{t('dashboard.trackProgress')}</h3>
-              <p className="text-sm text-gray-600">{t('dashboard.seeDetailedAnalytics')}</p>
-            </div>
+            <Link href="/dashboard/analytics" className="btn-primary">
+              {t('dashboard.viewAnalytics')}
+            </Link>
           </div>
-          <Link
-            href="/dashboard/analytics"
-            className="btn-primary"
-          >
-            {t('dashboard.viewAnalytics')}
-          </Link>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {leaderboard.slice(0, 5).map((member) => (
+              <div key={member.id} className="bg-white rounded-xl p-4 shadow-sm border border-indigo-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2 ${
+                      member.rank === 1 ? 'bg-yellow-100 text-yellow-700' :
+                      member.rank === 2 ? 'bg-gray-100 text-gray-700' :
+                      member.rank === 3 ? 'bg-orange-100 text-orange-700' :
+                      'bg-indigo-50 text-indigo-700'
+                    }`}>
+                      {member.rank}
+                    </span>
+                    <span className="font-medium text-gray-900 truncate">{member.name}</span>
+                  </div>
+                  <span className="text-xs font-semibold text-indigo-600">Lvl {member.level}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center text-gray-600">
+                    <span className="w-2 h-2 rounded-full bg-blue-400 mr-1.5" />
+                    {member.xp} XP
+                  </div>
+                  {member.streak > 0 && (
+                    <div className="flex items-center text-orange-600">
+                      <span className="mr-1">🔥</span>
+                      <span className="font-medium">{member.streak}d</span>
+                    </div>
+                  )}
+                  {member.streak === 0 && member.bestStreak > 0 && (
+                    <div className="flex items-center text-gray-400">
+                      <span className="mr-1">🏆</span>
+                      Best {member.bestStreak}d
+                    </div>
+                  )}
+                </div>
+                {/* XP progress bar to next level */}
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className="bg-indigo-500 h-1.5 rounded-full"
+                      style={{ width: `${Math.min((member.xp % 100) / 100 * 100, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {member.xp % 100} / 100 XP to Lvl {member.level + 1}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-indigo-600">{t('dashboard.weeklyTrends')}</div>
-            <p className="text-sm text-gray-600 mt-2">{t('dashboard.weeklyTrendsDesc')}</p>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">{t('dashboard.topPerformers')}</div>
-            <p className="text-sm text-gray-600 mt-2">{t('dashboard.topPerformersDesc')}</p>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-pink-600">{t('dashboard.achievementTracking')}</div>
-            <p className="text-sm text-gray-600 mt-2">{t('dashboard.achievementTrackingDesc')}</p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Quick tips */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">

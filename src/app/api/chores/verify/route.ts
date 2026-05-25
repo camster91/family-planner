@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { verifyChoreSchema } from '@/lib/validations'
+import { awardChoreXP } from '@/lib/gamification-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,9 +71,26 @@ export async function POST(request: NextRequest) {
         message: `Your chore "${chore.title}" has been verified. Great job!`,
         type: 'reward',
       })
+
+      // Award XP + update stats
+      try {
+        const result = await awardChoreXP(chore.assignee.id, chore.difficulty || 'medium')
+
+        // Send level-up/streak notification if applicable
+        if (result.levelUp) {
+          await notificationServiceServer.sendNotification({
+            userId: chore.assignee.id,
+            title: `Level Up! ${result.newLevel}`,
+            message: `You reached Level ${result.newLevel}! Keep it up!`,
+            type: 'system',
+          })
+        }
+      } catch (xpErr) {
+        console.error('XP award failed:', xpErr)
+      }
     }
 
-    return NextResponse.json({ success: true, choreId })
+    return NextResponse.json({ success: true, choreId, gamified: true })
   } catch (error) {
     console.error('Error verifying chore:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
