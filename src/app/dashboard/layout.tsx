@@ -34,6 +34,9 @@ export default async function DashboardLayout({
       age: true,
       family_id: true,
       avatar_url: true,
+      xp: true,
+      level: true,
+      streak: true,
       created_at: true,
     },
   })

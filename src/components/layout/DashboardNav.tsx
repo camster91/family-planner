@@ -90,7 +90,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               <div className="flex items-center space-x-3">
                 <div className="text-sm text-right hidden md:block">
                   <div className="font-medium text-gray-900">{user?.name}</div>
-                  <div className="text-gray-500 capitalize">{user?.role}</div>
+                  <div className="text-gray-500 flex items-center justify-end gap-1">
+                    <span className="capitalize">{user?.role}</span>
+                    <span className="text-indigo-600 font-medium">• {(user as any)?.xp || 0} XP</span>
+                  </div>
                 </div>
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold">
