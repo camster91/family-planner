@@ -3,6 +3,7 @@
 import { Calendar, CheckCircle, MessageSquare, Users, Zap, Award, Gift, ArrowRight, Star, Shield } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
+import { trackEvent } from '@/lib/analytics'
 
 export default function Home() {
   const { t } = useTranslation()
@@ -28,6 +29,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/register"
+                onClick={() => trackEvent('cta_click', { location: 'hero_primary', label: 'Start Free' })}
                 className="inline-flex items-center justify-center bg-blue-600 text-white text-lg px-8 py-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
               >
                 Start Free — No Credit Card
@@ -35,6 +37,7 @@ export default function Home() {
               </Link>
               <Link
                 href="/login"
+                onClick={() => trackEvent('cta_click', { location: 'hero_secondary', label: 'Sign In' })}
                 className="inline-flex items-center justify-center bg-white text-gray-700 text-lg px-8 py-4 rounded-xl font-semibold hover:bg-gray-50 transition-colors border border-gray-200"
               >
                 Sign In
