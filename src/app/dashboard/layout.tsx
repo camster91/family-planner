@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import DashboardNav from '@/components/layout/DashboardNav'
+import NotificationBell from '@/components/notifications/NotificationBell'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -40,6 +41,9 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardNav user={user as any} />
+      <div className="fixed top-16 right-4 z-50">
+        <NotificationBell />
+      </div>
       <div className="pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <ErrorBoundary>
