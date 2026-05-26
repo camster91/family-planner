@@ -2,19 +2,18 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { UserPlus } from 'lucide-react'
+import { UserPlus, CheckCircle } from 'lucide-react'
 import { useTranslation } from '@/i18n'
 
 export default function RegisterPage() {
   const { t } = useTranslation()
+  const [showVerificationNotice, setShowVerificationNotice] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,13 +44,43 @@ export default function RegisterPage() {
         return
       }
 
-      router.push('/dashboard')
+      // Show verification notice instead of redirecting immediately
+      setError(null)
+      setShowVerificationNotice(true)
     } catch (err) {
       setError(t('auth.unexpectedError'))
       console.error(err)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showVerificationNotice) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900">Check Your Email</h1>
+            <p className="mt-4 text-gray-600">
+              We sent a verification link to your email address. Click the link to activate your account, then sign in.
+            </p>
+            <div className="mt-8">
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Go to Sign In
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
