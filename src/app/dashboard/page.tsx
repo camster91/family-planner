@@ -51,6 +51,18 @@ export default async function DashboardPage() {
     select: { id: true, name: true, xp: true, level: true, streak: true, best_streak: true, avatar_url: true, role: true },
   }) : []
 
+  const leaderboard = familyMembers.map((m, i) => ({
+    rank: i + 1,
+    id: m.id,
+    name: m.name,
+    xp: m.xp || 0,
+    level: m.level || 1,
+    streak: m.streak || 0,
+    bestStreak: m.best_streak || 0,
+    avatar: m.avatar_url,
+    role: m.role,
+  }))
+
   const stats = {
     totalChores: chores?.length || 0,
     completedChores: chores?.filter(c => c.status === 'completed' || c.status === 'verified').length || 0,
@@ -71,7 +83,7 @@ export default async function DashboardPage() {
         events={events as any}
         stats={stats}
         completionRate={completionRate}
-        leaderboard={familyMembers as any}
+        leaderboard={leaderboard}
       />
       <AdminControls />
     </>
