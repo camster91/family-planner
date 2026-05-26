@@ -31,6 +31,9 @@ RUN npx prisma generate
 # Build Next.js application
 RUN npm run build
 
+# Copy public files into standalone output so they're served by server.js
+RUN cp -r /app/public /app/.next/standalone/public
+
 # Production image
 FROM base AS runner
 WORKDIR /app
