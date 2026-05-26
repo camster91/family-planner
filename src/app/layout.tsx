@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
+import { AnalyticsProvider } from '@/components/providers/analytics-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
 import './globals.css'
@@ -77,9 +78,11 @@ export default function RootLayout({
         <PostHogProvider>
           <ToastProvider>
             <I18nProvider locale="en">
-              <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-                {children}
-              </div>
+              <AnalyticsProvider>
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+                  {children}
+                </div>
+              </AnalyticsProvider>
             </I18nProvider>
           </ToastProvider>
         </PostHogProvider>
