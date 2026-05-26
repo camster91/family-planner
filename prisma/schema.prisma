@@ -36,6 +36,9 @@ model User {
   list_items_added ListItem[] @relation("AddedItems")
   list_items_checked ListItem[] @relation("CheckedItems")
   activities   Activity[] @relation("UserActivities")
+  created_rewards Reward[] @relation("CreatedRewards")
+  claimed_rewards Reward[] @relation("ClaimedRewards")
+  approved_rewards Reward[] @relation("ApprovedRewards")
 
   @@index([family_id])
 }
@@ -54,6 +57,7 @@ model Family {
   messages      Message[]
   lists         List[]
   activities    Activity[]
+  rewards       Reward[]
 }
 
 model Chore {
@@ -209,4 +213,32 @@ model Activity {
   @@index([family_id])
   @@index([family_id, created_at])
   @@index([user_id])
+}
+
+model Reward {
+  id           String    @id @default(cuid())
+  family_id    String
+  name         String
+  description  String?
+  cost         Int       @default(10) // XP/points required to claim
+  icon         String?   // emoji or icon identifier
+  status       String    @default("available") // 'available', 'claimed', 'approved', 'redeemed'
+  created_by   String
+  claimed_by   String?
+  claimed_at   DateTime?
+  approved     Boolean   @default(false)
+  approved_by  String?
+  approved_at  DateTime?
+  redeemed_at  DateTime?
+  created_at   DateTime  @default(now())
+
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User      @relation("CreatedRewards", fields: [created_by], references: [id])
+  claimer      User?     @relation("ClaimedRewards", fields: [claimed_by], references: [id])
+  approver     User?     @relation("ApprovedRewards", fields: [approved_by], references: [id])
+
+  @@index([family_id])
+  @@index([family_id, status])
+  @@index([claimed_by])
 }
