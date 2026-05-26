@@ -6,8 +6,8 @@ import { registerSchema } from '@/lib/validations'
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting by IP
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
-    const rateCheck = checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000) // 5 per hour
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rateCheck = checkRateLimit(`register:${ip}`, 20, 60 * 60 * 1000) // 20 per hour
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Too many registration attempts. Please try again later.' },

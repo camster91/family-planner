@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/settings
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://family.ashbi.ca/sitemap.xml

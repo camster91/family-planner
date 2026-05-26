@@ -6,8 +6,8 @@ import { loginSchema } from '@/lib/validations'
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting by IP
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
-    const rateCheck = checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000)
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rateCheck = checkRateLimit(`login:${ip}`, 30, 15 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Too many login attempts. Please try again later.' },
