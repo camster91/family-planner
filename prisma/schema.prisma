@@ -23,6 +23,9 @@ model User {
   level          Int       @default(1)
   streak         Int       @default(0)
   best_streak    Int       @default(0)
+  email_verified Boolean   @default(false)
+  reset_token    String?
+  reset_token_expires DateTime?
   created_at   DateTime  @default(now())
 
   // Relations

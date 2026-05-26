@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
-import { verifyResetToken, deleteResetToken } from '@/lib/password-reset'
+import { verifyResetToken, clearResetToken } from '@/lib/tokens'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters long' }, { status: 400 })
     }
 
-    const userId = verifyResetToken(token)
+    const userId = await verifyResetToken(token)
     if (!userId) {
       return NextResponse.json({ error: 'Invalid or expired reset token' }, { status: 400 })
     }
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       data: { password: hashedPassword },
     })
 
-    deleteResetToken(token)
+    await clearResetToken(userId)
 
     return NextResponse.json({ message: 'Password has been reset successfully' })
   } catch (error) {

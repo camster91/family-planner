@@ -36,9 +36,49 @@ export async function POST(request: NextRequest) {
         password: hashed,
         name,
         role,
-        // family_id is null until they create/join a family
       },
     })
+
+    // Send verification email
+    const { createVerificationToken } = await import('@/lib/tokens')
+    const verifyToken = await createVerificationToken(user.id)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
+    const verifyUrl = appUrl + '/api/auth/verify-email?token=' + verifyToken
+
+    const matonKey = process.env.MATON_API_KEY || process.env.MATON_API_KEY_ASHBI
+    if (matonKey) {
+      try {
+        const html = [
+          '<h2>Verify Your Email</h2>',
+          `<p>Hi ${name},</p>`,
+          '<p>Welcome to Family Planner! Please verify your email address to get started.</p>',
+          `<p><a href="${verifyUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
+          `<p>Or copy this link: ${verifyUrl}</p>`,
+          '<p>This link expires in 24 hours. If you did not sign up, you can ignore this email.</p>',
+        ].join('\n')
+        const mime = [
+          `From: Family Planner <${process.env.FROM_EMAIL || 'noreply@family.ashbi.ca'}>`,
+          `To: ${email}`,
+          'Subject: Verify Your Family Planner Email',
+          'Content-Type: text/html; charset=utf-8',
+          '',
+          html,
+        ].join('\n')
+        const mimeBody = Buffer.from(mime).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+        await fetch('https://api.maton.ai/google-mail/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${matonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ raw: mimeBody }),
+        })
+      } catch (e) {
+        console.warn('Verification email failed:', e)
+      }
+    } else {
+      console.log(`[DEV] Verify URL for ${email}: ${verifyUrl}`)
+    }
 
     const token = signToken({ userId: user.id, email: user.email })
 
