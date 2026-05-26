@@ -6,7 +6,8 @@ export * from './gamification'
 // Award XP to a user when their chore is verified
 export async function awardChoreXP(
   userId: string,
-  difficulty: string
+  difficulty: string,
+  points: number = 10
 ): Promise<{ xpGained: number; newXp: number; newLevel: number; levelUp: boolean; streak: number; bestStreak: number }> {
   const user = await prisma!.user.findUnique({ where: { id: userId } })
   if (!user) {
@@ -25,7 +26,7 @@ export async function awardChoreXP(
   }
 
   const bestStreak = Math.max(newStreak, user.best_streak || 0)
-  const xpGained = calculateChoreXP(difficulty, user.streak || 0)
+  const xpGained = calculateChoreXP(difficulty, user.streak || 0, points)
   const newXp = (user.xp || 0) + xpGained
 
   let newLevel = user.level || 1

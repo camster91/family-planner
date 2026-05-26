@@ -37,10 +37,10 @@ export function xpForNextLevel(level: number): number {
   return 100 * level
 }
 
-export function calculateChoreXP(difficulty: string, streak: number): number {
+export function calculateChoreXP(difficulty: string, streak: number, points: number = BASE_XP): number {
   const mult = DIFFICULTY_MULTIPLIER[difficulty] || 1
   const bonus = streakBonus(streak)
-  return Math.round(BASE_XP * mult * bonus)
+  return Math.round(points * mult * bonus)
 }
 
 // Badge rendering for client components

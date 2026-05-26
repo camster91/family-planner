@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
       // Award XP + update stats
       try {
-        const result = await awardChoreXP(chore.assignee.id, chore.difficulty || 'medium')
+        const result = await awardChoreXP(chore.assignee.id, chore.difficulty || 'medium', chore.points || 10)
 
         // Send level-up/streak notification if applicable
         if (result.levelUp) {
