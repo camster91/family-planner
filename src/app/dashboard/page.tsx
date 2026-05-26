@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import DashboardHome from '@/components/dashboard/DashboardHome'
 import dynamic from 'next/dynamic'
 
+import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
+
 // AdminControls needs client context — load dynamically
 const AdminControls = dynamic(() => import('@/components/admin/AdminControls'), {
   ssr: false,
@@ -21,7 +23,16 @@ export default async function DashboardPage() {
     include: { family: true }
   })
 
-  const familyId = user?.family_id || undefined
+  // Show onboarding if user has no family
+  if (!user?.family_id) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <OnboardingFlow userId={sessionUser.id} />
+      </div>
+    )
+  }
+
+  const familyId = user.family_id
 
   // Get chore stats
   const chores = familyId ? await prisma!.chore.findMany({
