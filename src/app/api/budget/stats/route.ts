@@ -65,12 +65,12 @@ export async function GET(request: NextRequest) {
       .map((c) => c.category_id)
       .filter(Boolean) as string[]
 
-    const categories =
+    const categories: Array<{ id: string; name: string; icon: string; color: string; budget_limit: number | null }> =
       categoryIds.length > 0
         ? await prisma!.budgetCategory.findMany({
             where: { id: { in: categoryIds }, family_id: familyId },
             select: { id: true, name: true, icon: true, color: true, budget_limit: true },
-          })
+          }) as any
         : []
 
     const categoryMap = new Map(categories.map((c) => [c.id, c]))
