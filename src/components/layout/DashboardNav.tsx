@@ -17,6 +17,8 @@ import {
   BarChart3,
   Zap,
   Gift,
+  Wallet,
+  FolderKanban,
 } from 'lucide-react'
 import { User } from '@/types'
 import { useTranslation } from '@/i18n'
@@ -35,6 +37,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     { name: t('nav.dashboard'), href: '/dashboard', icon: Home },
     { name: t('nav.chores'), href: '/dashboard/chores', icon: CheckSquare },
     { name: 'Rewards', href: '/dashboard/rewards', icon: Gift },
+    { name: 'Budget', href: '/dashboard/budget', icon: Wallet },
+    { name: 'Projects', href: '/dashboard/projects', icon: FolderKanban },
     { name: t('nav.analytics'), href: '/dashboard/analytics', icon: BarChart3 },
     { name: t('nav.lists'), href: '/dashboard/lists', icon: List },
     { name: t('nav.calendar'), href: '/dashboard/calendar', icon: Calendar },

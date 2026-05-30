@@ -42,6 +42,10 @@ model User {
   created_rewards Reward[] @relation("CreatedRewards")
   claimed_rewards Reward[] @relation("ClaimedRewards")
   approved_rewards Reward[] @relation("ApprovedRewards")
+  transactions Transaction[] @relation("UserTransactions")
+  budget_categories BudgetCategory[] @relation("CreatedCategories")
+  projects     Project[] @relation("CreatedProjects")
+  project_tasks ProjectTask[] @relation("AssignedProjectTasks")
 
   @@index([family_id])
 }
@@ -61,6 +65,9 @@ model Family {
   lists         List[]
   activities    Activity[]
   rewards       Reward[]
+  transactions  Transaction[]
+  categories    BudgetCategory[]
+  projects      Project[]
 }
 
 model Chore {
@@ -104,6 +111,8 @@ model Event {
   end_time     DateTime
   location     String?
   event_type   String    @default("other") // 'school', 'sports', 'appointment', 'family', 'work', 'other'
+  is_task      Boolean   @default(false)
+  project_id   String?
   recurrence   String?   // RRULE string for recurring events
   created_by   String    // user_id
   created_at   DateTime  @default(now())
@@ -111,10 +120,12 @@ model Event {
   // Relations
   family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator      User      @relation("CreatedEvents", fields: [created_by], references: [id])
+  project      Project?  @relation(fields: [project_id], references: [id], onDelete: SetNull)
 
   @@index([family_id])
   @@index([start_time])
   @@index([family_id, start_time])
+  @@index([project_id])
 }
 
 model Message {
@@ -162,6 +173,8 @@ model List {
   name         String
   type         String    @default("grocery") // 'grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'
   description  String?
+  is_repeatable Boolean  @default(false)
+  last_purchased_at DateTime?
   created_by   String
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
@@ -181,6 +194,8 @@ model ListItem {
   content      String
   checked      Boolean   @default(false)
   quantity     Int       @default(1)
+  price        Float?
+  purchased    Boolean   @default(false)
   category     String?
   notes        String?
   added_by     String
@@ -244,4 +259,93 @@ model Reward {
   @@index([family_id])
   @@index([family_id, status])
   @@index([claimed_by])
+}
+
+model Transaction {
+  id           String    @id @default(cuid())
+  family_id    String
+  user_id      String
+  amount       Float
+  type         String    // 'income' or 'expense'
+  category_id  String?
+  description  String?
+  notes        String?
+  date         DateTime  @default(now())
+  is_recurring Boolean   @default(false)
+  recurring_interval String? // 'weekly', 'biweekly', 'monthly'
+  list_item_id String?   // link to shopping list purchase
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user         User      @relation("UserTransactions", fields: [user_id], references: [id])
+  category     BudgetCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+
+  @@index([family_id])
+  @@index([family_id, date])
+  @@index([user_id])
+  @@index([category_id])
+  @@index([family_id, type])
+}
+
+model BudgetCategory {
+  id           String    @id @default(cuid())
+  family_id    String
+  name         String
+  icon         String    @default("📦")
+  color        String    @default("#6B7280")
+  type         String    @default("expense") // 'income' or 'expense'
+  budget_limit Float?
+  created_by   String
+  created_at   DateTime  @default(now())
+
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User      @relation("CreatedCategories", fields: [created_by], references: [id])
+  transactions Transaction[]
+
+  @@index([family_id])
+  @@index([family_id, type])
+}
+
+model Project {
+  id           String    @id @default(cuid())
+  family_id    String
+  name         String
+  description  String?
+  status       String    @default("active") // 'active', 'completed', 'archived'
+  color        String    @default("#3B82F6")
+  created_by   String
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  // Relations
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User      @relation("CreatedProjects", fields: [created_by], references: [id])
+  tasks        ProjectTask[]
+  events       Event[]
+
+  @@index([family_id])
+  @@index([family_id, status])
+}
+
+model ProjectTask {
+  id           String    @id @default(cuid())
+  project_id   String
+  title        String
+  description  String?
+  completed    Boolean   @default(false)
+  assigned_to  String?
+  due_date     DateTime?
+  position     Int       @default(0)
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  // Relations
+  project      Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  assignee     User?     @relation("AssignedProjectTasks", fields: [assigned_to], references: [id])
+
+  @@index([project_id])
+  @@index([assigned_to])
 }

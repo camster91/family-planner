@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, CheckCircle, MessageSquare, Users, Zap, Award, Gift, ArrowRight, Star, Shield } from 'lucide-react'
+import { Calendar, CheckCircle, MessageSquare, Users, Zap, Gift, ArrowRight, Star, Shield, Wallet, ShoppingCart, FolderKanban } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import { trackEvent } from '@/lib/analytics'
@@ -17,14 +17,14 @@ export default function Home() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full text-sm font-medium text-indigo-700 mb-8 shadow-sm">
               <Zap className="w-4 h-4" />
-              Now with XP, Streaks & Rewards
+              Now with Budget, Projects & Shopping Lists
             </div>
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
               {t('landing.heroTitle')}
               <span className="block text-blue-600 mt-2">{t('landing.heroSubtitle')}</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-10">
-              Turn chores into a game. Kids earn XP, build streaks, and unlock rewards — while parents stay organized with less nagging.
+              The all-in-one family organizer. Track chores, manage budgets, plan projects, shop together, and stay in sync — all in one calm, ad-free space.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
@@ -50,115 +50,147 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-16 bg-white">
+      {/* Features Grid — All Modules */}
+      <section id="features" className="py-16 bg-white">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
+          <h2 className="text-3xl font-bold text-center mb-4">Everything your family needs</h2>
+          <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+            One app that replaces chore charts, spreadsheets, shopping lists, and sticky notes.
+          </p>
+
+          {/* Row 1: Chores + Gamification */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
+              <div className="flex-shrink-0 w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Chore Tracking & Gamification</h3>
+                <p className="text-gray-600 text-sm">Assign chores with points and due dates. Kids earn XP, build streaks, and unlock rewards. Photo verification keeps everyone honest.</p>
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">XP & Levels</span>
+                  <span className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-full">Streaks</span>
+                  <span className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded-full">Rewards</span>
+                  <span className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">Leaderboard</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
+              <div className="flex-shrink-0 w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center">
+                <Wallet className="w-7 h-7 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Budget Tracker</h3>
+                <p className="text-gray-600 text-sm">Track income and expenses in seconds. Custom categories with icons and colors. See where your money goes with clear charts — no spreadsheets needed.</p>
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full">One-tap entry</span>
+                  <span className="text-xs px-2 py-1 bg-sky-50 text-sky-700 rounded-full">Charts</span>
+                  <span className="text-xs px-2 py-1 bg-violet-50 text-violet-700 rounded-full">Recurring</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Shopping + Calendar */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
+              <div className="flex-shrink-0 w-14 h-14 bg-pink-100 rounded-2xl flex items-center justify-center">
+                <ShoppingCart className="w-7 h-7 text-pink-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Shared Shopping Lists</h3>
+                <p className="text-gray-600 text-sm">Create shared or private lists that update instantly. Search items, filter by checked, log purchases as expenses, and repeat lists for regular shopping trips.</p>
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="text-xs px-2 py-1 bg-pink-50 text-pink-700 rounded-full">Instant search</span>
+                  <span className="text-xs px-2 py-1 bg-rose-50 text-rose-700 rounded-full">Purchase logging</span>
+                  <span className="text-xs px-2 py-1 bg-fuchsia-50 text-fuchsia-700 rounded-full">Repeatable</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
+              <div className="flex-shrink-0 w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center">
+                <Calendar className="w-7 h-7 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Shared Calendar</h3>
+                <p className="text-gray-600 text-sm">See today clearly with Day, Week, and Month views. Combines events and tasks in one focused view. Pull in shopping lists and project tasks for simple daily planning.</p>
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">Day/Week/Month</span>
+                  <span className="text-xs px-2 py-1 bg-teal-50 text-teal-700 rounded-full">Tasks + Events</span>
+                  <span className="text-xs px-2 py-1 bg-cyan-50 text-cyan-700 rounded-full">Color-coded</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Projects + Messages */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
+              <div className="flex-shrink-0 w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center">
+                <FolderKanban className="w-7 h-7 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Projects</h3>
+                <p className="text-gray-600 text-sm">Keep plans from getting scattered. Group tasks into projects for trips, events, and long-term goals. Track progress and send tasks straight to your calendar.</p>
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded-full">Progress tracking</span>
+                  <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">Send to calendar</span>
+                  <span className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-full">Archive</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
+              <div className="flex-shrink-0 w-14 h-14 bg-violet-100 rounded-2xl flex items-center justify-center">
+                <MessageSquare className="w-7 h-7 text-violet-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Family Chat</h3>
+                <p className="text-gray-600 text-sm">Built-in messaging so everyone stays in the loop. Share announcements, coordinate plans, and keep conversations organized without switching apps.</p>
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="text-xs px-2 py-1 bg-violet-50 text-violet-700 rounded-full">Read receipts</span>
+                  <span className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded-full">Announcements</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-16 bg-gradient-to-b from-gray-50 to-white">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">Start in 60 seconds</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-blue-600">1</span>
               </div>
-              <h3 className="font-semibold text-lg mb-2">Assign Chores</h3>
-              <p className="text-gray-600">Parents create chores with points, difficulty, and due dates.</p>
+              <h3 className="font-semibold text-lg mb-2">Create your family</h3>
+              <p className="text-gray-600">Sign up, name your family, and invite members in one click.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-green-600">2</span>
               </div>
-              <h3 className="font-semibold text-lg mb-2">Kids Complete & Earn XP</h3>
-              <p className="text-gray-600">Children mark chores done, earn XP, and build daily streaks.</p>
+              <h3 className="font-semibold text-lg mb-2">Set up together</h3>
+              <p className="text-gray-600">Add chores, create a budget, start a shopping list, or plan a project.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-purple-600">3</span>
               </div>
-              <h3 className="font-semibold text-lg mb-2">Unlock Rewards</h3>
-              <p className="text-gray-600">Spend XP on rewards parents create — extra screen time, treats, outings.</p>
+              <h3 className="font-semibold text-lg mb-2">Stay organized</h3>
+              <p className="text-gray-600">Everything in one place. Less chaos, more calm.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Gamification Showcase */}
-      <section className="py-16 bg-gradient-to-b from-gray-50 to-white">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-4">Make Chores Fun</h2>
-          <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
-            Gamification that actually works. Kids stay motivated, parents stay sane.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="card text-center hover:shadow-lg transition-shadow">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
-                <Star className="w-8 h-8 text-yellow-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">XP & Levels</h3>
-              <p className="text-gray-600">Earn XP for every verified chore. Level up and show off your progress.</p>
-            </div>
-            <div className="card text-center hover:shadow-lg transition-shadow">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                <Zap className="w-8 h-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Streaks</h3>
-              <p className="text-gray-600">Keep the momentum going. Daily streaks earn bonus XP and bragging rights.</p>
-            </div>
-            <div className="card text-center hover:shadow-lg transition-shadow">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-4">
-                <Gift className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Rewards</h3>
-              <p className="text-gray-600">Parents set rewards. Kids claim them with XP. Everyone wins.</p>
-            </div>
-            <div className="card text-center hover:shadow-lg transition-shadow">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
-                <Award className="w-8 h-8 text-indigo-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Leaderboard</h3>
-              <p className="text-gray-600">Friendly competition. See who is topping the family leaderboard this week.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section id="features" className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Everything Your Family Needs</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="card text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-                <CheckCircle className="w-8 h-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">{`Smart Chore Tracking`}</h3>
-              <p className="text-gray-600">Assign, track, and verify chores with photo proof and recurring schedules.</p>
-            </div>
-            <div className="card text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-                <Calendar className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">{`Shared Calendar`}</h3>
-              <p className="text-gray-600">Never miss a school event, practice, or appointment again.</p>
-            </div>
-            <div className="card text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
-                <MessageSquare className="w-8 h-8 text-yellow-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">{`Family Chat`}</h3>
-              <p className="text-gray-600">Built-in messaging so everyone stays in the loop without extra apps.</p>
-            </div>
-            <div className="card text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-4">
-                <Users className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">{`Family Management`}</h3>
-              <p className="text-gray-600">Multiple roles for parents, teens, and kids with age-appropriate views.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Social Proof / Trust */}
-      <section className="py-16 bg-gray-50">
+      {/* Trust + CTA */}
+      <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             <div className="flex items-center justify-center gap-8 mb-8">
@@ -172,12 +204,14 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <Zap className="w-5 h-5" />
-                <span className="text-sm">Works on Any Device</span>
+                <span className="text-sm">Any Device</span>
               </div>
             </div>
-            <h2 className="text-3xl font-bold mb-6">Ready to transform your family routine?</h2>
+            <h2 className="text-3xl font-bold mb-4">Ready for calmer, more organized days?</h2>
+            <p className="text-gray-600 mb-8">No ads. No data selling. Just calm, reliable tools for everyday family life.</p>
             <Link
               href="/register"
+              onClick={() => trackEvent('cta_click', { location: 'bottom_cta', label: 'Get Started' })}
               className="inline-flex items-center justify-center bg-blue-600 text-white text-lg px-10 py-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
             >
               Get Started Free
@@ -188,7 +222,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 bg-white border-t">
+      <footer className="py-8 bg-gray-50 border-t">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center">

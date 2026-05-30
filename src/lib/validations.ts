@@ -189,3 +189,85 @@ export const updateUserSchema = z.object({
   name: z.string().min(1).max(100).trim().optional(),
   age: z.union([z.number().int().min(1).max(150), z.string(), z.null()]).optional(),
 })
+
+// Budget - Transactions
+export const createTransactionSchema = z.object({
+  amount: z.number().refine((v) => v !== 0, 'Amount must not be zero'),
+  type: z.enum(['income', 'expense']),
+  category_id: z.string().min(1).optional().nullable(),
+  description: z.string().max(500).trim().optional().nullable(),
+  notes: z.string().max(2000).trim().optional().nullable(),
+  date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
+  is_recurring: z.boolean().default(false),
+  recurring_interval: z.enum(['weekly', 'biweekly', 'monthly']).optional().nullable(),
+})
+
+export const updateTransactionSchema = z.object({
+  transactionId: z.string().min(1),
+  amount: z.number().refine((v) => v !== 0, 'Amount must not be zero').optional(),
+  type: z.enum(['income', 'expense']).optional(),
+  category_id: z.string().min(1).optional().nullable(),
+  description: z.string().max(500).trim().optional().nullable(),
+  notes: z.string().max(2000).trim().optional().nullable(),
+  date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
+  is_recurring: z.boolean().optional(),
+  recurring_interval: z.enum(['weekly', 'biweekly', 'monthly']).optional().nullable(),
+})
+
+export const deleteTransactionSchema = z.object({
+  transactionId: z.string().min(1),
+})
+
+// Budget - Categories
+export const createCategorySchema = z.object({
+  name: z.string().min(1).max(100).trim(),
+  icon: z.string().max(10).default('📦'),
+  color: z.string().max(20).default('#6B7280'),
+  type: z.enum(['income', 'expense']).default('expense'),
+  budget_limit: z.number().min(0).optional().nullable(),
+})
+
+export const updateCategorySchema = z.object({
+  categoryId: z.string().min(1),
+  name: z.string().min(1).max(100).trim().optional(),
+  icon: z.string().max(10).optional(),
+  color: z.string().max(20).optional(),
+  type: z.enum(['income', 'expense']).optional(),
+  budget_limit: z.number().min(0).optional().nullable(),
+})
+
+export const deleteCategorySchema = z.object({
+  categoryId: z.string().min(1),
+})
+
+// Projects
+export const createProjectSchema = z.object({
+  name: z.string().min(1).max(200).trim(),
+  description: z.string().max(1000).trim().optional(),
+  color: z.string().max(20).default('#3B82F6'),
+  status: z.enum(['active', 'completed', 'archived']).default('active'),
+})
+
+export const updateProjectSchema = z.object({
+  name: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(1000).trim().optional(),
+  color: z.string().max(20).optional(),
+  status: z.enum(['active', 'completed', 'archived']).optional(),
+})
+
+// Project Tasks
+export const createProjectTaskSchema = z.object({
+  title: z.string().min(1).max(200).trim(),
+  description: z.string().max(1000).trim().optional(),
+  assigned_to: z.string().min(1).optional().nullable(),
+  due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional().nullable(),
+})
+
+export const updateProjectTaskSchema = z.object({
+  title: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(1000).trim().optional().nullable(),
+  completed: z.boolean().optional(),
+  assigned_to: z.string().min(1).optional().nullable(),
+  due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional().nullable(),
+  position: z.number().int().min(0).optional(),
+})
