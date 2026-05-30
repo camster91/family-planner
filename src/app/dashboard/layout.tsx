@@ -42,7 +42,7 @@ export default async function DashboardLayout({
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <DashboardNav user={user as any} />
       <div className="fixed top-16 right-4 z-50">
         <NotificationBell />

@@ -61,7 +61,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center">
               <Link href="/dashboard" className="flex items-center">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-teal-500 rounded-xl flex items-center justify-center shadow-sm shadow-teal-200">
                   <Users className="w-5 h-5 text-white" />
                 </div>
                 <span className="ml-2 text-xl font-bold text-gray-900">Family Planner</span>
@@ -77,8 +77,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     href={item.href}
                     className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${
                       isActive
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-teal-50 text-teal-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
                     <item.icon className="w-4 h-4 mr-2" />
@@ -92,10 +92,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {/* Right side: user menu + XP */}
           <div className="flex items-center gap-2">
             {/* XP Badge - visible on all screens */}
-            <div className="flex items-center gap-1.5 bg-indigo-50 px-2.5 py-1 rounded-lg">
-              <Zap className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="text-xs font-semibold text-indigo-700">{(user as any)?.xp || 0} XP</span>
-              <span className="text-xs text-indigo-500 hidden sm:inline">• L{(user as any)?.level || 1}</span>
+            <div className="flex items-center gap-1.5 bg-teal-50 px-2.5 py-1 rounded-xl">
+              <Zap className="w-3.5 h-3.5 text-teal-600" />
+              <span className="text-xs font-semibold text-teal-700">{(user as any)?.xp || 0} XP</span>
+              <span className="text-xs text-teal-400 hidden sm:inline">• L{(user as any)?.level || 1}</span>
             </div>
 
             <div className="ml-1 relative">
@@ -105,7 +105,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   <div className="text-gray-500 text-xs capitalize">{user?.role}</div>
                 </div>
                 <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold">
+                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-semibold">
                     {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                 </div>
@@ -159,8 +159,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   href={item.href}
                   className={`flex items-center px-4 py-3 text-base font-medium ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-600'
-                      : 'text-gray-700 hover:bg-gray-50'
+                      ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500'
+                      : 'text-gray-600 hover:bg-gray-50'
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
@@ -172,7 +172,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           </div>
           <div className="p-4 border-t">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-lg">
+              <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-semibold text-lg">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div>

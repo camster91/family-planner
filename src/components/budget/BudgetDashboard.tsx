@@ -520,7 +520,7 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
           setEditingTransaction(null)
           setShowTransactionForm(true)
         }}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all flex items-center justify-center z-40 active:scale-95"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-teal-500 text-white rounded-2xl shadow-lg hover:bg-teal-600 hover:shadow-xl transition-all flex items-center justify-center z-40 active:scale-95 shadow-teal-200"
         title="Add Transaction"
       >
         <Plus className="w-6 h-6" />

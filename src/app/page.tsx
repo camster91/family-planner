@@ -12,16 +12,16 @@ export default function Home() {
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50" />
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-50 via-sky-50 to-purple-50" />
         <div className="relative container mx-auto px-4 py-16 md:py-24">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full text-sm font-medium text-indigo-700 mb-8 shadow-sm">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full text-sm font-medium text-teal-600 mb-8 shadow-sm">
               <Zap className="w-4 h-4" />
               Now with Budget, Projects & Shopping Lists
             </div>
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
               {t('landing.heroTitle')}
-              <span className="block text-blue-600 mt-2">{t('landing.heroSubtitle')}</span>
+              <span className="block text-teal-600 mt-2">{t('landing.heroSubtitle')}</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-10">
               The all-in-one family organizer. Track chores, manage budgets, plan projects, shop together, and stay in sync — all in one calm, ad-free space.
@@ -30,7 +30,7 @@ export default function Home() {
               <Link
                 href="/register"
                 onClick={() => trackEvent('cta_click', { location: 'hero_primary', label: 'Start Free' })}
-                className="inline-flex items-center justify-center bg-blue-600 text-white text-lg px-8 py-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+                className="inline-flex items-center justify-center bg-teal-500 text-white text-lg px-8 py-4 rounded-xl font-semibold hover:bg-teal-600 transition-colors shadow-lg shadow-teal-200"
               >
                 Start Free — No Credit Card
                 <ArrowRight className="w-5 h-5 ml-2" />
@@ -61,8 +61,8 @@ export default function Home() {
           {/* Row 1: Chores + Gamification */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center">
-                <CheckCircle className="w-7 h-7 text-blue-600" />
+              <div className="flex-shrink-0 w-14 h-14 bg-teal-100 rounded-2xl flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-teal-600" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2">Chore Tracking & Gamification</h3>
@@ -165,15 +165,15 @@ export default function Home() {
           <h2 className="text-3xl font-bold text-center mb-12">Start in 60 seconds</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-blue-600">1</span>
+              <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-teal-600">1</span>
               </div>
               <h3 className="font-semibold text-lg mb-2">Create your family</h3>
               <p className="text-gray-600">Sign up, name your family, and invite members in one click.</p>
             </div>
             <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-green-600">2</span>
+              <div className="w-16 h-16 bg-sky-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-sky-600">2</span>
               </div>
               <h3 className="font-semibold text-lg mb-2">Set up together</h3>
               <p className="text-gray-600">Add chores, create a budget, start a shopping list, or plan a project.</p>
@@ -212,7 +212,7 @@ export default function Home() {
             <Link
               href="/register"
               onClick={() => trackEvent('cta_click', { location: 'bottom_cta', label: 'Get Started' })}
-              className="inline-flex items-center justify-center bg-blue-600 text-white text-lg px-10 py-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+              className="inline-flex items-center justify-center bg-teal-500 text-white text-lg px-10 py-4 rounded-xl font-semibold hover:bg-teal-600 transition-colors shadow-lg shadow-teal-200"
             >
               Get Started Free
               <ArrowRight className="w-5 h-5 ml-2" />
@@ -226,7 +226,7 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-teal-500 rounded-xl flex items-center justify-center shadow-sm shadow-teal-200">
                 <Users className="w-5 h-5 text-white" />
               </div>
               <span className="ml-2 font-bold text-gray-900">Family Planner</span>
