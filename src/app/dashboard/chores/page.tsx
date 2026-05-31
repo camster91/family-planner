@@ -8,8 +8,9 @@ import ExportButton from '@/components/common/ExportButton'
 export default async function ChoresPage({
   searchParams,
 }: {
-  searchParams: { status?: string; assigned_to?: string }
+  searchParams: Promise<{ status?: string; assigned_to?: string }>
 }) {
+  const params = await searchParams
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
@@ -25,11 +26,11 @@ export default async function ChoresPage({
 
   // Build where clause from searchParams
   const where: Record<string, unknown> = { family_id: familyId }
-  if (searchParams.status) {
-    where.status = searchParams.status
+  if (params.status) {
+    where.status = params.status
   }
-  if (searchParams.assigned_to) {
-    where.assigned_to = searchParams.assigned_to
+  if (params.assigned_to) {
+    where.assigned_to = params.assigned_to
   }
 
   // Get all chores for the family (filtered)
@@ -62,8 +63,8 @@ export default async function ChoresPage({
     overdue: allChores?.filter(c => c.status === 'overdue').length || 0,
   }
 
-  const currentFilter = searchParams.status || 'all'
-  const currentAssigned = searchParams.assigned_to || ''
+  const currentFilter = params.status || 'all'
+  const currentAssigned = params.assigned_to || ''
 
   const filterButtonClass = (active: boolean) =>
     `px-4 py-2 rounded-full text-sm font-medium transition-colors ${

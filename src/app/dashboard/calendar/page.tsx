@@ -3,10 +3,11 @@ import { prisma } from '@/lib/prisma'
 import CalendarView from '@/components/calendar/CalendarView'
 
 interface CalendarPageProps {
-  searchParams: { month?: string; year?: string }
+  searchParams: Promise<{ month?: string; year?: string }>
 }
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
+  const params = await searchParams
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
@@ -29,8 +30,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   // Parse month/year from searchParams or default to today
   const now = new Date()
-  const month = searchParams.month ? parseInt(searchParams.month) : now.getMonth() + 1
-  const year = searchParams.year ? parseInt(searchParams.year) : now.getFullYear()
+  const month = params.month ? parseInt(params.month) : now.getMonth() + 1
+  const year = params.year ? parseInt(params.year) : now.getFullYear()
 
   // Calculate month boundaries
   const monthStart = new Date(year, month - 1, 1)

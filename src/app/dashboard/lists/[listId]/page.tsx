@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma'
 import ListItems from '@/components/lists/ListItems'
 import DeleteListButton from '@/components/lists/DeleteListButton'
 
-export default async function ListDetailPage({ params }: { params: { listId: string } }) {
+export default async function ListDetailPage({ params }: { params: Promise<{ listId: string }> }) {
+  const resolvedParams = await params
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
@@ -27,13 +28,13 @@ export default async function ListDetailPage({ params }: { params: { listId: str
 
   try {
     list = await (prisma as any).list.findUnique({
-      where: { id: params.listId },
+      where: { id: resolvedParams.listId },
       include: { creator: { select: { name: true, avatar_url: true } } },
     })
 
     if (list) {
       items = await (prisma as any).list_item.findMany({
-        where: { list_id: params.listId },
+        where: { list_id: resolvedParams.listId },
         include: {
           added_by_user: { select: { name: true, avatar_url: true } },
           checked_by_user: { select: { name: true } },

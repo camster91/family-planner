@@ -1,15 +1,10 @@
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import DashboardHome from '@/components/dashboard/DashboardHome'
-import dynamic from 'next/dynamic'
 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
+import AdminControlsWrapper from '@/components/admin/AdminControlsWrapper'
 
-// AdminControls needs client context — load dynamically
-const AdminControls = dynamic(() => import('@/components/admin/AdminControls'), {
-  ssr: false,
-  loading: () => null,
-})
 
 export default async function DashboardPage() {
   const sessionUser = await getServerUser()
@@ -96,7 +91,7 @@ export default async function DashboardPage() {
         completionRate={completionRate}
         leaderboard={leaderboard}
       />
-      <AdminControls />
+      <AdminControlsWrapper />
     </>
   )
 }

@@ -36,7 +36,8 @@ const typeConfigs = {
   },
 }
 
-export default async function ListsByTypePage({ params }: { params: { type: string } }) {
+export default async function ListsByTypePage({ params }: { params: Promise<{ type: string }> }) {
+  const resolvedParams = await params
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
@@ -53,7 +54,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
   }
 
   // Validate list type
-  const typeConfig = typeConfigs[params.type as keyof typeof typeConfigs]
+  const typeConfig = typeConfigs[resolvedParams.type as keyof typeof typeConfigs]
   if (!typeConfig) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -71,7 +72,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">List Type Not Found</h2>
           <p className="text-gray-600 mb-6">
-            The list type &quot;{params.type}&quot; doesn&apos;t exist.
+            The list type &quot;{resolvedParams.type}&quot; doesn&apos;t exist.
           </p>
           <Link
             href="/dashboard/lists"
@@ -90,7 +91,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
   let lists: any[] = []
   try {
     lists = await (prisma as any).list.findMany({
-      where: { family_id: user.family_id, type: params.type },
+      where: { family_id: user.family_id, type: resolvedParams.type },
       include: {
         items: true,
         creator: { select: { name: true } },
@@ -123,7 +124,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
           </div>
         </div>
         <Link
-          href={`/dashboard/lists/create?type=${params.type}`}
+          href={`/dashboard/lists/create?type=${resolvedParams.type}`}
           className="btn-primary inline-flex items-center"
         >
           <PlusCircle className="w-5 h-5 mr-2" />
@@ -225,7 +226,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
               Create your first {typeConfig.name.toLowerCase()} to get started.
             </p>
             <Link
-              href={`/dashboard/lists/create?type=${params.type}`}
+              href={`/dashboard/lists/create?type=${resolvedParams.type}`}
               className="btn-primary inline-flex items-center"
             >
               <PlusCircle className="w-5 h-5 mr-2" />
@@ -239,7 +240,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
       <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 mt-8">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Tips for {typeConfig.name}</h3>
         <div className="space-y-4">
-          {params.type === 'grocery' && (
+          {resolvedParams.type === 'grocery' && (
             <>
               <div className="flex items-start">
                 <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
@@ -268,7 +269,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
             </>
           )}
 
-          {params.type === 'todo' && (
+          {resolvedParams.type === 'todo' && (
             <>
               <div className="flex items-start">
                 <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
@@ -297,7 +298,7 @@ export default async function ListsByTypePage({ params }: { params: { type: stri
             </>
           )}
 
-          {params.type === 'meal_plan' && (
+          {resolvedParams.type === 'meal_plan' && (
             <>
               <div className="flex items-start">
                 <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
