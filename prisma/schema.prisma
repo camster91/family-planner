@@ -8,7 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-
+// User model
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -23,11 +23,12 @@ model User {
   level          Int       @default(1)
   streak         Int       @default(0)
   best_streak    Int       @default(0)
-  email_verified Boolean   @default(false)
-  reset_token    String?
+  email_verified      Boolean   @default(false)
+  reset_token         String?
   reset_token_expires DateTime?
+  verify_token         String?
+  verify_token_expires DateTime?
   created_at   DateTime  @default(now())
-
   // Relations
   family       Family?   @relation(fields: [family_id], references: [id], onDelete: SetNull)
   assigned_chores Chore[] @relation("AssignedChores")

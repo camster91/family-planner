@@ -5,20 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Format date to readable string
+// Format date to readable string (in the browser's local timezone)
+// All times in the DB are UTC; the browser renders them in the user's TZ.
 export function formatDate(date: string | Date): string {
   const d = new Date(date)
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(undefined, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   })
 }
 
-// Format time
+// Format time (in the browser's local timezone)
 export function formatTime(date: string | Date): string {
   const d = new Date(date)
-  return d.toLocaleTimeString('en-US', {
+  return d.toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   })

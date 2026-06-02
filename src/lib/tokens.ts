@@ -8,7 +8,7 @@ export function generateToken(length = 32): string {
   return crypto.randomBytes(length).toString('hex')
 }
 
-// Store reset token on user record
+// Store password-reset token (1 hour expiry, separate from verify token)
 export async function createResetToken(userId: string): Promise<string> {
   const token = generateToken()
   const expires = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
@@ -24,7 +24,7 @@ export async function createResetToken(userId: string): Promise<string> {
   return token
 }
 
-// Verify and consume reset token
+// Verify and consume password-reset token
 export async function verifyResetToken(token: string): Promise<string | null> {
   const user = await prisma!.user.findFirst({
     where: {
@@ -37,7 +37,7 @@ export async function verifyResetToken(token: string): Promise<string | null> {
   return user.id
 }
 
-// Clear reset token after use
+// Clear password-reset token after use
 export async function clearResetToken(userId: string): Promise<void> {
   await prisma!.user.update({
     where: { id: userId },
@@ -48,30 +48,30 @@ export async function clearResetToken(userId: string): Promise<void> {
   })
 }
 
-// Create email verification token
+// Create email verification token (24 hour expiry, separate from reset token)
+// Stored in its own columns so a user can request both simultaneously without
+// one overwriting the other.
 export async function createVerificationToken(userId: string): Promise<string> {
   const token = generateToken()
-  // Store in a separate table or we can use reset_token field temporarily
-  // For simplicity, reuse reset_token field with a different expiry
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
   await prisma!.user.update({
     where: { id: userId },
     data: {
-      reset_token: token,
-      reset_token_expires: expires,
+      verify_token: token,
+      verify_token_expires: expires,
     },
   })
 
   return token
 }
 
-// Verify email token
+// Verify email token (does NOT consume — that's done by markEmailVerified)
 export async function verifyEmailToken(token: string): Promise<string | null> {
   const user = await prisma!.user.findFirst({
     where: {
-      reset_token: token,
-      reset_token_expires: { gt: new Date() },
+      verify_token: token,
+      verify_token_expires: { gt: new Date() },
     },
   })
 
@@ -79,14 +79,14 @@ export async function verifyEmailToken(token: string): Promise<string | null> {
   return user.id
 }
 
-// Mark email as verified
+// Mark email as verified and clear the verify token
 export async function markEmailVerified(userId: string): Promise<void> {
   await prisma!.user.update({
     where: { id: userId },
     data: {
       email_verified: true,
-      reset_token: null,
-      reset_token_expires: null,
+      verify_token: null,
+      verify_token_expires: null,
     },
   })
 }
