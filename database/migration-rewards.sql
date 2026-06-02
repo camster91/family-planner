@@ -1,8 +1,12 @@
 -- Migration: Add Reward model to production database
 -- Run this in your production database (Coolify) after deploying
+-- NOTE: Prisma uses PascalCase table names (e.g. "User", "Family") — NOT lowercase.
+
+-- Drop the old rewards table if it exists (left over from old schema with title/point_cost)
+DROP TABLE IF EXISTS "Reward" CASCADE;
 
 -- Add Reward table
-CREATE TABLE IF NOT EXISTS "rewards" (
+CREATE TABLE IF NOT EXISTS "Reward" (
     "id" TEXT NOT NULL,
     "family_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -19,40 +23,31 @@ CREATE TABLE IF NOT EXISTS "rewards" (
     "redeemed_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "rewards_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Reward_pkey" PRIMARY KEY ("id")
 );
 
 -- Add indexes
-CREATE INDEX IF NOT EXISTS "rewards_family_id_idx" ON "rewards"("family_id");
-CREATE INDEX IF NOT EXISTS "rewards_family_id_status_idx" ON "rewards"("family_id", "status");
-CREATE INDEX IF NOT EXISTS "rewards_claimed_by_idx" ON "rewards"("claimed_by");
+CREATE INDEX IF NOT EXISTS "Reward_family_id_idx" ON "Reward"("family_id");
+CREATE INDEX IF NOT EXISTS "Reward_family_id_status_idx" ON "Reward"("family_id", "status");
+CREATE INDEX IF NOT EXISTS "Reward_claimed_by_idx" ON "Reward"("claimed_by");
 
--- Add foreign keys (if they don't exist already)
--- Note: These may fail if constraints already exist, which is fine
+-- Add foreign keys
 DO $$ BEGIN
-    ALTER TABLE "rewards" ADD CONSTRAINT "rewards_family_id_fkey" 
-        FOREIGN KEY ("family_id") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN
-    -- Constraint already exists
-END $$;
+    ALTER TABLE "Reward" ADD CONSTRAINT "Reward_family_id_fkey"
+        FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-    ALTER TABLE "rewards" ADD CONSTRAINT "rewards_created_by_fkey" 
-        FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN
-    -- Constraint already exists
-END $$;
+    ALTER TABLE "Reward" ADD CONSTRAINT "Reward_created_by_fkey"
+        FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-    ALTER TABLE "rewards" ADD CONSTRAINT "rewards_claimed_by_fkey" 
-        FOREIGN KEY ("claimed_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN
-    -- Constraint already exists
-END $$;
+    ALTER TABLE "Reward" ADD CONSTRAINT "Reward_claimed_by_fkey"
+        FOREIGN KEY ("claimed_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-    ALTER TABLE "rewards" ADD CONSTRAINT "rewards_approved_by_fkey" 
-        FOREIGN KEY ("approved_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN
-    -- Constraint already exists
-END $$;
+    ALTER TABLE "Reward" ADD CONSTRAINT "Reward_approved_by_fkey"
+        FOREIGN KEY ("approved_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

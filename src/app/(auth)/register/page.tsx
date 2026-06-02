@@ -213,7 +213,7 @@ export default function RegisterPage() {
 
         <div className="text-center">
           <p className="text-sm text-gray-500">
-            {t('auth.bySigningIn')}
+            {t('auth.bySigningUp')}
           </p>
           <p className="mt-2 text-xs text-gray-400">
             {t('auth.freeTrial')} - {t('auth.noCreditCard')}
