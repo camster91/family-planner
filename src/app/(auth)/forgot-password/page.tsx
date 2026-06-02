@@ -112,7 +112,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               {t('auth.alreadyHaveAccount')}{' '}
-              <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
+              <Link href="/login" className="inline-flex items-center py-2 text-blue-600 hover:text-blue-500 font-medium min-h-11">
                 {t('auth.signInLink')}
               </Link>
             </p>
