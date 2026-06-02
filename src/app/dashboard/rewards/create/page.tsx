@@ -24,9 +24,9 @@ export default function CreateRewardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: name,
+          name,
           description: description || undefined,
-          point_cost: cost,
+          cost,
           icon,
         }),
       })

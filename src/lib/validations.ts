@@ -75,9 +75,9 @@ export const sendMessageSchema = z.object({
 
 // Rewards
 export const createRewardSchema = z.object({
-  title: z.string().min(1).max(200).trim(),
+  name: z.string().min(1).max(200).trim(),
   description: z.string().max(500).trim().optional(),
-  point_cost: z.number().int().min(1).max(100000),
+  cost: z.number().int().min(1).max(100000),
   icon: z.string().max(50).default('gift'),
 })
 
@@ -157,9 +157,9 @@ export const deleteEventSchema = z.object({
 // Rewards (update + delete)
 export const updateRewardSchema = z.object({
   rewardId: z.string().min(1),
-  title: z.string().min(1).max(200).trim().optional(),
+  name: z.string().min(1).max(200).trim().optional(),
   description: z.string().max(500).trim().optional(),
-  point_cost: z.number().int().min(1).max(100000).optional(),
+  cost: z.number().int().min(1).max(100000).optional(),
   icon: z.string().max(50).optional(),
 })
 

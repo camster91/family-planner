@@ -83,11 +83,18 @@ export interface Message {
 export interface Reward {
   id: string
   family_id: string
-  title: string
+  name: string
   description?: string
-  point_cost: number
+  cost: number
+  icon?: string
+  status?: 'available' | 'claimed' | 'approved' | 'redeemed'
+  created_by: string
   claimed_by?: string
   claimed_at?: string
+  approved?: boolean
+  approved_by?: string
+  approved_at?: string
+  redeemed_at?: string
   created_at: string
 }
 

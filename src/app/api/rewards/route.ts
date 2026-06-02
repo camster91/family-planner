@@ -50,14 +50,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, point_cost, icon } = parsed.data
+    const { name, description, cost, icon } = parsed.data
 
     const reward = await prisma!.reward.create({
       data: {
         family_id: auth.user.family_id,
-        name: title,
+        name,
         description: description || null,
-        cost: point_cost,
+        cost,
         icon: icon || 'gift',
         status: 'available',
         created_by: auth.user.id,
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         await notificationServiceServer.sendNotification({
           userId: member.id,
           title: 'New Reward Available!',
-          message: `${title} is now available for ${point_cost} points`,
+          message: `${name} is now available for ${cost} points`,
           type: 'reward',
         })
       }
@@ -123,9 +123,9 @@ export async function PATCH(request: NextRequest) {
     if (familyError) return familyError
 
     const updateData: Record<string, unknown> = {}
-    if (updates.title !== undefined) updateData.name = updates.title
+    if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description
-    if (updates.point_cost !== undefined) updateData.cost = updates.point_cost
+    if (updates.cost !== undefined) updateData.cost = updates.cost
     if (updates.icon !== undefined) updateData.icon = updates.icon
 
     const updated = await prisma!.reward.update({
