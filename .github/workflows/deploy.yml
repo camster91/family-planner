@@ -41,17 +41,20 @@ jobs:
       # deployment and returns 200 immediately. The previous /api/v1/deploy endpoint
       # runs the deploy synchronously, which timed out in CI.
       - name: Trigger Coolify Deployment
-        run: |
-          echo "Triggering Coolify deployment for $COOLIFY_APP_UUID"
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            -X POST \
-            -H "Authorization: Bearer *** HTTP_CODE >= 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
-            echo "Deployment queued! (HTTP $HTTP_CODE)"
-          else
-            echo "Warning: deploy endpoint returned $HTTP_CODE"
-            # Don't fail the job — build+test passed and a manual deploy is still possible.
-          fi
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: |
+          echo "Triggering Coolify deployment for ${COOLIFY_APP_UUID}"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            -X POST \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APP_UUID}/start")
+          echo "Response: HTTP ${HTTP_CODE}"
+          if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 400 ]; then
+            echo "Deployment queued!"
+          else
+            echo "Warning: deploy endpoint returned ${HTTP_CODE}"
+            # Don't fail the job — build+test passed and a manual deploy is still possible.
+          fi
