@@ -273,7 +273,7 @@ CREATE TABLE IF NOT EXISTS "Project" (
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-// ============ ProjectTask (Monetoni projects) ============
+-- ============ ProjectTask (Monetoni projects) ============
 CREATE TABLE IF NOT EXISTS "ProjectTask" (
   "id" TEXT PRIMARY KEY,
   "project_id" TEXT NOT NULL,
