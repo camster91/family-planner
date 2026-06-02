@@ -14,10 +14,24 @@ export default function SettingsPage() {
     newMessages: true,
     weeklyReports: false,
   })
-  const [theme, setTheme] = useState(localStorage.getItem('familyPlanner_theme') || 'light')
-  
+  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light')
+
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    // Read saved theme from localStorage on mount (client only — localStorage doesn't exist on the server)
+    const saved = localStorage.getItem('familyPlanner_theme')
+    if (saved === 'light' || saved === 'dark' || saved === 'auto') setTheme(saved)
+  }, [])
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else if (theme === 'light') {
+      document.documentElement.classList.remove('dark')
+    } else {
+      // 'auto' — follow system preference
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.classList.toggle('dark', isDark)
+    }
     localStorage.setItem('familyPlanner_theme', theme)
   }, [theme])
 
@@ -326,7 +340,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
-              {['light', 'dark', 'auto'].map((themeOption) => (
+              {(['light', 'dark', 'auto'] as const).map((themeOption) => (
                 <button
                   key={themeOption}
                   onClick={() => setTheme(themeOption)}
