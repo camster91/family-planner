@@ -78,32 +78,9 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-// Simple in-memory rate limiter for auth endpoints
-const loginAttempts = new Map<string, { count: number; resetAt: number }>()
-
+// Rate limiting moved to src/lib/rate-limit-db.ts (Postgres-backed).
+// Kept here as a stub to avoid breaking any imports during migration.
 export function checkRateLimit(key: string, maxAttempts = 10, windowMs = 15 * 60 * 1000): { allowed: boolean; retryAfterMs: number } {
-  const now = Date.now()
-  const entry = loginAttempts.get(key)
-
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + windowMs })
-    return { allowed: true, retryAfterMs: 0 }
-  }
-
-  entry.count++
-  if (entry.count > maxAttempts) {
-    return { allowed: false, retryAfterMs: entry.resetAt - now }
-  }
-
+  console.warn('checkRateLimit called from old in-memory implementation. Use rate-limit-db instead.')
   return { allowed: true, retryAfterMs: 0 }
 }
-
-// Cleanup old entries periodically
-setInterval(() => {
-  const now = Date.now()
-  loginAttempts.forEach((entry, key) => {
-    if (now > entry.resetAt) {
-      loginAttempts.delete(key)
-    }
-  })
-}, 60 * 1000)

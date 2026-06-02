@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword, signToken, checkRateLimit } from '@/lib/auth'
+import { hashPassword } from '@/lib/auth'
+import { checkRateLimit } from '@/lib/rate-limit-db'
 import { registerSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting by IP
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    const rateCheck = checkRateLimit(`register:${ip}`, 20, 60 * 60 * 1000) // 20 per hour
+    const rateCheck = await checkRateLimit(`register:${ip}`, 20, 60 * 60 * 1000) // 20 per hour
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Too many registration attempts. Please try again later.' },

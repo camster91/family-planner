@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS "Project" (
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ============ ProjectTask (Monetoni projects) ============
+// ============ ProjectTask (Monetoni projects) ============
 CREATE TABLE IF NOT EXISTS "ProjectTask" (
   "id" TEXT PRIMARY KEY,
   "project_id" TEXT NOT NULL,
@@ -284,6 +284,21 @@ CREATE TABLE IF NOT EXISTS "ProjectTask" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ============ RateLimitEntry (Postgres-backed rate limiter) ============
+-- Used by /api/auth/* to track failed attempts per (ip, endpoint) key.
+-- Survives across replicas and restarts (unlike in-memory Map).
+CREATE TABLE IF NOT EXISTS "RateLimitEntry" (
+  "id" TEXT PRIMARY KEY,
+  "key" TEXT NOT NULL,
+  "count" INTEGER NOT NULL DEFAULT 1,
+  "windowStart" TIMESTAMP(3) NOT NULL,
+  "resetAt" TIMESTAMP(3) NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "RateLimitEntry_key_idx" ON "RateLimitEntry"("key");
+CREATE INDEX IF NOT EXISTS "RateLimitEntry_resetAt_idx" ON "RateLimitEntry"("resetAt");
 
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { safeVerifyPassword, signToken, checkRateLimit } from '@/lib/auth'
+import { safeVerifyPassword, signToken } from '@/lib/auth'
+import { checkRateLimit } from '@/lib/rate-limit-db'
 import { loginSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting by IP
+    // Rate limiting by IP (Postgres-backed, works across replicas)
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    const rateCheck = checkRateLimit(`login:${ip}`, 30, 15 * 60 * 1000)
+    const rateCheck = await checkRateLimit(`login:${ip}`, 30, 15 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Too many login attempts. Please try again later.' },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { checkRateLimit } from '@/lib/auth'
+import { checkRateLimit } from '@/lib/rate-limit-db'
 import { createResetToken } from '@/lib/tokens'
 
 function buildResetEmail(userName: string, email: string, resetUrl: string, fromEmail: string): string {
@@ -28,7 +28,7 @@ function buildResetEmail(userName: string, email: string, resetUrl: string, from
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    const rateCheck = checkRateLimit(`forgot:${ip}`, 5, 60 * 60 * 1000)
+    const rateCheck = await checkRateLimit(`forgot:${ip}`, 5, 60 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },

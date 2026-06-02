@@ -20,7 +20,8 @@ jest.mock('next/server', () => ({
   },
 }))
 
-import { signToken, verifyToken, hashPassword, verifyPassword, checkRateLimit } from '@/lib/auth'
+import { signToken, verifyToken, hashPassword, verifyPassword } from '@/lib/auth'
+import { checkRateLimit } from '@/lib/rate-limit-db'
 
 describe('Auth', () => {
   describe('signToken / verifyToken', () => {
@@ -62,19 +63,28 @@ describe('Auth', () => {
   })
 
   describe('checkRateLimit', () => {
-    it('allows up to maxAttempts', () => {
+    it('allows up to maxAttempts', async () => {
       const key = `test:${Date.now()}-${Math.random()}`
       for (let i = 0; i < 5; i++) {
-        expect(checkRateLimit(key, 5, 60000).allowed).toBe(true)
+        const r = await checkRateLimit(key, 5, 60000)
+        expect(r.allowed).toBe(true)
       }
     })
 
-    it('blocks after maxAttempts', () => {
+    it('blocks after maxAttempts', async () => {
       const key = `test:${Date.now()}-${Math.random()}`
-      for (let i = 0; i < 3; i++) checkRateLimit(key, 3, 60000)
-      const blocked = checkRateLimit(key, 3, 60000)
+      for (let i = 0; i < 3; i++) await checkRateLimit(key, 3, 60000)
+      const blocked = await checkRateLimit(key, 3, 60000)
       expect(blocked.allowed).toBe(false)
       expect(blocked.retryAfterMs).toBeGreaterThan(0)
+    })
+
+    it('returns remaining count', async () => {
+      const key = `test:${Date.now()}-${Math.random()}`
+      const r1 = await checkRateLimit(key, 5, 60000)
+      expect(r1.remaining).toBe(4)
+      const r2 = await checkRateLimit(key, 5, 60000)
+      expect(r2.remaining).toBe(3)
     })
   })
 })
