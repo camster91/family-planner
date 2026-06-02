@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { KeyRound } from 'lucide-react'
+import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { Suspense } from 'react'
 import { useTranslation } from '@/i18n'
 
