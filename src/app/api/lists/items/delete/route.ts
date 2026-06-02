@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +8,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const { searchParams } = new URL(request.url)
     const itemId = searchParams.get('itemId')

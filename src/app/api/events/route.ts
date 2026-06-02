@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
@@ -93,6 +93,9 @@ export async function PATCH(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
+
     const body = await request.json()
     const parsed = updateEventSchema.safeParse(body)
     if (!parsed.success) {
@@ -139,6 +142,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const body = await request.json()
     const parsed = deleteEventSchema.safeParse(body)

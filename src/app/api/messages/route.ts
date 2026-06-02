@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
+import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'

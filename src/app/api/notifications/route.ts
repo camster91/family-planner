@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticateRequest } from '@/lib/api-auth'
+import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { updateNotificationSchema, deleteNotificationSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
@@ -36,8 +36,11 @@ export async function GET(request: NextRequest) {
 // POST - create a notification (internal use - validates sender is in same family)
 export async function POST(request: NextRequest) {
   try {
-    const [payload, error] = await authenticateRequest(request)
+    const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const { userId, title, message, type } = await request.json()
 
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Verify the caller and target user are in the same family
     const [caller, target] = await Promise.all([
-      prisma!.user.findUnique({ where: { id: payload.userId }, select: { family_id: true } }),
+      prisma!.user.findUnique({ where: { id: auth.user.id }, select: { family_id: true } }),
       prisma!.user.findUnique({ where: { id: userId }, select: { family_id: true } }),
     ])
 
