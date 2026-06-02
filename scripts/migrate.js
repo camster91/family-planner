@@ -212,6 +212,18 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name = 'Reward' AND column_name = 'created_by') THEN
     ALTER TABLE "Reward" ADD COLUMN "created_by" TEXT;
+    -- Backfill created_by from the first parent in the family, or any user as fallback
+    UPDATE "Reward" r
+    SET "created_by" = COALESCE(
+      (SELECT u.id FROM "User" u
+       WHERE u.family_id = r.family_id
+       AND u.role = 'parent'
+       LIMIT 1),
+      (SELECT u.id FROM "User" u WHERE u.family_id = r.family_id LIMIT 1)
+    )
+    WHERE "created_by" IS NULL;
+    UPDATE "Reward" SET "created_by" = (SELECT id FROM "User" LIMIT 1) WHERE "created_by" IS NULL;
+    ALTER TABLE "Reward" ALTER COLUMN "created_by" SET NOT NULL;
   END IF;
 END $$;
 
