@@ -144,3 +144,62 @@ describe('Validations', () => {
     expect(result.success).toBe(true)
   })
 })
+
+describe('CSRF protection', () => {
+  const { generateCsrfToken, validateCsrf } = require('@/lib/csrf')
+
+  it('generateCsrfToken returns 64-char hex', () => {
+    const token = generateCsrfToken()
+    expect(token).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('generateCsrfToken returns different tokens each call', () => {
+    const a = generateCsrfToken()
+    const b = generateCsrfToken()
+    expect(a).not.toBe(b)
+  })
+
+  it('validateCsrf returns null for GET (safe method)', () => {
+    const req = { method: 'GET', cookies: { get: () => undefined }, headers: { get: () => null } } as any
+    expect(validateCsrf(req)).toBeNull()
+  })
+
+  it('validateCsrf rejects POST without cookie', () => {
+    const req = { method: 'POST', cookies: { get: () => undefined }, headers: { get: () => null } } as any
+    const result = validateCsrf(req)
+    expect(result).not.toBeNull()
+    expect(result?.status).toBe(403)
+  })
+
+  it('validateCsrf rejects POST without header', () => {
+    const req = {
+      method: 'POST',
+      cookies: { get: () => ({ value: 'abc' }) },
+      headers: { get: () => null },
+    } as any
+    const result = validateCsrf(req)
+    expect(result?.status).toBe(403)
+  })
+
+  it('validateCsrf rejects POST with mismatched token', () => {
+    const token = 'a'.repeat(64)
+    const wrong = 'b'.repeat(64)
+    const req = {
+      method: 'POST',
+      cookies: { get: () => ({ value: token }) },
+      headers: { get: () => wrong },
+    } as any
+    const result = validateCsrf(req)
+    expect(result?.status).toBe(403)
+  })
+
+  it('validateCsrf accepts POST with matching token', () => {
+    const token = generateCsrfToken()
+    const req = {
+      method: 'POST',
+      cookies: { get: () => ({ value: token }) },
+      headers: { get: () => token },
+    } as any
+    expect(validateCsrf(req)).toBeNull()
+  })
+})

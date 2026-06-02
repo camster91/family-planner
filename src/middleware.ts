@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
+import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
 
 // Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
 // Edge runtime (default) embeds env vars at build, causing token verification failures
@@ -12,7 +13,36 @@ export const config = {
   runtime: 'nodejs',
 }
 
+// Methods that mutate state and need CSRF validation
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+// Auth endpoints that legitimately need to be hit without a CSRF token
+// (no cookie has been set yet for the user, so the double-submit cookie is empty).
+// These endpoints ARE auth-protected via password/credentials, which is the
+// second factor — an attacker would need to know the user's password to forge
+// these requests, defeating the CSRF threat model.
+const CSRF_EXEMPT_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/verify-email',
+  '/api/auth/logout', // authenticated via cookie only, no body
+  '/api/health',
+])
+
 export function middleware(request: NextRequest) {
+  // CSRF check: reject all state-changing /api/* requests without a valid token,
+  // except for the auth endpoints listed above (where credentials are the second factor).
+  const isApiMutation = request.nextUrl.pathname.startsWith('/api/') &&
+    UNSAFE_METHODS.has(request.method) &&
+    !CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname)
+
+  if (isApiMutation) {
+    const csrfError = validateCsrf(request)
+    if (csrfError) return csrfError
+  }
+
   const token = request.cookies.get('session_token')?.value
   const payload = token ? verifyToken(token) : null
   const isAuthenticated = !!payload
@@ -41,6 +71,20 @@ export function middleware(request: NextRequest) {
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  // HSTS — tell browsers to never load this site over HTTP. 1 year, subdomains included.
+  // Only set in production to avoid breaking local dev over http://localhost.
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
+  }
+
+  // CSRF: ensure every response has a csrf_token cookie so the browser
+  // can echo it back in X-CSRF-Token on state-changing requests.
+  // This is the "double-submit cookie" pattern.
+  let csrfToken = request.cookies.get('csrf_token')?.value
+  if (!csrfToken) {
+    csrfToken = generateCsrfToken()
+  }
+  setCsrfCookie(response, csrfToken)
 
   return response
 }

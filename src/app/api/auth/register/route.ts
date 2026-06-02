@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
         password: hashed,
         name,
         role,
+        // Email must be verified before login (see /api/auth/login)
+        email_verified: false,
       },
     })
 
@@ -80,19 +82,15 @@ export async function POST(request: NextRequest) {
       console.log(`[DEV] Verify URL for ${email}: ${verifyUrl}`)
     }
 
-    const token = signToken({ userId: user.id, email: user.email })
+    // NOTE: We deliberately do NOT issue a session token here. The user must verify
+    // their email first, then log in. See /api/auth/login for the verification gate.
 
     const { password: _, ...userWithoutPassword } = user
 
-    const response = NextResponse.json({ user: userWithoutPassword })
-    response.cookies.set('session_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+    const response = NextResponse.json({
+      user: userWithoutPassword,
+      requiresVerification: true,
     })
-
     return response
   } catch (error) {
     console.error('Register error:', error)

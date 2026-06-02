@@ -32,6 +32,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
+    // Email verification gate — accounts must be confirmed before login
+    if (!user.email_verified) {
+      return NextResponse.json(
+        { error: 'Please verify your email before signing in. Check your inbox for the verification link.' },
+        { status: 403 }
+      )
+    }
+
     const token = signToken({ userId: user.id, email: user.email })
 
     const { password: _, ...userWithoutPassword } = user
