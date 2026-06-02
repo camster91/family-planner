@@ -33,7 +33,7 @@ jobs:
           NODE_ENV: production
 
       - name: Run tests
-        run: npm test -- --passWithNoTests --ci
+        run: npm test -- --ci
         env:
           CI: true
 
