@@ -93,9 +93,22 @@ export async function checkRateLimit(
       remaining: maxAttempts - newCount,
     }
   } catch (err) {
-    // If the rate_limit_entries table doesn't exist yet, fall back to in-memory
-    // so the rest of the app continues to work.
-    console.warn('Rate limit DB query failed, using in-memory fallback:', err)
+    // If the rate_limit_entries table doesn't exist yet (older deployment
+    // predating the table), or any other DB error, fail OPEN — allow the
+    // request through. Rate limiting is a defense-in-depth measure; failing
+    // closed would block every request until the table is created.
+    // The migration script will create the table on next container start.
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('relation "RateLimitEntry" does not exist') ||
+        msg.includes('does not exist')) {
+      // First-time deploy — let it through, log once
+      if (!(globalThis as any).__rlTableMissingWarned) {
+        (globalThis as any).__rlTableMissingWarned = true
+        console.warn('RateLimitEntry table missing — rate limiting disabled. Will activate on next deploy after migration runs.')
+      }
+    } else {
+      console.warn('Rate limit DB query failed, using in-memory fallback:', err)
+    }
     return memCheck(key, maxAttempts, windowMs, now)
   }
 }
