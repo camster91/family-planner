@@ -75,14 +75,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${
+                    className={`inline-flex items-center px-2.5 py-2 rounded-md text-sm font-medium whitespace-nowrap ${
                       isActive
                         ? 'bg-teal-50 text-teal-700'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <item.icon className="w-4 h-4 mr-2" />
-                    {item.name}
+                    <item.icon className="w-4 h-4 mr-1.5" />
+                    <span className="hidden lg:inline">{item.name}</span>
+                    <span className="lg:hidden">{item.name.charAt(0)}</span>
                   </Link>
                 )
               })}

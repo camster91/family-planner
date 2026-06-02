@@ -14,7 +14,11 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 100)
     const cursor = searchParams.get('cursor')
 
-    const where: Record<string, unknown> = { family_id: auth.user.family_id }
+    const where: Record<string, unknown> = {
+      family_id: auth.user.family_id,
+      // Exclude analytics events (which share the Activity model)
+      type: { not: { startsWith: 'event_' } },
+    }
     if (cursor) {
       where.created_at = { lt: new Date(cursor) }
     }
