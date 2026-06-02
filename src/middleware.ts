@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 
+// Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
+// Edge runtime (default) embeds env vars at build, causing token verification failures
+// when CI builds without JWT_SECRET set.
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+  ],
+  runtime: 'nodejs',
+}
+
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('session_token')?.value
   const payload = token ? verifyToken(token) : null
@@ -33,10 +43,4 @@ export function middleware(request: NextRequest) {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
 
   return response
-}
-
-export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
-  ],
 }
