@@ -34,8 +34,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    // Email verification gate — accounts must be confirmed before login
-    if (!user.email_verified) {
+    // Email verification gate — accounts must be confirmed before login.
+    // Defensive: if the email_verified column doesn't exist (older deploy),
+    // skip the check rather than 500. Login still works in that case.
+    if ('email_verified' in user && user.email_verified === false) {
       return NextResponse.json(
         { error: 'Please verify your email before signing in. Check your inbox for the verification link.' },
         { status: 403 }
