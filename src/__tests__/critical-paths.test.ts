@@ -80,7 +80,6 @@ describe('Auth', () => {
 })
 
 describe('Gamification (client-safe)', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { calculateChoreXP, streakBonus, xpForNextLevel, DIFFICULTY_MULTIPLIER, BASE_XP } = require('@/lib/gamification')
 
   it('BASE_XP is 10 (default chore points)', () => {
@@ -116,7 +115,6 @@ describe('Gamification (client-safe)', () => {
 })
 
 describe('Validations', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { createRewardSchema, registerSchema, loginSchema, completeChoreSchema } = require('@/lib/validations')
 
   it('createRewardSchema accepts the new shape (name + cost, not title + point_cost)', () => {
