@@ -1,0 +1,17 @@
+[Unit]
+Description=Family Planner deploy webhook receiver
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/opt/family-planner-webhook.sh
+Restart=always
+RestartSec=5
+Environment=FAMILY_PLANNER_WEBHOOK_SECRET=please-change-me-to-a-real-secret
+StandardOutput=append:/var/log/family-planner-webhook.log
+StandardError=append:/var/log/family-planner-webhook.log
+
+[Install]
+WantedBy=multi-user.target

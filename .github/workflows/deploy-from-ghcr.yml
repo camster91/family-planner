@@ -1,0 +1,56 @@
+name: Deploy Image to Coolify
+
+# This workflow runs after build-push.yml completes successfully.
+# It uses the prebuilt image from ghcr.io instead of asking Coolify
+# to build from source (which fails because the Coolify helper
+# container can't reach github.com:443 in this environment).
+on:
+  workflow_run:
+    workflows: ["Build, Test & Push Image to ghcr.io"]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Call Coolify's /api/v1/applications/{uuid}/start to trigger a deploy.
+      # Coolify will pull the new image from ghcr.io (the compose file
+      # is configured to use the ghcr.io image, not build from source).
+      # We don't need the COOLIFY_TOKEN to work for this — Coolify itself
+      # has registry creds configured in the UI.
+      - name: Trigger Coolify deploy
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          echo "Triggering Coolify deploy for image tag ${IMAGE_TAG}"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            -X POST \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APP_UUID}/start")
+          echo "Response: HTTP ${HTTP_CODE}"
+          if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 400 ]; then
+            echo "Deployment queued! Coolify will pull ghcr.io/camster91/family-planner:${IMAGE_TAG}"
+          else
+            echo "Warning: deploy endpoint returned ${HTTP_CODE}"
+            exit 1
+          fi
