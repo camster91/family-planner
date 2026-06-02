@@ -3,11 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { safeVerifyPassword, signToken } from '@/lib/auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { loginSchema } from '@/lib/validations'
+import { log } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
   try {
     // Rate limiting by IP (Postgres-backed, works across replicas)
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     const rateCheck = await checkRateLimit(`login:${ip}`, 30, 15 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    console.error('Login error:', error)
+    log.error('auth.login', error instanceof Error ? error : new Error(String(error)), { ip })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
