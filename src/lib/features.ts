@@ -21,6 +21,7 @@ import {
   Heart,
   Plane,
   UserPlus,
+  Thermometer,
 } from 'lucide-react'
 
 export type FeatureKey =
@@ -45,6 +46,7 @@ export type FeatureKey =
   | 'travel'
   | 'emergency'
   | 'handoff'
+  | 'sick-days'
 
 export interface FeatureMeta {
   key: FeatureKey
@@ -90,6 +92,7 @@ export const FEATURES: FeatureMeta[] = [
   { key: 'allowance', title: 'Allowance & IOUs', description: 'Track weekly allowance and money owed between members.', group: 'family', icon: Wallet, glyphColor: 'budget', href: '/dashboard/allowance', defaultEnabled: false },
   { key: 'travel', title: 'Travel mode', description: 'Mute non-urgent tasks and shift chore schedule while away.', group: 'family', icon: Plane, glyphColor: 'calendar', href: '/dashboard/travel', defaultEnabled: false },
   { key: 'handoff', title: 'Babysitter handoff', description: 'One-screen sitter brief with printable + shareable link.', group: 'family', icon: UserPlus, glyphColor: 'family', href: '/dashboard/handoff', defaultEnabled: false },
+  { key: 'sick-days', title: 'Sick days & meds', description: 'Track active illness, temperature, and medication schedule.', group: 'family', icon: Thermometer, glyphColor: 'family', href: '/dashboard/sick-days', defaultEnabled: false },
 ]
 
 /** The shape stored on Family.features as a JSON column. */
