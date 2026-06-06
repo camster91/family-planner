@@ -1,41 +1,39 @@
 # Family Planner App
 
-**A comprehensive family management web application for chore tracking, calendar coordination, family communication, and responsibility building.**
+**A complete family organizer:** chores + calendar + lists + family management + meal planning + notes + birthdays + rewards + budget + projects + messages + analytics + emergency contacts + sick day tracking + babysitter handoff + wishlist + travel mode + locations + pickups + allowance.
 
-A modern, full-featured family management platform designed to help households coordinate chores, track schedules, communicate effectively, and build responsibility through gamification.
+**Live:** https://family.ashbi.ca
+
+20 features, all gated by per-family opt-in flags. Built for parents managing households with kids of all ages.
 
 ## Features
 
-### Core Modules
+### Core (always on)
+- **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly). XP points + streak tracking.
+- **Family Calendar** — events with dates, times, locations. Shared across all family members.
+- **Shared Lists** — shopping, to-do, meal plan, wishlist. Real-time sync.
+- **Family Management** — create/join family, invite members, role-based access.
 
-#### Family Management
-- **Household Creation:** Create and manage family groups
-- **Member Invites:** Invite family members via email or link
-- **Role-Based Permissions:** Assign roles (Parent, Child, Admin)
-- **Profile Management:** Customizable user profiles with avatars
+### Planning (opt-in, on by default)
+- **Meal Planning** — weekly meal calendar with breakfast/lunch/dinner slots.
+- **Notes** — pinned family notes, color-coded.
+- **Birthdays & Anniversaries** — track important dates with countdown.
+- **Rewards** — XP-based reward catalog, one-tap claim for kids.
+- **Budget** — transaction tracking + budget categories.
+- **Projects** — trip planning, home projects, task breakdowns.
+- **Family Messaging** — real-time chat between family members.
+- **Analytics** — weekly completion stats, leaderboard, streaks.
 
-#### Chore Tracking
-- **Create & Assign Chores:** Add chores with descriptions, due dates, and assignees
-- **Points System:** Reward completion with points
-- **Recurring Tasks:** Set up daily, weekly, or monthly recurring chores
-- **Completion Tracking:** Track completion history and patterns
+### Family Life (opt-in, off by default)
+- **Locations** — save home, school, work with addresses.
+- **Pickups** — coordinate who is picking up whom.
+- **Allowance** — track IOUs and weekly allowance.
+- **Sick Days & Meds** — active illness log + med schedule.
+- **Babysitter Handoff** — one-screen sitter brief with print view.
+- **Travel Mode** — mute notifications + shift schedule by timezone.
 
-#### Shared Calendar
-- **Family Events:** Synchronized calendar for all family members
-- **Event Details:** Dates, times, locations, and reminders
-- **Color Coding:** Visual organization by event type
-- **Calendar Sync:** Export to Google, Apple, or Outlook
-
-#### Real-time Messaging
-- **Family Chat:** Instant messaging between family members
-- **Push Notifications:** Get notified of new messages
-- **Message History:** Searchable conversation archive
-
-#### Additional Features
-- **Smart Notifications:** Automated reminders for chores and events
-- **Shared Lists:** Shopping lists, to-do lists, and custom lists
-- **Rewards System:** Points-based rewards to motivate family members
-- **Analytics:** Family progress visualization and habit tracking
+### Emergency (always on)
+- **Emergency Contacts** — printable fridge card with contacts, allergies, medications.
 
 ## Tech Stack
 
@@ -45,7 +43,7 @@ A modern, full-featured family management platform designed to help households c
 | Language | TypeScript (strict mode) |
 | Database | PostgreSQL via Prisma 7 ORM |
 | Authentication | Self-hosted JWT (bcryptjs + jsonwebtoken) |
-| Styling | Tailwind CSS 3.4 (mobile-first responsive) |
+| Styling | Tailwind CSS 3.4 (Apple HIG design system) |
 | State | Zustand |
 | Forms | React Hook Form + Zod validation |
 | Deployment | Docker + Coolify |
@@ -61,26 +59,17 @@ A modern, full-featured family management platform designed to help households c
 ### Quick Start
 
 ```bash
-# Clone the repository
 git clone https://github.com/camster91/family-planner.git
 cd family-planner
-
-# Install dependencies
 npm ci --legacy-peer-deps
-
-# Set up environment variables
 cp .env.example .env.local
 # Edit .env.local with your DATABASE_URL and JWT_SECRET
-
-# Generate Prisma client and push schema
 npx prisma generate
 npx prisma db push
-
-# Run the development server
 npm run dev
 ```
 
-Visit `http://localhost:3000` to view the application.
+Visit `http://localhost:3000`.
 
 ### Environment Variables
 
@@ -89,142 +78,84 @@ Visit `http://localhost:3000` to view the application.
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `JWT_SECRET` | Secret key for JWT signing | Yes |
 | `NEXT_PUBLIC_APP_URL` | App URL (default `http://localhost:3000`) | No |
+| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No |
 
-## Usage
+## User Roles
 
-### Development
+| Role | Access |
+|------|--------|
+| **Parent** | Full access — create/verify chores, manage family, toggle features, view analytics |
+| **Child** | Kid mode — see today's missions, complete chores, claim rewards |
+| **Teen** | Same kid mode as child (teen UI is cosmetic-only in current version) |
 
-```bash
-npm run dev
-```
-
-### Production Build
-
-```bash
-npm run build
-npm run start
-```
-
-### Database Commands
+## Development
 
 ```bash
-# Generate Prisma client
-npx prisma generate
-
-# Push schema changes
-npx prisma db push
-
-# Run migrations
-npx prisma migrate dev
-
-# Open Prisma Studio
-npx prisma studio
+npm run dev          # Start dev server (http://localhost:3000)
+npm run build        # Production build
+npm run start        # Start production server
+npm run lint          # ESLint
+npm run type-check   # TypeScript (tsc --noEmit)
+npm run format       # Prettier
+npx prisma studio    # Browse database
 ```
 
 ## Project Structure
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/            # Authentication pages
-│   ├── (dashboard)/       # Main dashboard
-│   ├── api/               # API routes
-│   └── layout.tsx        # Root layout
-├── components/            # React components
-│   ├── ui/               # Base UI components
-│   ├── chores/           # Chore tracking components
-│   ├── calendar/         # Calendar components
-│   └── chat/             # Messaging components
-├── lib/                   # Utility functions
-│   ├── auth.ts           # Authentication utilities
-│   ├── db.ts             # Database utilities
-│   └── notifications.ts  # Notification helpers
-├── hooks/                 # Custom React hooks
-└── types/                 # TypeScript types
+├── app/
+│   ├── (auth)/            # Login, register
+│   ├── api/               # REST API routes
+│   ├── dashboard/         # Protected pages (FeatureGate on opt-in features)
+│   └── page.tsx           # Landing page
+├── components/
+│   ├── ui/               # 12 design primitives (Glyph, Avatar, ListRow, etc.)
+│   ├── dashboard/        # Feature components
+│   └── layout/           # Nav, CommandPalette, TabBar
+├── lib/
+│   ├── features.ts        # Feature flags (FEATURES, FeatureKey)
+│   ├── auth.ts            # JWT utilities
+│   ├── api-auth.ts        # Auth helpers (authenticateRequest, requireParent)
+│   ├── recurringChores.ts # Recurring chore expansion
+│   └── utils.ts           # cn() helper
+└── i18n/
+    └── index.tsx          # en + es inline messages
 
 prisma/
-└── schema.prisma          # Database schema
+└── schema.prisma          # 26 models
 
-database/
-└── migrations/            # SQL migrations
+.github/
+└── workflows/             # 7 CI/CD workflows
 ```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login user |
-| GET | `/api/family` | Get family details |
-| POST | `/api/family/invite` | Invite family member |
-| GET | `/api/chores` | List family chores |
-| POST | `/api/chores` | Create new chore |
-| PUT | `/api/chores/:id/complete` | Mark chore complete |
-| GET | `/api/events` | List calendar events |
-| POST | `/api/events` | Create event |
-| GET | `/api/messages` | Get chat messages |
-| POST | `/api/messages` | Send message |
 
 ## Deployment
 
 ### Docker
 
 ```bash
-# Build image
 docker build -t family-planner .
-
-# Run container
-docker run -p 3000:3000 family-planner
-```
-
-### Docker Compose
-
-```bash
-docker-compose up -d
+docker run -p 3000:3000 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
+  -e JWT_SECRET="your-secret" \
+  family-planner
 ```
 
 ### Coolify
 
 See `DEPLOYMENT.md` for detailed Coolify deployment instructions.
 
+### CI/CD
+
+7 GitHub Actions workflows handle lint/type/test/build/image-push/deploy/APK.
+
 ## Testing
 
 ```bash
-# Run tests
-npm run test
-
-# Run tests in watch mode
-npm run test:watch
+npm run type-check   # Must pass before PR
+npm run build        # Must succeed before deploy
 ```
-
-## Available Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run test` | Run Jest tests |
-| `npm run type-check` | TypeScript type checking |
-
-## Roadmap
-
-- [ ] Transition standalone features into modular GlowOS Agent Skills
-- [ ] Connect the family calendar to the Pi Coding Agent for automated scheduling
-- [ ] Migrate the real-time notification engine to the central GlowOS Broker
-- [ ] Mobile app via Capacitor or React Native
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push and open a Pull Request
 
 ## License
 
-MIT License
-
----
-Built by Cameron Ashley / Nexus AI.
+MIT — Cameron Ashley

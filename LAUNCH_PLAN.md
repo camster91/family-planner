@@ -1,5 +1,8 @@
 # Launch Plan & TODOs
 
+> ⚠️ **STALE — See finish plan:** `~/.hermes/plans/family-planner-finish-plan-2026-06-06.md`
+> Phase 2 references Vercel/Netlify. App now deploys to Coolify. See DEPLOYMENT.md for current deploy process.
+
 ## Phase 1: MVP & Prep
 - [x] Audit existing codebase for bugs and incomplete features
 - [x] Ensure mobile responsiveness and UI/UX consistency

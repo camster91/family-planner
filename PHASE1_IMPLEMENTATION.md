@@ -1,5 +1,8 @@
 # Family Planner - Phase 1 Implementation
 
+> ⚠️ **STALE — See finish plan:** `~/.hermes/plans/family-planner-finish-plan-2026-06-06.md`
+> This document describes the February 2026 state (Supabase + Vercel). The app has since migrated to Postgres + JWT + Coolify.
+
 ## Phase 1 Overview
 **Duration:** Weeks 1-8  
 **Goal:** MVP Web App Launch  
