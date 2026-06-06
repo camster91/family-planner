@@ -34,7 +34,7 @@ describe('Auth', () => {
     it('round-trips a valid payload', () => {
       const token = signToken({ userId: 'u1', email: 'a@b.com' })
       const decoded = verifyToken(token)
-      expect(decoded).toEqual({ userId: 'u1', email: 'a@b.com' })
+      expect(decoded).toEqual({ userId: 'u1', email: 'a@b.com', role: undefined, family_id: null })
     })
 
     it('rejects garbage tokens', () => {

@@ -45,6 +45,10 @@ const DUMMY_HASH = '$2a$12$LJ3m4ys3Lz0Y5y5Zy5ZzOeQz5Zz5Zz5Zz5Zz5Zz5Zz5Zz5Zz5Zy'
 export interface TokenPayload {
   userId: string
   email: string
+  /** Family role. Optional for backward compat with tokens issued before 2026-06-06. */
+  role?: string
+  /** Family ID. Optional for the same reason. */
+  family_id?: string | null
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -72,7 +76,15 @@ export function verifyToken(token: string): TokenPayload | null {
     if (!decoded.userId || !decoded.email) {
       return null
     }
-    return { userId: decoded.userId, email: decoded.email }
+    // role + family_id are optional (older tokens don't have them). Routes that
+    // need them must fall back to a DB lookup (use authenticateWithFamily, not
+    // getServerUser) or treat them as 'parent' for legacy tokens.
+    return {
+      userId: decoded.userId as string,
+      email: decoded.email as string,
+      role: (decoded as any).role,
+      family_id: (decoded as any).family_id ?? null,
+    }
   } catch {
     return null
   }

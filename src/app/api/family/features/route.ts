@@ -32,7 +32,8 @@ export async function GET() {
 
 /**
  * PATCH /api/family/features
- * Body: { key: FeatureKey, enabled: boolean }
+ * Body: { features: { key1: bool, key2: bool, ... } }
+ *   OR: { key: FeatureKey, enabled: boolean } (single feature)
  * Parents only — kids and teens cannot toggle features.
  */
 export async function PATCH(request: Request) {
@@ -45,28 +46,11 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'No family' }, { status: 400 })
   }
 
-  let body: { key?: FeatureKey; enabled?: boolean }
+  let body: { features?: Record<string, boolean>; key?: FeatureKey; enabled?: boolean }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
-
-  if (!body.key || typeof body.enabled !== 'boolean') {
-    return NextResponse.json({ error: 'key and enabled required' }, { status: 400 })
-  }
-
-  const validKey = FEATURES.find((f) => f.key === body.key)
-  if (!validKey) {
-    return NextResponse.json({ error: 'Unknown feature' }, { status: 400 })
-  }
-
-  // Core features cannot be turned off — they are the app.
-  if (validKey.group === 'core' && body.enabled === false) {
-    return NextResponse.json(
-      { error: `${validKey.title} is a core feature and cannot be disabled` },
-      { status: 400 }
-    )
   }
 
   const family = await prisma!.family.findUnique({
@@ -76,7 +60,35 @@ export async function PATCH(request: Request) {
   const current = family?.features
     ? normalizeFeatures(family.features)
     : defaultFeatures()
-  const next = { ...current, [body.key]: body.enabled }
+  const next = { ...current }
+
+  // Shape A: { features: { ... } } — bulk update (used by the UI's optimistic update)
+  if (body.features && typeof body.features === 'object') {
+    for (const [k, v] of Object.entries(body.features)) {
+      const feature = FEATURES.find((f) => f.key === k)
+      if (!feature) continue // ignore unknown keys
+      if (typeof v !== 'boolean') continue
+      // Core features cannot be turned off
+      if (feature.group === 'core' && v === false) continue
+      next[k as FeatureKey] = v
+    }
+  }
+  // Shape B: { key, enabled } — single feature (kept for backwards compat + future API)
+  else if (body.key && typeof body.enabled === 'boolean') {
+    const feature = FEATURES.find((f) => f.key === body.key)
+    if (!feature) {
+      return NextResponse.json({ error: 'Unknown feature' }, { status: 400 })
+    }
+    if (feature.group === 'core' && body.enabled === false) {
+      return NextResponse.json(
+        { error: `${feature.title} is a core feature and cannot be disabled` },
+        { status: 400 }
+      )
+    }
+    next[body.key] = body.enabled
+  } else {
+    return NextResponse.json({ error: 'features object OR (key + enabled) required' }, { status: 400 })
+  }
 
   await prisma!.family.update({
     where: { id: user.family_id },
