@@ -106,7 +106,7 @@ export async function DELETE(request: NextRequest) {
     // Verify the chore belongs to the user's family
     const chore = await prisma!.chore.findUnique({
       where: { id: parsed.data.choreId },
-      select: { family_id: true },
+      select: { family_id: true, assigned_to: true },
     })
 
     if (!chore) {
@@ -115,6 +115,10 @@ export async function DELETE(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
+      return NextResponse.json({ error: 'Only parents or the assignee can delete chores' }, { status: 403 })
+    }
 
     await prisma!.chore.delete({
       where: { id: parsed.data.choreId },

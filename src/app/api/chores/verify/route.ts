@@ -41,15 +41,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only completed chores can be verified' }, { status: 400 })
     }
 
-    // Update chore status to verified
-    await prisma!.chore.update({
-      where: { id: choreId },
+    // Idempotent update — only updates if not already verified
+    const updateResult = await prisma!.chore.updateMany({
+      where: { id: choreId, status: 'completed' },
       data: {
         status: 'verified',
         verified_at: new Date(),
         verified_notes: verificationNotes || null,
       },
     })
+
+    if (updateResult.count === 0) {
+      return NextResponse.json({ success: true, alreadyVerified: true })
+    }
 
     // Record activity
     await prisma!.activity.create({

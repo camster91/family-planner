@@ -32,27 +32,22 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    if (chore.status === 'completed' || chore.status === 'verified') {
-      return NextResponse.json({ error: 'Chore already completed' }, { status: 400 })
-    }
-
-    // Update chore status, record activity, and create next occurrence atomically
-    await prisma!.$transaction(async (tx) => {
-      const updateData: Record<string, unknown> = {
+    // Idempotent update — only updates if not already completed
+    const updateResult = await prisma!.chore.updateMany({
+      where: { id: choreId, status: { not: 'completed' } },
+      data: {
         status: 'completed',
         completed_at: new Date(),
-      }
+        ...(photoUrl ? { photo_url: photoUrl, photo_verified: false } : {}),
+      },
+    })
 
-      if (photoUrl) {
-        updateData.photo_url = photoUrl
-        updateData.photo_verified = false
-      }
+    if (updateResult.count === 0) {
+      return NextResponse.json({ success: true, alreadyCompleted: true })
+    }
 
-      await tx.chore.update({
-        where: { id: choreId },
-        data: updateData as any,
-      })
-
+    // Record activity and create next occurrence atomically
+    await prisma!.$transaction(async (tx) => {
       await tx.activity.create({
         data: {
           family_id: auth.user.family_id,
@@ -108,46 +103,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error completing chore:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-async function createNextRecurringChore(chore: any) {
-  const dueDate = new Date(chore.due_date)
-  let nextDueDate: Date
-
-  switch (chore.frequency) {
-    case 'daily':
-      nextDueDate = new Date(dueDate)
-      nextDueDate.setDate(nextDueDate.getDate() + 1)
-      break
-    case 'weekly':
-      nextDueDate = new Date(dueDate)
-      nextDueDate.setDate(nextDueDate.getDate() + 7)
-      break
-    case 'monthly':
-      nextDueDate = new Date(dueDate)
-      nextDueDate.setMonth(nextDueDate.getMonth() + 1)
-      break
-    default:
-      return
-  }
-
-  try {
-    await prisma!.chore.create({
-      data: {
-        family_id: chore.family_id,
-        title: chore.title,
-        description: chore.description,
-        points: chore.points,
-        assigned_to: chore.assigned_to,
-        due_date: nextDueDate,
-        status: 'pending',
-        frequency: chore.frequency,
-        difficulty: chore.difficulty,
-        created_by: chore.created_by,
-      },
-    })
-  } catch (error) {
-    console.error('Error creating recurring chore:', error)
   }
 }
