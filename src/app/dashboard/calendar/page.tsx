@@ -1,6 +1,6 @@
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import CalendarView from '@/components/calendar/CalendarView'
+import CalendarPageClient from './CalendarPageClient'
 
 interface CalendarPageProps {
   searchParams: Promise<{ month?: string; year?: string }>
@@ -11,14 +11,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Not Authenticated</h1>
-          <p className="mt-2 text-gray-600">Please sign in to view the calendar.</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   const user = await prisma!.user.findUnique({
@@ -52,21 +45,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       })
     : []
 
-  // Fetch chores due in the month range
-  const chores = familyId
-    ? await prisma!.chore.findMany({
-        where: {
-          family_id: familyId,
-          due_date: {
-            gte: monthStart,
-            lte: monthEnd,
-          },
-        },
-        include: { assignee: { select: { name: true } } },
-        orderBy: { due_date: 'asc' },
-      })
-    : []
-
   // Serialize dates to ISO strings for client component
   const serializedEvents = events.map((e) => ({
     ...e,
@@ -75,22 +53,11 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     created_at: e.created_at.toISOString(),
   }))
 
-  const serializedChores = chores.map((c) => ({
-    ...c,
-    due_date: c.due_date.toISOString(),
-    created_at: c.created_at.toISOString(),
-    completed_at: c.completed_at?.toISOString() ?? null,
-    verified_at: c.verified_at?.toISOString() ?? null,
-  }))
-
   return (
-    <CalendarView
+    <CalendarPageClient
       events={serializedEvents as any}
-      chores={serializedChores as any}
-      familyId={familyId || ''}
       currentMonth={month}
       currentYear={year}
-      userRole={user?.role || 'child'}
     />
   )
 }

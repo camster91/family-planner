@@ -1,241 +1,193 @@
 'use client'
 
-import { Calendar, CheckCircle, MessageSquare, Users, Zap, Gift, ArrowRight, Star, Shield, Wallet, ShoppingCart, FolderKanban } from 'lucide-react'
+import { CheckCircle, Wallet, ShoppingCart, Calendar, FolderKanban, MessageSquare, Shield, Star, Zap, ArrowRight, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
+import { Glyph } from '@/components/ui/glyph'
 import { trackEvent } from '@/lib/analytics'
+
+const FEATURES = [
+  {
+    color: 'chore' as const,
+    icon: <CheckCircle className="w-7 h-7 text-white" />,
+    titleKey: 'landing.choreTrackingTitle',
+    descKey: 'landing.choreTrackingDesc',
+  },
+  {
+    color: 'budget' as const,
+    icon: <Wallet className="w-7 h-7 text-white" />,
+    titleKey: 'landing.budgetTitle',
+    descKey: 'landing.budgetDesc',
+  },
+  {
+    color: 'lists' as const,
+    icon: <ShoppingCart className="w-7 h-7 text-white" />,
+    titleKey: 'landing.listsTitle',
+    descKey: 'landing.listsDesc',
+  },
+  {
+    color: 'calendar' as const,
+    icon: <Calendar className="w-7 h-7 text-white" />,
+    titleKey: 'landing.calendarTitle',
+    descKey: 'landing.calendarDesc',
+  },
+  {
+    color: 'projects' as const,
+    icon: <FolderKanban className="w-7 h-7 text-white" />,
+    titleKey: 'landing.projectsTitle',
+    descKey: 'landing.projectsDesc',
+  },
+  {
+    color: 'messages' as const,
+    icon: <MessageSquare className="w-7 h-7 text-white" />,
+    titleKey: 'landing.messagingTitle',
+    descKey: 'landing.messagingDesc',
+  },
+] as const
+
+const TRUST_BADGES = [
+  { icon: <Shield className="w-4 h-4" />, label: 'Privacy First' },
+  { icon: <Star className="w-4 h-4" />, label: 'Free Forever' },
+  { icon: <Zap className="w-4 h-4" />, label: 'Any Device' },
+]
 
 export default function Home() {
   const { t } = useTranslation()
 
   return (
     <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-teal-50 via-sky-50 to-purple-50" />
-        <div className="relative container mx-auto px-4 py-16 md:py-24">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full text-sm font-medium text-teal-600 mb-8 shadow-sm">
-              <Zap className="w-4 h-4" />
-              Now with Budget, Projects & Shopping Lists
-            </div>
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+      {/* Hero */}
+      <section className="relative">
+        <div className="container mx-auto px-4 pt-16 pb-12 md:pt-24 md:pb-16">
+          <div className="max-w-2xl mx-auto text-center">
+            <h1 className="text-large-title mb-4">
               {t('landing.heroTitle')}
-              <span className="block text-teal-600 mt-2">{t('landing.heroSubtitle')}</span>
             </h1>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-10">
-              The all-in-one family organizer. Track chores, manage budgets, plan projects, shop together, and stay in sync — all in one calm, ad-free space.
+            <p className="text-[17px] leading-6 text-[var(--label-secondary)] mb-8">
+              {t('landing.heroDescription')}
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href="/register"
                 onClick={() => trackEvent('cta_click', { location: 'hero_primary', label: 'Start Free' })}
-                className="inline-flex items-center justify-center bg-teal-500 text-white text-lg px-8 py-4 rounded-xl font-semibold hover:bg-teal-600 transition-colors shadow-lg shadow-teal-200"
+                className="btn-filled"
               >
-                Start Free — No Credit Card
-                <ArrowRight className="w-5 h-5 ml-2" />
+                {t('landing.startFreeTrial')}
+                <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
                 href="/login"
                 onClick={() => trackEvent('cta_click', { location: 'hero_secondary', label: 'Sign In' })}
-                className="inline-flex items-center justify-center bg-white text-gray-700 text-lg px-8 py-4 rounded-xl font-semibold hover:bg-gray-50 transition-colors border border-gray-200"
+                className="btn-plain"
               >
-                Sign In
+                {t('landing.signIn')}
               </Link>
             </div>
-            <p className="mt-6 text-sm text-gray-500">
-              Free forever for families. No ads. No data selling.
-            </p>
+
+            {/* Trust badges inline */}
+            <div className="flex items-center justify-center gap-6 mt-6">
+              {TRUST_BADGES.map((badge) => (
+                <div key={badge.label} className="flex items-center gap-1.5 text-[13px] text-[var(--label-tertiary)]">
+                  {badge.icon}
+                  <span>{badge.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features Grid — All Modules */}
-      <section id="features" className="py-16 bg-white">
+      {/* Features — 3x2 glyph card grid */}
+      <section className="py-8">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-4">Everything your family needs</h2>
-          <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
-            One app that replaces chore charts, spreadsheets, shopping lists, and sticky notes.
-          </p>
-
-          {/* Row 1: Chores + Gamification */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-teal-100 rounded-2xl flex items-center justify-center">
-                <CheckCircle className="w-7 h-7 text-teal-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Chore Tracking & Gamification</h3>
-                <p className="text-gray-600 text-sm">Assign chores with points and due dates. Kids earn XP, build streaks, and unlock rewards. Photo verification keeps everyone honest.</p>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">XP & Levels</span>
-                  <span className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-full">Streaks</span>
-                  <span className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded-full">Rewards</span>
-                  <span className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">Leaderboard</span>
+          <div className="max-w-3xl mx-auto">
+            <h2 className="text-title-2 text-center mb-6">
+              {t('landing.featuresTitle')}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 stagger">
+              {FEATURES.map((feature) => (
+                <div key={feature.titleKey} className="card-apple p-5 flex flex-col items-center text-center gap-3">
+                  <Glyph color={feature.color} size="lg">
+                    {feature.icon}
+                  </Glyph>
+                  <div>
+                    <h3 className="text-[15px] font-semibold text-[var(--label-primary)] mb-1">
+                      {t(feature.titleKey)}
+                    </h3>
+                    <p className="text-[13px] text-[var(--label-secondary)] leading-4">
+                      {t(feature.descKey)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center">
-                <Wallet className="w-7 h-7 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Budget Tracker</h3>
-                <p className="text-gray-600 text-sm">Track income and expenses in seconds. Custom categories with icons and colors. See where your money goes with clear charts — no spreadsheets needed.</p>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full">One-tap entry</span>
-                  <span className="text-xs px-2 py-1 bg-sky-50 text-sky-700 rounded-full">Charts</span>
-                  <span className="text-xs px-2 py-1 bg-violet-50 text-violet-700 rounded-full">Recurring</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Shopping + Calendar */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-pink-100 rounded-2xl flex items-center justify-center">
-                <ShoppingCart className="w-7 h-7 text-pink-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Shared Shopping Lists</h3>
-                <p className="text-gray-600 text-sm">Create shared or private lists that update instantly. Search items, filter by checked, log purchases as expenses, and repeat lists for regular shopping trips.</p>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-pink-50 text-pink-700 rounded-full">Instant search</span>
-                  <span className="text-xs px-2 py-1 bg-rose-50 text-rose-700 rounded-full">Purchase logging</span>
-                  <span className="text-xs px-2 py-1 bg-fuchsia-50 text-fuchsia-700 rounded-full">Repeatable</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center">
-                <Calendar className="w-7 h-7 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Shared Calendar</h3>
-                <p className="text-gray-600 text-sm">See today clearly with Day, Week, and Month views. Combines events and tasks in one focused view. Pull in shopping lists and project tasks for simple daily planning.</p>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">Day/Week/Month</span>
-                  <span className="text-xs px-2 py-1 bg-teal-50 text-teal-700 rounded-full">Tasks + Events</span>
-                  <span className="text-xs px-2 py-1 bg-cyan-50 text-cyan-700 rounded-full">Color-coded</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Projects + Messages */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center">
-                <FolderKanban className="w-7 h-7 text-amber-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Projects</h3>
-                <p className="text-gray-600 text-sm">Keep plans from getting scattered. Group tasks into projects for trips, events, and long-term goals. Track progress and send tasks straight to your calendar.</p>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded-full">Progress tracking</span>
-                  <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">Send to calendar</span>
-                  <span className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-full">Archive</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="card flex gap-5 items-start p-6 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 w-14 h-14 bg-violet-100 rounded-2xl flex items-center justify-center">
-                <MessageSquare className="w-7 h-7 text-violet-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Family Chat</h3>
-                <p className="text-gray-600 text-sm">Built-in messaging so everyone stays in the loop. Share announcements, coordinate plans, and keep conversations organized without switching apps.</p>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-violet-50 text-violet-700 rounded-full">Read receipts</span>
-                  <span className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded-full">Announcements</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section className="py-16 bg-gradient-to-b from-gray-50 to-white">
+      <section className="py-12">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Start in 60 seconds</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-teal-600">1</span>
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Create your family</h3>
-              <p className="text-gray-600">Sign up, name your family, and invite members in one click.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-sky-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-sky-600">2</span>
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Set up together</h3>
-              <p className="text-gray-600">Add chores, create a budget, start a shopping list, or plan a project.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-purple-600">3</span>
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Stay organized</h3>
-              <p className="text-gray-600">Everything in one place. Less chaos, more calm.</p>
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-title-2 text-center mb-8">
+              {t('landing.howItWorksTitle')}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 stagger">
+              {[
+                { num: '1', title: t('landing.step1Title'), desc: t('landing.step1Desc') },
+                { num: '2', title: t('landing.step2Title'), desc: t('landing.step2Desc') },
+                { num: '3', title: t('landing.step3Title'), desc: t('landing.step3Desc') },
+              ].map((step) => (
+                <div key={step.num} className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center">
+                    <span className="text-[17px] font-semibold text-white">{step.num}</span>
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-[var(--label-primary)]">{step.title}</h3>
+                  <p className="text-[13px] text-[var(--label-secondary)] leading-4">{step.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Trust + CTA */}
-      <section className="py-16 bg-white">
+      {/* Bottom CTA */}
+      <section className="py-12">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center">
-            <div className="flex items-center justify-center gap-8 mb-8">
-              <div className="flex items-center gap-2 text-gray-600">
-                <Shield className="w-5 h-5" />
-                <span className="text-sm">Privacy First</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600">
-                <Star className="w-5 h-5" />
-                <span className="text-sm">Free Forever</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600">
-                <Zap className="w-5 h-5" />
-                <span className="text-sm">Any Device</span>
-              </div>
-            </div>
-            <h2 className="text-3xl font-bold mb-4">Ready for calmer, more organized days?</h2>
-            <p className="text-gray-600 mb-8">No ads. No data selling. Just calm, reliable tools for everyday family life.</p>
+          <div className="max-w-xl mx-auto text-center">
+            <h2 className="text-title-2 mb-2">{t('landing.ctaTitle')}</h2>
+            <p className="text-[15px] text-[var(--label-secondary)] mb-6">
+              {t('landing.ctaSubtitle')}
+            </p>
             <Link
               href="/register"
               onClick={() => trackEvent('cta_click', { location: 'bottom_cta', label: 'Get Started' })}
-              className="inline-flex items-center justify-center bg-teal-500 text-white text-lg px-10 py-4 rounded-xl font-semibold hover:bg-teal-600 transition-colors shadow-lg shadow-teal-200"
+              className="btn-filled"
             >
-              Get Started Free
-              <ArrowRight className="w-5 h-5 ml-2" />
+              {t('landing.ctaPrimary')}
+              <ArrowRight className="w-4 h-4" />
             </Link>
+            <p className="mt-3 text-[13px] text-[var(--label-tertiary)]">
+              {t('landing.ctaDisclaimer')}
+            </p>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 bg-gray-50 border-t">
+      <footer className="py-6 border-t border-[var(--surface-separator)]">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center">
-              <div className="w-8 h-8 bg-teal-500 rounded-xl flex items-center justify-center shadow-sm shadow-teal-200">
-                <Users className="w-5 h-5 text-white" />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-[var(--accent)] rounded-[8px] flex items-center justify-center">
+                <Users className="w-4 h-4 text-white" />
               </div>
-              <span className="ml-2 font-bold text-gray-900">Family Planner</span>
+              <span className="text-[15px] font-semibold text-[var(--label-primary)]">Family Planner</span>
             </div>
-            <div className="flex gap-6 text-sm text-gray-600">
-              <Link href="/login" className="hover:text-gray-900">Sign In</Link>
-              <Link href="/register" className="hover:text-gray-900">Get Started</Link>
-            </div>
-            <p className="text-sm text-gray-500">© 2026 Family Planner. Built for families.</p>
+            <nav className="flex gap-6 text-[13px] text-[var(--label-secondary)]">
+              <Link href="/login" className="hover:text-[var(--label-primary)] transition-colors">Sign In</Link>
+              <Link href="/register" className="hover:text-[var(--label-primary)] transition-colors">Get Started</Link>
+            </nav>
           </div>
         </div>
       </footer>

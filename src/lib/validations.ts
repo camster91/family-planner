@@ -22,6 +22,7 @@ export const createChoreSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
   difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
+  photo_url: z.string().max(500).optional(),
 })
 
 export const completeChoreSchema = z.object({
@@ -137,6 +138,11 @@ export const updateChoreSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
+  photo_url: z.string().max(500).optional(),
+  photo_verified: z.boolean().optional(),
+  verified_at: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
+  verified_notes: z.string().max(500).optional(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'verified', 'overdue']).optional(),
 })
 
 // Events (update + delete)

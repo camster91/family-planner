@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogIn, Eye, EyeOff } from 'lucide-react'
+import { LogIn, Eye, EyeOff, Users } from 'lucide-react'
 import { useTranslation } from '@/i18n'
 
 export default function LoginPage() {
@@ -42,32 +42,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <LogIn className="w-8 h-8 text-white" />
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo glyph */}
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 bg-[var(--accent)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
+            <Users className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('auth.welcomeBack')}</h1>
-          <p className="mt-2 text-gray-600">
-            {t('auth.signInSubtitle')}
-          </p>
         </div>
 
-        <div className="card">
-          <form onSubmit={handleLogin} className="space-y-6">
+        <div className="card-apple p-6">
+          <div className="text-center mb-6">
+            <h1 className="text-title-2">{t('auth.welcomeBack')}</h1>
+            <p className="text-[15px] text-[var(--label-secondary)] mt-1">
+              {t('auth.signInSubtitle')}
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              <div className="bg-[var(--danger-tint)] text-[var(--danger)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.email')}
-              </label>
+              <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
               <input
                 id="email"
                 type="email"
@@ -75,15 +75,13 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
+                className="input-apple"
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.password')}
-              </label>
+              <label htmlFor="password" className="label-apple">{t('auth.password')}</label>
               <div className="relative">
                 <input
                   id="password"
@@ -92,13 +90,13 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pr-10"
+                  className="input-apple pr-10"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--label-tertiary)] hover:text-[var(--label-primary)] transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -106,36 +104,40 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <Link href="/forgot-password" className="inline-flex items-center py-2 text-blue-600 hover:text-blue-500 min-h-11">
-                  {t('auth.forgotPassword')}
-                </Link>
-              </div>
+            <div className="pt-1">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-filled w-full py-3"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                    {t('auth.signingIn')}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <LogIn className="w-4 h-4" />
+                    {t('auth.signIn')}
+                  </span>
+                )}
+              </button>
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full py-3"
-            >
-              {loading ? t('auth.signingIn') : t('auth.signIn')}
-            </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="mt-4 text-center">
+            <p className="text-[15px] text-[var(--label-secondary)]">
               {t('auth.noAccount')}{' '}
-              <Link href="/register" className="inline-flex items-center py-2 text-blue-600 hover:text-blue-500 font-medium min-h-11">
+              <Link href="/register" className="btn-plain py-1 px-2 -my-1">
                 {t('auth.signUp')}
               </Link>
             </p>
           </div>
         </div>
 
-        <div className="text-center text-sm text-gray-500">
-          <p>{t('auth.bySigningIn')}</p>
-        </div>
+        <p className="text-center text-[13px] text-[var(--label-tertiary)] mt-6">
+          {t('auth.bySigningIn')}
+        </p>
       </div>
     </div>
   )

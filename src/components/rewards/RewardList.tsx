@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Gift, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { cn } from '@/lib/utils'
+import { Glyph } from '@/components/ui/glyph'
 
 interface Reward {
   id: string
@@ -92,7 +94,7 @@ export default function RewardList({ rewards, userId, userXp, isParent }: Reward
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 flex items-center">
           <AlertCircle className="w-5 h-5 mr-2" />
@@ -106,56 +108,69 @@ export default function RewardList({ rewards, userId, userXp, isParent }: Reward
         const isMine = reward.claimed_by === userId
 
         return (
-          <div key={reward.id} className={`card flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isRedeemed ? 'opacity-75' : ''}`}>
+          <div key={reward.id} className={cn('card-apple p-5', isRedeemed && 'opacity-60')}>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl flex items-center justify-center text-2xl">
-                {reward.icon || 'gift'}
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">{reward.name}</h3>
-                {reward.description && <p className="text-sm text-gray-500">{reward.description}</p>}
-                <div className="flex items-center gap-3 mt-1 text-sm">
-                  <span className="text-indigo-600 font-medium">{reward.cost} XP</span>
-                  {reward.creator && <span className="text-gray-400">by {reward.creator.name}</span>}
-                  {isClaimed && reward.claimer && <span className="text-yellow-600 flex items-center"><Clock className="w-3 h-3 mr-1"/>claimed by {reward.claimer.name}</span>}
-                  {isRedeemed && <span className="text-green-600 flex items-center"><CheckCircle className="w-3 h-3 mr-1"/>redeemed</span>}
+              {/* Icon glyph */}
+              <Glyph color="rewards" size="lg">
+                <span className="text-xl">{reward.icon || '🎁'}</span>
+              </Glyph>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-title-3 text-label-primary font-semibold">{reward.name}</h3>
+                {reward.description && (
+                  <p className="text-subhead text-label-secondary mt-0.5 line-clamp-1">{reward.description}</p>
+                )}
+                <div className="flex items-center gap-3 mt-1.5 text-footnote text-label-secondary">
+                  <span className="text-rewards font-medium">{reward.cost} XP</span>
+                  {reward.creator && <span>by {reward.creator.name}</span>}
+                  {isClaimed && reward.claimer && (
+                    <span className="flex items-center gap-1 text-yellow-600">
+                      <Clock className="w-3 h-3" /> claimed by {reward.claimer.name}
+                    </span>
+                  )}
+                  {isRedeemed && (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <CheckCircle className="w-3 h-3" /> redeemed
+                    </span>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              {reward.status === 'available' && (
-                <button
-                  onClick={() => handleClaim(reward.id)}
-                  disabled={!canClaim || loading === reward.id}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    canClaim
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  {loading === reward.id ? 'Claiming...' : userXp < reward.cost ? `Need ${reward.cost - userXp} more XP` : 'Claim'}
-                </button>
-              )}
-              {isClaimed && isParent && (
-                <button
-                  onClick={() => handleApprove(reward.id)}
-                  disabled={loading === reward.id}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-                >
-                  {loading === reward.id ? 'Approving...' : 'Approve'}
-                </button>
-              )}
-              {isClaimed && isMine && (
-                <span className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-medium">
-                  Waiting for approval
-                </span>
-              )}
-              {isRedeemed && (
-                <span className="px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-1" /> Redeemed
-                </span>
-              )}
+              {/* Actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                {reward.status === 'available' && (
+                  <button
+                    onClick={() => handleClaim(reward.id)}
+                    disabled={!canClaim || loading === reward.id}
+                    className={cn(
+                      'btn-tinted text-sm px-4 py-2 min-w-[80px]',
+                      canClaim ? 'bg-rewards' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    )}
+                  >
+                    {loading === reward.id ? '...' : userXp < reward.cost ? `${reward.cost - userXp} XP` : 'Claim'}
+                  </button>
+                )}
+                {isClaimed && isParent && (
+                  <button
+                    onClick={() => handleApprove(reward.id)}
+                    disabled={loading === reward.id}
+                    className="btn-tinted bg-green-600 text-sm px-4 py-2"
+                  >
+                    {loading === reward.id ? '...' : 'Approve'}
+                  </button>
+                )}
+                {isClaimed && isMine && (
+                  <span className="text-caption-1 text-yellow-600 px-3 py-1.5 bg-yellow-50 rounded-full font-medium">
+                    Waiting
+                  </span>
+                )}
+                {isRedeemed && (
+                  <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                    <CheckCircle className="w-4 h-4" /> Redeemed
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )

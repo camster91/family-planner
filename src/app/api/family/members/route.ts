@@ -1,30 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
 
-export const dynamic = 'force-dynamic'
+type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
-export async function GET(request: NextRequest) {
-  try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+/**
+ * GET /api/family/members
+ * Returns basic info about the user's family members.
+ * Used by feature pages that need an assignee selector (pickups, allowance).
+ */
+export async function GET() {
+  const user = (await getServerUser()) as SessionUser | null
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user.family_id) return NextResponse.json({ members: [] })
 
-    const members = await prisma!.user.findMany({
-      where: { family_id: auth.user.family_id },
-      select: {
-        id: true,
-        name: true,
-        email: auth.user.role === 'parent' ? true : false,
-        role: true,
-        age: true,
-        avatar_url: true,
-      },
-      orderBy: { role: 'desc' },
-    })
-
-    return NextResponse.json({ members })
-  } catch (error) {
-    console.error('Error fetching family members:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  const members = await prisma!.user.findMany({
+    where: { family_id: user.family_id },
+    select: { id: true, name: true, avatar_url: true, role: true },
+    orderBy: { name: 'asc' },
+  })
+  return NextResponse.json({ members })
 }

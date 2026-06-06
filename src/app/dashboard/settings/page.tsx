@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound } from 'lucide-react'
+import Link from 'next/link'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders } from 'lucide-react'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -399,6 +400,16 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
+              <Link
+                href="/dashboard/features"
+                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+              >
+                <Sliders className="w-4 h-4 text-blue-600" />
+                <div>
+                  <div className="font-medium">Features</div>
+                  <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                </div>
+              </Link>
               <button
                 onClick={() => setShowPasswordModal(true)}
                 className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"

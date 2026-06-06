@@ -47,6 +47,15 @@ model User {
   budget_categories BudgetCategory[] @relation("CreatedCategories")
   projects     Project[] @relation("CreatedProjects")
   project_tasks ProjectTask[] @relation("AssignedProjectTasks")
+  meals         FamilyMeal[] @relation("FamilyMealCreator")
+  meals_cooked  FamilyMeal[] @relation("FamilyMealCook")
+  pinned_notes  PinnedNote[] @relation("CreatedNotes")
+  anniversaries Anniversary[] @relation("FamilyAnniversaries")
+  locations     FamilyLocation[] @relation("UserLocations")
+  pickups       Pickup[] @relation("AssignedPickups")
+  pickups_created Pickup[] @relation("CreatedPickups")
+  allowances_given Allowance[] @relation("AllowanceFrom")
+  allowances_received Allowance[] @relation("AllowanceTo")
 
   @@index([family_id])
 }
@@ -56,6 +65,7 @@ model Family {
   name            String
   invite_code     String    @unique @default(cuid())
   subscription_tier String  @default("free") // 'free', 'premium', 'family'
+  features        Json?     @default("{\"meals\":true,\"notes\":true,\"anniversaries\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true}")
   created_at      DateTime  @default(now())
 
   // Relations
@@ -69,6 +79,12 @@ model Family {
   transactions  Transaction[]
   categories    BudgetCategory[]
   projects      Project[]
+  meals         FamilyMeal[]
+  pinned_notes  PinnedNote[]
+  anniversaries Anniversary[]
+  locations     FamilyLocation[]
+  pickups       Pickup[]
+  allowances    Allowance[]
 }
 
 model Chore {
@@ -364,3 +380,124 @@ model RateLimitEntry {
   @@index([key])
   @@index([resetAt])
 }
+
+// === New: per-family feature gates ===
+// Stored on Family.features as a JSON column; this model is the default seed.
+
+model FamilyMeal {
+  id           String    @id @default(cuid())
+  family_id    String
+  date         DateTime
+  meal_type    String    // 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  recipe_name  String?
+  notes        String?
+  cook_id      String?
+  created_by   String
+  created_at   DateTime  @default(now())
+
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  cook         User?     @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull)
+  creator      User      @relation("FamilyMealCreator", fields: [created_by], references: [id])
+
+  @@index([family_id])
+  @@index([family_id, date])
+}
+
+model PinnedNote {
+  id           String    @id @default(cuid())
+  family_id    String
+  title        String
+  body         String
+  color        String    @default("yellow") // 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
+  pinned       Boolean   @default(true)
+  created_by   String
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User      @relation("CreatedNotes", fields: [created_by], references: [id])
+
+  @@index([family_id])
+}
+
+model Anniversary {
+  id           String    @id @default(cuid())
+  family_id    String
+  name         String
+  type         String    // 'birthday' | 'anniversary' | 'custom'
+  date         DateTime  // month + day, year is optional context
+  notes        String?
+  person_id    String?   // optional link to a User
+  created_at   DateTime  @default(now())
+
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person       User?     @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull)
+
+  @@index([family_id])
+  @@index([family_id, date])
+}
+
+model FamilyLocation {
+  id           String    @id @default(cuid())
+  family_id    String
+  user_id      String
+  label        String    // 'Home', 'School', 'Work', 'Soccer practice'
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  is_primary   Boolean   @default(false)  // home base
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user         User      @relation("UserLocations", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id])
+  @@index([user_id])
+}
+
+model Pickup {
+  id           String    @id @default(cuid())
+  family_id    String
+  title        String    // 'School pickup', 'Soccer practice'
+  location     String?
+  pickup_time  DateTime
+  assigned_to  String?   // who is doing the pickup
+  created_by   String
+  notes        String?
+  completed    Boolean   @default(false)
+  completed_at DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  assignee     User?     @relation("AssignedPickups", fields: [assigned_to], references: [id], onDelete: SetNull)
+  creator      User      @relation("CreatedPickups", fields: [created_by], references: [id])
+
+  @@index([family_id])
+  @@index([family_id, pickup_time])
+  @@index([assigned_to])
+}
+
+model Allowance {
+  id           String    @id @default(cuid())
+  family_id    String
+  from_user_id String    // parent (giver)
+  to_user_id   String    // kid (receiver)
+  amount       Float
+  reason       String?   // 'Weekly allowance', 'Extra for good grades'
+  status       String    @default("pending") // 'pending' | 'paid' | 'cancelled'
+  scheduled_for DateTime?
+  paid_at      DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  from_user    User      @relation("AllowanceFrom", fields: [from_user_id], references: [id], onDelete: Cascade)
+  to_user      User      @relation("AllowanceTo", fields: [to_user_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id])
+  @@index([to_user_id])
+  @@index([status])
+}
+

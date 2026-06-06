@@ -82,7 +82,7 @@ export default function RootLayout({
           <ToastProvider>
             <I18nProvider locale="en">
               <AnalyticsProvider>
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+                <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
                   {children}
                 </div>
               </AnalyticsProvider>

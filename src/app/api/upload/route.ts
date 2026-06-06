@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
-import crypto from 'crypto'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { log } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs' // Need full Node for fs
+export const runtime = 'nodejs'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
@@ -44,16 +43,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure upload dir exists
-    if (!existsSync(UPLOAD_DIR)) {
-      await mkdir(UPLOAD_DIR, { recursive: true })
+    const choreUploadDir = path.join(UPLOAD_DIR, 'chores')
+    if (!existsSync(choreUploadDir)) {
+      await mkdir(choreUploadDir, { recursive: true })
     }
 
-    // Generate unique filename — content-addressable for dedup
+    // Generate unique filename using cuid-style id + extension
+    const { createHash } = await import('crypto')
     const buf = Buffer.from(await file.arrayBuffer())
-    const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16)
+    const hash = createHash('sha256').update(buf).digest('hex').slice(0, 16)
     const ext = file.type.split('/')[1] || 'bin'
     const filename = `${hash}.${ext}`
-    const filepath = path.join(UPLOAD_DIR, filename)
+    const filepath = path.join(choreUploadDir, filename)
 
     // Only write if not already there (dedup)
     if (!existsSync(filepath)) {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     log.info('upload.photo', { userId: auth.user.id, filename, size: buf.length, type: file.type })
 
     return NextResponse.json({
-      url: `/api/files/${filename}`,
+      url: `/api/files/chores/${filename}`,
       filename,
       size: buf.length,
       type: file.type,

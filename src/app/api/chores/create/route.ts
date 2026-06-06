@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
+import { expandRecurringChores } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, points, assigned_to, due_date, difficulty, frequency } = parsed.data
+    const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url } = parsed.data
 
     // Verify the assigned user belongs to the same family
     const assignee = await prisma!.user.findUnique({
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
         frequency,
         status: 'pending',
         created_by: auth.user.id,
+        photo_url: photo_url || null,
       },
       include: {
         assignee: true,
@@ -58,6 +60,18 @@ export async function POST(request: NextRequest) {
         )
       } catch (err) {
         console.error('Error sending chore assignment notification:', err)
+      }
+    }
+
+    // Expand recurring occurrences for daily/weekly/monthly chores
+    if (frequency !== 'once') {
+      try {
+        await expandRecurringChores(
+          { id: newChore.id, frequency, assigned_to: newChore.assigned_to, created_by: newChore.created_by },
+          auth.user.family_id
+        )
+      } catch (err) {
+        console.error('Error expanding recurring chores:', err)
       }
     }
 

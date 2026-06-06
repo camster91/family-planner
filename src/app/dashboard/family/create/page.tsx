@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, ArrowLeft } from 'lucide-react'
+import { Users } from 'lucide-react'
 import Link from 'next/link'
+import { LargeHeader } from '@/components/ui/large-header'
+import { Glyph } from '@/components/ui/glyph'
 
 export default function CreateFamilyPage() {
   const [familyName, setFamilyName] = useState('')
@@ -29,7 +31,6 @@ export default function CreateFamilyPage() {
         return
       }
 
-      // Success - redirect to dashboard
       router.push('/dashboard')
       router.refresh()
     } catch (err) {
@@ -41,94 +42,76 @@ export default function CreateFamilyPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-8"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
-      </Link>
+    <div className="pb-20">
+      <LargeHeader
+        title="New Family"
+        trailing={
+          <Glyph color="family" size="md">
+            <Users className="w-4 h-4" />
+          </Glyph>
+        }
+        className="px-4"
+      />
 
-      <div className="card">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-            <Users className="w-8 h-8 text-blue-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">Create Your Family</h1>
-          <p className="mt-2 text-gray-600">
-            Set up your family group to start organizing your family life together.
-          </p>
+      <div className="px-4">
+        <div className="card-apple p-5">
+          <form onSubmit={handleCreateFamily} className="space-y-6">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-subhead">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="familyName" className="block text-subhead font-medium text-label-primary mb-2">
+                Family Name
+              </label>
+              <input
+                id="familyName"
+                type="text"
+                required
+                value={familyName}
+                onChange={(e) => setFamilyName(e.target.value)}
+                className="input-apple w-full"
+                placeholder="The Smith Family"
+              />
+              <p className="mt-2 text-caption-1 text-label-secondary">
+                Choose a name that represents your family. You can change this later.
+              </p>
+            </div>
+
+            <div className="bg-surface-fill rounded-xl p-4">
+              <h3 className="text-subhead font-semibold text-label-primary mb-2">What happens next?</h3>
+              <ul className="text-footnote text-label-secondary space-y-1.5">
+                <li>✓ You become the family admin (parent role)</li>
+                <li>✓ You can invite other family members to join</li>
+                <li>✓ Start creating chores and events right away</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <Link href="/dashboard" className="btn-secondary">
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                disabled={loading || !familyName.trim()}
+                className="btn-primary"
+              >
+                {loading ? 'Creating…' : 'Create Family'}
+              </button>
+            </div>
+          </form>
         </div>
 
-        <form onSubmit={handleCreateFamily} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="familyName" className="block text-sm font-medium text-gray-700 mb-2">
-              Family Name
-            </label>
-            <input
-              id="familyName"
-              type="text"
-              required
-              value={familyName}
-              onChange={(e) => setFamilyName(e.target.value)}
-              className="input-field"
-              placeholder="e.g., The Smith Family"
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Choose a name that represents your family. You can change this later.
-            </p>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-medium text-blue-900 mb-2">What happens next?</h3>
-            <ul className="text-sm text-blue-800 space-y-2">
-              <li className="flex items-start">
-                <div className="flex-shrink-0 mt-0.5">✓</div>
-                <span className="ml-2">You&apos;ll become the family admin (parent role)</span>
-              </li>
-              <li className="flex items-start">
-                <div className="flex-shrink-0 mt-0.5">✓</div>
-                <span className="ml-2">You can invite other family members to join</span>
-              </li>
-              <li className="flex items-start">
-                <div className="flex-shrink-0 mt-0.5">✓</div>
-                <span className="ml-2">Start creating chores and events right away</span>
-              </li>
-            </ul>
-          </div>
-
-          <div className="flex items-center justify-between pt-6 border-t">
-            <Link
-              href="/dashboard"
-              className="btn-secondary"
-            >
-              Cancel
+        <div className="mt-6 text-center">
+          <p className="text-subhead text-label-secondary">
+            Already have a family?{' '}
+            <Link href="/join" className="text-[var(--accent)] font-medium">
+              Join an existing family
             </Link>
-            <button
-              type="submit"
-              disabled={loading || !familyName.trim()}
-              className="btn-primary"
-            >
-              {loading ? 'Creating...' : 'Create Family'}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="mt-8 text-center text-sm text-gray-500">
-        <p>
-          Already have a family?{' '}
-          <Link href="/join" className="text-blue-600 hover:text-blue-500 font-medium">
-            Join an existing family
-          </Link>
-        </p>
+          </p>
+        </div>
       </div>
     </div>
   )

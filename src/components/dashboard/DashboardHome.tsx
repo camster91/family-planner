@@ -1,9 +1,16 @@
 'use client'
 
-import { CheckCircle, Calendar, TrendingUp, Users, BarChart3, MessageSquare } from 'lucide-react'
+import { Calendar, ShoppingCart, Car, Wallet, Cake, ImageIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useTranslation } from '@/i18n'
-import ActivityFeed from '@/components/activity/ActivityFeed'
+import { LargeHeader } from '@/components/ui/large-header'
+import { Glyph } from '@/components/ui/glyph'
+import { Avatar } from '@/components/ui/avatar'
+import { CheckboxRow } from '@/components/ui/checkbox-row'
+import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
+import { ProgressRing } from '@/components/ui/progress-ring'
+import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
+import type { UserRole } from '@/types'
 
 interface Chore {
   id: string
@@ -40,343 +47,370 @@ interface LeaderboardMember {
 }
 
 interface DashboardHomeProps {
-  user: { name?: string; family_id?: string | null }
+  user: {
+    name?: string
+    role?: UserRole
+    avatar_url?: string | null
+    family_id?: string | null
+  }
   chores: Chore[]
   events: Event[]
   stats: Stats
   completionRate: number
   leaderboard?: LeaderboardMember[]
+  pickups?: any[]
+  allowancePending?: any[]
+  anniversaries?: any[]
+  photoVerifyQueue?: any[]
 }
 
-export default function DashboardHome({ user, chores, events, stats, completionRate, leaderboard }: DashboardHomeProps) {
-  const { t } = useTranslation()
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function formatRelativeDate(dateStr: string): string {
+  const date = new Date(dateStr)
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+export default function DashboardHome({
+  user,
+  chores,
+  events,
+  stats,
+  completionRate,
+  leaderboard = [],
+  pickups = [],
+  allowancePending = [],
+  anniversaries = [],
+  photoVerifyQueue = [],
+}: DashboardHomeProps) {
+  const today = new Date()
+  const greeting = getGreeting()
+  const isParent = user.role === 'parent'
+
+  // Today's chores (pending + in_progress)
+  const todayChores = chores?.filter(
+    (c) => c.status === 'pending' || c.status === 'in_progress'
+  ) ?? []
+
+  // Shopping items: use unread messages as stand-in (max 5)
+  const shoppingItems = (stats.unreadMessages ?? 0) > 0
+    ? Array.from({ length: Math.min(stats.unreadMessages, 5) }).map((_, i) => ({
+        id: `shopping-${i}`,
+        title: `Shopping item ${i + 1}`,
+        checked: false,
+      }))
+    : []
+
+  // Family members for avatar row (up to 6)
+  const familyMembers = leaderboard.slice(0, 6)
 
   return (
-    <div className="space-y-8">
-      {/* Welcome header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          {t('dashboard.welcomeBack', { name: user?.name || '' })}
-        </h1>
-        <p className="mt-2 text-gray-600">
-          {user?.family_id
-            ? t('dashboard.whatsHappening')
-            : t('dashboard.getStarted')
-          }
-        </p>
-      </div>
+    <div className="pb-20">
+      {/* Large Header: "Good morning, {name}" + date subtitle + avatar */}
+      <LargeHeader
+        greeting={greeting}
+        title={user?.name ?? 'there'}
+        subtitle={formatDate(today)}
+        trailing={
+          <Avatar
+            name={user?.name ?? '?'}
+            src={user?.avatar_url}
+            size="lg"
+          />
+        }
+        className="px-4"
+      />
 
-      {/* Family status */}
-      {!user?.family_id && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <Users className="w-8 h-8 text-blue-600 mr-4" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">{t('dashboard.noFamilyYet')}</h3>
-              <p className="text-gray-600 mt-1">
-                {t('dashboard.noFamilyDesc')}
+      <div className="space-y-6 px-4">
+        {/* Progress Ring summary card */}
+        <div className="card-apple p-5 flex items-center gap-5">
+          <ProgressRing
+            progress={stats.totalChores > 0 ? stats.completedChores / stats.totalChores : 0}
+            size={80}
+            strokeWidth={8}
+          >
+            <span className="text-[28px] font-bold leading-none">
+              {stats.completedChores}
+            </span>
+          </ProgressRing>
+          <div className="flex-1 min-w-0">
+            <p className="text-title-3 text-label-primary leading-tight">
+              {stats.totalChores > 0
+                ? `${stats.completedChores} of ${stats.totalChores} done today`
+                : 'No chores today'}
+            </p>
+            {stats.pendingChores > 0 && (
+              <p className="text-subhead text-label-secondary mt-1">
+                {stats.pendingChores} pending
               </p>
-              <div className="mt-4 flex space-x-4">
-                <Link href="/dashboard/family/create" className="btn-primary">
-                  {t('dashboard.createFamily')}
-                </Link>
-                <Link href="/join" className="btn-secondary">
-                  {t('dashboard.joinFamily')}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">{t('dashboard.completionRate')}</p>
-              <p className="text-2xl font-semibold text-gray-900">{completionRate}%</p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-green-600 h-2 rounded-full"
-                style={{ width: `${completionRate}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl font-bold text-yellow-600">⭐</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">{t('dashboard.pendingChores')}</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.pendingChores}</p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/chores"
-            className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
-          >
-            {t('dashboard.viewAllChores')} →
-          </Link>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">{t('dashboard.upcomingEvents')}</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.upcomingEvents}</p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/calendar"
-            className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
-          >
-            {t('dashboard.viewCalendar')} →
-          </Link>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <MessageSquare className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">{t('dashboard.unreadMessages')}</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.unreadMessages}</p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/messages"
-            className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
-          >
-            {t('dashboard.viewMessages')} →
-          </Link>
-        </div>
-      </div>
-
-      {/* Quick actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent chores */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">{t('dashboard.recentChores')}</h2>
-            <Link
-              href="/dashboard/chores"
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
-            >
-              {t('dashboard.viewAll')}
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {chores?.slice(0, 5).map((chore) => (
-              <div key={chore.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">{chore.title}</p>
-                  <p className="text-sm text-gray-600">
-                    {t('dashboard.due')} {new Date(chore.due_date).toLocaleDateString()}
-                  </p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  chore.status === 'completed' || chore.status === 'verified'
-                    ? 'bg-green-100 text-green-800'
-                    : chore.status === 'in_progress'
-                    ? 'bg-yellow-100 text-yellow-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {chore.status.replace('_', ' ')}
-                </span>
-              </div>
-            ))}
-            {(!chores || chores.length === 0) && (
-              <div className="text-center py-8">
-                <CheckCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{t('dashboard.noChoresAssigned')}</p>
-                <Link
-                  href="/dashboard/chores/create"
-                  className="mt-4 inline-block text-blue-600 hover:text-blue-500 font-medium"
-                >
-                  {t('dashboard.createFirstChore')}
-                </Link>
-              </div>
             )}
           </div>
         </div>
 
-        {/* Upcoming events */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">{t('dashboard.upcomingEventsTitle')}</h2>
-            <Link
-              href="/dashboard/calendar"
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
-            >
-              {t('dashboard.viewAll')}
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {events?.map((event) => (
-              <div key={event.id} className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="w-3 h-3 rounded-full bg-blue-500" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="font-medium text-gray-900">{event.title}</p>
-                    <p className="text-sm text-gray-600">
-                      {new Date(event.start_time).toLocaleDateString()} •{' '}
-                      {new Date(event.start_time).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                    {event.location && (
-                      <p className="text-sm text-gray-500 mt-1">📍 {event.location}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {(!events || events.length === 0) && (
-              <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{t('dashboard.noUpcomingEvents')}</p>
-                <Link
-                  href="/dashboard/calendar/create"
-                  className="mt-4 inline-block text-blue-600 hover:text-blue-500 font-medium"
-                >
-                  {t('dashboard.addEvent')}
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Activity Feed */}
-      {user?.family_id && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">{t('dashboard.familyActivity')}</h2>
-            <Link
-              href="/dashboard/analytics"
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
-            >
-              {t('dashboard.viewAll')}
-            </Link>
-          </div>
-          <ActivityFeed />
-        </div>
-      )}
-
-      {/* Progress Analytics Preview — Live Leaderboard + Streaks */}
-      {user?.family_id && leaderboard && leaderboard.length > 0 && (
-        <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center mr-4">
-                <BarChart3 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Family Leaderboard</h3>
-                <p className="text-sm text-gray-600">Ranked by XP</p>
-              </div>
+        {/* Today's Chores */}
+        {todayChores.length > 0 && (
+          <section>
+            <p className="section-header">My Chores</p>
+            <div className="list-inset">
+              {todayChores.map((chore, i) => (
+                <CheckboxRow
+                  key={chore.id}
+                  checked={chore.status === 'completed' || chore.status === 'verified'}
+                  onChange={() => {/* toggle chore status - to be wired to API */}}
+                  title={chore.title}
+                  subtitle={formatRelativeDate(chore.due_date)}
+                  glyph={
+                    <Glyph color="chore" size="sm">
+                      <span className="text-sm">✓</span>
+                    </Glyph>
+                  }
+                  className={cn(i === todayChores.length - 1 && 'border-b-0')}
+                />
+              ))}
             </div>
-            <Link href="/dashboard/analytics" className="btn-primary">
-              {t('dashboard.viewAnalytics')}
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {leaderboard.slice(0, 5).map((member) => (
-              <div key={member.id} className="bg-white rounded-xl p-4 shadow-sm border border-indigo-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2 ${
-                      member.rank === 1 ? 'bg-yellow-100 text-yellow-700' :
-                      member.rank === 2 ? 'bg-gray-100 text-gray-700' :
-                      member.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                      'bg-indigo-50 text-indigo-700'
-                    }`}>
-                      {member.rank}
+          </section>
+        )}
+
+        {/* Empty state for no chores */}
+        {todayChores.length === 0 && (
+          <EmptyState
+            icon={Calendar}
+            glyphColor="chore"
+            title="All done for today!"
+            description="You have no pending chores. Enjoy your day!"
+          />
+        )}
+
+        {/* Upcoming Events */}
+        <section>
+          <p className="section-header">Today</p>
+          {events && events.length > 0 ? (
+            <div className="list-inset">
+              {events.map((event, i) => (
+                <ListRow
+                  key={event.id}
+                  icon={Calendar}
+                  glyphColor="calendar"
+                  title={event.title}
+                  subtitle={
+                    event.location
+                      ? `${formatTime(event.start_time)} · ${event.location}`
+                      : formatTime(event.start_time)
+                  }
+                  showChevron={false}
+                  trailing={
+                    <span className="text-footnote text-label-tertiary">
+                      {formatRelativeDate(event.start_time)}
                     </span>
-                    <span className="font-medium text-gray-900 truncate">{member.name}</span>
+                  }
+                  className={cn(i === events.length - 1 && 'border-b-0')}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Calendar}
+              glyphColor="calendar"
+              title="No events today"
+              description="Your calendar is clear."
+            />
+          )}
+        </section>
+
+        {/* Shopping */}
+        {shoppingItems.length > 0 && (
+          <section>
+            <p className="section-header">Shopping</p>
+            <div className="list-inset">
+              {shoppingItems.map((item, i) => (
+                <CheckboxRow
+                  key={item.id}
+                  checked={item.checked}
+                  onChange={() => {/* toggle shopping item */}}
+                  title={item.title}
+                  glyph={
+                    <Glyph color="lists" size="sm">
+                      <ShoppingCart className="w-4 h-4 text-white" />
+                    </Glyph>
+                  }
+                  className={cn(i === shoppingItems.length - 1 && 'border-b-0')}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Family */}
+        {familyMembers.length > 0 && (
+          <section>
+            <p className="section-header">Family</p>
+            <div className="card-apple p-4">
+              {/* Avatar row */}
+              <div className="flex items-center justify-around py-2">
+                {familyMembers.map((member) => (
+                  <div key={member.id} className="flex flex-col items-center gap-1.5">
+                    <Avatar name={member.name} src={member.avatar} size="lg" />
+                    <span className="text-caption-1 text-label-secondary font-medium">
+                      {member.xp} XP
+                    </span>
                   </div>
-                  <span className="text-xs font-semibold text-indigo-600">Lvl {member.level}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center text-gray-600">
-                    <span className="w-2 h-2 rounded-full bg-blue-400 mr-1.5" />
-                    {member.xp} XP
+                ))}
+              </div>
+
+              {/* Budget snapshot for parents */}
+              {isParent && (
+                <div className="mt-4 pt-4 border-t border-[var(--surface-separator)]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-subhead text-label-secondary">Budget this month</span>
+                    <span className="text-subhead text-label-primary font-medium">
+                      $1,240 of $2,000
+                    </span>
                   </div>
-                  {member.streak > 0 && (
-                    <div className="flex items-center text-orange-600">
-                      <span className="mr-1">🔥</span>
-                      <span className="font-medium">{member.streak}d</span>
-                    </div>
-                  )}
-                  {member.streak === 0 && member.bestStreak > 0 && (
-                    <div className="flex items-center text-gray-400">
-                      <span className="mr-1">🏆</span>
-                      Best {member.bestStreak}d
-                    </div>
-                  )}
-                </div>
-                {/* XP progress bar to next level */}
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-[var(--surface-fill)] overflow-hidden">
                     <div
-                      className="bg-indigo-500 h-1.5 rounded-full"
-                      style={{ width: `${Math.min((member.xp % 100) / 100 * 100, 100)}%` }}
+                      className="h-full rounded-full bg-[var(--accent)]"
+                      style={{ width: '62%' }}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {member.xp % 100} / 100 XP to Lvl {member.level + 1}
-                  </p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+              )}
+            </div>
+          </section>
+        )}
 
-      {/* Quick tips */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
-        <div className="flex items-center mb-4">
-          <TrendingUp className="w-6 h-6 text-blue-600 mr-3" />
-          <h3 className="text-lg font-semibold text-gray-900">{t('dashboard.quickTips')}</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('dashboard.assignChores')}</h4>
-            <p className="text-sm text-gray-600">
-              {t('dashboard.assignChoresDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('dashboard.scheduleEvents')}</h4>
-            <p className="text-sm text-gray-600">
-              {t('dashboard.scheduleEventsDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('dashboard.communicate')}</h4>
-            <p className="text-sm text-gray-600">
-              {t('dashboard.communicateDesc')}
-            </p>
-          </div>
-        </div>
+        {/* Photo verification queue (parents only) */}
+        {isParent && photoVerifyQueue.length > 0 && (
+          <section>
+            <SectionHeader>Needs your review</SectionHeader>
+            <InsetList>
+              {photoVerifyQueue.map((chore: any, i: number) => (
+                <Link
+                  key={chore.id}
+                  href="/dashboard/chores"
+                  className={cn('row-apple', i === photoVerifyQueue.length - 1 ? '' : 'border-b border-[var(--surface-separator)]')}
+                >
+                  {chore.assignee?.avatar_url ? (
+                    <Avatar name={chore.assignee.name || '?'} src={chore.assignee.avatar_url} size="sm" />
+                  ) : (
+                    <div className="glyph bg-tint-calendar">
+                      <ImageIcon className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-body text-label-primary">{chore.title}</div>
+                    <div className="text-footnote text-label-secondary truncate">
+                      {chore.assignee?.name} · {chore.photo_url ? 'Photo submitted' : 'Marked done'}
+                    </div>
+                  </div>
+                  <span className="text-caption-1 font-semibold text-[var(--warning)] uppercase tracking-wide">
+                    Review
+                  </span>
+                </Link>
+              ))}
+            </InsetList>
+          </section>
+        )}
+
+        {/* Upcoming pickups */}
+        {pickups.length > 0 && (
+          <section>
+            <SectionHeader>Pickups</SectionHeader>
+            <InsetList>
+              {pickups.map((p: any, i: number) => (
+                <ListRow
+                  key={p.id}
+                  icon={Car}
+                  glyphColor="calendar"
+                  title={p.title}
+                  subtitle={p.location || '—'}
+                  trailing={
+                    <span className="text-footnote text-label-tertiary">
+                      {new Date(p.pickup_time).toLocaleString(undefined, {
+                        weekday: 'short', hour: 'numeric', minute: '2-digit',
+                      })}
+                    </span>
+                  }
+                  showChevron
+                  href="/dashboard/pickups"
+                  last={i === pickups.length - 1}
+                />
+              ))}
+            </InsetList>
+          </section>
+        )}
+
+        {/* Allowance pending */}
+        {allowancePending.length > 0 && (
+          <section>
+            <SectionHeader>Allowance</SectionHeader>
+            <InsetList>
+              {allowancePending.map((a: any, i: number) => (
+                <ListRow
+                  key={a.id}
+                  icon={Wallet}
+                  glyphColor="budget"
+                  title={`$${a.amount.toFixed(2)} → ${a.to_user?.name || '—'}`}
+                  subtitle={a.reason || 'Pending payment'}
+                  showChevron
+                  href="/dashboard/allowance"
+                  last={i === allowancePending.length - 1}
+                />
+              ))}
+            </InsetList>
+          </section>
+        )}
+
+        {/* Upcoming birthdays / anniversaries */}
+        {anniversaries.length > 0 && (
+          <section>
+            <SectionHeader>Coming up</SectionHeader>
+            <InsetList>
+              {anniversaries.slice(0, 3).map((a: any, i: number) => {
+                const isBirthday = a.type === 'birthday'
+                const Icon = isBirthday ? Cake : Calendar
+                return (
+                  <ListRow
+                    key={a.id}
+                    icon={Icon}
+                    glyphColor="family"
+                    title={a.name}
+                    subtitle={a._days === 0 ? 'Today!' : a._days === 1 ? 'Tomorrow' : `In ${a._days} days`}
+                    showChevron
+                    href="/dashboard/anniversaries"
+                    last={i === Math.min(anniversaries.length, 3) - 1}
+                  />
+                )
+              })}
+            </InsetList>
+          </section>
+        )}
       </div>
     </div>
   )
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
 }

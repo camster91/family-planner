@@ -1,16 +1,8 @@
-import { PlusCircle, Download } from 'lucide-react'
-import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import ChoreList from '@/components/chores/ChoreList'
-import ExportButton from '@/components/common/ExportButton'
+import ChoresContent from './ChoresContent'
 
-export default async function ChoresPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ status?: string; assigned_to?: string }>
-}) {
-  const params = await searchParams
+export default async function ChoresPage() {
   const sessionUser = await getServerUser()
 
   if (!sessionUser) {
@@ -24,18 +16,9 @@ export default async function ChoresPage({
 
   const familyId = user?.family_id || undefined
 
-  // Build where clause from searchParams
-  const where: Record<string, unknown> = { family_id: familyId }
-  if (params.status) {
-    where.status = params.status
-  }
-  if (params.assigned_to) {
-    where.assigned_to = params.assigned_to
-  }
-
-  // Get all chores for the family (filtered)
+  // Get all chores for the family
   const chores = familyId ? await prisma!.chore.findMany({
-    where,
+    where: { family_id: familyId },
     include: {
       assignee: { select: { name: true } },
       creator: { select: { name: true } }
@@ -43,11 +26,53 @@ export default async function ChoresPage({
     orderBy: { due_date: 'asc' }
   }) : []
 
-  // Get all chores for stats (unfiltered)
-  const allChores = familyId ? await prisma!.chore.findMany({
-    where: { family_id: familyId },
-    select: { status: true },
-  }) : []
+  // Compute streak per assignee: count of consecutive days with completed chores in last 7 days
+  const streakMap: Record<string, number> = {}
+  if (familyId) {
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+
+    const completedChores = await prisma!.chore.findMany({
+      where: {
+        family_id: familyId,
+        status: { in: ['completed', 'verified'] },
+        completed_at: { gte: sevenDaysAgo },
+      },
+      select: { assigned_to: true, completed_at: true, title: true },
+      orderBy: { completed_at: 'asc' },
+    })
+
+    // Group by assignee
+    const byAssignee: Record<string, Date[]> = {}
+    for (const c of completedChores) {
+      if (!c.completed_at) continue
+      if (!byAssignee[c.assigned_to]) byAssignee[c.assigned_to] = []
+      byAssignee[c.assigned_to].push(new Date(c.completed_at))
+    }
+
+    for (const [assigneeId, dates] of Object.entries(byAssignee)) {
+      // Get unique days
+      const daySet = new Set<string>()
+      for (const d of dates) daySet.add(d.toISOString().split('T')[0])
+      const sortedDays = Array.from(daySet).sort()
+      // Count consecutive days from today backwards
+      let streak = 0
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      for (let i = 0; i < 7; i++) {
+        const checkDate = new Date(today)
+        checkDate.setDate(today.getDate() - i)
+        const dayStr = checkDate.toISOString().split('T')[0]
+        if (daySet.has(dayStr)) {
+          streak++
+        } else {
+          break
+        }
+      }
+      streakMap[assigneeId] = streak >= 3 ? streak : 0
+    }
+  }
 
   // Get family members for assignment
   const familyMembers = familyId ? await prisma!.user.findMany({
@@ -56,153 +81,22 @@ export default async function ChoresPage({
     orderBy: { role: 'desc' }
   }) : []
 
-  const stats = {
-    total: allChores?.length || 0,
-    completed: allChores?.filter(c => c.status === 'completed' || c.status === 'verified').length || 0,
-    pending: allChores?.filter(c => c.status === 'pending' || c.status === 'in_progress').length || 0,
-    overdue: allChores?.filter(c => c.status === 'overdue').length || 0,
-  }
-
-  const currentFilter = params.status || 'all'
-  const currentAssigned = params.assigned_to || ''
-
-  const filterButtonClass = (active: boolean) =>
-    `px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-      active
-        ? 'bg-blue-600 text-white'
-        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-    }`
+  const serializedChores = chores.map((c) => ({
+    ...c,
+    due_date: c.due_date.toISOString(),
+    created_at: c.created_at.toISOString(),
+    completed_at: c.completed_at?.toISOString() ?? null,
+    verified_at: c.verified_at?.toISOString() ?? null,
+    photo_url: c.photo_url ?? null,
+    streak: streakMap[c.assigned_to] ?? 0,
+  }))
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Chores</h1>
-          <p className="mt-2 text-gray-600">
-            Manage household chores and responsibilities for your family.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {chores && chores.length > 0 && (
-            <ExportButton data={chores} filename="chores" label="Export" />
-          )}
-          <Link
-            href="/dashboard/chores/create"
-            className="btn-primary inline-flex items-center"
-          >
-            <PlusCircle className="w-5 h-5 mr-2" />
-            New Chore
-          </Link>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Link href="/dashboard/chores" className="card text-center hover:shadow-md transition-shadow">
-          <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-          <div className="text-sm text-gray-600">Total Chores</div>
-        </Link>
-        <Link href="/dashboard/chores?status=completed" className="card text-center hover:shadow-md transition-shadow">
-          <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          <div className="text-sm text-gray-600">Completed</div>
-        </Link>
-        <Link href="/dashboard/chores?status=pending" className="card text-center hover:shadow-md transition-shadow">
-          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          <div className="text-sm text-gray-600">Pending</div>
-        </Link>
-        <Link href="/dashboard/chores?status=overdue" className="card text-center hover:shadow-md transition-shadow">
-          <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
-          <div className="text-sm text-gray-600">Overdue</div>
-        </Link>
-      </div>
-
-      {/* Chore filters */}
-      <div className="flex flex-wrap gap-2">
-        <Link href="/dashboard/chores" className={filterButtonClass(currentFilter === 'all')}>
-          All
-        </Link>
-        <Link href="/dashboard/chores?status=pending" className={filterButtonClass(currentFilter === 'pending')}>
-          Pending
-        </Link>
-        <Link href="/dashboard/chores?status=in_progress" className={filterButtonClass(currentFilter === 'in_progress')}>
-          In Progress
-        </Link>
-        <Link href="/dashboard/chores?status=completed" className={filterButtonClass(currentFilter === 'completed')}>
-          Completed
-        </Link>
-        {sessionUser && (
-          <Link
-            href={`/dashboard/chores?assigned_to=${sessionUser.id}`}
-            className={filterButtonClass(currentAssigned === sessionUser.id)}
-          >
-            My Chores
-          </Link>
-        )}
-      </div>
-
-      {/* Chore list */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {currentFilter === 'all' ? 'All Chores' : `${currentFilter.replace('_', ' ')} Chores`}
-          </h2>
-          <div className="text-sm text-gray-600">
-            {stats.completed} of {stats.total} completed ({stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%)
-          </div>
-        </div>
-
-        {chores && chores.length > 0 ? (
-          <ChoreList
-            chores={chores as any}
-            familyMembers={familyMembers as any || []}
-            currentUserId={sessionUser.id}
-          />
-        ) : (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <PlusCircle className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No chores found</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              {currentFilter !== 'all'
-                ? 'No chores match the current filter. Try a different filter or create a new chore.'
-                : 'Create your first chore to start tracking family responsibilities.'
-              }
-            </p>
-            <Link
-              href="/dashboard/chores/create"
-              className="btn-primary"
-            >
-              Create Your First Chore
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* Tips */}
-      <div className="bg-gray-50 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Chore Management Tips</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Age-Appropriate Tasks</h4>
-            <p className="text-sm text-gray-600">
-              Assign chores based on age and ability. Younger children can handle simpler tasks.
-            </p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Clear Instructions</h4>
-            <p className="text-sm text-gray-600">
-              Provide clear descriptions and expectations for each chore to avoid confusion.
-            </p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Consistent Schedule</h4>
-            <p className="text-sm text-gray-600">
-              Set regular due dates to build consistency and establish routines.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ChoresContent
+      chores={serializedChores as any}
+      familyMembers={familyMembers as any}
+      currentUserId={sessionUser.id}
+      userRole={user?.role || 'child'}
+    />
   )
 }

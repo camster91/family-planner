@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { UserPlus, CheckCircle } from 'lucide-react'
+import { UserPlus, CheckCircle, Users } from 'lucide-react'
 import { useTranslation } from '@/i18n'
 
 export default function RegisterPage() {
@@ -44,7 +44,6 @@ export default function RegisterPage() {
         return
       }
 
-      // Show verification notice instead of redirecting immediately
       setError(null)
       setShowVerificationNotice(true)
     } catch (err) {
@@ -57,26 +56,21 @@ export default function RegisterPage() {
 
   if (showVerificationNotice) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
+      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
+        <div className="w-full max-w-sm text-center">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-[var(--success)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
+              <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Check Your Email</h1>
-            <p className="mt-4 text-gray-600">
+          </div>
+          <div className="card-apple p-6">
+            <h1 className="text-title-2 mb-2">Check Your Email</h1>
+            <p className="text-[15px] text-[var(--label-secondary)] mb-6">
               We sent a verification link to your email address. Click the link to activate your account, then sign in.
             </p>
-            <div className="mt-8">
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
-              >
-                Go to Sign In
-              </Link>
-            </div>
+            <Link href="/login" className="btn-filled w-full py-3">
+              Go to Sign In
+            </Link>
           </div>
         </div>
       </div>
@@ -84,32 +78,32 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <UserPlus className="w-8 h-8 text-white" />
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo glyph */}
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 bg-[var(--accent)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
+            <Users className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('auth.createAccount')}</h1>
-          <p className="mt-2 text-gray-600">
-            {t('auth.createAccountSubtitle')}
-          </p>
         </div>
 
-        <div className="card">
-          <form onSubmit={handleRegister} className="space-y-6">
+        <div className="card-apple p-6">
+          <div className="text-center mb-6">
+            <h1 className="text-title-2">{t('auth.createAccount')}</h1>
+            <p className="text-[15px] text-[var(--label-secondary)] mt-1">
+              {t('auth.createAccountSubtitle')}
+            </p>
+          </div>
+
+          <form onSubmit={handleRegister} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              <div className="bg-[var(--danger-tint)] text-[var(--danger)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.fullName')}
-              </label>
+              <label htmlFor="name" className="label-apple">{t('auth.fullName')}</label>
               <input
                 id="name"
                 type="text"
@@ -117,15 +111,13 @@ export default function RegisterPage() {
                 autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="input-field"
+                className="input-apple"
                 placeholder="John Doe"
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.email')}
-              </label>
+              <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
               <input
                 id="email"
                 type="email"
@@ -133,15 +125,13 @@ export default function RegisterPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
+                className="input-apple"
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.password')}
-              </label>
+              <label htmlFor="password" className="label-apple">{t('auth.password')}</label>
               <input
                 id="password"
                 type="password"
@@ -149,18 +139,16 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-field"
+                className="input-apple"
                 placeholder="••••••••"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="text-[11px] text-[var(--label-tertiary)] mt-1 px-1">
                 {t('auth.passwordHint')}
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.confirmPassword')}
-              </label>
+              <label htmlFor="confirmPassword" className="label-apple">{t('auth.confirmPassword')}</label>
               <input
                 id="confirmPassword"
                 type="password"
@@ -168,25 +156,25 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="input-field"
+                className="input-apple"
                 placeholder="••••••••"
               />
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-start gap-2.5 pt-1">
               <input
                 id="terms"
                 type="checkbox"
                 required
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                className="mt-0.5 h-4 w-4 rounded border-[var(--surface-separator)] bg-[var(--surface-fill)] accent-[var(--accent)]"
               />
-              <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
+              <label htmlFor="terms" className="text-[13px] text-[var(--label-secondary)] leading-4">
                 {t('auth.agreeToTerms')}{' '}
-                <Link href="/terms" className="text-blue-600 hover:text-blue-500">
+                <Link href="/terms" className="text-[var(--accent)] hover:underline">
                   {t('auth.termsOfService')}
                 </Link>{' '}
                 {t('auth.and')}{' '}
-                <Link href="/privacy" className="text-blue-600 hover:text-blue-500">
+                <Link href="/privacy" className="text-[var(--accent)] hover:underline">
                   {t('auth.privacyPolicy')}
                 </Link>
               </label>
@@ -195,28 +183,38 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3"
+              className="btn-filled w-full py-3"
             >
-              {loading ? t('auth.creatingAccount') : t('auth.createAccountBtn')}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                  {t('auth.creatingAccount')}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  {t('auth.createAccountBtn')}
+                </span>
+              )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="mt-4 text-center">
+            <p className="text-[15px] text-[var(--label-secondary)]">
               {t('auth.alreadyHaveAccount')}{' '}
-              <Link href="/login" className="inline-flex items-center py-2 text-blue-600 hover:text-blue-500 font-medium min-h-11">
+              <Link href="/login" className="btn-plain py-1 px-2 -my-1">
                 {t('auth.signInLink')}
               </Link>
             </p>
           </div>
         </div>
 
-        <div className="text-center">
-          <p className="text-sm text-gray-500">
+        <div className="text-center mt-6">
+          <p className="text-[13px] text-[var(--label-tertiary)]">
             {t('auth.bySigningUp')}
           </p>
-          <p className="mt-2 text-xs text-gray-400">
-            {t('auth.freeTrial')} - {t('auth.noCreditCard')}
+          <p className="mt-1 text-[12px] text-[var(--label-quaternary)]">
+            {t('auth.freeTrial')} &middot; {t('auth.noCreditCard')}
           </p>
         </div>
       </div>

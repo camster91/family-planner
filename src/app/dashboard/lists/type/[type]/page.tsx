@@ -1,99 +1,82 @@
-import { ArrowLeft, PlusCircle, ShoppingCart, CheckSquare, Utensils, Heart, List } from 'lucide-react'
+import { Suspense } from 'react'
+import { Plus, ShoppingCart, CheckSquare, UtensilsCrossed, Heart, ShoppingBag, List, LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
+import { Glyph } from '@/components/ui/glyph'
+import { EmptyState } from '@/components/ui/empty-state'
+import { LargeHeader } from '@/components/ui/large-header'
+import type { ListType } from '@/types'
 
-const typeConfigs = {
-  grocery: {
-    name: 'Grocery Lists',
-    description: 'Shared shopping lists for groceries',
-    icon: ShoppingCart,
-    color: 'bg-green-100 text-green-600',
-  },
-  todo: {
-    name: 'To-Do Lists',
-    description: 'Family tasks and reminders',
-    icon: CheckSquare,
-    color: 'bg-blue-100 text-blue-600',
-  },
-  meal_plan: {
-    name: 'Meal Plans',
-    description: 'Weekly meal planning',
-    icon: Utensils,
-    color: 'bg-yellow-100 text-yellow-600',
-  },
-  wishlist: {
-    name: 'Wish Lists',
-    description: 'Family gift ideas and wants',
-    icon: Heart,
-    color: 'bg-pink-100 text-pink-600',
-  },
-  shopping: {
-    name: 'Shopping Lists',
-    description: 'General shopping lists',
-    icon: ShoppingCart,
-    color: 'bg-purple-100 text-purple-600',
-  },
+export const dynamic = 'force-dynamic'
+
+// -----------------------------------------------------------------------
+// Type config
+// -----------------------------------------------------------------------
+
+type ListTypeKey = 'grocery' | 'todo' | 'meal_plan' | 'wishlist' | 'shopping'
+
+interface TypeConfig {
+  name: string
+  color: 'lists' | 'rewards' | 'meals' | 'family'
 }
+
+const TYPE_CONFIG: Record<string, TypeConfig> = {
+  grocery: { name: 'Grocery', color: 'lists' },
+  todo: { name: 'To-dos', color: 'rewards' },
+  meal_plan: { name: 'Meal plan', color: 'meals' },
+  wishlist: { name: 'Wishlist', color: 'family' },
+  shopping: { name: 'Shopping', color: 'lists' },
+}
+
+const ICONS: Record<string, LucideIcon> = {
+  grocery: ShoppingCart,
+  todo: CheckSquare,
+  meal_plan: UtensilsCrossed,
+  wishlist: Heart,
+  shopping: ShoppingBag,
+}
+
+// -----------------------------------------------------------------------
+// Page
+// -----------------------------------------------------------------------
 
 export default async function ListsByTypePage({ params }: { params: Promise<{ type: string }> }) {
   const resolvedParams = await params
-  const sessionUser = await getServerUser()
+  const type = resolvedParams.type as ListTypeKey
 
-  if (!sessionUser) {
-    return null
-  }
+  const sessionUser = await getServerUser()
+  if (!sessionUser) return null
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
     include: { family: true },
   })
+  if (!user) return null
 
-  if (!user) {
-    return null
-  }
-
-  // Validate list type
-  const typeConfig = typeConfigs[resolvedParams.type as keyof typeof typeConfigs]
+  const typeConfig = TYPE_CONFIG[type]
   if (!typeConfig) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <Link
-          href="/dashboard/lists"
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-8"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Lists
+      <div className="max-w-2xl mx-auto px-4 pb-20">
+        <Link href="/dashboard/lists" className="inline-flex items-center text-subhead text-[var(--accent)]">
+          ← Back
         </Link>
-
-        <div className="card text-center py-12">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <List className="w-8 h-8 text-gray-400" />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">List Type Not Found</h2>
-          <p className="text-gray-600 mb-6">
-            The list type &quot;{resolvedParams.type}&quot; doesn&apos;t exist.
-          </p>
-          <Link
-            href="/dashboard/lists"
-            className="btn-primary"
-          >
-            Back to Lists
-          </Link>
+        <div className="card-apple p-8 text-center mt-8">
+          <p className="text-title-3 text-label-primary">Unknown type</p>
         </div>
       </div>
     )
   }
 
-  const Icon = typeConfig.icon
+  const Icon = ICONS[type]
 
-  // Get lists of this type
   let lists: any[] = []
   try {
     lists = await (prisma as any).list.findMany({
-      where: { family_id: user.family_id, type: resolvedParams.type },
+      where: { family_id: user.family_id, type },
       include: {
-        items: true,
+        items: { select: { checked: true } },
         creator: { select: { name: true } },
       },
       orderBy: { updated_at: 'desc' },
@@ -102,231 +85,82 @@ export default async function ListsByTypePage({ params }: { params: Promise<{ ty
     console.warn('Error fetching lists:', error)
   }
 
+  const listItems = lists.map((list: any) => ({
+    id: list.id,
+    name: list.name,
+    type: list.type,
+    description: list.description,
+    creator: list.creator,
+    checked_count: (list.items || []).filter((i: any) => i.checked).length,
+    total_count: list.items?.length || 0,
+  }))
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <Link
-        href="/dashboard/lists"
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-8"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to All Lists
-      </Link>
+    <div className="pb-20">
+      <LargeHeader
+        greeting="Family"
+        title={typeConfig.name}
+        trailing={
+          <Link href={`/dashboard/lists/create?type=${type}`} className="btn-tinted">
+            <Plus className="w-4 h-4" />
+          </Link>
+        }
+        className="px-4"
+      />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div className="flex items-center">
-          <div className={`w-12 h-12 ${typeConfig.color} rounded-lg flex items-center justify-center mr-4`}>
-            <Icon className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{typeConfig.name}</h1>
-            <p className="text-gray-600">{typeConfig.description}</p>
-          </div>
-        </div>
-        <Link
-          href={`/dashboard/lists/create?type=${resolvedParams.type}`}
-          className="btn-primary inline-flex items-center"
-        >
-          <PlusCircle className="w-5 h-5 mr-2" />
-          Create {typeConfig.name.split(' ')[0]} List
-        </Link>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-4">
-              <List className="w-5 h-5 text-gray-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Lists</p>
-              <p className="text-2xl font-semibold text-gray-900">{lists.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-              <CheckSquare className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Items</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {lists.reduce((total: number, list: any) => total + (list.items?.length || 0), 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-              <span className="text-lg">👥</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Contributors</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {lists.length > 0 ? Math.min(lists.length * 2, 10) : 0}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lists */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Your {typeConfig.name}</h2>
-          <span className="text-sm text-gray-600">
-            {lists.length} list{lists.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        {lists.length > 0 ? (
-          <div className="space-y-4">
-            {lists.map((list: any) => (
-              <Link
-                key={list.id}
-                href={`/dashboard/lists/${list.id}`}
-                className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-4">
-                      <Icon className="w-5 h-5 text-gray-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{list.name}</h3>
-                      <p className="text-sm text-gray-600">
-                        {list.description || 'No description'}
-                      </p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                        <span>Created by {list.creator?.name}</span>
-                        <span>•</span>
-                        <span>{list.items?.length || 0} items</span>
-                        <span>•</span>
-                        <span>Updated {new Date(list.updated_at).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-gray-400">
-                    →
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <Icon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No {typeConfig.name} Yet</h3>
-            <p className="text-gray-600 mb-6">
-              Create your first {typeConfig.name.toLowerCase()} to get started.
+      <div className="px-4 space-y-5">
+        {/* Stats row */}
+        <div className="card-apple p-4 flex items-center gap-4">
+          <Glyph color={typeConfig.color} size="lg">
+            <Icon className="w-6 h-6 text-white" />
+          </Glyph>
+          <div className="flex-1 min-w-0">
+            <p className="text-body text-label-primary font-medium">{typeConfig.name}</p>
+            <p className="text-footnote text-label-secondary">
+              {lists.length} list{lists.length !== 1 ? 's' : ''}
             </p>
-            <Link
-              href={`/dashboard/lists/create?type=${resolvedParams.type}`}
-              className="btn-primary inline-flex items-center"
-            >
-              <PlusCircle className="w-5 h-5 mr-2" />
-              Create Your First {typeConfig.name.split(' ')[0]} List
-            </Link>
           </div>
-        )}
-      </div>
-
-      {/* Tips for this list type */}
-      <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 mt-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Tips for {typeConfig.name}</h3>
-        <div className="space-y-4">
-          {resolvedParams.type === 'grocery' && (
-            <>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  1
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Create categories</strong> like Dairy, Produce, Meat to organize your list.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  2
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Add quantities</strong> so everyone knows how much to buy.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  3
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Check items off</strong> as you shop to avoid duplicates.
-                </p>
-              </div>
-            </>
-          )}
-
-          {resolvedParams.type === 'todo' && (
-            <>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  1
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Assign tasks</strong> to specific family members with deadlines.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  2
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Break down big projects</strong> into smaller, manageable tasks.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  3
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Celebrate completion</strong> by checking items off together.
-                </p>
-              </div>
-            </>
-          )}
-
-          {resolvedParams.type === 'meal_plan' && (
-            <>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  1
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Plan a week at a time</strong> to reduce stress and food waste.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  2
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Assign cooking duties</strong> so everyone contributes.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                  3
-                </div>
-                <p className="text-sm text-gray-700">
-                  <strong>Link to recipes</strong> for easy reference while cooking.
-                </p>
-              </div>
-            </>
-          )}
         </div>
+
+        {/* Lists */}
+        {listItems.length > 0 ? (
+          <section>
+            <SectionHeader>All {typeConfig.name} Lists</SectionHeader>
+            <InsetList>
+              {listItems.map((list, i) => (
+                <ListRow
+                  key={list.id}
+                  href={`/dashboard/lists/${list.id}`}
+                  icon={Icon}
+                  glyphColor={typeConfig.color}
+                  title={list.name}
+                  subtitle={list.creator.name}
+                  trailing={
+                    list.total_count > 0 ? (
+                      <span className="text-footnote text-label-tertiary">
+                        {list.checked_count}/{list.total_count}
+                      </span>
+                    ) : undefined
+                  }
+                  last={i === listItems.length - 1}
+                />
+              ))}
+            </InsetList>
+          </section>
+        ) : (
+          <EmptyState
+            icon={Icon}
+            glyphColor={typeConfig.color}
+            title={`No ${typeConfig.name} lists`}
+            description={`Create your first ${typeConfig.name.toLowerCase()} list.`}
+            action={
+              <Link href={`/dashboard/lists/create?type=${type}`} className="btn-filled">
+                <Plus className="w-4 h-4" />
+                <span>Create List</span>
+              </Link>
+            }
+          />
+        )}
       </div>
     </div>
   )

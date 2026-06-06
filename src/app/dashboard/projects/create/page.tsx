@@ -58,36 +58,31 @@ export default function CreateProjectPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      {/* Back link */}
-      <Link
-        href="/dashboard/projects"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to projects
-      </Link>
+    <div className="max-w-lg mx-auto space-y-6 pb-20">
+      {/* Back */}
+      <div className="px-4 pt-4">
+        <Link href="/dashboard/projects" className="inline-flex items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Projects
+        </Link>
+      </div>
+
+      {/* Header */}
+      <div className="px-4">
+        <h1 className="text-2xl font-bold text-label-primary">New Project</h1>
+        <p className="text-subhead text-label-secondary mt-1">Organize family goals and tasks together.</p>
+      </div>
 
       {/* Form card */}
-      <div className="rounded-2xl bg-white border shadow-sm overflow-hidden">
+      <div className="rounded-2xl bg-white border shadow-sm overflow-hidden mx-4">
         {/* Color preview bar */}
-        <div className="h-2 w-full transition-colors duration-300" style={{ backgroundColor: color }} />
+        <div className="h-1.5 w-full transition-colors duration-300" style={{ backgroundColor: color }} />
 
-        <div className="p-6 sm:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <PlusCircle className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">New Project</h1>
-              <p className="text-xs text-gray-500">Create a new family project</p>
-            </div>
-          </div>
-
+        <div className="p-6 space-y-5">
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <div className="space-y-1.5">
+              <label htmlFor="name" className="text-subhead text-label-secondary">
                 Project Name <span className="text-red-400">*</span>
               </label>
               <input
@@ -96,7 +91,7 @@ export default function CreateProjectPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Backyard Garden, Spring Cleaning"
-                className="input-field rounded-xl"
+                className="input-apple"
                 required
                 autoFocus
                 maxLength={200}
@@ -104,29 +99,25 @@ export default function CreateProjectPage() {
             </div>
 
             {/* Description */}
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Description
+            <div className="space-y-1.5">
+              <label htmlFor="description" className="text-subhead text-label-secondary">
+                Description <span className="text-label-tertiary">(optional)</span>
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What's this project about? (optional)"
-                rows={3}
-                className="input-field rounded-xl resize-none"
+                placeholder="What's this project about?"
+                rows={2}
+                className="input-apple resize-none"
                 maxLength={1000}
               />
-              <p className="mt-1 text-xs text-gray-400 text-right">
-                {description.length}/1000
-              </p>
+              <p className="text-caption-1 text-label-tertiary text-right">{description.length}/1000</p>
             </div>
 
             {/* Color picker */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Accent Color
-              </label>
+            <div className="space-y-2">
+              <label className="text-subhead text-label-secondary">Accent Color</label>
               <div className="flex flex-wrap gap-2">
                 {PRESET_COLORS.map((c) => (
                   <button
@@ -136,16 +127,14 @@ export default function CreateProjectPage() {
                     className={cn(
                       'w-9 h-9 rounded-xl border-2 transition-all duration-150 flex items-center justify-center',
                       color === c.value
-                        ? `border-gray-900 ring-2 ring-offset-1 ${c.ring}`
+                        ? 'border-gray-900 ring-2 ring-offset-1 ring-gray-400'
                         : 'border-transparent hover:border-gray-300',
                     )}
                     style={{ backgroundColor: c.value }}
                     title={c.label}
                     aria-label={`Color: ${c.label}`}
                   >
-                    {color === c.value && (
-                      <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                    )}
+                    {color === c.value && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
                   </button>
                 ))}
               </div>
@@ -156,10 +145,10 @@ export default function CreateProjectPage() {
               type="submit"
               disabled={!name.trim() || loading}
               className={cn(
-                'w-full py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                'w-full py-3 rounded-xl text-base font-semibold transition-all duration-200',
                 name.trim() && !loading
-                  ? 'text-white bg-blue-500 hover:bg-blue-600 shadow-sm'
-                  : 'text-gray-400 bg-gray-100 cursor-not-allowed',
+                  ? 'bg-projects text-white hover:bg-projects/90'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed',
               )}
             >
               {loading ? (
@@ -179,10 +168,9 @@ export default function CreateProjectPage() {
       </div>
 
       {/* Tip */}
-      <div className="rounded-xl bg-gray-50 p-4 text-center">
-        <p className="text-xs text-gray-500">
-          After creating the project, you can add tasks, assign family members,
-          set due dates, and track progress together.
+      <div className="rounded-xl bg-surface-fill p-4 text-center mx-4">
+        <p className="text-caption-1 text-label-secondary">
+          After creating, you can add tasks, assign family members, and track progress.
         </p>
       </div>
     </div>
