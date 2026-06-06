@@ -16,7 +16,28 @@ export default async function DashboardPage() {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true }
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      family_id: true,
+      avatar_url: true,
+      xp: true,
+      level: true,
+      family: {
+        select: {
+          id: true,
+          name: true,
+          invite_code: true,
+          subscription_tier: true,
+          features: true,
+          travel_mode_active: true,
+          travel_start_date: true,
+          travel_end_date: true,
+          travel_destination: true,
+        },
+      },
+    },
   })
 
   // Show onboarding if user has no family
