@@ -91,7 +91,7 @@ export async function expandAllRecurringChores(familyId: string): Promise<number
     where: {
       family_id: familyId,
       frequency: { not: 'once' },
-      status: { in: ['pending', 'completed', 'verified', 'overdue'] },
+      status: { in: ['pending', 'completed', 'verified'] },
     },
     select: { id: true, frequency: true, assigned_to: true, created_by: true },
   })
