@@ -46,6 +46,49 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// GET - Get current user's family details
+export async function GET(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const family = await prisma!.family.findUnique({
+      where: { id: auth.user.family_id },
+      select: {
+        id: true,
+        name: true,
+        invite_code: true,
+        subscription_tier: true,
+        created_at: true,
+        features: true,
+        _count: {
+          select: { members: true },
+        },
+      },
+    })
+
+    if (!family) {
+      return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      family: {
+        id: family.id,
+        name: family.name,
+        invite_code: family.invite_code,
+        subscription_tier: family.subscription_tier,
+        created_at: family.created_at,
+        member_count: family._count.members,
+        features: family.features,
+      },
+      role: auth.user.role,
+    })
+  } catch (error) {
+    console.error('Error fetching family:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 // PATCH - Update family settings (parents only, must be in that family)
 export async function PATCH(request: NextRequest) {
   try {
