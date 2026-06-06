@@ -23,6 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://placeholder/placeholder
+
       - name: Run ESLint
         run: npm run lint
 
