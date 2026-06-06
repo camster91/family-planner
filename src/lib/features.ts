@@ -18,6 +18,9 @@ import {
   Calendar,
   ListChecks,
   Users,
+  Heart,
+  Plane,
+  UserPlus,
 } from 'lucide-react'
 
 export type FeatureKey =
@@ -38,6 +41,10 @@ export type FeatureKey =
   | 'projects'
   | 'messages'
   | 'analytics'
+  | 'wishlist'
+  | 'travel'
+  | 'emergency'
+  | 'handoff'
 
 export interface FeatureMeta {
   key: FeatureKey
@@ -74,11 +81,15 @@ export const FEATURES: FeatureMeta[] = [
   { key: 'projects', title: 'Projects', description: 'Plan trips, renovations, and big family goals.', group: 'planning', icon: FolderKanban, glyphColor: 'projects', href: '/dashboard/projects', defaultEnabled: true },
   { key: 'messages', title: 'Family chat', description: 'Built-in messaging so you do not need a separate app.', group: 'planning', icon: MessageSquare, glyphColor: 'messages', href: '/dashboard/messages', defaultEnabled: true },
   { key: 'analytics', title: 'Analytics', description: 'Streaks, leaderboard, and weekly family trends.', group: 'planning', icon: TrendingUp, glyphColor: 'chore', href: '/dashboard/analytics', defaultEnabled: true },
+  { key: 'wishlist', title: 'Wishlist', description: 'What the family wants. Kids add, parents track.', group: 'planning', icon: Heart, glyphColor: 'rewards', href: '/dashboard/wishlist', defaultEnabled: false },
+  { key: 'emergency', title: 'Emergency contacts', description: 'Printable medical + emergency info card for each family member.', group: 'core', icon: Heart, glyphColor: 'family', href: '/dashboard/emergency', defaultEnabled: true },
 
   // Family — opt-in, parents turn these on deliberately
   { key: 'locations', title: 'Locations', description: 'Save home, school, and work addresses for the family.', group: 'family', icon: MapPin, glyphColor: 'calendar', href: '/dashboard/locations', defaultEnabled: false },
   { key: 'pickups', title: 'Pickups & dropoffs', description: 'Coordinate who is picking up the kids and when.', group: 'family', icon: Car, glyphColor: 'lists', href: '/dashboard/pickups', defaultEnabled: false },
   { key: 'allowance', title: 'Allowance & IOUs', description: 'Track weekly allowance and money owed between members.', group: 'family', icon: Wallet, glyphColor: 'budget', href: '/dashboard/allowance', defaultEnabled: false },
+  { key: 'travel', title: 'Travel mode', description: 'Mute non-urgent tasks and shift chore schedule while away.', group: 'family', icon: Plane, glyphColor: 'calendar', href: '/dashboard/travel', defaultEnabled: false },
+  { key: 'handoff', title: 'Babysitter handoff', description: 'One-screen sitter brief with printable + shareable link.', group: 'family', icon: UserPlus, glyphColor: 'family', href: '/dashboard/handoff', defaultEnabled: false },
 ]
 
 /** The shape stored on Family.features as a JSON column. */

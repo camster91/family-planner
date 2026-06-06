@@ -19,6 +19,10 @@ import {
   MapPin,
   Car,
   Sliders,
+  Thermometer,
+  Heart,
+  UserPlus,
+  Plane,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -51,6 +55,8 @@ export const navItems: NavItem[] = [
   { name: 'Locations', href: '/dashboard/locations', icon: MapPin, featureKey: 'locations' },
   { name: 'Pickups', href: '/dashboard/pickups', icon: Car, featureKey: 'pickups' },
   { name: 'Allowance', href: '/dashboard/allowance', icon: Wallet, featureKey: 'allowance' },
+  { name: 'Handoff', href: '/dashboard/handoff', icon: UserPlus, featureKey: 'handoff' },
+  { name: 'Sick days', href: '/dashboard/sick-days', icon: Thermometer, featureKey: 'sick-days' },
 
   // Settings
   { name: 'Features', href: '/dashboard/features', icon: Sliders },
