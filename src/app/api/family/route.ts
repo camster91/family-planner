@@ -27,14 +27,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You already belong to a family' }, { status: 400 })
     }
 
-    const family = await prisma!.family.create({
-      data: { name: parsed.data.name },
-    })
-
-    // Update user to join this family
-    await prisma!.user.update({
-      where: { id: payload.userId },
-      data: { family_id: family.id },
+    // Create family and assign user to it atomically
+    const family = await prisma!.$transaction(async (tx) => {
+      const newFamily = await tx.family.create({
+        data: { name: parsed.data.name },
+      })
+      await tx.user.update({
+        where: { id: payload.userId },
+        data: { family_id: newFamily.id },
+      })
+      return newFamily
     })
 
     return NextResponse.json({ family })
