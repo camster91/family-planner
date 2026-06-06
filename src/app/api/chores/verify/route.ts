@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
     // Get the chore and verify family ownership
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
-      include: { assignee: true, creator: true }
+      include: {
+        assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
+        creator: { select: { id: true, name: true, avatar_url: true, role: true } },
+      },
     })
 
     if (!chore) {

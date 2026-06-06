@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
         photo_url: photo_url || null,
       },
       include: {
-        assignee: true,
-        creator: true,
+        assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
+        creator: { select: { id: true, name: true, avatar_url: true, role: true } },
       },
     })
 
