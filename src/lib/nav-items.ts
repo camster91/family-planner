@@ -57,6 +57,7 @@ export const navItems: NavItem[] = [
   { name: 'Allowance', href: '/dashboard/allowance', icon: Wallet, featureKey: 'allowance' },
   { name: 'Handoff', href: '/dashboard/handoff', icon: UserPlus, featureKey: 'handoff' },
   { name: 'Sick days', href: '/dashboard/sick-days', icon: Thermometer, featureKey: 'sick-days' },
+  { name: 'Wishlist', href: '/dashboard/wishlist', icon: Heart, featureKey: 'wishlist' },
 
   // Settings
   { name: 'Features', href: '/dashboard/features', icon: Sliders },
