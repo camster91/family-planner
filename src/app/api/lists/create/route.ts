@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         family_id: auth.user.family_id,
         name,
         type,
-        description: description || null,
+        description: description ?? null,
         created_by: auth.user.id,
       },
     })

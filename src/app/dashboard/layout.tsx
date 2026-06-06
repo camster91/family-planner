@@ -1,4 +1,6 @@
 import { ReactNode } from 'react'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import DashboardNav, { TabBar } from '@/components/layout/DashboardNav'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
@@ -28,6 +30,38 @@ export default async function DashboardLayout({
         </div>
       </div>
     )
+  }
+
+  // Look up the role (don't trust the JWT for this — do a fresh DB read so
+  // role changes take effect immediately and the layout is the source of truth).
+  const dbUser = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    select: { role: true },
+  })
+  const role = dbUser?.role || sessionUser.role || 'parent'
+
+  // Server-side role gate: kids and teens can only see the KidHome (which is
+  // rendered by /dashboard/page.tsx). Any /dashboard/* sub-route is parent-only
+  // and kids get redirected back to /dashboard. This prevents a kid from
+  // bypassing the KidHome routing by typing /dashboard/features directly.
+  if ((role === 'child' || role === 'teen')) {
+    const hdrs = await headers()
+    const pathname = hdrs.get('x-pathname') || hdrs.get('x-invoke-path') || ''
+    // x-invoke-path is the most reliable in Next 14 layouts
+    const referer = hdrs.get('referer') || ''
+    // Use x-pathname header (set by middleware) or fall back to referer
+    let route = pathname
+    if (!route) {
+      try {
+        route = new URL(referer).pathname
+      } catch { /* ignore */ }
+    }
+    if (!route || route === '/dashboard' || route === '/dashboard/') {
+      // Allowed: KidHome renders here
+    } else {
+      // Block any sub-route
+      redirect('/dashboard')
+    }
   }
 
   // Get user profile

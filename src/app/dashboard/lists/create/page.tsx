@@ -103,11 +103,15 @@ export default function CreateListPage() {
     setSuccess(null)
 
     try {
-      const res = await fetch('/api/lists/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, description: description || null }),
-      })
+    const res = await fetch('/api/lists/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        type,
+        description: description?.trim() ? description : undefined,
+      }),
+    })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create list')
 
