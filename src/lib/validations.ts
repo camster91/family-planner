@@ -108,7 +108,8 @@ export const deleteNotificationSchema = z.object({
 export const createListSchema = z.object({
   name: z.string().min(1).max(200).trim(),
   type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping']),
-  description: z.string().max(500).trim().optional(),
+  // Accept null too (clients sometimes send null for optional fields); treat as undefined.
+  description: z.union([z.string().max(500).trim(), z.null()]).optional().transform(v => v ?? undefined),
 })
 
 export const createListItemSchema = z.object({

@@ -56,6 +56,23 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  // Role gate: kids and teens can only see the KidHome at /dashboard.
+  // Any /dashboard/* sub-route (features, calendar, lists, etc) is parent-only.
+  // Without this gate, a kid can type /dashboard/features directly and
+  // bypass the KidHome routing that page.tsx does.
+  // Family-only routes (e.g. /dashboard/family) and parent-only surfaces
+  // are all blocked for kids/teen. The /dashboard root is allowed because
+  // page.tsx renders KidHome for kids/teen and DashboardHome for parents.
+  if (isProtectedRoute && isAuthenticated && payload) {
+    const isKid = payload.role === 'child' || payload.role === 'teen'
+    const pathname = request.nextUrl.pathname
+    const isDashboardRoot = pathname === '/dashboard' || pathname === '/dashboard/'
+    if (isKid && !isDashboardRoot) {
+      const redirectUrl = new URL('/dashboard', request.url)
+      return NextResponse.redirect(redirectUrl)
+    }
+  }
+
   // Auth routes (login/register/join) - redirect to dashboard if already logged in
   const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
 
