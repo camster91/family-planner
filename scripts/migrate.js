@@ -481,6 +481,17 @@ async function migrate() {
   const url = new URL(databaseUrl)
   const targetDb = url.pathname.replace(/^\//, '') // e.g., 'familyplanner'
 
+  // Whitelist the database name. CREATE DATABASE cannot be parameterized
+  // (the pg library does not support DDL parameterization), so we MUST
+  // validate the name before interpolating it into the SQL. Without this,
+  // a compromised DATABASE_URL could inject arbitrary SQL in the database
+  // name position.
+  if (!/^[a-zA-Z0-9_]+$/.test(targetDb)) {
+    throw new Error(
+      `Invalid database name: '${targetDb}'. Database names must match /^[a-zA-Z0-9_]+$/.`
+    )
+  }
+
   // Step 1: Connect to the default 'postgres' database to create the target database if needed
   const serverUrl = new URL(databaseUrl)
   serverUrl.pathname = '/postgres'
