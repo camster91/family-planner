@@ -33,12 +33,15 @@ export async function expandRecurringChores(
       family_id: true,
       assigned_to: true,
       created_by: true,
+      due_date: true,
     },
   })
 
   if (!originalChore) return 0
 
-  const now = new Date()
+  // Base occurrences on the original chore's due_date, not the current time
+  // This ensures the generated schedule aligns with when the chore was meant to occur
+  const baseDueDate = new Date(originalChore.due_date)
   // Create occurrences starting from the original due_date + offset
   const occurrences: Array<{
     family_id: string
@@ -54,7 +57,7 @@ export async function expandRecurringChores(
   }> = []
 
   for (let i = 1; i <= config.occurrences; i++) {
-    const dueDate = new Date(now)
+    const dueDate = new Date(baseDueDate)
     dueDate.setDate(dueDate.getDate() + config.amount * i)
     dueDate.setHours(0, 0, 0, 0)
 
