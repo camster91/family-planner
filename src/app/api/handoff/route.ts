@@ -51,13 +51,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sitter name is required' }, { status: 400 })
     }
 
+    // Validate datetime fields. datetime-local inputs produce "YYYY-MM-DDTHH:MM"
+    // strings. If a user types garbage, new Date() returns Invalid Date which
+    // Prisma rejects. Guard with a parse check.
+    const parseDate = (v: unknown): Date | null => {
+      if (!v || typeof v !== 'string') return null
+      const d = new Date(v)
+      return isNaN(d.getTime()) ? null : d
+    }
+    const parsedArrival = parseDate(arrival_time)
+    const parsedDeparture = parseDate(departure_time)
+    if (arrival_time && !parsedArrival) {
+      return NextResponse.json({ error: 'Invalid arrival_time format. Use the date/time picker.' }, { status: 400 })
+    }
+    if (departure_time && !parsedDeparture) {
+      return NextResponse.json({ error: 'Invalid departure_time format. Use the date/time picker.' }, { status: 400 })
+    }
+
     const handoff = await prisma!.handoff.create({
       data: {
         family_id: auth.user.family_id,
         sitter_name: sitter_name.trim(),
         sitter_phone: sitter_phone?.trim() || null,
-        arrival_time: arrival_time ? new Date(arrival_time) : null,
-        departure_time: departure_time ? new Date(departure_time) : null,
+        arrival_time: parsedArrival,
+        departure_time: parsedDeparture,
         kids_bedtimes: kids_bedtimes?.trim() || null,
         where_snacks: where_snacks?.trim() || null,
         pickup_authorized: pickup_authorized?.trim() || null,

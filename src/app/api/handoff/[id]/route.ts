@@ -42,13 +42,30 @@ export async function PATCH(
       general_notes,
     } = body
 
+    // Same datetime validation as POST — see POST handler for the rationale.
+    const parseDate = (v: unknown): Date | null => {
+      if (!v || typeof v !== 'string') return null
+      const d = new Date(v)
+      return isNaN(d.getTime()) ? null : d
+    }
+    if (arrival_time !== undefined && arrival_time !== null) {
+      if (typeof arrival_time !== 'string' || !parseDate(arrival_time)) {
+        return NextResponse.json({ error: 'Invalid arrival_time format' }, { status: 400 })
+      }
+    }
+    if (departure_time !== undefined && departure_time !== null) {
+      if (typeof departure_time !== 'string' || !parseDate(departure_time)) {
+        return NextResponse.json({ error: 'Invalid departure_time format' }, { status: 400 })
+      }
+    }
+
     const handoff = await prisma!.handoff.update({
       where: { id },
       data: {
         ...(sitter_name !== undefined && { sitter_name: sitter_name.trim() }),
         ...(sitter_phone !== undefined && { sitter_phone: sitter_phone?.trim() || null }),
-        ...(arrival_time !== undefined && { arrival_time: arrival_time ? new Date(arrival_time) : null }),
-        ...(departure_time !== undefined && { departure_time: departure_time ? new Date(departure_time) : null }),
+        ...(arrival_time !== undefined && { arrival_time: parseDate(arrival_time) }),
+        ...(departure_time !== undefined && { departure_time: parseDate(departure_time) }),
         ...(kids_bedtimes !== undefined && { kids_bedtimes: kids_bedtimes?.trim() || null }),
         ...(where_snacks !== undefined && { where_snacks: where_snacks?.trim() || null }),
         ...(pickup_authorized !== undefined && { pickup_authorized: pickup_authorized?.trim() || null }),

@@ -157,6 +157,7 @@ function HandoffModal({
   onDelete,
   t,
   saving,
+  error,
 }: {
   mode: 'add' | 'edit'
   initial?: Handoff
@@ -165,6 +166,7 @@ function HandoffModal({
   onDelete?: () => void
   t: (key: string) => string
   saving: boolean
+  error?: string | null
 }) {
   const [form, setForm] = React.useState<HandoffFormData>(
     initial ? handoffToForm(initial) : emptyForm()
@@ -189,6 +191,11 @@ function HandoffModal({
         </button>
       </div>
       <div className="p-4 space-y-4">
+        {error && (
+          <div className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]">
+            {error}
+          </div>
+        )}
         <FormField label={t('handoff.sitterName')}>
           <Input value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />
         </FormField>
@@ -411,6 +418,7 @@ function HandoffPageInner() {
 
   const handleSave = async (form: HandoffFormData) => {
     setSaving(true)
+    setError(null)
     try {
       const payload = {
         ...form,
@@ -423,20 +431,26 @@ function HandoffPageInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-        if (!res.ok) throw new Error('Failed to update')
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to update')
+        }
       } else {
         const res = await fetch('/api/handoff', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-        if (!res.ok) throw new Error('Failed to create')
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to create')
+        }
       }
       setShowAdd(false)
       setEditHandoff(null)
       await fetchHandoffs()
-    } catch {
-      // keep modal open
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save handoff')
     } finally {
       setSaving(false)
     }
@@ -571,6 +585,7 @@ function HandoffPageInner() {
           onCancel={closeModal}
           t={t}
           saving={saving}
+          error={error}
         />
       </Modal>
 
@@ -585,6 +600,7 @@ function HandoffPageInner() {
             onDelete={handleDelete}
             t={t}
             saving={saving}
+            error={error}
           />
         )}
       </Modal>

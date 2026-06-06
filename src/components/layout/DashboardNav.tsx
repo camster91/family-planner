@@ -15,6 +15,8 @@ import {
   Users2,
   Settings,
   LogOut,
+  MessageCircle,
+  Heart,
 } from 'lucide-react'
 import { User as UserType, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
@@ -29,6 +31,7 @@ const PRIMARY_TABS = [
   { href: '/dashboard', label: 'Today', icon: Home, matchPrefix: false },
   { href: '/dashboard/calendar', label: 'Calendar', icon: Calendar, matchPrefix: true },
   { href: '/dashboard/lists', label: 'Lists', icon: ListChecks, matchPrefix: true },
+  { href: '/dashboard/emergency', label: 'Emergency', icon: Heart, matchPrefix: true },
   { href: '/dashboard/family', label: 'Family', icon: Users, matchPrefix: true },
 ] as const
 
@@ -207,6 +210,14 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     >
                       <User className="w-4 h-4 text-label-secondary" />
                       Profile
+                    </Link>
+                    <Link
+                      href="/dashboard/messages"
+                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <MessageCircle className="w-4 h-4 text-label-secondary" />
+                      Messages
                     </Link>
                     <Link
                       href="/dashboard/family"
