@@ -104,17 +104,29 @@ export default async function DashboardLayout({
       />
 
       <FeaturesProvider>
+        {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[var(--tint-family)] focus:text-white focus:text-subhead focus:font-semibold focus:shadow-[var(--shadow-lg)]"
+        >
+          Skip to main content
+        </a>
+
         {/* Apple HIG top bar nav */}
         <DashboardNav user={user as any} />
 
         {/* Main content — padded for top bar height + TabBar safe area on mobile */}
-        <div className="pt-16 pb-20 md:pb-8">
+        <main
+          id="main-content"
+          className="pt-16 pb-20 md:pb-8"
+          aria-label="Family planner dashboard"
+        >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <ErrorBoundary>
               {children}
             </ErrorBoundary>
           </div>
-        </div>
+        </main>
 
         {/* Mobile-only bottom tab bar */}
         <TabBar user={user as any} />

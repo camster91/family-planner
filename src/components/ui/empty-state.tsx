@@ -13,6 +13,7 @@ export function EmptyState({
   description,
   action,
   className,
+  headingLevel = 'h2',
 }: {
   icon?: LucideIcon
   glyphColor?: 'chore' | 'calendar' | 'lists' | 'budget' | 'messages' | 'family' | 'rewards' | 'projects' | 'meals' | 'gray'
@@ -20,6 +21,8 @@ export function EmptyState({
   description?: string
   action?: React.ReactNode
   className?: string
+  /** Heading level for the title — defaults to h2 to fit a typical page (H1 page title → H2 empty state). */
+  headingLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
 }) {
   const bgClass = {
     chore: 'bg-chore', calendar: 'bg-tint-calendar', lists: 'bg-tint-lists',
@@ -28,12 +31,14 @@ export function EmptyState({
     gray: 'bg-surface-fill',
   }[glyphColor]
 
+  const Heading = headingLevel
+
   return (
     <div className={cn('empty-state animate-spring-up', className)}>
       <div className={cn('empty-state-icon', bgClass)}>
         <Icon className="w-9 h-9 text-white" />
       </div>
-      <h3 className="text-title-3 text-label-primary mb-1">{title}</h3>
+      <Heading className="text-title-3 text-label-primary mb-1">{title}</Heading>
       {description && (
         <p className="text-subhead text-label-secondary max-w-sm mb-4">{description}</p>
       )}

@@ -75,7 +75,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   return (
     <>
       {/* ─── Apple HIG Desktop Top Bar ─── */}
-      <nav className="glass fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]">
+      <nav
+        aria-label="Main navigation"
+        className="glass fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
+      >
         <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-6">
           {/* Logo + name */}
           <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">

@@ -144,7 +144,7 @@ export default function MessagesPage() {
               type="button"
               onClick={() => setShowAttach(!showAttach)}
               className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                'w-11 h-11 rounded-full flex items-center justify-center transition-colors',
                 showAttach
                   ? 'bg-tint-messages text-white'
                   : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
@@ -160,12 +160,13 @@ export default function MessagesPage() {
               placeholder="Message"
               className="input-apple flex-1"
               disabled={sending}
+              aria-label="Message text"
             />
             <button
               type="submit"
               disabled={sending || !newMessage.trim()}
               className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                'w-11 h-11 rounded-full flex items-center justify-center transition-colors',
                 newMessage.trim()
                   ? 'bg-tint-messages text-white'
                   : 'bg-surface-fill text-label-tertiary'
@@ -175,6 +176,11 @@ export default function MessagesPage() {
               <Send className="w-3.5 h-3.5" />
             </button>
           </form>
+
+          {/* Live region for screen readers — announces send events */}
+          <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            {sending ? 'Sending message…' : ''}
+          </div>
         </div>
       </div>
     </div>
