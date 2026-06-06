@@ -74,10 +74,6 @@ export async function PATCH(request: NextRequest) {
     if (updates.difficulty !== undefined) data.difficulty = updates.difficulty
     if (updates.frequency !== undefined) data.frequency = updates.frequency
     if (updates.photo_url !== undefined) data.photo_url = updates.photo_url
-    if (updates.photo_verified !== undefined) data.photo_verified = updates.photo_verified
-    if (updates.verified_at !== undefined) data.verified_at = new Date(updates.verified_at)
-    if (updates.verified_notes !== undefined) data.verified_notes = updates.verified_notes
-    if (updates.status !== undefined) data.status = updates.status
 
     const updated = await prisma!.chore.update({
       where: { id: choreId },

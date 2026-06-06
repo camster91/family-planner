@@ -129,6 +129,10 @@ export const updateListItemSchema = z.object({
 })
 
 // Chores (update)
+// These fields are set only by dedicated endpoints:
+//   - status, photo_verified, verified_at, verified_notes → POST /api/chores/verify (parent)
+//   - status (completed), photo_url, photo_verified (false) → POST /api/chores/complete (any member)
+// Children/teens may NOT set them via PATCH.
 export const updateChoreSchema = z.object({
   choreId: z.string().min(1),
   title: z.string().min(1).max(200).trim().optional(),
@@ -139,10 +143,6 @@ export const updateChoreSchema = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
   photo_url: z.string().max(500).optional(),
-  photo_verified: z.boolean().optional(),
-  verified_at: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
-  verified_notes: z.string().max(500).optional(),
-  status: z.enum(['pending', 'in_progress', 'completed', 'verified', 'overdue']).optional(),
 })
 
 // Events (update + delete)
