@@ -56,6 +56,14 @@ model User {
   pickups_created Pickup[] @relation("CreatedPickups")
   allowances_given Allowance[] @relation("AllowanceFrom")
   allowances_received Allowance[] @relation("AllowanceTo")
+  emergency_cards EmergencyContact[] @relation("EmergencyCards")
+  handoffs_created Handoff[] @relation("HandoffCreator")
+  wishlist_items_requested WishlistItem[] @relation("WishlistRequester")
+  wishlist_items_status_changed WishlistItem[] @relation("WishlistStatusChanger")
+  sick_days_as_person SickDay[] @relation("SickDayPerson")
+  sick_days_as_creator SickDay[] @relation("SickDayCreator")
+  medications_as_person Medication[] @relation("MedicationPerson")
+  medications_as_creator Medication[] @relation("MedicationCreator")
 
   @@index([family_id])
 }
@@ -66,6 +74,10 @@ model Family {
   invite_code     String    @unique @default(cuid())
   subscription_tier String  @default("free") // 'free', 'premium', 'family'
   features        Json?     @default("{\"meals\":true,\"notes\":true,\"anniversaries\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true}")
+  travel_mode_active    Boolean   @default(false)
+  travel_start_date     DateTime?
+  travel_end_date       DateTime?
+  travel_destination    String?
   created_at      DateTime  @default(now())
 
   // Relations
@@ -85,6 +97,11 @@ model Family {
   locations     FamilyLocation[]
   pickups       Pickup[]
   allowances    Allowance[]
+  emergency_contacts EmergencyContact[]
+  handoffs      Handoff[]
+  wishlist_items WishlistItem[]
+  sick_days     SickDay[]
+  medications   Medication[]
 }
 
 model Chore {
@@ -456,6 +473,35 @@ model FamilyLocation {
   @@index([user_id])
 }
 
+model EmergencyContact {
+  id              String    @id @default(cuid())
+  family_id       String
+  person_id       String?
+  person_name     String
+  relationship    String    // 'self' | 'child' | 'spouse' | 'parent' | 'other'
+  blood_type      String?
+  allergies       String?
+  medications     String?
+  medical_conditions String?
+  doctor_name     String?
+  doctor_phone    String?
+  dentist_name    String?
+  dentist_phone   String?
+  insurance_provider String?
+  insurance_id    String?
+  emergency_contact_name  String?
+  emergency_contact_phone String?
+  emergency_contact_relation String?
+  notes           String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person          User?     @relation("EmergencyCards", fields: [person_id], references: [id], onDelete: SetNull)
+
+  @@index([family_id])
+}
+
 model Pickup {
   id           String    @id @default(cuid())
   family_id    String
@@ -499,5 +545,104 @@ model Allowance {
   @@index([family_id])
   @@index([to_user_id])
   @@index([status])
+}
+
+model WishlistItem {
+  id              String    @id @default(cuid())
+  family_id       String
+  requested_by    String
+  title           String
+  link            String?
+  description     String?
+  approx_price    Decimal?  @db.Decimal(10,2)
+  status          String    @default("idle") // 'idle' | 'on_the_way' | 'received' | 'denied'
+  denied_reason   String?
+  status_changed_at DateTime?
+  status_changed_by String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  requester       User      @relation("WishlistRequester", fields: [requested_by], references: [id], onDelete: Cascade)
+  status_changer  User?     @relation("WishlistStatusChanger", fields: [status_changed_by], references: [id], onDelete: SetNull)
+
+  @@index([family_id])
+  @@index([requested_by])
+}
+
+model Handoff {
+  id              String    @id @default(cuid())
+  family_id       String
+  sitter_name     String
+  sitter_phone    String?
+  arrival_time    DateTime?
+  departure_time  DateTime?
+  kids_bedtimes   String?
+  where_snacks    String?
+  pickup_authorized String?
+  code_words      String?
+  pet_care        String?
+  emergency_notes String?
+  house_notes     String?
+  general_notes   String?
+  share_token     String    @unique @default(cuid())
+  share_expires_at DateTime?
+  created_by      String
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator         User      @relation("HandoffCreator", fields: [created_by], references: [id])
+
+  @@index([family_id])
+}
+
+model SickDay {
+  id              String    @id @default(cuid())
+  family_id       String
+  person_id       String
+  started_at      DateTime  @default(now())
+  ended_at        DateTime?
+  symptoms        String?
+  severity        String    // 'mild' | 'moderate' | 'severe'
+  status          String    @default("active") // 'active' | 'recovered'
+  temperature_log Json?
+  notes           String?
+  created_by      String
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person          User      @relation("SickDayPerson", fields: [person_id], references: [id], onDelete: Cascade)
+  creator         User      @relation("SickDayCreator", fields: [created_by], references: [id])
+  medications     Medication[]
+
+  @@index([family_id, status])
+  @@index([person_id])
+}
+
+model Medication {
+  id              String    @id @default(cuid())
+  sick_day_id     String?
+  family_id       String
+  person_id       String
+  name            String
+  dosage          String
+  schedule        String
+  next_dose_at    DateTime?
+  last_dose_at    DateTime?
+  active          Boolean   @default(true)
+  notes           String?
+  created_by      String
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person          User      @relation("MedicationPerson", fields: [person_id], references: [id], onDelete: Cascade)
+  sick_day        SickDay?  @relation(fields: [sick_day_id], references: [id], onDelete: SetNull)
+  creator         User      @relation("MedicationCreator", fields: [created_by], references: [id])
+
+  @@index([family_id, active])
+  @@index([person_id])
 }
 
