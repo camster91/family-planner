@@ -6,16 +6,17 @@ import { registerSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  try {
-    // Rate limiting by IP
-    const rateCheck = await checkRateLimit(`register:${ip}`, 20, 60 * 60 * 1000)
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many registration attempts. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
-      )
-    }
 
+  // Rate limit BEFORE any DB lookup — prevents email enumeration attacks
+  const rateCheck = await checkRateLimit(`register:${ip}`, 20, 60 * 60 * 1000)
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Too many registration attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+    )
+  }
+
+  try {
     const body = await request.json()
     const parsed = registerSchema.safeParse(body)
     if (!parsed.success) {
