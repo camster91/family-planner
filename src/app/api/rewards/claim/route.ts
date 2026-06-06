@@ -49,23 +49,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Deduct XP and claim reward
-    await prisma!.user.update({
-      where: { id: auth.user.id },
-      data: { xp: (user.xp || 0) - reward.cost },
-    })
-
-    const updated = await prisma!.reward.update({
-      where: { id: rewardId },
-      data: {
-        status: 'claimed',
-        claimed_by: auth.user.id,
-        claimed_at: new Date(),
-      },
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
-      },
+    // Deduct XP and claim reward atomically
+    const updated = await prisma!.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: auth.user.id },
+        data: { xp: (user.xp || 0) - reward.cost },
+      })
+      return tx.reward.update({
+        where: { id: rewardId },
+        data: {
+          status: 'claimed',
+          claimed_by: auth.user.id,
+          claimed_at: new Date(),
+        },
+        include: {
+          creator: { select: { id: true, name: true } },
+          claimer: { select: { id: true, name: true } },
+        },
+      })
     })
 
     // Notify parents
