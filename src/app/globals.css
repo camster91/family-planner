@@ -28,7 +28,7 @@
     --label-primary: rgba(0, 0, 0, 1);
     --label-secondary: rgba(60, 60, 67, 0.9);
     --label-tertiary: rgba(60, 60, 67, 0.75);
-    --label-quaternary: rgba(60, 60, 67, 0.6);
+    --label-quaternary: rgba(60, 60, 67, 0.75);
     --label-inverse: #FFFFFF;
 
     /* === Accent — system blue (calmer than the old teal)
