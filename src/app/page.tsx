@@ -139,7 +139,7 @@ export default function Home() {
                 { num: '3', title: t('landing.step3Title'), desc: t('landing.step3Desc') },
               ].map((step) => (
                 <div key={step.num} className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-[var(--accent-fill)] flex items-center justify-center">
                     <span className="text-[17px] font-semibold text-white">{step.num}</span>
                   </div>
                   <h3 className="text-[15px] font-semibold text-[var(--label-primary)]">{step.title}</h3>
@@ -179,7 +179,7 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-[var(--accent)] rounded-[8px] flex items-center justify-center">
+              <div className="w-7 h-7 bg-[var(--accent-fill)] rounded-[8px] flex items-center justify-center">
                 <Users className="w-4 h-4 text-white" />
               </div>
               <span className="text-[15px] font-semibold text-[var(--label-primary)]">Family Planner</span>

@@ -79,7 +79,7 @@ function ReassignModal({
                 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
                 'transition-colors duration-150',
                 selectedId === m.id
-                  ? 'bg-[var(--accent)] text-white'
+                  ? 'bg-[var(--accent-fill)] text-white'
                   : 'active:bg-[var(--surface-fill-secondary)] text-label-primary'
               )}
             >
@@ -103,7 +103,7 @@ function ReassignModal({
             type="button"
             onClick={() => selectedId && onConfirm(selectedId)}
             disabled={!selectedId}
-            className="flex-1 py-2.5 rounded-xl text-body font-medium bg-[var(--accent)] text-white disabled:opacity-40 active:scale-95 transition-all"
+            className="flex-1 py-2.5 rounded-xl text-body font-medium bg-[var(--accent-fill)] text-white disabled:opacity-40 active:scale-95 transition-all"
           >
             Confirm
           </button>

@@ -287,7 +287,7 @@ export default function DashboardHome({
                   </div>
                   <div className="h-1.5 rounded-full bg-[var(--surface-fill)] overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-[var(--accent)]"
+                      className="h-full rounded-full bg-[var(--accent-fill)]"
                       style={{ width: '62%' }}
                     />
                   </div>

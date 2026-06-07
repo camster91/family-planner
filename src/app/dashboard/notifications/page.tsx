@@ -114,7 +114,7 @@ export default function NotificationsPage() {
             className={cn(
               'px-4 py-1.5 rounded-full text-subhead font-medium transition-colors',
               filter === f
-                ? 'bg-[var(--accent)] text-white'
+                ? 'bg-[var(--accent-fill)] text-white'
                 : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
             )}
           >

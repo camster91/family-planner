@@ -247,7 +247,7 @@ function HandoffModal({
         <button
           type="submit"
           disabled={saving}
-          className="ml-auto px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-subhead font-semibold disabled:opacity-50"
+          className="ml-auto px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('common.save')}
         </button>

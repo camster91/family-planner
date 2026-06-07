@@ -170,7 +170,7 @@ function TravelPageInner() {
             disabled={saving}
             className={cn(
               'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
-              isActive ? 'bg-[var(--accent)]' : 'bg-[var(--surface-fill-secondary)]'
+              isActive ? 'bg-[var(--accent-fill)]' : 'bg-[var(--surface-fill-secondary)]'
             )}
             style={{ transition: 'background 300ms var(--spring-default)' }}
             aria-label={isActive ? 'Turn off travel mode' : 'Turn on travel mode'}

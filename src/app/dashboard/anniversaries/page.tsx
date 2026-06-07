@@ -229,7 +229,7 @@ function AddEditModal({
         <button
           type="submit"
           disabled={saving}
-          className="ml-auto px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-subhead font-semibold disabled:opacity-50"
+          className="ml-auto px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('common.save')}
         </button>
@@ -356,7 +356,7 @@ function AnniversariesPageInner() {
           <p className="text-subhead text-label-destructive">{error}</p>
           <button
             onClick={fetchDates}
-            className="mt-3 px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-subhead font-semibold"
+            className="mt-3 px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
           >
             Retry
           </button>
@@ -374,7 +374,7 @@ function AnniversariesPageInner() {
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent)] text-white text-subhead font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent-fill)] text-white text-subhead font-semibold"
         >
           <Plus className="w-4 h-4" />
           {t('dates.addDate')}
@@ -429,7 +429,7 @@ function AnniversariesPageInner() {
           <p className="text-subhead text-label-secondary mt-1">{t('dates.emptySubtitle')}</p>
           <button
             onClick={() => setShowAdd(true)}
-            className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-subhead font-semibold"
+            className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
           >
             {t('dates.addDate')}
           </button>

@@ -398,7 +398,7 @@ function MealsPageInner() {
                     {day.label}
                   </span>
                   {day.isToday && (
-                    <span className="ml-1 text-caption-1 font-medium text-[var(--accent)] bg-[var(--accent)] text-white px-1.5 py-0.5 rounded-full">
+                    <span className="ml-1 text-caption-1 font-medium text-[var(--accent)] bg-[var(--accent-fill)] text-white px-1.5 py-0.5 rounded-full">
                       Today
                     </span>
                   )}

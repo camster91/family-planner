@@ -82,7 +82,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         {/* Logo glyph */}
         <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-[var(--accent)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
+          <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
             <Users className="w-8 h-8 text-white" />
           </div>
         </div>
