@@ -106,10 +106,14 @@
     --label-tertiary: rgba(235, 235, 245, 0.7);
     --label-quaternary: rgba(235, 235, 245, 0.5);
 
-    --accent: #0A84FF;
-    --accent-hover: #409CFF;
-    --accent-pressed: #0064D2;
-    --accent-tint: rgba(10, 132, 255, 0.20);
+    /* Dark mode accent darkened from #0A84FF (3.64:1 white-on-bg) to
+       #0050CC (4.7:1) for WCAG AA. Original Apple dark accent fails
+       white text contrast. */
+    --accent: #0050CC;
+    --accent-hover: #0060E0;
+    --accent-pressed: #0040AA;
+    --accent-tint: rgba(0, 80, 204, 0.20);
+    --accent-tint-strong: rgba(0, 80, 204, 0.30);
   }
 
   html {
