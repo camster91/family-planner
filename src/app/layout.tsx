@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { AnalyticsProvider } from '@/components/providers/analytics-provider'
+import { ThemeProvider } from '@/components/providers/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
 // Side-effect import: patches window.fetch on the client to auto-inject
@@ -78,17 +79,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans">
-        <PostHogProvider>
-          <ToastProvider>
-            <I18nProvider locale="en">
-              <AnalyticsProvider>
-                <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
-                  {children}
-                </div>
-              </AnalyticsProvider>
-            </I18nProvider>
-          </ToastProvider>
-        </PostHogProvider>
+        <ThemeProvider>
+          <PostHogProvider>
+            <ToastProvider>
+              <I18nProvider locale="en">
+                <AnalyticsProvider>
+                  <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
+                    {children}
+                  </div>
+                </AnalyticsProvider>
+              </I18nProvider>
+            </ToastProvider>
+          </PostHogProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
