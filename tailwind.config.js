@@ -33,12 +33,12 @@ module.exports = {
           inverse: "var(--label-inverse)",
         },
         accent: {
-          // --accent-text for text/link use (4.5:1 on light + dark surfaces)
-          // --accent-fill for button bg with white text (4.7:1 in both modes)
-          // The CSS --accent var aliases --accent-text for backwards compat
-          // but Tailwind's `bg-accent` defaults to --accent-fill so the
-          // common `bg-accent text-white` button pattern works.
-          DEFAULT: "var(--accent-fill)",
+          // --accent-text: text/link use (4.5:1 on light + dark surfaces)
+          // --accent-fill: button bg with white text (4.7:1 in both modes)
+          // DEFAULT = --accent-text so the common `text-accent` and
+          // `bg-[var(--accent)]` patterns work for text. Buttons need
+          // explicit `bg-accent-fill` for the dark fill.
+          DEFAULT: "var(--accent-text)",
           text: "var(--accent-text)",
           fill: "var(--accent-fill)",
           "fill-hover": "var(--accent-fill-hover)",

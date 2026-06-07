@@ -82,7 +82,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-6">
           {/* Logo + name */}
           <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 bg-accent rounded-[22px] flex items-center justify-center shadow-sm">
+            <div className="w-9 h-9 bg-accent-fill rounded-[22px] flex items-center justify-center shadow-sm">
               <Users className="w-5 h-5 text-white" />
             </div>
             <span className="text-[17px] font-semibold text-label-primary hidden sm:block">
@@ -104,7 +104,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] transition-colors duration-200',
                     isActive
-                      ? 'font-semibold text-accent bg-accent/10'
+                      ? 'font-semibold text-accent bg-accent-fill/10'
                       : 'font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-secondary)]'
                   )}
                 >
@@ -194,7 +194,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                           className={cn(
                             'flex-1 py-1.5 rounded-md text-[13px] font-medium transition-colors',
                             user?.role === role
-                              ? 'bg-accent text-white'
+                              ? 'bg-accent-fill text-white'
                               : 'bg-[var(--surface-secondary)] text-label-secondary hover:text-label-primary'
                           )}
                         >
