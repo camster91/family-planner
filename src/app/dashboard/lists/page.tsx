@@ -11,7 +11,10 @@ export default async function ListsPage() {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true },
+    select: {
+      family_id: true,
+      family: { select: { name: true } },
+    },
   })
   if (!user?.family_id) return null
 

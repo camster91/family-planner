@@ -35,7 +35,8 @@
     --accent: #007AFF;
     --accent-hover: #0A84FF;
     --accent-pressed: #0064D2;
-    --accent-tint: rgba(0, 122, 255, 0.12);
+    --accent-tint: rgba(0, 122, 255, 0.18);
+    --accent-tint-strong: rgba(0, 122, 255, 0.25);
 
     /* === Semantic === */
     --success: #34C759;
@@ -45,16 +46,20 @@
     --danger: #FF3B30;
     --danger-tint: rgba(255, 59, 48, 0.12);
 
-    /* === Family module tints (used for category glyphs) === */
+    /* === Family module tints (used for category glyphs + avatars) ===
+       Darkened in QA pass 3 (2026-06-06) so white text on avatar
+       backgrounds hits WCAG 2.1 AA 4.5:1 contrast. The original
+       Apple tints (#FF2D55, #5AC8FA, #FFCC00) are pretty but fail
+       the contrast check. */
     --tint-chore: #5856D6;               /* indigo */
-    --tint-calendar: #FF3B30;            /* red */
-    --tint-lists: #34C759;               /* green */
-    --tint-budget: #007AFF;              /* blue */
-    --tint-messages: #FF2D55;            /* pink */
-    --tint-family: #AF52DE;              /* purple */
-    --tint-rewards: #FF9500;             /* orange */
-    --tint-projects: #5AC8FA;            /* sky */
-    --tint-meals: #FFCC00;               /* yellow */
+    --tint-calendar: #D70015;            /* red — darkened for AA */
+    --tint-lists: #248A3D;               /* green — darkened for AA */
+    --tint-budget: #0040DD;              /* blue — darkened for AA */
+    --tint-messages: #C8003C;            /* pink — darkened for AA */
+    --tint-family: #8944AB;              /* purple — darkened for AA */
+    --tint-rewards: #B86E00;             /* orange — darkened for AA */
+    --tint-projects: #0079A8;            /* sky — darkened for AA */
+    --tint-meals: #997A00;               /* yellow — darkened for AA */
 
     /* === Radius (Apple's 8/12/16/20/28 progression) === */
     --radius-sm: 8px;
@@ -193,7 +198,7 @@
     transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
   .btn-tinted:active { transform: scale(0.97); }
-  .btn-tinted:hover { background: rgba(0, 122, 255, 0.18); }
+  .btn-tinted:hover { background: var(--accent-tint-strong); }
   .btn-tinted:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
   .btn-plain {

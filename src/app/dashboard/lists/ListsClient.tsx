@@ -73,7 +73,7 @@ export default function ListsClient({ lists, familyName }: ListsClientProps) {
         title={familyName}
         subtitle="Shared Lists"
         trailing={
-          <Link href="/dashboard/lists/create" className="btn-tinted">
+          <Link href="/dashboard/lists/create" className="btn-tinted" aria-label="Add list">
             <Plus className="w-4 h-4" />
           </Link>
         }

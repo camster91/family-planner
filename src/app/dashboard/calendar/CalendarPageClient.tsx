@@ -124,7 +124,7 @@ export default function CalendarPageClient({
         title="Calendar"
         subtitle={new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         trailing={
-          <Link href="/dashboard/calendar/create" className="btn-filled shrink-0">
+          <Link href="/dashboard/calendar/create" className="btn-filled shrink-0" aria-label="Add event">
             <Plus className="w-4 h-4" />
           </Link>
         }
