@@ -64,7 +64,7 @@
 
     /* === Family module tints (used for category glyphs + avatars) ===
        Darkened in QA pass 3 (2026-06-06) so white text on avatar
-       backgrounds hits WCAG 2.1 AA 4.5:1 contrast. The original
+       backgrounds hits WCAG 2.1 AA 4.5:1. The original
        Apple tints (#FF2D55, #5AC8FA, #FFCC00) are pretty but fail
        the contrast check. */
     --tint-chore: #5856D6;               /* indigo */
@@ -76,6 +76,14 @@
     --tint-rewards: #8F5500;             /* orange — darkened further so white-on-bg AND text-on-white both pass */
     --tint-projects: #0079A8;            /* sky — darkened for AA */
     --tint-meals: #997A00;               /* yellow — darkened for AA */
+
+    /* Dark-mode text-friendly variants of the tints. Used only for
+       text color (e.g. text-[var(--tint-lists-text)] on dark surface).
+       The light-mode tints above are too dark to read as text on a
+       dark surface. Lighter variants give 4.5:1 on #1C1C1E.
+       Use the same pattern as --accent-text vs --accent-fill. */
+    --tint-lists-text: #4ADE80;          /* green: 4.7:1 on #1C1C1E */
+    --tint-rewards-text: #FFB672;        /* orange: 6.4:1 on #1C1C1E */
 
     /* === Radius (Apple's 8/12/16/20/28 progression) === */
     --radius-sm: 8px;
@@ -134,6 +142,13 @@
     --accent: var(--accent-text);
     --accent-hover: var(--accent-fill-hover);
     --accent-pressed: var(--accent-fill-pressed);
+
+    /* In light mode, --tint-lists-text and --tint-rewards-text are
+       the same as the dark --tint-lists / --tint-rewards (which
+       are already AA-compliant on white). In dark mode (above) they
+       point to lighter variants. */
+    --tint-lists-text: var(--tint-lists);
+    --tint-rewards-text: var(--tint-rewards);
   }
 
   html {

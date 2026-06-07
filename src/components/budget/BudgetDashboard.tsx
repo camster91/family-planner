@@ -155,7 +155,7 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
               of {formatCurrency(budgetLimit)} limit
             </p>
             {spent > budgetLimit && (
-              <p className="text-footnote text-[var(--tint-rewards)] mt-1 font-medium">
+              <p className="text-footnote text-[var(--tint-rewards-text)] mt-1 font-medium">
                 Over budget by {formatCurrency(spent - budgetLimit)}
               </p>
             )}
@@ -173,13 +173,13 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
         <div className="grid grid-cols-2 gap-3">
           <div className="card-apple p-4">
             <p className="text-footnote text-label-secondary">Income</p>
-            <p className="text-title-3 text-[var(--tint-lists)] font-semibold mt-1">
+            <p className="text-title-3 text-[var(--tint-lists-text)] font-semibold mt-1">
               +{formatCurrency(data.total_income)}
             </p>
           </div>
           <div className="card-apple p-4">
             <p className="text-footnote text-label-secondary">Expenses</p>
-            <p className="text-title-3 text-[var(--tint-rewards)] font-semibold mt-1">
+            <p className="text-title-3 text-[var(--tint-rewards-text)] font-semibold mt-1">
               -{formatCurrency(data.total_expenses)}
             </p>
           </div>
