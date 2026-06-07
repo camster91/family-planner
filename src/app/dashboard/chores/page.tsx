@@ -11,7 +11,7 @@ export default async function ChoresPage() {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true }
+    select: { family_id: true, role: true },
   })
 
   const familyId = user?.family_id || undefined

@@ -87,7 +87,12 @@ export default function MessagesPage() {
       {/* Chat area */}
       <div className="card-apple mx-4 overflow-hidden">
         {/* Messages thread */}
-        <div className="h-[calc(100vh-18rem)] overflow-y-auto">
+        <div
+          className="h-[calc(100vh-18rem)] overflow-y-auto"
+          role="region"
+          aria-label="Messages thread"
+          tabIndex={0}
+        >
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-subhead text-label-secondary">Loading…</div>

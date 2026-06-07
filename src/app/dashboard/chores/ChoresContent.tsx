@@ -259,7 +259,7 @@ export default function ChoresContent({
         title="Chores"
         subtitle={`${todayChores.length} pending`}
         trailing={
-          <Link href="/dashboard/chores/create" className="btn-filled shrink-0">
+          <Link href="/dashboard/chores/create" className="btn-filled shrink-0" aria-label="Add chore">
             <Plus className="w-4 h-4" />
           </Link>
         }

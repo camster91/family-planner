@@ -163,7 +163,10 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true }
+    select: {
+      family_id: true,
+      family: { select: { name: true } },
+    },
   })
 
   const familyId = user?.family_id

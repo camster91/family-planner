@@ -20,11 +20,15 @@
     --surface-separator-opaque: #C6C6C8;
     --surface-overlay: rgba(0, 0, 0, 0.4);
 
-    /* === Label (text) colors === */
+    /* === Label (text) colors ===
+       WCAG 2.1 AA contrast (4.5:1) against surface-base (#FCFCFD) and
+       surface-grouped (#F2F2F7) requires darker secondary text than the
+       Apple default 0.7 alpha. Bumped to 0.9/0.75 to keep hierarchy while
+       passing the contrast check. — QA pass 3, 2026-06-06 */
     --label-primary: rgba(0, 0, 0, 1);
-    --label-secondary: rgba(60, 60, 67, 0.7);
-    --label-tertiary: rgba(60, 60, 67, 0.5);
-    --label-quaternary: rgba(60, 60, 67, 0.3);
+    --label-secondary: rgba(60, 60, 67, 0.9);
+    --label-tertiary: rgba(60, 60, 67, 0.75);
+    --label-quaternary: rgba(60, 60, 67, 0.4);
     --label-inverse: #FFFFFF;
 
     /* === Accent — system blue (calmer than the old teal) === */
@@ -89,10 +93,11 @@
     --surface-separator-opaque: #38383A;
     --surface-overlay: rgba(0, 0, 0, 0.6);
 
+    /* Dark mode: bumped secondary/tertiary alpha for WCAG AA on #000 surface */
     --label-primary: rgba(255, 255, 255, 1);
-    --label-secondary: rgba(235, 235, 245, 0.7);
-    --label-tertiary: rgba(235, 235, 245, 0.4);
-    --label-quaternary: rgba(235, 235, 245, 0.2);
+    --label-secondary: rgba(235, 235, 245, 0.9);
+    --label-tertiary: rgba(235, 235, 245, 0.7);
+    --label-quaternary: rgba(235, 235, 245, 0.3);
 
     --accent: #0A84FF;
     --accent-hover: #409CFF;

@@ -16,7 +16,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true },
+    select: { family_id: true },
   })
 
   const familyId = user?.family_id || undefined

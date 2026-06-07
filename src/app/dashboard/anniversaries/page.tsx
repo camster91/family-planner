@@ -425,7 +425,7 @@ function AnniversariesPageInner() {
       {dates.length === 0 && (
         <div className="card-apple p-8 text-center">
           <Gift className="w-10 h-10 text-label-tertiary mx-auto mb-3" />
-          <h3 className="text-title-3 text-label-primary">{t('dates.empty')}</h3>
+          <h2 className="text-title-3 text-label-primary">{t('dates.empty')}</h2>
           <p className="text-subhead text-label-secondary mt-1">{t('dates.emptySubtitle')}</p>
           <button
             onClick={() => setShowAdd(true)}

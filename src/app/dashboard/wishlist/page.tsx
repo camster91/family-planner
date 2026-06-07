@@ -211,7 +211,7 @@ function WishlistContent() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-headline font-semibold truncate">{item.title}</h3>
+                        <h2 className="text-headline font-semibold truncate">{item.title}</h2>
                         <span className={`flex items-center gap-1 text-caption-1 font-medium ${meta.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
                           {meta.label}
@@ -256,6 +256,7 @@ function WishlistContent() {
                               handleStatusChange(item.id, e.target.value)
                             }
                           }}
+                          aria-label={`Status for ${item.title}`}
                           className="text-caption-1 bg-[var(--surface-fill)] border border-[var(--surface-separator)] rounded-lg px-2 py-1"
                         >
                           <option value="idle">{t('wishlist.status.idle')}</option>

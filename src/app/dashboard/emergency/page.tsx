@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Heart, Plus, X, Pencil, Trash2, Printer } from 'lucide-react'
+import { Heart, Plus, X, Trash2, Printer } from 'lucide-react'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { useTranslation } from '@/i18n'
@@ -547,15 +547,7 @@ function EmergencyPageInner() {
                     glyphColor="family"
                     title={c.person_name}
                     subtitle={t(`emergency.relationships.${c.relationship}`)}
-                    trailing={
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditContact(c) }}
-                        className="p-1 rounded-full hover:bg-[var(--surface-secondary)]"
-                      >
-                        <Pencil className="w-3.5 h-3.5 text-label-tertiary" />
-                      </button>
-                    }
-                    showChevron={false}
+                    showChevron
                     last={i === contacts.length - 1}
                     onClick={() => setEditContact(c)}
                   />

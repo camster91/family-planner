@@ -202,11 +202,12 @@ function TravelPageInner() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-subhead text-label-secondary mb-1.5 block">
+                <label htmlFor="travel-start-date" className="text-subhead text-label-secondary mb-1.5 block">
                   <Calendar className="w-3.5 h-3.5 inline mr-1" />
                   {t('travel.startDate')}
                 </label>
                 <input
+                  id="travel-start-date"
                   type="date"
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
@@ -214,11 +215,12 @@ function TravelPageInner() {
                 />
               </div>
               <div>
-                <label className="text-subhead text-label-secondary mb-1.5 block">
+                <label htmlFor="travel-end-date" className="text-subhead text-label-secondary mb-1.5 block">
                   <Calendar className="w-3.5 h-3.5 inline mr-1" />
                   {t('travel.endDate')}
                 </label>
                 <input
+                  id="travel-end-date"
                   type="date"
                   value={endDate}
                   onChange={e => setEndDate(e.target.value)}

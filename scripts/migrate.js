@@ -2,12 +2,15 @@
 // 1. Connects to the PostgreSQL server
 // 2. Creates the target database if it doesn't exist
 // 3. Creates/updates tables to match the current Prisma schema
+// 4. Runs any database/migration-*.sql files (sorted alphabetically, idempotent)
 // Called from docker-entrypoint.sh before starting the server
 //
 // IMPORTANT: This file MUST stay in sync with prisma/schema.prisma.
 // Whenever a model or column is added there, add it here as well.
 
 const { Client } = require('pg')
+const fs = require('fs')
+const path = require('path')
 
 // All CREATE statements use IF NOT EXISTS so this is idempotent.
 // All ALTER statements use ADD COLUMN IF NOT EXISTS so existing tables get new columns.
@@ -552,6 +555,37 @@ async function migrate() {
     await dbClient.connect()
     await dbClient.query(CREATE_TABLES_SQL)
     console.log('Schema migration completed successfully')
+
+    // Step 3: Run every database/migration-*.sql file in alphabetical order.
+    // These are per-feature migrations that were historically hand-run in
+    // production. Loading them here means new columns / tables are picked
+    // up automatically on every container start.
+    //
+    // Each file is expected to be idempotent (CREATE TABLE IF NOT EXISTS,
+    // ADD COLUMN IF NOT EXISTS, etc.) so re-running is safe.
+    const migrationsDir = path.join(__dirname, '..', 'database')
+    if (fs.existsSync(migrationsDir)) {
+      const files = fs
+        .readdirSync(migrationsDir)
+        .filter((f) => /^migration-.*\.sql$/.test(f))
+        .sort()
+      if (files.length > 0) {
+        console.log(`Running ${files.length} per-feature migration file(s)...`)
+        for (const file of files) {
+          const filePath = path.join(migrationsDir, file)
+          const sql = fs.readFileSync(filePath, 'utf8')
+          try {
+            await dbClient.query(sql)
+            console.log(`  ✓ ${file}`)
+          } catch (err) {
+            // Don't crash the container on a single migration failure —
+            // the bundled CREATE_TABLES_SQL above has already ensured the
+            // base schema is in place. Log and continue so the app starts.
+            console.error(`  ✗ ${file}: ${err.message}`)
+          }
+        }
+      }
+    }
   } catch (error) {
     console.error('Schema migration failed:', error.message)
     throw error

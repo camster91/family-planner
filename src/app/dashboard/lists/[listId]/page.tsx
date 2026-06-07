@@ -17,7 +17,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    include: { family: true },
+    select: { id: true, family_id: true },
   })
   if (!user) return null
 

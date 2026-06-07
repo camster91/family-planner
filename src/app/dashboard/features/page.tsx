@@ -173,6 +173,7 @@ function FeatureRow({
         onChange={onToggle}
         disabled={disabled}
         pending={pending}
+        featureTitle={feature.title}
       />
     </div>
   )
@@ -183,17 +184,21 @@ function ToggleSwitch({
   onChange,
   disabled,
   pending,
+  featureTitle,
 }: {
   checked: boolean
   onChange: () => void
   disabled: boolean
   pending: boolean
+  /** Used to build an aria-label like "Enable Chores" so screen readers announce the toggle. */
+  featureTitle?: string
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={featureTitle ? `${checked ? 'Disable' : 'Enable'} ${featureTitle}` : undefined}
       onClick={disabled ? undefined : onChange}
       disabled={disabled || pending}
       className={`

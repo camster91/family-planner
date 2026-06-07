@@ -274,7 +274,7 @@ function HandoffCard({
       <div className="p-4 border-b border-[var(--surface-separator)]">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-headline font-semibold text-label-primary">{handoff.sitter_name}</h3>
+            <h2 className="text-headline font-semibold text-label-primary">{handoff.sitter_name}</h2>
             {handoff.sitter_phone && (
               <p className="text-subhead text-label-secondary mt-0.5">{handoff.sitter_phone}</p>
             )}

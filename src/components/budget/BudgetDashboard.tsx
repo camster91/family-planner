@@ -127,7 +127,7 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
         title="Budget"
         subtitle={data.month}
         trailing={
-          <button onClick={refreshData} className={cn('btn-ghost p-2', isLoading && 'opacity-50')}>
+          <button onClick={refreshData} aria-label="Refresh budget" className={cn('btn-ghost p-2', isLoading && 'opacity-50')}>
             <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
           </button>
         }
