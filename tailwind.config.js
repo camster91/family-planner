@@ -33,10 +33,18 @@ module.exports = {
           inverse: "var(--label-inverse)",
         },
         accent: {
-          DEFAULT: "var(--accent)",
-          hover: "var(--accent-hover)",
-          pressed: "var(--accent-pressed)",
+          // --accent-text for text/link use (4.5:1 on light + dark surfaces)
+          // --accent-fill for button bg with white text (4.7:1 in both modes)
+          // The CSS --accent var aliases --accent-text for backwards compat
+          // but Tailwind's `bg-accent` defaults to --accent-fill so the
+          // common `bg-accent text-white` button pattern works.
+          DEFAULT: "var(--accent-fill)",
+          text: "var(--accent-text)",
+          fill: "var(--accent-fill)",
+          "fill-hover": "var(--accent-fill-hover)",
+          "fill-pressed": "var(--accent-fill-pressed)",
           tint: "var(--accent-tint)",
+          "tint-strong": "var(--accent-tint-strong)",
         },
         success: "var(--success)",
         warning: "var(--warning)",
@@ -54,11 +62,11 @@ module.exports = {
         // Backwards-compat (existing components still reference these)
         border: "var(--surface-separator)",
         input: "var(--surface-separator)",
-        ring: "var(--accent)",
+        ring: "var(--accent-text)",
         background: "var(--surface-grouped)",
         foreground: "var(--label-primary)",
         primary: {
-          DEFAULT: "var(--accent)",
+          DEFAULT: "var(--accent-text)",
           foreground: "#FFFFFF",
         },
         secondary: {

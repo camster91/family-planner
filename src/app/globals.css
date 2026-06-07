@@ -32,13 +32,27 @@
     --label-inverse: #FFFFFF;
 
     /* === Accent — system blue (calmer than the old teal)
-       Bumped from #007AFF to #0040DD for WCAG AA on white (4.5+)
-       and on white text (4.5+). The original Apple blue fails 4.5:1. */
-    --accent: #0040DD;
-    --accent-hover: #0050F0;
-    --accent-pressed: #0030AA;
+       Used in 3 roles:
+       (1) text/link on neutral surface (--accent-text)
+       (2) text on --accent-tint (--accent-text — same value, tints are light enough)
+       (3) background fill with white text (--accent-fill)
+
+       The original Apple blue (#007AFF) fails 4.5:1 in all 3 cases on
+       light gray surfaces. Split into two tokens so each role has its
+       own pass: --accent-text for text uses (lighter, more saturated),
+       --accent-fill for filled buttons (darker, white text passes). */
+    --accent-text: #0040DD;
+    --accent-fill: #0035B5;
+    --accent-fill-hover: #0025A0;
+    --accent-fill-pressed: #001E80;
     --accent-tint: rgba(0, 64, 221, 0.15);
     --accent-tint-strong: rgba(0, 64, 221, 0.22);
+    /* Backwards-compat: --accent is the text variant. Existing components
+       that use `var(--accent)` for text/link color are unaffected.
+       Buttons (.btn-filled) use --accent-fill directly. */
+    --accent: var(--accent-text);
+    --accent-hover: var(--accent-fill-hover);
+    --accent-pressed: var(--accent-fill-pressed);
 
     /* === Semantic === */
     --success: #34C759;
@@ -106,14 +120,20 @@
     --label-tertiary: rgba(235, 235, 245, 0.7);
     --label-quaternary: rgba(235, 235, 245, 0.5);
 
-    /* Dark mode accent darkened from #0A84FF (3.64:1 white-on-bg) to
-       #0050CC (4.7:1) for WCAG AA. Original Apple dark accent fails
-       white text contrast. */
-    --accent: #0050CC;
-    --accent-hover: #0060E0;
-    --accent-pressed: #0040AA;
-    --accent-tint: rgba(0, 80, 204, 0.20);
-    --accent-tint-strong: rgba(0, 80, 204, 0.30);
+    /* Dark mode accent: split into --accent-text (for text on dark
+       surface, needs to be light to hit 4.5:1 on #1C1C1E) and
+       --accent-fill (for button backgrounds, needs to be dark enough
+       for white text to hit 4.5:1). The original Apple dark accent
+       #0A84FF fails 4.5:1 in both directions. */
+    --accent-text: #6FA9FF;      /* light blue: 6.7:1 on #1C1C1E */
+    --accent-fill: #0050CC;      /* dark blue: 4.7:1 white-on-bg */
+    --accent-fill-hover: #0060E0;
+    --accent-fill-pressed: #0040AA;
+    --accent-tint: rgba(111, 169, 255, 0.18);
+    --accent-tint-strong: rgba(111, 169, 255, 0.30);
+    --accent: var(--accent-text);
+    --accent-hover: var(--accent-fill-hover);
+    --accent-pressed: var(--accent-fill-pressed);
   }
 
   html {
@@ -179,7 +199,10 @@
     box-shadow: var(--shadow-md);
   }
 
-  /* === Buttons (iOS HIG) === */
+  /* === Buttons (iOS HIG) ===
+     - .btn-filled uses --accent-fill (background, white text)
+     - .btn-tinted uses --accent-tint (bg) + --accent-text (color)
+     - .btn-plain uses --accent-text (color on transparent) */
   .btn-filled {
     display: inline-flex;
     align-items: center;
@@ -187,13 +210,13 @@
     gap: 0.5rem;
     border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
-    background: var(--accent);
+    background: var(--accent-fill);
     color: #fff;
     font-weight: 600;
     font-size: 17px;
     transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
-  .btn-filled:active { transform: scale(0.97); background: var(--accent-pressed); }
+  .btn-filled:active { transform: scale(0.97); background: var(--accent-fill-pressed); }
   .btn-filled:disabled { opacity: 0.4; pointer-events: none; }
   .btn-filled:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
@@ -205,7 +228,7 @@
     border-radius: var(--radius-md);
     padding: 0.5rem 1rem;
     background: var(--accent-tint);
-    color: var(--accent);
+    color: var(--accent-text);
     font-weight: 600;
     font-size: 15px;
     transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
@@ -222,7 +245,7 @@
     border-radius: var(--radius-md);
     padding: 0.5rem 1rem;
     background: transparent;
-    color: var(--accent);
+    color: var(--accent-text);
     font-size: 17px;
     transition: opacity 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
