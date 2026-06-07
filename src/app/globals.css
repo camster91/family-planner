@@ -28,7 +28,7 @@
     --label-primary: rgba(0, 0, 0, 1);
     --label-secondary: rgba(60, 60, 67, 0.9);
     --label-tertiary: rgba(60, 60, 67, 0.75);
-    --label-quaternary: rgba(60, 60, 67, 0.4);
+    --label-quaternary: rgba(60, 60, 67, 0.6);
     --label-inverse: #FFFFFF;
 
     /* === Accent — system blue (calmer than the old teal)
@@ -55,11 +55,11 @@
        the contrast check. */
     --tint-chore: #5856D6;               /* indigo */
     --tint-calendar: #D70015;            /* red — darkened for AA */
-    --tint-lists: #248A3D;               /* green — darkened for AA */
+    --tint-lists: #1d6e30;               /* green — darkened further to hit 4.5:1 on white */
     --tint-budget: #0040DD;              /* blue — darkened for AA */
     --tint-messages: #C8003C;            /* pink — darkened for AA */
     --tint-family: #8944AB;              /* purple — darkened for AA */
-    --tint-rewards: #B86E00;             /* orange — darkened for AA */
+    --tint-rewards: #8F5500;             /* orange — darkened further so white-on-bg AND text-on-white both pass */
     --tint-projects: #0079A8;            /* sky — darkened for AA */
     --tint-meals: #997A00;               /* yellow — darkened for AA */
 
@@ -100,11 +100,11 @@
     --surface-separator-opaque: #38383A;
     --surface-overlay: rgba(0, 0, 0, 0.6);
 
-    /* Dark mode: bumped secondary/tertiary alpha for WCAG AA on #000 surface */
+    /* Dark mode: bumped secondary/tertiary/quarterly alpha for WCAG AA on #000 surface */
     --label-primary: rgba(255, 255, 255, 1);
     --label-secondary: rgba(235, 235, 245, 0.9);
     --label-tertiary: rgba(235, 235, 245, 0.7);
-    --label-quaternary: rgba(235, 235, 245, 0.3);
+    --label-quaternary: rgba(235, 235, 245, 0.5);
 
     --accent: #0A84FF;
     --accent-hover: #409CFF;
