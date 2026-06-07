@@ -31,12 +31,14 @@
     --label-quaternary: rgba(60, 60, 67, 0.4);
     --label-inverse: #FFFFFF;
 
-    /* === Accent — system blue (calmer than the old teal) === */
-    --accent: #007AFF;
-    --accent-hover: #0A84FF;
-    --accent-pressed: #0064D2;
-    --accent-tint: rgba(0, 122, 255, 0.18);
-    --accent-tint-strong: rgba(0, 122, 255, 0.25);
+    /* === Accent — system blue (calmer than the old teal)
+       Bumped from #007AFF to #0040DD for WCAG AA on white (4.5+)
+       and on white text (4.5+). The original Apple blue fails 4.5:1. */
+    --accent: #0040DD;
+    --accent-hover: #0050F0;
+    --accent-pressed: #0030AA;
+    --accent-tint: rgba(0, 64, 221, 0.15);
+    --accent-tint-strong: rgba(0, 64, 221, 0.22);
 
     /* === Semantic === */
     --success: #34C759;
@@ -115,6 +117,13 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+
+  /* WCAG 2.1 AA: Tailwind's text-gray-500 (#6B7280) is 4.33:1 on our
+     surface-grouped background (4.5:1 needed). Override with a darker
+     shade globally. Same for text-green-600 on white (4.39:1, needs 4.5).
+     Done as a global override rather than per-file to keep the diff small. */
+  .text-gray-500 { color: #5b5b62; }
+  .text-green-600 { color: #1d7a3d; }
 
   body {
     background: var(--surface-grouped);
