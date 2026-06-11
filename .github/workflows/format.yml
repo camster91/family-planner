@@ -1,0 +1,44 @@
+name: Format
+
+# Format-check workflow. Verifies `npm run format` produces no changes.
+# Fails the build if any file would be reformatted.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: format-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Format check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+
+        run: npm ci --no-audit --no-fund
+
+      - name: Run format check
+
+        run: npm run format
+        env:
+          CI: true
