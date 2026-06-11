@@ -36,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          # Placeholder so prisma schema validation passes (no DB connection is made during generate)
+          DATABASE_URL: postgresql://placeholder:***@localhost:5432/placeholder
+
       - name: Type check (if configured)
         run: |
           if grep -q '"typecheck"\|"type-check"\|"tsc"' package.json; then
