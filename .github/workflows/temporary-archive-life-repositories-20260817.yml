@@ -1,0 +1,208 @@
+name: Temporary approved Life repository archival
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  archive:
+    if: >-
+      github.event.issue.title == '[temporary] Execute approved Life repository archival 2026-08-17'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Authorize GitHub CLI, archive, verify, and clean up
+        env:
+          WORKFLOW_TOKEN: ${{ github.token }}
+          HOST_REPOSITORY: camster91/family-planner
+          HOST_DEFAULT_BRANCH: master
+          WORKFLOW_PATH: .github/workflows/temporary-archive-life-repositories-20260817.yml
+          TEMP_BRANCH: ops/archive-life-repos-20260817
+          TRIGGER_NONCE: a14f5c1f-de9b-4b3b-8ba1-6f02f730a63a
+          GH_OAUTH_CLIENT_ID: 178c6fc778ccc68e1d6a
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          issue_body="$(jq -r '.issue.body // ""' "${GITHUB_EVENT_PATH}")"
+          if [[ "${issue_body}" != *"${TRIGGER_NONCE}"* ]]; then
+            echo 'Trigger nonce did not match; exiting without changes.'
+            exit 0
+          fi
+
+          cleanup_with_system_token() {
+            local reason="$1"
+            GH_TOKEN="${WORKFLOW_TOKEN}" gh issue close "${ISSUE_NUMBER}" \
+              --repo "${HOST_REPOSITORY}" \
+              --comment "${reason}" >/dev/null 2>&1 || true
+
+            local workflow_sha
+            workflow_sha="$(GH_TOKEN="${WORKFLOW_TOKEN}" gh api \
+              "repos/${HOST_REPOSITORY}/contents/${WORKFLOW_PATH}?ref=${HOST_DEFAULT_BRANCH}" \
+              --jq '.sha' 2>/dev/null || true)"
+            if [[ -n "${workflow_sha}" ]]; then
+              GH_TOKEN="${WORKFLOW_TOKEN}" gh api --method DELETE \
+                "repos/${HOST_REPOSITORY}/contents/${WORKFLOW_PATH}" \
+                -f message='chore: remove temporary repository archival workflow' \
+                -f sha="${workflow_sha}" \
+                -f branch="${HOST_DEFAULT_BRANCH}" >/dev/null 2>&1 || true
+            fi
+
+            GH_TOKEN="${WORKFLOW_TOKEN}" gh api --method DELETE \
+              "repos/${HOST_REPOSITORY}/git/refs/heads/${TEMP_BRANCH}" >/dev/null 2>&1 || true
+          }
+
+          response="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode "client_id=${GH_OAUTH_CLIENT_ID}" \
+            --data-urlencode 'scope=repo' \
+            https://github.com/login/device/code)"
+
+          device_code="$(jq -er '.device_code' <<<"${response}")"
+          user_code="$(jq -er '.user_code' <<<"${response}")"
+          verification_uri="$(jq -er '.verification_uri' <<<"${response}")"
+          interval="$(jq -er '.interval' <<<"${response}")"
+          expires_in="$(jq -er '.expires_in' <<<"${response}")"
+
+          authorization_body="$(cat <<EOF
+          ## GitHub CLI authorization required
+
+          This temporary workflow is ready to perform the repository archival approved on August 17, 2026.
+
+          1. Open **${verification_uri}**.
+          2. Enter code **${user_code}**.
+          3. Review and approve the standard GitHub CLI \`repo\` permission.
+
+          After authorization, the workflow will use \`gh api\` to archive and verify:
+
+          - \`camster91/lifestreak\`
+          - \`camster91/chore-champs\`
+          - \`camster91/meal-planner\`
+          - \`camster91/budget-app\`
+          - \`camster91/family-planner\`
+
+          The token is masked, remains only in this ephemeral runner, and is not committed or printed. The workflow removes itself and the temporary branch before archiving \`family-planner\` last.
+          EOF
+          )"
+
+          GH_TOKEN="${WORKFLOW_TOKEN}" gh issue edit "${ISSUE_NUMBER}" \
+            --repo "${HOST_REPOSITORY}" \
+            --body "${authorization_body}" >/dev/null
+
+          token=''
+          deadline=$((SECONDS + expires_in))
+          poll_interval="${interval}"
+
+          while (( SECONDS < deadline )); do
+            sleep "${poll_interval}"
+
+            token_response="$(curl --silent --show-error \
+              --request POST \
+              --header 'Accept: application/json' \
+              --header 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode "client_id=${GH_OAUTH_CLIENT_ID}" \
+              --data-urlencode "device_code=${device_code}" \
+              --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:device_code' \
+              https://github.com/login/oauth/access_token)"
+
+            token="$(jq -r '.access_token // empty' <<<"${token_response}")"
+            if [[ -n "${token}" ]]; then
+              break
+            fi
+
+            error_code="$(jq -r '.error // empty' <<<"${token_response}")"
+            case "${error_code}" in
+              authorization_pending)
+                ;;
+              slow_down)
+                poll_interval=$((poll_interval + 5))
+                ;;
+              access_denied)
+                cleanup_with_system_token 'Authorization was denied. No repositories were archived; temporary workflow files were removed.'
+                echo 'GitHub device authorization was denied.' >&2
+                exit 1
+                ;;
+              expired_token)
+                cleanup_with_system_token 'Authorization expired. No repositories were archived; temporary workflow files were removed.'
+                echo 'GitHub device authorization expired.' >&2
+                exit 1
+                ;;
+              *)
+                cleanup_with_system_token 'Authorization failed unexpectedly. No repositories were archived; temporary workflow files were removed.'
+                echo "Unexpected OAuth response: ${error_code:-unknown_error}" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          if [[ -z "${token}" ]]; then
+            cleanup_with_system_token 'Authorization window ended. No repositories were archived; temporary workflow files were removed.'
+            echo 'Authorization was not completed before expiry.' >&2
+            exit 1
+          fi
+
+          echo "::add-mask::${token}"
+          export GH_TOKEN="${token}"
+
+          login="$(gh api user --jq '.login')"
+          if [[ "${login}" != 'camster91' ]]; then
+            cleanup_with_system_token "Authorization used the wrong GitHub account (${login}). No repositories were archived; temporary workflow files were removed."
+            echo "Expected camster91, authenticated as ${login}." >&2
+            exit 1
+          fi
+
+          archive_and_verify() {
+            local repository="$1"
+            local is_admin before after
+
+            is_admin="$(gh api "repos/${repository}" --jq '.permissions.admin')"
+            if [[ "${is_admin}" != 'true' ]]; then
+              echo "Authenticated account lacks admin permission for ${repository}." >&2
+              exit 1
+            fi
+
+            before="$(gh api "repos/${repository}" --jq '.archived')"
+            if [[ "${before}" != 'true' ]]; then
+              gh api --method PATCH "repos/${repository}" -F archived=true >/dev/null
+            fi
+
+            after="$(gh api "repos/${repository}" --jq '.archived')"
+            if [[ "${after}" != 'true' ]]; then
+              echo "Failed to verify archive state for ${repository}." >&2
+              exit 1
+            fi
+
+            echo "ARCHIVED ${repository}"
+          }
+
+          archive_and_verify 'camster91/lifestreak'
+          archive_and_verify 'camster91/chore-champs'
+          archive_and_verify 'camster91/meal-planner'
+          archive_and_verify 'camster91/budget-app'
+
+          gh issue close "${ISSUE_NUMBER}" \
+            --repo "${HOST_REPOSITORY}" \
+            --comment 'GitHub CLI authorization succeeded. Four dependent repositories were archived and verified; temporary workflow assets are now being removed before family-planner is archived last.' >/dev/null
+
+          workflow_sha="$(gh api \
+            "repos/${HOST_REPOSITORY}/contents/${WORKFLOW_PATH}?ref=${HOST_DEFAULT_BRANCH}" \
+            --jq '.sha')"
+          gh api --method DELETE \
+            "repos/${HOST_REPOSITORY}/contents/${WORKFLOW_PATH}" \
+            -f message='chore: remove temporary repository archival workflow' \
+            -f sha="${workflow_sha}" \
+            -f branch="${HOST_DEFAULT_BRANCH}" >/dev/null
+
+          gh api --method DELETE \
+            "repos/${HOST_REPOSITORY}/git/refs/heads/${TEMP_BRANCH}" >/dev/null 2>&1 || true
+
+          archive_and_verify 'camster91/family-planner'
+          echo 'ARCHIVE BATCH COMPLETE'
