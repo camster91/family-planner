@@ -23,6 +23,8 @@ import {
   Heart,
   UserPlus,
   Plane,
+  LayoutGrid,
+  Sparkles,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -34,8 +36,12 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  // Core — always visible
+  // Life Hub shell — always visible
   { name: 'Today', href: '/dashboard', icon: Home },
+  { name: 'Life Chat', href: '/dashboard/life-chat', icon: Sparkles },
+  { name: 'Apps', href: '/dashboard/apps', icon: LayoutGrid },
+
+  // Core mini apps
   { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, featureKey: 'calendar' },
   { name: 'Chores', href: '/dashboard/chores', icon: CheckSquare, featureKey: 'chores' },
   { name: 'Lists', href: '/dashboard/lists', icon: List, featureKey: 'lists' },
@@ -70,4 +76,4 @@ export const recentItems = [
   { id: '3', name: 'Grocery list', type: 'list' },
 ]
 
-export const searchPlaceholder = 'Search across chores, events, lists, and people'
+export const searchPlaceholder = 'Search mini apps, chores, events, lists, and people'
