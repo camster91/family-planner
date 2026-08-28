@@ -71,6 +71,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
 
+      - name: Test persisted family imports
+        run: npx jest src/lib/imports/__tests__/persistence.integration.test.ts --ci --runInBand --no-watchman --forceExit
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+          RUN_DB_INTEGRATION: '1'
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
