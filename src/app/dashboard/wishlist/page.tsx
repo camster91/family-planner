@@ -28,6 +28,7 @@ function WishlistContent() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [editTitle, setEditTitle] = useState('')
+  const [deletingItem, setDeletingItem] = useState<WishlistItem | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [userRole, setUserRole] = useState<UserRole>('child')
   const [submitting, setSubmitting] = useState(false)
@@ -106,15 +107,19 @@ function WishlistContent() {
     await fetchItems()
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('wishlist.cancel') + '?')) return
-    const res = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' })
+  const handleDelete = async () => {
+    if (!deletingItem) return
+    setSubmitting(true)
+    const res = await fetch(`/api/wishlist/${deletingItem.id}`, { method: 'DELETE' })
     if (!res.ok) {
       const err = await res.json()
       alert(err.error || 'Error')
+      setSubmitting(false)
       return
     }
     await fetchItems()
+    setDeletingItem(null)
+    setSubmitting(false)
   }
 
   const openEditModal = (item: WishlistItem) => {
@@ -294,7 +299,7 @@ function WishlistContent() {
                             </svg>
                           </button>
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => setDeletingItem(item)}
                             className="btn-ghost p-1.5 rounded-lg text-red-400"
                             title={t('wishlist.delete')}
                           >
@@ -429,6 +434,41 @@ function WishlistContent() {
                   className="flex-1 btn-filled py-3 rounded-xl text-body font-semibold disabled:opacity-50"
                 >
                   {submitting ? '...' : t('wishlist.save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Wish Confirmation */}
+      {deletingItem && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-wish-title"
+            aria-describedby="delete-wish-description"
+            className="bg-[var(--surface-elevated)] rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+          >
+            <div className="p-5 space-y-3">
+              <h2 id="delete-wish-title" className="text-title-3 font-semibold">{t('wishlist.delete')}</h2>
+              <p id="delete-wish-description" className="text-subhead text-label-secondary">
+                {deletingItem.title}
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setDeletingItem(null)}
+                  className="flex-1 btn-ghost py-3 rounded-xl text-body font-semibold"
+                >
+                  {t('wishlist.cancel')}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={submitting}
+                  className="flex-1 rounded-xl py-3 text-body font-semibold bg-red-500 text-white disabled:opacity-50"
+                >
+                  {submitting ? '...' : t('wishlist.delete')}
                 </button>
               </div>
             </div>
