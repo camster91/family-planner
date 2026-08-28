@@ -1,13 +1,9 @@
--- Migration: Add email verification and password reset fields to users table
--- Run this on your production database
-
-ALTER TABLE "users"
-  ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255),
-  ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP;
-
--- Index for fast token lookups
-CREATE INDEX IF NOT EXISTS idx_users_reset_token ON "users"(reset_token);
-
--- Backfill: mark all existing users as verified (they registered before verification was required)
-UPDATE "users" SET email_verified = TRUE WHERE email_verified = FALSE;
+-- Authentication token fields on the canonical Prisma User table. Safe to rerun.
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS "email_verified" BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS "reset_token" TEXT,
+  ADD COLUMN IF NOT EXISTS "reset_token_expires" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "verify_token" TEXT,
+  ADD COLUMN IF NOT EXISTS "verify_token_expires" TIMESTAMP(3);
+CREATE INDEX IF NOT EXISTS "User_reset_token_idx" ON "User"("reset_token");
+UPDATE "User" SET "email_verified" = TRUE WHERE "email_verified" = FALSE;

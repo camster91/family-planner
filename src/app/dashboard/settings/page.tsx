@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database } from 'lucide-react'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -202,10 +202,11 @@ export default function SettingsPage() {
             <form onSubmit={handleSaveProfile} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileName" className="block text-sm font-medium text-gray-700 mb-2">
                     Full Name
                   </label>
                   <input
+                    id="profileName"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -214,10 +215,11 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileEmail" className="block text-sm font-medium text-gray-700 mb-2">
                     Email Address
                   </label>
                   <input
+                    id="profileEmail"
                     type="email"
                     value={email}
                     disabled
@@ -230,10 +232,11 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileRole" className="block text-sm font-medium text-gray-700 mb-2">
                     Role
                   </label>
                   <input
+                    id="profileRole"
                     type="text"
                     value={role}
                     disabled
@@ -242,10 +245,11 @@ export default function SettingsPage() {
                   <p className="mt-1 text-xs text-gray-500">Role is set by family admin</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileAge" className="block text-sm font-medium text-gray-700 mb-2">
                     Age (Optional)
                   </label>
                   <input
+                    id="profileAge"
                     type="number"
                     min="1"
                     max="120"
@@ -374,7 +378,9 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
             <select
+              id="preferredLanguage"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               className="input-field w-full"
@@ -408,6 +414,16 @@ export default function SettingsPage() {
                 <div>
                   <div className="font-medium">Features</div>
                   <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                </div>
+              </Link>
+              <Link
+                href="/dashboard/settings/imports"
+                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+              >
+                <Database className="w-4 h-4 text-violet-600" />
+                <div>
+                  <div className="font-medium">Import family apps</div>
+                  <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
                 </div>
               </Link>
               <button

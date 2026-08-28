@@ -64,6 +64,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy migration script
 COPY --from=builder /app/scripts/migrate.js /app/scripts/migrate.js
+COPY --from=builder /app/database /app/database
 
 # Copy entrypoint script
 COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh

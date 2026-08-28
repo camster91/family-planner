@@ -9,7 +9,7 @@ export NODE_PATH="/usr/lib/node_modules:$NODE_PATH"
 # Run database migration if DATABASE_URL is set
 if [ -n "$DATABASE_URL" ]; then
   echo "Running database migration..."
-  node /app/scripts/migrate.js || echo "WARNING: Migration had issues, continuing anyway..."
+  node /app/scripts/migrate.js
 else
   echo "WARNING: DATABASE_URL not set, skipping migration"
 fi

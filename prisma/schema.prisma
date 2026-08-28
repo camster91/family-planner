@@ -8,100 +8,130 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
 // User model
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  password     String?
-  name         String
-  role         String    // 'parent', 'child', 'teen'
-  age          Int?
-  family_id    String?
-  avatar_url   String?
-  last_chore_date DateTime?
-  xp             Int       @default(0)
-  level          Int       @default(1)
-  streak         Int       @default(0)
-  best_streak    Int       @default(0)
-  email_verified      Boolean   @default(false)
-  reset_token         String?
-  reset_token_expires DateTime?
-  verify_token         String?
-  verify_token_expires DateTime?
-  created_at   DateTime  @default(now())
+  id                            String             @id @default(cuid())
+  email                         String             @unique
+  password                      String?
+  name                          String
+  role                          String // 'parent', 'child', 'teen'
+  age                           Int?
+  family_id                     String?
+  avatar_url                    String?
+  last_chore_date               DateTime?
+  xp                            Int                @default(0)
+  level                         Int                @default(1)
+  streak                        Int                @default(0)
+  best_streak                   Int                @default(0)
+  email_verified                Boolean            @default(false)
+  reset_token                   String?
+  reset_token_expires           DateTime?
+  verify_token                  String?
+  verify_token_expires          DateTime?
+  created_at                    DateTime           @default(now())
   // Relations
-  family       Family?   @relation(fields: [family_id], references: [id], onDelete: SetNull)
-  assigned_chores Chore[] @relation("AssignedChores")
-  created_chores Chore[]  @relation("CreatedChores")
-  created_events Event[]  @relation("CreatedEvents")
-  sent_messages Message[] @relation("SentMessages")
-  notifications Notification[]
-  created_lists List[]    @relation("CreatedLists")
-  list_items_added ListItem[] @relation("AddedItems")
-  list_items_checked ListItem[] @relation("CheckedItems")
-  activities   Activity[] @relation("UserActivities")
-  created_rewards Reward[] @relation("CreatedRewards")
-  claimed_rewards Reward[] @relation("ClaimedRewards")
-  approved_rewards Reward[] @relation("ApprovedRewards")
-  transactions Transaction[] @relation("UserTransactions")
-  budget_categories BudgetCategory[] @relation("CreatedCategories")
-  projects     Project[] @relation("CreatedProjects")
-  project_tasks ProjectTask[] @relation("AssignedProjectTasks")
-  meals         FamilyMeal[] @relation("FamilyMealCreator")
-  meals_cooked  FamilyMeal[] @relation("FamilyMealCook")
-  pinned_notes  PinnedNote[] @relation("CreatedNotes")
-  anniversaries Anniversary[] @relation("FamilyAnniversaries")
-  locations     FamilyLocation[] @relation("UserLocations")
-  pickups       Pickup[] @relation("AssignedPickups")
-  pickups_created Pickup[] @relation("CreatedPickups")
-  allowances_given Allowance[] @relation("AllowanceFrom")
-  allowances_received Allowance[] @relation("AllowanceTo")
-  emergency_cards EmergencyContact[] @relation("EmergencyCards")
-  handoffs_created Handoff[] @relation("HandoffCreator")
-  wishlist_items_requested WishlistItem[] @relation("WishlistRequester")
-  wishlist_items_status_changed WishlistItem[] @relation("WishlistStatusChanger")
-  sick_days_as_person SickDay[] @relation("SickDayPerson")
-  sick_days_as_creator SickDay[] @relation("SickDayCreator")
-  medications_as_person Medication[] @relation("MedicationPerson")
-  medications_as_creator Medication[] @relation("MedicationCreator")
+  family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
+  assigned_chores               Chore[]            @relation("AssignedChores")
+  created_chores                Chore[]            @relation("CreatedChores")
+  created_events                Event[]            @relation("CreatedEvents")
+  sent_messages                 Message[]          @relation("SentMessages")
+  notifications                 Notification[]
+  created_lists                 List[]             @relation("CreatedLists")
+  list_items_added              ListItem[]         @relation("AddedItems")
+  list_items_checked            ListItem[]         @relation("CheckedItems")
+  activities                    Activity[]         @relation("UserActivities")
+  created_rewards               Reward[]           @relation("CreatedRewards")
+  claimed_rewards               Reward[]           @relation("ClaimedRewards")
+  approved_rewards              Reward[]           @relation("ApprovedRewards")
+  transactions                  Transaction[]      @relation("UserTransactions")
+  budget_categories             BudgetCategory[]   @relation("CreatedCategories")
+  projects                      Project[]          @relation("CreatedProjects")
+  project_tasks                 ProjectTask[]      @relation("AssignedProjectTasks")
+  meals                         FamilyMeal[]       @relation("FamilyMealCreator")
+  meals_cooked                  FamilyMeal[]       @relation("FamilyMealCook")
+  pinned_notes                  PinnedNote[]       @relation("CreatedNotes")
+  anniversaries                 Anniversary[]      @relation("FamilyAnniversaries")
+  locations                     FamilyLocation[]   @relation("UserLocations")
+  pickups                       Pickup[]           @relation("AssignedPickups")
+  pickups_created               Pickup[]           @relation("CreatedPickups")
+  allowances_given              Allowance[]        @relation("AllowanceFrom")
+  allowances_received           Allowance[]        @relation("AllowanceTo")
+  emergency_cards               EmergencyContact[] @relation("EmergencyCards")
+  handoffs_created              Handoff[]          @relation("HandoffCreator")
+  wishlist_items_requested      WishlistItem[]     @relation("WishlistRequester")
+  wishlist_items_status_changed WishlistItem[]     @relation("WishlistStatusChanger")
+  sick_days_as_person           SickDay[]          @relation("SickDayPerson")
+  sick_days_as_creator          SickDay[]          @relation("SickDayCreator")
+  medications_as_person         Medication[]       @relation("MedicationPerson")
+  medications_as_creator        Medication[]       @relation("MedicationCreator")
+  chore_assignments             ChoreAssignment[]  @relation("ChoreAssignmentAssignee")
+  completed_chore_assignments   ChoreAssignment[]  @relation("ChoreAssignmentCompleter")
+  approved_chore_assignments    ChoreAssignment[]  @relation("ChoreAssignmentApprover")
+  import_jobs                   ImportJob[]        @relation("ImportJobStarter")
+  created_habits                Habit[]            @relation("HabitCreator")
+  habit_logs                    HabitLog[]
+  earned_badges                 EarnedBadge[]
+  reward_redemptions            RewardRedemption[] @relation("RewardRedemptionRequester")
+  approved_reward_redemptions   RewardRedemption[] @relation("RewardRedemptionApprover")
+  created_family_goals          FamilyGoal[]       @relation("FamilyGoalCreator")
+  push_subscriptions            PushSubscription[]
+  created_recipes               Recipe[]           @relation("RecipeCreator")
+  created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
+  created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
 
   @@index([family_id])
 }
 
 model Family {
-  id              String    @id @default(cuid())
-  name            String
-  invite_code     String    @unique @default(cuid())
-  subscription_tier String  @default("free") // 'free', 'premium', 'family'
-  features        Json?     @default("{\"meals\":true,\"notes\":true,\"anniversaries\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true}")
-  travel_mode_active    Boolean   @default(false)
-  travel_start_date     DateTime?
-  travel_end_date       DateTime?
-  travel_destination    String?
-  created_at      DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  name               String
+  invite_code        String    @unique @default(cuid())
+  subscription_tier  String    @default("free") // 'free', 'premium', 'family'
+  features           Json?     @default("{\"meals\":true,\"notes\":true,\"anniversaries\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true}")
+  travel_mode_active Boolean   @default(false)
+  travel_start_date  DateTime?
+  travel_end_date    DateTime?
+  travel_destination String?
+  created_at         DateTime  @default(now())
 
   // Relations
-  members       User[]
-  chores        Chore[]
-  events        Event[]
-  messages      Message[]
-  lists         List[]
-  activities    Activity[]
-  rewards       Reward[]
-  transactions  Transaction[]
-  categories    BudgetCategory[]
-  projects      Project[]
-  meals         FamilyMeal[]
-  pinned_notes  PinnedNote[]
-  anniversaries Anniversary[]
-  locations     FamilyLocation[]
-  pickups       Pickup[]
-  allowances    Allowance[]
+  members            User[]
+  chores             Chore[]
+  events             Event[]
+  messages           Message[]
+  lists              List[]
+  activities         Activity[]
+  rewards            Reward[]
+  transactions       Transaction[]
+  categories         BudgetCategory[]
+  projects           Project[]
+  meals              FamilyMeal[]
+  pinned_notes       PinnedNote[]
+  anniversaries      Anniversary[]
+  locations          FamilyLocation[]
+  pickups            Pickup[]
+  allowances         Allowance[]
   emergency_contacts EmergencyContact[]
-  handoffs      Handoff[]
-  wishlist_items WishlistItem[]
-  sick_days     SickDay[]
-  medications   Medication[]
+  handoffs           Handoff[]
+  wishlist_items     WishlistItem[]
+  sick_days          SickDay[]
+  medications        Medication[]
+  chore_assignments  ChoreAssignment[]
+  import_jobs        ImportJob[]
+  imported_records   ImportedRecord[]
+  habits             Habit[]
+  habit_logs         HabitLog[]
+  badge_definitions  BadgeDefinition[]
+  earned_badges      EarnedBadge[]
+  reward_redemptions RewardRedemption[]
+  family_goals       FamilyGoal[]
+  push_subscriptions PushSubscription[]
+  recipes            Recipe[]
+  ingredients        Ingredient[]
+  meal_plans         MealPlan[]
+  shopping_lists     ShoppingList[]
+  finance_records    FinancialArchiveRecord[]
 }
 
 model Chore {
@@ -110,7 +140,7 @@ model Chore {
   title          String
   description    String?
   points         Int       @default(10)
-  assigned_to    String    // user_id
+  assigned_to    String // user_id
   due_date       DateTime
   status         String    @default("pending") // 'pending', 'in_progress', 'completed', 'verified', 'overdue'
   frequency      String    @default("once") // 'once', 'daily', 'weekly', 'monthly'
@@ -121,12 +151,13 @@ model Chore {
   verified_notes String?
   completed_at   DateTime?
   created_at     DateTime  @default(now())
-  created_by     String    // user_id
+  created_by     String // user_id
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  assignee     User      @relation("AssignedChores", fields: [assigned_to], references: [id])
-  creator      User      @relation("CreatedChores", fields: [created_by], references: [id])
+  family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id])
+  creator     User              @relation("CreatedChores", fields: [created_by], references: [id])
+  assignments ChoreAssignment[]
 
   @@index([family_id])
   @@index([assigned_to])
@@ -136,25 +167,348 @@ model Chore {
   @@index([family_id, assigned_to])
 }
 
-model Event {
-  id           String    @id @default(cuid())
+model ChoreAssignment {
+  id              String    @id @default(cuid())
+  family_id       String
+  chore_id        String
+  assigned_to     String
+  due_date        DateTime
+  status          String    @default("pending")
+  photo_url       String?
+  completed_at    DateTime?
+  completed_by    String?
+  approved_at     DateTime?
+  approved_by     String?
+  approval_notes  String?
+  xp_awarded      Int       @default(0)
+  idempotency_key String?   @unique
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  chore     Chore  @relation(fields: [chore_id], references: [id], onDelete: Cascade)
+  assignee  User   @relation("ChoreAssignmentAssignee", fields: [assigned_to], references: [id], onDelete: Cascade)
+  completer User?  @relation("ChoreAssignmentCompleter", fields: [completed_by], references: [id], onDelete: SetNull)
+  approver  User?  @relation("ChoreAssignmentApprover", fields: [approved_by], references: [id], onDelete: SetNull)
+
+  @@unique([chore_id, assigned_to, due_date])
+  @@index([family_id, status])
+  @@index([assigned_to, due_date])
+  @@index([chore_id])
+}
+
+model ImportJob {
+  id             String    @id @default(cuid())
+  family_id      String
+  source_app     String
+  source_version String?
+  status         String    @default("pending")
+  dry_run        Boolean   @default(true)
+  started_by     String
+  started_at     DateTime  @default(now())
+  completed_at   DateTime?
+  summary        Json?
+  error          String?
+
+  family  Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  starter User             @relation("ImportJobStarter", fields: [started_by], references: [id], onDelete: Restrict)
+  records ImportedRecord[]
+
+  @@index([family_id, source_app])
+  @@index([status])
+}
+
+model ImportedRecord {
+  id            String   @id @default(cuid())
+  family_id     String
+  import_job_id String
+  source_app    String
+  source_model  String
+  source_id     String
+  target_model  String
+  target_id     String
+  checksum      String?
+  created_at    DateTime @default(now())
+
+  family     Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  import_job ImportJob @relation(fields: [import_job_id], references: [id], onDelete: Cascade)
+
+  @@unique([family_id, source_app, source_model, source_id])
+  @@index([import_job_id])
+  @@index([family_id, target_model, target_id])
+}
+
+model Recipe {
+  id           String   @id @default(cuid())
   family_id    String
   title        String
   description  String?
-  start_time   DateTime
-  end_time     DateTime
-  location     String?
-  event_type   String    @default("other") // 'school', 'sports', 'appointment', 'family', 'work', 'other'
-  is_task      Boolean   @default(false)
-  project_id   String?
-  recurrence   String?   // RRULE string for recurring events
-  created_by   String    // user_id
-  created_at   DateTime  @default(now())
+  instructions String?
+  prep_time    Int?
+  cook_time    Int?
+  servings     Int      @default(2)
+  image_url    String?
+  created_by   String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  family       Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User               @relation("RecipeCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  ingredients  RecipeIngredient[]
+  meal_entries MealPlanEntry[]
+
+  @@index([family_id, title])
+}
+
+model Ingredient {
+  id        String  @id @default(cuid())
+  family_id String
+  name      String
+  unit      String?
+
+  family             Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  recipe_ingredients RecipeIngredient[]
+
+  @@unique([family_id, name])
+}
+
+model RecipeIngredient {
+  id            String  @id @default(cuid())
+  recipe_id     String
+  ingredient_id String
+  amount        Float
+  unit          String?
+  note          String?
+
+  recipe     Recipe     @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
+
+  @@unique([recipe_id, ingredient_id])
+  @@index([ingredient_id])
+}
+
+model MealPlan {
+  id         String   @id @default(cuid())
+  family_id  String
+  name       String
+  start_date DateTime @db.Date
+  end_date   DateTime @db.Date
+  created_by String
+  created_at DateTime @default(now())
+
+  family  Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User            @relation("MealPlanCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  entries MealPlanEntry[]
+
+  @@index([family_id, start_date])
+}
+
+model MealPlanEntry {
+  id           String   @id @default(cuid())
+  meal_plan_id String
+  recipe_id    String
+  date         DateTime @db.Date
+  meal_type    String
+  servings     Int      @default(2)
+
+  meal_plan MealPlan @relation(fields: [meal_plan_id], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+
+  @@unique([meal_plan_id, date, meal_type])
+  @@index([recipe_id])
+}
+
+model ShoppingList {
+  id         String   @id @default(cuid())
+  family_id  String
+  name       String   @default("Shopping List")
+  created_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  family  Family         @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User           @relation("ShoppingListCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  items   ShoppingItem[]
+
+  @@index([family_id, created_at])
+}
+
+model ShoppingItem {
+  id               String  @id @default(cuid())
+  shopping_list_id String
+  ingredient_name  String
+  amount           Float?
+  unit             String?
+  category         String?
+  checked          Boolean @default(false)
+  recipe_id        String?
+
+  shopping_list ShoppingList @relation(fields: [shopping_list_id], references: [id], onDelete: Cascade)
+
+  @@index([shopping_list_id, checked])
+}
+
+model FinancialArchiveRecord {
+  id           String   @id @default(cuid())
+  family_id    String
+  source_app   String
+  source_model String
+  source_id    String
+  payload      Json
+  created_at   DateTime @default(now())
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@unique([family_id, source_app, source_model, source_id])
+  @@index([family_id, source_model])
+}
+
+model Habit {
+  id          String   @id @default(cuid())
+  family_id   String
+  title       String
+  description String?
+  icon        String?
+  points      Int      @default(5)
+  is_active   Boolean  @default(true)
+  created_by  String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  family  Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User       @relation("HabitCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  logs    HabitLog[]
+
+  @@index([family_id, is_active])
+}
+
+model HabitLog {
+  id             String   @id @default(cuid())
+  family_id      String
+  habit_id       String
+  user_id        String
+  logged_date    DateTime @db.Date
+  logged_at      DateTime @default(now())
+  points_awarded Int      @default(0)
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  habit  Habit  @relation(fields: [habit_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([habit_id, user_id, logged_date])
+  @@index([family_id, logged_date])
+  @@index([user_id, logged_at])
+}
+
+model BadgeDefinition {
+  id          String   @id @default(cuid())
+  family_id   String?
+  name        String
+  description String
+  icon        String
+  requirement Json
+  created_at  DateTime @default(now())
+
+  family Family?       @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  earned EarnedBadge[]
+
+  @@unique([family_id, name])
+  @@index([family_id])
+}
+
+model EarnedBadge {
+  id        String   @id @default(cuid())
+  family_id String
+  badge_id  String
+  user_id   String
+  earned_at DateTime @default(now())
+
+  family Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  badge  BadgeDefinition @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([badge_id, user_id])
+  @@index([family_id, earned_at])
+  @@index([user_id])
+}
+
+model RewardRedemption {
+  id           String    @id @default(cuid())
+  family_id    String
+  reward_id    String
+  requested_by String
+  points       Int
+  status       String    @default("requested")
+  requested_at DateTime  @default(now())
+  approved_by  String?
+  approved_at  DateTime?
+  fulfilled_at DateTime?
+  notes        String?
+
+  family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  reward    Reward @relation(fields: [reward_id], references: [id], onDelete: Cascade)
+  requester User   @relation("RewardRedemptionRequester", fields: [requested_by], references: [id], onDelete: Cascade)
+  approver  User?  @relation("RewardRedemptionApprover", fields: [approved_by], references: [id], onDelete: SetNull)
+
+  @@index([family_id, status])
+  @@index([requested_by, requested_at])
+  @@index([reward_id])
+}
+
+model FamilyGoal {
+  id             String   @id @default(cuid())
+  family_id      String
+  title          String
+  description    String?
+  target_points  Int
+  current_points Int      @default(0)
+  reward         String?
+  is_active      Boolean  @default(true)
+  created_by     String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("FamilyGoalCreator", fields: [created_by], references: [id], onDelete: Restrict)
+
+  @@index([family_id, is_active])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  family_id  String
+  user_id    String
+  endpoint   String
+  keys       Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, endpoint])
+  @@index([family_id])
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  family_id   String
+  title       String
+  description String?
+  start_time  DateTime
+  end_time    DateTime
+  location    String?
+  event_type  String   @default("other") // 'school', 'sports', 'appointment', 'family', 'work', 'other'
+  is_task     Boolean  @default(false)
+  project_id  String?
+  recurrence  String? // RRULE string for recurring events
+  created_by  String // user_id
+  created_at  DateTime @default(now())
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User      @relation("CreatedEvents", fields: [created_by], references: [id])
-  project      Project?  @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  family  Family   @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User     @relation("CreatedEvents", fields: [created_by], references: [id])
+  project Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
 
   @@index([family_id])
   @@index([start_time])
@@ -163,18 +517,18 @@ model Event {
 }
 
 model Message {
-  id           String    @id @default(cuid())
-  family_id    String
-  sender_id    String
-  content      String
-  type         String    @default("text") // 'text', 'image', 'voice', 'announcement'
-  attachments  String[]  // Array of file URLs
-  read_by      String[]  // Array of user_ids who have read the message
-  created_at   DateTime  @default(now())
+  id          String   @id @default(cuid())
+  family_id   String
+  sender_id   String
+  content     String
+  type        String   @default("text") // 'text', 'image', 'voice', 'announcement'
+  attachments String[] // Array of file URLs
+  read_by     String[] // Array of user_ids who have read the message
+  created_at  DateTime @default(now())
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  sender       User      @relation("SentMessages", fields: [sender_id], references: [id])
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  sender User   @relation("SentMessages", fields: [sender_id], references: [id])
 
   @@index([family_id])
   @@index([sender_id])
@@ -183,17 +537,17 @@ model Message {
 }
 
 model Notification {
-  id           String    @id @default(cuid())
-  user_id      String
-  title        String
-  message      String
-  type         String    // 'chore', 'event', 'message', 'system'
-  read         Boolean   @default(false)
-  action_url   String?   // optional link to navigate to
-  created_at   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  user_id    String
+  title      String
+  message    String
+  type       String // 'chore', 'event', 'message', 'system'
+  read       Boolean  @default(false)
+  action_url String? // optional link to navigate to
+  created_at DateTime @default(now())
 
   // Relations
-  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([read])
@@ -202,65 +556,65 @@ model Notification {
 }
 
 model List {
-  id           String    @id @default(cuid())
-  family_id    String
-  name         String
-  type         String    @default("grocery") // 'grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'
-  description  String?
-  is_repeatable Boolean  @default(false)
+  id                String    @id @default(cuid())
+  family_id         String
+  name              String
+  type              String    @default("grocery") // 'grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'
+  description       String?
+  is_repeatable     Boolean   @default(false)
   last_purchased_at DateTime?
-  created_by   String
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  created_by        String
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User      @relation("CreatedLists", fields: [created_by], references: [id])
-  items        ListItem[]
+  family  Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User       @relation("CreatedLists", fields: [created_by], references: [id])
+  items   ListItem[]
 
   @@index([family_id])
   @@index([family_id, type])
 }
 
 model ListItem {
-  id           String    @id @default(cuid())
-  list_id      String
-  content      String
-  checked      Boolean   @default(false)
-  quantity     Int       @default(1)
-  price        Float?
-  purchased    Boolean   @default(false)
-  category     String?
-  notes        String?
-  added_by     String
-  checked_by   String?
-  checked_at   DateTime?
-  position     Int       @default(0)
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  list_id    String
+  content    String
+  checked    Boolean   @default(false)
+  quantity   Int       @default(1)
+  price      Float?
+  purchased  Boolean   @default(false)
+  category   String?
+  notes      String?
+  added_by   String
+  checked_by String?
+  checked_at DateTime?
+  position   Int       @default(0)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
 
   // Relations
-  list         List      @relation(fields: [list_id], references: [id], onDelete: Cascade)
-  adder        User      @relation("AddedItems", fields: [added_by], references: [id])
-  checker      User?     @relation("CheckedItems", fields: [checked_by], references: [id])
+  list    List  @relation(fields: [list_id], references: [id], onDelete: Cascade)
+  adder   User  @relation("AddedItems", fields: [added_by], references: [id])
+  checker User? @relation("CheckedItems", fields: [checked_by], references: [id])
 
   @@index([list_id])
   @@index([list_id, checked])
 }
 
 model Activity {
-  id           String    @id @default(cuid())
-  family_id    String
-  user_id      String
-  type         String    // 'chore_completed', 'chore_verified', 'list_completed', 'event_created'
-  title        String
-  description  String?
-  metadata     String?   // JSON string for extra data
-  created_at   DateTime  @default(now())
+  id          String   @id @default(cuid())
+  family_id   String
+  user_id     String
+  type        String // 'chore_completed', 'chore_verified', 'list_completed', 'event_created'
+  title       String
+  description String?
+  metadata    String? // JSON string for extra data
+  created_at  DateTime @default(now())
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  user         User      @relation("UserActivities", fields: [user_id], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User   @relation("UserActivities", fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([family_id])
   @@index([family_id, created_at])
@@ -268,27 +622,29 @@ model Activity {
 }
 
 model Reward {
-  id           String    @id @default(cuid())
-  family_id    String
-  name         String
-  description  String?
-  cost         Int       @default(10) // XP/points required to claim
-  icon         String?   // emoji or icon identifier
-  status       String    @default("available") // 'available', 'claimed', 'approved', 'redeemed'
-  created_by   String
-  claimed_by   String?
-  claimed_at   DateTime?
-  approved     Boolean   @default(false)
-  approved_by  String?
-  approved_at  DateTime?
-  redeemed_at  DateTime?
-  created_at   DateTime  @default(now())
+  id          String    @id @default(cuid())
+  family_id   String
+  name        String
+  description String?
+  cost        Int       @default(10) // XP/points required to claim
+  icon        String? // emoji or icon identifier
+  status      String    @default("available") // 'available', 'claimed', 'approved', 'redeemed'
+  is_active   Boolean   @default(true)
+  created_by  String
+  claimed_by  String?
+  claimed_at  DateTime?
+  approved    Boolean   @default(false)
+  approved_by String?
+  approved_at DateTime?
+  redeemed_at DateTime?
+  created_at  DateTime  @default(now())
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User      @relation("CreatedRewards", fields: [created_by], references: [id])
-  claimer      User?     @relation("ClaimedRewards", fields: [claimed_by], references: [id])
-  approver     User?     @relation("ApprovedRewards", fields: [approved_by], references: [id])
+  family      Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator     User               @relation("CreatedRewards", fields: [created_by], references: [id])
+  claimer     User?              @relation("ClaimedRewards", fields: [claimed_by], references: [id])
+  approver    User?              @relation("ApprovedRewards", fields: [approved_by], references: [id])
+  redemptions RewardRedemption[]
 
   @@index([family_id])
   @@index([family_id, status])
@@ -296,25 +652,26 @@ model Reward {
 }
 
 model Transaction {
-  id           String    @id @default(cuid())
-  family_id    String
-  user_id      String
-  amount       Float
-  type         String    // 'income' or 'expense'
-  category_id  String?
-  description  String?
-  notes        String?
-  date         DateTime  @default(now())
-  is_recurring Boolean   @default(false)
+  id                 String   @id @default(cuid())
+  family_id          String
+  user_id            String
+  amount             Float
+  type               String // 'income' or 'expense'
+  category_id        String?
+  description        String?
+  notes              String?
+  date               DateTime @default(now())
+  is_recurring       Boolean  @default(false)
   recurring_interval String? // 'weekly', 'biweekly', 'monthly'
-  list_item_id String?   // link to shopping list purchase
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  list_item_id       String? // link to shopping list purchase
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  import_metadata    Json?
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  user         User      @relation("UserTransactions", fields: [user_id], references: [id])
-  category     BudgetCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  family   Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user     User            @relation("UserTransactions", fields: [user_id], references: [id])
+  category BudgetCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
 
   @@index([family_id])
   @@index([family_id, date])
@@ -324,19 +681,20 @@ model Transaction {
 }
 
 model BudgetCategory {
-  id           String    @id @default(cuid())
-  family_id    String
-  name         String
-  icon         String    @default("📦")
-  color        String    @default("#6B7280")
-  type         String    @default("expense") // 'income' or 'expense'
-  budget_limit Float?
-  created_by   String
-  created_at   DateTime  @default(now())
+  id              String   @id @default(cuid())
+  family_id       String
+  name            String
+  icon            String   @default("📦")
+  color           String   @default("#6B7280")
+  type            String   @default("expense") // 'income' or 'expense'
+  budget_limit    Float?
+  created_by      String
+  created_at      DateTime @default(now())
+  import_metadata Json?
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User      @relation("CreatedCategories", fields: [created_by], references: [id])
+  family       Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User          @relation("CreatedCategories", fields: [created_by], references: [id])
   transactions Transaction[]
 
   @@index([family_id])
@@ -344,40 +702,40 @@ model BudgetCategory {
 }
 
 model Project {
-  id           String    @id @default(cuid())
-  family_id    String
-  name         String
-  description  String?
-  status       String    @default("active") // 'active', 'completed', 'archived'
-  color        String    @default("#3B82F6")
-  created_by   String
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  family_id   String
+  name        String
+  description String?
+  status      String   @default("active") // 'active', 'completed', 'archived'
+  color       String   @default("#3B82F6")
+  created_by  String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   // Relations
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User      @relation("CreatedProjects", fields: [created_by], references: [id])
-  tasks        ProjectTask[]
-  events       Event[]
+  family  Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User          @relation("CreatedProjects", fields: [created_by], references: [id])
+  tasks   ProjectTask[]
+  events  Event[]
 
   @@index([family_id])
   @@index([family_id, status])
 }
 
 model ProjectTask {
-  id           String    @id @default(cuid())
-  project_id   String
-  title        String
-  description  String?
-  completed    Boolean   @default(false)
-  assigned_to  String?
-  due_date     DateTime?
-  position     Int       @default(0)
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  project_id  String
+  title       String
+  description String?
+  completed   Boolean   @default(false)
+  assigned_to String?
+  due_date    DateTime?
+  position    Int       @default(0)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
 
-  project      Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  assignee     User?     @relation("AssignedProjectTasks", fields: [assigned_to], references: [id], onDelete: SetNull)
+  project  Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  assignee User?   @relation("AssignedProjectTasks", fields: [assigned_to], references: [id], onDelete: SetNull)
 
   @@index([project_id])
   @@index([assigned_to])
@@ -386,13 +744,13 @@ model ProjectTask {
 // Postgres-backed rate limiter (auth endpoints, etc.)
 // Survives across replicas and restarts.
 model RateLimitEntry {
-  id           String    @id @default(cuid())
-  key          String    // e.g. "login:1.2.3.4", "register:1.2.3.4"
-  count        Int       @default(1)
-  windowStart  DateTime
-  resetAt      DateTime
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  key         String // e.g. "login:1.2.3.4", "register:1.2.3.4"
+  count       Int      @default(1)
+  windowStart DateTime
+  resetAt     DateTime
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   @@index([key])
   @@index([resetAt])
@@ -402,102 +760,102 @@ model RateLimitEntry {
 // Stored on Family.features as a JSON column; this model is the default seed.
 
 model FamilyMeal {
-  id           String    @id @default(cuid())
-  family_id    String
-  date         DateTime
-  meal_type    String    // 'breakfast' | 'lunch' | 'dinner' | 'snack'
-  recipe_name  String?
-  notes        String?
-  cook_id      String?
-  created_by   String
-  created_at   DateTime  @default(now())
+  id          String   @id @default(cuid())
+  family_id   String
+  date        DateTime
+  meal_type   String // 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  recipe_name String?
+  notes       String?
+  cook_id     String?
+  created_by  String
+  created_at  DateTime @default(now())
 
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  cook         User?     @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull)
-  creator      User      @relation("FamilyMealCreator", fields: [created_by], references: [id])
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  cook    User?  @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull)
+  creator User   @relation("FamilyMealCreator", fields: [created_by], references: [id])
 
   @@index([family_id])
   @@index([family_id, date])
 }
 
 model PinnedNote {
-  id           String    @id @default(cuid())
-  family_id    String
-  title        String
-  body         String
-  color        String    @default("yellow") // 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
-  pinned       Boolean   @default(true)
-  created_by   String
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id         String   @id @default(cuid())
+  family_id  String
+  title      String
+  body       String
+  color      String   @default("yellow") // 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
+  pinned     Boolean  @default(true)
+  created_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User      @relation("CreatedNotes", fields: [created_by], references: [id])
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("CreatedNotes", fields: [created_by], references: [id])
 
   @@index([family_id])
 }
 
 model Anniversary {
-  id           String    @id @default(cuid())
-  family_id    String
-  name         String
-  type         String    // 'birthday' | 'anniversary' | 'custom'
-  date         DateTime  // month + day, year is optional context
-  notes        String?
-  person_id    String?   // optional link to a User
-  created_at   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  family_id  String
+  name       String
+  type       String // 'birthday' | 'anniversary' | 'custom'
+  date       DateTime // month + day, year is optional context
+  notes      String?
+  person_id  String? // optional link to a User
+  created_at DateTime @default(now())
 
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person       User?     @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person User?  @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull)
 
   @@index([family_id])
   @@index([family_id, date])
 }
 
 model FamilyLocation {
-  id           String    @id @default(cuid())
-  family_id    String
-  user_id      String
-  label        String    // 'Home', 'School', 'Work', 'Soccer practice'
-  address      String?
-  latitude     Float?
-  longitude    Float?
-  is_primary   Boolean   @default(false)  // home base
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id         String   @id @default(cuid())
+  family_id  String
+  user_id    String
+  label      String // 'Home', 'School', 'Work', 'Soccer practice'
+  address    String?
+  latitude   Float?
+  longitude  Float?
+  is_primary Boolean  @default(false) // home base
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  user         User      @relation("UserLocations", fields: [user_id], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User   @relation("UserLocations", fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([family_id])
   @@index([user_id])
 }
 
 model EmergencyContact {
-  id              String    @id @default(cuid())
-  family_id       String
-  person_id       String?
-  person_name     String
-  relationship    String    // 'self' | 'child' | 'spouse' | 'parent' | 'other'
-  blood_type      String?
-  allergies       String?
-  medications     String?
-  medical_conditions String?
-  doctor_name     String?
-  doctor_phone    String?
-  dentist_name    String?
-  dentist_phone   String?
-  insurance_provider String?
-  insurance_id    String?
-  emergency_contact_name  String?
-  emergency_contact_phone String?
+  id                         String   @id @default(cuid())
+  family_id                  String
+  person_id                  String?
+  person_name                String
+  relationship               String // 'self' | 'child' | 'spouse' | 'parent' | 'other'
+  blood_type                 String?
+  allergies                  String?
+  medications                String?
+  medical_conditions         String?
+  doctor_name                String?
+  doctor_phone               String?
+  dentist_name               String?
+  dentist_phone              String?
+  insurance_provider         String?
+  insurance_id               String?
+  emergency_contact_name     String?
+  emergency_contact_phone    String?
   emergency_contact_relation String?
-  notes           String?
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  notes                      String?
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
 
-  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person          User?     @relation("EmergencyCards", fields: [person_id], references: [id], onDelete: SetNull)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person User?  @relation("EmergencyCards", fields: [person_id], references: [id], onDelete: SetNull)
 
   @@index([family_id])
 }
@@ -505,10 +863,10 @@ model EmergencyContact {
 model Pickup {
   id           String    @id @default(cuid())
   family_id    String
-  title        String    // 'School pickup', 'Soccer practice'
+  title        String // 'School pickup', 'Soccer practice'
   location     String?
   pickup_time  DateTime
-  assigned_to  String?   // who is doing the pickup
+  assigned_to  String? // who is doing the pickup
   created_by   String
   notes        String?
   completed    Boolean   @default(false)
@@ -516,9 +874,9 @@ model Pickup {
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
 
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  assignee     User?     @relation("AssignedPickups", fields: [assigned_to], references: [id], onDelete: SetNull)
-  creator      User      @relation("CreatedPickups", fields: [created_by], references: [id])
+  family   Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  assignee User?  @relation("AssignedPickups", fields: [assigned_to], references: [id], onDelete: SetNull)
+  creator  User   @relation("CreatedPickups", fields: [created_by], references: [id])
 
   @@index([family_id])
   @@index([family_id, pickup_time])
@@ -526,21 +884,21 @@ model Pickup {
 }
 
 model Allowance {
-  id           String    @id @default(cuid())
-  family_id    String
-  from_user_id String    // parent (giver)
-  to_user_id   String    // kid (receiver)
-  amount       Float
-  reason       String?   // 'Weekly allowance', 'Extra for good grades'
-  status       String    @default("pending") // 'pending' | 'paid' | 'cancelled'
+  id            String    @id @default(cuid())
+  family_id     String
+  from_user_id  String // parent (giver)
+  to_user_id    String // kid (receiver)
+  amount        Float
+  reason        String? // 'Weekly allowance', 'Extra for good grades'
+  status        String    @default("pending") // 'pending' | 'paid' | 'cancelled'
   scheduled_for DateTime?
-  paid_at      DateTime?
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  paid_at       DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
 
-  family       Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  from_user    User      @relation("AllowanceFrom", fields: [from_user_id], references: [id], onDelete: Cascade)
-  to_user      User      @relation("AllowanceTo", fields: [to_user_id], references: [id], onDelete: Cascade)
+  family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  from_user User   @relation("AllowanceFrom", fields: [from_user_id], references: [id], onDelete: Cascade)
+  to_user   User   @relation("AllowanceTo", fields: [to_user_id], references: [id], onDelete: Cascade)
 
   @@index([family_id])
   @@index([to_user_id])
@@ -548,51 +906,51 @@ model Allowance {
 }
 
 model WishlistItem {
-  id              String    @id @default(cuid())
-  family_id       String
-  requested_by    String
-  title           String
-  link            String?
-  description     String?
-  approx_price    Decimal?  @db.Decimal(10,2)
-  status          String    @default("idle") // 'idle' | 'on_the_way' | 'received' | 'denied'
-  denied_reason   String?
+  id                String    @id @default(cuid())
+  family_id         String
+  requested_by      String
+  title             String
+  link              String?
+  description       String?
+  approx_price      Decimal?  @db.Decimal(10, 2)
+  status            String    @default("idle") // 'idle' | 'on_the_way' | 'received' | 'denied'
+  denied_reason     String?
   status_changed_at DateTime?
   status_changed_by String?
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
 
-  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  requester       User      @relation("WishlistRequester", fields: [requested_by], references: [id], onDelete: Cascade)
-  status_changer  User?     @relation("WishlistStatusChanger", fields: [status_changed_by], references: [id], onDelete: SetNull)
+  family         Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  requester      User   @relation("WishlistRequester", fields: [requested_by], references: [id], onDelete: Cascade)
+  status_changer User?  @relation("WishlistStatusChanger", fields: [status_changed_by], references: [id], onDelete: SetNull)
 
   @@index([family_id])
   @@index([requested_by])
 }
 
 model Handoff {
-  id              String    @id @default(cuid())
-  family_id       String
-  sitter_name     String
-  sitter_phone    String?
-  arrival_time    DateTime?
-  departure_time  DateTime?
-  kids_bedtimes   String?
-  where_snacks    String?
+  id                String    @id @default(cuid())
+  family_id         String
+  sitter_name       String
+  sitter_phone      String?
+  arrival_time      DateTime?
+  departure_time    DateTime?
+  kids_bedtimes     String?
+  where_snacks      String?
   pickup_authorized String?
-  code_words      String?
-  pet_care        String?
-  emergency_notes String?
-  house_notes     String?
-  general_notes   String?
-  share_token     String    @unique @default(cuid())
-  share_expires_at DateTime?
-  created_by      String
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  code_words        String?
+  pet_care          String?
+  emergency_notes   String?
+  house_notes       String?
+  general_notes     String?
+  share_token       String    @unique @default(cuid())
+  share_expires_at  DateTime?
+  created_by        String
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
 
-  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator         User      @relation("HandoffCreator", fields: [created_by], references: [id])
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("HandoffCreator", fields: [created_by], references: [id])
 
   @@index([family_id])
 }
@@ -604,7 +962,7 @@ model SickDay {
   started_at      DateTime  @default(now())
   ended_at        DateTime?
   symptoms        String?
-  severity        String    // 'mild' | 'moderate' | 'severe'
+  severity        String // 'mild' | 'moderate' | 'severe'
   status          String    @default("active") // 'active' | 'recovered'
   temperature_log Json?
   notes           String?
@@ -612,37 +970,36 @@ model SickDay {
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
-  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person          User      @relation("SickDayPerson", fields: [person_id], references: [id], onDelete: Cascade)
-  creator         User      @relation("SickDayCreator", fields: [created_by], references: [id])
-  medications     Medication[]
+  family      Family       @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person      User         @relation("SickDayPerson", fields: [person_id], references: [id], onDelete: Cascade)
+  creator     User         @relation("SickDayCreator", fields: [created_by], references: [id])
+  medications Medication[]
 
   @@index([family_id, status])
   @@index([person_id])
 }
 
 model Medication {
-  id              String    @id @default(cuid())
-  sick_day_id     String?
-  family_id       String
-  person_id       String
-  name            String
-  dosage          String
-  schedule        String
-  next_dose_at    DateTime?
-  last_dose_at    DateTime?
-  active          Boolean   @default(true)
-  notes           String?
-  created_by      String
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  sick_day_id  String?
+  family_id    String
+  person_id    String
+  name         String
+  dosage       String
+  schedule     String
+  next_dose_at DateTime?
+  last_dose_at DateTime?
+  active       Boolean   @default(true)
+  notes        String?
+  created_by   String
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
 
-  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person          User      @relation("MedicationPerson", fields: [person_id], references: [id], onDelete: Cascade)
-  sick_day        SickDay?  @relation(fields: [sick_day_id], references: [id], onDelete: SetNull)
-  creator         User      @relation("MedicationCreator", fields: [created_by], references: [id])
+  family   Family   @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person   User     @relation("MedicationPerson", fields: [person_id], references: [id], onDelete: Cascade)
+  sick_day SickDay? @relation(fields: [sick_day_id], references: [id], onDelete: SetNull)
+  creator  User     @relation("MedicationCreator", fields: [created_by], references: [id])
 
   @@index([family_id, active])
   @@index([person_id])
 }
-

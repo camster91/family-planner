@@ -663,7 +663,7 @@ export default function CalendarView({
       if (!res.ok) throw new Error(result.error || 'Failed to save event')
       router.refresh()
     },
-    [],
+    [router],
   )
 
   const handleDeleteEvent = useCallback(async (id: string) => {
@@ -677,7 +677,7 @@ export default function CalendarView({
       throw new Error(result.error || 'Failed to delete')
     }
     router.refresh()
-  }, [])
+  }, [router])
 
   const handleCompleteChore = useCallback(async (choreId: string, completed: boolean) => {
     if (completed) {
@@ -692,7 +692,7 @@ export default function CalendarView({
       }
     }
     router.refresh()
-  }, [])
+  }, [router])
 
   const openAddModal = useCallback((prefilledDate?: Date) => {
     setModal({ open: true, event: null, prefilledDate: prefilledDate || null })

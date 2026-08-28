@@ -1,4 +1,5 @@
 import * as React from 'react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 /**
@@ -45,9 +46,11 @@ export function Avatar({
 
   if (src) {
     return (
-      <img
+      <Image
         src={src}
         alt={name}
+        width={80}
+        height={80}
         className={cn('rounded-full object-cover shrink-0', sizeClass, className)}
       />
     )

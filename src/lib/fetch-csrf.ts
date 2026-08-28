@@ -21,7 +21,6 @@ function getCsrfToken(): string | null {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __csrfPatched: boolean | undefined
 }
 
