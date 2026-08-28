@@ -1,15 +1,20 @@
 # Family Planner — Status Update
 
+> **ARCHIVED:** Replaced by [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+> on 2026-08-28. Retained only for historical context.
+
 **Date:** 2026-06-06
 **Status:** Production-ready (gauntlet pass 1 in progress)
 
 ## Current State
 
 ### Schema
+
 - **26 models** in `prisma/schema.prisma`
 - `Family.features` JSON column for per-family feature flags
 
 ### Features
+
 - **20 features** total (15 existing + 5 new)
 - 5 new features shipped (2026-06-06):
   - Emergency contacts (core-adj, default on)
@@ -20,12 +25,14 @@
   - 3 stub→real: Meals, Notes, Anniversaries (API routes now wired)
 
 ### Recent Work
+
 - Phase 1 audit (4-agent: code + docs + flow + live)
 - 8 P0 fixes (security + data integrity)
 - 5 new features (emergency, sick-days, handoff, wishlist, travel)
 - Meals/Notes/Anniversaries: stub UI → real API routes
 
 ### Live URL
+
 **https://family.ashbi.ca**
 
 ## Quality Bar

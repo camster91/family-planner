@@ -1,9 +1,13 @@
 # Family Planner - Phase 1 Implementation
 
+> **ARCHIVED:** Replaced by [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+> on 2026-08-28. Retained only for historical context.
+
 > ⚠️ **STALE — See finish plan:** `~/.hermes/plans/family-planner-finish-plan-2026-06-06.md`
 > This document describes the February 2026 state (Supabase + Vercel). The app has since migrated to Postgres + JWT + Coolify.
 
 ## Phase 1 Overview
+
 **Duration:** Weeks 1-8  
 **Goal:** MVP Web App Launch  
 **Status:** Week 1-2 Development Started  
@@ -12,6 +16,7 @@
 ## What's Been Built (Week 1-2)
 
 ### ✅ Core Infrastructure
+
 - **Next.js 14** project with TypeScript and Tailwind CSS
 - **Supabase integration** for authentication, database, and real-time
 - **Authentication middleware** with protected routes
@@ -19,6 +24,7 @@
 - **Project structure** with organized directories
 
 ### ✅ Authentication & User Management
+
 - **Login page** with email/password and magic link
 - **Registration page** with user profile creation
 - **Protected dashboard** layout with navigation
@@ -26,12 +32,14 @@
 - **User profiles** with name, role, family association
 
 ### ✅ Family Management
+
 - **Family creation** flow for new users
 - **Family dashboard** with member management
 - **Family stats** and overview
 - **Role-based permissions** (parent/child/teen)
 
 ### ✅ Chore Management (MVP)
+
 - **Chore creation** with title, description, points, due dates
 - **Chore assignment** to family members
 - **Chore list** with status tracking (pending, in progress, completed)
@@ -39,18 +47,21 @@
 - **Points system** for rewards (foundation)
 
 ### ✅ Calendar & Events (MVP)
+
 - **Event creation** with title, description, dates/times
 - **Event list** view grouped by date
 - **Upcoming events** dashboard widget
 - **Basic calendar** interface
 
 ### ✅ Family Communication (MVP)
+
 - **Real-time messaging** between family members
 - **Message history** with sender info
 - **Unread message** tracking
 - **Family chat** interface
 
 ### ✅ Settings & Preferences
+
 - **User profile** editing
 - **Notification preferences**
 - **Theme selection** (light/dark/auto)
@@ -59,6 +70,7 @@
 ## Database Schema Implemented
 
 ### Core Tables
+
 1. `families` - Family groups with subscription tiers
 2. `users` - Family members with roles (extends Supabase auth)
 3. `chores` - Chores with assignment, points, status
@@ -68,6 +80,7 @@
 7. `notifications` - User notifications (foundation)
 
 ### Security Features
+
 - **Row Level Security (RLS)** policies for all tables
 - **Role-based access control** (parents vs children)
 - **Family isolation** (users only see their own family data)
@@ -76,6 +89,7 @@
 ## Technical Architecture
 
 ### Frontend Stack
+
 - **Framework:** Next.js 14 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS with custom design system
@@ -84,6 +98,7 @@
 - **Forms:** Native React forms (Phase 1), React Hook Form ready
 
 ### Backend Stack
+
 - **Database:** PostgreSQL via Supabase
 - **Authentication:** Supabase Auth
 - **Real-time:** Supabase Realtime
@@ -91,6 +106,7 @@
 - **Hosting:** Vercel-ready configuration
 
 ### Key Features Implemented
+
 1. **Responsive Design** - Mobile-first, works on all devices
 2. **Real-time Updates** - Live messaging and notifications
 3. **User-friendly UI** - Clean, family-friendly interface
@@ -100,6 +116,7 @@
 ## Getting Started with Development
 
 ### 1. Set Up Supabase
+
 ```bash
 # 1. Create Supabase account at https://supabase.com
 # 2. Create new project
@@ -108,6 +125,7 @@
 ```
 
 ### 2. Configure Environment
+
 ```bash
 cd family-planner-app
 cp .env.example .env.local
@@ -115,17 +133,20 @@ cp .env.example .env.local
 ```
 
 ### 3. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 4. Run Development Server
+
 ```bash
 npm run dev
 # Open http://localhost:3000
 ```
 
 ### 5. Test the Application
+
 1. Register a new account
 2. Create a family
 3. Add family members (manually via database for now)
@@ -135,18 +156,21 @@ npm run dev
 ## Next Steps (Week 3-4)
 
 ### High Priority
+
 1. **Invitation System** - Email invites for family members
 2. **Chore Verification** - Parent approval for completed chores
 3. **Event Reminders** - Email/SMS notifications
 4. **Mobile Optimization** - Better mobile experience
 
 ### Medium Priority
+
 1. **Dashboard Widgets** - More useful stats and insights
 2. **Chore Categories** - Organize chores by room/type
 3. **Recurring Events** - Weekly/monthly repeating events
 4. **Message Attachments** - Photo sharing foundation
 
 ### Low Priority
+
 1. **Theme Implementation** - Dark mode support
 2. **Export Features** - Data export for chores/events
 3. **Print Functionality** - Printable chore charts
@@ -155,6 +179,7 @@ npm run dev
 ## Week 5-6 Focus (Communication & Polish)
 
 ### Planned Features
+
 1. **Announcements** - Pinned family messages
 2. **Photo Sharing** - Upload and view family photos
 3. **Voice Messages** - Record and send voice notes
@@ -164,6 +189,7 @@ npm run dev
 ## Week 7-8 Focus (Testing & Launch)
 
 ### Launch Preparation
+
 1. **Beta Testing** - Recruit test families
 2. **Bug Fixing** - Address issues from testing
 3. **Documentation** - User guides and help content
@@ -173,6 +199,7 @@ npm run dev
 ## Known Issues & Limitations
 
 ### Current Limitations
+
 1. **No email invites** - Family members must be added manually via database
 2. **Basic UI components** - Could benefit from shadcn/ui or similar
 3. **Limited error handling** - Basic error states implemented
@@ -180,6 +207,7 @@ npm run dev
 5. **Basic security** - RLS implemented but needs auditing
 
 ### Technical Debt
+
 1. **TypeScript strictness** - Some `any` types used
 2. **Code organization** - Could use more abstraction
 3. **Testing coverage** - No automated tests yet
@@ -188,18 +216,21 @@ npm run dev
 ## Success Metrics for Phase 1
 
 ### Technical Metrics
+
 - ✅ Page load time < 3 seconds
 - ✅ Zero critical security vulnerabilities
 - ✅ 99% uptime in testing
 - ✅ Mobile responsive on all screens
 
 ### User Experience Metrics
+
 - ✅ User can complete core flows in < 5 minutes
 - ✅ Chore completion rate > 80% in testing
 - ✅ User satisfaction score > 4/5
 - ✅ Zero confusion errors for test users
 
 ### Business Metrics (Post-Launch)
+
 - Target: 100 beta test families
 - Target: 80% weekly retention
 - Target: 40% feature adoption rate
@@ -208,6 +239,7 @@ npm run dev
 ## How to Contribute
 
 ### For Developers
+
 1. Fork the repository
 2. Create feature branch
 3. Follow existing code patterns
@@ -215,6 +247,7 @@ npm run dev
 5. Test thoroughly before PR
 
 ### For Testers
+
 1. Set up local development
 2. Test all user flows
 3. Report bugs with steps to reproduce
@@ -222,6 +255,7 @@ npm run dev
 5. Suggest improvements
 
 ### For Product Managers
+
 1. Review feature priorities
 2. Define user stories for Phase 2
 3. Coordinate beta testing
@@ -231,6 +265,7 @@ npm run dev
 ## Quick Start for Testing
 
 ### Test User Flows
+
 ```bash
 # 1. Register as parent
 # 2. Create family "The Smiths"
@@ -246,23 +281,27 @@ INSERT INTO users (id, email, name, role, family_id) VALUES
 ```
 
 ### Test Data Generation
+
 See `database/setup.sql` for sample data insertion (commented out).
 
 ## Support & Resources
 
 ### Documentation
+
 - `SETUP.md` - Detailed setup instructions
 - `README.md` - Project overview
 - Database schema in `prisma/schema.prisma`
 - Type definitions in `src/types/index.ts`
 
 ### Tools & Libraries
+
 - **Supabase Dashboard** - Database management
 - **Vercel** - Deployment platform
 - **GitHub** - Source control
 - **Figma** - Design mockups (planned)
 
 ### Contact
+
 - Development team: [To be assigned]
 - Product manager: [To be assigned]
 - Beta test coordinator: [To be assigned]
