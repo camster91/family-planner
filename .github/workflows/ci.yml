@@ -34,7 +34,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Generate Prisma client
         run: npx prisma generate
@@ -42,25 +42,17 @@ jobs:
           # Placeholder so prisma schema validation passes (no DB connection is made during generate)
           DATABASE_URL: postgresql://placeholder:***@localhost:5432/placeholder
 
-      - name: Type check (if configured)
-        run: |
-          if grep -q '"typecheck"\|"type-check"\|"tsc"' package.json; then
-            echo "Running typecheck..."
-            npm run typecheck || npm run type-check || npx tsc --noEmit
-          else
-            echo "No typecheck script found, skipping."
-          fi
-        continue-on-error: true
+      - name: Type check
+        run: npm run typecheck
 
-      - name: Lint (if configured)
-        run: |
-          if grep -q '"lint"' package.json; then
-            echo "Running lint..."
-            npm run lint
-          else
-            echo "No lint script found, skipping."
-          fi
-        continue-on-error: true
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci --runInBand --no-watchman
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Build
         run: npm run build

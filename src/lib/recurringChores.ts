@@ -99,11 +99,9 @@ export async function expandAllRecurringChores(familyId: string): Promise<number
     select: { id: true, frequency: true, assigned_to: true, created_by: true },
   })
 
-  let totalInserted = 0
-  for (const chore of recurringChores) {
-    const inserted = await expandRecurringChores(chore, familyId)
-    totalInserted += inserted
-  }
+  const insertedCounts = await Promise.all(
+    recurringChores.map((chore) => expandRecurringChores(chore, familyId))
+  )
 
-  return totalInserted
+  return insertedCounts.reduce((total, inserted) => total + inserted, 0)
 }

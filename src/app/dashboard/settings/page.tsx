@@ -202,10 +202,11 @@ export default function SettingsPage() {
             <form onSubmit={handleSaveProfile} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileName" className="block text-sm font-medium text-gray-700 mb-2">
                     Full Name
                   </label>
                   <input
+                    id="profileName"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -214,10 +215,11 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileEmail" className="block text-sm font-medium text-gray-700 mb-2">
                     Email Address
                   </label>
                   <input
+                    id="profileEmail"
                     type="email"
                     value={email}
                     disabled
@@ -230,10 +232,11 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileRole" className="block text-sm font-medium text-gray-700 mb-2">
                     Role
                   </label>
                   <input
+                    id="profileRole"
                     type="text"
                     value={role}
                     disabled
@@ -242,10 +245,11 @@ export default function SettingsPage() {
                   <p className="mt-1 text-xs text-gray-500">Role is set by family admin</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="profileAge" className="block text-sm font-medium text-gray-700 mb-2">
                     Age (Optional)
                   </label>
                   <input
+                    id="profileAge"
                     type="number"
                     min="1"
                     max="120"
@@ -374,7 +378,9 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
             <select
+              id="preferredLanguage"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               className="input-field w-full"
