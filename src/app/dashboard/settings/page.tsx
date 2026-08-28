@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database } from 'lucide-react'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -414,6 +414,16 @@ export default function SettingsPage() {
                 <div>
                   <div className="font-medium">Features</div>
                   <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                </div>
+              </Link>
+              <Link
+                href="/dashboard/settings/imports"
+                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+              >
+                <Database className="w-4 h-4 text-violet-600" />
+                <div>
+                  <div className="font-medium">Import family apps</div>
+                  <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
                 </div>
               </Link>
               <button
