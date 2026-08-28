@@ -131,6 +131,7 @@ model Family {
   ingredients        Ingredient[]
   meal_plans         MealPlan[]
   shopping_lists     ShoppingList[]
+  finance_records    FinancialArchiveRecord[]
 }
 
 model Chore {
@@ -345,6 +346,21 @@ model ShoppingItem {
   shopping_list ShoppingList @relation(fields: [shopping_list_id], references: [id], onDelete: Cascade)
 
   @@index([shopping_list_id, checked])
+}
+
+model FinancialArchiveRecord {
+  id           String   @id @default(cuid())
+  family_id    String
+  source_app   String
+  source_model String
+  source_id    String
+  payload      Json
+  created_at   DateTime @default(now())
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@unique([family_id, source_app, source_model, source_id])
+  @@index([family_id, source_model])
 }
 
 model Habit {
@@ -650,6 +666,7 @@ model Transaction {
   list_item_id       String? // link to shopping list purchase
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
+  import_metadata    Json?
 
   // Relations
   family   Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
@@ -664,15 +681,16 @@ model Transaction {
 }
 
 model BudgetCategory {
-  id           String   @id @default(cuid())
-  family_id    String
-  name         String
-  icon         String   @default("📦")
-  color        String   @default("#6B7280")
-  type         String   @default("expense") // 'income' or 'expense'
-  budget_limit Float?
-  created_by   String
-  created_at   DateTime @default(now())
+  id              String   @id @default(cuid())
+  family_id       String
+  name            String
+  icon            String   @default("📦")
+  color           String   @default("#6B7280")
+  type            String   @default("expense") // 'income' or 'expense'
+  budget_limit    Float?
+  created_by      String
+  created_at      DateTime @default(now())
+  import_metadata Json?
 
   // Relations
   family       Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
