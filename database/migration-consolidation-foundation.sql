@@ -116,4 +116,3 @@ SELECT
   'legacy:' || c."id", c."created_at", CURRENT_TIMESTAMP
 FROM "Chore" c
 ON CONFLICT ("chore_id", "assigned_to", "due_date") DO NOTHING;
-
