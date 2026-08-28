@@ -42,10 +42,10 @@ export const deleteChoreSchema = z.object({
 // Events
 export const createEventSchema = z.object({
   title: z.string().min(1).max(200).trim(),
-  description: z.string().max(1000).trim().optional(),
+  description: z.string().max(1000).trim().nullable().optional(),
   start_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start time'),
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
-  location: z.string().max(200).trim().optional(),
+  location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).default('other'),
 })
 
@@ -150,10 +150,10 @@ export const updateChoreSchema = z.object({
 export const updateEventSchema = z.object({
   eventId: z.string().min(1),
   title: z.string().min(1).max(200).trim().optional(),
-  description: z.string().max(1000).trim().optional(),
+  description: z.string().max(1000).trim().nullable().optional(),
   start_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start time').optional(),
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
-  location: z.string().max(200).trim().optional(),
+  location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).optional(),
 })
 

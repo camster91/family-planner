@@ -4,17 +4,21 @@
 
 **Live:** https://family.ashbi.ca
 
+**Product and release source of truth:** [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+
 20 features, all gated by per-family opt-in flags. Built for parents managing households with kids of all ages.
 
 ## Features
 
 ### Core (always on)
+
 - **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly). XP points + streak tracking.
 - **Family Calendar** — events with dates, times, locations. Shared across all family members.
 - **Shared Lists** — shopping, to-do, meal plan, wishlist. Real-time sync.
 - **Family Management** — create/join family, invite members, role-based access.
 
 ### Planning (opt-in, on by default)
+
 - **Meal Planning** — weekly meal calendar with breakfast/lunch/dinner slots.
 - **Notes** — pinned family notes, color-coded.
 - **Birthdays & Anniversaries** — track important dates with countdown.
@@ -25,6 +29,7 @@
 - **Analytics** — weekly completion stats, leaderboard, streaks.
 
 ### Family Life (opt-in, off by default)
+
 - **Locations** — save home, school, work with addresses.
 - **Pickups** — coordinate who is picking up whom.
 - **Allowance** — track IOUs and weekly allowance.
@@ -33,20 +38,21 @@
 - **Travel Mode** — mute notifications + shift schedule by timezone.
 
 ### Emergency (always on)
+
 - **Emergency Contacts** — printable fridge card with contacts, allergies, medications.
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| Framework | Next.js 14 (App Router, standalone output) |
-| Language | TypeScript (strict mode) |
-| Database | PostgreSQL via Prisma 7 ORM |
-| Authentication | Self-hosted JWT (bcryptjs + jsonwebtoken) |
-| Styling | Tailwind CSS 3.4 (Apple HIG design system) |
-| State | Zustand |
-| Forms | React Hook Form + Zod validation |
-| Deployment | Docker + Coolify |
+| Category       | Technology                                 |
+| -------------- | ------------------------------------------ |
+| Framework      | Next.js 14 (App Router, standalone output) |
+| Language       | TypeScript (strict mode)                   |
+| Database       | PostgreSQL via Prisma 7 ORM                |
+| Authentication | Self-hosted JWT (bcryptjs + jsonwebtoken)  |
+| Styling        | Tailwind CSS 3.4 (Apple HIG design system) |
+| State          | Zustand                                    |
+| Forms          | React Hook Form + Zod validation           |
+| Deployment     | Docker + Coolify                           |
 
 ## Prerequisites
 
@@ -73,20 +79,20 @@ Visit `http://localhost:3000`.
 
 ### Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `JWT_SECRET` | Secret key for JWT signing | Yes |
-| `NEXT_PUBLIC_APP_URL` | App URL (default `http://localhost:3000`) | No |
-| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No |
+| Variable               | Description                                 | Required |
+| ---------------------- | ------------------------------------------- | -------- |
+| `DATABASE_URL`         | PostgreSQL connection string                | Yes      |
+| `JWT_SECRET`           | Secret key for JWT signing                  | Yes      |
+| `NEXT_PUBLIC_APP_URL`  | App URL (default `http://localhost:3000`)   | No       |
+| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No       |
 
 ## User Roles
 
-| Role | Access |
-|------|--------|
+| Role       | Access                                                                             |
+| ---------- | ---------------------------------------------------------------------------------- |
 | **Parent** | Full access — create/verify chores, manage family, toggle features, view analytics |
-| **Child** | Kid mode — see today's missions, complete chores, claim rewards |
-| **Teen** | Same kid mode as child (teen UI is cosmetic-only in current version) |
+| **Child**  | Kid mode — see today's missions, complete chores, claim rewards                    |
+| **Teen**   | Same kid mode as child (teen UI is cosmetic-only in current version)               |
 
 ## Development
 
@@ -152,8 +158,11 @@ See `DEPLOYMENT.md` for detailed Coolify deployment instructions.
 ## Testing
 
 ```bash
+npx prisma generate  # required after a clean install
 npm run type-check   # Must pass before PR
+npm test             # Unit and contract tests
 npm run build        # Must succeed before deploy
+npm run verify:app   # Complete application gate in release order
 ```
 
 ## License

@@ -26,6 +26,9 @@ function WishlistContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [deletingItem, setDeletingItem] = useState<WishlistItem | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [userRole, setUserRole] = useState<UserRole>('child')
   const [submitting, setSubmitting] = useState(false)
@@ -104,31 +107,49 @@ function WishlistContent() {
     await fetchItems()
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('wishlist.cancel') + '?')) return
-    const res = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' })
+  const handleDelete = async () => {
+    if (!deletingItem) return
+    setSubmitting(true)
+    const res = await fetch(`/api/wishlist/${deletingItem.id}`, { method: 'DELETE' })
     if (!res.ok) {
       const err = await res.json()
       alert(err.error || 'Error')
+      setSubmitting(false)
       return
     }
     await fetchItems()
+    setDeletingItem(null)
+    setSubmitting(false)
   }
 
-  const handleEditTitle = async (item: WishlistItem) => {
-    const newTitle = window.prompt(t('wishlist.wishTitle'), item.title)
-    if (!newTitle?.trim() || newTitle === item.title) return
-    const res = await fetch(`/api/wishlist/${item.id}`, {
+  const openEditModal = (item: WishlistItem) => {
+    setEditingItem(item)
+    setEditTitle(item.title)
+  }
+
+  const handleEditTitle = async () => {
+    if (!editingItem || !editTitle.trim()) return
+    if (editTitle.trim() === editingItem.title) {
+      setEditingItem(null)
+      return
+    }
+
+    setSubmitting(true)
+    const res = await fetch(`/api/wishlist/${editingItem.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle.trim() }),
+      body: JSON.stringify({ title: editTitle.trim() }),
     })
     if (!res.ok) {
       const err = await res.json()
       alert(err.error || 'Error')
+      setSubmitting(false)
       return
     }
     await fetchItems()
+    setEditingItem(null)
+    setEditTitle('')
+    setSubmitting(false)
   }
 
   const isParent = userRole === 'parent'
@@ -268,7 +289,7 @@ function WishlistContent() {
                       {item.requested_by === userId && (
                         <>
                           <button
-                            onClick={() => handleEditTitle(item)}
+                            onClick={() => openEditModal(item)}
                             className="btn-ghost p-1.5 rounded-lg"
                             title={t('wishlist.edit')}
                           >
@@ -278,7 +299,7 @@ function WishlistContent() {
                             </svg>
                           </button>
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => setDeletingItem(item)}
                             className="btn-ghost p-1.5 rounded-lg text-red-400"
                             title={t('wishlist.delete')}
                           >
@@ -365,6 +386,89 @@ function WishlistContent() {
                   className="flex-1 btn-filled py-3 rounded-xl text-body font-semibold disabled:opacity-50"
                 >
                   {submitting ? '...' : t('wishlist.save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Wish Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-wish-title"
+            className="bg-[var(--surface-elevated)] rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[var(--surface-separator)]">
+              <h2 id="edit-wish-title" className="text-title-3 font-semibold">{t('wishlist.edit')}</h2>
+              <button onClick={() => setEditingItem(null)} className="btn-ghost p-2 rounded-full" aria-label={t('wishlist.cancel')}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label htmlFor="edit-wish-name" className="text-callout font-medium block mb-1.5">
+                  {t('wishlist.wishTitle')} *
+                </label>
+                <input
+                  id="edit-wish-name"
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setEditingItem(null)}
+                  className="flex-1 btn-ghost py-3 rounded-xl text-body font-semibold"
+                >
+                  {t('wishlist.cancel')}
+                </button>
+                <button
+                  onClick={handleEditTitle}
+                  disabled={submitting || !editTitle.trim()}
+                  className="flex-1 btn-filled py-3 rounded-xl text-body font-semibold disabled:opacity-50"
+                >
+                  {submitting ? '...' : t('wishlist.save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Wish Confirmation */}
+      {deletingItem && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-wish-title"
+            aria-describedby="delete-wish-description"
+            className="bg-[var(--surface-elevated)] rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+          >
+            <div className="p-5 space-y-3">
+              <h2 id="delete-wish-title" className="text-title-3 font-semibold">{t('wishlist.delete')}</h2>
+              <p id="delete-wish-description" className="text-subhead text-label-secondary">
+                {deletingItem.title}
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setDeletingItem(null)}
+                  className="flex-1 btn-ghost py-3 rounded-xl text-body font-semibold"
+                >
+                  {t('wishlist.cancel')}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={submitting}
+                  className="flex-1 rounded-xl py-3 text-body font-semibold bg-red-500 text-white disabled:opacity-50"
+                >
+                  {submitting ? '...' : t('wishlist.delete')}
                 </button>
               </div>
             </div>
