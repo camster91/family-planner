@@ -22,6 +22,19 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
@@ -40,7 +53,7 @@ jobs:
         run: npx prisma generate
         env:
           # Placeholder so prisma schema validation passes (no DB connection is made during generate)
-          DATABASE_URL: postgresql://placeholder:***@localhost:5432/placeholder
+          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
 
       - name: Type check
         run: npm run typecheck
@@ -50,6 +63,13 @@ jobs:
 
       - name: Test
         run: npm test -- --ci --runInBand --no-watchman
+
+      - name: Verify database migrations are idempotent
+        run: |
+          node scripts/migrate.js
+          node scripts/migrate.js
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
