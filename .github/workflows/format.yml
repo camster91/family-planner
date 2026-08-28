@@ -1,6 +1,6 @@
 name: Format
 
-# Format-check workflow. Verifies `npm run format` produces no changes.
+# Format-check workflow. Uses Prettier's read-only check mode.
 # Fails the build if any file would be reformatted.
 
 on:
@@ -38,7 +38,6 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Run format check
-
-        run: npm run format
+        run: npm run format:check
         env:
           CI: true

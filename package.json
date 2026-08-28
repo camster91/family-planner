@@ -17,6 +17,7 @@
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
+    "format:check": "prettier --check .github/workflows/ci.yml docs/CONSOLIDATION_PLAN.md docs/ISSUE_TRIAGE.md prisma.config.ts \"src/lib/imports/**/*.ts\" \"src/app/api/admin/imports/**/*.ts\" \"src/app/dashboard/settings/imports/**/*.tsx\"",
     "prepare": "husky install",
     "validate": "npm run type-check && npx prisma validate",
     "health": "curl -f http://localhost:3000/api/health || exit 1"

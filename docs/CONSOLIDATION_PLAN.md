@@ -12,11 +12,11 @@ inputs and UX references, not packages to embed wholesale.
 
 ## Source map
 
-| Source | Preserve | Do not duplicate |
-| --- | --- | --- |
-| ChoreChamps | Assignments, habits, badges, redemptions, family goals, push subscriptions, child-first UX | NextAuth, Parent/Kid identities, Family |
-| Meal Planner | Recipes, ingredients, servings, meal-plan entries, generated shopping lists | SQLite, user-only ownership, JWT auth, shopping-list tables |
-| Budget App | Accounts, budgets, bills, goals, daily allowance, no-spend days, receipt OCR | Household/User auth, transactions, categories, wishlist |
+| Source       | Preserve                                                                                   | Do not duplicate                                            |
+| ------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| ChoreChamps  | Assignments, habits, badges, redemptions, family goals, push subscriptions, child-first UX | NextAuth, Parent/Kid identities, Family                     |
+| Meal Planner | Recipes, ingredients, servings, meal-plan entries, generated shopping lists                | SQLite, user-only ownership, JWT auth, shopping-list tables |
+| Budget App   | Accounts, budgets, bills, goals, daily allowance, no-spend days, receipt OCR               | Household/User auth, transactions, categories, wishlist     |
 
 ## Architecture rules
 
