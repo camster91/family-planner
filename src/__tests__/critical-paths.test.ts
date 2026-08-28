@@ -147,6 +147,8 @@ describe("Gamification (client-safe)", () => {
 describe("Validations", () => {
   const {
     createRewardSchema,
+    createEventSchema,
+    updateEventSchema,
     registerSchema,
     loginSchema,
     completeChoreSchema,
@@ -198,6 +200,26 @@ describe("Validations", () => {
       photoUrl: null,
     });
     expect(result.success).toBe(true);
+  });
+
+  it("event schemas accept null optional text sent by calendar forms", () => {
+    expect(
+      createEventSchema.safeParse({
+        title: "Family dinner",
+        description: null,
+        location: null,
+        start_time: "2026-09-12T14:45",
+        end_time: "2026-09-12T15:30",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      updateEventSchema.safeParse({
+        eventId: "event-1",
+        description: null,
+        location: null,
+      }).success,
+    ).toBe(true);
   });
 });
 
