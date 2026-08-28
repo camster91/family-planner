@@ -7,7 +7,7 @@ Snapshot reviewed: 2026-08-28. GitHub reported 13 open issues.
 | #85 release validation | P0 | Release checks previously suppressed failures | Active umbrella; Wave 0 |
 | #84 reliable release plan | P0 | Existing shipping plan remains directionally correct | Expanded by consolidation plan |
 | #60 recurring chore serial awaits | P1 | `expandAllRecurringChores` awaited each expansion serially | Fixed locally; verify tests/review |
-| #58 migration failure swallowed | P0 | entrypoint continued after migration error | Fixed locally; verify container test |
+| #58 migration failure swallowed | P0 | entrypoint and migration runner continued after errors; image omitted feature SQL | Fixed locally; verify container test |
 | #57 CI checks non-blocking | P0 | multiple workflows used `continue-on-error` | Fixed locally; verify GitHub run |
 | #56 tracked `.env.production` | P0 | template was tracked at production filename | Replaced locally with ignored template; audit history still required |
 | #55 strict TypeScript overridden | P0 | `noImplicitAny` was false | Fixed locally; strict build passes |
@@ -20,4 +20,3 @@ Snapshot reviewed: 2026-08-28. GitHub reported 13 open issues.
 
 No issue is considered closed solely from static inspection. Each code-fixed
 item requires its listed verification evidence before the GitHub issue closes.
-

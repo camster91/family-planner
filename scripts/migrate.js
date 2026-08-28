@@ -574,15 +574,8 @@ async function migrate() {
         for (const file of files) {
           const filePath = path.join(migrationsDir, file)
           const sql = fs.readFileSync(filePath, 'utf8')
-          try {
-            await dbClient.query(sql)
-            console.log(`  ✓ ${file}`)
-          } catch (err) {
-            // Don't crash the container on a single migration failure —
-            // the bundled CREATE_TABLES_SQL above has already ensured the
-            // base schema is in place. Log and continue so the app starts.
-            console.error(`  ✗ ${file}: ${err.message}`)
-          }
+          await dbClient.query(sql)
+          console.log(`  ✓ ${file}`)
         }
       }
     }
