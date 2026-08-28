@@ -57,12 +57,7 @@ export default function TransactionForm({ onClose, onSuccess, initialData }: Tra
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // Fetch categories
-  useEffect(() => {
-    fetchCategories()
-  }, [])
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch(`/api/budget/categories?type=${type}`)
       if (res.ok) {
@@ -72,12 +67,12 @@ export default function TransactionForm({ onClose, onSuccess, initialData }: Tra
     } catch (err) {
       console.error('Failed to fetch categories:', err)
     }
-  }
+  }, [type])
 
   // Re-fetch when type changes
   useEffect(() => {
     fetchCategories()
-  }, [type])
+  }, [fetchCategories])
 
   const filteredCategories = categories.filter((c) => c.type === type)
 
