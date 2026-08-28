@@ -1,4 +1,5 @@
 import { planChoreChampsImport } from '../chore-champs'
+import { importChoreChamps } from '../persist-chore-champs'
 
 const source = {
   version: '1',
@@ -60,5 +61,40 @@ describe('planChoreChampsImport', () => {
 
     expect(() => planChoreChampsImport(invalid, { 'kid-1': 'user-1' })).toThrow()
   })
-})
 
+  it('plans habits, rewards, goals, and badges without importing source identities', () => {
+    const expanded = {
+      ...source,
+      habits: [{ id: 'habit-1', title: 'Read', points: 5, isActive: true, createdAt: '2026-08-01T00:00:00Z' }],
+      habitLogs: [{ id: 'log-1', habitId: 'habit-1', kidId: 'kid-1', loggedDate: '2026-08-28', loggedAt: '2026-08-28T12:00:00Z' }],
+      rewards: [{ id: 'reward-1', title: 'Movie', cost: 20, isActive: true, createdAt: '2026-08-01T00:00:00Z' }],
+      redemptions: [{ id: 'redemption-1', rewardId: 'reward-1', kidId: 'kid-1', points: 20, createdAt: '2026-08-28T13:00:00Z' }],
+      familyGoals: [{ id: 'goal-1', title: 'Team week', targetPoints: 100, currentPoints: 45, isActive: true, createdAt: '2026-08-01T00:00:00Z' }],
+      badges: [{ id: 'badge-1', name: 'Starter', description: 'First chore', icon: 'star', requirement: 'FIRST_CHORE', createdAt: '2026-08-01T00:00:00Z' }],
+      earnedBadges: [{ id: 'earned-1', badgeId: 'badge-1', kidId: 'kid-1', earnedAt: '2026-08-28T14:00:00Z' }],
+    }
+
+    const plan = planChoreChampsImport(expanded, { 'kid-1': 'user-1' })
+
+    expect(plan.habits).toHaveLength(1)
+    expect(plan.habitLogs[0]).toMatchObject({ sourceHabitId: 'habit-1', targetUserId: 'user-1' })
+    expect(plan.rewards[0]).toMatchObject({ name: 'Movie', cost: 20 })
+    expect(plan.redemptions[0]).toMatchObject({ sourceRewardId: 'reward-1', targetUserId: 'user-1' })
+    expect(plan.familyGoals[0]).toMatchObject({ targetPoints: 100, currentPoints: 45 })
+    expect(plan.badges[0].requirement).toEqual({ type: 'legacy', value: 'FIRST_CHORE' })
+    expect(plan.earnedBadges[0]).toMatchObject({ sourceBadgeId: 'badge-1', targetUserId: 'user-1' })
+    expect(plan.skippedRecords).toEqual([])
+  })
+
+  it('defaults to a database-free dry run', async () => {
+    const result = await importChoreChamps(source, {
+      familyId: 'family-1',
+      startedBy: 'parent-1',
+      kidToUserId: { 'kid-1': 'user-1' },
+    })
+
+    expect(result.jobId).toBeNull()
+    expect(result.summary.created).toEqual({})
+    expect(result.plan.assignments).toHaveLength(1)
+  })
+})

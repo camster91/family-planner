@@ -69,6 +69,13 @@ model User {
   completed_chore_assignments   ChoreAssignment[]  @relation("ChoreAssignmentCompleter")
   approved_chore_assignments    ChoreAssignment[]  @relation("ChoreAssignmentApprover")
   import_jobs                   ImportJob[]        @relation("ImportJobStarter")
+  created_habits                Habit[]            @relation("HabitCreator")
+  habit_logs                    HabitLog[]
+  earned_badges                 EarnedBadge[]
+  reward_redemptions            RewardRedemption[] @relation("RewardRedemptionRequester")
+  approved_reward_redemptions   RewardRedemption[] @relation("RewardRedemptionApprover")
+  created_family_goals          FamilyGoal[]       @relation("FamilyGoalCreator")
+  push_subscriptions            PushSubscription[]
 
   @@index([family_id])
 }
@@ -110,6 +117,13 @@ model Family {
   chore_assignments  ChoreAssignment[]
   import_jobs        ImportJob[]
   imported_records   ImportedRecord[]
+  habits             Habit[]
+  habit_logs         HabitLog[]
+  badge_definitions  BadgeDefinition[]
+  earned_badges      EarnedBadge[]
+  reward_redemptions RewardRedemption[]
+  family_goals       FamilyGoal[]
+  push_subscriptions PushSubscription[]
 }
 
 model Chore {
@@ -214,6 +228,133 @@ model ImportedRecord {
   @@unique([family_id, source_app, source_model, source_id])
   @@index([import_job_id])
   @@index([family_id, target_model, target_id])
+}
+
+model Habit {
+  id          String   @id @default(cuid())
+  family_id   String
+  title       String
+  description String?
+  icon        String?
+  points      Int      @default(5)
+  is_active   Boolean  @default(true)
+  created_by  String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  family  Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User       @relation("HabitCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  logs    HabitLog[]
+
+  @@index([family_id, is_active])
+}
+
+model HabitLog {
+  id             String   @id @default(cuid())
+  family_id      String
+  habit_id       String
+  user_id        String
+  logged_date    DateTime @db.Date
+  logged_at      DateTime @default(now())
+  points_awarded Int      @default(0)
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  habit  Habit  @relation(fields: [habit_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([habit_id, user_id, logged_date])
+  @@index([family_id, logged_date])
+  @@index([user_id, logged_at])
+}
+
+model BadgeDefinition {
+  id          String   @id @default(cuid())
+  family_id   String?
+  name        String
+  description String
+  icon        String
+  requirement Json
+  created_at  DateTime @default(now())
+
+  family Family?       @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  earned EarnedBadge[]
+
+  @@unique([family_id, name])
+  @@index([family_id])
+}
+
+model EarnedBadge {
+  id        String   @id @default(cuid())
+  family_id String
+  badge_id  String
+  user_id   String
+  earned_at DateTime @default(now())
+
+  family Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  badge  BadgeDefinition @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([badge_id, user_id])
+  @@index([family_id, earned_at])
+  @@index([user_id])
+}
+
+model RewardRedemption {
+  id           String    @id @default(cuid())
+  family_id    String
+  reward_id    String
+  requested_by String
+  points       Int
+  status       String    @default("requested")
+  requested_at DateTime  @default(now())
+  approved_by  String?
+  approved_at  DateTime?
+  fulfilled_at DateTime?
+  notes        String?
+
+  family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  reward    Reward @relation(fields: [reward_id], references: [id], onDelete: Cascade)
+  requester User   @relation("RewardRedemptionRequester", fields: [requested_by], references: [id], onDelete: Cascade)
+  approver  User?  @relation("RewardRedemptionApprover", fields: [approved_by], references: [id], onDelete: SetNull)
+
+  @@index([family_id, status])
+  @@index([requested_by, requested_at])
+  @@index([reward_id])
+}
+
+model FamilyGoal {
+  id             String   @id @default(cuid())
+  family_id      String
+  title          String
+  description    String?
+  target_points  Int
+  current_points Int      @default(0)
+  reward         String?
+  is_active      Boolean  @default(true)
+  created_by     String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("FamilyGoalCreator", fields: [created_by], references: [id], onDelete: Restrict)
+
+  @@index([family_id, is_active])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  family_id  String
+  user_id    String
+  endpoint   String
+  keys       Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, endpoint])
+  @@index([family_id])
 }
 
 model Event {
@@ -355,6 +496,7 @@ model Reward {
   cost        Int       @default(10) // XP/points required to claim
   icon        String? // emoji or icon identifier
   status      String    @default("available") // 'available', 'claimed', 'approved', 'redeemed'
+  is_active   Boolean   @default(true)
   created_by  String
   claimed_by  String?
   claimed_at  DateTime?
@@ -365,10 +507,11 @@ model Reward {
   created_at  DateTime  @default(now())
 
   // Relations
-  family   Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator  User   @relation("CreatedRewards", fields: [created_by], references: [id])
-  claimer  User?  @relation("ClaimedRewards", fields: [claimed_by], references: [id])
-  approver User?  @relation("ApprovedRewards", fields: [approved_by], references: [id])
+  family      Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator     User               @relation("CreatedRewards", fields: [created_by], references: [id])
+  claimer     User?              @relation("ClaimedRewards", fields: [claimed_by], references: [id])
+  approver    User?              @relation("ApprovedRewards", fields: [approved_by], references: [id])
+  redemptions RewardRedemption[]
 
   @@index([family_id])
   @@index([family_id, status])
