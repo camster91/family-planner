@@ -23,7 +23,11 @@ export async function GET(request: NextRequest) {
     const userId = payload.userId
 
     // Fetch all data in parallel
-    const [user, family, chores, lists, messages, events, rewards, notifications, activities, transactions, projects] = await Promise.all([
+    const [
+      user, family, chores, lists, messages, events, rewards, notifications, activities,
+      transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
+      earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
+    ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
         select: {
@@ -92,6 +96,44 @@ export async function GET(request: NextRequest) {
         },
         include: { tasks: true },
       }),
+      prisma!.recipe.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        include: { ingredients: { include: { ingredient: true } } },
+      }),
+      prisma!.mealPlan.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        include: { entries: true },
+      }),
+      prisma!.shoppingList.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        include: { items: true },
+      }),
+      prisma!.habit.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+      }),
+      prisma!.habitLog.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+      }),
+      prisma!.earnedBadge.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        include: { badge: true },
+      }),
+      prisma!.rewardRedemption.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+      }),
+      prisma!.familyGoal.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+      }),
+      prisma!.importJob.findMany({
+        where: { family: { members: { some: { id: userId, role: 'parent' } } } },
+        select: {
+          id: true, source_app: true, source_version: true, status: true, dry_run: true,
+          started_at: true, completed_at: true, summary: true, error: true,
+        },
+      }),
+      prisma!.financialArchiveRecord.findMany({
+        where: { family: { members: { some: { id: userId, role: 'parent' } } } },
+      }),
     ])
 
     const exportData = {
@@ -107,6 +149,16 @@ export async function GET(request: NextRequest) {
       activities,
       transactions,
       projects,
+      recipes,
+      mealPlans,
+      shoppingLists,
+      habits,
+      habitLogs,
+      earnedBadges,
+      rewardRedemptions,
+      familyGoals,
+      importJobs,
+      financeArchive,
     }
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {

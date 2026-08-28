@@ -86,6 +86,11 @@ their archived data is retained and queryable until those screens are shipped.
 - `ImportJob` records run state and reconciliation summaries.
 - `ImportedRecord` provides source-to-target provenance and repeat-run idempotency.
 - Any rejected relationship appears in the reconciliation summary with a reason.
+- Parents invoke imports through `POST /api/admin/imports/{source}`. The request
+  contains `data`, optional `identityMap`, and optional `dryRun`; dry-run defaults
+  to true. `GET /api/admin/imports` returns the family's latest 50 import jobs.
+- The user portability export includes consolidated chore, meal, shopping, and
+  import data. Advanced finance archives are exported only to a parent.
 
 ## Wave 4: cutover
 
