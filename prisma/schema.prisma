@@ -76,6 +76,9 @@ model User {
   approved_reward_redemptions   RewardRedemption[] @relation("RewardRedemptionApprover")
   created_family_goals          FamilyGoal[]       @relation("FamilyGoalCreator")
   push_subscriptions            PushSubscription[]
+  created_recipes               Recipe[]           @relation("RecipeCreator")
+  created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
+  created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
 
   @@index([family_id])
 }
@@ -124,6 +127,10 @@ model Family {
   reward_redemptions RewardRedemption[]
   family_goals       FamilyGoal[]
   push_subscriptions PushSubscription[]
+  recipes            Recipe[]
+  ingredients        Ingredient[]
+  meal_plans         MealPlan[]
+  shopping_lists     ShoppingList[]
 }
 
 model Chore {
@@ -228,6 +235,116 @@ model ImportedRecord {
   @@unique([family_id, source_app, source_model, source_id])
   @@index([import_job_id])
   @@index([family_id, target_model, target_id])
+}
+
+model Recipe {
+  id           String   @id @default(cuid())
+  family_id    String
+  title        String
+  description  String?
+  instructions String?
+  prep_time    Int?
+  cook_time    Int?
+  servings     Int      @default(2)
+  image_url    String?
+  created_by   String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  family       Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator      User               @relation("RecipeCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  ingredients  RecipeIngredient[]
+  meal_entries MealPlanEntry[]
+
+  @@index([family_id, title])
+}
+
+model Ingredient {
+  id        String  @id @default(cuid())
+  family_id String
+  name      String
+  unit      String?
+
+  family             Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  recipe_ingredients RecipeIngredient[]
+
+  @@unique([family_id, name])
+}
+
+model RecipeIngredient {
+  id            String  @id @default(cuid())
+  recipe_id     String
+  ingredient_id String
+  amount        Float
+  unit          String?
+  note          String?
+
+  recipe     Recipe     @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
+
+  @@unique([recipe_id, ingredient_id])
+  @@index([ingredient_id])
+}
+
+model MealPlan {
+  id         String   @id @default(cuid())
+  family_id  String
+  name       String
+  start_date DateTime @db.Date
+  end_date   DateTime @db.Date
+  created_by String
+  created_at DateTime @default(now())
+
+  family  Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User            @relation("MealPlanCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  entries MealPlanEntry[]
+
+  @@index([family_id, start_date])
+}
+
+model MealPlanEntry {
+  id           String   @id @default(cuid())
+  meal_plan_id String
+  recipe_id    String
+  date         DateTime @db.Date
+  meal_type    String
+  servings     Int      @default(2)
+
+  meal_plan MealPlan @relation(fields: [meal_plan_id], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+
+  @@unique([meal_plan_id, date, meal_type])
+  @@index([recipe_id])
+}
+
+model ShoppingList {
+  id         String   @id @default(cuid())
+  family_id  String
+  name       String   @default("Shopping List")
+  created_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  family  Family         @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User           @relation("ShoppingListCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  items   ShoppingItem[]
+
+  @@index([family_id, created_at])
+}
+
+model ShoppingItem {
+  id               String  @id @default(cuid())
+  shopping_list_id String
+  ingredient_name  String
+  amount           Float?
+  unit             String?
+  category         String?
+  checked          Boolean @default(false)
+  recipe_id        String?
+
+  shopping_list ShoppingList @relation(fields: [shopping_list_id], references: [id], onDelete: Cascade)
+
+  @@index([shopping_list_id, checked])
 }
 
 model Habit {
