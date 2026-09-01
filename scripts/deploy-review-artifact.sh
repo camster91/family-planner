@@ -190,11 +190,12 @@ import sys
 from urllib.parse import quote
 
 user, password, database, host, _ = sys.stdin.buffer.read().split(b"\0", 4)
+authority = quote(user.decode(), safe="")
+if password:
+    authority += ":" + quote(password.decode(), safe="")
 print(
     "postgresql://"
-    + quote(user.decode(), safe="")
-    + ":"
-    + quote(password.decode(), safe="")
+    + authority
     + "@"
     + host.decode()
     + ":5432/"
@@ -202,7 +203,7 @@ print(
 )
 '
 )"
-if [[ -z "$review_database_url" || -z "$database_password" || -z "$database_host" ]]; then
+if [[ -z "$review_database_url" || -z "$database_user" || -z "$database_name" || -z "$database_host" ]]; then
   echo 'Could not construct the review QA database connection.' >&2
   exit 1
 fi
