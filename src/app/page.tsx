@@ -47,7 +47,7 @@ const FEATURES = [
 
 const TRUST_BADGES = [
   { icon: <Shield className="w-4 h-4" />, label: 'Privacy First' },
-  { icon: <Star className="w-4 h-4" />, label: 'Free Forever' },
+  { icon: <Star className="w-4 h-4" />, label: 'Free During Beta' },
   { icon: <Zap className="w-4 h-4" />, label: 'Any Device' },
 ]
 
