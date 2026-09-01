@@ -22,6 +22,7 @@
     "validate": "npm run type-check && npx prisma validate",
     "verify:app": "prisma generate && npm run typecheck && npm run lint && npm test -- --runInBand && npm run build && npm audit --omit=dev --audit-level=high",
     "verify:release": "bash scripts/ci-gate.sh",
+    "beta:scorecard": "node scripts/beta-scorecard.mjs",
     "health": "curl -f http://localhost:3000/api/health || exit 1"
   },
   "dependencies": {

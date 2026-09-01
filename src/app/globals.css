@@ -10,14 +10,14 @@
 @layer base {
   :root {
     /* === Surfaces (light mode) === */
-    --surface-base: #FFFFFF;
-    --surface-elevated: #FFFFFF;
-    --surface-grouped: #F2F2F7;          /* iOS grouped table bg */
-    --surface-grouped-secondary: #FFFFFF;
+    --surface-base: #ffffff;
+    --surface-elevated: #ffffff;
+    --surface-grouped: #f2f2f7; /* iOS grouped table bg */
+    --surface-grouped-secondary: #ffffff;
     --surface-fill: rgba(120, 120, 128, 0.12);
     --surface-fill-secondary: rgba(120, 120, 128, 0.08);
     --surface-separator: rgba(60, 60, 67, 0.12);
-    --surface-separator-opaque: #C6C6C8;
+    --surface-separator-opaque: #c6c6c8;
     --surface-overlay: rgba(0, 0, 0, 0.4);
 
     /* === Label (text) colors ===
@@ -29,7 +29,7 @@
     --label-secondary: rgba(60, 60, 67, 0.9);
     --label-tertiary: rgba(60, 60, 67, 0.75);
     --label-quaternary: rgba(60, 60, 67, 0.75);
-    --label-inverse: #FFFFFF;
+    --label-inverse: #ffffff;
 
     /* === Accent — system blue (calmer than the old teal)
        Used in 3 roles:
@@ -41,10 +41,10 @@
        light gray surfaces. Split into two tokens so each role has its
        own pass: --accent-text for text uses (lighter, more saturated),
        --accent-fill for filled buttons (darker, white text passes). */
-    --accent-text: #0040DD;
-    --accent-fill: #0035B5;
-    --accent-fill-hover: #0025A0;
-    --accent-fill-pressed: #001E80;
+    --accent-text: #0040dd;
+    --accent-fill: #0035b5;
+    --accent-fill-hover: #0025a0;
+    --accent-fill-pressed: #001e80;
     --accent-tint: rgba(0, 64, 221, 0.15);
     --accent-tint-strong: rgba(0, 64, 221, 0.22);
     /* Backwards-compat: --accent is the text variant. Existing components
@@ -55,11 +55,11 @@
     --accent-pressed: var(--accent-fill-pressed);
 
     /* === Semantic === */
-    --success: #34C759;
+    --success: #34c759;
     --success-tint: rgba(52, 199, 89, 0.15);
-    --warning: #FF9500;
+    --warning: #ff9500;
     --warning-tint: rgba(255, 149, 0, 0.15);
-    --danger: #FF3B30;
+    --danger: #ff3b30;
     --danger-tint: rgba(255, 59, 48, 0.12);
 
     /* === Family module tints (used for category glyphs + avatars) ===
@@ -67,23 +67,23 @@
        backgrounds hits WCAG 2.1 AA 4.5:1. The original
        Apple tints (#FF2D55, #5AC8FA, #FFCC00) are pretty but fail
        the contrast check. */
-    --tint-chore: #5856D6;               /* indigo */
-    --tint-calendar: #D70015;            /* red — darkened for AA */
-    --tint-lists: #1d6e30;               /* green — darkened further to hit 4.5:1 on white */
-    --tint-budget: #0040DD;              /* blue — darkened for AA */
-    --tint-messages: #C8003C;            /* pink — darkened for AA */
-    --tint-family: #8944AB;              /* purple — darkened for AA */
-    --tint-rewards: #8F5500;             /* orange — darkened further so white-on-bg AND text-on-white both pass */
-    --tint-projects: #0079A8;            /* sky — darkened for AA */
-    --tint-meals: #997A00;               /* yellow — darkened for AA */
+    --tint-chore: #5856d6; /* indigo */
+    --tint-calendar: #d70015; /* red — darkened for AA */
+    --tint-lists: #1d6e30; /* green — darkened further to hit 4.5:1 on white */
+    --tint-budget: #0040dd; /* blue — darkened for AA */
+    --tint-messages: #c8003c; /* pink — darkened for AA */
+    --tint-family: #8944ab; /* purple — darkened for AA */
+    --tint-rewards: #8f5500; /* orange — darkened further so white-on-bg AND text-on-white both pass */
+    --tint-projects: #0079a8; /* sky — darkened for AA */
+    --tint-meals: #997a00; /* yellow — darkened for AA */
 
     /* Dark-mode text-friendly variants of the tints. Used only for
        text color (e.g. text-[var(--tint-lists-text)] on dark surface).
        The light-mode tints above are too dark to read as text on a
        dark surface. Lighter variants give 4.5:1 on #1C1C1E.
        Use the same pattern as --accent-text vs --accent-fill. */
-    --tint-lists-text: #4ADE80;          /* green: 4.7:1 on #1C1C1E */
-    --tint-rewards-text: #FFB672;        /* orange: 6.4:1 on #1C1C1E */
+    --tint-lists-text: #4ade80; /* green: 4.7:1 on #1C1C1E */
+    --tint-rewards-text: #ffb672; /* orange: 6.4:1 on #1C1C1E */
 
     /* === Radius (Apple's 8/12/16/20/28 progression) === */
     --radius-sm: 8px;
@@ -97,8 +97,9 @@
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-    --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
+    --shadow-xl:
+      0 20px 48px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.06);
     --shadow-focus: 0 0 0 4px rgba(0, 122, 255, 0.24);
 
     /* === Motion — Apple spring physics === */
@@ -113,13 +114,13 @@
 
   .dark {
     --surface-base: #000000;
-    --surface-elevated: #1C1C1E;
+    --surface-elevated: #1c1c1e;
     --surface-grouped: #000000;
-    --surface-grouped-secondary: #1C1C1E;
+    --surface-grouped-secondary: #1c1c1e;
     --surface-fill: rgba(120, 120, 128, 0.24);
     --surface-fill-secondary: rgba(120, 120, 128, 0.16);
     --surface-separator: rgba(84, 84, 88, 0.45);
-    --surface-separator-opaque: #38383A;
+    --surface-separator-opaque: #38383a;
     --surface-overlay: rgba(0, 0, 0, 0.6);
 
     /* Dark mode: bumped secondary/tertiary/quarterly alpha for WCAG AA on #000 surface */
@@ -133,12 +134,12 @@
        --accent-fill (for button backgrounds, needs to be dark enough
        for white text to hit 4.5:1). The original Apple dark accent
        #0A84FF fails 4.5:1 in both directions. */
-    --accent-text: #6FA9FF;      /* light blue: 6.7:1 on #1C1C1E */
-    --accent-fill: #0050CC;      /* dark blue: 4.7:1 white-on-bg */
-    --accent-fill-hover: #0060E0;
-    --accent-fill-pressed: #0040AA;
+    --accent-text: #6fa9ff; /* light blue: 6.7:1 on #1C1C1E */
+    --accent-fill: #0050cc; /* dark blue: 4.7:1 white-on-bg */
+    --accent-fill-hover: #0060e0;
+    --accent-fill-pressed: #0040aa;
     --accent-tint: rgba(111, 169, 255, 0.18);
-    --accent-tint-strong: rgba(111, 169, 255, 0.30);
+    --accent-tint-strong: rgba(111, 169, 255, 0.3);
     --accent: var(--accent-text);
     --accent-hover: var(--accent-fill-hover);
     --accent-pressed: var(--accent-fill-pressed);
@@ -163,13 +164,18 @@
      Done as a global override rather than per-file to keep the diff small.
      Uses !important to beat Tailwind's @layer utilities which come
      later in the bundled CSS. */
-  .text-gray-500 { color: #5b5b62 !important; }
-  .text-green-600 { color: #1d7a3d !important; }
+  .text-gray-500 {
+    color: #5b5b62 !important;
+  }
+  .text-green-600 {
+    color: #1d7a3d !important;
+  }
 
   body {
     background: var(--surface-grouped);
     color: var(--label-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
       "Inter", "Segoe UI", system-ui, sans-serif;
     font-feature-settings: "ss01", "cv11";
     letter-spacing: -0.011em;
@@ -177,28 +183,89 @@
 
   /* SF Pro Display for large titles */
   .font-display {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-      "Inter", system-ui, sans-serif;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
+      sans-serif;
     letter-spacing: -0.022em;
   }
 
-  .safe-top { padding-top: env(safe-area-inset-top); }
-  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 @layer components {
   /* === Type scale (Apple HIG) === */
-  .text-large-title { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: -0.022em; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; }
-  .text-title-1 { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.022em; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; }
-  .text-title-2 { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.018em; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; }
-  .text-title-3 { font-size: 20px; line-height: 25px; font-weight: 600; }
-  .text-headline { font-size: 17px; line-height: 22px; font-weight: 600; }
-  .text-body { font-size: 17px; line-height: 22px; font-weight: 400; }
-  .text-callout { font-size: 16px; line-height: 21px; font-weight: 400; }
-  .text-subhead { font-size: 15px; line-height: 20px; font-weight: 400; }
-  .text-footnote { font-size: 13px; line-height: 18px; font-weight: 400; }
-  .text-caption-1 { font-size: 12px; line-height: 16px; font-weight: 400; }
-  .text-caption-2 { font-size: 11px; line-height: 13px; font-weight: 400; }
+  .text-large-title {
+    font-size: 34px;
+    line-height: 41px;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
+      sans-serif;
+  }
+  .text-title-1 {
+    font-size: 28px;
+    line-height: 34px;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
+      sans-serif;
+  }
+  .text-title-2 {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 700;
+    letter-spacing: -0.018em;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
+      sans-serif;
+  }
+  .text-title-3 {
+    font-size: 20px;
+    line-height: 25px;
+    font-weight: 600;
+  }
+  .text-headline {
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 600;
+  }
+  .text-body {
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 400;
+  }
+  .text-callout {
+    font-size: 16px;
+    line-height: 21px;
+    font-weight: 400;
+  }
+  .text-subhead {
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+  .text-footnote {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 400;
+  }
+  .text-caption-1 {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 400;
+  }
+  .text-caption-2 {
+    font-size: 11px;
+    line-height: 13px;
+    font-weight: 400;
+  }
 
   /* === Card === */
   .card-apple {
@@ -214,6 +281,13 @@
     background: var(--surface-elevated);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
+  }
+  /* Compatibility for screens not yet migrated to the Apple component names. */
+  .card {
+    background: var(--surface-elevated);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
   }
 
   /* === Buttons (iOS HIG) ===
@@ -231,11 +305,53 @@
     color: #fff;
     font-weight: 600;
     font-size: 17px;
-    transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
+    transition:
+      transform 200ms var(--spring-default),
+      background 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
   }
-  .btn-filled:active { transform: scale(0.97); background: var(--accent-fill-pressed); }
-  .btn-filled:disabled { opacity: 0.4; pointer-events: none; }
-  .btn-filled:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .btn-filled:active {
+    transform: scale(0.97);
+    background: var(--accent-fill-pressed);
+  }
+  .btn-filled:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .btn-filled:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.25rem;
+    background: var(--accent-fill);
+    color: #fff;
+    font-weight: 600;
+    font-size: 17px;
+    transition:
+      transform 200ms var(--spring-default),
+      background 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
+  }
+  .btn-primary:active {
+    transform: scale(0.97);
+    background: var(--accent-fill-pressed);
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
 
   .btn-tinted {
     display: inline-flex;
@@ -248,11 +364,21 @@
     color: var(--accent-text);
     font-weight: 600;
     font-size: 15px;
-    transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
+    transition:
+      transform 200ms var(--spring-default),
+      background 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
   }
-  .btn-tinted:active { transform: scale(0.97); }
-  .btn-tinted:hover { background: var(--accent-tint-strong); }
-  .btn-tinted:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .btn-tinted:active {
+    transform: scale(0.97);
+  }
+  .btn-tinted:hover {
+    background: var(--accent-tint-strong);
+  }
+  .btn-tinted:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
 
   .btn-plain {
     display: inline-flex;
@@ -264,10 +390,17 @@
     background: transparent;
     color: var(--accent-text);
     font-size: 17px;
-    transition: opacity 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
+    transition:
+      opacity 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
   }
-  .btn-plain:active { opacity: 0.6; }
-  .btn-plain:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .btn-plain:active {
+    opacity: 0.6;
+  }
+  .btn-plain:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
 
   .btn-ghost {
     display: inline-flex;
@@ -279,10 +412,17 @@
     background: var(--surface-fill);
     color: var(--label-primary);
     font-size: 15px;
-    transition: background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
+    transition:
+      background 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
   }
-  .btn-ghost:active { background: var(--surface-fill-secondary); }
-  .btn-ghost:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .btn-ghost:active {
+    background: var(--surface-fill-secondary);
+  }
+  .btn-ghost:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
 
   .btn-destructive {
     display: inline-flex;
@@ -295,10 +435,17 @@
     color: #fff;
     font-weight: 600;
     font-size: 17px;
-    transition: transform 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
+    transition:
+      transform 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
   }
-  .btn-destructive:active { transform: scale(0.97); }
-  .btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(255, 59, 48, 0.24); }
+  .btn-destructive:active {
+    transform: scale(0.97);
+  }
+  .btn-destructive:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(255, 59, 48, 0.24);
+  }
 
   /* === Inputs === */
   .input-apple {
@@ -308,10 +455,39 @@
     padding: 0.75rem 1rem;
     font-size: 17px;
     color: var(--label-primary);
-    transition: background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
+    transition:
+      background 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
   }
-  .input-apple::placeholder { color: var(--label-tertiary); }
-  .input-apple:focus { outline: none; background: var(--surface-fill-secondary); box-shadow: var(--shadow-focus); }
+  .input-apple::placeholder {
+    color: var(--label-tertiary);
+  }
+  .input-apple:focus {
+    outline: none;
+    background: var(--surface-fill-secondary);
+    box-shadow: var(--shadow-focus);
+  }
+
+  .input-field {
+    width: 100%;
+    min-height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--surface-fill);
+    padding: 0.75rem 1rem;
+    font-size: 17px;
+    color: var(--label-primary);
+    transition:
+      background 200ms var(--spring-default),
+      box-shadow 200ms var(--spring-default);
+  }
+  .input-field::placeholder {
+    color: var(--label-tertiary);
+  }
+  .input-field:focus {
+    outline: none;
+    background: var(--surface-fill-secondary);
+    box-shadow: var(--shadow-focus);
+  }
 
   .input-apple-grouped {
     width: 100%;
@@ -320,8 +496,12 @@
     font-size: 17px;
     color: var(--label-primary);
   }
-  .input-apple-grouped::placeholder { color: var(--label-tertiary); }
-  .input-apple-grouped:focus { outline: none; }
+  .input-apple-grouped::placeholder {
+    color: var(--label-tertiary);
+  }
+  .input-apple-grouped:focus {
+    outline: none;
+  }
 
   .label-apple {
     display: block;
@@ -344,15 +524,21 @@
     min-height: 44px;
     transition: background 200ms var(--spring-default);
   }
-  .row-apple:active { background: var(--surface-fill-secondary); }
-  .row-apple:focus-visible { outline: none; }
+  .row-apple:active {
+    background: var(--surface-fill-secondary);
+  }
+  .row-apple:focus-visible {
+    outline: none;
+  }
 
   .list-inset {
     border-radius: var(--radius-lg);
     background: var(--surface-grouped-secondary);
     overflow: hidden;
   }
-  .list-inset > * + * { border-top: 1px solid var(--surface-separator); }
+  .list-inset > * + * {
+    border-top: 1px solid var(--surface-separator);
+  }
 
   .section-header {
     font-size: 13px;
@@ -373,15 +559,33 @@
     height: 36px;
     flex-shrink: 0;
   }
-  .glyph-chore { background: var(--tint-chore); }
-  .glyph-calendar { background: var(--tint-calendar); }
-  .glyph-lists { background: var(--tint-lists); }
-  .glyph-budget { background: var(--tint-budget); }
-  .glyph-messages { background: var(--tint-messages); }
-  .glyph-family { background: var(--tint-family); }
-  .glyph-rewards { background: var(--tint-rewards); }
-  .glyph-projects { background: var(--tint-projects); }
-  .glyph-meals { background: var(--tint-meals); }
+  .glyph-chore {
+    background: var(--tint-chore);
+  }
+  .glyph-calendar {
+    background: var(--tint-calendar);
+  }
+  .glyph-lists {
+    background: var(--tint-lists);
+  }
+  .glyph-budget {
+    background: var(--tint-budget);
+  }
+  .glyph-messages {
+    background: var(--tint-messages);
+  }
+  .glyph-family {
+    background: var(--tint-family);
+  }
+  .glyph-rewards {
+    background: var(--tint-rewards);
+  }
+  .glyph-projects {
+    background: var(--tint-projects);
+  }
+  .glyph-meals {
+    background: var(--tint-meals);
+  }
 
   /* === Empty state === */
   .empty-state {
@@ -415,7 +619,9 @@
     backdrop-filter: saturate(180%) blur(20px);
     border-top: 1px solid var(--surface-separator);
   }
-  .dark .tab-bar { background: rgba(28, 28, 30, 0.85); }
+  .dark .tab-bar {
+    background: rgba(28, 28, 30, 0.85);
+  }
 
   /* === Progress ring === */
   .progress-ring {
@@ -429,70 +635,152 @@
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
   }
-  .dark .glass { background: rgba(28, 28, 30, 0.8); }
+  .dark .glass {
+    background: rgba(28, 28, 30, 0.8);
+  }
 }
 
 @layer utilities {
-  .spring-default { transition-timing-function: var(--spring-default); }
-  .spring-emphasis { transition-timing-function: var(--spring-emphasis); }
+  .spring-default {
+    transition-timing-function: var(--spring-default);
+  }
+  .spring-emphasis {
+    transition-timing-function: var(--spring-emphasis);
+  }
 
-  .tap-scale { transition: transform 200ms var(--spring-default); }
-  .tap-scale:active { transform: scale(0.97); }
-  .tap-fade { transition: opacity 200ms var(--spring-default); }
-  .tap-fade:active { opacity: 0.7; }
+  .tap-scale {
+    transition: transform 200ms var(--spring-default);
+  }
+  .tap-scale:active {
+    transform: scale(0.97);
+  }
+  .tap-fade {
+    transition: opacity 200ms var(--spring-default);
+  }
+  .tap-fade:active {
+    opacity: 0.7;
+  }
 
-  .scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
-  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* === Spring keyframes === */
 @keyframes spring-in {
-  0% { opacity: 0; transform: scale(0.92) translateY(8px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
-.animate-spring-in { animation: spring-in 360ms var(--spring-emphasis) both; }
+.animate-spring-in {
+  animation: spring-in 360ms var(--spring-emphasis) both;
+}
 
 @keyframes spring-up {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.animate-spring-up { animation: spring-up 320ms var(--spring-default) both; }
+.animate-spring-up {
+  animation: spring-up 320ms var(--spring-default) both;
+}
 
-.stagger > * { animation: spring-up 320ms var(--spring-default) both; }
-.stagger > *:nth-child(1) { animation-delay: 30ms; }
-.stagger > *:nth-child(2) { animation-delay: 60ms; }
-.stagger > *:nth-child(3) { animation-delay: 90ms; }
-.stagger > *:nth-child(4) { animation-delay: 120ms; }
-.stagger > *:nth-child(5) { animation-delay: 150ms; }
-.stagger > *:nth-child(6) { animation-delay: 180ms; }
-.stagger > *:nth-child(7) { animation-delay: 210ms; }
-.stagger > *:nth-child(8) { animation-delay: 240ms; }
+.stagger > * {
+  animation: spring-up 320ms var(--spring-default) both;
+}
+.stagger > *:nth-child(1) {
+  animation-delay: 30ms;
+}
+.stagger > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+.stagger > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+.stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.stagger > *:nth-child(5) {
+  animation-delay: 150ms;
+}
+.stagger > *:nth-child(6) {
+  animation-delay: 180ms;
+}
+.stagger > *:nth-child(7) {
+  animation-delay: 210ms;
+}
+.stagger > *:nth-child(8) {
+  animation-delay: 240ms;
+}
 
 @keyframes check-pop {
-  0% { transform: scale(0.6); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
-.animate-check-pop { animation: check-pop 360ms var(--spring-emphasis) both; }
+.animate-check-pop {
+  animation: check-pop 360ms var(--spring-emphasis) both;
+}
 
 @keyframes soft-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
-.animate-soft-pulse { animation: soft-pulse 2s ease-in-out infinite; }
+.animate-soft-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 .shimmer {
-  background: linear-gradient(90deg, var(--surface-fill) 0%, var(--surface-fill-secondary) 50%, var(--surface-fill) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--surface-fill) 0%,
+    var(--surface-fill-secondary) 50%,
+    var(--surface-fill) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

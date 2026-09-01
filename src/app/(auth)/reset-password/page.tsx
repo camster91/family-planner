@@ -1,57 +1,57 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
-import { Eye, EyeOff, KeyRound } from 'lucide-react'
-import { Suspense } from 'react'
-import { useTranslation } from '@/i18n'
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Suspense } from "react";
+import { useTranslation } from "@/i18n";
 
 function ResetPasswordForm() {
-  const { t } = useTranslation()
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const token = searchParams.get('token')
+  const { t } = useTranslation();
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (password !== confirmPassword) {
-      setError(t('auth.passwordMismatch'))
-      return
+      setError(t("auth.passwordMismatch"));
+      return;
     }
     if (password.length < 8) {
-      setError(t('auth.passwordTooShort'))
-      return
+      setError(t("auth.passwordTooShort"));
+      return;
     }
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t('common.error'))
-        return
+        setError(data.error || t("common.error"));
+        return;
       }
-      setSuccess(true)
+      setSuccess(true);
     } catch {
-      setError(t('auth.unexpectedError'))
+      setError(t("auth.unexpectedError"));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (success) {
     return (
@@ -63,20 +63,22 @@ function ResetPasswordForm() {
                 <KeyRound className="w-8 h-8 text-green-600" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">{t('auth.resetPasswordTitle')}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {t("auth.resetPasswordTitle")}
+            </h1>
             <p className="mt-2 text-gray-600">
               Your password has been reset successfully.
             </p>
           </div>
           <button
-            onClick={() => router.push('/login')}
+            onClick={() => router.push("/login")}
             className="btn-primary w-full py-3"
           >
-            {t('auth.signIn')}
+            {t("auth.signIn")}
           </button>
         </div>
       </div>
-    )
+    );
   }
 
   if (!token) {
@@ -90,13 +92,16 @@ function ResetPasswordForm() {
             </p>
           </div>
           <div className="text-center">
-            <Link href="/forgot-password" className="text-blue-600 hover:text-blue-500 font-medium">
-              {t('auth.sendResetLink')}
+            <Link
+              href="/forgot-password"
+              className="text-blue-600 hover:text-blue-500 font-medium"
+            >
+              {t("auth.sendResetLink")}
             </Link>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -108,10 +113,10 @@ function ResetPasswordForm() {
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('auth.setNewPassword')}</h1>
-          <p className="mt-2 text-gray-600">
-            {t('auth.setNewPassword')}
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("auth.setNewPassword")}
+          </h1>
+          <p className="mt-2 text-gray-600">{t("auth.setNewPassword")}</p>
         </div>
 
         <div className="card">
@@ -123,13 +128,16 @@ function ResetPasswordForm() {
             )}
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.password')}
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                {t("auth.password")}
               </label>
               <div className="relative">
                 <input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   required
                   autoComplete="new-password"
                   value={password}
@@ -140,25 +148,32 @@ function ResetPasswordForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-400 hover:text-teal-600 transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                {t('auth.passwordHint')}
+                {t("auth.passwordHint")}
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.confirmPassword')}
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                {t("auth.confirmPassword")}
               </label>
               <div className="relative">
                 <input
                   id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
+                  type={showConfirmPassword ? "text" : "password"}
                   required
                   autoComplete="new-password"
                   value={confirmPassword}
@@ -169,10 +184,16 @@ function ResetPasswordForm() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors"
-                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-400 hover:text-teal-600 transition-colors"
+                  aria-label={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                 >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -182,19 +203,25 @@ function ResetPasswordForm() {
               disabled={loading}
               className="btn-primary w-full py-3"
             >
-              {loading ? t('auth.resetting') : t('auth.resetPasswordBtn')}
+              {loading ? t("auth.resetting") : t("auth.resetPasswordBtn")}
             </button>
           </form>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50"><div className="text-gray-500">Loading...</div></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
-  )
+  );
 }

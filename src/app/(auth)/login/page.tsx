@@ -1,45 +1,45 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { LogIn, Eye, EyeOff, Users } from 'lucide-react'
-import { useTranslation } from '@/i18n'
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { LogIn, Eye, EyeOff, Users } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
 export default function LoginPage() {
-  const { t } = useTranslation()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t('auth.loginFailed'))
-        return
+        setError(data.error || t("auth.loginFailed"));
+        return;
       }
 
-      router.push('/dashboard')
-      router.refresh()
+      router.push("/dashboard");
+      router.refresh();
     } catch {
-      setError(t('auth.unexpectedError'))
+      setError(t("auth.unexpectedError"));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
@@ -53,9 +53,9 @@ export default function LoginPage() {
 
         <div className="card-apple p-6">
           <div className="text-center mb-6">
-            <h1 className="text-title-2">{t('auth.welcomeBack')}</h1>
+            <h1 className="text-title-2">{t("auth.welcomeBack")}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
-              {t('auth.signInSubtitle')}
+              {t("auth.signInSubtitle")}
             </p>
           </div>
 
@@ -71,7 +71,9 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
+              <label htmlFor="email" className="label-apple">
+                {t("auth.email")}
+              </label>
               <input
                 id="email"
                 type="email"
@@ -85,11 +87,13 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="label-apple">{t('auth.password')}</label>
+              <label htmlFor="password" className="label-apple">
+                {t("auth.password")}
+              </label>
               <div className="relative">
                 <input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   required
                   autoComplete="current-password"
                   value={password}
@@ -100,10 +104,14 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--label-tertiary)] hover:text-[var(--label-primary)] transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--label-tertiary)] hover:text-[var(--label-primary)] transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -117,12 +125,12 @@ export default function LoginPage() {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                    {t('auth.signingIn')}
+                    {t("auth.signingIn")}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <LogIn className="w-4 h-4" />
-                    {t('auth.signIn')}
+                    {t("auth.signIn")}
                   </span>
                 )}
               </button>
@@ -131,18 +139,18 @@ export default function LoginPage() {
 
           <div className="mt-4 text-center">
             <p className="text-[15px] text-[var(--label-secondary)]">
-              {t('auth.noAccount')}{' '}
+              {t("auth.noAccount")}{" "}
               <Link href="/register" className="btn-plain py-1 px-2 -my-1">
-                {t('auth.signUp')}
+                {t("auth.signUp")}
               </Link>
             </p>
           </div>
         </div>
 
         <p className="text-center text-[13px] text-[var(--label-tertiary)] mt-6">
-          {t('auth.bySigningIn')}
+          {t("auth.bySigningIn")}
         </p>
       </div>
     </div>
-  )
+  );
 }
