@@ -174,9 +174,28 @@ done
 running_image_id="$(docker inspect --format '{{.Image}}' "$review_container")"
 running_revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$running_image_id")"
 [[ "$running_revision" == "$candidate_sha" ]]
-curl --fail --silent --show-error --max-time 20 "$review_url" >/dev/null
+health_payload="$(curl --fail --silent --show-error --max-time 20 "$review_url")"
+health_status="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", "missing"))' <<<"$health_payload")"
+if [[ "$health_status" != 'healthy' && "$health_status" != 'degraded' ]]; then
+  echo "Review health endpoint returned status=${health_status}." >&2
+  exit 1
+fi
+
+review_database_url="$(
+  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$review_container" |
+    sed -n 's/^DATABASE_URL=//p' | head -n 1
+)"
+if [[ -z "$review_database_url" ]]; then
+  echo 'Review container does not expose DATABASE_URL to the QA runner.' >&2
+  exit 1
+fi
+echo "::add-mask::${review_database_url}"
+APP_URL='https://family-review.ashbi.ca' \
+  DATABASE_URL="$review_database_url" \
+  node scripts/core-loop-smoke.mjs
 
 rollback_needed=false
 echo "Review deployment passed: candidate=${candidate_sha} image=${running_image_id}"
+echo "Review application status: ${health_status}"
 echo "Rollback container retained: ${rollback_container} image=${previous_image} id=${previous_image_id}"
 echo "Review URL: ${review_url}"

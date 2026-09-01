@@ -192,6 +192,15 @@ jobs:
           name: ${{ needs.build.outputs.artifact-name }}
           path: /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}
 
+      - name: Setup supported Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install exact QA dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Deploy with backup and rollback
         run: >-
           bash scripts/deploy-review-artifact.sh
