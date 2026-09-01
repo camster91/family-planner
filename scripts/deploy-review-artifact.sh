@@ -20,7 +20,14 @@ candidate_short="${candidate_sha:0:7}"
 candidate_container="family-planner-review-candidate-${candidate_short}"
 rollback_container="family-planner-review-rollback-${candidate_short}"
 review_image="family-planner-review:${candidate_short}"
-backup_dir='/opt/family-planner-review-backups'
+runner_temp="${RUNNER_TEMP:-}"
+runner_work_root="${runner_temp%/_temp}"
+backup_dir="${REVIEW_BACKUP_DIR:-${runner_work_root}/_review-backups}"
+
+if [[ -z "$runner_work_root" || "$runner_work_root" == "$runner_temp" || "$backup_dir" == '/' ]]; then
+  echo 'Could not resolve a safe writable review backup directory.' >&2
+  exit 1
+fi
 
 exec 9>/tmp/family-planner-review-deploy.lock
 flock -n 9 || {
