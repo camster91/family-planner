@@ -1,7 +1,4 @@
-name: CI Build
-
-# Build-only workflow: verifies the project builds cleanly. No deploy, no secrets required.
-# Triggered on push to default branch and on PRs targeting it. Manual dispatch available.
+name: Ashbi Release Gate
 
 on:
   push:
@@ -14,75 +11,41 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-build-${{ github.ref }}
+  group: ashbi-release-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
+  release-gate:
+    name: Ashbi release gate
+    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Record candidate identity
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Candidate: $GITHUB_SHA"
+
+      - name: Setup supported Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Run complete release gate
+        run: bash scripts/ci-gate.sh
 
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          # Placeholder so prisma schema validation passes (no DB connection is made during generate)
-          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
-
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test -- --ci --runInBand --no-watchman
-
-      - name: Verify database migrations are idempotent
+      - name: Publish evidence summary
+        if: always()
         run: |
-          node scripts/migrate.js
-          node scripts/migrate.js
-        env:
-          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
-
-      - name: Test persisted family imports
-        run: npx jest src/lib/imports/__tests__/persistence.integration.test.ts --ci --runInBand --no-watchman --forceExit
-        env:
-          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
-          RUN_DB_INTEGRATION: "1"
-
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Build
-        run: npm run build
-        env:
-          # CI-safe defaults so the build doesn't depend on real env vars
-          NODE_ENV: production
-          CI: true
+          {
+            echo "## Ashbi release gate"
+            echo "- Candidate: \`$GITHUB_SHA\`"
+            echo "- Runner: \`$RUNNER_NAME\`"
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Gate: frozen install, Prisma generation, typecheck, lint, tests, migration twice, persisted import integration, production audit, application build, image build, and container health smoke"
+          } >> "$GITHUB_STEP_SUMMARY"

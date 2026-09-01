@@ -9,10 +9,8 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-# Use `npm install` instead of `npm ci` for cross-platform lockfile resilience
-# (npm ci fails when package-lock.json has platform-specific resolutions that
-#  differ from the build host). Slower but reliable.
-RUN npm install --legacy-peer-deps --ignore-scripts
+# Production images must use the exact dependency graph reviewed in the lockfile.
+RUN npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 # Rebuild the source code only when needed
 FROM base AS builder
