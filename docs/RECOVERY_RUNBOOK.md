@@ -26,6 +26,13 @@ does not reconcile.
 
 ## Application rollback
 
+The currently recorded rollback artifact is
+`family-planner@sha256:7520c08a82282a450c40469830c09cb8712cc936fd568a1b5556b519fcdca698`
+(production commit `9c9e315`). The Ashbi gate boots this exact digest against
+the fully migrated disposable database and requires a connected health check.
+After an approved production deployment and rollback-window verification,
+update this digest in `.github/workflows/ci.yml` to the newly superseded image.
+
 1. Stop promotion and preserve failing-container logs.
 2. Redeploy the recorded prior immutable image digest; never rely on a mutable
    `latest` tag.

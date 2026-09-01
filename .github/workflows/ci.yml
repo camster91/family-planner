@@ -19,6 +19,10 @@ jobs:
     name: Ashbi release gate
     runs-on: [self-hosted, linux, x64, ashbi, family-planner]
     timeout-minutes: 45
+    env:
+      # Immutable image currently running in production. Update only after a
+      # separately approved deployment and verified rollback-window close.
+      ROLLBACK_IMAGE: family-planner@sha256:7520c08a82282a450c40469830c09cb8712cc936fd568a1b5556b519fcdca698
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
@@ -51,5 +55,5 @@ jobs:
             echo "- Candidate: \`$GITHUB_SHA\`"
             echo "- Runner: \`$RUNNER_NAME\`"
             echo "- Result: \`${{ job.status }}\`"
-            echo "- Gate: frozen install, Prisma generation, typecheck, lint, tests, migration twice, persisted import integration, production audit, application build, image build, container health smoke, and the role-aware parent-to-child core loop"
+            echo "- Gate: frozen install, Prisma generation, typecheck, lint, tests, migration twice, persisted import integration, backup/restore rehearsal, production audit, application build, image build, container health smoke, role-aware parent-to-child core loop, and immutable-image rollback smoke"
           } >> "$GITHUB_STEP_SUMMARY"
