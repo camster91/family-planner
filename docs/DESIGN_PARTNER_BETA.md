@@ -6,6 +6,9 @@ separate explicit approval.
 **Duration:** Four complete Monday-Sunday weeks after all five households have
 activated.
 
+The reusable entry, incident, weekly evidence, interview, and exit templates are
+in the [beta operations packet](BETA_OPERATIONS_PACKET.md).
+
 ## Purpose and boundaries
 
 Prove that independent families can repeatedly complete Family Planner's core
@@ -55,14 +58,14 @@ success/failure, and timestamp. It must never include names, email addresses,
 message text, chore photos or descriptions, medical data, locations, financial
 descriptions, passwords, or tokens.
 
-| Measure                     | Definition                                                                                  | Beta threshold                        |
-| --------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Activation                  | Family created, invited member joined, and first chore assigned                             | 5 of 5 households                     |
-| Time to first value         | Registration to first assigned chore                                                        | Median <=10 minutes                   |
-| Weekly core-loop completion | At least one assign, complete, verify, and reward-claim sequence in the same household/week | At least 3 of 5 in each of four weeks |
-| Core mutation reliability   | Successful valid core mutations / all valid core mutation attempts                          | >=99%                                 |
-| Isolation                   | Any confirmed cross-family read or write                                                    | Zero; immediate stop if non-zero      |
-| Willingness to pay          | Adult independently says they would pay for continued use before a price is suggested       | At least 3 of 5 before billing work   |
+| Measure                     | Definition                                                                                                                                                | Beta threshold                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Activation                  | Family created, invited member joined, and first chore assigned                                                                                           | 5 of 5 households                     |
+| Time to first value         | Registration to first assigned chore                                                                                                                      | Median <=10 minutes                   |
+| Weekly core-loop completion | At least one successful, chronologically ordered parent-assign, youth-complete, parent-verify, and youth-reward-claim sequence in the same household/week | At least 3 of 5 in each of four weeks |
+| Core mutation reliability   | Successful valid core mutations / all valid core mutation attempts                                                                                        | >=99%                                 |
+| Isolation                   | Any confirmed cross-family read or write                                                                                                                  | Zero; immediate stop if non-zero      |
+| Willingness to pay          | Adult independently says they would pay for continued use before a price is suggested                                                                     | At least 3 of 5 before billing work   |
 
 Record support incidents separately with severity, affected cohort ID, first
 observed time, resolution time, and linked issue. Do not paste private household
@@ -78,7 +81,9 @@ npm run beta:scorecard
 
 The command reports reliability from validated core mutation attempts. A null
 value means no attempts were recorded and is a beta entry-gate failure, not zero
-and not an invitation to estimate the result.
+and not an invitation to estimate the result. It rejects duplicate family IDs
+so one household cannot occupy multiple cohort slots. Automated thresholds do
+not replace the separately recorded isolation and willingness-to-pay decisions.
 
 ## Weekly operating cadence
 

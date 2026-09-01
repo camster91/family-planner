@@ -94,6 +94,8 @@ try {
       "chore.verify",
       "reward.claim",
     ].entries()) {
+      const orderedEventIndex =
+        index === 4 && eventName === "chore.complete" ? 4 : eventIndex;
       await client.query(
         `INSERT INTO "BetaMetricEvent"
            (id, family_id, actor_role, event_name, success, duration_ms, created_at)
@@ -105,7 +107,7 @@ try {
             ? "child"
             : "parent",
           eventName,
-          new Date(assignedAt.getTime() + eventIndex * 60_000),
+          new Date(assignedAt.getTime() + orderedEventIndex * 60_000),
         ],
       );
     }
@@ -135,10 +137,11 @@ try {
   }
   if (
     !scorecard.weeks?.[0]?.thresholdMet ||
-    scorecard.weeks[0].completedHouseholds.length !== 5
+    scorecard.weeks[0].completedHouseholds.length !== 4 ||
+    scorecard.weeks[0].completedHouseholds.includes("beta-05")
   ) {
     throw new Error(
-      `expected all five households to complete week one: ${stdout}`,
+      `expected the out-of-order fifth household to be excluded: ${stdout}`,
     );
   }
   if (
@@ -148,8 +151,28 @@ try {
     throw new Error(`expected perfect seeded mutation reliability: ${stdout}`);
   }
 
+  const duplicateCohorts = Object.fromEntries(
+    Object.keys(cohorts).map((alias) => [alias, familyIds[0]]),
+  );
+  let duplicateRejected = false;
+  try {
+    await run(process.execPath, ["scripts/beta-scorecard.mjs"], {
+      env: {
+        ...process.env,
+        DATABASE_URL: databaseUrl,
+        BETA_START_DATE: startDate,
+        BETA_COHORTS: JSON.stringify(duplicateCohorts),
+      },
+    });
+  } catch (error) {
+    duplicateRejected = String(error).includes("five unique family IDs");
+  }
+  if (!duplicateRejected) {
+    throw new Error("expected duplicate beta family IDs to be rejected");
+  }
+
   console.log(
-    "Beta scorecard smoke passed: activation, registration-to-value, weekly loop, reliability",
+    "Beta scorecard smoke passed: unique cohorts, activation, registration-to-value, ordered role-aware weekly loop, reliability",
   );
 } finally {
   await client.query('DELETE FROM "Family" WHERE id = ANY($1::text[])', [

@@ -15,20 +15,28 @@ if (!databaseUrl || !cohortRaw || !startRaw) {
 
 const cohorts = JSON.parse(cohortRaw);
 const entries = Object.entries(cohorts);
+const cohortAliases = entries.map(([alias]) => alias).sort();
+const familyIds = entries.map(([, familyId]) => familyId);
 if (
   entries.length !== 5 ||
+  cohortAliases.join(",") !== "beta-01,beta-02,beta-03,beta-04,beta-05" ||
   entries.some(
     ([alias, familyId]) =>
       !/^beta-0[1-5]$/.test(alias) || typeof familyId !== "string" || !familyId,
-  )
+  ) ||
+  new Set(familyIds).size !== 5
 ) {
   throw new Error(
-    "BETA_COHORTS must map exactly beta-01 through beta-05 to family IDs",
+    "BETA_COHORTS must map exactly beta-01 through beta-05 to five unique family IDs",
   );
 }
 
 const start = new Date(`${startRaw}T00:00:00.000Z`);
-if (Number.isNaN(start.getTime()) || start.getUTCDay() !== 1) {
+if (
+  Number.isNaN(start.getTime()) ||
+  start.toISOString().slice(0, 10) !== startRaw ||
+  start.getUTCDay() !== 1
+) {
   throw new Error(
     "BETA_START_DATE must be a valid Monday in YYYY-MM-DD format",
   );
@@ -38,7 +46,6 @@ const client = new Client({ connectionString: databaseUrl });
 await client.connect();
 
 try {
-  const familyIds = entries.map(([, familyId]) => familyId);
   const { rows } = await client.query(
     `
       SELECT
@@ -91,21 +98,36 @@ try {
         SELECT
           f.id,
           EXISTS (
-            SELECT 1 FROM "Chore" c
-            WHERE c.family_id = f.id AND c.created_at >= $2 AND c.created_at < $3
-          ) AS assigned,
-          EXISTS (
-            SELECT 1 FROM "Chore" c
-            WHERE c.family_id = f.id AND c.completed_at >= $2 AND c.completed_at < $3
-          ) AS completed,
-          EXISTS (
-            SELECT 1 FROM "Chore" c
-            WHERE c.family_id = f.id AND c.verified_at >= $2 AND c.verified_at < $3
-          ) AS verified,
-          EXISTS (
-            SELECT 1 FROM "Reward" r
-            WHERE r.family_id = f.id AND r.claimed_at >= $2 AND r.claimed_at < $3
-          ) AS reward_claimed
+            SELECT 1
+            FROM "BetaMetricEvent" assigned
+            JOIN "BetaMetricEvent" completed
+              ON completed.family_id = assigned.family_id
+             AND completed.event_name = 'chore.complete'
+             AND completed.actor_role IN ('child', 'teen')
+             AND completed.success
+             AND completed.created_at > assigned.created_at
+             AND completed.created_at < $3
+            JOIN "BetaMetricEvent" verified
+              ON verified.family_id = completed.family_id
+             AND verified.event_name = 'chore.verify'
+             AND verified.actor_role = 'parent'
+             AND verified.success
+             AND verified.created_at > completed.created_at
+             AND verified.created_at < $3
+            JOIN "BetaMetricEvent" claimed
+              ON claimed.family_id = verified.family_id
+             AND claimed.event_name = 'reward.claim'
+             AND claimed.actor_role IN ('child', 'teen')
+             AND claimed.success
+             AND claimed.created_at > verified.created_at
+             AND claimed.created_at < $3
+            WHERE assigned.family_id = f.id
+              AND assigned.event_name = 'chore.assign'
+              AND assigned.actor_role = 'parent'
+              AND assigned.success
+              AND assigned.created_at >= $2
+              AND assigned.created_at < $3
+          ) AS completed_core_loop
         FROM "Family" f
         WHERE f.id = ANY($1::text[])
       `,
@@ -115,9 +137,7 @@ try {
     const completedAliases = entries
       .filter(([, familyId]) => {
         const row = results.get(familyId);
-        return (
-          row?.assigned && row.completed && row.verified && row.reward_claimed
-        );
+        return row?.completed_core_loop;
       })
       .map(([alias]) => alias);
     weeks.push({
@@ -160,6 +180,14 @@ try {
       ? ttfv[Math.floor(ttfv.length / 2)]
       : (ttfv[ttfv.length / 2 - 1] + ttfv[ttfv.length / 2]) / 2
     : null;
+  const activationCount = householdResults.filter(
+    (household) => household.activated,
+  ).length;
+  const timeToFirstValueThresholdMet =
+    ttfv.length === 5 && median !== null && median <= 10;
+  const mutationReliabilityThresholdMet =
+    reliabilityValue !== null && reliabilityValue >= 0.99;
+  const weeklyCoreLoopThresholdMet = weeks.every((week) => week.thresholdMet);
 
   console.log(
     JSON.stringify(
@@ -168,20 +196,27 @@ try {
         betaStartDate: startRaw,
         households: householdResults,
         activation: {
-          count: householdResults.filter((household) => household.activated)
-            .length,
+          count: activationCount,
           threshold: 5,
+          thresholdMet: activationCount === 5,
         },
         medianTimeToFirstValueMinutes: median,
-        timeToFirstValueThresholdMet: median !== null && median <= 10,
+        timeToFirstValueObservationCount: ttfv.length,
+        timeToFirstValueThresholdMet,
         weeks,
+        weeklyCoreLoopThresholdMet,
         mutationReliability: {
           attempts: reliability.attempts,
           successes: reliability.successes,
           value: reliabilityValue,
           threshold: 0.99,
-          thresholdMet: reliabilityValue !== null && reliabilityValue >= 0.99,
+          thresholdMet: mutationReliabilityThresholdMet,
         },
+        automatedOutcomeThresholdsMet:
+          activationCount === 5 &&
+          timeToFirstValueThresholdMet &&
+          weeklyCoreLoopThresholdMet &&
+          mutationReliabilityThresholdMet,
       },
       null,
       2,
