@@ -48,7 +48,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build & push image
+    name: Build deployable image
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -114,12 +114,16 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ inputs.dockerfile || 'Dockerfile' }}
           platforms: ${{ inputs.platforms || 'linux/amd64' }}
-          push: true
+          # PR tokens cannot access the existing GHCR package. Produce a
+          # downloadable OCI artifact for review; merged refs publish to GHCR.
+          push: ${{ github.event_name != 'pull_request' }}
+          outputs: ${{ github.event_name == 'pull_request' && format('type=oci,dest=/tmp/family-planner-{0}.tar', env.CANDIDATE_SHA) || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
@@ -131,10 +135,19 @@ jobs:
             org.opencontainers.image.revision=${{ env.CANDIDATE_SHA }}
             org.opencontainers.image.created=${{ github.event.repository.updated_at }}
 
+      - name: Upload exact PR image artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: family-planner-pr-${{ github.event.pull_request.number }}-${{ steps.meta.outputs.sha }}
+          path: /tmp/family-planner-${{ env.CANDIDATE_SHA }}.tar
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Image summary
         run: |
           {
-            echo "## Image published"
+            echo "## Deployable image prepared"
             echo ""
             echo "**Image:** \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`"
             echo "**Pull:** \`docker pull ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`"
@@ -142,4 +155,9 @@ jobs:
             echo ""
             echo "**Platforms:** ${{ inputs.platforms || 'linux/amd64' }}"
             echo "**SHA:** ${{ steps.meta.outputs.sha }}"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "**Delivery:** exact-head OCI workflow artifact (7-day retention; GHCR latest unchanged)"
+            else
+              echo "**Delivery:** GHCR"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
