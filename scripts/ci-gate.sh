@@ -15,7 +15,8 @@ run_key="$(printf '%s' "$run_key" | tr -cd '[:alnum:]-')"
 db_container="family-planner-ci-db-${run_key}"
 app_container="family-planner-ci-app-${run_key}"
 network="family-planner-ci-${run_key}"
-image="family-planner-ci:${GITHUB_SHA:-local}-${run_key}"
+candidate_sha="${CANDIDATE_SHA:-${GITHUB_SHA:-local}}"
+image="family-planner-ci:${candidate_sha}-${run_key}"
 ci_run_id="${GITHUB_RUN_ID:-local-${run_key}}"
 db_password="ci-only-not-production"
 db_name="familyplanner_ci"
@@ -85,7 +86,7 @@ npm run build
 
 echo "==> Building the immutable production container"
 docker build \
-  --label "org.opencontainers.image.revision=${GITHUB_SHA:-local}" \
+  --label "org.opencontainers.image.revision=${candidate_sha}" \
   --label "family-planner.ci.run-id=${ci_run_id}" \
   --tag "$image" .
 
@@ -181,4 +182,4 @@ node -e '
 '
 echo "==> Immutable-image rollback rehearsal passed"
 
-echo "==> Release gate passed for ${GITHUB_SHA:-local}"
+echo "==> Release gate passed for ${candidate_sha}"
