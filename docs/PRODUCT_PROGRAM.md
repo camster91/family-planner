@@ -27,16 +27,16 @@ reward**, with family roles and private financial data handled correctly.
 
 ## Current verified state
 
-| Area          | Evidence on 2026-08-28                                                                              | State       |
+| Area          | Evidence on 2026-09-01                                                                              | State       |
 | ------------- | --------------------------------------------------------------------------------------------------- | ----------- |
 | Source        | Production remains on reviewed commit `9c9e315`; launch-gap work is isolated in open PR #100        | Controlled  |
 | Consolidation | ChoreChamps, Meal Planner, and Budget App domains and import foundations merged in PR #95           | Merged      |
-| Review        | `https://family-review.ashbi.ca/api/health` serves image `family-planner-review:9c9e315`            | Healthy     |
+| Review        | Exact PR head `9f37aa2` deployed from its workflow artifact; authenticated core-loop smoke passed | Degraded    |
 | Production    | `https://family.ashbi.ca/api/health` is healthy on image `family-planner:9c9e315`                   | Shipped     |
 | Required CI   | Protected `master` requires strict Ashbi, build/test, and Android APK checks for PRs                | Enforced    |
 | Ashbi runner  | Dedicated `familyci` runner executes the complete release/recovery gate and cleans disposable state | Operational |
 | Local gate    | Prisma generate, typecheck, lint, 49 active tests, syntax checks, and clean diff checks pass        | Verified    |
-| Runtime QA    | Calendar #34, teen wishlist #36, handoff #37, and budget authorization #96 pass on HTTPS review     | Complete    |
+| Runtime QA    | Automated role/isolation and full core-loop smoke pass; final candidate mobile audit is in progress | In progress |
 | Source apps   | GitHub repositories archived; local checkouts retained for rollback/reference                       | Complete    |
 
 ### Access and capability
@@ -49,6 +49,8 @@ reward**, with family roles and private financial data handled correctly.
   candidate; PR #97 satisfied both conditions.
 - Review and production both use HTTPS, so `Secure` authentication cookies are
   exercised under production-equivalent transport.
+- Review is intentionally reported as degraded, not healthy, until an approved
+  transactional-email provider credential and verified sender are configured.
 
 ## Market and pricing baseline
 
@@ -172,3 +174,4 @@ A production candidate requires all of the following:
 | 2026-08-28 | Fixed calendar nullable-field contract and replaced native wishlist edit/delete prompts     | 44 tests pass; review image `family-planner-review:9c9e315` healthy; final security diff scan found zero issues                                                                                                                           | Merge PR #97                                                                                                         |
 | 2026-08-28 | Merged PR #97 and deployed `family-planner:9c9e315` to production                           | Fresh validated database backup; production health fully green; live parent/teen authorization and event/wishlist smoke passed; QA records removed                                                                                        | Begin design-partner beta and automate the full north-star journey                                                   |
 | 2026-09-01 | Opened PR #100 for launch-readiness gaps and protected `master` with required strict checks | Dedicated Ashbi runner; repeatable imports, backup/restore, immutable rollback, parent-child-isolation smoke, search, token hardening, privacy controls, export/deletion, audit history, notification preferences, and Android APK checks | Clear latest exact-head gates, finish candidate mobile QA, verify production email, then request production approval |
+| 2026-09-01 | Promoted exact PR head `9f37aa2` to the Ashbi review target with automatic rollback       | Workflow run `33518730116`; pre-deploy database backup retained; live register-to-reward loop passed; previous container retained; review health is degraded only for missing transactional email                                             | Validate the final navigation candidate at mobile width, then remove the opt-in review deployment label              |

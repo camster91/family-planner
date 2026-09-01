@@ -11,7 +11,6 @@ import {
   Search,
   Bell,
   ChevronDown,
-  User,
   Users2,
   Settings,
   LogOut,
@@ -45,7 +44,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [avatarOpen, setAvatarOpen] = useState(false)
-  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false)
   const avatarRef = useRef<HTMLDivElement>(null)
 
   // Close dropdowns on outside click
@@ -53,7 +51,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     function handleClickOutside(e: MouseEvent) {
       if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
         setAvatarOpen(false)
-        setRoleSwitcherOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -66,12 +63,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     router.refresh()
   }
 
-  const handleRoleSwitch = async (role: UserRole) => {
-    // In a real app this would call an API — for now just toggle UI state
-    setRoleSwitcherOpen(false)
-    // Could refresh or show a toast; the role affects surface rendering via props
-  }
-
   return (
     <>
       {/* ─── Apple HIG Desktop Top Bar ─── */}
@@ -81,7 +72,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       >
         <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-6">
           {/* Logo + name */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
+          <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 min-w-11 min-h-11">
             <div className="w-9 h-9 bg-accent-fill rounded-[22px] flex items-center justify-center shadow-sm">
               <Users className="w-5 h-5 text-white" />
             </div>
@@ -123,7 +114,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {/* Search */}
             <Link
               href="/dashboard/search"
-              className="p-2 text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
+              className="w-11 h-11 flex items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
               aria-label="Search"
             >
               <Search className="w-5 h-5" />
@@ -132,7 +123,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {/* Notifications bell */}
             <Link
               href="/dashboard/notifications"
-              className="p-2 text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors relative"
+              className="w-11 h-11 flex items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors relative"
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
@@ -142,7 +133,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             <div className="relative ml-1" ref={avatarRef}>
               <button
                 onClick={() => setAvatarOpen((v) => !v)}
-                className="flex items-center gap-1.5 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
+                className="flex items-center gap-1.5 min-w-11 min-h-11 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
                 aria-label="User menu"
                 aria-expanded={avatarOpen}
               >
@@ -181,42 +172,11 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     </span>
                   </div>
 
-                  {/* Role switcher — shown for all roles so parents can preview */}
-                  <div className="px-3 py-2 border-b border-[var(--surface-separator)]">
-                    <p className="text-[11px] font-semibold text-label-tertiary uppercase tracking-wider px-1 mb-1.5">
-                      Switch View
-                    </p>
-                    <div className="flex gap-1">
-                      {(['parent', 'teen', 'child'] as UserRole[]).map((role) => (
-                        <button
-                          key={role}
-                          onClick={() => handleRoleSwitch(role)}
-                          className={cn(
-                            'flex-1 py-1.5 rounded-md text-[13px] font-medium transition-colors',
-                            user?.role === role
-                              ? 'bg-accent-fill text-white'
-                              : 'bg-[var(--surface-secondary)] text-label-secondary hover:text-label-primary'
-                          )}
-                        >
-                          {ROLE_LABELS[role]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Menu items */}
                   <div className="py-1.5">
                     <Link
-                      href="/dashboard/profile"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
-                      onClick={() => setAvatarOpen(false)}
-                    >
-                      <User className="w-4 h-4 text-label-secondary" />
-                      Profile
-                    </Link>
-                    <Link
                       href="/dashboard/messages"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                      className="flex items-center gap-3 px-4 min-h-11 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
                       onClick={() => setAvatarOpen(false)}
                     >
                       <MessageCircle className="w-4 h-4 text-label-secondary" />
@@ -224,7 +184,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     </Link>
                     <Link
                       href="/dashboard/family"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                      className="flex items-center gap-3 px-4 min-h-11 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
                       onClick={() => setAvatarOpen(false)}
                     >
                       <Users2 className="w-4 h-4 text-label-secondary" />
@@ -232,7 +192,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     </Link>
                     <Link
                       href="/dashboard/settings"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                      className="flex items-center gap-3 px-4 min-h-11 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
                       onClick={() => setAvatarOpen(false)}
                     >
                       <Settings className="w-4 h-4 text-label-secondary" />
@@ -244,7 +204,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   <div className="py-1.5 border-t border-[var(--surface-separator)]">
                     <button
                       onClick={handleSignOut}
-                      className="flex items-center gap-3 px-4 py-2.5 w-full text-[15px] text-red-600 hover:bg-red-50 transition-colors"
+                      className="flex items-center gap-3 px-4 min-h-11 w-full text-[15px] text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
                       Sign Out
