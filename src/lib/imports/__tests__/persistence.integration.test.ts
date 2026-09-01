@@ -70,6 +70,70 @@ describeWithDatabase("family import persistence", () => {
           createdAt: "2026-08-28",
         },
       ],
+      habits: [
+        {
+          id: "habit-1",
+          title: "Read",
+          points: 5,
+          isActive: true,
+          createdAt: "2026-08-01",
+        },
+      ],
+      habitLogs: [
+        {
+          id: "habit-log-1",
+          habitId: "habit-1",
+          kidId: "kid-1",
+          loggedDate: "2026-08-28",
+          loggedAt: "2026-08-28T12:00:00Z",
+        },
+      ],
+      rewards: [
+        {
+          id: "reward-1",
+          title: "Movie",
+          cost: 20,
+          isActive: true,
+          createdAt: "2026-08-01",
+        },
+      ],
+      redemptions: [
+        {
+          id: "redemption-1",
+          rewardId: "reward-1",
+          kidId: "kid-1",
+          points: 20,
+          createdAt: "2026-08-28T13:00:00Z",
+        },
+      ],
+      familyGoals: [
+        {
+          id: "goal-1",
+          title: "Team week",
+          targetPoints: 100,
+          currentPoints: 45,
+          isActive: true,
+          createdAt: "2026-08-01",
+        },
+      ],
+      badges: [
+        {
+          id: "badge-1",
+          name: "Starter",
+          description: "First chore",
+          icon: "star",
+          requirement: "FIRST_CHORE",
+          createdAt: "2026-08-01",
+        },
+      ],
+      earnedBadges: [
+        {
+          id: "earned-badge-1",
+          badgeId: "badge-1",
+          kidId: "kid-1",
+          earnedAt: "2026-08-28T14:00:00Z",
+        },
+      ],
     };
     const options = {
       familyId,
@@ -82,11 +146,27 @@ describeWithDatabase("family import persistence", () => {
     expect(first.summary.created).toMatchObject({
       Chore: 1,
       ChoreAssignment: 1,
+      Habit: 1,
+      HabitLog: 1,
+      Reward: 1,
+      RewardRedemption: 1,
+      FamilyGoal: 1,
+      BadgeDefinition: 1,
+      EarnedBadge: 1,
     });
     expect(second.summary.reused).toMatchObject({
       Chore: 1,
       ChoreAssignment: 1,
+      Habit: 1,
+      HabitLog: 1,
+      Reward: 1,
+      RewardRedemption: 1,
+      FamilyGoal: 1,
+      BadgeDefinition: 1,
+      EarnedBadge: 1,
     });
+    expect(first.summary.skipped).toEqual([]);
+    expect(second.summary.skipped).toEqual([]);
   });
 
   it("persists and reuses Meal Planner relationships", async () => {
@@ -162,6 +242,26 @@ describeWithDatabase("family import persistence", () => {
     expect(first.summary.created.MealPlanEntry).toBe(1);
     expect(second.summary.reused.Recipe).toBe(1);
     expect(second.summary.reused.MealPlanEntry).toBe(1);
+    expect(first.summary.created).toMatchObject({
+      Ingredient: 1,
+      Recipe: 1,
+      RecipeIngredient: 1,
+      MealPlan: 1,
+      MealPlanEntry: 1,
+      ShoppingList: 1,
+      ShoppingItem: 1,
+    });
+    expect(second.summary.reused).toMatchObject({
+      Ingredient: 1,
+      Recipe: 1,
+      RecipeIngredient: 1,
+      MealPlan: 1,
+      MealPlanEntry: 1,
+      ShoppingList: 1,
+      ShoppingItem: 1,
+    });
+    expect(first.summary.skipped).toEqual([]);
+    expect(second.summary.skipped).toEqual([]);
   });
 
   it("persists native Budget App records and lossless archives", async () => {
@@ -190,6 +290,18 @@ describeWithDatabase("family import persistence", () => {
         { id: "wish-1", name: "Bike", price: 29999, createdAt: "2026-08-20" },
       ],
       accounts: [{ id: "account-1", name: "Chequing", balance: 50000 }],
+      bills: [{ id: "bill-1", name: "Hydro", amount: 7500 }],
+      billPayments: [{ id: "payment-1", billId: "bill-1", amount: 7500 }],
+      budgets: [{ id: "budget-1", categoryId: "cat-1", amount: 40000 }],
+      goals: [{ id: "savings-goal-1", name: "Emergency fund", target: 100000 }],
+      goalContributions: [
+        { id: "contribution-1", goalId: "savings-goal-1", amount: 5000 },
+      ],
+      incomes: [{ id: "income-1", name: "Pay", amount: 100000 }],
+      screenshotReceipts: [{ id: "receipt-1", total: 1234 }],
+      spendingPatterns: [{ id: "pattern-1", merchant: "Market" }],
+      dailyPeriods: [{ id: "period-1", allowance: 2500 }],
+      noSpendEntries: [{ id: "no-spend-1", date: "2026-08-29" }],
     };
     const options = { familyId, startedBy: parentId, dryRun: false };
     const first = await importBudgetApp(data, options);
@@ -198,13 +310,64 @@ describeWithDatabase("family import persistence", () => {
       BudgetCategory: 1,
       Transaction: 1,
       WishlistItem: 1,
-      FinancialArchiveRecord: 1,
+      FinancialArchiveRecord: 11,
     });
     expect(second.summary.reused).toMatchObject({
       BudgetCategory: 1,
       Transaction: 1,
       WishlistItem: 1,
-      FinancialArchiveRecord: 1,
+      FinancialArchiveRecord: 11,
     });
+    expect(first.summary.skipped).toEqual([]);
+    expect(second.summary.skipped).toEqual([]);
+  });
+
+  it("reconciles every source record and completed import job", async () => {
+    const records = await prisma.importedRecord.findMany({
+      where: { family_id: familyId },
+      select: { source_app: true, source_model: true, source_id: true },
+    });
+    const jobs = await prisma.importJob.findMany({
+      where: { family_id: familyId },
+      select: { source_app: true, status: true, summary: true },
+    });
+
+    const recordsBySource = records.reduce<Record<string, number>>(
+      (counts, record) => {
+        counts[record.source_app] = (counts[record.source_app] ?? 0) + 1;
+        return counts;
+      },
+      {},
+    );
+    const jobsBySource = jobs.reduce<Record<string, number>>((counts, job) => {
+      counts[job.source_app] = (counts[job.source_app] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    expect(recordsBySource).toEqual({
+      "chore-champs": 9,
+      "meal-planner": 7,
+      "budget-app": 14,
+    });
+    expect(jobsBySource).toEqual({
+      "chore-champs": 2,
+      "meal-planner": 2,
+      "budget-app": 2,
+    });
+    expect(jobs).toHaveLength(6);
+    expect(jobs.every((job) => job.status === "completed")).toBe(true);
+
+    const uniqueProvenance = new Set(
+      records.map(
+        (record) =>
+          `${record.source_app}:${record.source_model}:${record.source_id}`,
+      ),
+    );
+    expect(uniqueProvenance.size).toBe(records.length);
+
+    console.info(
+      "Legacy import reconciliation:",
+      JSON.stringify({ recordsBySource, jobsBySource, skipped: 0 }),
+    );
   });
 });
