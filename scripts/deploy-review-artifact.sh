@@ -183,7 +183,7 @@ fi
 
 review_database_url="$(
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$review_container" |
-    sed -n 's/^DATABASE_URL=//p' | head -n 1
+    sed -n 's/^DATABASE_URL=//p' | tail -n 1
 )"
 if [[ -z "$review_database_url" ]]; then
   echo 'Review container does not expose DATABASE_URL to the QA runner.' >&2
