@@ -132,8 +132,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-          provenance: true
-          sbom: true
+          # Docker tar review artifacts cannot contain attestation manifest
+          # lists. Published GHCR images retain both supply-chain attestations.
+          provenance: ${{ github.event_name != 'pull_request' }}
+          sbom: ${{ github.event_name != 'pull_request' }}
           labels: |
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.source=${{ github.event.repository.html_url }}
