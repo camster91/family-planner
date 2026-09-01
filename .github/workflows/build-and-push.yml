@@ -49,7 +49,7 @@ concurrency:
 jobs:
   build:
     name: Build deployable image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
     timeout-minutes: 30
     outputs:
       artifact-name: ${{ steps.meta.outputs.artifact-name }}

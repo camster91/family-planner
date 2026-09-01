@@ -12,13 +12,13 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag to deploy (default: latest)'
+        description: "Image tag to deploy (default: latest)"
         required: false
-        default: 'latest'
+        default: "latest"
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Determine image tag
