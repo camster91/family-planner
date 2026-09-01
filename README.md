@@ -90,6 +90,11 @@ Visit `http://localhost:3000`.
 | `EMAIL_FROM`           | Verified transactional sender               | Production        |
 | `EMAIL_DELIVERY_MODE`  | `log` only for local development and CI     | No                |
 
+Production delivery fails closed unless both an approved provider credential
+and an explicit provider-verified `EMAIL_FROM` are configured. See the
+[transactional email release runbook](docs/TRANSACTIONAL_EMAIL_RUNBOOK.md) for
+the review and production acceptance procedure.
+
 ## User Roles
 
 | Role       | Access                                                                             |

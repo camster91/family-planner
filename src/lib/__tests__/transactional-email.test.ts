@@ -35,6 +35,8 @@ describe("transactional email and one-time tokens", () => {
     delete process.env.MATON_API_KEY;
     delete process.env.MATON_API_KEY_ASHBI;
     delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
+    delete process.env.FROM_EMAIL;
     delete process.env.EMAIL_DELIVERY_MODE;
     expect(transactionalEmailStatus()).toBe("missing");
     await expect(
@@ -59,5 +61,57 @@ describe("transactional email and one-time tokens", () => {
       }),
     ).resolves.toBe("log");
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when production has a provider but no explicit sender", async () => {
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      RESEND_API_KEY: "test-provider-key",
+    });
+    delete process.env.EMAIL_FROM;
+    delete process.env.FROM_EMAIL;
+
+    expect(transactionalEmailStatus()).toBe("missing");
+    await expect(
+      sendTransactionalEmail({
+        to: "person@example.test",
+        subject: "Test",
+        html: "<p>Test</p>",
+      }),
+    ).rejects.toThrow("not configured");
+  });
+
+  it("uses Resend only when production has a provider and explicit sender", async () => {
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      RESEND_API_KEY: "test-provider-key",
+      EMAIL_FROM: "Family Planner <noreply@family.ashbi.ca>",
+    });
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ id: "email-1" }), { status: 200 }),
+      );
+
+    await expect(
+      sendTransactionalEmail({
+        to: "person@example.test",
+        subject: "Test",
+        html: "<p>Test</p>",
+      }),
+    ).resolves.toBe("resend");
+    expect(transactionalEmailStatus()).toBe("resend");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          from: "Family Planner <noreply@family.ashbi.ca>",
+          to: ["person@example.test"],
+          subject: "Test",
+          html: "<p>Test</p>",
+        }),
+      }),
+    );
   });
 });

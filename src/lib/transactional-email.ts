@@ -6,12 +6,18 @@ type TransactionalEmail = {
   html: string;
 };
 
+function configuredEmailFrom(): string | undefined {
+  const value = process.env.EMAIL_FROM || process.env.FROM_EMAIL;
+  return value?.trim() || undefined;
+}
+
 function emailFrom(): string {
-  return (
-    process.env.EMAIL_FROM ||
-    process.env.FROM_EMAIL ||
-    "Family Planner <noreply@family.ashbi.ca>"
-  );
+  const configured = configuredEmailFrom();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Transactional email sender is not configured");
+  }
+  return "Family Planner <noreply@family.ashbi.ca>";
 }
 
 function assertSafeHeader(value: string) {
@@ -19,22 +25,21 @@ function assertSafeHeader(value: string) {
 }
 
 export function transactionalEmailStatus(): EmailProvider | "missing" {
-  if (process.env.MATON_API_KEY || process.env.MATON_API_KEY_ASHBI)
-    return "maton";
-  if (process.env.RESEND_API_KEY) return "resend";
   if (
     process.env.NODE_ENV !== "production" ||
     (process.env.EMAIL_DELIVERY_MODE === "log" && process.env.CI === "true")
   )
     return "log";
+  if (!configuredEmailFrom()) return "missing";
+  if (process.env.MATON_API_KEY || process.env.MATON_API_KEY_ASHBI)
+    return "maton";
+  if (process.env.RESEND_API_KEY) return "resend";
   return "missing";
 }
 
 export async function sendTransactionalEmail(
   email: TransactionalEmail,
 ): Promise<EmailProvider> {
-  const from = emailFrom();
-  assertSafeHeader(from);
   assertSafeHeader(email.to);
   assertSafeHeader(email.subject);
 
@@ -46,6 +51,9 @@ export async function sendTransactionalEmail(
   if (provider === "missing") {
     throw new Error("Transactional email delivery is not configured");
   }
+
+  const from = emailFrom();
+  assertSafeHeader(from);
 
   if (provider === "maton") {
     const mime = [
