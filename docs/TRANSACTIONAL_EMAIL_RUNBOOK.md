@@ -4,6 +4,9 @@
 **Status:** Provider-neutral preparation; changing secrets and sending external
 email require explicit approval.
 
+The evidence-based beta recommendation and exact approval boundary are recorded
+in the [provider decision](TRANSACTIONAL_EMAIL_PROVIDER_DECISION.md).
+
 ## Release requirement
 
 Family Planner is not ready for beta or production unless email verification
