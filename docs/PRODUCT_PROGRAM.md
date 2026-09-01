@@ -31,12 +31,12 @@ reward**, with family roles and private financial data handled correctly.
 | ------------- | --------------------------------------------------------------------------------------------------- | ----------- |
 | Source        | Production remains on reviewed commit `9c9e315`; launch-gap work is isolated in open PR #101        | Controlled  |
 | Consolidation | ChoreChamps, Meal Planner, and Budget App domains and import foundations merged in PR #95           | Merged      |
-| Review        | Exact PR head `9f37aa2` deployed from its workflow artifact; authenticated core-loop smoke passed | Degraded    |
+| Review        | Exact PR head `f3cffd3` deployed from its workflow artifact; authenticated core-loop smoke passed | Degraded    |
 | Production    | `https://family.ashbi.ca/api/health` is healthy on image `family-planner:9c9e315`                   | Shipped     |
 | Required CI   | Protected `master` requires strict Ashbi, build/test, and Android APK checks for PRs                | Enforced    |
 | Ashbi runner  | Dedicated `familyci` runner executes the complete release/recovery gate and cleans disposable state | Operational |
 | Local gate    | Prisma generate, typecheck, lint, 49 active tests, syntax checks, and clean diff checks pass        | Verified    |
-| Runtime QA    | Automated role/isolation and full core-loop smoke pass; final candidate mobile audit is in progress | In progress |
+| Runtime QA    | Automated role/isolation and core-loop smoke plus authenticated 320px core-surface audit pass       | Complete    |
 | Source apps   | GitHub repositories archived; local checkouts retained for rollback/reference                       | Complete    |
 
 ### Access and capability
@@ -176,3 +176,4 @@ A production candidate requires all of the following:
 | 2026-09-01 | Opened PR #100 for launch-readiness gaps and protected `master` with required strict checks | Dedicated Ashbi runner; repeatable imports, backup/restore, immutable rollback, parent-child-isolation smoke, search, token hardening, privacy controls, export/deletion, audit history, notification preferences, and Android APK checks | Superseded by PR #101 after GitHub stopped synchronizing the amended branch head                                      |
 | 2026-09-01 | Opened replacement PR #101 from the exact candidate branch                                  | PR #100 remains closed and unmerged; branch history and review evidence are preserved                                                                                                                                                    | Clear latest exact-head gates, finish candidate mobile QA, verify production email, then request production approval |
 | 2026-09-01 | Promoted exact PR head `9f37aa2` to the Ashbi review target with automatic rollback       | Workflow run `33518730116`; pre-deploy database backup retained; live register-to-reward loop passed; previous container retained; review health is degraded only for missing transactional email                                             | Validate the final navigation candidate at mobile width, then remove the opt-in review deployment label              |
+| 2026-09-01 | Promoted and audited exact PR #101 head `f3cffd3` on Ashbi review                              | Runs `33521869543` and `33521869424`; all required checks passed; backup and rollback container retained; live core loop passed; authenticated 320px QA found no overflow, unlabeled controls, or undersized visible targets                    | Configure transactional email, obtain approved exports, and run the five-household beta before production approval  |

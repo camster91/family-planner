@@ -44,6 +44,7 @@ try {
       SELECT
         f.id,
         f.created_at,
+        MIN(u.created_at) FILTER (WHERE u.role = 'parent') AS registered_at,
         COUNT(DISTINCT u.id)::int AS member_count,
         COUNT(DISTINCT u.id) FILTER (WHERE u.role = 'parent')::int AS parent_count,
         COUNT(DISTINCT u.id) FILTER (WHERE u.role IN ('child', 'teen'))::int AS youth_count,
@@ -129,18 +130,20 @@ try {
 
   const householdResults = entries.map(([alias, familyId]) => {
     const row = familyRows.get(familyId);
-    const timeToFirstValueMinutes = row?.first_assignment_at
-      ? Math.round(
-          (new Date(row.first_assignment_at).getTime() -
-            new Date(row.created_at).getTime()) /
-            60_000,
-        )
-      : null;
+    const timeToFirstValueMinutes =
+      row?.first_assignment_at && row?.registered_at
+        ? Math.round(
+            (new Date(row.first_assignment_at).getTime() -
+              new Date(row.registered_at).getTime()) /
+              60_000,
+          )
+        : null;
     return {
       cohort: alias,
       exists: Boolean(row),
       activated: Boolean(
         row &&
+        row.registered_at &&
         row.parent_count >= 1 &&
         row.youth_count >= 1 &&
         row.first_assignment_at,

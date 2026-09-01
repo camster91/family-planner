@@ -26,7 +26,7 @@ jobs:
       ROLLBACK_IMAGE: family-planner@sha256:7520c08a82282a450c40469830c09cb8712cc936fd568a1b5556b519fcdca698
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ env.CANDIDATE_SHA }}
@@ -37,7 +37,7 @@ jobs:
           echo "Candidate: $CANDIDATE_SHA"
 
       - name: Setup supported Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -70,7 +70,7 @@ jobs:
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ env.CANDIDATE_SHA }}

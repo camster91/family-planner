@@ -16,25 +16,25 @@ name: Build and Push Image
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
     branches: [main, master]
   workflow_call:
     inputs:
       image_name:
-        description: 'Override image name (default: repo name)'
+        description: "Override image name (default: repo name)"
         required: false
         type: string
       dockerfile:
-        description: 'Path to Dockerfile (default: ./Dockerfile)'
+        description: "Path to Dockerfile (default: ./Dockerfile)"
         required: false
         type: string
-        default: 'Dockerfile'
+        default: "Dockerfile"
       platforms:
-        description: 'Buildx platforms (default: Ashbi amd64 runtime)'
+        description: "Buildx platforms (default: Ashbi amd64 runtime)"
         required: false
         type: string
-        default: 'linux/amd64'
+        default: "linux/amd64"
 
 permissions:
   contents: read
@@ -58,7 +58,7 @@ jobs:
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ env.CANDIDATE_SHA }}
@@ -110,7 +110,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Docker layers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.ref_name }}
@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload exact PR image artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.meta.outputs.artifact-name }}
           path: /tmp/family-planner-${{ env.CANDIDATE_SHA }}.tar
@@ -181,19 +181,19 @@ jobs:
       contents: read
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ needs.build.outputs.candidate-sha }}
 
       - name: Download exact review image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.artifact-name }}
           path: /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}
 
       - name: Setup supported Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
