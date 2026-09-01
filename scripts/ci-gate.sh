@@ -16,6 +16,7 @@ db_container="family-planner-ci-db-${run_key}"
 app_container="family-planner-ci-app-${run_key}"
 network="family-planner-ci-${run_key}"
 image="family-planner-ci:${GITHUB_SHA:-local}-${run_key}"
+ci_run_id="${GITHUB_RUN_ID:-local-${run_key}}"
 db_password="ci-only-not-production"
 db_name="familyplanner_ci"
 
@@ -27,8 +28,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Creating disposable PostgreSQL environment"
-docker network create "$network" >/dev/null
+docker network create --label "family-planner.ci.run-id=${ci_run_id}" "$network" >/dev/null
 docker run -d --name "$db_container" --network "$network" --network-alias ci-db \
+  --label "family-planner.ci.run-id=${ci_run_id}" \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD="$db_password" \
   -e POSTGRES_DB="$db_name" \
@@ -80,10 +82,12 @@ npm run build
 echo "==> Building the immutable production container"
 docker build \
   --label "org.opencontainers.image.revision=${GITHUB_SHA:-local}" \
+  --label "family-planner.ci.run-id=${ci_run_id}" \
   --tag "$image" .
 
 echo "==> Starting and smoke-testing the production container"
 docker run -d --name "$app_container" --network "$network" \
+  --label "family-planner.ci.run-id=${ci_run_id}" \
   -e DATABASE_URL="postgresql://postgres:${db_password}@ci-db:5432/${db_name}" \
   -e JWT_SECRET="$JWT_SECRET" \
   -e NEXT_PUBLIC_APP_URL="http://127.0.0.1:3000" \

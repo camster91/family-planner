@@ -39,6 +39,10 @@ jobs:
       - name: Run complete release gate
         run: bash scripts/ci-gate.sh
 
+      - name: Remove disposable CI resources
+        if: always()
+        run: bash scripts/ci-cleanup.sh "$GITHUB_RUN_ID"
+
       - name: Publish evidence summary
         if: always()
         run: |
