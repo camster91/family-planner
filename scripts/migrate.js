@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS "Reward" (
   "name" TEXT NOT NULL,
   "description" TEXT,
   "cost" INTEGER NOT NULL DEFAULT 10,
-  "icon" TEXT NOT NULL DEFAULT 'gift',
+  "icon" TEXT DEFAULT 'gift',
   "status" TEXT NOT NULL DEFAULT 'available',
   "created_by" TEXT NOT NULL,
   "claimed_by" TEXT,
@@ -214,6 +214,8 @@ BEGIN
                  WHERE table_name = 'Reward' AND column_name = 'approved') THEN
     ALTER TABLE "Reward" ADD COLUMN "approved" BOOLEAN NOT NULL DEFAULT false;
   END IF;
+  -- Prisma permits icon-less rewards; legacy bootstrap schemas did not.
+  ALTER TABLE "Reward" ALTER COLUMN "icon" DROP NOT NULL;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name = 'Reward' AND column_name = 'created_by') THEN
     ALTER TABLE "Reward" ADD COLUMN "created_by" TEXT;
