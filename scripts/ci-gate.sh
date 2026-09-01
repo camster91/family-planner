@@ -118,4 +118,7 @@ node -e '
   }
 '
 
+echo "==> Proving the role-aware parent-to-child core loop"
+APP_URL="$health_url" DATABASE_URL="$DATABASE_URL" node scripts/core-loop-smoke.mjs
+
 echo "==> Release gate passed for ${GITHUB_SHA:-local}"

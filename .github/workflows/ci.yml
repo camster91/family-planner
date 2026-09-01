@@ -47,5 +47,5 @@ jobs:
             echo "- Candidate: \`$GITHUB_SHA\`"
             echo "- Runner: \`$RUNNER_NAME\`"
             echo "- Result: \`${{ job.status }}\`"
-            echo "- Gate: frozen install, Prisma generation, typecheck, lint, tests, migration twice, persisted import integration, production audit, application build, image build, and container health smoke"
+            echo "- Gate: frozen install, Prisma generation, typecheck, lint, tests, migration twice, persisted import integration, production audit, application build, image build, container health smoke, and the role-aware parent-to-child core loop"
           } >> "$GITHUB_STEP_SUMMARY"
