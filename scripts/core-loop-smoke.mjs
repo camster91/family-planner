@@ -210,6 +210,25 @@ try {
   const choreId = chorePayload?.chore?.id;
   if (!choreId) throw new Error("parent could not assign the core-loop chore");
 
+  const { payload: parentSearch } = await request("/api/search?q=Release", {
+    session: parentSession,
+  });
+  if (!parentSearch?.results?.some((result) => result.id === choreId)) {
+    throw new Error("family search did not return the new chore");
+  }
+  const { payload: childSearch } = await request("/api/search?q=Release", {
+    session: childSession,
+  });
+  if (!childSearch?.results?.some((result) => result.id === choreId)) {
+    throw new Error("child could not search their family chore");
+  }
+  const { payload: outsiderSearch } = await request("/api/search?q=Release", {
+    session: outsiderSession,
+  });
+  if (outsiderSearch?.results?.some((result) => result.id === choreId)) {
+    throw new Error("cross-family search leaked a chore");
+  }
+
   await request("/api/chores/verify", {
     method: "POST",
     session: childSession,
