@@ -109,15 +109,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache Docker layers
-        uses: actions/cache@v6
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.ref_name }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-main
-            ${{ runner.os }}-buildx-
-
       - name: Build and push
         id: build
         uses: docker/build-push-action@v7
@@ -130,8 +121,6 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           outputs: ${{ github.event_name == 'pull_request' && format('type=docker,dest=/tmp/family-planner-{0}.tar', env.CANDIDATE_SHA) || '' }}
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           # Docker tar review artifacts cannot contain attestation manifest
           # lists. Published GHCR images retain both supply-chain attestations.
           provenance: ${{ github.event_name != 'pull_request' }}
