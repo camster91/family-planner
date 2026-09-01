@@ -87,6 +87,8 @@ chmod 700 "$backup_dir"
 backup_path="${backup_dir}/before-${candidate_sha}-$(date -u +%Y%m%dT%H%M%SZ).dump"
 database_user="$(docker exec "$database_container" sh -c 'printf %s "$POSTGRES_USER"')"
 database_name="$(docker exec "$database_container" sh -c 'printf %s "$POSTGRES_DB"')"
+database_password="$(docker exec "$database_container" sh -c 'printf %s "$POSTGRES_PASSWORD"')"
+database_host="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$database_container")"
 docker exec "$database_container" \
   pg_dump --format=custom --create --username "$database_user" "$database_name" \
   > "$backup_path"
@@ -182,11 +184,26 @@ if [[ "$health_status" != 'healthy' && "$health_status" != 'degraded' ]]; then
 fi
 
 review_database_url="$(
-  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$review_container" |
-    sed -n 's/^DATABASE_URL=//p' | tail -n 1
+  printf '%s\0%s\0%s\0%s\0' "$database_user" "$database_password" "$database_name" "$database_host" |
+    python3 -c '
+import sys
+from urllib.parse import quote
+
+user, password, database, host, _ = sys.stdin.buffer.read().split(b"\0", 4)
+print(
+    "postgresql://"
+    + quote(user.decode(), safe="")
+    + ":"
+    + quote(password.decode(), safe="")
+    + "@"
+    + host.decode()
+    + ":5432/"
+    + quote(database.decode(), safe="")
+)
+'
 )"
-if [[ -z "$review_database_url" ]]; then
-  echo 'Review container does not expose DATABASE_URL to the QA runner.' >&2
+if [[ -z "$review_database_url" || -z "$database_password" || -z "$database_host" ]]; then
+  echo 'Could not construct the review QA database connection.' >&2
   exit 1
 fi
 echo "::add-mask::${review_database_url}"
