@@ -1,7 +1,7 @@
 # Family Planner Product Program
 
 **Owner:** Cameron Ashley  
-**Last verified:** 2026-08-28  
+**Last verified:** 2026-09-01
 **Authority:** This document is the product and release source of truth. Detailed
 implementation and migration mechanics remain in `CONSOLIDATION_PLAN.md`.
 
@@ -27,23 +27,24 @@ reward**, with family roles and private financial data handled correctly.
 
 ## Current verified state
 
-| Area           | Evidence on 2026-08-28                                                                             | State       |
-| -------------- | -------------------------------------------------------------------------------------------------- | ----------- |
-| Source         | PR #97 merged to `master` as `63aeaf9`; reviewed head `9c9e315`                                    | Shipped     |
-| Consolidation  | ChoreChamps, Meal Planner, and Budget App domains and import foundations merged in PR #95          | Merged      |
-| Review         | `https://family-review.ashbi.ca/api/health` serves image `family-planner-review:9c9e315`           | Healthy     |
-| Production     | `https://family.ashbi.ca/api/health` is healthy on image `family-planner:9c9e315`                  | Shipped     |
-| Hosted CI      | Runs for `60437bd` fail before useful validation because of the GitHub billing/spending gate       | Blocked     |
-| Replacement CI | Ashbi VPS built and validated the exact PR #97 candidate and final production image                | Operational |
-| Local gate     | Prisma generate, typecheck, lint, 44 tests, production build, and production dependency audit pass | Verified    |
-| Runtime QA     | Calendar #34, teen wishlist #36, handoff #37, and budget authorization #96 pass on HTTPS review    | Complete    |
-| Source apps    | GitHub repositories archived; local checkouts retained for rollback/reference                      | Complete    |
+| Area          | Evidence on 2026-08-28                                                                              | State       |
+| ------------- | --------------------------------------------------------------------------------------------------- | ----------- |
+| Source        | Production remains on reviewed commit `9c9e315`; launch-gap work is isolated in open PR #100        | Controlled  |
+| Consolidation | ChoreChamps, Meal Planner, and Budget App domains and import foundations merged in PR #95           | Merged      |
+| Review        | `https://family-review.ashbi.ca/api/health` serves image `family-planner-review:9c9e315`            | Healthy     |
+| Production    | `https://family.ashbi.ca/api/health` is healthy on image `family-planner:9c9e315`                   | Shipped     |
+| Required CI   | Protected `master` requires strict Ashbi, build/test, and Android APK checks for PRs                | Enforced    |
+| Ashbi runner  | Dedicated `familyci` runner executes the complete release/recovery gate and cleans disposable state | Operational |
+| Local gate    | Prisma generate, typecheck, lint, 49 active tests, syntax checks, and clean diff checks pass        | Verified    |
+| Runtime QA    | Calendar #34, teen wishlist #36, handoff #37, and budget authorization #96 pass on HTTPS review     | Complete    |
+| Source apps   | GitHub repositories archived; local checkouts retained for rollback/reference                       | Complete    |
 
 ### Access and capability
 
 - Repository administration and GitHub issue access are available.
 - Ashbi review and production health endpoints are reachable.
-- GitHub-hosted Actions are configured but unusable until billing is restored.
+- GitHub Actions orchestration is active; the release gate itself runs on the
+  dedicated Ashbi VPS runner.
 - Production promotion requires explicit approval and an immutable reviewed
   candidate; PR #97 satisfied both conditions.
 - Review and production both use HTTPS, so `Secure` authentication cookies are
@@ -139,12 +140,12 @@ These are acceptance thresholds, not claims about current performance.
 
 ## Risk and blocker register
 
-| Risk                                                  | Owner            | Mitigation / unblock condition                                           |
-| ----------------------------------------------------- | ---------------- | ------------------------------------------------------------------------ |
-| GitHub checks fail before execution                   | Repository owner | Restore billing or enforce an externally reported Ashbi required check   |
-| Consolidated imports have not used production exports | Data owner       | Supply approved exports and identity maps; dry-run and reconcile first   |
-| Wide feature surface can hide broken journeys         | Product owner    | Gate optional modules and prioritize vertical E2E evidence over breadth  |
-| No real customer evidence yet                         | Product owner    | Run a five-household design-partner beta before market claims or pricing |
+| Risk                                                  | Owner         | Mitigation / unblock condition                                            |
+| ----------------------------------------------------- | ------------- | ------------------------------------------------------------------------- |
+| Production transactional email provider is absent     | Release owner | Configure an approved credential and verified sender; prove live delivery |
+| Consolidated imports have not used production exports | Data owner    | Supply approved exports and identity maps; dry-run and reconcile first    |
+| Wide feature surface can hide broken journeys         | Product owner | Gate optional modules and prioritize vertical E2E evidence over breadth   |
+| No real customer evidence yet                         | Product owner | Run a five-household design-partner beta before market claims or pricing  |
 
 ## Release gate
 
@@ -160,13 +161,14 @@ A production candidate requires all of the following:
 
 ## Work log
 
-| Date       | Change                                                                                    | Verification                                                                                                                                       | Next                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| 2026-08-28 | Consolidation PR #95 merged; source repositories archived; Ashbi review deployed          | Review and production health endpoints return success                                                                                              | Reproduce full release gate and prove authenticated core journeys               |
-| 2026-08-28 | Product program established from live repository and official competitor research         | Source, issues, Actions, endpoints, and vendor pricing inspected                                                                                   | Fix HTTPS review and add role/isolation tests                                   |
-| 2026-08-28 | Added `npm run verify:app` after a clean test run revealed Prisma generation was implicit | Prisma generate, typecheck, lint, 39 tests, production build, and audit all pass; zero production vulnerabilities                                  | Add database migration/integration and container smoke stages to the Ashbi gate |
-| 2026-08-28 | Added HTTPS review routing and tested disposable parent, teen, and child accounts         | Valid certificate; calendar persisted; teen wishlist create passed; invalid handoff returned 400; teen handoff returned 403                        | Close remaining browser UI evidence gaps                                        |
-| 2026-08-28 | Blocked teen and child access across the budget API surface                               | 43 local tests pass; review image `family-planner-review:f96f1390548b` is healthy; child/teen return 403 and parent 200                            | Merge only after review and release evidence are accepted                       |
-| 2026-08-28 | Completed authenticated browser acceptance for #34, #36, and #37                          | Native calendar values saved and survived reload; invalid time banner rendered; teen wishlist create/edit/delete stayed on-page                    | Promote the exact reviewed candidate                                            |
-| 2026-08-28 | Fixed calendar nullable-field contract and replaced native wishlist edit/delete prompts   | 44 tests pass; review image `family-planner-review:9c9e315` healthy; final security diff scan found zero issues                                    | Merge PR #97                                                                    |
-| 2026-08-28 | Merged PR #97 and deployed `family-planner:9c9e315` to production                         | Fresh validated database backup; production health fully green; live parent/teen authorization and event/wishlist smoke passed; QA records removed | Begin design-partner beta and automate the full north-star journey              |
+| Date       | Change                                                                                      | Verification                                                                                                                                                                                                                              | Next                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-28 | Consolidation PR #95 merged; source repositories archived; Ashbi review deployed            | Review and production health endpoints return success                                                                                                                                                                                     | Reproduce full release gate and prove authenticated core journeys                                                    |
+| 2026-08-28 | Product program established from live repository and official competitor research           | Source, issues, Actions, endpoints, and vendor pricing inspected                                                                                                                                                                          | Fix HTTPS review and add role/isolation tests                                                                        |
+| 2026-08-28 | Added `npm run verify:app` after a clean test run revealed Prisma generation was implicit   | Prisma generate, typecheck, lint, 39 tests, production build, and audit all pass; zero production vulnerabilities                                                                                                                         | Add database migration/integration and container smoke stages to the Ashbi gate                                      |
+| 2026-08-28 | Added HTTPS review routing and tested disposable parent, teen, and child accounts           | Valid certificate; calendar persisted; teen wishlist create passed; invalid handoff returned 400; teen handoff returned 403                                                                                                               | Close remaining browser UI evidence gaps                                                                             |
+| 2026-08-28 | Blocked teen and child access across the budget API surface                                 | 43 local tests pass; review image `family-planner-review:f96f1390548b` is healthy; child/teen return 403 and parent 200                                                                                                                   | Merge only after review and release evidence are accepted                                                            |
+| 2026-08-28 | Completed authenticated browser acceptance for #34, #36, and #37                            | Native calendar values saved and survived reload; invalid time banner rendered; teen wishlist create/edit/delete stayed on-page                                                                                                           | Promote the exact reviewed candidate                                                                                 |
+| 2026-08-28 | Fixed calendar nullable-field contract and replaced native wishlist edit/delete prompts     | 44 tests pass; review image `family-planner-review:9c9e315` healthy; final security diff scan found zero issues                                                                                                                           | Merge PR #97                                                                                                         |
+| 2026-08-28 | Merged PR #97 and deployed `family-planner:9c9e315` to production                           | Fresh validated database backup; production health fully green; live parent/teen authorization and event/wishlist smoke passed; QA records removed                                                                                        | Begin design-partner beta and automate the full north-star journey                                                   |
+| 2026-09-01 | Opened PR #100 for launch-readiness gaps and protected `master` with required strict checks | Dedicated Ashbi runner; repeatable imports, backup/restore, immutable rollback, parent-child-isolation smoke, search, token hardening, privacy controls, export/deletion, audit history, notification preferences, and Android APK checks | Clear latest exact-head gates, finish candidate mobile QA, verify production email, then request production approval |

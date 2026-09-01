@@ -1,39 +1,36 @@
 # Open Issue Triage
 
-Snapshot reviewed: 2026-08-28. GitHub reported 13 open issues. The fixes and
-consolidation foundation are collected in PR #95.
+**Snapshot verified:** 2026-09-01
+**Open issues:** 2
+**Candidate:** PR #100, `codex/launch-readiness-gaps`
 
-| Issue                             | Priority | Current evidence                                                                  | Disposition                                                                                  |
-| --------------------------------- | -------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| #85 release validation            | P0       | Release checks previously suppressed failures                                     | Active umbrella; Wave 0                                                                      |
-| #84 reliable release plan         | P0       | Existing shipping plan remains directionally correct                              | Expanded by consolidation plan                                                               |
-| #60 recurring chore serial awaits | P1       | `expandAllRecurringChores` awaited each expansion serially                        | Fixed in PR #95; local suite passes                                                          |
-| #58 migration failure swallowed   | P0       | entrypoint and migration runner continued after errors; image omitted feature SQL | Fixed in PR #95; container run blocked by unavailable local Docker and GitHub runner billing |
-| #57 CI checks non-blocking        | P0       | multiple workflows used `continue-on-error`                                       | Fixed in PR #95; Actions re-enabled, runner start blocked by account billing                 |
-| #56 tracked `.env.production`     | P0       | template was tracked at production filename                                       | Fixed in PR #95; history audit found no real secret in the removed template                  |
-| #55 strict TypeScript overridden  | P0       | `noImplicitAny` was false                                                         | Fixed in PR #95; strict build passes                                                         |
-| #54 settings labels               | P1       | profile inputs and language select were unlabeled                                 | Fixed in PR #95; automated browser accessibility run remains required before release         |
-| #53 duplicate settings labels     | P1       | duplicates #54                                                                    | Close as duplicate when #54 merges                                                           |
-| #37 invalid handoff datetime      | P1       | POST/PATCH now reject invalid dates with 400                                      | Code-fixed upstream; E2E verification required                                               |
-| #36 teen wishlist detail          | P1       | current UI has no detail route; family API allows teen reads                      | Superseded UI; role E2E required before closure                                              |
-| #34 calendar date selection       | P1       | current form uses controlled native date inputs                                   | Code-fixed upstream; browser E2E required                                                    |
-| #16 partially failing CI          | P0       | duplicate deploy workflows and suppressed checks found                            | Workflow fixed and Actions enabled; account billing currently prevents runners from starting |
+| Issue                                                           | Priority    | Current evidence                                                                                                                                                                                                                                                                                                                                                | Closure condition                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #85 — Restore required release validation                       | P0          | `master` protection requires strict `Ashbi release gate`, `Build & Test`, and `Build APK`; the dedicated Ashbi runner executes frozen install, schema generation, static checks, unit/database integration, migrations twice, import reconciliation, dependency audit, production build/image, health, core journey, recovery, cleanup, and immutable rollback. | Latest PR #100 head passes every required check, evidence summary identifies the exact commit, and the merged `master` head retains the same protection.                                                                                               |
+| #84 — Consolidate Family Planner into a reliable family release | P0 umbrella | Source repositories are archived; consolidated import adapters and rehearsals cover ChoreChamps, Meal Planner, and Budget App; search, account recovery, privacy controls, export, deletion, audit history, and persisted notification preferences are implemented on PR #100.                                                                                  | #85 closes; approved real exports are reconciled or explicitly recorded as empty/unavailable; production email provider is verified; mobile QA and the five-household beta entry checklist are complete; exact candidate receives production approval. |
 
-No issue is considered closed solely from static inspection. Each code-fixed
-item requires its listed verification evidence before the GitHub issue closes.
+## Closed/superseded issue reconciliation
 
-## Remaining owners and acceptance criteria
+Earlier implementation issues #16, #34, #36, #37, #53-#60, and #96-#99 are
+closed. Their regression coverage now belongs to the required release gate and
+the product program rather than duplicate issues. A passing narrow unit test is
+not enough to reopen or close the umbrella issues; the exact candidate must pass
+the complete gate.
 
-- Repository owner: restore GitHub Actions billing or raise the spending limit.
-  Acceptance: CI Build starts a hosted runner and every step passes on PR #95.
-- Release owner: provide staging `DATABASE_URL`, backup, and Docker runtime.
-  Acceptance: migrations apply from the current production schema, the container
-  health check passes, and rollback restores the pre-migration backup.
-- Product QA owner: verify #34, #36, #37, and #54 with parent and teen test users.
-  Acceptance: calendar date selection persists, wishlist navigation never opens
-  a missing detail route, invalid handoff dates return inline 400 feedback, and
-  every settings field has an accessible name.
-- Data owner: export production ChoreChamps and Budget App databases and approve
-  identity maps. Acceptance: dry-run skipped counts are reviewed, persisted
-  counts reconcile by source model, and no source app is archived before the
-  rollback window ends.
+## Current external inputs
+
+- Production transactional email still needs an approved provider credential
+  and verified sender. CI log delivery is not production evidence.
+- No approved ChoreChamps or Budget App database export is present locally. The
+  retained Meal Planner SQLite source currently contains zero rows. Do not
+  invent source data or claim a production migration occurred.
+- Recruiting and contacting five design-partner households is an external action
+  requiring separate operator approval. The runbook and privacy-safe scorecard
+  can be prepared beforehand.
+
+## Issue update rule
+
+Update #85 with exact run URLs and commit identity only after all required checks
+finish. Close neither issue before PR #100 is merged. A merge is not production
+deployment; deployment remains a separate exact-artifact approval and release
+record.
