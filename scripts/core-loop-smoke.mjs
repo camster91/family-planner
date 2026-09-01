@@ -5,9 +5,18 @@ import pg from "pg";
 const { Client } = pg;
 const baseUrl = process.env.APP_URL;
 const databaseUrl = process.env.DATABASE_URL;
+const clientIp = process.env.CORE_LOOP_CLIENT_IP;
 
 if (!baseUrl || !databaseUrl) {
   throw new Error("APP_URL and DATABASE_URL are required");
+}
+if (
+  clientIp &&
+  !/^(192\.0\.2|198\.51\.100|203\.0\.113)\.(?:[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-4])$/.test(
+    clientIp,
+  )
+) {
+  throw new Error("CORE_LOOP_CLIENT_IP must be an RFC TEST-NET IPv4 address");
 }
 
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -70,6 +79,7 @@ async function request(
     headers: {
       ...(session?.cookies.size ? { cookie: cookieHeader(session) } : {}),
       ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+      ...(clientIp ? { "x-forwarded-for": clientIp } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),

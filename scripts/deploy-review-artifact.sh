@@ -208,8 +208,10 @@ if [[ -z "$review_database_url" || -z "$database_user" || -z "$database_name" ||
   exit 1
 fi
 echo "::add-mask::${review_database_url}"
+qa_ip_octet=$((16#${candidate_short:0:2} % 254 + 1))
 APP_URL='https://family-review.ashbi.ca' \
   DATABASE_URL="$review_database_url" \
+  CORE_LOOP_CLIENT_IP="192.0.2.${qa_ip_octet}" \
   node scripts/core-loop-smoke.mjs
 
 rollback_needed=false

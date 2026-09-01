@@ -31,7 +31,7 @@ reward**, with family roles and private financial data handled correctly.
 | ------------- | --------------------------------------------------------------------------------------------------- | ----------- |
 | Source        | Production remains on reviewed commit `9c9e315`; launch-gap work is isolated in open PR #101        | Controlled  |
 | Consolidation | ChoreChamps, Meal Planner, and Budget App domains and import foundations merged in PR #95           | Merged      |
-| Review        | Exact PR head `f3cffd3` deployed from its workflow artifact; authenticated core-loop smoke passed | Degraded    |
+| Review        | Latest successfully promoted PR #101 head is recorded on #84; authenticated core-loop smoke passed | Degraded    |
 | Production    | `https://family.ashbi.ca/api/health` is healthy on image `family-planner:9c9e315`                   | Shipped     |
 | Required CI   | Protected `master` requires strict Ashbi, build/test, and Android APK checks for PRs                | Enforced    |
 | Ashbi runner  | Dedicated `familyci` runner executes the complete release/recovery gate and cleans disposable state | Operational |

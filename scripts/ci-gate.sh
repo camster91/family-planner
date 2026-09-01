@@ -134,7 +134,8 @@ node -e '
 '
 
 echo "==> Proving the role-aware parent-to-child core loop"
-APP_URL="$app_url" DATABASE_URL="$DATABASE_URL" node scripts/core-loop-smoke.mjs
+APP_URL="$app_url" DATABASE_URL="$DATABASE_URL" CORE_LOOP_CLIENT_IP='198.51.100.42' \
+  node scripts/core-loop-smoke.mjs
 
 rollback_image="${ROLLBACK_IMAGE:-}"
 if [ -z "$rollback_image" ]; then
