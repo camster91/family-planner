@@ -296,6 +296,8 @@
      - .btn-plain uses --accent-text (color on transparent) */
   .btn-filled {
     display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
@@ -355,6 +357,8 @@
 
   .btn-tinted {
     display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
@@ -382,6 +386,8 @@
 
   .btn-plain {
     display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
@@ -404,6 +410,8 @@
 
   .btn-ghost {
     display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;

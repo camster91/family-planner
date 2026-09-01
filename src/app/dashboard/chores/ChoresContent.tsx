@@ -241,7 +241,7 @@ export default function ChoresContent({
           type="button"
           onClick={() => onChange(opt)}
           className={cn(
-            'flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200',
+            'flex-1 min-h-11 py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200',
             value === opt
               ? 'bg-[var(--surface-elevated)] text-label-primary shadow-sm'
               : 'text-label-secondary hover:text-label-primary'
