@@ -16,6 +16,7 @@ const emails = {
   parent: `ci-parent-${runId}@family-planner.invalid`,
   child: `ci-child-${runId}@family-planner.invalid`,
   outsider: `ci-outsider-${runId}@family-planner.invalid`,
+  deletable: `ci-delete-${runId}@family-planner.invalid`,
 };
 const db = new Client({ connectionString: databaseUrl });
 await db.connect();
@@ -92,12 +93,12 @@ async function request(
   return { response, payload };
 }
 
-async function register(session, email, name, role) {
+async function register(session, email, name, role, inviteCode) {
   const { payload } = await request("/api/auth/register", {
     session,
     method: "POST",
     expected: 200,
-    body: { email, password, name, role },
+    body: { email, password, name, role, inviteCode },
   });
   if (!payload?.requiresVerification || !payload?.user?.id) {
     throw new Error(
@@ -133,6 +134,7 @@ try {
   const parentSession = createSession();
   const childSession = createSession();
   const outsiderSession = createSession();
+  const deleteSession = createSession();
 
   const parent = await register(
     parentSession,
@@ -149,6 +151,21 @@ try {
   await verify(emails.parent);
   await login(parentSession, emails.parent);
 
+  const { payload: profilePayload } = await request("/api/users", {
+    session: parentSession,
+  });
+  for (const secretField of [
+    "password",
+    "reset_token",
+    "reset_token_expires",
+    "verify_token",
+    "verify_token_expires",
+  ]) {
+    if (secretField in (profilePayload?.user || {})) {
+      throw new Error(`profile response exposed ${secretField}`);
+    }
+  }
+
   ({
     payload: { family: familyA },
   } = await request("/api/family", {
@@ -159,14 +176,26 @@ try {
   if (!familyA?.id || !familyA?.invite_code)
     throw new Error("parent could not create a family");
 
-  const child = await register(childSession, emails.child, "CI Child", "child");
+  await request("/api/auth/register", {
+    session: createSession(),
+    method: "POST",
+    expected: 400,
+    body: {
+      email: `uninvited-${emails.child}`,
+      password,
+      name: "Uninvited Child",
+      role: "child",
+    },
+  });
+  const child = await register(
+    childSession,
+    emails.child,
+    "CI Child",
+    "child",
+    familyA.invite_code,
+  );
   await verify(emails.child);
   await login(childSession, emails.child);
-  await request("/api/family/join", {
-    method: "POST",
-    session: childSession,
-    body: { inviteCode: familyA.invite_code },
-  });
 
   const outsider = await register(
     outsiderSession,
@@ -183,6 +212,25 @@ try {
     session: outsiderSession,
     body: { name: `Isolation Family ${runId}` },
   }));
+
+  await register(
+    deleteSession,
+    emails.deletable,
+    "CI Delete Child",
+    "child",
+    familyA.invite_code,
+  );
+  await verify(emails.deletable);
+  await login(deleteSession, emails.deletable);
+  await request("/api/users", {
+    method: "DELETE",
+    session: deleteSession,
+    body: { password, confirmation: "DELETE", deleteFamily: false },
+  });
+  await request("/api/auth/me", {
+    session: deleteSession,
+    expected: 404,
+  });
 
   const { payload: membersPayload } = await request("/api/family/members", {
     session: parentSession,
@@ -258,6 +306,16 @@ try {
   });
   if (!(childAfterChore?.user?.xp > 0))
     throw new Error("verified chore did not award XP");
+
+  const { payload: exportPayload } = await request("/api/users/export", {
+    session: parentSession,
+  });
+  if (exportPayload?.schemaVersion !== 1 || !exportPayload?.user?.id) {
+    throw new Error("account export did not return the versioned user archive");
+  }
+  if ("password" in exportPayload.user || "reset_token" in exportPayload.user) {
+    throw new Error("account export leaked an authentication secret");
+  }
 
   const { payload: rewardPayload } = await request("/api/rewards", {
     method: "POST",

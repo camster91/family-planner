@@ -8,9 +8,9 @@
 // IMPORTANT: This file MUST stay in sync with prisma/schema.prisma.
 // Whenever a model or column is added there, add it here as well.
 
-const { Client } = require('pg')
-const fs = require('fs')
-const path = require('path')
+const { Client } = require("pg");
+const fs = require("fs");
+const path = require("path");
 
 // All CREATE statements use IF NOT EXISTS so this is idempotent.
 // All ALTER statements use ADD COLUMN IF NOT EXISTS so existing tables get new columns.
@@ -171,6 +171,18 @@ CREATE TABLE IF NOT EXISTS "Activity" (
   "title" TEXT NOT NULL,
   "description" TEXT,
   "metadata" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============ Audit history ============
+CREATE TABLE IF NOT EXISTS "AuditLog" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "actor_id" TEXT,
+  "action" TEXT NOT NULL,
+  "resource_type" TEXT NOT NULL,
+  "resource_id" TEXT,
+  "metadata" JSONB,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -444,6 +456,8 @@ CREATE INDEX IF NOT EXISTS "Message_family_id_created_at_idx" ON "Message"("fami
 CREATE INDEX IF NOT EXISTS "Reward_family_id_idx" ON "Reward"("family_id");
 CREATE INDEX IF NOT EXISTS "Reward_family_id_status_idx" ON "Reward"("family_id", "status");
 CREATE INDEX IF NOT EXISTS "Reward_claimed_by_idx" ON "Reward"("claimed_by");
+CREATE INDEX IF NOT EXISTS "AuditLog_family_id_created_at_idx" ON "AuditLog"("family_id", "created_at");
+CREATE INDEX IF NOT EXISTS "AuditLog_family_id_action_idx" ON "AuditLog"("family_id", "action");
 
 CREATE INDEX IF NOT EXISTS "Notification_user_id_idx" ON "Notification"("user_id");
 CREATE INDEX IF NOT EXISTS "Notification_read_idx" ON "Notification"("read");
@@ -473,18 +487,18 @@ CREATE INDEX IF NOT EXISTS "Project_family_id_status_idx" ON "Project"("family_i
 
 CREATE INDEX IF NOT EXISTS "ProjectTask_project_id_idx" ON "ProjectTask"("project_id");
 CREATE INDEX IF NOT EXISTS "ProjectTask_assigned_to_idx" ON "ProjectTask"("assigned_to");
-`
+`;
 
 async function migrate() {
-  const databaseUrl = process.env.DATABASE_URL
+  const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    console.error('DATABASE_URL not set, skipping migration')
-    process.exit(0)
+    console.error("DATABASE_URL not set, skipping migration");
+    process.exit(0);
   }
 
   // Parse the DATABASE_URL to extract the target database name and server URL
-  const url = new URL(databaseUrl)
-  const targetDb = url.pathname.replace(/^\//, '') // e.g., 'familyplanner'
+  const url = new URL(databaseUrl);
+  const targetDb = url.pathname.replace(/^\//, ""); // e.g., 'familyplanner'
 
   // Whitelist the database name. CREATE DATABASE cannot be parameterized
   // (the pg library does not support DDL parameterization), so we MUST
@@ -493,70 +507,74 @@ async function migrate() {
   // name position.
   if (!/^[a-zA-Z0-9_]+$/.test(targetDb)) {
     throw new Error(
-      `Invalid database name: '${targetDb}'. Database names must match /^[a-zA-Z0-9_]+$/.`
-    )
+      `Invalid database name: '${targetDb}'. Database names must match /^[a-zA-Z0-9_]+$/.`,
+    );
   }
 
   // Step 1: Connect to the default 'postgres' database to create the target database if needed
-  const serverUrl = new URL(databaseUrl)
-  serverUrl.pathname = '/postgres'
+  const serverUrl = new URL(databaseUrl);
+  serverUrl.pathname = "/postgres";
 
-  console.log(`Checking if database '${targetDb}' exists...`)
-  const serverClient = new Client({ connectionString: serverUrl.toString() })
+  console.log(`Checking if database '${targetDb}' exists...`);
+  const serverClient = new Client({ connectionString: serverUrl.toString() });
 
-  let connected = false
+  let connected = false;
   try {
-    await serverClient.connect()
-    connected = true
+    await serverClient.connect();
+    connected = true;
     const result = await serverClient.query(
       `SELECT 1 FROM pg_database WHERE datname = $1`,
-      [targetDb]
-    )
+      [targetDb],
+    );
 
     if (result.rows.length === 0) {
-      console.log(`Creating database '${targetDb}'...`)
-      await serverClient.query(`CREATE DATABASE "${targetDb}"`)
-      console.log(`Database '${targetDb}' created successfully`)
+      console.log(`Creating database '${targetDb}'...`);
+      await serverClient.query(`CREATE DATABASE "${targetDb}"`);
+      console.log(`Database '${targetDb}' created successfully`);
     } else {
-      console.log(`Database '${targetDb}' already exists`)
+      console.log(`Database '${targetDb}' already exists`);
     }
   } catch (error) {
     // If connecting to 'postgres' db fails, try 'glowos' (for Coolify-managed databases)
-    const fallbackUrl = new URL(databaseUrl)
-    fallbackUrl.pathname = '/glowos'
-    console.log(`Failed to connect to 'postgres' db, trying 'glowos'...`)
-    const fallbackClient = new Client({ connectionString: fallbackUrl.toString() })
+    const fallbackUrl = new URL(databaseUrl);
+    fallbackUrl.pathname = "/glowos";
+    console.log(`Failed to connect to 'postgres' db, trying 'glowos'...`);
+    const fallbackClient = new Client({
+      connectionString: fallbackUrl.toString(),
+    });
     try {
-      await fallbackClient.connect()
+      await fallbackClient.connect();
       const result = await fallbackClient.query(
         `SELECT 1 FROM pg_database WHERE datname = $1`,
-        [targetDb]
-      )
+        [targetDb],
+      );
       if (result.rows.length === 0) {
-        console.log(`Creating database '${targetDb}'...`)
-        await fallbackClient.query(`CREATE DATABASE "${targetDb}"`)
-        console.log(`Database '${targetDb}' created successfully`)
+        console.log(`Creating database '${targetDb}'...`);
+        await fallbackClient.query(`CREATE DATABASE "${targetDb}"`);
+        console.log(`Database '${targetDb}' created successfully`);
       } else {
-        console.log(`Database '${targetDb}' already exists`)
+        console.log(`Database '${targetDb}' already exists`);
       }
-      await fallbackClient.end()
+      await fallbackClient.end();
     } catch (err2) {
-      console.error('Could not create database:', err2.message)
+      console.error("Could not create database:", err2.message);
     }
   } finally {
     if (connected) {
-      try { await serverClient.end() } catch {}
+      try {
+        await serverClient.end();
+      } catch {}
     }
   }
 
   // Step 2: Connect to the target database and create/alter tables
-  console.log('Running schema migration (idempotent)...')
-  const dbClient = new Client({ connectionString: databaseUrl })
+  console.log("Running schema migration (idempotent)...");
+  const dbClient = new Client({ connectionString: databaseUrl });
 
   try {
-    await dbClient.connect()
-    await dbClient.query(CREATE_TABLES_SQL)
-    console.log('Schema migration completed successfully')
+    await dbClient.connect();
+    await dbClient.query(CREATE_TABLES_SQL);
+    console.log("Schema migration completed successfully");
 
     // Step 3: Run every database/migration-*.sql file in alphabetical order.
     // These are per-feature migrations that were historically hand-run in
@@ -565,31 +583,31 @@ async function migrate() {
     //
     // Each file is expected to be idempotent (CREATE TABLE IF NOT EXISTS,
     // ADD COLUMN IF NOT EXISTS, etc.) so re-running is safe.
-    const migrationsDir = path.join(__dirname, '..', 'database')
+    const migrationsDir = path.join(__dirname, "..", "database");
     if (fs.existsSync(migrationsDir)) {
       const files = fs
         .readdirSync(migrationsDir)
         .filter((f) => /^migration-.*\.sql$/.test(f))
-        .sort()
+        .sort();
       if (files.length > 0) {
-        console.log(`Running ${files.length} per-feature migration file(s)...`)
+        console.log(`Running ${files.length} per-feature migration file(s)...`);
         for (const file of files) {
-          const filePath = path.join(migrationsDir, file)
-          const sql = fs.readFileSync(filePath, 'utf8')
-          await dbClient.query(sql)
-          console.log(`  ✓ ${file}`)
+          const filePath = path.join(migrationsDir, file);
+          const sql = fs.readFileSync(filePath, "utf8");
+          await dbClient.query(sql);
+          console.log(`  ✓ ${file}`);
         }
       }
     }
   } catch (error) {
-    console.error('Schema migration failed:', error.message)
-    throw error
+    console.error("Schema migration failed:", error.message);
+    throw error;
   } finally {
-    await dbClient.end()
+    await dbClient.end();
   }
 }
 
 migrate().catch((err) => {
-  console.error('Migration script failed:', err)
-  process.exit(1)
-})
+  console.error("Migration script failed:", err);
+  process.exit(1);
+});

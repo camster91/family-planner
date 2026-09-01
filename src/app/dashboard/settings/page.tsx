@@ -1,163 +1,219 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database } from 'lucide-react'
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import {
+  Save,
+  Bell,
+  User,
+  Shield,
+  Moon,
+  Globe,
+  X,
+  KeyRound,
+  Sliders,
+  Database,
+  Download,
+} from "lucide-react";
 
 export default function SettingsPage() {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState('')
-  const [age, setAge] = useState('')
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
+  const [age, setAge] = useState("");
   const [notifications, setNotifications] = useState({
     choreReminders: true,
     eventReminders: true,
     newMessages: true,
     weeklyReports: false,
-  })
-  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light')
+  });
+  const [theme, setTheme] = useState<"light" | "dark" | "auto">("light");
 
   useEffect(() => {
     // Read saved theme from localStorage on mount (client only — localStorage doesn't exist on the server)
-    const saved = localStorage.getItem('familyPlanner_theme')
-    if (saved === 'light' || saved === 'dark' || saved === 'auto') setTheme(saved)
-  }, [])
+    const saved = localStorage.getItem("familyPlanner_theme");
+    if (saved === "light" || saved === "dark" || saved === "auto")
+      setTheme(saved);
+  }, []);
 
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else if (theme === 'light') {
-      document.documentElement.classList.remove('dark')
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else if (theme === "light") {
+      document.documentElement.classList.remove("dark");
     } else {
       // 'auto' — follow system preference
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      document.documentElement.classList.toggle('dark', isDark)
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.classList.toggle("dark", isDark);
     }
-    localStorage.setItem('familyPlanner_theme', theme)
-  }, [theme])
+    localStorage.setItem("familyPlanner_theme", theme);
+  }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light')
-  }
-  const [language, setLanguage] = useState('en')
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmNewPassword, setConfirmNewPassword] = useState('')
-  const [changingPassword, setChangingPassword] = useState(false)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [passwordSuccess, setPasswordSuccess] = useState(false)
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+  const [language, setLanguage] = useState("en");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteFamily, setDeleteFamily] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Load user data
   useEffect(() => {
-    loadUserData()
-  }, [])
+    loadUserData();
+  }, []);
 
   const loadUserData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await fetch('/api/users')
-      const data = await res.json()
+      const res = await fetch("/api/users");
+      const data = await res.json();
 
       if (res.ok && data.user) {
-        setName(data.user.name || '')
-        setEmail(data.user.email || '')
-        setRole(data.user.role || '')
-        setAge(data.user.age?.toString() || '')
+        setName(data.user.name || "");
+        setEmail(data.user.email || "");
+        setRole(data.user.role || "");
+        setAge(data.user.age?.toString() || "");
       }
     } catch (err) {
-      console.error('Error loading user data:', err)
+      console.error("Error loading user data:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setMessage(null)
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
 
     try {
-      const res = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           age: age ? parseInt(age) : null,
         }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || 'Failed to update profile')
+      if (!res.ok) throw new Error(data.error || "Failed to update profile");
 
-      setMessage({ type: 'success', text: 'Profile updated successfully!' })
+      setMessage({ type: "success", text: "Profile updated successfully!" });
     } catch (err) {
-      console.error('Error saving profile:', err)
-      setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' })
+      console.error("Error saving profile:", err);
+      setMessage({
+        type: "error",
+        text: "Failed to update profile. Please try again.",
+      });
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleSavePreferences = async () => {
-    setSaving(true)
-    setMessage(null)
+    setSaving(true);
+    setMessage(null);
 
     try {
       // Save preferences to localStorage for now
-      localStorage.setItem('familyPlanner_notifications', JSON.stringify(notifications))
-      localStorage.setItem('familyPlanner_theme', theme)
-      localStorage.setItem('familyPlanner_language', language)
+      localStorage.setItem(
+        "familyPlanner_notifications",
+        JSON.stringify(notifications),
+      );
+      localStorage.setItem("familyPlanner_theme", theme);
+      localStorage.setItem("familyPlanner_language", language);
 
-      setMessage({ type: 'success', text: 'Preferences saved successfully!' })
+      setMessage({ type: "success", text: "Preferences saved successfully!" });
     } catch (err) {
-      console.error('Error saving preferences:', err)
-      setMessage({ type: 'error', text: 'Failed to save preferences.' })
+      console.error("Error saving preferences:", err);
+      setMessage({ type: "error", text: "Failed to save preferences." });
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setPasswordError(null)
+    e.preventDefault();
+    setPasswordError(null);
 
     if (newPassword !== confirmNewPassword) {
-      setPasswordError('New passwords do not match')
-      return
+      setPasswordError("New passwords do not match");
+      return;
     }
     if (newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters')
-      return
+      setPasswordError("New password must be at least 8 characters");
+      return;
     }
 
-    setChangingPassword(true)
+    setChangingPassword(true);
     try {
-      const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to change password')
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to change password");
 
-      setPasswordSuccess(true)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmNewPassword('')
+      setPasswordSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
       setTimeout(() => {
-        setShowPasswordModal(false)
-        setPasswordSuccess(false)
-      }, 2000)
+        setShowPasswordModal(false);
+        setPasswordSuccess(false);
+      }, 2000);
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : 'Failed to change password')
+      setPasswordError(
+        err instanceof Error ? err.message : "Failed to change password",
+      );
     } finally {
-      setChangingPassword(false)
+      setChangingPassword(false);
     }
-  }
+  };
+
+  const handleDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: deletePassword,
+          confirmation: deleteConfirmation,
+          deleteFamily,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Account deletion failed");
+      window.location.assign("/");
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Account deletion failed",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -165,7 +221,7 @@ export default function SettingsPage() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         <p className="mt-4 text-gray-600">Loading settings...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -178,9 +234,13 @@ export default function SettingsPage() {
       </div>
 
       {message && (
-        <div className={`p-4 rounded-md ${
-          message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
-        }`}>
+        <div
+          className={`p-4 rounded-md ${
+            message.type === "success"
+              ? "bg-green-50 text-green-800 border border-green-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
           {message.text}
         </div>
       )}
@@ -195,14 +255,19 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Profile</h2>
-                <p className="text-gray-600">Update your personal information</p>
+                <p className="text-gray-600">
+                  Update your personal information
+                </p>
               </div>
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="profileName" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="profileName"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Full Name
                   </label>
                   <input
@@ -215,7 +280,10 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="profileEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="profileEmail"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Email Address
                   </label>
                   <input
@@ -226,13 +294,18 @@ export default function SettingsPage() {
                     className="input-field bg-gray-50"
                     placeholder="Your email"
                   />
-                  <p className="mt-1 text-xs text-gray-500">Contact support to change email</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Contact support to change email
+                  </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="profileRole" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="profileRole"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Role
                   </label>
                   <input
@@ -242,10 +315,15 @@ export default function SettingsPage() {
                     disabled
                     className="input-field bg-gray-50 capitalize"
                   />
-                  <p className="mt-1 text-xs text-gray-500">Role is set by family admin</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Role is set by family admin
+                  </p>
                 </div>
                 <div>
-                  <label htmlFor="profileAge" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="profileAge"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Age (Optional)
                   </label>
                   <input
@@ -268,7 +346,7 @@ export default function SettingsPage() {
                   className="btn-primary inline-flex items-center"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {saving ? 'Saving...' : 'Save Profile'}
+                  {saving ? "Saving..." : "Save Profile"}
                 </button>
               </div>
             </form>
@@ -281,37 +359,52 @@ export default function SettingsPage() {
                 <Bell className="w-5 h-5 text-yellow-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Notifications</h2>
-                <p className="text-gray-600">Choose what notifications you receive</p>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Notifications
+                </h2>
+                <p className="text-gray-600">
+                  Choose what notifications you receive
+                </p>
               </div>
             </div>
 
             <div className="space-y-4">
               {Object.entries(notifications).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between py-3 border-b last:border-0">
+                <div
+                  key={key}
+                  className="flex items-center justify-between py-3 border-b last:border-0"
+                >
                   <div>
                     <div className="font-medium text-gray-900 capitalize">
-                      {key.replace(/([A-Z])/g, ' $1').trim()}
+                      {key.replace(/([A-Z])/g, " $1").trim()}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {key === 'choreReminders' && 'Reminders for assigned chores'}
-                      {key === 'eventReminders' && 'Reminders for upcoming events'}
-                      {key === 'newMessages' && 'Notifications for new family messages'}
-                      {key === 'weeklyReports' && 'Weekly family activity reports'}
+                      {key === "choreReminders" &&
+                        "Reminders for assigned chores"}
+                      {key === "eventReminders" &&
+                        "Reminders for upcoming events"}
+                      {key === "newMessages" &&
+                        "Notifications for new family messages"}
+                      {key === "weeklyReports" &&
+                        "Weekly family activity reports"}
                     </div>
                   </div>
                   <button
-                    onClick={() => setNotifications(prev => ({
-                      ...prev,
-                      [key]: !value
-                    }))}
+                    onClick={() =>
+                      setNotifications((prev) => ({
+                        ...prev,
+                        [key]: !value,
+                      }))
+                    }
                     className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                      value ? 'bg-blue-600' : 'bg-gray-300'
+                      value ? "bg-blue-600" : "bg-gray-300"
                     }`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      value ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                        value ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
                   </button>
                 </div>
               ))}
@@ -324,7 +417,7 @@ export default function SettingsPage() {
                 className="btn-primary inline-flex items-center"
               >
                 <Save className="w-4 h-4 mr-2" />
-                {saving ? 'Saving...' : 'Save Preferences'}
+                {saving ? "Saving..." : "Save Preferences"}
               </button>
             </div>
           </div>
@@ -345,21 +438,23 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
-              {(['light', 'dark', 'auto'] as const).map((themeOption) => (
+              {(["light", "dark", "auto"] as const).map((themeOption) => (
                 <button
                   key={themeOption}
                   onClick={() => setTheme(themeOption)}
                   className={`w-full p-4 rounded-lg border-2 text-left ${
                     theme === themeOption
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  <div className="font-medium text-gray-900 capitalize">{themeOption}</div>
+                  <div className="font-medium text-gray-900 capitalize">
+                    {themeOption}
+                  </div>
                   <div className="text-sm text-gray-600 mt-1">
-                    {themeOption === 'light' && 'Always light mode'}
-                    {themeOption === 'dark' && 'Always dark mode'}
-                    {themeOption === 'auto' && 'Follow system preference'}
+                    {themeOption === "light" && "Always light mode"}
+                    {themeOption === "dark" && "Always dark mode"}
+                    {themeOption === "auto" && "Follow system preference"}
                   </div>
                 </button>
               ))}
@@ -373,12 +468,16 @@ export default function SettingsPage() {
                 <Globe className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Language</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Language
+                </h2>
                 <p className="text-gray-600">Choose your preferred language</p>
               </div>
             </div>
 
-            <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
+            <label htmlFor="preferredLanguage" className="sr-only">
+              Preferred language
+            </label>
             <select
               id="preferredLanguage"
               value={language}
@@ -400,7 +499,9 @@ export default function SettingsPage() {
                 <Shield className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Privacy & Security</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Privacy & Security
+                </h2>
                 <p className="text-gray-600">Manage your privacy settings</p>
               </div>
             </div>
@@ -413,7 +514,9 @@ export default function SettingsPage() {
                 <Sliders className="w-4 h-4 text-blue-600" />
                 <div>
                   <div className="font-medium">Features</div>
-                  <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                  <div className="text-xs text-gray-500">
+                    Turn modules on or off (meals, notes, pickups, allowance…)
+                  </div>
                 </div>
               </Link>
               <Link
@@ -423,7 +526,10 @@ export default function SettingsPage() {
                 <Database className="w-4 h-4 text-violet-600" />
                 <div>
                   <div className="font-medium">Import family apps</div>
-                  <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
+                  <div className="text-xs text-gray-500">
+                    Preview and consolidate ChoreChamps, Meal Planner, or Budget
+                    App exports
+                  </div>
                 </div>
               </Link>
               <button
@@ -432,13 +538,27 @@ export default function SettingsPage() {
               >
                 Change Password
               </button>
-              <button className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg">
-                Two-Factor Authentication
-              </button>
-              <button className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg">
+              <a
+                href="/api/users/export"
+                download
+                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+              >
+                <Download className="w-4 h-4" />
                 Data Export
-              </button>
-              <button className="w-full p-3 text-left text-red-600 hover:bg-red-50 rounded-lg">
+              </a>
+              {role === "parent" && (
+                <Link
+                  href="/dashboard/settings/audit"
+                  className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"
+                >
+                  Audit History
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="w-full p-3 text-left text-red-600 hover:bg-red-50 rounded-lg"
+              >
                 Delete Account
               </button>
             </div>
@@ -450,11 +570,16 @@ export default function SettingsPage() {
       <div className="bg-gray-50 rounded-xl p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Family Planner</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Family Planner
+            </h3>
             <p className="text-gray-600">Version 1.0.0 • Phase 1 MVP</p>
           </div>
           <div className="mt-4 md:mt-0 text-sm text-gray-500">
-            <p>&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>
+            <p>
+              &copy; {new Date().getFullYear()} Family Planner. All rights
+              reserved.
+            </p>
           </div>
         </div>
       </div>
@@ -468,10 +593,16 @@ export default function SettingsPage() {
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
                   <KeyRound className="w-5 h-5 text-blue-600" />
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Change Password</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Change Password
+                </h2>
               </div>
               <button
-                onClick={() => { setShowPasswordModal(false); setPasswordError(null); setPasswordSuccess(false) }}
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPasswordError(null);
+                  setPasswordSuccess(false);
+                }}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -483,8 +614,12 @@ export default function SettingsPage() {
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <KeyRound className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Password Changed</h3>
-                <p className="text-gray-600 mt-2">Your password has been updated successfully.</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Password Changed
+                </h3>
+                <p className="text-gray-600 mt-2">
+                  Your password has been updated successfully.
+                </p>
               </div>
             ) : (
               <form onSubmit={handleChangePassword} className="space-y-4">
@@ -494,7 +629,10 @@ export default function SettingsPage() {
                   </div>
                 )}
                 <div>
-                  <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="currentPassword"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Current Password
                   </label>
                   <input
@@ -508,7 +646,10 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="newPassword"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     New Password
                   </label>
                   <input
@@ -521,10 +662,15 @@ export default function SettingsPage() {
                     autoComplete="new-password"
                     minLength={8}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Must be at least 8 characters
+                  </p>
                 </div>
                 <div>
-                  <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="confirmNewPassword"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Confirm New Password
                   </label>
                   <input
@@ -540,17 +686,25 @@ export default function SettingsPage() {
                 <div className="flex space-x-4 pt-4">
                   <button
                     type="button"
-                    onClick={() => { setShowPasswordModal(false); setPasswordError(null) }}
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPasswordError(null);
+                    }}
                     className="btn-secondary flex-1"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={changingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+                    disabled={
+                      changingPassword ||
+                      !currentPassword ||
+                      !newPassword ||
+                      !confirmNewPassword
+                    }
                     className="btn-primary flex-1"
                   >
-                    {changingPassword ? 'Changing...' : 'Change Password'}
+                    {changingPassword ? "Changing..." : "Change Password"}
                   </button>
                 </div>
               </form>
@@ -558,6 +712,106 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-red-700">
+                Delete Account
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="p-2 text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              This permanently erases your personal records. Shared family
+              records are transferred to another parent.
+            </p>
+            {role === "parent" && (
+              <label className="flex items-start gap-2 text-sm text-gray-700 mb-4">
+                <input
+                  type="checkbox"
+                  checked={deleteFamily}
+                  onChange={(event) => {
+                    setDeleteFamily(event.target.checked);
+                    setDeleteConfirmation("");
+                  }}
+                  className="mt-1"
+                />
+                Also delete the whole family and every member account. This is
+                required if you are the final parent.
+              </label>
+            )}
+            <form onSubmit={handleDeleteAccount} className="space-y-4">
+              {deleteError && (
+                <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm">
+                  {deleteError}
+                </div>
+              )}
+              <div>
+                <label
+                  htmlFor="deletePassword"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Current password
+                </label>
+                <input
+                  id="deletePassword"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={deletePassword}
+                  onChange={(event) => setDeletePassword(event.target.value)}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="deleteConfirmation"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Type {deleteFamily ? "DELETE FAMILY" : "DELETE"}
+                </label>
+                <input
+                  id="deleteConfirmation"
+                  required
+                  value={deleteConfirmation}
+                  onChange={(event) =>
+                    setDeleteConfirmation(event.target.value)
+                  }
+                  className="input-field"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    deleting ||
+                    deleteConfirmation !==
+                      (deleteFamily ? "DELETE FAMILY" : "DELETE")
+                  }
+                  className="flex-1 rounded-lg bg-red-600 text-white px-4 py-2 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Delete Permanently"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }

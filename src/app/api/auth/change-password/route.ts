@@ -1,52 +1,74 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth'
-import { verifyPassword, hashPassword } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { changePasswordSchema } from '@/lib/validations'
+import { NextRequest, NextResponse } from "next/server";
+import { verifyToken } from "@/lib/auth";
+import { verifyPassword, hashPassword } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { changePasswordSchema } from "@/lib/validations";
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
+    const token = request.cookies.get("session_token")?.value;
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const payload = verifyToken(token)
+    const payload = verifyToken(token);
     if (!payload || !payload.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json()
-    const parsed = changePasswordSchema.safeParse(body)
+    const body = await request.json();
+    const parsed = changePasswordSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
 
-    const { currentPassword, newPassword } = parsed.data
+    const { currentPassword, newPassword } = parsed.data;
 
     const user = await prisma!.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, password: true },
-    })
+      select: { id: true, password: true, family_id: true },
+    });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const isValid = await verifyPassword(currentPassword, user.password || '')
+    const isValid = await verifyPassword(currentPassword, user.password || "");
     if (!isValid) {
-      return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Current password is incorrect" },
+        { status: 400 },
+      );
     }
 
-    const hashedPassword = await hashPassword(newPassword)
-    await prisma!.user.update({
-      where: { id: user.id },
-      data: { password: hashedPassword },
-    })
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma!.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword },
+      });
+      if (user.family_id) {
+        await tx.auditLog.create({
+          data: {
+            family_id: user.family_id,
+            actor_id: user.id,
+            action: "account.password_changed",
+            resource_type: "User",
+            resource_id: user.id,
+          },
+        });
+      }
+    });
 
-    return NextResponse.json({ message: 'Password changed successfully' })
+    return NextResponse.json({ message: "Password changed successfully" });
   } catch (error) {
-    console.error('Change password error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Change password error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

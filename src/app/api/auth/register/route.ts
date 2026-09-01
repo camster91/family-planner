@@ -37,7 +37,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, name, role } = parsed.data;
+    const { email, password, name, role, inviteCode } = parsed.data;
+
+    const invitedFamily = inviteCode
+      ? await prisma!.family.findUnique({
+          where: { invite_code: inviteCode },
+          select: { id: true },
+        })
+      : null;
+    if (role !== "parent" && !invitedFamily) {
+      return NextResponse.json(
+        { error: "The family invitation is invalid or has expired" },
+        { status: 400 },
+      );
+    }
 
     const existing = await prisma!.user.findUnique({ where: { email } });
     if (existing) {
@@ -58,6 +71,7 @@ export async function POST(request: NextRequest) {
       password: hashed,
       name,
       role,
+      family_id: role === "parent" ? undefined : invitedFamily!.id,
     };
     let user;
     try {

@@ -411,5 +411,131 @@ describeWithDatabase("family import persistence", () => {
     expect(await verifyEmailToken(verifyToken)).toBe(childId);
     await markEmailVerified(childId);
     expect(await verifyEmailToken(verifyToken)).toBeNull();
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          family_id: familyId,
+          action: { in: ["account.password_reset", "account.email_verified"] },
+        },
+      }),
+    ).toBe(2);
+  });
+
+  it("erases a member while preserving shared family records", async () => {
+    const { deleteAccountData } = await import("@/lib/account-deletion");
+    const assignmentIdsForDeletedMember = (
+      await prisma.choreAssignment.findMany({
+        where: { assigned_to: childId },
+        select: { id: true },
+      })
+    ).map((assignment) => assignment.id);
+    await Promise.all([
+      prisma.chore.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+      prisma.reward.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+      prisma.habit.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+      prisma.familyGoal.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+      prisma.recipe.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+      prisma.mealPlan.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+      prisma.shoppingList.updateMany({
+        where: { family_id: familyId },
+        data: { created_by: childId },
+      }),
+    ]);
+
+    await expect(deleteAccountData(childId)).resolves.toEqual({
+      deleted: true,
+      mode: "account",
+    });
+    expect(await prisma.user.findUnique({ where: { id: childId } })).toBeNull();
+
+    const [chore, personalAssignments, danglingProvenance] = await Promise.all([
+      prisma.chore.findFirstOrThrow({ where: { family_id: familyId } }),
+      prisma.choreAssignment.count({ where: { assigned_to: childId } }),
+      prisma.importedRecord.count({
+        where: {
+          family_id: familyId,
+          target_id: { in: assignmentIdsForDeletedMember },
+        },
+      }),
+    ]);
+    expect(chore).toMatchObject({
+      assigned_to: parentId,
+      created_by: parentId,
+    });
+    expect(personalAssignments).toBe(0);
+    expect(danglingProvenance).toBe(0);
+    const staleOwnershipCounts = await Promise.all([
+      prisma.reward.count({
+        where: { family_id: familyId, created_by: childId },
+      }),
+      prisma.habit.count({
+        where: { family_id: familyId, created_by: childId },
+      }),
+      prisma.familyGoal.count({
+        where: { family_id: familyId, created_by: childId },
+      }),
+      prisma.recipe.count({
+        where: { family_id: familyId, created_by: childId },
+      }),
+      prisma.mealPlan.count({
+        where: { family_id: familyId, created_by: childId },
+      }),
+      prisma.shoppingList.count({
+        where: { family_id: familyId, created_by: childId },
+      }),
+    ]);
+    expect(staleOwnershipCounts).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(
+      await prisma.auditLog.findFirst({
+        where: {
+          family_id: familyId,
+          actor_id: null,
+          action: "account.deleted",
+        },
+      }),
+    ).not.toBeNull();
+  });
+
+  it("allows the final parent to explicitly erase the whole family", async () => {
+    const { deleteAccountData } = await import("@/lib/account-deletion");
+    const disposableFamily = await prisma.family.create({
+      data: { name: "Deletion Test Family" },
+    });
+    const disposableParent = await prisma.user.create({
+      data: {
+        email: "delete-parent@integration.test",
+        name: "Delete Parent",
+        role: "parent",
+        family_id: disposableFamily.id,
+      },
+    });
+
+    await expect(deleteAccountData(disposableParent.id, true)).resolves.toEqual(
+      { deleted: true, mode: "family" },
+    );
+    expect(
+      await prisma.family.findUnique({ where: { id: disposableFamily.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.user.findUnique({ where: { id: disposableParent.id } }),
+    ).toBeNull();
   });
 });

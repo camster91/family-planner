@@ -61,7 +61,7 @@ export async function consumeResetToken(
         reset_token: { in: [hashToken(token), token] },
         reset_token_expires: { gt: new Date() },
       },
-      select: { id: true },
+      select: { id: true, family_id: true },
     });
     if (!user) return false;
 
@@ -73,6 +73,17 @@ export async function consumeResetToken(
         reset_token_expires: null,
       },
     });
+    if (consumed.count === 1 && user.family_id) {
+      await tx.auditLog.create({
+        data: {
+          family_id: user.family_id,
+          actor_id: user.id,
+          action: "account.password_reset",
+          resource_type: "User",
+          resource_id: user.id,
+        },
+      });
+    }
     return consumed.count === 1;
   });
 }
@@ -110,12 +121,26 @@ export async function verifyEmailToken(token: string): Promise<string | null> {
 
 // Mark email as verified and clear the verify token
 export async function markEmailVerified(userId: string): Promise<void> {
-  await prisma!.user.update({
-    where: { id: userId },
-    data: {
-      email_verified: true,
-      verify_token: null,
-      verify_token_expires: null,
-    },
+  await prisma!.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: {
+        email_verified: true,
+        verify_token: null,
+        verify_token_expires: null,
+      },
+      select: { family_id: true },
+    });
+    if (user.family_id) {
+      await tx.auditLog.create({
+        data: {
+          family_id: user.family_id,
+          actor_id: userId,
+          action: "account.email_verified",
+          resource_type: "User",
+          resource_id: userId,
+        },
+      });
+    }
   });
 }

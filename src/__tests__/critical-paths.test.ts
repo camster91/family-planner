@@ -186,6 +186,23 @@ describe("Validations", () => {
         name: "X",
       }).success,
     ).toBe(false);
+    expect(
+      registerSchema.safeParse({
+        email: "child@b.com",
+        password: "longenough",
+        name: "Child",
+        role: "child",
+      }).success,
+    ).toBe(false);
+    expect(
+      registerSchema.safeParse({
+        email: "child@b.com",
+        password: "longenough",
+        name: "Child",
+        role: "child",
+        inviteCode: "parent-controlled-code",
+      }).success,
+    ).toBe(true);
   });
 
   it("loginSchema requires email + password", () => {
