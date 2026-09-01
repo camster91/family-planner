@@ -3,21 +3,23 @@ name: Build Android APK
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Build type'
+        description: "Build type"
         required: true
-        default: 'debug'
+        default: "debug"
         type: choice
         options:
           - debug
           - release
 
 env:
-  NODE_VERSION: '22'
-  JAVA_VERSION: '21'
+  NODE_VERSION: "22"
+  JAVA_VERSION: "21"
 
 jobs:
   build:
@@ -31,10 +33,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
 
       - name: Generate Prisma client
         run: npx prisma generate
@@ -45,7 +47,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
+          distribution: "temurin"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -104,4 +106,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
