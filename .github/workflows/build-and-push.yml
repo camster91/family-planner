@@ -50,17 +50,22 @@ jobs:
     name: Build & push image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.CANDIDATE_SHA }}
 
       - name: Resolve image metadata
         id: meta
         run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           REPO_NAME="${{ github.event.repository.name }}"
           if [ -n "${{ inputs.image_name }}" ]; then REPO_NAME="${{ inputs.image_name }}"; fi
+          IMAGE="ghcr.io/camster91/${REPO_NAME}"
           REF="${{ github.ref }}"
           if [[ "$REF" == refs/tags/* ]]; then
             TAG="${REF#refs/tags/}"
@@ -71,11 +76,19 @@ jobs:
           else
             TAG="${REF#refs/heads/}"
           fi
-          SHA_SHORT="${{ github.event.pull_request.head.sha || github.sha }}" | head -c 7
-          SHA_SHORT=$(echo "${{ github.sha }}" | head -c 7)
-          echo "image=ghcr.io/camster91/${REPO_NAME}" >> $GITHUB_OUTPUT
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "sha=${SHA_SHORT}" >> $GITHUB_OUTPUT
+          SHA_SHORT="${CANDIDATE_SHA:0:7}"
+          {
+            echo "image=${IMAGE}"
+            echo "tag=${TAG}"
+            echo "sha=${SHA_SHORT}"
+            echo "tags<<EOF"
+            echo "${IMAGE}:${TAG}"
+            echo "${IMAGE}:${TAG}-${SHA_SHORT}"
+            if [[ "$REF" != refs/pull/* ]]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -106,10 +119,7 @@ jobs:
           file: ${{ inputs.dockerfile || 'Dockerfile' }}
           platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
           push: true
-          tags: |
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.sha }}
-            ${{ steps.meta.outputs.image }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           provenance: true
@@ -117,16 +127,18 @@ jobs:
           labels: |
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.source=${{ github.event.repository.html_url }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ env.CANDIDATE_SHA }}
             org.opencontainers.image.created=${{ github.event.repository.updated_at }}
 
       - name: Image summary
         run: |
-          echo "## Image published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Pull:** \`docker pull ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Run:** \`docker run -d -p 3000:3000 --name ${{ github.event.repository.name }} ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Platforms:** ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**SHA:** ${{ steps.meta.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Image published"
+            echo ""
+            echo "**Image:** \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`"
+            echo "**Pull:** \`docker pull ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`"
+            echo "**Run:** \`docker run -d -p 3000:3000 --name ${{ github.event.repository.name }} ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`"
+            echo ""
+            echo "**Platforms:** ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}"
+            echo "**SHA:** ${{ steps.meta.outputs.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
