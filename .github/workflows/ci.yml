@@ -59,3 +59,21 @@ jobs:
             echo "- Result: \`${{ job.status }}\`"
             echo "- Gate: frozen install, Prisma generation, typecheck, lint, tests, migration twice, persisted import integration, backup/restore rehearsal, production audit, application build, image build, container health smoke, role-aware parent-to-child core loop, and immutable-image rollback smoke"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  inspect-review-target:
+    name: Inspect Ashbi review target
+    needs: release-gate
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    timeout-minutes: 5
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Inspect sanitized review topology
+        run: bash scripts/inspect-review-target.sh
