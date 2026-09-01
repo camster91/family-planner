@@ -370,4 +370,46 @@ describeWithDatabase("family import persistence", () => {
       JSON.stringify({ recordsBySource, jobsBySource, skipped: 0 }),
     );
   });
+
+  it("hashes and atomically consumes account tokens", async () => {
+    const {
+      consumeResetToken,
+      createResetToken,
+      createVerificationToken,
+      markEmailVerified,
+      verifyEmailToken,
+      verifyResetToken,
+    } = await import("@/lib/tokens");
+
+    const resetToken = await createResetToken(parentId);
+    const storedReset = await prisma.user.findUniqueOrThrow({
+      where: { id: parentId },
+      select: { reset_token: true },
+    });
+    expect(storedReset.reset_token).not.toBe(resetToken);
+    expect(await verifyResetToken(resetToken)).toBe(parentId);
+    expect(await consumeResetToken(resetToken, "new-password-hash")).toBe(true);
+    expect(await consumeResetToken(resetToken, "reused-password-hash")).toBe(
+      false,
+    );
+
+    const resetUser = await prisma.user.findUniqueOrThrow({
+      where: { id: parentId },
+      select: { password: true, reset_token: true },
+    });
+    expect(resetUser).toEqual({
+      password: "new-password-hash",
+      reset_token: null,
+    });
+
+    const verifyToken = await createVerificationToken(childId);
+    const storedVerify = await prisma.user.findUniqueOrThrow({
+      where: { id: childId },
+      select: { verify_token: true },
+    });
+    expect(storedVerify.verify_token).not.toBe(verifyToken);
+    expect(await verifyEmailToken(verifyToken)).toBe(childId);
+    await markEmailVerified(childId);
+    expect(await verifyEmailToken(verifyToken)).toBeNull();
+  });
 });

@@ -1,58 +1,80 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { UserPlus, CheckCircle, Users } from 'lucide-react'
-import { useTranslation } from '@/i18n'
+import { useState } from "react";
+import Link from "next/link";
+import { UserPlus, CheckCircle, Users } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
 export default function RegisterPage() {
-  const { t } = useTranslation()
-  const [showVerificationNotice, setShowVerificationNotice] = useState(false)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation();
+  const [showVerificationNotice, setShowVerificationNotice] = useState(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState(true);
+  const [resendStatus, setResendStatus] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     if (password !== confirmPassword) {
-      setError(t('auth.passwordMismatch'))
-      setLoading(false)
-      return
+      setError(t("auth.passwordMismatch"));
+      setLoading(false);
+      return;
     }
 
     if (password.length < 8) {
-      setError(t('auth.passwordTooShort'))
-      setLoading(false)
-      return
+      setError(t("auth.passwordTooShort"));
+      setLoading(false);
+      return;
     }
 
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t('auth.registrationFailed'))
-        return
+        setError(data.error || t("auth.registrationFailed"));
+        return;
       }
 
-      setError(null)
-      setShowVerificationNotice(true)
+      setError(null);
+      setVerificationEmailSent(data.verificationEmailSent === true);
+      setShowVerificationNotice(true);
     } catch (err) {
-      setError(t('auth.unexpectedError'))
-      console.error(err)
+      setError(t("auth.unexpectedError"));
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const resendVerification = async () => {
+    setResendStatus("Requesting a new link…");
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json();
+      setResendStatus(
+        response.ok
+          ? payload.message
+          : payload.error || "Could not request a new link.",
+      );
+    } catch {
+      setResendStatus("Could not request a new link. Please try again.");
+    }
+  };
 
   if (showVerificationNotice) {
     return (
@@ -64,17 +86,38 @@ export default function RegisterPage() {
             </div>
           </div>
           <div className="card-apple p-6">
-            <h1 className="text-title-2 mb-2">Check Your Email</h1>
+            <h1 className="text-title-2 mb-2">
+              {verificationEmailSent ? "Check Your Email" : "Account Created"}
+            </h1>
             <p className="text-[15px] text-[var(--label-secondary)] mb-6">
-              We sent a verification link to your email address. Click the link to activate your account, then sign in.
+              {verificationEmailSent
+                ? "We sent a verification link to your email address. Click the link to activate your account, then sign in."
+                : "We could not deliver the verification email. Request a new link before signing in."}
             </p>
+            {!verificationEmailSent && (
+              <button
+                type="button"
+                onClick={resendVerification}
+                className="btn-tinted w-full py-3 mb-3"
+              >
+                Request New Link
+              </button>
+            )}
+            {resendStatus && (
+              <p
+                className="text-footnote text-label-secondary mb-4"
+                aria-live="polite"
+              >
+                {resendStatus}
+              </p>
+            )}
             <Link href="/login" className="btn-filled w-full py-3">
               Go to Sign In
             </Link>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -89,9 +132,9 @@ export default function RegisterPage() {
 
         <div className="card-apple p-6">
           <div className="text-center mb-6">
-            <h1 className="text-title-2">{t('auth.createAccount')}</h1>
+            <h1 className="text-title-2">{t("auth.createAccount")}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
-              {t('auth.createAccountSubtitle')}
+              {t("auth.createAccountSubtitle")}
             </p>
           </div>
 
@@ -103,7 +146,9 @@ export default function RegisterPage() {
             )}
 
             <div>
-              <label htmlFor="name" className="label-apple">{t('auth.fullName')}</label>
+              <label htmlFor="name" className="label-apple">
+                {t("auth.fullName")}
+              </label>
               <input
                 id="name"
                 type="text"
@@ -117,7 +162,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
+              <label htmlFor="email" className="label-apple">
+                {t("auth.email")}
+              </label>
               <input
                 id="email"
                 type="email"
@@ -131,7 +178,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="label-apple">{t('auth.password')}</label>
+              <label htmlFor="password" className="label-apple">
+                {t("auth.password")}
+              </label>
               <input
                 id="password"
                 type="password"
@@ -143,12 +192,14 @@ export default function RegisterPage() {
                 placeholder="••••••••"
               />
               <p className="text-[11px] text-[var(--label-tertiary)] mt-1 px-1">
-                {t('auth.passwordHint')}
+                {t("auth.passwordHint")}
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="label-apple">{t('auth.confirmPassword')}</label>
+              <label htmlFor="confirmPassword" className="label-apple">
+                {t("auth.confirmPassword")}
+              </label>
               <input
                 id="confirmPassword"
                 type="password"
@@ -168,14 +219,23 @@ export default function RegisterPage() {
                 required
                 className="mt-0.5 h-4 w-4 rounded border-[var(--surface-separator)] bg-[var(--surface-fill)] accent-[var(--accent)]"
               />
-              <label htmlFor="terms" className="text-[13px] text-[var(--label-secondary)] leading-4">
-                {t('auth.agreeToTerms')}{' '}
-                <Link href="/terms" className="text-[var(--accent)] hover:underline">
-                  {t('auth.termsOfService')}
-                </Link>{' '}
-                {t('auth.and')}{' '}
-                <Link href="/privacy" className="text-[var(--accent)] hover:underline">
-                  {t('auth.privacyPolicy')}
+              <label
+                htmlFor="terms"
+                className="text-[13px] text-[var(--label-secondary)] leading-4"
+              >
+                {t("auth.agreeToTerms")}{" "}
+                <Link
+                  href="/terms"
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  {t("auth.termsOfService")}
+                </Link>{" "}
+                {t("auth.and")}{" "}
+                <Link
+                  href="/privacy"
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  {t("auth.privacyPolicy")}
                 </Link>
               </label>
             </div>
@@ -188,12 +248,12 @@ export default function RegisterPage() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                  {t('auth.creatingAccount')}
+                  {t("auth.creatingAccount")}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <UserPlus className="w-4 h-4" />
-                  {t('auth.createAccountBtn')}
+                  {t("auth.createAccountBtn")}
                 </span>
               )}
             </button>
@@ -201,9 +261,9 @@ export default function RegisterPage() {
 
           <div className="mt-4 text-center">
             <p className="text-[15px] text-[var(--label-secondary)]">
-              {t('auth.alreadyHaveAccount')}{' '}
+              {t("auth.alreadyHaveAccount")}{" "}
               <Link href="/login" className="btn-plain py-1 px-2 -my-1">
-                {t('auth.signInLink')}
+                {t("auth.signInLink")}
               </Link>
             </p>
           </div>
@@ -211,13 +271,13 @@ export default function RegisterPage() {
 
         <div className="text-center mt-6">
           <p className="text-[13px] text-[var(--label-tertiary)]">
-            {t('auth.bySigningUp')}
+            {t("auth.bySigningUp")}
           </p>
           <p className="mt-1 text-[12px] text-[var(--label-quaternary)]">
-            {t('auth.freeTrial')} &middot; {t('auth.noCreditCard')}
+            {t("auth.freeTrial")} &middot; {t("auth.noCreditCard")}
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }

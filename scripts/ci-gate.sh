@@ -95,6 +95,8 @@ docker run -d --name "$app_container" --network "$network" \
   -e DATABASE_URL="postgresql://postgres:${db_password}@ci-db:5432/${db_name}" \
   -e JWT_SECRET="$JWT_SECRET" \
   -e NEXT_PUBLIC_APP_URL="http://127.0.0.1:3000" \
+  -e EMAIL_DELIVERY_MODE=log \
+  -e CI=true \
   -p 127.0.0.1::3000 \
   "$image" >/dev/null
 

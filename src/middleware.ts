@@ -1,20 +1,18 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/auth'
-import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth";
+import { generateCsrfToken, setCsrfCookie, validateCsrf } from "@/lib/csrf";
 
 // Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
 // Edge runtime (default) embeds env vars at build, causing token verification failures
 // when CI builds without JWT_SECRET set.
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
-  ],
-  runtime: 'nodejs',
-}
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|public/).*)"],
+  runtime: "nodejs",
+};
 
 // Methods that mutate state and need CSRF validation
-const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 // Auth endpoints that legitimately need to be hit without a CSRF token
 // (no cookie has been set yet for the user, so the double-submit cookie is empty).
@@ -22,38 +20,40 @@ const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 // second factor — an attacker would need to know the user's password to forge
 // these requests, defeating the CSRF threat model.
 const CSRF_EXEMPT_PATHS = new Set([
-  '/api/auth/login',
-  '/api/auth/register',
-  '/api/auth/forgot-password',
-  '/api/auth/reset-password',
-  '/api/auth/verify-email',
-  '/api/auth/logout', // authenticated via cookie only, no body
-  '/api/health',
-])
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+  "/api/auth/verify-email",
+  "/api/auth/resend-verification",
+  "/api/auth/logout", // authenticated via cookie only, no body
+  "/api/health",
+]);
 
 export function middleware(request: NextRequest) {
   // CSRF check: reject all state-changing /api/* requests without a valid token,
   // except for the auth endpoints listed above (where credentials are the second factor).
-  const isApiMutation = request.nextUrl.pathname.startsWith('/api/') &&
+  const isApiMutation =
+    request.nextUrl.pathname.startsWith("/api/") &&
     UNSAFE_METHODS.has(request.method) &&
-    !CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname)
+    !CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname);
 
   if (isApiMutation) {
-    const csrfError = validateCsrf(request)
-    if (csrfError) return csrfError
+    const csrfError = validateCsrf(request);
+    if (csrfError) return csrfError;
   }
 
-  const token = request.cookies.get('session_token')?.value
-  const payload = token ? verifyToken(token) : null
-  const isAuthenticated = !!payload
+  const token = request.cookies.get("session_token")?.value;
+  const payload = token ? verifyToken(token) : null;
+  const isAuthenticated = !!payload;
 
   // Protected routes
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard')
+  const isProtectedRoute = request.nextUrl.pathname.startsWith("/dashboard");
 
   if (isProtectedRoute && !isAuthenticated) {
-    const redirectUrl = new URL('/login', request.url)
-    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
-    return NextResponse.redirect(redirectUrl)
+    const redirectUrl = new URL("/login", request.url);
+    redirectUrl.searchParams.set("redirect", request.nextUrl.pathname);
+    return NextResponse.redirect(redirectUrl);
   }
 
   // Role gate: kids and teens can only see the KidHome at /dashboard by default.
@@ -61,53 +61,65 @@ export function middleware(request: NextRequest) {
   // designed to be kid-accessible (wishlist, emergency, sick-days, etc).
   // The allowlist is the source of truth for what a kid can see.
   if (isProtectedRoute && isAuthenticated && payload) {
-    const isKid = payload.role === 'child' || payload.role === 'teen'
-    const pathname = request.nextUrl.pathname
-    const isDashboardRoot = pathname === '/dashboard' || pathname === '/dashboard/'
+    const isKid = payload.role === "child" || payload.role === "teen";
+    const pathname = request.nextUrl.pathname;
+    const isDashboardRoot =
+      pathname === "/dashboard" || pathname === "/dashboard/";
     // Routes a kid/teen can visit (in addition to /dashboard).
     // Without this list, the role gate is too broad and blocks kid-facing
     // features like adding a wish or seeing emergency info.
     const KID_ALLOWED_PREFIXES = [
-      '/dashboard/wishlist',
-      '/dashboard/emergency',
-      '/dashboard/sick-days',
-    ]
-    const isKidAllowed = KID_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
+      "/dashboard/wishlist",
+      "/dashboard/emergency",
+      "/dashboard/sick-days",
+      "/dashboard/search",
+    ];
+    const isKidAllowed = KID_ALLOWED_PREFIXES.some(
+      (p) => pathname === p || pathname.startsWith(p + "/"),
+    );
     if (isKid && !isDashboardRoot && !isKidAllowed) {
-      const redirectUrl = new URL('/dashboard', request.url)
-      return NextResponse.redirect(redirectUrl)
+      const redirectUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(redirectUrl);
     }
   }
 
   // Auth routes (login/register/join) - redirect to dashboard if already logged in
-  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
+  const isAuthRoute = ["/login", "/register", "/join"].includes(
+    request.nextUrl.pathname,
+  );
 
   if (isAuthRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  const response = NextResponse.next()
+  const response = NextResponse.next();
 
   // Security headers
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('X-XSS-Protection', '1; mode=block')
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()",
+  );
   // HSTS — tell browsers to never load this site over HTTP. 1 year, subdomains included.
   // Only set in production to avoid breaking local dev over http://localhost.
-  if (process.env.NODE_ENV === 'production') {
-    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains; preload",
+    );
   }
 
   // CSRF: ensure every response has a csrf_token cookie so the browser
   // can echo it back in X-CSRF-Token on state-changing requests.
   // This is the "double-submit cookie" pattern.
-  let csrfToken = request.cookies.get('csrf_token')?.value
+  let csrfToken = request.cookies.get("csrf_token")?.value;
   if (!csrfToken) {
-    csrfToken = generateCsrfToken()
+    csrfToken = generateCsrfToken();
   }
-  setCsrfCookie(response, csrfToken)
+  setCsrfCookie(response, csrfToken);
 
-  return response
+  return response;
 }

@@ -79,12 +79,16 @@ Visit `http://localhost:3000`.
 
 ### Environment Variables
 
-| Variable               | Description                                 | Required |
-| ---------------------- | ------------------------------------------- | -------- |
-| `DATABASE_URL`         | PostgreSQL connection string                | Yes      |
-| `JWT_SECRET`           | Secret key for JWT signing                  | Yes      |
-| `NEXT_PUBLIC_APP_URL`  | App URL (default `http://localhost:3000`)   | No       |
-| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No       |
+| Variable               | Description                                 | Required          |
+| ---------------------- | ------------------------------------------- | ----------------- |
+| `DATABASE_URL`         | PostgreSQL connection string                | Yes               |
+| `JWT_SECRET`           | Secret key for JWT signing                  | Yes               |
+| `NEXT_PUBLIC_APP_URL`  | App URL (default `http://localhost:3000`)   | No                |
+| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No                |
+| `MATON_API_KEY`        | Maton transactional-email credential        | Production choice |
+| `RESEND_API_KEY`       | Resend transactional-email credential       | Production choice |
+| `EMAIL_FROM`           | Verified transactional sender               | Production        |
+| `EMAIL_DELIVERY_MODE`  | `log` only for local development and CI     | No                |
 
 ## User Roles
 
