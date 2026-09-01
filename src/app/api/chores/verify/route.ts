@@ -8,6 +8,7 @@ import {
 import { notificationServiceServer } from "@/lib/notifications-server";
 import { verifyChoreSchema } from "@/lib/validations";
 import { awardChoreXP } from "@/lib/gamification-server";
+import { measureCoreMutation } from "@/lib/beta-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -62,14 +63,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Idempotent update — only updates if not already verified
-    const updateResult = await prisma!.chore.updateMany({
-      where: { id: choreId, status: "completed" },
-      data: {
-        status: "verified",
-        verified_at: new Date(),
-        verified_notes: verificationNotes || null,
+    const updateResult = await measureCoreMutation(
+      {
+        familyId: auth.user.family_id,
+        actorRole: auth.user.role,
+        eventName: "chore.verify",
       },
-    });
+      () =>
+        prisma!.chore.updateMany({
+          where: { id: choreId, status: "completed" },
+          data: {
+            status: "verified",
+            verified_at: new Date(),
+            verified_notes: verificationNotes || null,
+          },
+        }),
+    );
 
     if (updateResult.count === 0) {
       return NextResponse.json({ success: true, alreadyVerified: true });

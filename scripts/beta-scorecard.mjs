@@ -57,6 +57,29 @@ try {
     [familyIds],
   );
   const familyRows = new Map(rows.map((row) => [row.id, row]));
+  const betaEnd = new Date(start.getTime() + 28 * 86_400_000);
+  const { rows: reliabilityRows } = await client.query(
+    `
+      SELECT
+        COUNT(*)::int AS attempts,
+        COUNT(*) FILTER (WHERE success)::int AS successes
+      FROM "BetaMetricEvent"
+      WHERE family_id = ANY($1::text[])
+        AND created_at >= $2
+        AND created_at < $3
+        AND event_name = ANY($4::text[])
+    `,
+    [
+      familyIds,
+      start,
+      betaEnd,
+      ["chore.assign", "chore.complete", "chore.verify", "reward.claim"],
+    ],
+  );
+  const reliability = reliabilityRows[0];
+  const reliabilityValue = reliability.attempts
+    ? reliability.successes / reliability.attempts
+    : null;
 
   const weeks = [];
   for (let index = 0; index < 4; index += 1) {
@@ -150,9 +173,11 @@ try {
         timeToFirstValueThresholdMet: median !== null && median <= 10,
         weeks,
         mutationReliability: {
-          value: null,
+          attempts: reliability.attempts,
+          successes: reliability.successes,
+          value: reliabilityValue,
           threshold: 0.99,
-          status: "requires valid-attempt telemetry before beta starts",
+          thresholdMet: reliabilityValue !== null && reliabilityValue >= 0.99,
         },
       },
       null,

@@ -434,6 +434,37 @@ try {
     throw new Error("child reward claim did not persist");
   }
 
+  const metricResult = await db.query(
+    `SELECT event_name, success, actor_role, duration_ms
+     FROM "BetaMetricEvent"
+     WHERE family_id = $1
+     ORDER BY created_at`,
+    [familyA.id],
+  );
+  for (const eventName of [
+    "chore.assign",
+    "chore.complete",
+    "chore.verify",
+    "reward.claim",
+  ]) {
+    if (
+      !metricResult.rows.some(
+        (metric) => metric.event_name === eventName && metric.success === true,
+      )
+    ) {
+      throw new Error(`missing successful beta metric for ${eventName}`);
+    }
+  }
+  if (
+    metricResult.rows.some(
+      (metric) =>
+        !["parent", "child", "teen"].includes(metric.actor_role) ||
+        metric.duration_ms < 0,
+    )
+  ) {
+    throw new Error("beta metric contained invalid role or duration data");
+  }
+
   await request("/api/family", {
     method: "DELETE",
     session: parentSession,

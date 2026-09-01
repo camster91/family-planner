@@ -1,52 +1,71 @@
-import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
-import { notificationServiceServer } from '@/lib/notifications-server'
-import { completeChoreSchema } from '@/lib/validations'
+import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateWithFamily, requireFamilyMatch } from "@/lib/api-auth";
+import { notificationServiceServer } from "@/lib/notifications-server";
+import { completeChoreSchema } from "@/lib/validations";
+import { measureCoreMutation } from "@/lib/beta-metrics";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const body = await request.json()
-    const parsed = completeChoreSchema.safeParse(body)
+    const body = await request.json();
+    const parsed = completeChoreSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
 
-    const { choreId, photoUrl } = parsed.data
+    const { choreId, photoUrl } = parsed.data;
 
     // Get the chore and verify family ownership
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
       include: {
-        assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
-        creator: { select: { id: true, name: true, avatar_url: true, role: true } },
+        assignee: {
+          select: { id: true, name: true, avatar_url: true, role: true },
+        },
+        creator: {
+          select: { id: true, name: true, avatar_url: true, role: true },
+        },
       },
-    })
+    });
 
     if (!chore) {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+      return NextResponse.json({ error: "Chore not found" }, { status: 404 });
     }
 
-    const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
-    if (familyError) return familyError
+    const familyError = requireFamilyMatch(
+      chore.family_id,
+      auth.user.family_id,
+    );
+    if (familyError) return familyError;
 
     // Idempotent update — only updates if not already completed
-    const updateResult = await prisma!.chore.updateMany({
-      where: { id: choreId, status: { not: 'completed' } },
-      data: {
-        status: 'completed',
-        completed_at: new Date(),
-        ...(photoUrl ? { photo_url: photoUrl, photo_verified: false } : {}),
+    const updateResult = await measureCoreMutation(
+      {
+        familyId: auth.user.family_id,
+        actorRole: auth.user.role,
+        eventName: "chore.complete",
       },
-    })
+      () =>
+        prisma!.chore.updateMany({
+          where: { id: choreId, status: { not: "completed" } },
+          data: {
+            status: "completed",
+            completed_at: new Date(),
+            ...(photoUrl ? { photo_url: photoUrl, photo_verified: false } : {}),
+          },
+        }),
+    );
 
     if (updateResult.count === 0) {
-      return NextResponse.json({ success: true, alreadyCompleted: true })
+      return NextResponse.json({ success: true, alreadyCompleted: true });
     }
 
     // Record activity and create next occurrence atomically
@@ -55,31 +74,31 @@ export async function POST(request: NextRequest) {
         data: {
           family_id: auth.user.family_id,
           user_id: auth.user.id,
-          type: 'chore_completed',
+          type: "chore_completed",
           title: `${auth.user.name} completed "${chore.title}"`,
         },
-      })
+      });
 
       // Handle recurring chores — create next occurrence
-      if (chore.frequency && chore.frequency !== 'once') {
-        const dueDate = new Date(chore.due_date)
-        let nextDueDate: Date
+      if (chore.frequency && chore.frequency !== "once") {
+        const dueDate = new Date(chore.due_date);
+        let nextDueDate: Date;
 
         switch (chore.frequency) {
-          case 'daily':
-            nextDueDate = new Date(dueDate)
-            nextDueDate.setDate(nextDueDate.getDate() + 1)
-            break
-          case 'weekly':
-            nextDueDate = new Date(dueDate)
-            nextDueDate.setDate(nextDueDate.getDate() + 7)
-            break
-          case 'monthly':
-            nextDueDate = new Date(dueDate)
-            nextDueDate.setMonth(nextDueDate.getMonth() + 1)
-            break
+          case "daily":
+            nextDueDate = new Date(dueDate);
+            nextDueDate.setDate(nextDueDate.getDate() + 1);
+            break;
+          case "weekly":
+            nextDueDate = new Date(dueDate);
+            nextDueDate.setDate(nextDueDate.getDate() + 7);
+            break;
+          case "monthly":
+            nextDueDate = new Date(dueDate);
+            nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+            break;
           default:
-            return
+            return;
         }
 
         await tx.chore.create({
@@ -90,21 +109,24 @@ export async function POST(request: NextRequest) {
             points: chore.points,
             assigned_to: chore.assigned_to,
             due_date: nextDueDate,
-            status: 'pending',
+            status: "pending",
             frequency: chore.frequency,
             difficulty: chore.difficulty,
             created_by: chore.created_by,
           },
-        })
+        });
       }
-    })
+    });
 
     return NextResponse.json({
       success: true,
       choreId,
-    })
+    });
   } catch (error) {
-    console.error('Error completing chore:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Error completing chore:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

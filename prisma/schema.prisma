@@ -136,6 +136,7 @@ model Family {
   shopping_lists     ShoppingList[]
   finance_records    FinancialArchiveRecord[]
   audit_logs         AuditLog[]
+  beta_metric_events BetaMetricEvent[]
 }
 
 model AuditLog {
@@ -152,6 +153,21 @@ model AuditLog {
 
   @@index([family_id, created_at])
   @@index([family_id, action])
+}
+
+model BetaMetricEvent {
+  id          String   @id @default(cuid())
+  family_id   String
+  actor_role  String
+  event_name  String
+  success     Boolean
+  duration_ms Int
+  created_at  DateTime @default(now())
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id, created_at])
+  @@index([event_name, created_at])
 }
 
 model Chore {

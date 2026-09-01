@@ -76,9 +76,9 @@ BETA_COHORTS='{"beta-01":"family-id-1","beta-02":"family-id-2","beta-03":"family
 npm run beta:scorecard
 ```
 
-The command intentionally reports mutation reliability as unavailable until
-valid-attempt telemetry is implemented. That missing value is a beta entry-gate
-failure, not zero and not an invitation to estimate the result.
+The command reports reliability from validated core mutation attempts. A null
+value means no attempts were recorded and is a beta entry-gate failure, not zero
+and not an invitation to estimate the result.
 
 ## Weekly operating cadence
 
