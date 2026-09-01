@@ -7,7 +7,7 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'auto-merge')
     runs-on: [self-hosted, linux, x64, ashbi, family-planner]
     steps:
-      - uses: pascalgn/automerge-action@v0.16.3
+      - uses: pascalgn/automerge-action@v0.16.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MERGE_LABELS: "auto-merge"
