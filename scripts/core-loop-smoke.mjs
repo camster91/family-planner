@@ -20,19 +20,61 @@ const emails = {
 const db = new Client({ connectionString: databaseUrl });
 await db.connect();
 
+function createSession() {
+  return { cookies: new Map() };
+}
+
+function storeCookies(session, headers) {
+  const values =
+    typeof headers.getSetCookie === "function"
+      ? headers.getSetCookie()
+      : [headers.get("set-cookie")].filter(Boolean);
+  for (const value of values) {
+    const pair = value.split(";", 1)[0];
+    const separator = pair.indexOf("=");
+    if (separator > 0) {
+      session.cookies.set(pair.slice(0, separator), pair.slice(separator + 1));
+    }
+  }
+}
+
+function cookieHeader(session) {
+  return [...session.cookies]
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+async function primeCsrf(session) {
+  const response = await fetch(`${baseUrl}/login`, { redirect: "manual" });
+  storeCookies(session, response.headers);
+  if (!session.cookies.get("csrf_token")) {
+    throw new Error("application did not issue a CSRF cookie");
+  }
+}
+
 async function request(
   path,
-  { cookie, expected = 200, method = "GET", body } = {},
+  { session, expected = 200, method = "GET", body } = {},
 ) {
+  if (
+    session &&
+    !["GET", "HEAD", "OPTIONS"].includes(method) &&
+    !session.cookies.get("csrf_token")
+  ) {
+    await primeCsrf(session);
+  }
+  const csrfToken = session?.cookies.get("csrf_token");
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
-      ...(cookie ? { cookie } : {}),
+      ...(session?.cookies.size ? { cookie: cookieHeader(session) } : {}),
+      ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual",
   });
+  if (session) storeCookies(session, response.headers);
   const raw = await response.text();
   let payload = null;
   if (raw) {
@@ -50,8 +92,9 @@ async function request(
   return { response, payload };
 }
 
-async function register(email, name, role) {
+async function register(session, email, name, role) {
   const { payload } = await request("/api/auth/register", {
+    session,
     method: "POST",
     expected: 200,
     body: { email, password, name, role },
@@ -73,63 +116,76 @@ async function verify(email) {
     throw new Error(`could not verify disposable user ${email}`);
 }
 
-async function login(email) {
-  const { response } = await request("/api/auth/login", {
+async function login(session, email) {
+  await request("/api/auth/login", {
+    session,
     method: "POST",
     body: { email, password },
   });
-  const setCookie = response.headers.get("set-cookie");
-  const cookie = setCookie?.split(";", 1)[0];
-  if (!cookie?.startsWith("session_token="))
+  if (!session.cookies.get("session_token"))
     throw new Error(`login did not issue a session for ${email}`);
-  return cookie;
 }
 
 let familyA = null;
 let familyB = null;
 
 try {
-  const parent = await register(emails.parent, "CI Parent", "parent");
+  const parentSession = createSession();
+  const childSession = createSession();
+  const outsiderSession = createSession();
+
+  const parent = await register(
+    parentSession,
+    emails.parent,
+    "CI Parent",
+    "parent",
+  );
   await request("/api/auth/login", {
+    session: parentSession,
     method: "POST",
     expected: 403,
     body: { email: emails.parent, password },
   });
   await verify(emails.parent);
-  const parentCookie = await login(emails.parent);
+  await login(parentSession, emails.parent);
 
   ({
     payload: { family: familyA },
   } = await request("/api/family", {
     method: "POST",
-    cookie: parentCookie,
+    session: parentSession,
     body: { name: `Core Loop Family ${runId}` },
   }));
   if (!familyA?.id || !familyA?.invite_code)
     throw new Error("parent could not create a family");
 
-  const child = await register(emails.child, "CI Child", "child");
+  const child = await register(childSession, emails.child, "CI Child", "child");
   await verify(emails.child);
-  const childCookie = await login(emails.child);
+  await login(childSession, emails.child);
   await request("/api/family/join", {
     method: "POST",
-    cookie: childCookie,
+    session: childSession,
     body: { inviteCode: familyA.invite_code },
   });
 
-  const outsider = await register(emails.outsider, "CI Other Parent", "parent");
+  const outsider = await register(
+    outsiderSession,
+    emails.outsider,
+    "CI Other Parent",
+    "parent",
+  );
   await verify(emails.outsider);
-  const outsiderCookie = await login(emails.outsider);
+  await login(outsiderSession, emails.outsider);
   ({
     payload: { family: familyB },
   } = await request("/api/family", {
     method: "POST",
-    cookie: outsiderCookie,
+    session: outsiderSession,
     body: { name: `Isolation Family ${runId}` },
   }));
 
   const { payload: membersPayload } = await request("/api/family/members", {
-    cookie: parentCookie,
+    session: parentSession,
   });
   if (
     !membersPayload?.members?.some(
@@ -141,7 +197,7 @@ try {
 
   const { payload: chorePayload } = await request("/api/chores/create", {
     method: "POST",
-    cookie: parentCookie,
+    session: parentSession,
     body: {
       title: "Release gate core-loop chore",
       points: 10,
@@ -156,37 +212,37 @@ try {
 
   await request("/api/chores/verify", {
     method: "POST",
-    cookie: childCookie,
+    session: childSession,
     expected: 403,
     body: { choreId },
   });
   await request("/api/chores/verify", {
     method: "POST",
-    cookie: outsiderCookie,
+    session: outsiderSession,
     expected: 403,
     body: { choreId },
   });
 
   await request("/api/chores/complete", {
     method: "POST",
-    cookie: childCookie,
+    session: childSession,
     body: { choreId, photoUrl: null },
   });
   await request("/api/chores/verify", {
     method: "POST",
-    cookie: parentCookie,
+    session: parentSession,
     body: { choreId, verificationNotes: "Automated release-gate verification" },
   });
 
   const { payload: childAfterChore } = await request("/api/auth/me", {
-    cookie: childCookie,
+    session: childSession,
   });
   if (!(childAfterChore?.user?.xp > 0))
     throw new Error("verified chore did not award XP");
 
   const { payload: rewardPayload } = await request("/api/rewards", {
     method: "POST",
-    cookie: parentCookie,
+    session: parentSession,
     body: {
       name: "Release gate reward",
       description: "Disposable CI reward",
@@ -200,11 +256,11 @@ try {
 
   await request("/api/rewards/claim", {
     method: "POST",
-    cookie: childCookie,
+    session: childSession,
     body: { rewardId },
   });
   const { payload: rewardsAfterClaim } = await request("/api/rewards", {
-    cookie: parentCookie,
+    session: parentSession,
   });
   const claimed = rewardsAfterClaim?.rewards?.find(
     (reward) => reward.id === rewardId,
@@ -215,13 +271,13 @@ try {
 
   await request("/api/family", {
     method: "DELETE",
-    cookie: parentCookie,
+    session: parentSession,
     body: { familyId: familyA.id },
   });
   familyA = null;
   await request("/api/family", {
     method: "DELETE",
-    cookie: outsiderCookie,
+    session: outsiderSession,
     body: { familyId: familyB.id },
   });
   familyB = null;
