@@ -75,6 +75,10 @@ RUN_DB_INTEGRATION=1 npx jest \
   src/lib/imports/__tests__/persistence.integration.test.ts \
   --ci --runInBand --no-watchman --forceExit
 
+echo "==> Proving backup and isolated restore"
+DB_CONTAINER="$db_container" DB_USER=postgres DB_NAME="$db_name" \
+  bash scripts/recovery-rehearsal.sh
+
 echo "==> Auditing production dependencies and building the application"
 npm audit --omit=dev --audit-level=high
 npm run build
