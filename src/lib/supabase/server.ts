@@ -1,12 +1,11 @@
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
-// Stub: returns the authenticated user from the JWT cookie.
-// Used by server components that previously called supabase.auth.getSession().
-// The JWT payload now includes role + family_id (added 2026-06-06); we surface
-// them here so route handlers can do role checks without an extra DB lookup.
-// For legacy tokens issued before the JWT change, role will be undefined and
-// callers should treat as 'parent' (the safe default) or do a DB lookup.
+// Returns the authenticated user for server components and legacy route handlers.
+// Identity comes from the signed token, while mutable authorization attributes
+// come from the database. This keeps role and family membership current after a
+// user creates, joins, leaves, or is removed from a family.
 export async function getServerUser(): Promise<{
   id: string
   email: string
@@ -20,12 +19,12 @@ export async function getServerUser(): Promise<{
   const payload = verifyToken(token)
   if (!payload || !payload.userId) return null
 
-  return {
-    id: payload.userId,
-    email: payload.email as string,
-    role: payload.role,
-    family_id: payload.family_id ?? null,
-  }
+  const user = await prisma!.user.findUnique({
+    where: { id: payload.userId },
+    select: { id: true, email: true, role: true, family_id: true },
+  })
+
+  return user ?? null
 }
 
 // Legacy export kept so existing imports don't break during migration.
