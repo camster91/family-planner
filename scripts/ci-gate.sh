@@ -95,7 +95,8 @@ docker run -d --name "$app_container" --network "$network" \
   "$image" >/dev/null
 
 app_port="$(docker inspect -f '{{(index (index .NetworkSettings.Ports "3000/tcp") 0).HostPort}}' "$app_container")"
-health_url="http://127.0.0.1:${app_port}/api/health"
+app_url="http://127.0.0.1:${app_port}"
+health_url="${app_url}/api/health"
 for _ in {1..90}; do
   if curl --fail --silent --show-error "$health_url" >/tmp/family-planner-ci-health.json 2>/dev/null; then
     break
@@ -123,6 +124,6 @@ node -e '
 '
 
 echo "==> Proving the role-aware parent-to-child core loop"
-APP_URL="$health_url" DATABASE_URL="$DATABASE_URL" node scripts/core-loop-smoke.mjs
+APP_URL="$app_url" DATABASE_URL="$DATABASE_URL" node scripts/core-loop-smoke.mjs
 
 echo "==> Release gate passed for ${GITHUB_SHA:-local}"

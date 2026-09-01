@@ -86,7 +86,7 @@ async function request(
   }
   if (response.status !== expected) {
     throw new Error(
-      `${method} ${path}: expected ${expected}, received ${response.status}: ${raw}`,
+      `${method} ${path}: expected ${expected}, received ${response.status}: ${raw.slice(0, 500)}`,
     );
   }
   return { response, payload };
