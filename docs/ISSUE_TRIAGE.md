@@ -2,11 +2,11 @@
 
 **Snapshot verified:** 2026-09-01
 **Open issues:** 2
-**Candidate:** PR #100, `codex/launch-readiness-gaps`
+**Candidate:** PR #101, `codex/launch-readiness-gaps` (supersedes closed PR #100)
 
 | Issue                                                           | Priority    | Current evidence                                                                                                                                                                                                                                                                                                           | Closure condition                                                                                                                                                                                                                                      |
 | --------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| #85 — Restore required release validation                       | P0          | `master` protection requires strict `Ashbi release gate`, `Build & Test`, and `Build APK`; exact PR head `9f37aa2` passed those checks, deployed from its workflow artifact in run `33518730116`, retained a database backup and prior container, and passed the live register-to-reward smoke.                            | Latest PR #100 head passes every required check, evidence summary identifies the exact commit, and the merged `master` head retains the same protection.                                                                                               |
+| #85 — Restore required release validation                       | P0          | `master` protection requires strict `Ashbi release gate`, `Build & Test`, and `Build APK`; exact PR head `9f37aa2` passed those checks, deployed from its workflow artifact in run `33518730116`, retained a database backup and prior container, and passed the live register-to-reward smoke.                            | Latest PR #101 head passes every required check, evidence summary identifies the exact commit, and the merged `master` head retains the same protection.                                                                                               |
 | #84 — Consolidate Family Planner into a reliable family release | P0 umbrella | Source repositories are archived; consolidated imports cover ChoreChamps, Meal Planner, and Budget App; search, recovery, privacy, export/deletion, audit, notifications, and beta telemetry are implemented. Review passed the automated core loop and reports degraded only because transactional email is unconfigured. | #85 closes; approved real exports are reconciled or explicitly recorded as empty/unavailable; production email provider is verified; mobile QA and the five-household beta entry checklist are complete; exact candidate receives production approval. |
 
 ## Closed/superseded issue reconciliation
@@ -31,6 +31,6 @@ the complete gate.
 ## Issue update rule
 
 Update #85 with exact run URLs and commit identity only after all required checks
-finish. Close neither issue before PR #100 is merged. A merge is not production
+finish. Close neither issue before PR #101 is merged. A merge is not production
 deployment; deployment remains a separate exact-artifact approval and release
 record.
