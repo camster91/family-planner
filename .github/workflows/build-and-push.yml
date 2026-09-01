@@ -51,6 +51,9 @@ jobs:
     name: Build deployable image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+      candidate-sha: ${{ steps.meta.outputs.candidate-sha }}
     env:
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
@@ -82,6 +85,8 @@ jobs:
             echo "image=${IMAGE}"
             echo "tag=${TAG}"
             echo "sha=${SHA_SHORT}"
+            echo "candidate-sha=${CANDIDATE_SHA}"
+            echo "artifact-name=family-planner-pr-${{ github.event.pull_request.number }}-${SHA_SHORT}"
             echo "tags<<EOF"
             echo "${IMAGE}:${TAG}"
             echo "${IMAGE}:${TAG}-${SHA_SHORT}"
@@ -123,7 +128,7 @@ jobs:
           # PR tokens cannot access the existing GHCR package. Produce a
           # downloadable OCI artifact for review; merged refs publish to GHCR.
           push: ${{ github.event_name != 'pull_request' }}
-          outputs: ${{ github.event_name == 'pull_request' && format('type=oci,dest=/tmp/family-planner-{0}.tar', env.CANDIDATE_SHA) || '' }}
+          outputs: ${{ github.event_name == 'pull_request' && format('type=docker,dest=/tmp/family-planner-{0}.tar', env.CANDIDATE_SHA) || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
@@ -139,7 +144,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: family-planner-pr-${{ github.event.pull_request.number }}-${{ steps.meta.outputs.sha }}
+          name: ${{ steps.meta.outputs.artifact-name }}
           path: /tmp/family-planner-${{ env.CANDIDATE_SHA }}.tar
           if-no-files-found: error
           retention-days: 7
@@ -161,3 +166,36 @@ jobs:
               echo "**Delivery:** GHCR"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-review:
+    name: Deploy exact image to Ashbi review
+    needs: build
+    if: >-
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'deploy-review')
+    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.build.outputs.candidate-sha }}
+
+      - name: Download exact review image
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}
+
+      - name: Deploy with backup and rollback
+        run: >-
+          bash scripts/deploy-review-artifact.sh
+          /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}/family-planner-${{ needs.build.outputs.candidate-sha }}.tar
+          ${{ needs.build.outputs.candidate-sha }}
+
+      - name: Remove downloaded review artifact
+        if: always()
+        run: rm -f /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}/family-planner-${{ needs.build.outputs.candidate-sha }}.tar
