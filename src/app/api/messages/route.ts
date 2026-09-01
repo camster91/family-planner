@@ -1,23 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
-import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
+import { sendMessageSchema, markMessagesReadSchema } from "@/lib/validations";
+import { notificationServiceServer } from "@/lib/notifications-server";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 // GET - List messages for current user's family
 export async function GET(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const { searchParams } = new URL(request.url)
-    const cursor = searchParams.get('cursor')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
+    const { searchParams } = new URL(request.url);
+    const cursor = searchParams.get("cursor");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
 
-    const where: Record<string, unknown> = { family_id: auth.user.family_id }
+    const where: Record<string, unknown> = { family_id: auth.user.family_id };
     if (cursor) {
-      where.created_at = { lt: new Date(cursor) }
+      where.created_at = { lt: new Date(cursor) };
     }
 
     const messages = await prisma!.message.findMany({
@@ -27,9 +28,9 @@ export async function GET(request: NextRequest) {
           select: { id: true, name: true, avatar_url: true, role: true },
         },
       },
-      orderBy: { created_at: 'desc' },
+      orderBy: { created_at: "desc" },
       take: limit,
-    })
+    });
 
     const members = await prisma!.user.findMany({
       where: { family_id: auth.user.family_id },
@@ -39,33 +40,39 @@ export async function GET(request: NextRequest) {
         role: true,
         avatar_url: true,
       },
-      orderBy: { name: 'asc' },
-    })
+      orderBy: { name: "asc" },
+    });
 
     return NextResponse.json({
       messages: messages.reverse(), // Return in chronological order
       members,
       userId: auth.user.id,
-    })
+    });
   } catch (error) {
-    console.error('Error fetching messages:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Error fetching messages:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 // POST - Send a message
 export async function POST(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const body = await request.json()
-    const parsed = sendMessageSchema.safeParse(body)
+    const body = await request.json();
+    const parsed = sendMessageSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
 
-    const { content, type } = parsed.data
+    const { content, type } = parsed.data;
 
     const message = await prisma!.message.create({
       data: {
@@ -80,28 +87,53 @@ export async function POST(request: NextRequest) {
           select: { id: true, name: true, avatar_url: true, role: true },
         },
       },
-    })
+    });
 
-    return NextResponse.json({ message })
+    const recipients = await prisma!.user.findMany({
+      where: {
+        family_id: auth.user.family_id,
+        id: { not: auth.user.id },
+      },
+      select: { id: true },
+    });
+    await Promise.all(
+      recipients.map((recipient) =>
+        notificationServiceServer.sendNotification({
+          userId: recipient.id,
+          title: `New message from ${auth.user.name}`,
+          message:
+            type === "text" ? content.slice(0, 160) : `Sent a ${type} message`,
+          type: "message",
+        }),
+      ),
+    );
+
+    return NextResponse.json({ message });
   } catch (error) {
-    console.error('Error sending message:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Error sending message:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 // PATCH - Mark messages as read
 export async function PATCH(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const body = await request.json()
-    const parsed = markMessagesReadSchema.safeParse(body)
+    const body = await request.json();
+    const parsed = markMessagesReadSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
 
-    const { messageIds, markAll } = parsed.data
+    const { messageIds, markAll } = parsed.data;
 
     if (markAll) {
       // Mark all unread family messages as read by this user
@@ -113,7 +145,7 @@ export async function PATCH(request: NextRequest) {
         data: {
           read_by: { push: auth.user.id },
         },
-      })
+      });
     } else if (messageIds && messageIds.length > 0) {
       // Mark specific messages as read
       await prisma!.message.updateMany({
@@ -125,12 +157,15 @@ export async function PATCH(request: NextRequest) {
         data: {
           read_by: { push: auth.user.id },
         },
-      })
+      });
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error marking messages as read:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Error marking messages as read:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

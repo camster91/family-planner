@@ -1,26 +1,48 @@
-import { prisma } from '@/lib/prisma'
+import { prisma } from "@/lib/prisma";
 
 interface NotificationData {
-  userId: string
-  title: string
-  message: string
-  type: 'chore' | 'event' | 'message' | 'reward' | 'system' | 'achievement' | 'streak'
+  userId: string;
+  title: string;
+  message: string;
+  type:
+    | "chore"
+    | "event"
+    | "message"
+    | "reward"
+    | "system"
+    | "achievement"
+    | "streak";
 }
 
 interface ChoreInfo {
-  id: string
-  title: string
-  creator?: { id: string; name: string } | null
+  id: string;
+  title: string;
+  creator?: { id: string; name: string } | null;
 }
 
 interface UserInfo {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
 
 export class NotificationServiceServer {
   async sendNotification(data: NotificationData) {
     try {
+      const preferences = await prisma!.user.findUnique({
+        where: { id: data.userId },
+        select: {
+          notify_chores: true,
+          notify_events: true,
+          notify_messages: true,
+        },
+      });
+      if (!preferences) return false;
+      const disabled =
+        (data.type === "chore" && !preferences.notify_chores) ||
+        (data.type === "event" && !preferences.notify_events) ||
+        (data.type === "message" && !preferences.notify_messages);
+      if (disabled) return false;
+
       await prisma!.notification.create({
         data: {
           user_id: data.userId,
@@ -29,11 +51,11 @@ export class NotificationServiceServer {
           type: data.type,
           read: false,
         },
-      })
-      return true
+      });
+      return true;
     } catch (error) {
-      console.error('Error in notification service:', error)
-      return false
+      console.error("Error in notification service:", error);
+      return false;
     }
   }
 
@@ -42,29 +64,33 @@ export class NotificationServiceServer {
     if (chore.creator && chore.creator.id !== assignee.id) {
       await this.sendNotification({
         userId: chore.creator.id,
-        title: 'Chore Completed!',
+        title: "Chore Completed!",
         message: `${assignee.name} completed "${chore.title}"`,
-        type: 'chore',
-      })
+        type: "chore",
+      });
     }
 
     // Notify the person who completed it
     await this.sendNotification({
       userId: assignee.id,
-      title: 'Great Job!',
+      title: "Great Job!",
       message: `You completed "${chore.title}"`,
-      type: 'reward',
-    })
+      type: "reward",
+    });
   }
 
-  async notifyChoreAssignment(chore: ChoreInfo & { due_date: Date | string }, assignedTo: UserInfo, assignedBy: UserInfo) {
+  async notifyChoreAssignment(
+    chore: ChoreInfo & { due_date: Date | string },
+    assignedTo: UserInfo,
+    assignedBy: UserInfo,
+  ) {
     await this.sendNotification({
       userId: assignedTo.id,
-      title: 'New Chore Assigned',
+      title: "New Chore Assigned",
       message: `${assignedBy.name} assigned you "${chore.title}" (due ${new Date(chore.due_date).toLocaleDateString()})`,
-      type: 'chore',
-    })
+      type: "chore",
+    });
   }
 }
 
-export const notificationServiceServer = new NotificationServiceServer()
+export const notificationServiceServer = new NotificationServiceServer();

@@ -350,3 +350,11 @@ export const updateProjectTaskSchema = z.object({
     .nullable(),
   position: z.number().int().min(0).optional(),
 });
+
+export const notificationPreferencesSchema = z
+  .object({
+    choreUpdates: z.boolean(),
+    eventUpdates: z.boolean(),
+    newMessages: z.boolean(),
+  })
+  .strict();

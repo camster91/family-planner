@@ -25,6 +25,9 @@ model User {
   streak                        Int                @default(0)
   best_streak                   Int                @default(0)
   email_verified                Boolean            @default(false)
+  notify_chores                 Boolean            @default(true)
+  notify_events                 Boolean            @default(true)
+  notify_messages               Boolean            @default(true)
   reset_token                   String?
   reset_token_expires           DateTime?
   verify_token                  String?

@@ -152,6 +152,7 @@ describe("Validations", () => {
     registerSchema,
     loginSchema,
     completeChoreSchema,
+    notificationPreferencesSchema,
   } = require("@/lib/validations");
 
   it("createRewardSchema accepts the new shape (name + cost, not title + point_cost)", () => {
@@ -209,6 +210,24 @@ describe("Validations", () => {
     expect(
       loginSchema.safeParse({ email: "a@b.com", password: "x" }).success,
     ).toBe(true);
+  });
+
+  it("notification preferences accept only the supported persisted categories", () => {
+    expect(
+      notificationPreferencesSchema.safeParse({
+        choreUpdates: true,
+        eventUpdates: false,
+        newMessages: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      notificationPreferencesSchema.safeParse({
+        choreUpdates: true,
+        eventUpdates: true,
+        newMessages: true,
+        weeklyReports: true,
+      }).success,
+    ).toBe(false);
   });
 
   it("completeChoreSchema allows null photoUrl (regression test for nullable fix)", () => {

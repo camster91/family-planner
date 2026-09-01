@@ -22,10 +22,9 @@ export default function SettingsPage() {
   const [role, setRole] = useState("");
   const [age, setAge] = useState("");
   const [notifications, setNotifications] = useState({
-    choreReminders: true,
-    eventReminders: true,
+    choreUpdates: true,
+    eventUpdates: true,
     newMessages: true,
-    weeklyReports: false,
   });
   const [theme, setTheme] = useState<"light" | "dark" | "auto">("light");
 
@@ -76,7 +75,18 @@ export default function SettingsPage() {
   // Load user data
   useEffect(() => {
     loadUserData();
+    loadNotificationPreferences();
   }, []);
+
+  const loadNotificationPreferences = async () => {
+    try {
+      const res = await fetch("/api/users/preferences", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && data.notifications) setNotifications(data.notifications);
+    } catch (err) {
+      console.error("Error loading notification preferences:", err);
+    }
+  };
 
   const loadUserData = async () => {
     setLoading(true);
@@ -132,11 +142,15 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
-      // Save preferences to localStorage for now
-      localStorage.setItem(
-        "familyPlanner_notifications",
-        JSON.stringify(notifications),
-      );
+      const preferencesResponse = await fetch("/api/users/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifications),
+      });
+      const preferencesData = await preferencesResponse.json();
+      if (!preferencesResponse.ok) {
+        throw new Error(preferencesData.error || "Failed to save preferences");
+      }
       localStorage.setItem("familyPlanner_theme", theme);
       localStorage.setItem("familyPlanner_language", language);
 
@@ -379,14 +393,12 @@ export default function SettingsPage() {
                       {key.replace(/([A-Z])/g, " $1").trim()}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {key === "choreReminders" &&
-                        "Reminders for assigned chores"}
-                      {key === "eventReminders" &&
-                        "Reminders for upcoming events"}
+                      {key === "choreUpdates" &&
+                        "Assignments, completions, and approvals"}
+                      {key === "eventUpdates" &&
+                        "Events added to your family calendar"}
                       {key === "newMessages" &&
                         "Notifications for new family messages"}
-                      {key === "weeklyReports" &&
-                        "Weekly family activity reports"}
                     </div>
                   </div>
                   <button

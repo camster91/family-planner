@@ -74,6 +74,9 @@ export async function GET(request: NextRequest) {
           last_chore_date: true,
           created_at: true,
           email_verified: true,
+          notify_chores: true,
+          notify_events: true,
+          notify_messages: true,
           // Explicitly EXCLUDE password
         },
       }),

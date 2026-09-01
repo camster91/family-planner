@@ -196,6 +196,15 @@ try {
   );
   await verify(emails.child);
   await login(childSession, emails.child);
+  await request("/api/users/preferences", {
+    method: "PATCH",
+    session: childSession,
+    body: {
+      choreUpdates: false,
+      eventUpdates: false,
+      newMessages: false,
+    },
+  });
 
   const outsider = await register(
     outsiderSession,
@@ -229,7 +238,7 @@ try {
   });
   await request("/api/auth/me", {
     session: deleteSession,
-    expected: 404,
+    expected: 401,
   });
 
   const { payload: membersPayload } = await request("/api/family/members", {
@@ -242,6 +251,21 @@ try {
   ) {
     throw new Error("joined child is not visible in the parent family");
   }
+
+  await request("/api/events", {
+    method: "POST",
+    session: parentSession,
+    body: {
+      title: "Muted release gate event",
+      start_time: new Date(Date.now() + 129_600_000).toISOString(),
+      event_type: "family",
+    },
+  });
+  await request("/api/messages", {
+    method: "POST",
+    session: parentSession,
+    body: { content: "Muted release gate message", type: "text" },
+  });
 
   const { payload: chorePayload } = await request("/api/chores/create", {
     method: "POST",
@@ -257,6 +281,59 @@ try {
   });
   const choreId = chorePayload?.chore?.id;
   if (!choreId) throw new Error("parent could not assign the core-loop chore");
+  const { payload: mutedNotifications } = await request("/api/notifications", {
+    session: childSession,
+  });
+  for (const mutedType of ["chore", "event", "message"]) {
+    if (
+      mutedNotifications?.notifications?.some(
+        (notification) => notification.type === mutedType,
+      )
+    ) {
+      throw new Error(
+        `disabled ${mutedType} notifications were not suppressed`,
+      );
+    }
+  }
+  await request("/api/users/preferences", {
+    method: "PATCH",
+    session: childSession,
+    body: {
+      choreUpdates: true,
+      eventUpdates: true,
+      newMessages: true,
+    },
+  });
+  await request("/api/events", {
+    method: "POST",
+    session: parentSession,
+    body: {
+      title: "Release gate family event",
+      start_time: new Date(Date.now() + 172_800_000).toISOString(),
+      event_type: "family",
+    },
+  });
+  await request("/api/messages", {
+    method: "POST",
+    session: parentSession,
+    body: {
+      content: "Release gate family message",
+      type: "text",
+    },
+  });
+  const { payload: categoryNotifications } = await request(
+    "/api/notifications",
+    { session: childSession },
+  );
+  for (const expectedType of ["event", "message"]) {
+    if (
+      !categoryNotifications?.notifications?.some(
+        (notification) => notification.type === expectedType,
+      )
+    ) {
+      throw new Error(`enabled ${expectedType} notification was not delivered`);
+    }
+  }
 
   const { payload: parentSearch } = await request("/api/search?q=Release", {
     session: parentSession,
@@ -306,6 +383,17 @@ try {
   });
   if (!(childAfterChore?.user?.xp > 0))
     throw new Error("verified chore did not award XP");
+  const { payload: enabledNotifications } = await request(
+    "/api/notifications",
+    { session: childSession },
+  );
+  if (
+    !enabledNotifications?.notifications?.some(
+      (notification) => notification.type === "chore",
+    )
+  ) {
+    throw new Error("enabled chore notifications were not delivered");
+  }
 
   const { payload: exportPayload } = await request("/api/users/export", {
     session: parentSession,
