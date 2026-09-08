@@ -1,51 +1,70 @@
 # Data Model Policy
 
-`prisma/schema.prisma` is authoritative for what exists today. This document defines how new work should treat it while #134/#143 canonicalize overlapping legacy/consolidated models.
+`prisma/schema.prisma` is authoritative for models that exist today. Issue #149 is the canonical decision issue for the overlapping meal, recipe, grocery and list generations. Issues #134 and #143 are broader architecture/refactor parents; they do not replace #149.
 
 ## Ownership rule
-Every private household-domain record must be traceable to exactly one household. Prefer an explicit `family_id` on high-value domain tables when it improves authorization/query safety; nested ownership must still be provable server-side.
 
-## Current canonical decisions
-- `User`/`Family` remain the identity/household foundation.
+Every private household-domain record must be traceable to exactly one household. Prefer an explicit `family_id` on high-value domain tables when it improves authorization/query safety; nested ownership must still be proven server-side.
+
+## Existing foundation that remains
+
+- `User` and `Family` remain the identity/household foundation.
 - Existing auth/family systems must be extended, not duplicated for the fridge tablet.
-- `Event` remains the existing calendar foundation until a versioned migration says otherwise.
-- Existing chore/task/reward models remain in place during vertical migration.
+- `Event` remains the existing calendar foundation until an accepted versioned migration changes it.
+- Existing chore/task/reward models remain during vertical migration.
 
-## Models requiring canonicalization before broad new writes
-The repository contains overlapping generations of meal/list concepts, including older `FamilyMeal` / generic `List` + `ListItem` paths and newer recipe/meal-plan/shopping models. #134/#143 must record which models are canonical for:
-- meal planning;
-- recipes/ingredients;
-- groceries/shopping;
-- legacy import compatibility.
+## Unresolved overlapping generations
 
-Do not create another parallel model to avoid this decision.
+The schema currently contains both:
+
+| Domain | Existing/legacy path | Newer/foundation path | Current decision |
+| --- | --- | --- | --- |
+| Meals | `FamilyMeal` | `MealPlan` + `MealPlanEntry` linked to `Recipe` | Open in #149 |
+| Recipes | meal name/description fields in `FamilyMeal` | `Recipe`, `Ingredient`, `RecipeIngredient` | Open in #149 |
+| General lists | `List` + `ListItem` | No replacement for every generic-list use case | Preserve pending #149 |
+| Groceries | grocery-like generic `List` + `ListItem` usage | `ShoppingList` + `ShoppingItem` | Open in #149 |
+
+These are factual existence statements, not declarations that either generation is canonical for all future writes.
+
+## #149 required outcome
+
+Before inventory → meal → missing ingredient → grocery writes are implemented, #149 must record:
+
+- the canonical read/write model for each domain;
+- which models are legacy, compatibility-only or migration targets;
+- current UI/API consumers;
+- import and data-preservation requirements;
+- transition strategy, including any temporary dual read/write;
+- old-client/server compatibility;
+- household-ownership and authorization rules;
+- migration, rollback and test evidence;
+- follow-up issues for implementation.
+
+Do not create a third parallel model generation. Do not mark canonicalization complete until an ADR/decision and its accepted evidence exist.
 
 ## Planned new domains
+
 Subject to ADR/schema review:
+
 - shared devices/sessions/preferences;
 - food inventory/locations/adjustments/expiry observations;
-- sync mutations/conflict metadata;
+- bounded sync mutations/conflict metadata;
 - AI suggestions/action proposals;
 - integration connections;
-- leftovers only after MVP evidence.
+- leftovers only after product evidence.
 
 ## Schema requirements
-For new/changed models consider:
-- household ownership and indexes;
-- creator/actor where auditability matters;
-- `created_at`/`updated_at` server timestamps;
-- version/concurrency field for collaborative edits when needed;
-- idempotency key for retryable user-visible mutations;
-- soft-delete/tombstone only where offline/recovery semantics require it;
-- uniqueness rules scoped correctly to household;
-- explicit delete/cascade/restrict behaviour;
-- retention/deletion/export requirements.
+
+For new/changed models consider household ownership/indexes, actor/audit fields, server timestamps, concurrency/version fields, idempotency, bounded collections, deletion/retention/export, correct household-scoped uniqueness and explicit relation deletion behaviour.
 
 ## Migration policy
-Installed clients may be old. Prefer expand -> backfill -> dual-compatible read/write if needed -> switch -> contract after supported clients are clear. Backfills must be resumable/idempotent and observable. Never assume rolling back app code means database rollback is safe.
+
+Installed Android clients may be old. Prefer expand → backfill → compatible transition → switch → contract. Backfills must be resumable, idempotent and observable. Rolling back app code does not imply a database rollback is safe.
 
 ## Test fixtures
-Developer/test seed data must include two households and foreign-ID cases so isolation is easy to prove.
+
+Development/test data must include at least two synthetic households and foreign-ID negative cases so isolation is easy to prove.
 
 ## ADR requirement
-Any change that replaces a canonical model, introduces dual writes, materially changes ownership, or breaks old clients requires an ADR in `docs/architecture/adr/` plus migration/rollback evidence.
+
+Replacing a canonical model, introducing dual writes, materially changing ownership or breaking older clients requires an accepted ADR plus migration, compatibility and rollback evidence.
