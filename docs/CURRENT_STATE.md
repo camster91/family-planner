@@ -59,13 +59,23 @@ Issue #149 is the canonical decision issue. None of these overlapping generation
 
 Issues #84, #85 and #102–#110 remain active gates. The fridge programme does not authorize bypassing CI, isolation/security, email, migration, QA, exact-artifact release, beta evidence, calendar validation or billing validation.
 
+## Open pull requests that affect the baseline
+
+- #101 `codex/launch-readiness-gaps`: 80 changed files and 43 commits covering release/security, migrations, tests, workflows and application code. Its recorded checks are green, but it remains protected-merge blocked and is not contained in PR #129. Its disposition must be decided before a route/domain audit can claim completeness.
+- #112: Dependabot throttling only.
+- #116: CI consolidation that overlaps #101 and the workflow-safety changes in #129. Do not merge independently until the canonical release-check names and #101 disposition are resolved.
+- #111, #113–#115, #117–#118: isolated Dependabot updates, all protected-merge blocked by hosted CI.
+- #129: canonical fridge-tablet/repository reconciliation plan.
+
+No open PR above was merged or closed during reconciliation.
+
 ## Current phase and first work
 
-1. Complete and merge repository reconciliation through PR #129 using normal protected GitHub flow.
-2. Run #148 route/component/domain/placeholder audit.
-3. Decide #149 canonical meal/recipe/grocery/list models.
-4. Run #150 visual direction and #151 adaptive IA.
-5. Continue according to `docs/engineering/EXECUTION_ORDER.md`.
+1. Decide whether PR #101 is the release/security baseline to merge, replace or supersede. Do not silently abandon its 80-file candidate.
+2. Restore/confirm required CI and protected check names under #85.
+3. Complete and merge PR #129 using the normal protected flow, rebasing/reconciling it if #101 changes `master`.
+4. Run #148 only against the resulting canonical source baseline.
+5. Decide #149, then continue #150/#151 and `docs/engineering/EXECUTION_ORDER.md`.
 
 ## Approval state
 
