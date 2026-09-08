@@ -20,10 +20,12 @@ PR #129 was mergeable at the Git level but GitHub reported `mergeable_state: blo
 - Actual schema: `prisma/schema.prisma`.
 - Auth: self-hosted JWT/session implementation. `src/lib/supabase/server.ts` is legacy-named and is not proof of active Supabase auth.
 - Android: a Capacitor project exists under `android/`; generated `ExampleUnitTest` and `ExampleInstrumentedTest` remain and are tracked by #160.
-- Workflows: ten YAML files existed under `.github/workflows/` when reconciled. Several overlap in build/image/deploy purpose and require a later CI ownership audit; do not rely on a prose workflow count.
+- Workflows: ten YAML files existed under `.github/workflows/` when reconciled. Ownership and triggers are mapped in `docs/engineering/CI_AND_RELEASE.md`. PR validation cannot publish images or deploy; image publication and the only active Coolify deployment path now require manual dispatch. The older `deploy-from-ghcr.yml` path is explicitly disabled and retained only for historical run links.
 - Production identity/health was not re-verified during this repository-only reconciliation.
 
 ## CI and required-check evidence for PR #129
+
+Canonical workflow intent and exact ownership: `docs/engineering/CI_AND_RELEASE.md`.
 
 Exact PR head before this reconciliation commit series: `e7f3f611f99d06d01de1214a2e7246c15f43c991`.
 
