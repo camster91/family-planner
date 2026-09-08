@@ -342,3 +342,24 @@ describe("Parent-only financial access", () => {
     },
   );
 });
+
+
+describe("Role-safe search destinations", () => {
+  const { searchResultHref } = require("@/app/api/search/route");
+
+  it.each(["child", "teen"])(
+    "routes %s results to an allowed dashboard destination",
+    (role) => {
+      expect(searchResultHref(role, "/dashboard/calendar")).toBe("/dashboard");
+      expect(searchResultHref(role, "/dashboard/lists/list-1")).toBe(
+        "/dashboard",
+      );
+    },
+  );
+
+  it("preserves parent destinations", () => {
+    expect(searchResultHref("parent", "/dashboard/calendar")).toBe(
+      "/dashboard/calendar",
+    );
+  });
+});
