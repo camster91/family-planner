@@ -24,7 +24,7 @@ env:
 jobs:
   build:
     name: Build APK
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v7

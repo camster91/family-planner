@@ -19,7 +19,7 @@ concurrency:
 jobs:
   lint:
     name: Lint
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:

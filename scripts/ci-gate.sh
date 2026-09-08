@@ -139,51 +139,55 @@ APP_URL="$app_url" DATABASE_URL="$DATABASE_URL" CORE_LOOP_CLIENT_IP='198.51.100.
 
 rollback_image="${ROLLBACK_IMAGE:-}"
 if [ -z "$rollback_image" ]; then
-  echo "ERROR: ROLLBACK_IMAGE must identify the immutable production rollback artifact" >&2
-  exit 1
-fi
-if ! docker image inspect "$rollback_image" >/dev/null 2>&1; then
-  echo "ERROR: immutable rollback image is unavailable on Ashbi: $rollback_image" >&2
-  exit 1
-fi
-
-echo "==> Proving rollback to $rollback_image against the migrated database"
-docker rm -f "$app_container" >/dev/null
-docker run -d --name "$app_container" --network "$network" \
-  --label "family-planner.ci.run-id=${ci_run_id}" \
-  -e DATABASE_URL="postgresql://postgres:${db_password}@ci-db:5432/${db_name}" \
-  -e JWT_SECRET="$JWT_SECRET" \
-  -e NEXT_PUBLIC_APP_URL="http://127.0.0.1:3000" \
-  -p 127.0.0.1::3000 \
-  "$rollback_image" >/dev/null
-
-rollback_port="$(docker inspect -f '{{(index (index .NetworkSettings.Ports "3000/tcp") 0).HostPort}}' "$app_container")"
-rollback_health_url="http://127.0.0.1:${rollback_port}/api/health"
-for _ in {1..90}; do
-  if curl --fail --silent --show-error "$rollback_health_url" >/tmp/family-planner-ci-rollback-health.json 2>/dev/null; then
-    break
-  fi
-  if [ "$(docker inspect -f '{{.State.Running}}' "$app_container")" != "true" ]; then
-    docker logs "$app_container"
-    echo "ERROR: rollback container exited before becoming healthy" >&2
+  if [ "${REQUIRE_ROLLBACK:-1}" = "1" ]; then
+    echo "ERROR: ROLLBACK_IMAGE must identify the immutable production rollback artifact" >&2
     exit 1
   fi
-  sleep 2
-done
+  echo "==> Skipping host-local rollback proof on the untrusted pull-request runner"
+else
+  if ! docker image inspect "$rollback_image" >/dev/null 2>&1; then
+    echo "ERROR: immutable rollback image is unavailable on Ashbi: $rollback_image" >&2
+    exit 1
+  fi
 
-if ! curl --fail --silent --show-error "$rollback_health_url" >/tmp/family-planner-ci-rollback-health.json; then
-  docker logs "$app_container"
-  echo "ERROR: rollback image failed health smoke against the migrated database" >&2
-  exit 1
+  echo "==> Proving rollback to $rollback_image against the migrated database"
+  docker rm -f "$app_container" >/dev/null
+  docker run -d --name "$app_container" --network "$network" \
+    --label "family-planner.ci.run-id=${ci_run_id}" \
+    -e DATABASE_URL="postgresql://postgres:${db_password}@ci-db:5432/${db_name}" \
+    -e JWT_SECRET="$JWT_SECRET" \
+    -e NEXT_PUBLIC_APP_URL="http://127.0.0.1:3000" \
+    -p 127.0.0.1::3000 \
+    "$rollback_image" >/dev/null
+
+  rollback_port="$(docker inspect -f '{{(index (index .NetworkSettings.Ports "3000/tcp") 0).HostPort}}' "$app_container")"
+  rollback_health_url="http://127.0.0.1:${rollback_port}/api/health"
+  for _ in {1..90}; do
+    if curl --fail --silent --show-error "$rollback_health_url" >/tmp/family-planner-ci-rollback-health.json 2>/dev/null; then
+      break
+    fi
+    if [ "$(docker inspect -f '{{.State.Running}}' "$app_container")" != "true" ]; then
+      docker logs "$app_container"
+      echo "ERROR: rollback container exited before becoming healthy" >&2
+      exit 1
+    fi
+    sleep 2
+  done
+
+  if ! curl --fail --silent --show-error "$rollback_health_url" >/tmp/family-planner-ci-rollback-health.json; then
+    docker logs "$app_container"
+    echo "ERROR: rollback image failed health smoke against the migrated database" >&2
+    exit 1
+  fi
+
+  node -e '
+    const fs = require("fs");
+    const body = JSON.parse(fs.readFileSync("/tmp/family-planner-ci-rollback-health.json", "utf8"));
+    if (body.status !== "healthy" || body.checks?.database !== "connected") {
+      throw new Error(`unexpected rollback health response: ${JSON.stringify(body)}`);
+    }
+  '
+  echo "==> Immutable-image rollback rehearsal passed"
 fi
-
-node -e '
-  const fs = require("fs");
-  const body = JSON.parse(fs.readFileSync("/tmp/family-planner-ci-rollback-health.json", "utf8"));
-  if (body.status !== "healthy" || body.checks?.database !== "connected") {
-    throw new Error(`unexpected rollback health response: ${JSON.stringify(body)}`);
-  }
-'
-echo "==> Immutable-image rollback rehearsal passed"
 
 echo "==> Release gate passed for ${candidate_sha}"

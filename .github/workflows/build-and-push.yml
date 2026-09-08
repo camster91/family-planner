@@ -49,7 +49,7 @@ concurrency:
 jobs:
   build:
     name: Build deployable image
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
       artifact-name: ${{ steps.meta.outputs.artifact-name }}
@@ -157,45 +157,3 @@ jobs:
               echo "**Delivery:** GHCR"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-  deploy-review:
-    name: Deploy exact image to Ashbi review
-    needs: build
-    if: >-
-      github.event_name == 'pull_request' &&
-      contains(github.event.pull_request.labels.*.name, 'deploy-review')
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.build.outputs.candidate-sha }}
-
-      - name: Download exact review image
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ needs.build.outputs.artifact-name }}
-          path: /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}
-
-      - name: Setup supported Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install exact QA dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Deploy with backup and rollback
-        run: >-
-          bash scripts/deploy-review-artifact.sh
-          /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}/family-planner-${{ needs.build.outputs.candidate-sha }}.tar
-          ${{ needs.build.outputs.candidate-sha }}
-
-      - name: Remove downloaded review artifact
-        if: always()
-        run: rm -f /tmp/family-planner-review-${{ needs.build.outputs.candidate-sha }}/family-planner-${{ needs.build.outputs.candidate-sha }}.tar

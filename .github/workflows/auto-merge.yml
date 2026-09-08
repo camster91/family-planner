@@ -5,7 +5,7 @@ on:
 jobs:
   auto-merge:
     if: contains(github.event.pull_request.labels.*.name, 'auto-merge')
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    runs-on: ubuntu-latest
     steps:
       - uses: pascalgn/automerge-action@v0.16.4
         env:
