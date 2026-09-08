@@ -48,6 +48,24 @@ describe("transactional email and one-time tokens", () => {
     ).rejects.toThrow("not configured");
   });
 
+  it("logs the usable message body only in local development", async () => {
+    Object.assign(process.env, { NODE_ENV: "development", CI: "false" });
+    const infoSpy = jest.spyOn(console, "info").mockImplementation(() => undefined);
+    const html = '<p><a href="http://localhost:3000/verify?token=dev-token">Verify</a></p>';
+
+    await expect(
+      sendTransactionalEmail({
+        to: "person@example.test",
+        subject: "Local verification",
+        html,
+      }),
+    ).resolves.toBe("log");
+
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.stringContaining("token=dev-token"),
+    );
+  });
+
   it("uses explicit log delivery without calling a network provider", async () => {
     Object.assign(process.env, { NODE_ENV: "production" });
     process.env.CI = "true";
