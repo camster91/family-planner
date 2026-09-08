@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { searchResultHref } from "@/lib/search-result-href";
 
 export const dynamic = "force-dynamic";
 const MAX_RESULTS_PER_TYPE = 8;
-
-export function searchResultHref(role: string, parentHref: string) {
-  return role === "child" || role === "teen" ? "/dashboard" : parentHref;
-}
 
 export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);

@@ -345,7 +345,7 @@ describe("Parent-only financial access", () => {
 
 
 describe("Role-safe search destinations", () => {
-  const { searchResultHref } = require("@/app/api/search/route");
+  const { searchResultHref } = require("@/lib/search-result-href");
 
   it.each(["child", "teen"])(
     "routes %s results to an allowed dashboard destination",
