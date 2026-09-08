@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 const MAX_RESULTS_PER_TYPE = 8;
 
+export function searchResultHref(role: string, parentHref: string) {
+  return role === "child" || role === "teen" ? "/dashboard" : parentHref;
+}
+
 export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
@@ -24,9 +28,8 @@ export async function GET(request: NextRequest) {
   }
 
   const familyId = auth.user.family_id;
-  const isKid = auth.user.role === "child" || auth.user.role === "teen";
   const accessibleHref = (parentHref: string) =>
-    isKid ? "/dashboard" : parentHref;
+    searchResultHref(auth.user.role, parentHref);
   const [chores, events, lists, members] = await Promise.all([
     prisma!.chore.findMany({
       where: {
