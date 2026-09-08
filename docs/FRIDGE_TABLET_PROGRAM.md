@@ -168,9 +168,26 @@ Family Planner API
 - Feature flags for incomplete modules.
 - Audit trail for sensitive settings and device-management changes.
 
-## 8. Data model additions
+## 8. Data model reuse and additions
 
-Candidate models / extensions:
+The fridge program must reuse completed consolidation work rather than introducing another generation of meal or shopping models.
+
+### Existing models to inspect and reuse/canonicalize
+
+The current Prisma schema already contains:
+
+- `Recipe`
+- `Ingredient`
+- `RecipeIngredient`
+- `MealPlan`
+- `MealPlanEntry`
+- existing legacy `FamilyMeal`
+- generic shared-list `List` / `ListItem`
+- `ShoppingList` / `ShoppingItem`
+
+Issue #149 decides the canonical meal/recipe/grocery write paths and migration/compatibility role of the overlapping existing models before Phase 4 broad cross-domain writes. Do **not** create a third shopping-item model such as `ShoppingListItem` merely to avoid that decision.
+
+### Genuinely new candidate models / extensions
 
 - `HouseholdDevice`
 - `DeviceSession`
@@ -179,17 +196,14 @@ Candidate models / extensions:
 - `FoodLocation`
 - `InventoryAdjustment`
 - `ExpiryObservation`
-- `Recipe`
-- `RecipeIngredient`
-- `MealPlanEntry`
-- `ShoppingListItem` extensions
-- `LeftoverItem`
+- `LeftoverItem` only after evidence supports it
 - `AISuggestion`
 - `AIActionProposal`
 - `SyncMutation`
 - `IntegrationConnection`
+- extensions/version/idempotency fields on existing canonical models where required
 
-Every new record that can expose household data must have explicit family ownership and authorization tests.
+Every new record that can expose household data must have explicit family ownership and authorization tests. See `docs/architecture/DATA_MODEL.md` and ADR-0005.
 
 ## 9. Shared-device security model
 
@@ -294,6 +308,8 @@ All automated extraction should produce editable suggestions rather than silentl
 - Missing ingredient list.
 - Add missing ingredients to groceries.
 
+Implementation must use the canonical existing models/API path selected in #149, not create duplicate recipe/meal-plan models.
+
 ### Later
 
 - URL recipe import.
@@ -316,6 +332,8 @@ MVP:
 - Quick add from tablet and phone.
 - Add missing recipe ingredients.
 - Preserve completion history long enough to support undo and recurring suggestions.
+
+The implementation must reuse the canonical existing `List`/`ListItem` or `ShoppingList`/`ShoppingItem` path selected by #149 and preserve import/provenance compatibility.
 
 Later:
 
@@ -529,20 +547,27 @@ These are engineering targets, not current measured claims.
 
 ### Release gate
 
-Before production promotion:
+This fridge checklist **augments, and does not replace**, the authoritative release gate in `docs/PRODUCT_PROGRAM.md`. A production candidate must satisfy the authoritative Family Planner release requirements plus the fridge/Android-specific requirements below.
 
-- exact commit identified;
-- typecheck, lint, tests, build pass;
-- database migrations rehearsed twice where applicable;
-- Android APK builds and installs;
-- tablet and phone QA completed;
-- role / family isolation passes;
-- offline / reconnect journey passes;
-- backup and isolated restore verified;
-- previous healthy image / APK retained;
-- rollback procedure tested;
-- crash and health monitoring active;
-- explicit production approval obtained for the exact artifact.
+Before production promotion, require at minimum:
+
+- exact commit SHA and immutable server image digest/artifact identity;
+- clean/frozen install and Prisma client generation/validation;
+- typecheck, lint, automated tests, production build, and production dependency audit;
+- database migration rehearsal twice where applicable, with compatible old-client sequence;
+- HTTPS review evidence for representative parent/teen/child/shared-device journeys;
+- role/family isolation and direct negative API cases;
+- Android APK/AAB build/install evidence for applicable client changes;
+- tablet and phone responsive/accessibility QA;
+- offline/reconnect/idempotency journey where applicable;
+- fresh backup plus isolated restore evidence for risky data changes;
+- previous healthy server image and Android artifact retained;
+- tested/documented rollback procedure and known DB rollback limitations;
+- crash/health monitoring and release/build identity active;
+- post-deployment health, logs, release identity and core smoke verified;
+- explicit production approval for the exact reviewed artifact.
+
+Passing CI is not deployment approval. Merge approval is not production approval.
 
 ## 24. Rollback
 
@@ -550,12 +575,17 @@ Rollback planning must include both web/backend and Android client compatibility
 
 - Retain last known-good server image.
 - Avoid irreversible schema removals in the same release that introduces replacements.
-- Maintain backward-compatible API behaviour across at least the currently deployed Android version during staged rollout.
-- Keep previous APK artifact available for controlled rollback.
+- Maintain backward-compatible API behaviour across the supported installed Android version window during staged rollout.
+- Keep previous APK/AAB artifact available for controlled rollback/testing.
 - Feature-flag incomplete or risky modules.
 - Record release identity in health output.
+- Do not assume application rollback makes database rollback safe.
 
 ## 25. Delivery phases
+
+### Phase ordering rule
+
+Phases 0–5 describe the primary build sequence. Phases 6–7 are **evidence-gated workstreams**, not automatic next steps. If the required household evidence is not available after Phase 5, begin/continue the design-partner beta/research work from #107/#108/#126 before implementing Phase 6 or 7. Phase 8 may therefore begin before Phase 6/7. Planning and low-risk contract research may occur earlier, but provider/capture implementation must not be justified by the phase number alone.
 
 ### Phase 0 — Program and product definition
 
@@ -567,6 +597,7 @@ Deliverables:
 - Master GitHub issue.
 - Phase issues.
 - Existing product-program integration.
+- Agent-ready repository/source-of-truth foundation.
 
 ### Phase 1 — Fridge dashboard foundation
 
@@ -595,7 +626,7 @@ Deliverables:
 - Startup / restart recovery.
 - Display schedule and dimming.
 - Offline snapshot.
-- Installable signed beta APK path.
+- Installable signed beta APK/AAB path.
 
 ### Phase 3 — Food inventory and use-soon
 
@@ -617,11 +648,11 @@ Outcome: dinner planning flows into what the household already owns and what it 
 
 Deliverables:
 
-- Recipe model.
-- Meal slots.
+- Canonical existing recipe/meal/grocery model/API decision and migration adapters per #149.
+- Meal slots / recipe details on the canonical path.
 - Ingredient matching.
 - Missing ingredients.
-- Add-to-groceries.
+- Idempotent add-to-groceries.
 - Mobile shopping flow.
 
 ### Phase 5 — Contextual AI
@@ -638,21 +669,34 @@ Deliverables:
 - Structured action proposals.
 - Confirmation gates and audit evidence.
 
-### Phase 6 — Calendar interoperability
+### Evidence checkpoint before Phase 6/7 implementation
+
+Use the existing Family Planner design-partner programme (#107/#108) and/or the fridge-specific beta/research programme (#126) to identify actual calendar interoperability and capture friction. If no suitable external household evidence exists, Phase 6/7 implementation stays blocked while Phase 8 research begins.
+
+Required evidence should answer:
+
+- which calendar systems households actually use and whether import/sync is a repeated problem;
+- whether manual inventory/recipe entry is causing measurable abandonment/correction friction;
+- which integration/capture method produces the highest expected household value;
+- whether provider cost/privacy/failure complexity is justified.
+
+### Phase 6 — Calendar interoperability (evidence-gated)
 
 Outcome: validated household calendars can feed Family Planner without duplicate or confusing events.
 
-Deliverables:
+Deliverables only after the evidence checkpoint passes:
 
-- Provider research from beta evidence.
-- Google / ICS first if justified.
+- Provider research from measured design-partner evidence.
+- Google / ICS first only if justified.
 - Conflict and recurrence policy.
 - Credential lifecycle.
 - Sync diagnostics.
 
-### Phase 7 — Capture automation
+If evidence does not support calendar interoperability yet, defer this phase rather than forcing a provider decision.
 
-Outcome: adding food and plans becomes materially faster.
+### Phase 7 — Capture automation (evidence-gated)
+
+Outcome: adding food and plans becomes materially faster where measured friction justifies automation.
 
 Candidate deliverables, only after evidence:
 
@@ -663,7 +707,7 @@ Candidate deliverables, only after evidence:
 
 ### Phase 8 — Beta, hardening, and commercialization
 
-Outcome: external households prove whether the fridge experience deserves broader launch.
+Outcome: external households prove whether the fridge experience deserves broader launch and provide evidence for later integrations/automation when earlier evidence is insufficient.
 
 Deliverables:
 
@@ -671,6 +715,7 @@ Deliverables:
 - Four-week usage study.
 - Reliability and retention scorecards.
 - Interview evidence.
+- Calendar/capture friction evidence where relevant.
 - Packaging and price validation.
 - Go / revise / stop decision.
 
@@ -708,6 +753,7 @@ Suggested ownership model:
 | AI invents household state | Ground in structured records; require confirmation for writes |
 | Android device vendors behave differently | Test representative stock Android / Samsung-class hardware and document limits |
 | Calendar sync creates duplicates | External identity keys and deterministic conflict policy |
+| Duplicate meal/list models diverge | Canonicalize existing models in #149 before broad cross-domain writes |
 | Too many features delay useful release | Phase gates and evidence-based backlog |
 | Web and APK releases become incompatible | Backward-compatible API window and staged rollout |
 | External provider costs grow unexpectedly | Provider abstraction, quotas, telemetry, and approval before paid commitments |
@@ -718,13 +764,14 @@ The program is complete when:
 
 - a dedicated Android tablet can be paired to a household and safely remain in shared use;
 - the tablet dashboard reliably shows the household’s day, meal, use-soon food, groceries, and tasks;
-- inventory, meal, and grocery flows work end to end;
+- inventory, meal, and grocery flows work end to end on canonical data paths;
 - mobile companion workflows keep the shared tablet in sync;
 - offline / reconnect behaviour is tested;
 - AI provides useful grounded suggestions with confirmation-gated writes;
 - role and household isolation have automated and runtime evidence;
 - accessibility and representative device QA pass;
-- backup, rollback, monitoring, and Android/server compatibility are proven;
+- authoritative Family Planner release gates plus fridge-specific Android/recovery requirements pass;
+- backup, restore, rollback, monitoring, release identity, and Android/server compatibility are proven;
 - external household beta evidence supports a launch decision;
 - commercialization is only implemented after explicit validation and approval.
 
@@ -732,4 +779,4 @@ The program is complete when:
 
 Planning this program does **not** invalidate the existing Family Planner launch and safety backlog. The current P0/P1 security, release, migration, email, QA, and design-partner work remains the prerequisite for treating the expanded fridge experience as production-ready.
 
-The fridge program may proceed in design, architecture, and non-production implementation work in parallel where it does not weaken those release gates.
+The fridge program may proceed in design, architecture, and non-production implementation work in parallel where it does not weaken those release gates. Evidence-gated Phase 6/7 work may be deferred while beta/research proceeds rather than forcing integrations before real household demand exists.
