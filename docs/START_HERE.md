@@ -36,6 +36,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Execution order: `docs/engineering/EXECUTION_ORDER.md`
 - Agent backlog: `docs/engineering/AGENT_BACKLOG.md`
 - Definition of done: `docs/engineering/DEFINITION_OF_DONE.md`
+- CI/release ownership: `docs/engineering/CI_AND_RELEASE.md`
 - Agent workflow: `docs/engineering/AGENT_WORKFLOW.md`
 - Architecture: `docs/architecture/**`
 - Testing: `docs/testing/**`
