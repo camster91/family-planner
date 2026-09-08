@@ -1,8 +1,31 @@
 # Coding Agent Kickoff
 
-Use the following instruction when starting a capable coding agent in this repository:
+## Repository state
 
-> Work on `camster91/family-planner` using the repository as the source of truth. First read `AGENTS.md`, `docs/START_HERE.md`, `docs/CURRENT_STATE.md`, `docs/engineering/AGENT_BACKLOG.md`, `docs/engineering/AGENT_WORKFLOW.md` and `docs/engineering/DEFINITION_OF_DONE.md`. Then inspect GitHub issue #128 and the earliest unblocked agent-ready issue assigned/selected from #147–#163. Read its parent/related issues and relevant architecture/design/testing docs before editing. Do not restart planning from scratch and do not invent a second auth, household, meal/list, tablet or backend system. Significant UI work must follow the current Figma/design direction and use original visuals, reusable semantic tokens/components, responsive phone + 1280×800 tablet layouts, deliberate empty/loading/error/offline states and accessibility. Never render fake household data as real. Treat household/role/shared-device authorization as a release gate. Work in one reviewable vertical slice, run and report the actual applicable Definition-of-Done commands, self-review the diff, and open a PR with evidence. Do not merge, deploy production, publish to Play, change production secrets/DNS/access/billing, spend money, contact users or destructively modify production data without Cameron’s explicit approval for that exact action. If blocked, complete all safe analysis/preparation and state the exact blocker and next action.
+- Default branch: `master`
+- Canonical planning branch until PR #129 merges: `plan/fridge-tablet-program`
+- Current phase: repository reconciliation / Phase 0 only
+- Canonical planning PR: #129
+- First build issue after reconciliation: #148
+- First architectural decision after #148: #149
 
-## Recommended first selection
-If #147 is merged/available and no human decision is blocking it, start with #148 (source inventory) or #150 (Figma/reference direction) in parallel. Use #149/#151 to lock data/IA decisions before the large shell/dashboard refactor.
+Do not assume `master` contains the fridge-tablet or agent-ready plan while PR #129 is open. Check PR #129 and `docs/CURRENT_STATE.md` before selecting work.
+
+## What to read
+
+1. `AGENTS.md`
+2. `docs/START_HERE.md`
+3. `docs/CURRENT_STATE.md`
+4. `docs/engineering/EXECUTION_ORDER.md`
+5. `docs/engineering/AGENT_BACKLOG.md`
+6. `docs/engineering/AGENT_WORKFLOW.md`
+7. `docs/engineering/DEFINITION_OF_DONE.md`
+8. Issue #148, its parents/relations, then the relevant architecture/design/testing files
+
+## Next-agent instruction
+
+> Work on `camster91/family-planner` from the canonical source state documented above. Do not restart planning and do not begin the product refactor before repository reconciliation is merged. Select issue #148 first: produce the route/component/domain and placeholder-data audit without changing product behaviour. Use source code, `package.json`, `prisma/schema.prisma`, Android configuration and workflow YAML as runtime truth. Preserve one repository, one household backend and one product. Do not invent another auth, meal/list, device or sync model. Treat #149 as the unresolved canonical meal/recipe/grocery/list decision. Keep #84, #85 and #102–#110 as release/security gates. Run and report only verification actually observed. Work in a reviewable issue-linked branch/PR. Do not merge, deploy production, publish to Play, change production secrets/DNS/access/billing, spend money, contact users or destructively modify production data without Cameron's explicit approval for that exact action.
+
+## Verification rule
+
+Documentation-only work must at least verify links, references, source facts and the diff. Code work must run the applicable Definition of Done, including household-isolation, migration, E2E/visual/accessibility and Android gates when relevant. A failed or externally blocked check must be reported as blocked, never green.
