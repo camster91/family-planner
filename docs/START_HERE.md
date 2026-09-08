@@ -1,54 +1,53 @@
 # Start Here
 
-This document tells humans and agents where truth lives.
+This file defines the repository's documentation authority. It is a map, not a second product plan.
 
 ## Authority order
-When information conflicts, use this order:
-1. Explicit current issue/PR acceptance criteria and Cameron's latest approved decision.
-2. `AGENTS.md` for repository operating rules and approval boundaries.
-3. `docs/CURRENT_STATE.md` for verified implementation/runtime state.
-4. `docs/FRIDGE_TABLET_PROGRAM.md` and issue #128 for product direction and programme sequencing.
-5. Architecture ADRs/contracts under `docs/architecture/`.
-6. `docs/PRODUCT_PROGRAM.md` for the existing Family Planner release programme.
-7. Older planning/implementation documents only as historical context.
 
-Source code and executable configuration are authoritative for exact dependency versions, schema fields and build commands; when prose disagrees, update the prose as part of the work.
+When information conflicts, use this order:
+
+1. `AGENTS.md` — operating rules and approval boundaries.
+2. `docs/START_HERE.md` — this authority map.
+3. `docs/CURRENT_STATE.md` — dated, verified repository/branch/CI state.
+4. `docs/FRIDGE_TABLET_PROGRAM.md` — approved unified product direction and programme.
+5. `docs/PRODUCT_PROGRAM.md` — existing release/security/beta gates that the fridge programme must preserve.
+6. Accepted ADRs under `docs/architecture/adr/`.
+7. Active GitHub issues — scoped execution and current dependencies; Cameron's latest explicit decision controls within its authorized scope.
+8. Executable source/configuration — authoritative for actual runtime, dependency, schema, auth, Android and workflow facts.
+9. Older planning documents — historical/reference only.
+
+If an active issue conflicts with a higher authority, reconcile the issue before implementation. If executable source differs from prose, do not guess: record the actual source state and update the affected current-state/architecture documentation.
 
 ## Canonical programme
-- Product/release baseline: `docs/PRODUCT_PROGRAM.md`
-- Fridge/tablet expansion: `docs/FRIDGE_TABLET_PROGRAM.md`
-- Master roadmap: GitHub issue #128
-- Premium design: #130–#133
-- Existing-app migration: #143
-- Backend/scale/sync/security: #134–#137
-- Android/Play/QA: #138–#139, #141–#142, #145
-- Analytics/AI/operations: #140, #144, #146
+
+- Unified product direction: `docs/FRIDGE_TABLET_PROGRAM.md`
+- Existing release/security gate: `docs/PRODUCT_PROGRAM.md`
+- Master roadmap: #128
+- Repository foundation: #147 / PR #129
+- First implementation audit: #148
+- Canonical meal/list decision: #149
+- Design/IA: #150–#153
+- Test foundations: #154–#156
+- Shared device, inventory, dashboard, Android, observability, sync and graphics: #157–#163
+- Broader programme: #119–#146
 
 ## Engineering references
+
+- Execution order: `docs/engineering/EXECUTION_ORDER.md`
+- Agent backlog: `docs/engineering/AGENT_BACKLOG.md`
 - Definition of done: `docs/engineering/DEFINITION_OF_DONE.md`
 - Agent workflow: `docs/engineering/AGENT_WORKFLOW.md`
-- System: `docs/architecture/SYSTEM.md`
-- Canonical data: `docs/architecture/DATA_MODEL.md`
-- API contracts: `docs/architecture/API_CONTRACTS.md`
-- Authorization: `docs/architecture/AUTHORIZATION.md`
-- Offline/sync: `docs/architecture/OFFLINE_SYNC.md`
-- Android: `docs/architecture/ANDROID.md`
-- QA matrix: `docs/testing/QA_MATRIX.md`
-- Test data: `docs/testing/TEST_DATA.md`
+- Architecture: `docs/architecture/**`
+- Testing: `docs/testing/**`
+- Design: `design/**` and `BRAND.md`
+- Release/incident operations: `docs/runbooks/**`
 
-## Design references
-- `design/README.md`
-- `design/REFERENCES.md`
-- `BRAND.md`
+## Historical/reference-only material
 
-## Operations/product readiness
-- `docs/runbooks/RELEASE_AND_ROLLBACK.md`
-- `docs/runbooks/INCIDENT_RESPONSE.md`
-- `docs/product/PLAY_STORE_READINESS.md`
-- `docs/product/DATA_INVENTORY.md`
+`docs/CONSOLIDATION_PLAN.md`, `docs/ISSUE_TRIAGE.md`, old phase implementation files, archived source-app plans and stale branch-specific status notes are superseded for current planning. They may explain history but must not be used as current scope, dependency or runtime truth.
 
-## Historical documents
-`CONSOLIDATION_PLAN.md`, `ISSUE_TRIAGE.md`, old phase implementation files and archived source-app plans may contain useful history but do not override the current programme.
+`CLAUDE.md` is only an agent pointer. It must not duplicate or override `AGENTS.md`.
 
-## Rule for stale docs
-If you discover a material mismatch, do not work around it silently. Fix the documentation in the same PR when safe, or open/link a blocking issue.
+## Reconciliation rule
+
+Do not leave a discovered material conflict unresolved. Fix it in the same safe documentation/governance PR, or record a blocking issue with the exact conflict, owner and next action.
