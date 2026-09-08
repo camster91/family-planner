@@ -6,10 +6,11 @@
 - Canonical planning branch until PR #129 merges: `plan/fridge-tablet-program`
 - Current phase: repository reconciliation / Phase 0 only
 - Canonical planning PR: #129
-- First build issue after reconciliation: #148
+- Release/security baseline requiring disposition first: PR #101
+- First build issue after PR #101 disposition and repository reconciliation: #148
 - First architectural decision after #148: #149
 
-Do not assume `master` contains the fridge-tablet or agent-ready plan while PR #129 is open. Check PR #129 and `docs/CURRENT_STATE.md` before selecting work.
+Do not assume `master` contains the fridge-tablet plan while PR #129 is open or the latest release/security implementation while PR #101 is unresolved. Check both PRs and `docs/CURRENT_STATE.md` before selecting work.
 
 ## What to read
 
@@ -20,11 +21,12 @@ Do not assume `master` contains the fridge-tablet or agent-ready plan while PR #
 5. `docs/engineering/AGENT_BACKLOG.md`
 6. `docs/engineering/AGENT_WORKFLOW.md`
 7. `docs/engineering/DEFINITION_OF_DONE.md`
-8. Issue #148, its parents/relations, then the relevant architecture/design/testing files
+8. PR #101 and issue #85 for baseline disposition/check requirements
+9. Issue #148, its parents/relations, then the relevant architecture/design/testing files
 
 ## Next-agent instruction
 
-> Work on `camster91/family-planner` from the canonical source state documented above. Do not restart planning and do not begin the product refactor before repository reconciliation is merged. Select issue #148 first: produce the route/component/domain and placeholder-data audit without changing product behaviour. Use source code, `package.json`, `prisma/schema.prisma`, Android configuration and workflow YAML as runtime truth. Preserve one repository, one household backend and one product. Do not invent another auth, meal/list, device or sync model. Treat #149 as the unresolved canonical meal/recipe/grocery/list decision. Keep #84, #85 and #102–#110 as release/security gates. Run and report only verification actually observed. Work in a reviewable issue-linked branch/PR. Do not merge, deploy production, publish to Play, change production secrets/DNS/access/billing, spend money, contact users or destructively modify production data without Cameron's explicit approval for that exact action.
+> Work on `camster91/family-planner` from the canonical source state documented above. Do not restart planning and do not begin the product refactor before repository reconciliation is merged. After Cameron records whether PR #101 will merge, be replaced or be superseded, and PR #129 is reconciled/merged, select issue #148 first: produce the route/component/domain and placeholder-data audit without changing product behaviour. Use source code, `package.json`, `prisma/schema.prisma`, Android configuration and workflow YAML as runtime truth. Preserve one repository, one household backend and one product. Do not invent another auth, meal/list, device or sync model. Treat #149 as the unresolved canonical meal/recipe/grocery/list decision. Keep #84, #85 and #102–#110 as release/security gates. Run and report only verification actually observed. Work in a reviewable issue-linked branch/PR. Do not merge, deploy production, publish to Play, change production secrets/DNS/access/billing, spend money, contact users or destructively modify production data without Cameron's explicit approval for that exact action.
 
 ## Verification rule
 
