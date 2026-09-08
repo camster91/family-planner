@@ -387,6 +387,10 @@ describeWithDatabase("family import persistence", () => {
       select: { reset_token: true },
     });
     expect(storedReset.reset_token).not.toBe(resetToken);
+    expect(await verifyResetToken(storedReset.reset_token!)).toBeNull();
+    expect(
+      await consumeResetToken(storedReset.reset_token!, "stolen-hash-password"),
+    ).toBe(false);
     expect(await verifyResetToken(resetToken)).toBe(parentId);
     expect(await consumeResetToken(resetToken, "new-password-hash")).toBe(true);
     expect(await consumeResetToken(resetToken, "reused-password-hash")).toBe(
@@ -408,6 +412,7 @@ describeWithDatabase("family import persistence", () => {
       select: { verify_token: true },
     });
     expect(storedVerify.verify_token).not.toBe(verifyToken);
+    expect(await verifyEmailToken(storedVerify.verify_token!)).toBeNull();
     expect(await verifyEmailToken(verifyToken)).toBe(childId);
     await markEmailVerified(childId);
     expect(await verifyEmailToken(verifyToken)).toBeNull();

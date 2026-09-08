@@ -30,7 +30,7 @@ export async function createResetToken(userId: string): Promise<string> {
 export async function verifyResetToken(token: string): Promise<string | null> {
   const user = await prisma!.user.findFirst({
     where: {
-      reset_token: { in: [hashToken(token), token] },
+      reset_token: hashToken(token),
       reset_token_expires: { gt: new Date() },
     },
   });
@@ -55,10 +55,11 @@ export async function consumeResetToken(
   password: string,
 ): Promise<boolean> {
   if (!prisma) throw new Error("Database is not configured");
+  const tokenHash = hashToken(token);
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.findFirst({
       where: {
-        reset_token: { in: [hashToken(token), token] },
+        reset_token: tokenHash,
         reset_token_expires: { gt: new Date() },
       },
       select: { id: true, family_id: true },
@@ -66,7 +67,7 @@ export async function consumeResetToken(
     if (!user) return false;
 
     const consumed = await tx.user.updateMany({
-      where: { id: user.id, reset_token: { in: [hashToken(token), token] } },
+      where: { id: user.id, reset_token: tokenHash },
       data: {
         password,
         reset_token: null,
@@ -110,7 +111,7 @@ export async function createVerificationToken(userId: string): Promise<string> {
 export async function verifyEmailToken(token: string): Promise<string | null> {
   const user = await prisma!.user.findFirst({
     where: {
-      verify_token: { in: [hashToken(token), token] },
+      verify_token: hashToken(token),
       verify_token_expires: { gt: new Date() },
     },
   });
