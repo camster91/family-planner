@@ -37,11 +37,14 @@ async function record(
 export async function measureCoreMutation<T>(
   context: CoreMutationContext,
   operation: () => Promise<T>,
+  shouldRecord: (result: T) => boolean = () => true,
 ): Promise<T> {
   const startedAt = Date.now();
   try {
     const result = await operation();
-    await record(context, true, startedAt);
+    if (shouldRecord(result)) {
+      await record(context, true, startedAt);
+    }
     return result;
   } catch (error) {
     await record(context, false, startedAt);
