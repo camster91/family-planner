@@ -1,34 +1,40 @@
-# Agent-Ready Backlog — First Build Queue
+# Agent-Ready Backlog
 
-Master roadmap: #128. Workstream epics: #130–#146.
+Master roadmap: #128. Repository foundation: #147 / PR #129.
 
-## Wave A — ready for analysis/design now
-- #147 Repository agent-ready/source-of-truth foundation (this branch/PR).
-- #148 Route/component/domain + placeholder-data audit.
-- #150 Figma reference board + premium visual direction.
-- #154 Deterministic two-household test fixtures (may defer canonical meal fixture details until #149).
-- #157 Shared-device session/pair/elevation/revoke contract.
-- #161 Observability/request/build identity foundation can begin as a narrow non-provider slice.
+## Blocked until repository reconciliation merges
 
-## Wave A decisions that unblock implementation
-- #149 Canonical meal/recipe/grocery/list data decision — after #148.
-- #151 Adaptive IA + five user modes — after #148, coordinated with #150.
+- #147 is implemented on `plan/fridge-tablet-program`, but PR #129 remains blocked by required checks.
+- No autonomous coding agent should assume `master` contains this backlog while PR #129 is open.
 
-## Wave B — reusable implementation foundations
-- #152 Figma/code tokens/components — after #150.
-- #153 Adaptive app shell/navigation — after #151 + sufficiently stable #152.
-- #155 Playwright/E2E/visual/a11y harness — after #154.
-- #156 Protected development component/state gallery — can start with current primitives; align after #152.
-- #160 Android AAB/lifecycle baseline — independent of most product UI, coordinate with #138.
-- #163 Original app icon/illustration language — after #150.
+## Next five execution issues
 
-## Wave C — first product verticals
-- #158 Inventory/expiry backend foundation.
-- #159 Real-data Today/fridge dashboard — after IA/shell and canonical meal/grocery reads.
-- #162 Offline/idempotency queue foundation — after #157 + fixtures; domain actions opt in.
+1. #148 — route/component/domain and placeholder-data audit.
+2. #149 — canonical meal/recipe/grocery/list decision, using #148 evidence.
+3. #150 — Figma reference board and original premium visual direction.
+4. #151 — adaptive IA and five user modes, using #148 and coordinating with #150.
+5. #152 — align production tokens/components after #150.
 
-## Selection rule
-Choose the earliest unblocked issue that can be completed in one reviewable PR. If a task grows beyond that, split it before implementation. Every PR follows `AGENTS.md` and `DEFINITION_OF_DONE.md`.
+#150 can proceed as design analysis beside #148. #149 and #151 remain evidence-dependent on #148.
+
+## Following foundations
+
+- #153 adaptive shell — after #151 and sufficiently stable #152.
+- #154 deterministic two-household fixtures — meal/grocery fixture shapes wait for #149.
+- #155 E2E/visual/accessibility — after #154.
+- #156 protected design/state gallery — align final variants after #152.
+- #157 shared-device contract — after #147, coordinated with #151.
+- #158 inventory backend — after #147; remain independent of unresolved meal/list decisions.
+- #159 real-data Today dashboard — after #149 and #151–#153; inventory depends on #158.
+- #160 Android AAB/lifecycle baseline — isolated platform track; shared-session/kiosk work follows #157.
+- #161 observability foundation — narrow privacy-safe slice.
+- #162 offline/idempotency — after #154 and #157.
+- #163 original graphics — after #150, integrated through #152/#156.
+
+## Existing release gates
+
+#84, #85 and #102–#110 remain active. Planning and refactor work must not bypass security/isolation, hosted/Ashbi CI, email, migration disposition, QA, exact-artifact promotion, beta evidence, calendar validation or pricing/billing validation.
 
 ## Human gates
-None of these issues authorize merge, production deployment, Play publication, credentials/permissions/billing/spend, participant outreach or destructive production data changes.
+
+No issue authorizes merge, production deployment, Google Play publication, secrets/DNS/access/billing changes, spending, participant outreach or destructive production data changes. Cameron's explicit approval is required for the exact external action.
