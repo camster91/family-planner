@@ -1,8 +1,8 @@
 name: Build and Push Image
 
 # Reusable build workflow for camster91/* Node.js web apps.
-# Triggered on push to main and on tag. Builds a multi-stage Docker image
-# and pushes it to ghcr.io. The image becomes the canonical deployable
+# Pull requests build without publishing. Image publication is an explicit manual action.
+# The workflow builds a multi-stage Docker image and only pushes it to ghcr.io when dispatched. The image becomes the canonical deployable
 # artifact — any host (Coolify, Hostinger, Render, Fly, local docker) can
 # run it without needing source code, Node, or build tools on the host.
 #
@@ -13,11 +13,9 @@ name: Build and Push Image
 #   - SBOM + provenance attestations enabled (for supply-chain trust)
 
 on:
-  push:
-    branches: [main, master]
-    tags: ['v*']
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
   workflow_call:
     inputs:
       image_name:
@@ -71,8 +69,7 @@ jobs:
           else
             TAG="${REF#refs/heads/}"
           fi
-          SHA_SHORT="${{ github.event.pull_request.head.sha || github.sha }}" | head -c 7
-          SHA_SHORT=$(echo "${{ github.sha }}" | head -c 7)
+          SHA_SHORT=$(echo "${{ github.event.pull_request.head.sha || github.sha }}" | head -c 7)
           echo "image=ghcr.io/camster91/${REPO_NAME}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "sha=${SHA_SHORT}" >> $GITHUB_OUTPUT
@@ -105,7 +102,7 @@ jobs:
           context: .
           file: ${{ inputs.dockerfile || 'Dockerfile' }}
           platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
-          push: true
+          push: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
           tags: |
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.sha }}
@@ -122,8 +119,9 @@ jobs:
 
       - name: Image summary
         run: |
-          echo "## Image published" >> $GITHUB_STEP_SUMMARY
+          echo "## Image build result" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Publication:** only workflow_dispatch/workflow_call pushes to GHCR" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Pull:** \`docker pull ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Run:** \`docker run -d -p 3000:3000 --name ${{ github.event.repository.name }} ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
