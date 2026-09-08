@@ -45,7 +45,13 @@ export async function sendTransactionalEmail(
 
   const provider = transactionalEmailStatus();
   if (provider === "log") {
-    console.info(`Transactional email accepted in log mode: ${email.subject}`);
+    if (process.env.NODE_ENV !== "production" && process.env.CI !== "true") {
+      console.info(
+        `Transactional email (development only): ${email.subject}\n${email.html}`,
+      );
+    } else {
+      console.info(`Transactional email accepted in log mode: ${email.subject}`);
+    }
     return provider;
   }
   if (provider === "missing") {
