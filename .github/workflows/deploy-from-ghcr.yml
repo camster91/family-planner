@@ -1,49 +1,22 @@
-name: Deploy Image to Coolify
+name: Deprecated - Deploy Image to Coolify
 
-# Legacy manual image-deployment path retained for recovery/compatibility.
-# It never runs automatically after a build or branch update. A human must
-# choose an immutable image tag and pass the protected production environment.
+# Superseded by deploy-coolify.yml.
+#
+# Retained as historical workflow context because older run records reference this
+# filename. It cannot deploy. Use the protected manual workflow in
+# deploy-coolify.yml after recording approval and the exact candidate identity.
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Immutable image tag or SHA to deploy'
-        required: true
-        type: string
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
-    name: Manually deploy selected image
+  deprecated:
+    name: Deployment path retired
     runs-on: ubuntu-latest
-    environment: production
     steps:
-      - name: Validate selected tag
-        env:
-          IMAGE_TAG: ${{ inputs.tag }}
+      - name: Stop with migration guidance
         run: |
-          if [ -z "${IMAGE_TAG}" ] || [ "${IMAGE_TAG}" = "latest" ]; then
-            echo "::error::Provide an immutable image tag or SHA; latest is not accepted."
-            exit 1
-          fi
-
-      - name: Trigger Coolify deploy
-        env:
-          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
-          IMAGE_TAG: ${{ inputs.tag }}
-        run: |
-          if [ -z "${COOLIFY_URL}" ] || [ -z "${COOLIFY_TOKEN}" ] || [ -z "${COOLIFY_APP_UUID}" ]; then
-            echo "::error::Missing Coolify deployment configuration."
-            exit 1
-          fi
-          echo "Requesting Coolify deployment for the explicitly selected immutable image tag."
-          HTTP_CODE=$(curl -s --fail-with-body -o /tmp/deploy-response.json -w "%{http_code}" --max-time 30 \
-            -X POST \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APP_UUID}/start")
-          if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 400 ]; then
-            echo "::error::Coolify deploy endpoint returned ${HTTP_CODE}."
-            exit 1
-          fi
-          echo "Coolify accepted the deployment request for ghcr.io/camster91/family-planner:${IMAGE_TAG}."
+          echo "::error::This deployment path is retired. Use 'Build, Test & Deploy to Coolify' with the protected production environment."
+          exit 1
