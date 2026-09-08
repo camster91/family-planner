@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
   }
 
   const familyId = auth.user.family_id;
+  const isKid = auth.user.role === "child" || auth.user.role === "teen";
+  const accessibleHref = (parentHref: string) =>
+    isKid ? "/dashboard" : parentHref;
   const [chores, events, lists, members] = await Promise.all([
     prisma!.chore.findMany({
       where: {
@@ -81,28 +84,28 @@ export async function GET(request: NextRequest) {
         type: "chore" as const,
         title: item.title,
         detail: item.description || item.status,
-        href: "/dashboard/chores",
+        href: accessibleHref("/dashboard/chores"),
       })),
       ...events.map((item) => ({
         id: item.id,
         type: "event" as const,
         title: item.title,
         detail: item.description || item.start_time.toISOString(),
-        href: "/dashboard/calendar",
+        href: accessibleHref("/dashboard/calendar"),
       })),
       ...lists.map((item) => ({
         id: item.id,
         type: "list" as const,
         title: item.name,
         detail: item.description || item.type,
-        href: `/dashboard/lists/${item.id}`,
+        href: accessibleHref(`/dashboard/lists/${item.id}`),
       })),
       ...members.map((item) => ({
         id: item.id,
         type: "person" as const,
         title: item.name,
         detail: item.role,
-        href: "/dashboard/family",
+        href: accessibleHref("/dashboard/family"),
       })),
     ],
   });
