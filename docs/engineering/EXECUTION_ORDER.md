@@ -1,47 +1,43 @@
-# First Build Execution Order
+# Build Execution Order
 
-The master roadmap is issue #128. This document gives an agent-friendly first wave; issue dependencies remain authoritative if they change.
+Issue dependencies are authoritative within the source order in `docs/START_HERE.md`. Do not begin the product refactor until #147 / PR #129 is merged through the normal protected flow.
 
-## Wave A — make decisions and remove ambiguity
-1. Repository agent foundation / source-of-truth cleanup.
-2. Current route/component/domain inventory and placeholder-data audit.
-3. Canonical meal/recipe/grocery/list data ADR.
-4. Shared-device data/session contract.
-5. Premium visual reference/Figma direction.
-6. Adaptive information architecture and core household flows.
+## Gate 0 — repository reconciliation
 
-These items may proceed in parallel only where they do not invent competing contracts.
+1. #147 repository foundation and source-of-truth cleanup — implemented in PR #129; awaiting successful required checks and merge.
+2. #84, #85 and #102–#110 remain release/security gates and are not bypassed by the fridge programme.
 
-## Wave B — build reusable foundations
-1. Code/Figma token alignment and component state system.
-2. Responsive/adaptive app shell/navigation.
-3. Deterministic two-household seed fixtures.
-4. Browser E2E + visual/accessibility harness.
-5. Development design-system/state gallery.
-6. API/error/idempotency conventions for new work.
+## Wave A — remove ambiguity
 
-## Wave C — first vertical product slice
-Refactor the parent/shared Today dashboard around real canonical data:
-- schedule;
-- tonight meal;
-- groceries;
-- tasks;
-- inventory/use-soon placeholder only until the real inventory domain lands;
-- no fake values;
-- phone + 1280×800 tablet;
-- empty/loading/error/offline states;
-- role/shared-device field restrictions;
-- E2E/visual/a11y evidence.
+1. #148 route/component/domain and placeholder-data audit.
+2. #149 canonical meal/recipe/grocery/list decision.
+3. #150 Figma reference board and original premium visual direction.
+4. #151 adaptive information architecture and five user modes.
+5. #157 shared-device contract may be analysed after #147 and coordinated with #151.
 
-## Wave D — shared appliance + inventory loop
-1. Device pairing/session/revoke foundation.
-2. Android lifecycle/appliance shell.
-3. Inventory/expiry schema + API + UI.
-4. Offline queue/realtime primitives for approved actions.
-5. Meal/ingredient/grocery canonical flow.
+#149 must follow #148. #151 must use #148 and coordinate with #150. Design analysis may overlap, but no competing data, navigation or visual contract may be implemented.
 
-## Wave E — intelligence and launch quality
-AI, calendar integrations, capture automation, notifications, Play Store packaging, observability/load testing, analytics and beta work follow their roadmap gates.
+## Wave B — reusable foundations
 
-## Agent selection rule
-Only pick an issue whose prerequisites are resolved. If an issue is too broad for one reviewable PR, split it before implementation. Use `docs/engineering/AGENT_WORKFLOW.md` and `DEFINITION_OF_DONE.md`.
+1. #152 design tokens/components after #150.
+2. #153 adaptive app shell after #151 and stable #152 direction.
+3. #154 deterministic two-household fixtures; exclude unresolved meal/grocery fixture shapes until #149.
+4. #155 E2E/visual/accessibility harness after #154.
+5. #156 protected design/state gallery; it may begin from existing primitives but final variants follow #152.
+6. #160 Android foundation may proceed as an isolated platform track; do not add kiosk/shared-session product behaviour before #157.
+7. #161 narrow privacy-safe observability foundation.
+
+## Wave C — first product verticals
+
+1. #158 inventory backend after #147; keep its API boundary independent of unresolved meal/list decisions.
+2. #159 real-data Today dashboard after #149, #151, #152 and #153. Inventory remains an explicit unavailable state until #158.
+3. #162 idempotency/offline queue after #154 and #157; only explicitly approved domain actions opt in.
+4. #163 original graphics after #150, integrated through #152/#156.
+
+## Broader programme
+
+Continue into #119–#146 only when their relevant #147–#163 foundations and #84/#85/#102–#110 gates are satisfied. Evidence-dependent implementation in #109, #110, #124–#126 and beta/commercial work must wait for the beta or usage evidence named in those issues.
+
+## Selection rule
+
+Choose the earliest unblocked issue that fits one reviewable PR. Split oversized work before implementation. Use `AGENTS.md`, `docs/engineering/AGENT_WORKFLOW.md` and `docs/engineering/DEFINITION_OF_DONE.md`.
