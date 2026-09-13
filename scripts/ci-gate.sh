@@ -65,6 +65,7 @@ echo "==> Generating Prisma and running static/application checks"
 npx prisma generate
 npm run typecheck
 npm run lint
+npm run format:check
 npm test -- --ci --runInBand --no-watchman
 
 echo "==> Proving database migrations are idempotent"

@@ -1,8 +1,8 @@
-name: Build, Test & Push Image to ghcr.io
+name: Legacy Manual Image Build
 
+# Reference-only compatibility path. Superseded for normal CI by ci.yml and
+# build-and-push.yml. It cannot publish automatically after a branch push.
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
 
 env:
@@ -11,19 +11,20 @@ env:
 
 jobs:
   build-and-push:
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    name: Legacy manual build and push
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps

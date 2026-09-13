@@ -1,8 +1,8 @@
 name: Build and Push Image
 
 # Reusable build workflow for camster91/* Node.js web apps.
-# Triggered on push to main and on tag. Builds a multi-stage Docker image
-# and pushes it to ghcr.io. The image becomes the canonical deployable
+# Pull requests build without publishing. Image publication is an explicit manual action.
+# The workflow builds a multi-stage Docker image and only pushes it to ghcr.io when dispatched. The image becomes the canonical deployable
 # artifact — any host (Coolify, Hostinger, Render, Fly, local docker) can
 # run it without needing source code, Node, or build tools on the host.
 #
@@ -14,11 +14,9 @@ name: Build and Push Image
 #   - SBOM + provenance attestations enabled (for supply-chain trust)
 
 on:
-  push:
-    branches: [main, master]
-    tags: ["v*"]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
   workflow_call:
     inputs:
       image_name:
@@ -103,6 +101,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
+        if: github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -118,13 +117,13 @@ jobs:
           platforms: ${{ inputs.platforms || 'linux/amd64' }}
           # PR tokens cannot access the existing GHCR package. Produce a
           # downloadable OCI artifact for review; merged refs publish to GHCR.
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'workflow_dispatch' }}
           outputs: ${{ github.event_name == 'pull_request' && format('type=docker,dest=/tmp/family-planner-{0}.tar', env.CANDIDATE_SHA) || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           # Docker tar review artifacts cannot contain attestation manifest
           # lists. Published GHCR images retain both supply-chain attestations.
-          provenance: ${{ github.event_name != 'pull_request' }}
-          sbom: ${{ github.event_name != 'pull_request' }}
+          provenance: ${{ github.event_name == 'workflow_dispatch' }}
+          sbom: ${{ github.event_name == 'workflow_dispatch' }}
           labels: |
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.source=${{ github.event.repository.html_url }}

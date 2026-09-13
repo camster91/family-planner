@@ -1,180 +1,90 @@
-# Family Planner App
+# Family Planner
 
-**A complete family organizer:** chores + calendar + lists + family management + meal planning + notes + birthdays + rewards + budget + projects + messages + analytics + emergency contacts + sick day tracking + babysitter handoff + wishlist + travel mode + locations + pickups + allowance.
+Family Planner is one private, role-aware household operations product for families. Its future primary shared surface is a premium Android fridge/wall tablet, supported by companion phone experiences and one household backend.
 
-**Live:** https://family.ashbi.ca
+The existing application includes household membership, chores and rewards, calendar events, lists, meals, messaging and other household domains. The fridge-tablet refactor has **not** started; repository reconciliation and prerequisite release/security work come first.
 
-**Product and release source of truth:** [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+## Start here
 
-20 features, all gated by per-family opt-in flags. Built for parents managing households with kids of all ages.
+Agents and contributors must read, in order:
 
-## Features
+1. [AGENTS.md](AGENTS.md)
+2. [docs/START_HERE.md](docs/START_HERE.md)
+3. [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md)
+4. [docs/FRIDGE_TABLET_PROGRAM.md](docs/FRIDGE_TABLET_PROGRAM.md)
+5. The selected GitHub issue and its dependencies
 
-### Core (always on)
+The original release programme remains in [docs/PRODUCT_PROGRAM.md](docs/PRODUCT_PROGRAM.md). It is a release/security gate beneath the fridge programme, not a competing product plan.
 
-- **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly). XP points + streak tracking.
-- **Family Calendar** — events with dates, times, locations. Shared across all family members.
-- **Shared Lists** — shopping, to-do, meal plan, wishlist. Real-time sync.
-- **Family Management** — create/join family, invite members, role-based access.
+## Source truth
 
-### Planning (opt-in, on by default)
+- Exact dependency versions and scripts: `package.json` and lockfile
+- Actual database models: `prisma/schema.prisma`
+- Actual authentication and authorization: implementation under `src/`
+- Actual Android configuration: `capacitor.config.ts` and `android/`
+- Actual automation: `.github/workflows/`
 
-- **Meal Planning** — weekly meal calendar with breakfast/lunch/dinner slots.
-- **Notes** — pinned family notes, color-coded.
-- **Birthdays & Anniversaries** — track important dates with countdown.
-- **Rewards** — XP-based reward catalog, one-tap claim for kids.
-- **Budget** — transaction tracking + budget categories.
-- **Projects** — trip planning, home projects, task breakdowns.
-- **Family Messaging** — real-time chat between family members.
-- **Analytics** — weekly completion stats, leaderboard, streaks.
+Do not copy version, workflow, feature or model counts from older prose. Inspect the executable source.
 
-### Family Life (opt-in, off by default)
+## Current architecture
 
-- **Locations** — save home, school, work with addresses.
-- **Pickups** — coordinate who is picking up whom.
-- **Allowance** — track IOUs and weekly allowance.
-- **Sick Days & Meds** — active illness log + med schedule.
-- **Babysitter Handoff** — one-screen sitter brief with print view.
-- **Travel Mode** — mute notifications + shift schedule by timezone.
+- Next.js App Router and strict TypeScript
+- PostgreSQL with Prisma
+- Self-hosted JWT/session authentication
+- React, Tailwind CSS and reusable components
+- Capacitor Android project
+- Docker/Coolify production path
+- Figma-first design for significant phone/tablet flows
 
-### Emergency (always on)
+For exact versions, use `package.json`; they intentionally are not duplicated here.
 
-- **Emergency Contacts** — printable fridge card with contacts, allergies, medications.
-
-## Tech Stack
-
-| Category       | Technology                                 |
-| -------------- | ------------------------------------------ |
-| Framework      | Next.js 14 (App Router, standalone output) |
-| Language       | TypeScript (strict mode)                   |
-| Database       | PostgreSQL via Prisma 7 ORM                |
-| Authentication | Self-hosted JWT (bcryptjs + jsonwebtoken)  |
-| Styling        | Tailwind CSS 3.4 (Apple HIG design system) |
-| State          | Zustand                                    |
-| Forms          | React Hook Form + Zod validation           |
-| Deployment     | Docker + Coolify                           |
-
-## Prerequisites
-
-- Node.js 20+
-- PostgreSQL database
-- Git
-
-## Installation
-
-### Quick Start
+## Local setup
 
 ```bash
-git clone https://github.com/camster91/family-planner.git
-cd family-planner
 npm ci --legacy-peer-deps
 cp .env.example .env.local
-# Edit .env.local with your DATABASE_URL and JWT_SECRET
 npx prisma generate
-npx prisma db push
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
+Use a non-production PostgreSQL database and a development-only JWT secret. Do not use `prisma db push` against production.
 
-### Environment Variables
-
-| Variable               | Description                                 | Required          |
-| ---------------------- | ------------------------------------------- | ----------------- |
-| `DATABASE_URL`         | PostgreSQL connection string                | Yes               |
-| `JWT_SECRET`           | Secret key for JWT signing                  | Yes               |
-| `NEXT_PUBLIC_APP_URL`  | App URL (default `http://localhost:3000`)   | No                |
-| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No                |
-| `MATON_API_KEY`        | Maton transactional-email credential        | Production choice |
-| `RESEND_API_KEY`       | Resend transactional-email credential       | Production choice |
-| `EMAIL_FROM`           | Verified transactional sender               | Production        |
-| `EMAIL_DELIVERY_MODE`  | `log` only for local development and CI     | No                |
-
-Production delivery fails closed unless both an approved provider credential
-and an explicit provider-verified `EMAIL_FROM` are configured. See the
-[transactional email release runbook](docs/TRANSACTIONAL_EMAIL_RUNBOOK.md) for
-the review and production acceptance procedure, and the
-[provider decision](docs/TRANSACTIONAL_EMAIL_PROVIDER_DECISION.md) for the
-recommended beta configuration and approval boundary.
-
-## User Roles
-
-| Role       | Access                                                                             |
-| ---------- | ---------------------------------------------------------------------------------- |
-| **Parent** | Full access — create/verify chores, manage family, toggle features, view analytics |
-| **Child**  | Kid mode — see today's missions, complete chores, claim rewards                    |
-| **Teen**   | Same kid mode as child (teen UI is cosmetic-only in current version)               |
-
-## Development
+## Common verification
 
 ```bash
-npm run dev          # Start dev server (http://localhost:3000)
-npm run build        # Production build
-npm run start        # Start production server
-npm run lint          # ESLint
-npm run type-check   # TypeScript (tsc --noEmit)
-npm run format       # Prettier
-npx prisma studio    # Browse database
+npx prisma generate
+npm run typecheck
+npm run lint
+npm test -- --runInBand
+npm run build
 ```
 
-## Project Structure
+These are only the baseline. Migration, household-isolation, E2E, visual/accessibility, Android and release gates apply when relevant; see [docs/engineering/DEFINITION_OF_DONE.md](docs/engineering/DEFINITION_OF_DONE.md).
 
-```
-src/
-├── app/
-│   ├── (auth)/            # Login, register
-│   ├── api/               # REST API routes
-│   ├── dashboard/         # Protected pages (FeatureGate on opt-in features)
-│   └── page.tsx           # Landing page
-├── components/
-│   ├── ui/               # 12 design primitives (Glyph, Avatar, ListRow, etc.)
-│   ├── dashboard/        # Feature components
-│   └── layout/           # Nav, CommandPalette, TabBar
-├── lib/
-│   ├── features.ts        # Feature flags (FEATURES, FeatureKey)
-│   ├── auth.ts            # JWT utilities
-│   ├── api-auth.ts        # Auth helpers (authenticateRequest, requireParent)
-│   ├── recurringChores.ts # Recurring chore expansion
-│   └── utils.ts           # cn() helper
-└── i18n/
-    └── index.tsx          # en + es inline messages
+## Important unresolved decisions
 
-prisma/
-└── schema.prisma          # 26 models
+The schema contains two overlapping generations:
 
-.github/
-└── workflows/             # 7 CI/CD workflows
-```
+- older `FamilyMeal`, `List` and `ListItem`;
+- newer `Recipe`, `Ingredient`, `RecipeIngredient`, `MealPlan`, `MealPlanEntry`, `ShoppingList` and `ShoppingItem`.
 
-## Deployment
+Issue #149 is the canonical decision issue. Do not add a third meal, recipe, grocery or list model generation before that decision is accepted.
 
-### Docker
+## Release boundary
 
-```bash
-docker build -t family-planner .
-docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
-  -e JWT_SECRET="your-secret" \
-  family-planner
-```
+Planning or code completion does not authorize a merge or deployment. Do not deploy production, publish to Google Play, change secrets/DNS/access/billing, contact beta households, spend money, or destructively alter production data without Cameron's explicit approval for that exact action.
 
-### Coolify
+## Transactional email
 
-See `DEPLOYMENT.md` for detailed Coolify deployment instructions.
+Production email is fail-closed unless an approved provider credential and a
+verified sender are configured. Local development and CI use
+`EMAIL_DELIVERY_MODE=log`. See
+[the transactional email runbook](docs/TRANSACTIONAL_EMAIL_RUNBOOK.md) and
+[provider decision](docs/TRANSACTIONAL_EMAIL_PROVIDER_DECISION.md) before
+changing production delivery.
 
-### CI/CD
-
-7 GitHub Actions workflows handle lint/type/test/build/image-push/deploy/APK.
-
-## Testing
-
-```bash
-npx prisma generate  # required after a clean install
-npm run type-check   # Must pass before PR
-npm test             # Unit and contract tests
-npm run build        # Must succeed before deploy
-npm run verify:app   # Complete application gate in release order
-```
+Relevant environment variables are `MATON_API_KEY`, `RESEND_API_KEY`,
+`EMAIL_FROM` and `EMAIL_DELIVERY_MODE`.
 
 ## License
 

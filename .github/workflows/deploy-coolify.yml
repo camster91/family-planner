@@ -3,9 +3,8 @@
 # Optional: COOLIFY_HEALTH_URL (full URL to GET for post-deploy smoke test)
 #
 # Behavior:
-#   - On PR to main: build + lint + test (no deploy)
-#   - On push to main: build + test + smoke deploy via async API trigger
-#   - On workflow_dispatch: same as push (manual deploy)
+#   - On PR or push to the default branch: validate only; never deploy
+#   - On workflow_dispatch: validate, then request the protected production deployment
 #
 # The deploy step uses POST /api/v1/applications/{uuid}/start which queues
 # the rebuild in Coolify's Horizon queue and returns ~200ms. We poll the
@@ -71,8 +70,8 @@ jobs:
   deploy:
     name: Deploy to Coolify
     needs: build
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
-    runs-on: [self-hosted, linux, x64, ashbi, family-planner]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     environment: production
     steps:
       - name: Trigger Coolify redeploy (async, non-blocking)
@@ -88,7 +87,7 @@ jobs:
           fi
           HTTP_CODE=$(curl -s --fail-with-body -o /tmp/deploy-resp.json -w "%{http_code}" --max-time 60 \
             -X POST \
-            -H "$(printf 'Auth%szation: %s %s' ori Bearer "${COOLIFY_TOKEN}")" \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             -H "Content-Type: application/json" \
             "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APP_UUID}/start")
           echo "Response code: ${HTTP_CODE}"
