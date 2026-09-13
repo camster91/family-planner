@@ -90,9 +90,3 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-// Rate limiting moved to src/lib/rate-limit-db.ts (Postgres-backed).
-// Kept here as a stub to avoid breaking any imports during migration.
-export function checkRateLimit(key: string, maxAttempts = 10, windowMs = 15 * 60 * 1000): { allowed: boolean; retryAfterMs: number } {
-  console.warn('checkRateLimit called from old in-memory implementation. Use rate-limit-db instead.')
-  return { allowed: true, retryAfterMs: 0 }
-}
