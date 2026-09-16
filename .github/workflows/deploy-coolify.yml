@@ -29,7 +29,7 @@ concurrency:
 jobs:
   build:
     name: Build & Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, family-planner]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
