@@ -6,6 +6,7 @@ name: VPS Docker probe
 
 on:
   workflow_dispatch:
+  pull_request: {}
 
 jobs:
   probe:
