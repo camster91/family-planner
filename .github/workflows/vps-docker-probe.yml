@@ -1,0 +1,21 @@
+name: VPS Docker probe
+
+# One-off diagnostic: verifies the self-hosted VPS runner can run Docker
+# jobs (service containers) so CI can move off GitHub-hosted minutes.
+# Run manually via workflow_dispatch; delete after unblocking.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe Docker on VPS runner
+    runs-on: [self-hosted, family-planner]
+    timeout-minutes: 5
+    steps:
+      - name: Docker version
+        run: docker version
+      - name: Docker server summary
+        run: docker info --format 'server={{.ServerVersion}} containers={{.Containers}} images={{.Images}}'
+      - name: Hello-world smoke test
+        run: docker run --rm hello-world
