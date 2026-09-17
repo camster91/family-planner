@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
+import { attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { registerSchema } from '@/lib/validations'
+import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -23,7 +25,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { email, password, name, role } = parsed.data
+    const email = normalizeEmail(parsed.data.email) ?? parsed.data.email.trim().toLowerCase()
+    const { password, name } = parsed.data
+    const inviteToken = normalizeInviteToken(parsed.data.inviteToken)
+
+    let invite: { id: string; family_id: string; role: string; email: string; family: { name: string } } | null = null
+    if (inviteToken) {
+      const found = await prisma!.familyInvite.findUnique({
+        where: { token_hash: hashInviteToken(inviteToken) },
+        select: {
+          id: true,
+          family_id: true,
+          role: true,
+          email: true,
+          expires_at: true,
+          accepted_at: true,
+          family: { select: { name: true } },
+        },
+      })
+      if (!found || found.accepted_at || found.expires_at < new Date()) {
+        return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
+      }
+      if (found.email !== email) {
+        return NextResponse.json(
+          { error: 'This invite was sent to a different email address' },
+          { status: 403 }
+        )
+      }
+      invite = found
+    }
 
     const existing = await prisma!.user.findUnique({ where: { email } })
     if (existing) {
@@ -32,29 +62,56 @@ export async function POST(request: NextRequest) {
 
     const hashed = await hashPassword(password)
 
-    // Build user.create data — include email_verified defensively.
-    // If the column doesn't exist in the live DB (older deploy before
-    // migration), retry without it. This makes the route forward-compatible
-    // across rolling deploys.
     const createData: Record<string, unknown> = {
       email,
       password: hashed,
       name,
-      role,
+      role: invite?.role ?? 'parent',
+    }
+    if (invite) {
+      createData.family_id = invite.family_id
     }
     let user
     try {
-      createData.email_verified = false
+      createData.email_verified = Boolean(invite)
       user = await prisma!.user.create({ data: createData as any })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('email_verified') || msg.includes('does not exist')) {
-        // Old deployment without the column — retry without it
         delete createData.email_verified
         user = await prisma!.user.create({ data: createData as any })
       } else {
         throw e
       }
+    }
+
+    if (invite) {
+      const consumed = await prisma!.familyInvite.updateMany({
+        where: { id: invite.id, accepted_at: null, expires_at: { gt: new Date() } },
+        data: { accepted_at: new Date() },
+      })
+      if (consumed.count === 0) {
+        await prisma!.user.delete({ where: { id: user.id } }).catch(() => undefined)
+        return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
+      }
+
+      const { password: _pw, reset_token, verify_token, ...safeUser } = user as typeof user & {
+        reset_token?: string | null
+        verify_token?: string | null
+      }
+      const response = NextResponse.json({
+        user: safeUser,
+        joinedFamily: true,
+        familyName: invite.family.name,
+        requiresVerification: false,
+      })
+      attachSessionCookie(response, {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        family_id: user.family_id,
+      })
+      return response
     }
 
     // Send verification email (best-effort; never block registration on it)

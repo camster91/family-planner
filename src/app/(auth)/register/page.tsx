@@ -1,19 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { UserPlus, CheckCircle, Users } from 'lucide-react'
 import { useTranslation } from '@/i18n'
 
 export default function RegisterPage() {
   const { t } = useTranslation()
+  const router = useRouter()
   const [showVerificationNotice, setShowVerificationNotice] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [emailLocked, setEmailLocked] = useState(false)
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
+  const [inviteLabel, setInviteLabel] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('token')
+    if (!token) return
+    setInviteToken(token)
+    fetch(`/api/family/invites/preview?token=${encodeURIComponent(token)}`)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || 'This invite is invalid or expired')
+          return
+        }
+        setEmail(data.email)
+        setEmailLocked(true)
+        setInviteLabel(`Join ${data.familyName} as a ${data.role}`)
+      })
+      .catch(() => setError('Could not load invite'))
+  }, [])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,7 +59,12 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          ...(inviteToken ? { inviteToken } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -45,6 +73,11 @@ export default function RegisterPage() {
       }
 
       setError(null)
+      if (data.joinedFamily) {
+        router.push('/dashboard')
+        router.refresh()
+        return
+      }
       setShowVerificationNotice(true)
     } catch (err) {
       setError(t('auth.unexpectedError'))
@@ -91,7 +124,7 @@ export default function RegisterPage() {
           <div className="text-center mb-6">
             <h1 className="text-title-2">{t('auth.createAccount')}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
-              {t('auth.createAccountSubtitle')}
+              {inviteLabel || t('auth.createAccountSubtitle')}
             </p>
           </div>
 
@@ -127,6 +160,7 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-apple"
                 placeholder="you@example.com"
+                readOnly={emailLocked}
               />
             </div>
 

@@ -79,6 +79,7 @@ model User {
   created_recipes               Recipe[]           @relation("RecipeCreator")
   created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
   created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
+  family_invites_created        FamilyInvite[]     @relation("FamilyInviteCreator")
 
   @@index([family_id])
 }
@@ -132,6 +133,25 @@ model Family {
   meal_plans         MealPlan[]
   shopping_lists     ShoppingList[]
   finance_records    FinancialArchiveRecord[]
+  invites            FamilyInvite[]
+}
+
+model FamilyInvite {
+  id          String    @id @default(cuid())
+  family_id   String
+  email       String
+  role        String
+  token_hash  String    @unique
+  expires_at  DateTime
+  accepted_at DateTime?
+  created_by  String
+  created_at  DateTime  @default(now())
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("FamilyInviteCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([family_id, email])
+  @@index([expires_at])
 }
 
 model Chore {

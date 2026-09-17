@@ -1,5 +1,11 @@
-import { normalizeInviteCode } from "@/lib/family-invite";
-import { joinFamilySchema } from "@/lib/validations";
+import {
+  createInviteToken,
+  hashInviteToken,
+  normalizeEmail,
+  normalizeInviteCode,
+  normalizeInviteToken,
+} from "@/lib/family-invite";
+import { createEmailInviteSchema, joinFamilySchema } from "@/lib/validations";
 
 describe("normalizeInviteCode", () => {
   it("accepts a cuid-shaped invite code", () => {
@@ -35,8 +41,27 @@ describe("legacy auth checkRateLimit stub", () => {
   });
 });
 
+describe("email invite tokens", () => {
+  it("hashes tokens one-way", () => {
+    const token = createInviteToken();
+    expect(token).toHaveLength(64);
+    expect(hashInviteToken(token)).toHaveLength(64);
+    expect(hashInviteToken(token)).not.toBe(token);
+    expect(hashInviteToken(token)).toBe(hashInviteToken(token));
+  });
+
+  it("normalizes emails and tokens", () => {
+    expect(normalizeEmail("  Alex@Family.ASHBI.CA ")).toBe(
+      "alex@family.ashbi.ca",
+    );
+    expect(normalizeInviteToken("not-a-token")).toBeNull();
+    const token = createInviteToken();
+    expect(normalizeInviteToken(token)).toBe(token);
+  });
+});
+
 describe("joinFamilySchema", () => {
-  it("requires inviteCode", () => {
+  it("requires inviteCode or token", () => {
     expect(joinFamilySchema.safeParse({}).success).toBe(false);
     expect(joinFamilySchema.safeParse({ familyId: "clfamilyid" }).success).toBe(
       false,
@@ -53,5 +78,25 @@ describe("joinFamilySchema", () => {
       expect(parsed.data.inviteCode).toBe("clxyz0123456789abcd");
       expect(parsed.data).not.toHaveProperty("familyId");
     }
+  });
+
+  it("accepts a 64-character email invite token", () => {
+    const token = createInviteToken();
+    const parsed = joinFamilySchema.safeParse({ token });
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe("createEmailInviteSchema", () => {
+  it("requires a role and email", () => {
+    expect(
+      createEmailInviteSchema.safeParse({ email: "a@b.co" }).success,
+    ).toBe(false);
+    expect(
+      createEmailInviteSchema.safeParse({
+        email: "alex@example.com",
+        role: "parent",
+      }).success,
+    ).toBe(true);
   });
 });

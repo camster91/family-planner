@@ -3,7 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest, attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { joinFamilySchema } from '@/lib/validations'
-import { normalizeInviteCode } from '@/lib/family-invite'
+import {
+  hashInviteToken,
+  normalizeEmail,
+  normalizeInviteCode,
+  normalizeInviteToken,
+} from '@/lib/family-invite'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,18 +31,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const parsed = joinFamilySchema.safeParse(body)
+    const parsed = joinFamilySchema.safeParse(await request.json())
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'inviteCode is required' },
-        { status: 400 }
-      )
-    }
-
-    const inviteCode = normalizeInviteCode(parsed.data.inviteCode)
-    if (!inviteCode) {
-      return NextResponse.json({ error: 'Valid invite code is required' }, { status: 400 })
+      return NextResponse.json({ error: 'inviteCode or token is required' }, { status: 400 })
     }
 
     const user = await prisma!.user.findUnique({
@@ -52,6 +48,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const token = normalizeInviteToken(parsed.data.token)
+    if (token) {
+      return acceptEmailInvite(payload.userId, user?.email ?? '', token)
+    }
+
+    const inviteCode = normalizeInviteCode(parsed.data.inviteCode)
+    if (!inviteCode) {
+      return NextResponse.json({ error: 'Valid invite code is required' }, { status: 400 })
+    }
+
     const family = await prisma!.family.findUnique({
       where: { invite_code: inviteCode },
       select: { id: true, name: true },
@@ -62,23 +68,54 @@ export async function POST(request: NextRequest) {
     }
 
     const joinRole = user?.role === 'teen' ? 'teen' : 'child'
-
-    const updated = await prisma!.user.update({
-      where: { id: payload.userId },
-      data: { family_id: family.id, role: joinRole },
-      select: { id: true, email: true, role: true, family_id: true },
-    })
-
-    const response = NextResponse.json({ success: true, familyName: family.name })
-    attachSessionCookie(response, {
-      userId: updated.id,
-      email: updated.email,
-      role: updated.role,
-      family_id: updated.family_id,
-    })
-    return response
+    return finishJoin(payload.userId, family.id, family.name, joinRole)
   } catch (error) {
     console.error('Error joining family:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+async function acceptEmailInvite(userId: string, userEmail: string, token: string) {
+  const invite = await prisma!.familyInvite.findUnique({
+    where: { token_hash: hashInviteToken(token) },
+    include: { family: { select: { id: true, name: true } } },
+  })
+
+  if (!invite || invite.accepted_at || invite.expires_at < new Date()) {
+    return NextResponse.json({ error: 'Invite not found or expired' }, { status: 404 })
+  }
+
+  if (normalizeEmail(userEmail) !== invite.email) {
+    return NextResponse.json(
+      { error: 'This invite was sent to a different email address' },
+      { status: 403 }
+    )
+  }
+
+  const accepted = await prisma!.familyInvite.updateMany({
+    where: { id: invite.id, accepted_at: null, expires_at: { gt: new Date() } },
+    data: { accepted_at: new Date() },
+  })
+  if (accepted.count === 0) {
+    return NextResponse.json({ error: 'Invite not found or expired' }, { status: 404 })
+  }
+
+  return finishJoin(userId, invite.family.id, invite.family.name, invite.role)
+}
+
+async function finishJoin(userId: string, familyId: string, familyName: string, role: string) {
+  const updated = await prisma!.user.update({
+    where: { id: userId },
+    data: { family_id: familyId, role },
+    select: { id: true, email: true, role: true, family_id: true },
+  })
+
+  const response = NextResponse.json({ success: true, familyName })
+  attachSessionCookie(response, {
+    userId: updated.id,
+    email: updated.email,
+    role: updated.role,
+    family_id: updated.family_id,
+  })
+  return response
 }
