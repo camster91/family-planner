@@ -66,11 +66,10 @@ export default function JoinFamilyPage() {
         return
       }
 
-      // Join the family
       const joinRes = await fetch('/api/family/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ familyId: familyInfo.id }),
+        body: JSON.stringify({ inviteCode: code.trim() }),
       })
       const joinData = await joinRes.json()
 
@@ -148,11 +147,13 @@ export default function JoinFamilyPage() {
                   required
                   value={code}
                   onChange={(e) => {
-                    setCode(e.target.value.toUpperCase())
+                    setCode(e.target.value)
                     setFamilyInfo(null)
                   }}
-                  className="input-field flex-1 font-mono uppercase"
-                  placeholder="FAM-ABCD1234"
+                  className="input-field flex-1 font-mono"
+                  placeholder="Invite code from a parent"
+                  autoComplete="off"
+                  spellCheck={false}
                   disabled={loading}
                 />
                 <button
@@ -165,7 +166,7 @@ export default function JoinFamilyPage() {
                 </button>
               </div>
               <p className="mt-2 text-sm text-gray-600">
-                Get this code from your family admin. It looks like &quot;FAM-ABCD1234&quot;.
+                Ask a parent for the family invite code from Family → Invite.
               </p>
             </div>
 

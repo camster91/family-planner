@@ -22,12 +22,15 @@ export default function InviteMemberPage() {
       const meData = await meRes.json()
       if (!meRes.ok || !meData.user) return
 
-      const user = meData.user
-      if (!user.family_id) return
+      if (meData.user?.role !== 'parent') return
 
-      const code = `FAM-${user.family_id.slice(0, 8).toUpperCase()}`
-      setFamilyCode(code)
-      setInviteLink(`${window.location.origin}/join?code=${code}`)
+      const familyRes = await fetch('/api/family')
+      const familyData = await familyRes.json()
+      const inviteCode = familyData.family?.invite_code
+      if (!familyRes.ok || !inviteCode) return
+
+      setFamilyCode(inviteCode)
+      setInviteLink(`${window.location.origin}/join?code=${encodeURIComponent(inviteCode)}`)
     } catch (err) {
       console.error('Error loading family data:', err)
     } finally {

@@ -65,7 +65,7 @@ export const deleteFamilySchema = z.object({
 })
 
 export const joinFamilySchema = z.object({
-  familyId: z.string().min(1),
+  inviteCode: z.string().min(8, 'Invite code is required').max(64).trim(),
 })
 
 // Messages

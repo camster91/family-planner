@@ -129,8 +129,9 @@ DATABASE_URL=<your postgres connection string>
 JWT_SECRET=<generate with: openssl rand -base64 32>
 NEXT_PUBLIC_APP_URL=https://family.ashbi.ca
 NEXT_PUBLIC_APP_NAME=Family Planner
-SKIP_ENV_VALIDATION=true
 ```
+
+`SKIP_ENV_VALIDATION` is build-only. Do not set it on the running Coolify app.
 
 ## Security Checklist
 
