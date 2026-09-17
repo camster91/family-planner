@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, TokenPayload } from '@/lib/auth'
+import { signToken, verifyToken, TokenPayload } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+
+export function attachSessionCookie(response: NextResponse, payload: TokenPayload): void {
+  response.cookies.set('session_token', signToken(payload), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  })
+}
 
 /**
  * Authenticate a request and return the user's token payload.
