@@ -14,6 +14,8 @@
 # Reference: skill `coolify` (the "git push succeeds but Coolify doesn't redeploy" section)
 name: Build, Test & Deploy to Coolify
 
+# probe: does a PR that MODIFIES an existing workflow file get a run created?
+
 on:
   push:
     branches: [main, master]
