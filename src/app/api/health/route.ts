@@ -4,10 +4,22 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
-  try {
-    const timestamp = new Date().toISOString()
+const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const
 
+/**
+ * Readiness probe — reports whether this instance can actually serve traffic.
+ *
+ * Returns 200 only when every dependency is verified. A degraded instance
+ * returns **503** so the Docker HEALTHCHECK (`wget --spider`, which inspects
+ * only the status code) fails and Coolify refuses to promote the deploy.
+ *
+ * For "is the process up?" use `/api/health/live`, which deliberately ignores
+ * the database so a dependency outage does not read as a dead process.
+ */
+export async function GET() {
+  const timestamp = new Date().toISOString()
+
+  try {
     // Check environment variables
     const envVars = {
       databaseUrl: process.env.DATABASE_URL ? 'configured' : 'missing',
@@ -32,7 +44,6 @@ export async function GET() {
       ? 'healthy'
       : 'degraded'
 
-    // Always return 200 for Docker health check
     return NextResponse.json({
       status,
       timestamp,
@@ -43,9 +54,9 @@ export async function GET() {
         database: dbStatus
       }
     }, {
-      status: 200,
+      status: status === 'healthy' ? 200 : 503,
       headers: {
-        'Cache-Control': 'no-store, max-age=0',
+        ...NO_STORE,
         'X-Health-Check': timestamp
       }
     })
@@ -54,13 +65,11 @@ export async function GET() {
     console.error('Health check error:', error)
     return NextResponse.json({
       status: 'degraded',
-      timestamp: new Date().toISOString(),
+      timestamp,
       error: error instanceof Error ? error.message : 'Unknown error'
     }, {
-      status: 200,
-      headers: {
-        'Cache-Control': 'no-store, max-age=0'
-      }
+      status: 503,
+      headers: NO_STORE
     })
   }
 }
