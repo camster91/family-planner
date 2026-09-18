@@ -105,16 +105,37 @@ LOG="/var/log/fp-deploy-${TAG}.log"
 
 if [ "$WAIT" = "1" ]; then
   echo "waiting for the deploy to finish (a cold build takes 5-10 min)..."
-  for _ in $(seq 1 150); do
-    # Match the deploy script's own terminal lines. Deliberately NOT a
-    # `pgrep -f deploy-vps.sh`: the shell running that pgrep carries the string
-    # in its own argv, matches itself, and so never reports "finished".
-    if ssh -o BatchMode=yes "$REMOTE" "tail -n 300 '$LOG' 2>/dev/null | grep -qE '^(Released |::error::)'"; then
-      break
-    fi
+  # Match the deploy script's own terminal lines, and keep the two kinds apart.
+  # An `::error::` line is a fail-closed refusal or a failed health gate, and
+  # treating it as "finished" would let --wait report success on a release that
+  # never happened — the exact failure this script exists to avoid. Deliberately
+  # NOT a `pgrep -f deploy-vps.sh`: the shell running that pgrep carries the
+  # string in its own argv, matches itself, and so never reports "finished".
+  MARK=""
+  for _ in $(seq 1 300); do
+    MARK="$(ssh -o BatchMode=yes "$REMOTE" \
+      "tail -n 300 '$LOG' 2>/dev/null | grep -oE '^(Released |::error::)' | tail -n1" || true)"
+    if [ -n "$MARK" ]; then break; fi
     sleep 5
   done
-  ssh -o BatchMode=yes "$REMOTE" "tail -n 25 '$LOG'"
+  echo "--- last 25 lines of $LOG ---"
+  ssh -o BatchMode=yes "$REMOTE" "tail -n 25 '$LOG'" || true
+  case "$MARK" in
+    "Released ")
+      echo "released: ${TAG} is serving"
+      ;;
+    "::error::")
+      echo "::error::the deploy reported an error; production was NOT released" >&2
+      echo "::error::the previous container is still serving — see the log above" >&2
+      exit 1
+      ;;
+    *)
+      # Neither marker: the deploy died without reaching a terminal line (a
+      # `set -e` abort, or a kill). Silence is not success.
+      echo "::error::no terminal line in $LOG after 25 minutes; the deploy did not finish" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 echo
