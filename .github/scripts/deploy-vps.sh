@@ -11,8 +11,9 @@
 #     runner cannot read it. That file is itself a copy of the previous
 #     container's environment (verified: all 15 key/value hashes matched), so the
 #     container is the original that the file copies.
-#   * The traefik labels are read back for the same reason: one source of truth,
-#     and a label added later is carried forward instead of silently dropped.
+#   * The traefik labels and the bind mounts are read back for the same reason:
+#     one source of truth, and a mount or label added later is carried forward
+#     instead of silently dropped.
 #
 # Safety properties:
 #   * The new container must report healthy BEFORE the old one is stopped, so a
@@ -28,6 +29,22 @@ SHA="${1:?usage: deploy-vps.sh <full-git-sha>}"
 TAG="${SHA:0:7}"
 IMAGE="family-planner:${TAG}"
 ROUTER_LABEL='traefik.http.routers.family-planner.rule'
+
+# Persistent uploads. Declared here rather than inherited, because the release
+# that first introduces a mount has nothing to inherit it from — inheritance
+# only keeps it alive from the next release onward. UPLOAD_DIR in the app
+# defaults to exactly this container path, so the two must agree.
+UPLOADS_HOST_DIR="${UPLOADS_HOST_DIR:-/opt/family-planner/uploads}"
+UPLOADS_CONTAINER_DIR="${UPLOADS_CONTAINER_DIR:-/data/family-planner-uploads}"
+
+# The app writes as uid 1001 (nextjs), a bind mount carries numeric ids across
+# unchanged, and `familyci` is in the docker group but has no sudo — so it
+# cannot create this directory itself. Fail closed, naming the exact fix.
+if [ ! -d "${UPLOADS_HOST_DIR}" ]; then
+  echo "::error::${UPLOADS_HOST_DIR} does not exist; create it once on the host as root:"
+  echo "  install -d -o 1001 -g 65533 -m 755 ${UPLOADS_HOST_DIR}"
+  exit 1
+fi
 
 # --- locate the container currently serving traffic --------------------------
 OLD="$(docker ps --filter "label=${ROUTER_LABEL}" --format '{{.Names}}' | head -n1)"
@@ -66,6 +83,33 @@ if [ "${#LABEL_ARGS[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# Bind mounts are inherited for the same reason the labels are: a mount added to
+# the running container must not silently vanish on the next release. Docker
+# reports them already in `source:destination:options` form, which is what
+# --volume wants.
+BIND_ARGS=()
+while IFS= read -r bind; do
+  [ -z "${bind}" ] && continue
+  # The uploads mount is declared explicitly below. Skipping an inherited copy
+  # of it matters: two --volume flags for one destination make `docker run` fail
+  # outright with "Duplicate mount point".
+  case "${bind}" in
+    *":${UPLOADS_CONTAINER_DIR}" | *":${UPLOADS_CONTAINER_DIR}:"*) continue ;;
+  esac
+  BIND_ARGS+=(--volume "${bind}")
+done < <(docker inspect "${OLD}" --format '{{range .HostConfig.Binds}}{{println .}}{{end}}')
+
+# Named volumes live in .Mounts rather than .HostConfig.Binds, so the loop above
+# does not reconstruct them. Refuse rather than release a container that has
+# quietly lost one.
+NAMED_MOUNTS="$(docker inspect "${OLD}" \
+  --format '{{range .Mounts}}{{if ne .Type "bind"}}{{.Type}} {{.Name}} -> {{.Destination}}{{println}}{{end}}{{end}}')"
+if [ -n "${NAMED_MOUNTS}" ]; then
+  echo "::error::${OLD} has mounts this script does not carry; refusing to release:"
+  echo "${NAMED_MOUNTS}"
+  exit 1
+fi
+
 # --- start the replacement ---------------------------------------------------
 # Log options and the restart policy mirror the container being replaced so the
 # host does not accumulate unbounded logs across releases.
@@ -76,6 +120,8 @@ docker run --detach \
   --log-opt max-file=3 \
   --network family-planner-internal \
   --env-file "${ENV_FILE}" \
+  --volume "${UPLOADS_HOST_DIR}:${UPLOADS_CONTAINER_DIR}" \
+  "${BIND_ARGS[@]}" \
   "${LABEL_ARGS[@]}" \
   "${IMAGE}"
 
@@ -110,6 +156,21 @@ for i in $(seq 1 60); do
   fi
   sleep 5
 done
+
+# --- prove uploads actually work before committing to the swap ---------------
+# A health check only proves the app answers. Without this, a mount with the
+# wrong ownership starts healthy and then fails the first time a user uploads a
+# photo — which is exactly how the uploads bug shipped unnoticed. `docker exec`
+# runs as the image's USER (uid 1001), so this measures what the app will.
+if ! docker exec "${NEW}" sh -c \
+     "touch '${UPLOADS_CONTAINER_DIR}/.write-probe' && rm -f '${UPLOADS_CONTAINER_DIR}/.write-probe'" >/dev/null 2>&1; then
+  echo "::error::${UPLOADS_CONTAINER_DIR} is not writable inside ${NEW}; uploads would fail at runtime"
+  docker exec "${NEW}" sh -c "id; ls -ld '${UPLOADS_CONTAINER_DIR}'" || true
+  docker logs --tail 40 "${NEW}" || true
+  docker rm --force "${NEW}" >/dev/null
+  exit 1
+fi
+echo "uploads directory is writable by the app user"
 
 # --- swap --------------------------------------------------------------------
 echo "Stopping previous container ${OLD} (kept, not removed, for rollback)"
