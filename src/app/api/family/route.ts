@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ family })
     if (user) {
-      attachSessionCookie(response, {
+      await attachSessionCookie(response, {
         userId: user.id,
         email: user.email,
         role: user.role,

@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { signToken, verifyToken, TokenPayload } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-export function attachSessionCookie(response: NextResponse, payload: TokenPayload): void {
-  response.cookies.set('session_token', signToken(payload), {
+/**
+ * Attach a session cookie carrying the user's current session generation.
+ * `token_version` is read here rather than passed in so callers cannot forget it.
+ */
+export async function attachSessionCookie(
+  response: NextResponse,
+  payload: TokenPayload
+): Promise<void> {
+  const tv = (await getTokenVersion(payload.userId)) ?? 0
+  response.cookies.set('session_token', signToken({ ...payload, tv }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -13,20 +21,47 @@ export function attachSessionCookie(response: NextResponse, payload: TokenPayloa
 }
 
 /**
+ * Read the user's current session generation. Returns null when the user does
+ * not exist (deleted account — their tokens must not authenticate).
+ */
+async function getTokenVersion(userId: string): Promise<number | null> {
+  if (!prisma) return null
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { token_version: true },
+  })
+  return user ? user.token_version : null
+}
+
+/**
  * Authenticate a request and return the user's token payload.
  * Returns [payload, null] on success or [null, errorResponse] on failure.
+ *
+ * Beyond signature/expiry this enforces the session-generation check: a JWT is
+ * only valid while its `tv` claim still matches `User.token_version`. A password
+ * reset or change bumps that column, so previously issued cookies stop working
+ * even though they remain cryptographically valid for their full 7 days.
  */
 export async function authenticateRequest(
   request: NextRequest
 ): Promise<[TokenPayload, null] | [null, NextResponse]> {
+  const unauthorized = () =>
+    NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const token = request.cookies.get('session_token')?.value
   if (!token) {
-    return [null, NextResponse.json({ error: 'Unauthorized' }, { status: 401 })]
+    return [null, unauthorized()]
   }
   const payload = verifyToken(token)
   if (!payload) {
-    return [null, NextResponse.json({ error: 'Unauthorized' }, { status: 401 })]
+    return [null, unauthorized()]
   }
+
+  const currentVersion = await getTokenVersion(payload.userId)
+  if (currentVersion === null || currentVersion !== (payload.tv ?? 0)) {
+    return [null, unauthorized()]
+  }
+
   return [payload, null]
 }
 

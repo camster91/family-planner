@@ -111,7 +111,7 @@ async function finishJoin(userId: string, familyId: string, familyName: string, 
   })
 
   const response = NextResponse.json({ success: true, familyName })
-  attachSessionCookie(response, {
+  await attachSessionCookie(response, {
     userId: updated.id,
     email: updated.email,
     role: updated.role,

@@ -95,9 +95,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
       }
 
-      const { password: _pw, reset_token, verify_token, ...safeUser } = user as typeof user & {
+      const { password: _pw, reset_token, verify_token, token_version, ...safeUser } = user as typeof user & {
         reset_token?: string | null
         verify_token?: string | null
+        token_version?: number
       }
       const response = NextResponse.json({
         user: safeUser,
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         familyName: invite.family.name,
         requiresVerification: false,
       })
-      attachSessionCookie(response, {
+      await attachSessionCookie(response, {
         userId: user.id,
         email: user.email,
         role: user.role,
