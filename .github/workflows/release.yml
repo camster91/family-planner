@@ -1,0 +1,126 @@
+# Build, test and release family-planner onto the VPS that serves it.
+#
+# This replaces the Coolify-API deploy in deploy-coolify.yml, which could not
+# work: there is no live Coolify control plane on the host (no containers, no
+# network, nothing on :8000, DNS pointing at a retired instance), the source
+# webhook at :8000 has refused all 29 deliveries since 2026-09-16, and the ghcr
+# image the fallback script pulls has never existed for this repo. The container
+# that actually runs was created by a throwaway script in /tmp.
+#
+# Everything runs on the self-hosted runner `ashbi-vps-family-planner`, which is
+# on the production host itself. That is deliberate, not incidental: GitHub-hosted
+# minutes are blocked for this account, and under that block an `ubuntu-latest`
+# job is never even created — so `Build & Test` below would never report and every
+# PR would be unmergeable. Self-hosted jobs allocate from this host and are
+# unaffected.
+#
+# Security note: this runner is in the host's `docker` group, which is
+# root-equivalent, on a machine running ~95 other production containers. The
+# build job is therefore restricted to PRs whose head is a branch of THIS repo;
+# fork PRs would otherwise get arbitrary code execution on that host.
+name: Build, Test & Release
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs on the same branch when a new push lands.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # DO NOT RENAME. This exact string is the required status check on master
+    # (classic branch protection: strict, enforce_admins). Renaming it silently
+    # makes every PR unmergeable.
+    name: Build & Test
+    runs-on: [self-hosted, family-planner]
+    timeout-minutes: 30
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://placeholder/placeholder
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+
+      - name: Test
+        run: npm test -- --ci --runInBand --no-watchman
+        env:
+          CI: "true"
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  release:
+    name: Release to VPS
+    needs: build
+    # Compare against the repository's *actual* default branch (master) instead
+    # of a hardcoded 'refs/heads/main'. The previous form never matched, so the
+    # deploy was dead on every push to the branch that ships. (#187)
+    #
+    # The `|| github.event_name == 'workflow_dispatch'` half of the #187 fix is
+    # deliberately dropped. It was harmless when the deploy was a dead API call;
+    # now that the deploy is real, it would mean `gh workflow run release.yml
+    # --ref <any-branch>` ships unreviewed code straight to production. Manual
+    # deploys still work — dispatch against master. A PR branch still earns the
+    # required `Build & Test` check, because that job is not gated here.
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: [self-hosted, family-planner]
+    timeout-minutes: 30
+    environment: production
+    # Serialise releases. The workflow-level group cancels in progress; this one
+    # must not, or a racing ref could stop a container mid-swap.
+    concurrency:
+      group: family-planner-release
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image and swap the production container
+        run: bash ./.github/scripts/deploy-vps.sh "${GITHUB_SHA}"
+
+      - name: Smoke test the released build
+        run: |
+          # /api/health/live exists only from e537e22 onward, so a 404 here means
+          # the old build is still serving no matter what the container reports.
+          # This goes through traefik over the public hostname on purpose.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://family.ashbi.ca/api/health/live || echo 000)
+          echo "GET /api/health/live -> ${code}"
+          if [ "${code}" != "200" ]; then
+            echo "::error::released build is not serving (expected 200, got ${code})"
+            exit 1
+          fi
+          echo "GET /api/health:"
+          curl -s --max-time 20 https://family.ashbi.ca/api/health
