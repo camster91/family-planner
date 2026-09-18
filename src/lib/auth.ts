@@ -66,6 +66,14 @@ export interface TokenPayload {
   role?: string
   /** Family ID. Optional for the same reason. */
   family_id?: string | null
+  /**
+   * Session generation, mirrored from `User.token_version` at signing time.
+   * A password reset/change increments the DB column, which makes every JWT
+   * carrying an older `tv` fail authentication. Tokens issued before this claim
+   * existed are treated as generation 0, which matches the column default — so
+   * deploying this does not sign existing sessions out.
+   */
+  tv?: number
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -101,6 +109,8 @@ export function verifyToken(token: string): TokenPayload | null {
       email: decoded.email as string,
       role: (decoded as any).role,
       family_id: (decoded as any).family_id ?? null,
+      // Absent on tokens minted before the tv claim existed — generation 0.
+      tv: typeof (decoded as any).tv === 'number' ? (decoded as any).tv : 0,
     }
   } catch {
     return null

@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS "User" (
   "email_verified" BOOLEAN NOT NULL DEFAULT false,
   "reset_token" TEXT,
   "reset_token_expires" TIMESTAMP(3),
+  "verify_token" TEXT,
+  "verify_token_expires" TIMESTAMP(3),
+  "token_version" INTEGER NOT NULL DEFAULT 0,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -56,6 +59,7 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "reset_token" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "reset_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token_expires" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "token_version" INTEGER NOT NULL DEFAULT 0;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { verifyEmailToken, markEmailVerified } from '@/lib/tokens'
+import { consumeEmailVerificationToken } from '@/lib/tokens'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,12 +10,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=missing_token', process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'))
     }
 
-    const userId = await verifyEmailToken(token)
-    if (!userId) {
+    // Single atomic claim — marks verified and clears the token together, so a
+    // replayed link finds nothing to match.
+    const verified = await consumeEmailVerificationToken(token)
+    if (!verified) {
       return NextResponse.redirect(new URL('/login?error=invalid_token', process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'))
     }
-
-    await markEmailVerified(userId)
 
     return NextResponse.redirect(new URL('/login?verified=1', process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'))
   } catch (error) {

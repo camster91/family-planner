@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
+import { isSessionCurrent } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
 
 // Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
@@ -31,7 +32,7 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/health',
 ])
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // CSRF check: reject all state-changing /api/* requests without a valid token,
   // except for the auth endpoints listed above (where credentials are the second factor).
   const isApiMutation = request.nextUrl.pathname.startsWith('/api/') &&
@@ -45,10 +46,43 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get('session_token')?.value
   const payload = token ? verifyToken(token) : null
-  const isAuthenticated = !!payload
 
   // Protected routes
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard')
+  // Auth routes (login/register/join) - redirect to dashboard if already logged in
+  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
+
+  // A JWT stays cryptographically valid for its full 7 days, so signature and
+  // expiry alone cannot express "this session was revoked" — `token_version` is
+  // bumped on password reset and change. Without this check a revoked cookie
+  // still walked straight through the /dashboard gate.
+  //
+  // Two things bound the added cost. The lookup is skipped entirely when no
+  // cookie is present, and it runs only for /dashboard and the auth routes
+  // (route handlers enforce the same check for /api/*). And both gates below
+  // read this ONE value, so they cannot disagree and bounce a user between
+  // /login and /dashboard.
+  //
+  // Fail-closed on error: a DB outage degrades a logged-in user to the login
+  // page, where the app is unusable anyway, rather than admitting a session
+  // that may have been revoked.
+  let isAuthenticated = false
+  if (payload) {
+    if (isProtectedRoute || isAuthRoute) {
+      try {
+        isAuthenticated = await isSessionCurrent(payload)
+      } catch (error) {
+        // Fail closed, but not silently: a database outage that logs every user
+        // out with zero trace in the logs is far harder to diagnose than one
+        // that says so.
+        console.error('Session generation check failed; treating session as revoked', error)
+        isAuthenticated = false
+      }
+    } else {
+      // Neither gate below can fire; no reason to pay for a lookup.
+      isAuthenticated = true
+    }
+  }
 
   if (isProtectedRoute && !isAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
@@ -80,8 +114,6 @@ export function middleware(request: NextRequest) {
   }
 
   // Auth routes (login/register/join) - redirect to dashboard if already logged in
-  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
-
   if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
