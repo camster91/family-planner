@@ -14,10 +14,13 @@
 # PR would be unmergeable. Self-hosted jobs allocate from this host and are
 # unaffected.
 #
-# Security note: this runner is in the host's `docker` group, which is
-# root-equivalent, on a machine running ~95 other production containers. The
-# build job is therefore restricted to PRs whose head is a branch of THIS repo;
-# fork PRs would otherwise get arbitrary code execution on that host.
+# Security note, and a real residual risk: this runner is in the host's `docker`
+# group, which is root-equivalent, on a machine running ~95 other production
+# containers. Fork PRs are refused (see the first step of the build job), but a
+# PR from a *branch of this repo* still executes `npm ci` and build scripts on
+# the production host before review — and so does a Dependabot PR carrying a
+# compromised dependency. Closing that needs PR validation on a runner without
+# the production docker socket, which does not exist for this repo yet.
 name: Build, Test & Release
 
 on:
@@ -30,10 +33,15 @@ on:
 permissions:
   contents: read
 
-# Cancel in-progress runs on the same branch when a new push lands.
+# Cancellation is OFF here on purpose. A workflow-level cancel aborts every job,
+# including the release — the release job's own `cancel-in-progress: false`
+# cannot protect it from that. Being killed between `docker run` and the health
+# check would leave an unverified container holding the production traefik
+# labels, and the next release would then adopt it as the container to replace.
+# Cancelling a *build* is harmless, so that job cancels on its own group instead.
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -43,8 +51,23 @@ jobs:
     name: Build & Test
     runs-on: [self-hosted, family-planner]
     timeout-minutes: 30
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Safe to cancel: unlike the release, a build holds nothing.
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
     steps:
+      # Fork PRs must not reach this runner — it has root-equivalent docker
+      # access on the production host. This has to be a *failing step*, not a
+      # job-level `if:`: a skipped job counts as a successful required status
+      # check, so gating the job would let a fork PR merge having run no build,
+      # lint, typecheck, test or audit at all. It is the first step, so no
+      # untrusted code has executed by the time it fails.
+      - name: Refuse fork PRs
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::fork PRs are not validated on the self-hosted runner; push the branch to this repository instead"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v4
 
