@@ -13,6 +13,25 @@ export function generateToken(length = 32): string {
   return crypto.randomBytes(length).toString('hex')
 }
 
+/**
+ * Prisma filter matching a submitted token against a stored token column.
+ *
+ * New tokens are stored as `sha256(token)`. Rows written before that change
+ * hold the PLAINTEXT token, and those have to keep working: registration is
+ * email-unique and there is no resend-verification endpoint, so a user whose
+ * `verify_token` predates the hashing change would be locked out permanently.
+ * Matching both forms covers the rollout; the legacy arm closes itself because
+ * verify tokens expire in 24h and reset tokens in 1h.
+ *
+ * Deliberately NOT a data migration: the two forms are indistinguishable by
+ * shape (legacy plaintext is 64 hex chars, sha256 hex is also 64 hex chars),
+ * so a rewrite of the column would double-hash on the next container start —
+ * `scripts/migrate.js` runs on every boot, not just once.
+ */
+export function tokenMatch(token: string) {
+  return { in: [hashToken(token), token] }
+}
+
 // Store password-reset token (1 hour expiry, separate from verify token).
 // Returns the PLAINTEXT token for the email link; only its hash is persisted.
 export async function createResetToken(userId: string): Promise<string> {
@@ -31,6 +50,29 @@ export async function createResetToken(userId: string): Promise<string> {
 }
 
 /**
+ * Cheap preflight: does this token match a live row at all?
+ *
+ * `hashPassword` is bcrypt at cost 12 — roughly a quarter-second of CPU. Doing
+ * that before knowing whether the token is even valid let anyone burn a full
+ * bcrypt round per request on the public, unauthenticated reset endpoint. This
+ * costs one indexed lookup and rejects junk before the expensive hash.
+ *
+ * It is a fast path, NOT the authority: the atomic claim in
+ * `consumeResetToken` still decides, so a token that expires or is consumed
+ * between this check and the claim is still rejected.
+ */
+export async function resetTokenExists(token: string): Promise<boolean> {
+  const row = await prisma!.user.findFirst({
+    where: {
+      reset_token: tokenMatch(token),
+      reset_token_expires: { gt: new Date() },
+    },
+    select: { id: true },
+  })
+  return row !== null
+}
+
+/**
  * Atomically consume the reset token and set the new password.
  *
  * The lookup, the expiry check, the single-use claim and the password write all
@@ -46,7 +88,7 @@ export async function consumeResetToken(
 ): Promise<boolean> {
   const { count } = await prisma!.user.updateMany({
     where: {
-      reset_token: hashToken(token),
+      reset_token: tokenMatch(token),
       reset_token_expires: { gt: new Date() },
     },
     data: {
@@ -86,7 +128,7 @@ export async function createVerificationToken(userId: string): Promise<string> {
 export async function consumeEmailVerificationToken(token: string): Promise<boolean> {
   const { count } = await prisma!.user.updateMany({
     where: {
-      verify_token: hashToken(token),
+      verify_token: tokenMatch(token),
       verify_token_expires: { gt: new Date() },
     },
     data: {

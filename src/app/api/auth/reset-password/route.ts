@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/auth'
-import { consumeResetToken } from '@/lib/tokens'
+import { consumeResetToken, resetTokenExists } from '@/lib/tokens'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +12,14 @@ export async function POST(request: NextRequest) {
 
     if (password.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters long' }, { status: 400 })
+    }
+
+    // Reject tokens that match nothing BEFORE paying for bcrypt. `hashPassword`
+    // is cost-12, so hashing first let anyone burn ~250ms of CPU per request on
+    // this public, unauthenticated endpoint by posting garbage. The claim below
+    // is still the authority; this only avoids the wasted work.
+    if (!(await resetTokenExists(token))) {
+      return NextResponse.json({ error: 'Invalid or expired reset token' }, { status: 400 })
     }
 
     const hashedPassword = await hashPassword(password)

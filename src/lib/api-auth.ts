@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { signToken, verifyToken, TokenPayload } from '@/lib/auth'
+import { signToken, TokenPayload } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getTokenVersion, verifySessionToken } from '@/lib/session'
 
 /**
  * Attach a session cookie carrying the user's current session generation.
@@ -21,26 +22,14 @@ export async function attachSessionCookie(
 }
 
 /**
- * Read the user's current session generation. Returns null when the user does
- * not exist (deleted account — their tokens must not authenticate).
- */
-async function getTokenVersion(userId: string): Promise<number | null> {
-  if (!prisma) return null
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { token_version: true },
-  })
-  return user ? user.token_version : null
-}
-
-/**
  * Authenticate a request and return the user's token payload.
  * Returns [payload, null] on success or [null, errorResponse] on failure.
  *
- * Beyond signature/expiry this enforces the session-generation check: a JWT is
- * only valid while its `tv` claim still matches `User.token_version`. A password
- * reset or change bumps that column, so previously issued cookies stop working
- * even though they remain cryptographically valid for their full 7 days.
+ * Beyond signature/expiry `verifySessionToken` enforces the session-generation
+ * check: a JWT is only valid while its `tv` claim still matches
+ * `User.token_version`. A password reset or change bumps that column, so
+ * previously issued cookies stop working even though they remain
+ * cryptographically valid for their full 7 days.
  */
 export async function authenticateRequest(
   request: NextRequest
@@ -52,13 +41,9 @@ export async function authenticateRequest(
   if (!token) {
     return [null, unauthorized()]
   }
-  const payload = verifyToken(token)
-  if (!payload) {
-    return [null, unauthorized()]
-  }
 
-  const currentVersion = await getTokenVersion(payload.userId)
-  if (currentVersion === null || currentVersion !== (payload.tv ?? 0)) {
+  const payload = await verifySessionToken(token)
+  if (!payload) {
     return [null, unauthorized()]
   }
 

@@ -27,6 +27,13 @@ function initializePrisma() {
 
 export const prisma = globalForPrisma.prisma ?? initializePrisma()
 
-if (process.env.NODE_ENV !== 'production' && prisma) {
+// Cache per process, not only in dev.
+//
+// The dev-only cache was there to survive hot reload, but the client must also
+// be shared across the two bundles that now both read it: `middleware.ts`
+// checks the session generation, and middleware is compiled into its own module
+// registry with its own copy of this file. Without a shared cache that is a
+// SECOND `pg.Pool` — up to 10 more connections — against the same database.
+if (prisma) {
   globalForPrisma.prisma = prisma
 }

@@ -3,6 +3,7 @@
 
 const update = jest.fn()
 const updateMany = jest.fn()
+const findFirst = jest.fn()
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -13,16 +14,27 @@ jest.mock("@/lib/prisma", () => ({
       get updateMany() {
         return updateMany;
       },
+      get findFirst() {
+        return findFirst;
+      },
     },
   },
 }));
 
-import { hashToken, createResetToken, consumeResetToken } from "@/lib/tokens";
+import {
+  hashToken,
+  tokenMatch,
+  createResetToken,
+  consumeResetToken,
+  consumeEmailVerificationToken,
+  resetTokenExists,
+} from "@/lib/tokens";
 
 describe("token storage", () => {
   beforeEach(() => {
     update.mockReset();
     updateMany.mockReset();
+    findFirst.mockReset();
   });
 
   describe("hashToken", () => {
@@ -67,7 +79,9 @@ describe("token storage", () => {
       expect(ok).toBe(true);
       const arg = updateMany.mock.calls[0][0];
 
-      expect(arg.where.reset_token).toBe(hashToken("plaintext-token"));
+      expect(arg.where.reset_token).toEqual(
+        tokenMatch("plaintext-token"),
+      );
       expect(arg.where.reset_token_expires.gt).toBeInstanceOf(Date);
       expect(arg.data.password).toBe("bcrypt-hash");
       expect(arg.data.reset_token).toBeNull();
@@ -79,6 +93,60 @@ describe("token storage", () => {
       updateMany.mockResolvedValue({ count: 0 });
 
       expect(await consumeResetToken("used", "hash")).toBe(false);
+    });
+  });
+
+  // Tokens issued before the hashing change live in these columns in PLAINTEXT.
+  // Registration is email-unique and there is no resend-verification endpoint,
+  // so if the lookup only matched sha256 the affected users would be locked out
+  // of both flows permanently.
+  describe("legacy plaintext tokens", () => {
+    it("tokenMatch accepts both the hash and the raw token", () => {
+      expect(tokenMatch("t")).toEqual({ in: [hashToken("t"), "t"] });
+    });
+
+    it("consumeResetToken still matches a pre-hashing reset token", async () => {
+      updateMany.mockResolvedValue({ count: 1 });
+
+      await consumeResetToken("legacy-plaintext", "bcrypt-hash");
+
+      const { where } = updateMany.mock.calls[0][0];
+      expect(where.reset_token.in).toContain("legacy-plaintext");
+      expect(where.reset_token.in).toContain(hashToken("legacy-plaintext"));
+    });
+
+    it("consumeEmailVerificationToken still matches a pre-hashing verify token", async () => {
+      updateMany.mockResolvedValue({ count: 1 });
+
+      await consumeEmailVerificationToken("legacy-plaintext");
+
+      const { where } = updateMany.mock.calls[0][0];
+      expect(where.verify_token.in).toContain("legacy-plaintext");
+      expect(where.verify_token.in).toContain(hashToken("legacy-plaintext"));
+      expect(where.verify_token_expires.gt).toBeInstanceOf(Date);
+      expect(updateMany.mock.calls[0][0].data.email_verified).toBe(true);
+    });
+  });
+
+  // The reset endpoint is public and unauthenticated. hashing the password
+  // before knowing the token is valid let anyone burn a cost-12 bcrypt round
+  // (~250ms of CPU) per request with garbage input.
+  describe("resetTokenExists", () => {
+    it("is true when a live row matches", async () => {
+      findFirst.mockResolvedValue({ id: "u1" });
+
+      expect(await resetTokenExists("t")).toBe(true);
+
+      const { where, select } = findFirst.mock.calls[0][0];
+      expect(where.reset_token).toEqual(tokenMatch("t"));
+      expect(where.reset_token_expires.gt).toBeInstanceOf(Date);
+      // Must not pull the user row back — this is a cheap existence check.
+      expect(select).toEqual({ id: true });
+    });
+
+    it("is false when nothing matches, so bcrypt is never reached", async () => {
+      findFirst.mockResolvedValue(null);
+      expect(await resetTokenExists("garbage")).toBe(false);
     });
   });
 });
