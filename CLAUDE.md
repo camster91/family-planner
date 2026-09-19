@@ -2,22 +2,23 @@
 
 ## Project Overview
 
-Family Planner is a full-stack web app for family organization: chore tracking with points/rewards, shared calendar, family messaging, shared lists, meal planning, notes, birthdays/anniversaries, rewards, budget, projects, analytics, emergency contacts, sick day tracking, babysitter handoff, wishlist, travel mode, locations, pickups, and allowance. Built with Next.js 14 (App Router), TypeScript, Prisma 7, and PostgreSQL. Deployed via Docker to Coolify.
+Family Planner is a full-stack web app for family organization: chore tracking with points/rewards, shared calendar, family messaging, shared lists, meal planning, notes, birthdays/anniversaries, rewards, budget, projects, analytics, emergency contacts, sick day tracking, babysitter handoff, wishlist, travel mode, locations, pickups, and allowance. Built with Next.js 16 (App Router), TypeScript, Prisma 7, and PostgreSQL. Deployed via Docker on the ashbi.ca VPS.
 
 **Live:** https://family.ashbi.ca
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router, `output: 'standalone'`)
-- **Language**: TypeScript (strict mode)
+- **Framework**: Next.js 16 (App Router, `output: 'standalone'`)
+- **Language**: TypeScript (strict mode, `noImplicitAny: true`)
 - **Database**: PostgreSQL via Prisma 7 ORM
 - **Auth**: Self-hosted JWT (bcryptjs + jsonwebtoken) — migrated from Supabase. `src/lib/supabase/server.ts` is a legacy stub (uses JWT, NOT Supabase)
 - **Styling**: Tailwind CSS 3.4 with `clsx` + `tailwind-merge` (`cn()` helper in `src/lib/utils.ts`)
 - **State Management**: Zustand
 - **Forms**: React Hook Form + Zod validation
 - **Icons**: Lucide React
-- **CI/CD**: GitHub Actions → Coolify deployment
-- **Node**: >=20.0.0
+- **Email**: Mailgun (`ashbi.ca`, US region) — transactional verification/reset mail. API key lives in env on the VPS, never in the repo
+- **CI/CD**: GitHub Actions → VPS deploy (see `.github/workflows/` and `scripts/release-over-ssh.sh`)
+- **Node**: >=20.9.0 (`.nvmrc` = 20; Docker images use `node:20-alpine`)
 
 ## Database — 26 Models
 
