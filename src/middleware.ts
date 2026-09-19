@@ -30,6 +30,10 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/auth/verify-email',
   '/api/auth/logout', // authenticated via cookie only, no body
   '/api/health',
+  // Anonymous page-view telemetry. Carries no session and mutates no user state,
+  // so requiring a token only produces console noise for logged-out visitors
+  // (the csrf_token cookie does not exist until the first response).
+  '/api/analytics/event',
 ])
 
 export async function middleware(request: NextRequest) {
