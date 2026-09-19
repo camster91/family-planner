@@ -30,18 +30,25 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/auth/verify-email',
   '/api/auth/logout', // authenticated via cookie only, no body
   '/api/health',
-  // Anonymous page-view telemetry. Carries no session and mutates no user state,
-  // so requiring a token only produces console noise for logged-out visitors
-  // (the csrf_token cookie does not exist until the first response).
-  '/api/analytics/event',
 ])
 
 export async function middleware(request: NextRequest) {
   // CSRF check: reject all state-changing /api/* requests without a valid token,
   // except for the auth endpoints listed above (where credentials are the second factor).
+  //
+  // /api/analytics/event is exempt only while the caller is anonymous. A signed-in
+  // caller still causes a database write (an Activity row), so it must keep the CSRF
+  // check — otherwise a forged same-origin POST could inject analytics for that user.
+  // Anonymous callers are no-ops, and have no csrf_token cookie yet, so requiring one
+  // there is what produced the console noise this exemption exists to remove.
+  const isAnalyticsEvent = request.nextUrl.pathname === '/api/analytics/event'
+  const hasSession = Boolean(request.cookies.get('session_token')?.value)
+  const csrfExempt = CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname) ||
+    (isAnalyticsEvent && !hasSession)
+
   const isApiMutation = request.nextUrl.pathname.startsWith('/api/') &&
     UNSAFE_METHODS.has(request.method) &&
-    !CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname)
+    !csrfExempt
 
   if (isApiMutation) {
     const csrfError = validateCsrf(request)
