@@ -98,6 +98,10 @@ model Family {
   travel_end_date    DateTime?
   travel_destination String?
   feed_token         String?   @unique
+  // Per-family AI capture provider. Key is stored encrypted (see lib/secret-box.ts).
+  capture_ai_key_enc String?
+  capture_ai_base_url String?
+  capture_ai_model   String?
   created_at         DateTime  @default(now())
 
   // Relations

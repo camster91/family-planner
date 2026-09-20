@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS "Family" (
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "feed_token" TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS "Family_feed_token_key" ON "Family"("feed_token");
 
+-- Per-family AI capture provider (key stored encrypted)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_key_enc" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_base_url" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_model" TEXT;
+
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
   "id" TEXT PRIMARY KEY,
