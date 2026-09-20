@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw } from 'lucide-react'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -43,6 +43,17 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
+
+  // Calendar feed state. Parents only — the API enforces that too.
+  const [feedToken, setFeedToken] = useState<string | null>(null)
+  const [feedBusy, setFeedBusy] = useState(false)
+  const [feedCopied, setFeedCopied] = useState(false)
+  const [feedError, setFeedError] = useState<string | null>(null)
+
+  const feedUrl =
+    feedToken && typeof window !== 'undefined'
+      ? `${window.location.origin}/api/calendar/feed?token=${feedToken}`
+      : ''
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -55,6 +66,50 @@ export default function SettingsPage() {
   useEffect(() => {
     loadUserData()
   }, [])
+
+  // Load the family's calendar feed token, if one exists. Parents only — the
+  // API returns an error for kids, which we swallow so the card just hides.
+  useEffect(() => {
+    fetch('/api/family/feed-token')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && typeof d.feedToken === 'string' && d.feedToken) setFeedToken(d.feedToken)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Create the token, or regenerate it to revoke the old link.
+  const handleFeedToken = async (regenerate: boolean) => {
+    setFeedBusy(true)
+    setFeedError(null)
+    try {
+      const res = await fetch('/api/family/feed-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerate }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.feedToken) {
+        throw new Error(data.error || 'Could not create the link')
+      }
+      setFeedToken(data.feedToken)
+    } catch (e) {
+      setFeedError(e instanceof Error ? e.message : 'Could not create the link')
+    } finally {
+      setFeedBusy(false)
+    }
+  }
+
+  const copyFeedUrl = async () => {
+    if (!feedUrl) return
+    try {
+      await navigator.clipboard.writeText(feedUrl)
+      setFeedCopied(true)
+      setTimeout(() => setFeedCopied(false), 2000)
+    } catch {
+      setFeedError('Could not copy. Select the link and copy it manually.')
+    }
+  }
 
   const loadUserData = async () => {
     setLoading(true)
@@ -364,6 +419,81 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Calendar feed */}
+          <div className="card">
+            <div className="flex items-center mb-6">
+              <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center mr-4">
+                <CalendarDays className="w-5 h-5 text-sky-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Calendar feed</h2>
+                <p className="text-gray-600">See your family calendar in Google, Apple or Outlook</p>
+              </div>
+            </div>
+
+            {feedToken ? (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="feedUrl" className="block text-sm font-medium text-gray-900 mb-2">
+                    Your private link
+                  </label>
+                  <input
+                    id="feedUrl"
+                    readOnly
+                    value={feedUrl}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="input-field w-full text-xs font-mono"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Anyone with this link can read your family calendar. Keep it private.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={copyFeedUrl} className="btn-primary inline-flex items-center">
+                    {feedCopied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                    {feedCopied ? 'Copied' : 'Copy link'}
+                  </button>
+                  <button
+                    onClick={() => handleFeedToken(true)}
+                    disabled={feedBusy}
+                    className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
+                    Reset link
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Resetting makes a new link and instantly stops the old one working.
+                </p>
+
+                <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                  <div className="font-medium text-gray-900 mb-1">How to add it</div>
+                  <div>Google Calendar: Other calendars then From URL, paste the link.</div>
+                  <div>Apple Calendar: File then New Calendar Subscription, paste the link.</div>
+                  <div>Outlook: Add calendar then Subscribe from web, paste the link.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Create a private link so your family calendar shows up in the calendar app you already use.
+                </p>
+                <button
+                  onClick={() => handleFeedToken(false)}
+                  disabled={feedBusy}
+                  className="btn-primary inline-flex items-center"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
+                  {feedBusy ? 'Creating...' : 'Create feed link'}
+                </button>
+              </div>
+            )}
+
+            {feedError && <p className="text-sm text-red-600 mt-3">{feedError}</p>}
           </div>
 
           {/* Language Settings */}
