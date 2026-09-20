@@ -97,6 +97,7 @@ model Family {
   travel_start_date  DateTime?
   travel_end_date    DateTime?
   travel_destination String?
+  feed_token         String?   @unique
   created_at         DateTime  @default(now())
 
   // Relations

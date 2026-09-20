@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { authenticateWithFamily } from '@/lib/api-auth'
+import { draftFromText, draftFromImage, isCaptureConfigured } from '@/lib/capture'
+import { checkRateLimit } from '@/lib/rate-limit-db'
+
+export const dynamic = 'force-dynamic'
+
+// Accepted image types for screenshot capture. Kept deliberately narrow.
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+
+// POST /api/capture
+// Body: { text: string }              -> one proposed draft
+//       { imageBase64, mimeType }     -> a list of proposed events from a photo
+// Returns PROPOSALS. Nothing is saved here — the user confirms first, which is
+// what makes a cheap model safe to use.
+export async function POST(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    if (!isCaptureConfigured()) {
+      return NextResponse.json(
+        { error: 'Capture is not set up yet. Add an AI key in settings to use it.' },
+        { status: 503 }
+      )
+    }
+
+    // Cheap-model calls cost money, so keep a firm ceiling per user.
+    const rate = await checkRateLimit(`capture:${auth.user.id}`, 30, 60 * 60 * 1000)
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: 'Too many captures this hour. Try again shortly.' },
+        { status: 429 }
+      )
+    }
+
+    const body = await request.json().catch(() => null)
+
+    // Image path: extract several events from a photo/screenshot.
+    if (typeof body?.imageBase64 === 'string' && body.imageBase64) {
+      const mimeType =
+        typeof body.mimeType === 'string' && ALLOWED_IMAGE_TYPES.includes(body.mimeType)
+          ? body.mimeType
+          : 'image/jpeg'
+      const result = await draftFromImage(body.imageBase64, mimeType)
+      return NextResponse.json({ image: result })
+    }
+
+    // Text path: one phrase, one draft.
+    const text = typeof body?.text === 'string' ? body.text : ''
+    if (!text.trim()) {
+      return NextResponse.json({ error: 'Nothing to capture' }, { status: 400 })
+    }
+
+    const draft = await draftFromText(text)
+    return NextResponse.json({ draft })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Capture failed'
+    console.warn('Capture error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+// GET /api/capture — is capture available on this deployment?
+export async function GET(request: NextRequest) {
+  const [auth, error] = await authenticateWithFamily(request)
+  if (error) return error
+  return NextResponse.json({ configured: isCaptureConfigured() })
+}

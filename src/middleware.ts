@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { isSessionCurrent } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
+import { KID_ALLOWED_PREFIXES, isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
 
 // Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
 // Edge runtime (default) embeds env vars at build, causing token verification failures
@@ -101,28 +102,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Role gate: kids and teens can only see the KidHome at /dashboard by default.
-  // Any /dashboard/* sub-route is parent-only — except for routes that are
-  // designed to be kid-accessible (wishlist, emergency, sick-days, etc).
-  // The allowlist is the source of truth for what a kid can see.
+  // Role gate: kids and teens can only see the KidHome at /dashboard, plus the
+  // few routes on the shared kid allowlist (src/lib/kid-access.ts).
+  // The allowlist is the single source of truth — the dashboard layout uses the
+  // same helper, so the two gates cannot disagree.
   if (isProtectedRoute && isAuthenticated && payload) {
-    const isKid = payload.role === 'child' || payload.role === 'teen'
+    const isKid = isKidRole(payload.role)
     const pathname = request.nextUrl.pathname
-    const isDashboardRoot = pathname === '/dashboard' || pathname === '/dashboard/'
-    // Routes a kid/teen can visit (in addition to /dashboard).
-    // Without this list, the role gate is too broad and blocks kid-facing
-    // features like adding a wish or seeing emergency info.
-    const KID_ALLOWED_PREFIXES = [
-      '/dashboard/wishlist',
-      '/dashboard/emergency',
-      '/dashboard/sick-days',
-    ]
-    const isKidAllowed = KID_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
-    if (isKid && !isDashboardRoot && !isKidAllowed) {
+    if (isKid && !isDashboardRoot(pathname) && !isKidAllowedPath(pathname)) {
       const redirectUrl = new URL('/dashboard', request.url)
       return NextResponse.redirect(redirectUrl)
     }
   }
+
+  // Referenced here so an unused-import lint cannot silently drop the shared list
+  // from the built middleware.
+  void KID_ALLOWED_PREFIXES
 
   // Auth routes (login/register/join) - redirect to dashboard if already logged in
   if (isAuthRoute && isAuthenticated) {
@@ -130,6 +125,12 @@ export async function middleware(request: NextRequest) {
   }
 
   const response = NextResponse.next()
+
+  // Expose the request pathname to server components/layouts via a request
+  // header. The dashboard layout uses this for its kid-access check. Next.js
+  // does NOT provide x-pathname or x-invoke-path to layouts on its own, which
+  // is why the layout's earlier gate always fell through and never fired.
+  response.headers.set('x-pathname', request.nextUrl.pathname)
 
   // Security headers
   response.headers.set('X-Content-Type-Options', 'nosniff')
