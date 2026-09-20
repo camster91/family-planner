@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
-import { draftFromText, draftFromImage, isCaptureConfigured } from '@/lib/capture'
+import { draftFromText, draftFromImage, resolveCaptureConfig } from '@/lib/capture'
+import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 
 export const dynamic = 'force-dynamic'
@@ -18,9 +19,19 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    if (!isCaptureConfigured()) {
+    // The provider is configured per family, in the app, not in the server env.
+    const family = await prisma!.family.findUnique({
+      where: { id: auth.user.family_id },
+      select: {
+        capture_ai_key_enc: true,
+        capture_ai_base_url: true,
+        capture_ai_model: true,
+      },
+    })
+    const config = resolveCaptureConfig(family)
+    if (!config) {
       return NextResponse.json(
-        { error: 'Capture is not set up yet. Add an AI key in settings to use it.' },
+        { error: 'Capture is not set up yet. Add an AI key in Settings to use it.' },
         { status: 503 }
       )
     }
@@ -42,7 +53,7 @@ export async function POST(request: NextRequest) {
         typeof body.mimeType === 'string' && ALLOWED_IMAGE_TYPES.includes(body.mimeType)
           ? body.mimeType
           : 'image/jpeg'
-      const result = await draftFromImage(body.imageBase64, mimeType)
+      const result = await draftFromImage(body.imageBase64, mimeType, config)
       return NextResponse.json({ image: result })
     }
 
@@ -52,7 +63,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nothing to capture' }, { status: 400 })
     }
 
-    const draft = await draftFromText(text)
+    const draft = await draftFromText(text, config)
     return NextResponse.json({ draft })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Capture failed'
@@ -61,9 +72,19 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/capture — is capture available on this deployment?
+// GET /api/capture — is capture available for this family?
 export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request)
   if (error) return error
-  return NextResponse.json({ configured: isCaptureConfigured() })
+
+  const family = await prisma!.family.findUnique({
+    where: { id: auth.user.family_id },
+    select: {
+      capture_ai_key_enc: true,
+      capture_ai_base_url: true,
+      capture_ai_model: true,
+    },
+  })
+  const config = resolveCaptureConfig(family)
+  return NextResponse.json({ configured: Boolean(config), model: config?.model ?? null })
 }

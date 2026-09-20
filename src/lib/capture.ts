@@ -4,12 +4,26 @@
 // tight prompt and one known output shape. A cheap model is sufficient because
 // the task is extraction, not reasoning.
 //
-// Provider is a setting, not hard-coded: set CAPTURE_AI_BASE_URL, CAPTURE_AI_KEY
-// and CAPTURE_AI_MODEL. Works with any OpenAI-compatible endpoint (DeepSeek,
-// Ollama, etc.). If no key is configured, capture reports itself unavailable and
-// the rest of the app is unaffected.
+// Provider configuration lives PER FAMILY in the app (Settings → AI capture),
+// not in the server environment. The family's key is stored encrypted; see
+// src/lib/secret-box.ts. Works with any OpenAI-compatible endpoint.
+//
+// A server-level CAPTURE_AI_KEY still works as a fallback so the deployment can
+// be configured centrally if ever needed, but the app path is the default.
+// If neither is set, capture reports itself unavailable and the rest of the app
+// is unaffected.
+
+import { decryptSecret } from './secret-box'
 
 const DEFAULT_MODEL = 'deepseek-chat'
+const DEFAULT_BASE_URL = 'https://api.deepseek.com'
+
+// Resolved provider settings for one family.
+export interface CaptureConfig {
+  apiKey: string
+  baseUrl: string
+  model: string
+}
 
 export type CaptureKind = 'event' | 'task' | 'listitem'
 
@@ -25,6 +39,35 @@ export interface CaptureDraft {
   note?: string // shown to the user when the model is unsure
 }
 
+// Per-family row shape we need from the database. Kept structural so this file
+// does not import prisma directly.
+export interface CaptureSettingsRow {
+  capture_ai_key_enc?: string | null
+  capture_ai_base_url?: string | null
+  capture_ai_model?: string | null
+}
+
+// Prisma returns `undefined` for unselected columns, so a plain object of the
+// three fields (or null) is all this accepts.
+type CaptureSettingsInput = CaptureSettingsRow | null | undefined
+
+// Build the effective config for a family, falling back to the deployment-level
+// environment only if the family has not set anything.
+export function resolveCaptureConfig(row?: CaptureSettingsInput): CaptureConfig | null {
+  const familyKey = decryptSecret(row?.capture_ai_key_enc)
+  const envKey = process.env.CAPTURE_AI_KEY?.trim() || null
+
+  const apiKey = familyKey || envKey
+  if (!apiKey) return null
+
+  return {
+    apiKey,
+    baseUrl: (row?.capture_ai_base_url?.trim() || process.env.CAPTURE_AI_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''),
+    model: row?.capture_ai_model?.trim() || process.env.CAPTURE_AI_MODEL || DEFAULT_MODEL,
+  }
+}
+
+// Kept for the GET /api/capture health probe (deployment-level only).
 export function isCaptureConfigured(): boolean {
   return Boolean(process.env.CAPTURE_AI_KEY)
 }
@@ -101,20 +144,17 @@ Rules:
 - Set confidence honestly: "low" if the image was hard to read or the dates ambiguous.`
 
 async function callModel(
+  config: CaptureConfig,
   userContent: Array<Record<string, unknown>>,
   systemPrompt: string
 ): Promise<unknown> {
-  const key = process.env.CAPTURE_AI_KEY?.trim()
-  const base = (process.env.CAPTURE_AI_BASE_URL || 'https://api.deepseek.com').replace(/\/$/, '')
-  const model = process.env.CAPTURE_AI_MODEL || DEFAULT_MODEL
+  const { apiKey, baseUrl, model } = config
 
-  if (!key) throw new Error('Capture is not configured')
-
-  const res = await fetch(`${base}/chat/completions`, {
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
@@ -150,12 +190,13 @@ async function callModel(
 }
 
 // Public entry point used by the API route.
-export async function draftFromText(text: string): Promise<CaptureDraft> {
+export async function draftFromText(text: string, config: CaptureConfig): Promise<CaptureDraft> {
   const trimmed = text.trim()
   if (!trimmed) throw new Error('Nothing to capture')
   if (trimmed.length > 500) throw new Error('Phrase is too long (max 500 characters)')
 
   const parsed = await callModel(
+    config,
     [
       { type: 'text', text: `${todayContext()}\n\nPhrase: ${trimmed}` },
     ],
@@ -199,7 +240,11 @@ export interface ImageCaptureResult {
   note?: string
 }
 
-export async function draftFromImage(base64: string, mimeType: string): Promise<ImageCaptureResult> {
+export async function draftFromImage(
+  base64: string,
+  mimeType: string,
+  config: CaptureConfig
+): Promise<ImageCaptureResult> {
   if (!base64) throw new Error('No image provided')
 
   // Guard the payload size. ~6MB of base64 is roughly a 4.5MB image, which is
@@ -207,6 +252,7 @@ export async function draftFromImage(base64: string, mimeType: string): Promise<
   if (base64.length > 6_000_000) throw new Error('Image is too large (max ~4.5MB)')
 
   const parsed = await callModel(
+    config,
     [
       {
         type: 'text',

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles } from 'lucide-react'
 
 export default function SettingsPage() {
   const [name, setName] = useState('')
@@ -50,6 +50,17 @@ export default function SettingsPage() {
   const [feedCopied, setFeedCopied] = useState(false)
   const [feedError, setFeedError] = useState<string | null>(null)
 
+  // AI capture provider state. The key is never loaded back into the form —
+  // the API returns only a masked hint, so the field stays empty on load.
+  const [aiKey, setAiKey] = useState('')
+  const [aiKeyHint, setAiKeyHint] = useState<string | null>(null)
+  const [aiConfigured, setAiConfigured] = useState(false)
+  const [aiBaseUrl, setAiBaseUrl] = useState('')
+  const [aiModel, setAiModel] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiMessage, setAiMessage] = useState<string | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
+
   const feedUrl =
     feedToken && typeof window !== 'undefined'
       ? `${window.location.origin}/api/calendar/feed?token=${feedToken}`
@@ -77,6 +88,48 @@ export default function SettingsPage() {
       })
       .catch(() => {})
   }, [])
+
+  // Load AI capture settings (masked hint only — never the key itself).
+  useEffect(() => {
+    fetch('/api/family/ai-settings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return
+        setAiConfigured(Boolean(d.configured))
+        setAiKeyHint(d.keyHint ?? null)
+        setAiBaseUrl(d.baseUrl ?? '')
+        setAiModel(d.model ?? '')
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveAiSettings = async (clear = false) => {
+    setAiBusy(true)
+    setAiError(null)
+    setAiMessage(null)
+    try {
+      const res = await fetch('/api/family/ai-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          clear
+            ? { clear: true }
+            : { apiKey: aiKey.trim(), baseUrl: aiBaseUrl.trim(), model: aiModel.trim() }
+        ),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not save those settings')
+      setAiConfigured(Boolean(data.configured))
+      setAiKeyHint(data.keyHint ?? null)
+      setAiKey('')
+      setAiMessage(clear ? 'AI key removed' : 'Saved')
+      setTimeout(() => setAiMessage(null), 2500)
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'Could not save those settings')
+    } finally {
+      setAiBusy(false)
+    }
+  }
 
   // Create the token, or regenerate it to revoke the old link.
   const handleFeedToken = async (regenerate: boolean) => {
@@ -418,6 +471,99 @@ export default function SettingsPage() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* AI capture */}
+          <div className="card">
+            <div className="flex items-center mb-6">
+              <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center mr-4">
+                <Sparkles className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">AI capture</h2>
+                <p className="text-gray-600">Type a sentence or photograph a flyer, and it sorts itself out</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="aiKey" className="block text-sm font-medium text-gray-900 mb-2">
+                  API key
+                </label>
+                <input
+                  id="aiKey"
+                  type="password"
+                  autoComplete="off"
+                  value={aiKey}
+                  onChange={(e) => setAiKey(e.target.value)}
+                  placeholder={aiConfigured ? `Saved: ${aiKeyHint}` : 'Paste your key'}
+                  className="input-field w-full font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Stored encrypted. Never shown again after saving.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
+                  Provider URL <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="aiBaseUrl"
+                  value={aiBaseUrl}
+                  onChange={(e) => setAiBaseUrl(e.target.value)}
+                  placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
+                  className="input-field w-full text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
+                  Model <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="aiModel"
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  placeholder="gemini-2.0-flash"
+                  className="input-field w-full text-sm"
+                />
+              </div>
+
+              <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                <div className="font-medium text-gray-900 mb-1">For photos of flyers, pick a vision model</div>
+                <div>Google Gemini Flash — free tier, reads photos. Use the URL and model above.</div>
+                <div>OpenAI — paste the key and leave URL and model blank.</div>
+                <div>DeepSeek — paste the key. Text only; photos will not work.</div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => saveAiSettings(false)}
+                  disabled={aiBusy || (!aiKey.trim() && !aiConfigured)}
+                  className="btn-primary inline-flex items-center"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {aiBusy ? 'Saving…' : 'Save'}
+                </button>
+                {aiConfigured && (
+                  <button
+                    onClick={() => saveAiSettings(true)}
+                    disabled={aiBusy}
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Remove key
+                  </button>
+                )}
+                {aiMessage && (
+                  <span className="text-sm text-green-700 inline-flex items-center">
+                    <Check className="w-4 h-4 mr-1" /> {aiMessage}
+                  </span>
+                )}
+              </div>
+
+              {aiError && <p className="text-sm text-red-600">{aiError}</p>}
             </div>
           </div>
 
