@@ -7,6 +7,7 @@ import { ListRow, InsetList } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
+import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
 
 type ViewMode = 'day' | 'week' | 'month'
@@ -133,6 +134,10 @@ export default function CalendarPageClient({
 
       <div className="px-4 mb-4">
         <SegmentedControl value={view} onChange={setView} />
+      </div>
+
+      <div className="px-4 mb-5">
+        <CaptureBox />
       </div>
 
       <div className="space-y-5 px-4">

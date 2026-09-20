@@ -21,8 +21,13 @@ CREATE TABLE IF NOT EXISTS "Family" (
   "name" TEXT NOT NULL,
   "invite_code" TEXT UNIQUE NOT NULL,
   "subscription_tier" TEXT NOT NULL DEFAULT 'free',
+  "feed_token" TEXT UNIQUE,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Backfill feed_token for families created before calendar feeds existed
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "feed_token" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "Family_feed_token_key" ON "Family"("feed_token");
 
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
