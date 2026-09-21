@@ -35,9 +35,19 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    // Idempotent update — only updates if not already completed
+    // Complete only from a state that has not already been completed OR
+    // verified (#185).
+    //
+    // The previous predicate was `status: { not: 'completed' }`, which a
+    // `verified` chore still matched — so completing a verified chore reset it
+    // to `completed`, and the next verify awarded XP a second time. Combined
+    // with the fact that any family member may complete, that made XP farmable:
+    // complete -> verify -> complete -> verify.
+    //
+    // An explicit allowlist of source states closes it. `completed` and
+    // `verified` are both no-ops, so a repeat click is still idempotent.
     const updateResult = await prisma!.chore.updateMany({
-      where: { id: choreId, status: { not: 'completed' } },
+      where: { id: choreId, status: { in: ['pending', 'in_progress', 'overdue'] } },
       data: {
         status: 'completed',
         completed_at: new Date(),
@@ -46,6 +56,9 @@ export async function POST(request: NextRequest) {
     })
 
     if (updateResult.count === 0) {
+      // Either already completed/verified, or in a state that cannot be
+      // completed. No XP is awarded here in either case — verify is the only
+      // path that awards XP.
       return NextResponse.json({ success: true, alreadyCompleted: true })
     }
 
