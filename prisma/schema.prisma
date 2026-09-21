@@ -181,18 +181,34 @@ model Chore {
   created_at     DateTime  @default(now())
   created_by     String // user_id
 
+  // Recurrence series (#184).
+  //
+  // A recurring chore is ONE template row plus its generated occurrences.
+  // `recurrence_id` is the template's id on the template itself and on every
+  // occurrence it generated; together with `is_template` this makes the series
+  // explicit instead of being inferred from (title, assignee, due_date) — which
+  // conflated two unrelated "Clean room" chores that happened to share a date,
+  // and could not tell a series' own rows from an unrelated row's.
+  //
+  // Both columns are nullable/additive: existing rows keep working, and rows
+  // created before this change are treated as standalone one-offs.
+  recurrence_id  String?
+  is_template    Boolean   @default(false)
+
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id])
   creator     User              @relation("CreatedChores", fields: [created_by], references: [id])
   assignments ChoreAssignment[]
 
+  @@unique([recurrence_id, due_date])
   @@index([family_id])
   @@index([assigned_to])
   @@index([status])
   @@index([due_date])
   @@index([family_id, status])
   @@index([family_id, assigned_to])
+  @@index([recurrence_id])
 }
 
 model ChoreAssignment {
