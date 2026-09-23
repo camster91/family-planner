@@ -89,8 +89,14 @@ CREATE TABLE IF NOT EXISTS "Chore" (
   "verified_notes" TEXT,
   "completed_at" TIMESTAMP(3),
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "created_by" TEXT NOT NULL
+  "created_by" TEXT NOT NULL,
+  "recurrence_id" TEXT,
+  "is_template" BOOLEAN NOT NULL DEFAULT false
 );
+
+-- Backfill the #184 recurrence columns for deployments whose Chore table predates them
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "recurrence_id" TEXT;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "is_template" BOOLEAN NOT NULL DEFAULT false;
 
 -- ============ Event ============
 CREATE TABLE IF NOT EXISTS "Event" (
@@ -465,6 +471,9 @@ CREATE INDEX IF NOT EXISTS "Chore_status_idx" ON "Chore"("status");
 CREATE INDEX IF NOT EXISTS "Chore_due_date_idx" ON "Chore"("due_date");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_status_idx" ON "Chore"("family_id", "status");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_assigned_to_idx" ON "Chore"("family_id", "assigned_to");
+CREATE INDEX IF NOT EXISTS "Chore_recurrence_id_idx" ON "Chore"("recurrence_id");
+-- Final concurrency guard for #184 series expansion: one occurrence per (series, date)
+CREATE UNIQUE INDEX IF NOT EXISTS "Chore_recurrence_id_due_date_key" ON "Chore"("recurrence_id", "due_date");
 
 CREATE INDEX IF NOT EXISTS "Event_family_id_idx" ON "Event"("family_id");
 CREATE INDEX IF NOT EXISTS "Event_start_time_idx" ON "Event"("start_time");
