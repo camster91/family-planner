@@ -1,43 +1,107 @@
-name: Legacy Manual Image Build
+name: Build, Test & Push Image to ghcr.io
 
-# Reference-only compatibility path. Superseded for normal CI by ci.yml and
-# build-and-push.yml. It cannot publish automatically after a branch push.
+# Single owner of the published image. There is deliberately NO `pull_request`
+# trigger here: a PR must never publish an image tag that production could pull.
+# See #187.
 on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Gate: nothing is published unless the full verification suite passed on this
+  # exact commit. Mirrors ci.yml so the image is built from a verified tree.
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci --runInBand --no-watchman
+        env:
+          CI: true
+
+      - name: Verify database migrations are idempotent
+        run: |
+          node scripts/migrate.js
+          node scripts/migrate.js
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+
+      - name: Test persisted family imports
+        run: npx jest src/lib/imports/__tests__/persistence.integration.test.ts --ci --runInBand --no-watchman --forceExit
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+          RUN_DB_INTEGRATION: "1"
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          CI: true
+
   build-and-push:
-    name: Legacy manual build and push
+    name: Build & Push
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          DATABASE_URL: postgresql://placeholder/placeholder
-
-      - name: Run tests
-        run: npm test -- --ci
-        env:
-          CI: true
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -49,6 +113,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Tags are immutable-by-commit: the full git SHA, plus a rolling branch or
+      # version tag. `:latest` is intentionally NOT published — production must
+      # resolve an explicit SHA, never a mutable pointer (#187).
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -56,8 +123,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # No network=host needed in GitHub Actions runners (full internet)
-          # The image is then picked up by deploy-from-ghcr.yml

@@ -65,6 +65,42 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Only parents or the assignee can edit chores' }, { status: 403 })
     }
 
+    // Fields a non-parent assignee must not change (#185).
+    //
+    // The assignee may edit their own chore, but `points` decides how much XP
+    // verify awards and `assigned_to` decides who receives it. Letting a child
+    // set either meant they could inflate points before verification, or point
+    // the chore at any user id they could guess. Both are privilege boundaries,
+    // not cosmetic edits.
+    const PARENT_ONLY_FIELDS = ['points', 'assigned_to', 'frequency'] as const
+    if (auth.user.role !== 'parent') {
+      const attempted = PARENT_ONLY_FIELDS.filter((f) => updates[f] !== undefined)
+      if (attempted.length > 0) {
+        return NextResponse.json(
+          { error: `Only parents can change: ${attempted.join(', ')}` },
+          { status: 403 }
+        )
+      }
+    }
+
+    // A new assignee must be a member of the same family, whatever the caller's
+    // role. Without this a parent could accidentally (or a crafted request could
+    // deliberately) assign a chore to a user in another household.
+    if (updates.assigned_to !== undefined) {
+      if (updates.assigned_to !== chore.assigned_to) {
+        const assignee = await prisma!.user.findFirst({
+          where: { id: updates.assigned_to, family_id: auth.user.family_id },
+          select: { id: true },
+        })
+        if (!assignee) {
+          return NextResponse.json(
+            { error: 'Assignee must be a member of your family' },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     const data: Record<string, unknown> = {}
     if (updates.title !== undefined) data.title = updates.title
     if (updates.description !== undefined) data.description = updates.description

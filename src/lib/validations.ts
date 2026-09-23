@@ -11,6 +11,7 @@ export const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
   name: z.string().min(1, 'Name is required').max(100).trim(),
   role: z.enum(['parent', 'child', 'teen']).default('parent'),
+  inviteToken: z.string().length(64).optional(),
 })
 
 // Chores
@@ -64,8 +65,18 @@ export const deleteFamilySchema = z.object({
   familyId: z.string().min(1),
 })
 
-export const joinFamilySchema = z.object({
-  familyId: z.string().min(1),
+export const joinFamilySchema = z
+  .object({
+    inviteCode: z.string().min(8).max(64).trim().optional(),
+    token: z.string().length(64).optional(),
+  })
+  .refine((data) => Boolean(data.token || data.inviteCode), {
+    message: 'inviteCode or token is required',
+  })
+
+export const createEmailInviteSchema = z.object({
+  email: z.string().email('Valid email is required').max(255),
+  role: z.enum(['parent', 'teen', 'child']),
 })
 
 // Messages

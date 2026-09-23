@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
-import { expandRecurringChores } from '@/lib/recurringChores'
+import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,11 +63,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Expand recurring occurrences for daily/weekly/monthly chores
+    // Expand recurring occurrences for daily/weekly/monthly chores.
+    //
+    // The row becomes the template of its own series FIRST, so that expansion
+    // and the cron agree on which rows are series templates (#184). Without
+    // this the row has no recurrence_id and the cron cannot see it.
     if (frequency !== 'once') {
       try {
+        await markAsTemplate(newChore.id)
         await expandRecurringChores(
-          { id: newChore.id, frequency, assigned_to: newChore.assigned_to, created_by: newChore.created_by },
+          { id: newChore.id, frequency },
           auth.user.family_id
         )
       } catch (err) {

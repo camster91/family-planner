@@ -25,7 +25,30 @@ export async function POST(request: NextRequest) {
 
     const { email, password } = parsed.data
 
-    const user = await prisma!.user.findUnique({ where: { email } })
+    // Explicit select — never widen this to a whole-row fetch. Returning the row
+    // and stripping `password` leaked any live reset_token / verify_token to the
+    // browser, and would leak the session generation too.
+    const user = await prisma!.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        age: true,
+        family_id: true,
+        avatar_url: true,
+        email_verified: true,
+        xp: true,
+        level: true,
+        streak: true,
+        best_streak: true,
+        last_chore_date: true,
+        created_at: true,
+        password: true,
+        token_version: true,
+      },
+    })
 
     // Always run bcrypt to prevent timing-based email enumeration
     const valid = await safeVerifyPassword(password, user?.password ?? null)
@@ -35,9 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Email verification gate — accounts must be confirmed before login.
-    // Defensive: if the email_verified column doesn't exist (older deploy),
-    // skip the check rather than 500. Login still works in that case.
-    if ('email_verified' in user && user.email_verified === false) {
+    if (user.email_verified === false) {
       return NextResponse.json(
         { error: 'Please verify your email before signing in. Check your inbox for the verification link.' },
         { status: 403 }
@@ -49,11 +70,12 @@ export async function POST(request: NextRequest) {
       email: user.email,
       role: user.role,
       family_id: user.family_id,
+      tv: user.token_version,
     })
 
-    const { password: _, ...userWithoutPassword } = user
+    const { password: _pw, token_version: _tv, ...safeUser } = user
 
-    const response = NextResponse.json({ user: userWithoutPassword })
+    const response = NextResponse.json({ user: safeUser })
     response.cookies.set('session_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

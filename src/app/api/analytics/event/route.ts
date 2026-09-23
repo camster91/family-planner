@@ -4,14 +4,16 @@ import { getServerUser } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const sessionUser = await getServerUser()
-    if (!sessionUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { event, path, metadata } = await request.json()
     if (!event || typeof event !== 'string') {
       return NextResponse.json({ error: 'Event name required' }, { status: 400 })
+    }
+
+    // Anonymous visitors are valid: a page_view must not 401 in the console.
+    // Only signed-in users with a family produce a stored activity row.
+    const sessionUser = await getServerUser()
+    if (!sessionUser) {
+      return NextResponse.json({ success: true, skipped: true, reason: 'anonymous' })
     }
 
     const user = await prisma!.user.findUnique({
