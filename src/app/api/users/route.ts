@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { updateUserSchema } from '@/lib/validations'
+import { SAFE_USER_SELECT } from '@/lib/user-select'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,15 +14,14 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma!.user.findUnique({
       where: { id: payload.userId },
+      select: SAFE_USER_SELECT,
     })
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const { password: _, ...userWithoutPassword } = user
-
-    return NextResponse.json({ user: userWithoutPassword })
+    return NextResponse.json({ user })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -53,11 +53,10 @@ export async function PATCH(request: NextRequest) {
     const user = await prisma!.user.update({
       where: { id: payload.userId },
       data: updateData,
+      select: SAFE_USER_SELECT,
     })
 
-    const { password: _, ...userWithoutPassword } = user
-
-    return NextResponse.json({ user: userWithoutPassword })
+    return NextResponse.json({ user })
   } catch (error) {
     console.error('Error updating user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -105,9 +104,14 @@ export async function DELETE(request: NextRequest) {
       where: { id: user.id },
     })
 
-    // Clear session cookie
+    // Clear session cookie — attributes must match the ones set at login,
+    // otherwise the browser treats it as a different cookie and the old one
+    // survives the account deletion.
     const response = NextResponse.json({ success: true })
     response.cookies.set('session_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       path: '/',
       maxAge: 0,
     })

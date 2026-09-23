@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth'
 import { verifyPassword, hashPassword } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { authenticateRequest, attachSessionCookie } from '@/lib/api-auth'
 import { changePasswordSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const payload = verifyToken(token)
-    if (!payload || !payload.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const [payload, authError] = await authenticateRequest(request)
+    if (authError) return authError
 
     const body = await request.json()
     const parsed = changePasswordSchema.safeParse(body)
@@ -39,12 +32,24 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(newPassword)
+
+    // Bumping token_version revokes every session issued before this change —
+    // a stolen cookie stops working. The device making the change gets a fresh
+    // cookie below so the user is not signed out of the session they just used.
     await prisma!.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, token_version: { increment: 1 } },
     })
 
-    return NextResponse.json({ message: 'Password changed successfully' })
+    const response = NextResponse.json({ message: 'Password changed successfully' })
+    await attachSessionCookie(response, {
+      userId: payload.userId,
+      email: payload.email,
+      role: payload.role,
+      family_id: payload.family_id,
+    })
+
+    return response
   } catch (error) {
     console.error('Change password error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

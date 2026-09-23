@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { authenticateRequest } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('session_token')?.value
-    if (!token) {
-      return NextResponse.json({ user: null }, { status: 401 })
-    }
-
-    const payload = verifyToken(token)
-    if (!payload || !payload.userId) {
+    // Full session validation, including the session-generation check — a
+    // cookie revoked by a password reset must not still read the profile.
+    const [payload, authError] = await authenticateRequest(request)
+    if (authError) {
       return NextResponse.json({ user: null }, { status: 401 })
     }
 

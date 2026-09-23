@@ -29,6 +29,9 @@ model User {
   reset_token_expires           DateTime?
   verify_token                  String?
   verify_token_expires          DateTime?
+  /// Session generation. Incremented on password reset/change to invalidate
+  /// every JWT issued before that point (checked against the `tv` claim).
+  token_version                 Int                @default(0)
   created_at                    DateTime           @default(now())
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
@@ -79,6 +82,7 @@ model User {
   created_recipes               Recipe[]           @relation("RecipeCreator")
   created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
   created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
+  family_invites_created        FamilyInvite[]     @relation("FamilyInviteCreator")
 
   @@index([family_id])
 }
@@ -93,6 +97,11 @@ model Family {
   travel_start_date  DateTime?
   travel_end_date    DateTime?
   travel_destination String?
+  feed_token         String?   @unique
+  // Per-family AI capture provider. Key is stored encrypted (see lib/secret-box.ts).
+  capture_ai_key_enc String?
+  capture_ai_base_url String?
+  capture_ai_model   String?
   created_at         DateTime  @default(now())
 
   // Relations
@@ -132,6 +141,25 @@ model Family {
   meal_plans         MealPlan[]
   shopping_lists     ShoppingList[]
   finance_records    FinancialArchiveRecord[]
+  invites            FamilyInvite[]
+}
+
+model FamilyInvite {
+  id          String    @id @default(cuid())
+  family_id   String
+  email       String
+  role        String
+  token_hash  String    @unique
+  expires_at  DateTime
+  accepted_at DateTime?
+  created_by  String
+  created_at  DateTime  @default(now())
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("FamilyInviteCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([family_id, email])
+  @@index([expires_at])
 }
 
 model Chore {
@@ -153,18 +181,34 @@ model Chore {
   created_at     DateTime  @default(now())
   created_by     String // user_id
 
+  // Recurrence series (#184).
+  //
+  // A recurring chore is ONE template row plus its generated occurrences.
+  // `recurrence_id` is the template's id on the template itself and on every
+  // occurrence it generated; together with `is_template` this makes the series
+  // explicit instead of being inferred from (title, assignee, due_date) — which
+  // conflated two unrelated "Clean room" chores that happened to share a date,
+  // and could not tell a series' own rows from an unrelated row's.
+  //
+  // Both columns are nullable/additive: existing rows keep working, and rows
+  // created before this change are treated as standalone one-offs.
+  recurrence_id  String?
+  is_template    Boolean   @default(false)
+
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id])
   creator     User              @relation("CreatedChores", fields: [created_by], references: [id])
   assignments ChoreAssignment[]
 
+  @@unique([recurrence_id, due_date])
   @@index([family_id])
   @@index([assigned_to])
   @@index([status])
   @@index([due_date])
   @@index([family_id, status])
   @@index([family_id, assigned_to])
+  @@index([recurrence_id])
 }
 
 model ChoreAssignment {

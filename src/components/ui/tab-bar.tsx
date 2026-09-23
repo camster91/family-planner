@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Home, Calendar, ListChecks, Users, LucideIcon } from 'lucide-react'
+import { Home, Calendar, ListChecks, Heart, Users, LucideIcon } from 'lucide-react'
 import { User } from '@/types'
 
 /**
@@ -22,6 +22,9 @@ const TABS: TabItem[] = [
   { href: '/dashboard', label: 'Today', icon: Home },
   { href: '/dashboard/calendar', label: 'Calendar', icon: Calendar, matchPrefix: true },
   { href: '/dashboard/lists', label: 'Lists', icon: ListChecks, matchPrefix: true },
+  // Emergency is in the desktop tabs, so it belongs here too — a parent on a
+  // phone previously had no way to reach it from the nav.
+  { href: '/dashboard/emergency', label: 'Emergency', icon: Heart, matchPrefix: true },
   { href: '/dashboard/family', label: 'Family', icon: Users, matchPrefix: true },
 ]
 

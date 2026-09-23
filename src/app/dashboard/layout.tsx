@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import CommandPaletteHost from '@/components/layout/CommandPaletteHost'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { defaultFeatures, normalizeFeatures } from '@/lib/features'
+import { isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
 
 export default async function DashboardLayout({
   children,
@@ -40,26 +41,30 @@ export default async function DashboardLayout({
   })
   const role = dbUser?.role || sessionUser.role || 'parent'
 
-  // Server-side role gate: kids and teens can only see the KidHome (which is
-  // rendered by /dashboard/page.tsx). Any /dashboard/* sub-route is parent-only
-  // and kids get redirected back to /dashboard. This prevents a kid from
-  // bypassing the KidHome routing by typing /dashboard/features directly.
-  if ((role === 'child' || role === 'teen')) {
+  // Server-side role gate, second line of defence behind the middleware
+  // (src/middleware.ts). Both read the SAME allowlist from src/lib/kid-access.ts,
+  // so they cannot disagree.
+  //
+  // Previously this read `x-pathname` / `x-invoke-path`, which Next.js never
+  // sends to layouts — so the check always fell through and the gate never fired.
+  // That is why kids could reach sub-routes the comment claimed were blocked.
+  //
+  // The pathname now comes from the `x-pathname` header the middleware sets on
+  // every request, falling back to the referer.
+  if (isKidRole(role)) {
     const hdrs = await headers()
-    const pathname = hdrs.get('x-pathname') || hdrs.get('x-invoke-path') || ''
-    // x-invoke-path is the most reliable in Next 14 layouts
+    const pathname = hdrs.get('x-pathname') || ''
     const referer = hdrs.get('referer') || ''
-    // Use x-pathname header (set by middleware) or fall back to referer
     let route = pathname
     if (!route) {
       try {
         route = new URL(referer).pathname
       } catch { /* ignore */ }
     }
-    if (!route || route === '/dashboard' || route === '/dashboard/') {
-      // Allowed: KidHome renders here
-    } else {
-      // Block any sub-route
+    // If we genuinely cannot determine the route, allow it: the middleware ran
+    // first and already enforced the allowlist. Failing closed here would lock
+    // kids out of their own dashboard.
+    if (route && !isDashboardRoot(route) && !isKidAllowedPath(route)) {
       redirect('/dashboard')
     }
   }

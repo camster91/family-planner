@@ -21,8 +21,18 @@ CREATE TABLE IF NOT EXISTS "Family" (
   "name" TEXT NOT NULL,
   "invite_code" TEXT UNIQUE NOT NULL,
   "subscription_tier" TEXT NOT NULL DEFAULT 'free',
+  "feed_token" TEXT UNIQUE,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Backfill feed_token for families created before calendar feeds existed
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "feed_token" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "Family_feed_token_key" ON "Family"("feed_token");
+
+-- Per-family AI capture provider (key stored encrypted)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_key_enc" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_base_url" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_model" TEXT;
 
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
@@ -42,6 +52,9 @@ CREATE TABLE IF NOT EXISTS "User" (
   "email_verified" BOOLEAN NOT NULL DEFAULT false,
   "reset_token" TEXT,
   "reset_token_expires" TIMESTAMP(3),
+  "verify_token" TEXT,
+  "verify_token_expires" TIMESTAMP(3),
+  "token_version" INTEGER NOT NULL DEFAULT 0,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -56,6 +69,7 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "reset_token" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "reset_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token_expires" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "token_version" INTEGER NOT NULL DEFAULT 0;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (
@@ -305,9 +319,32 @@ CREATE TABLE IF NOT EXISTS "RateLimitEntry" (
 CREATE INDEX IF NOT EXISTS "RateLimitEntry_key_idx" ON "RateLimitEntry"("key");
 CREATE INDEX IF NOT EXISTS "RateLimitEntry_resetAt_idx" ON "RateLimitEntry"("resetAt");
 
+-- ============ FamilyInvite (email invites; token stored hashed) ============
+CREATE TABLE IF NOT EXISTS "FamilyInvite" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "email" TEXT NOT NULL,
+  "role" TEXT NOT NULL,
+  "token_hash" TEXT NOT NULL UNIQUE,
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "accepted_at" TIMESTAMP(3),
+  "created_by" TEXT NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "FamilyInvite_token_hash_key" ON "FamilyInvite"("token_hash");
+CREATE INDEX IF NOT EXISTS "FamilyInvite_family_id_email_idx" ON "FamilyInvite"("family_id", "email");
+CREATE INDEX IF NOT EXISTS "FamilyInvite_expires_at_idx" ON "FamilyInvite"("expires_at");
+
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "FamilyInvite" ADD CONSTRAINT "FamilyInvite_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "FamilyInvite" ADD CONSTRAINT "FamilyInvite_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

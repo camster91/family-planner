@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { verifySessionToken } from '@/lib/session'
 
 // Stub: returns the authenticated user from the JWT cookie.
 // Used by server components that previously called supabase.auth.getSession().
@@ -7,6 +7,11 @@ import { verifyToken } from '@/lib/auth'
 // them here so route handlers can do role checks without an extra DB lookup.
 // For legacy tokens issued before the JWT change, role will be undefined and
 // callers should treat as 'parent' (the safe default) or do a DB lookup.
+//
+// This is the server-component counterpart to `authenticateRequest`, and it
+// goes through the SAME `verifySessionToken` check. Using bare `verifyToken`
+// here meant a revoked cookie (password reset/change bumps `token_version`)
+// still authenticated every page and route that reads the session this way.
 export async function getServerUser(): Promise<{
   id: string
   email: string
@@ -17,7 +22,7 @@ export async function getServerUser(): Promise<{
   const token = cookieStore.get('session_token')?.value
   if (!token) return null
 
-  const payload = verifyToken(token)
+  const payload = await verifySessionToken(token)
   if (!payload || !payload.userId) return null
 
   return {
