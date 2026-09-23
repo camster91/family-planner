@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { completeChoreSchema } from '@/lib/validations'
+// Shared date rule, so completion and the cron expander cannot disagree (#184).
+import { nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,42 +75,35 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Handle recurring chores — create next occurrence
+      // Handle recurring chores — create the next occurrence.
+      //
+      // The date rule is shared with the expander (#184). Previously this path
+      // advanced monthly with `setMonth(+1)` while the expander used
+      // `setDate(+30)`, so the two produced different dates for the same chore.
+      //
+      // The row is inserted with `frequency: 'once'` for the same reason the
+      // expander does: a generated occurrence is a one-off, and only the
+      // template the user created recurs. Leaving `frequency` on instances is
+      // what let the cron re-expand its own output and multiply the series.
       if (chore.frequency && chore.frequency !== 'once') {
-        const dueDate = new Date(chore.due_date)
-        let nextDueDate: Date
-
-        switch (chore.frequency) {
-          case 'daily':
-            nextDueDate = new Date(dueDate)
-            nextDueDate.setDate(nextDueDate.getDate() + 1)
-            break
-          case 'weekly':
-            nextDueDate = new Date(dueDate)
-            nextDueDate.setDate(nextDueDate.getDate() + 7)
-            break
-          case 'monthly':
-            nextDueDate = new Date(dueDate)
-            nextDueDate.setMonth(nextDueDate.getMonth() + 1)
-            break
-          default:
-            return
+        const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
+        if (nextDueDate) {
+          await tx.chore.create({
+            data: {
+              family_id: chore.family_id,
+              title: chore.title,
+              description: chore.description,
+              points: chore.points,
+              assigned_to: chore.assigned_to,
+              due_date: nextDueDate,
+              status: 'pending',
+              // One-off occurrence, so the cron never re-expands it.
+              frequency: 'once',
+              difficulty: chore.difficulty,
+              created_by: chore.created_by,
+            },
+          })
         }
-
-        await tx.chore.create({
-          data: {
-            family_id: chore.family_id,
-            title: chore.title,
-            description: chore.description,
-            points: chore.points,
-            assigned_to: chore.assigned_to,
-            due_date: nextDueDate,
-            status: 'pending',
-            frequency: chore.frequency,
-            difficulty: chore.difficulty,
-            created_by: chore.created_by,
-          },
-        })
       }
     })
 

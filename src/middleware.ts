@@ -31,6 +31,16 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/auth/verify-email',
   '/api/auth/logout', // authenticated via cookie only, no body
   '/api/health',
+  // Machine-called cron endpoint (#184). An external scheduler sends only
+  // `x-cron-secret`; it has no browser session and therefore no CSRF cookie,
+  // so the double-submit check rejected it with 403 and the job never ran.
+  //
+  // Safe to exempt because the route is NOT authenticated by cookie: it requires
+  // `x-cron-secret` and fails closed otherwise. CSRF protects cookie-authenticated
+  // requests from being forged by a third-party site; a request authenticated by a
+  // header an attacker cannot set cross-origin is not the threat model this
+  // check addresses.
+  '/api/cron/recurring-chores',
 ])
 
 export async function middleware(request: NextRequest) {

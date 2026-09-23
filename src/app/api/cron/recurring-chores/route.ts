@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { expandAllRecurringChores } from '@/lib/recurringChores'
+import { timingSafeEqualStr } from '@/lib/constant-time'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,10 @@ export async function POST(request: NextRequest) {
     }
 
     const providedSecret = request.headers.get('x-cron-secret')
-    if (!providedSecret || providedSecret !== cronSecret) {
+    // Constant-time compare (#184). `!==` on a secret leaks length and prefix
+    // through timing; the CSRF helper in this codebase already uses
+    // timingSafeEqual for the same reason.
+    if (!providedSecret || !timingSafeEqualStr(providedSecret, cronSecret)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
