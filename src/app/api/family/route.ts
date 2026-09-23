@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
+import { authenticateRequest, authenticateWithFamily, attachSessionCookie, requireParent } from '@/lib/api-auth'
 import { createFamilySchema, updateFamilySchema, deleteFamilySchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
@@ -27,19 +27,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You already belong to a family' }, { status: 400 })
     }
 
-    // Create family and assign user to it atomically
     const family = await prisma!.$transaction(async (tx) => {
       const newFamily = await tx.family.create({
         data: { name: parsed.data.name },
       })
       await tx.user.update({
         where: { id: payload.userId },
-        data: { family_id: newFamily.id },
+        data: { family_id: newFamily.id, role: 'parent' },
       })
       return newFamily
     })
 
-    return NextResponse.json({ family })
+    const user = await prisma!.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, email: true, role: true, family_id: true },
+    })
+
+    const response = NextResponse.json({ family })
+    if (user) {
+      await attachSessionCookie(response, {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        family_id: user.family_id,
+      })
+    }
+    return response
   } catch (error) {
     console.error('Error creating family:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -75,7 +88,7 @@ export async function GET(request: NextRequest) {
       family: {
         id: family.id,
         name: family.name,
-        invite_code: family.invite_code,
+        invite_code: auth.user.role === 'parent' ? family.invite_code : null,
         subscription_tier: family.subscription_tier,
         created_at: family.created_at,
         member_count: family._count.members,

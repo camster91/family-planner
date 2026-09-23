@@ -15,6 +15,10 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
+  # GitHub Actions bumps on a slow, tightly-capped cadence. These are the
+  # changes most likely to silently alter CI behaviour, so they arrive in
+  # single, reviewable PRs rather than mixed into the npm group.
+  # (From #112, which #116 did not carry.)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

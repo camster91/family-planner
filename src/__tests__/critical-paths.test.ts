@@ -46,7 +46,20 @@ describe("Auth", () => {
         email: "a@b.com",
         role: undefined,
         family_id: null,
+        tv: 0,
       });
+    });
+
+    it("treats a token minted before the tv claim as generation 0", () => {
+      // Sessions issued before token_version existed must keep working after
+      // deploy, because the DB column defaults to 0.
+      const token = signToken({ userId: "u1", email: "a@b.com" });
+      expect(verifyToken(token)?.tv).toBe(0);
+    });
+
+    it("round-trips a bumped session generation", () => {
+      const token = signToken({ userId: "u1", email: "a@b.com", tv: 3 });
+      expect(verifyToken(token)?.tv).toBe(3);
     });
 
     it("rejects garbage tokens", () => {

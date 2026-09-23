@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
+import { isSessionCurrent } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
+import { KID_ALLOWED_PREFIXES, isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
 
 // Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
 // Edge runtime (default) embeds env vars at build, causing token verification failures
@@ -29,14 +31,35 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/auth/verify-email',
   '/api/auth/logout', // authenticated via cookie only, no body
   '/api/health',
+  // Machine-called cron endpoint (#184). An external scheduler sends only
+  // `x-cron-secret`; it has no browser session and therefore no CSRF cookie,
+  // so the double-submit check rejected it with 403 and the job never ran.
+  //
+  // Safe to exempt because the route is NOT authenticated by cookie: it requires
+  // `x-cron-secret` and fails closed otherwise. CSRF protects cookie-authenticated
+  // requests from being forged by a third-party site; a request authenticated by a
+  // header an attacker cannot set cross-origin is not the threat model this
+  // check addresses.
+  '/api/cron/recurring-chores',
 ])
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // CSRF check: reject all state-changing /api/* requests without a valid token,
   // except for the auth endpoints listed above (where credentials are the second factor).
+  //
+  // /api/analytics/event is exempt only while the caller is anonymous. A signed-in
+  // caller still causes a database write (an Activity row), so it must keep the CSRF
+  // check — otherwise a forged same-origin POST could inject analytics for that user.
+  // Anonymous callers are no-ops, and have no csrf_token cookie yet, so requiring one
+  // there is what produced the console noise this exemption exists to remove.
+  const isAnalyticsEvent = request.nextUrl.pathname === '/api/analytics/event'
+  const hasSession = Boolean(request.cookies.get('session_token')?.value)
+  const csrfExempt = CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname) ||
+    (isAnalyticsEvent && !hasSession)
+
   const isApiMutation = request.nextUrl.pathname.startsWith('/api/') &&
     UNSAFE_METHODS.has(request.method) &&
-    !CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname)
+    !csrfExempt
 
   if (isApiMutation) {
     const csrfError = validateCsrf(request)
@@ -45,10 +68,43 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get('session_token')?.value
   const payload = token ? verifyToken(token) : null
-  const isAuthenticated = !!payload
 
   // Protected routes
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard')
+  // Auth routes (login/register/join) - redirect to dashboard if already logged in
+  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
+
+  // A JWT stays cryptographically valid for its full 7 days, so signature and
+  // expiry alone cannot express "this session was revoked" — `token_version` is
+  // bumped on password reset and change. Without this check a revoked cookie
+  // still walked straight through the /dashboard gate.
+  //
+  // Two things bound the added cost. The lookup is skipped entirely when no
+  // cookie is present, and it runs only for /dashboard and the auth routes
+  // (route handlers enforce the same check for /api/*). And both gates below
+  // read this ONE value, so they cannot disagree and bounce a user between
+  // /login and /dashboard.
+  //
+  // Fail-closed on error: a DB outage degrades a logged-in user to the login
+  // page, where the app is unusable anyway, rather than admitting a session
+  // that may have been revoked.
+  let isAuthenticated = false
+  if (payload) {
+    if (isProtectedRoute || isAuthRoute) {
+      try {
+        isAuthenticated = await isSessionCurrent(payload)
+      } catch (error) {
+        // Fail closed, but not silently: a database outage that logs every user
+        // out with zero trace in the logs is far harder to diagnose than one
+        // that says so.
+        console.error('Session generation check failed; treating session as revoked', error)
+        isAuthenticated = false
+      }
+    } else {
+      // Neither gate below can fire; no reason to pay for a lookup.
+      isAuthenticated = true
+    }
+  }
 
   if (isProtectedRoute && !isAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
@@ -56,37 +112,35 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Role gate: kids and teens can only see the KidHome at /dashboard by default.
-  // Any /dashboard/* sub-route is parent-only — except for routes that are
-  // designed to be kid-accessible (wishlist, emergency, sick-days, etc).
-  // The allowlist is the source of truth for what a kid can see.
+  // Role gate: kids and teens can only see the KidHome at /dashboard, plus the
+  // few routes on the shared kid allowlist (src/lib/kid-access.ts).
+  // The allowlist is the single source of truth — the dashboard layout uses the
+  // same helper, so the two gates cannot disagree.
   if (isProtectedRoute && isAuthenticated && payload) {
-    const isKid = payload.role === 'child' || payload.role === 'teen'
+    const isKid = isKidRole(payload.role)
     const pathname = request.nextUrl.pathname
-    const isDashboardRoot = pathname === '/dashboard' || pathname === '/dashboard/'
-    // Routes a kid/teen can visit (in addition to /dashboard).
-    // Without this list, the role gate is too broad and blocks kid-facing
-    // features like adding a wish or seeing emergency info.
-    const KID_ALLOWED_PREFIXES = [
-      '/dashboard/wishlist',
-      '/dashboard/emergency',
-      '/dashboard/sick-days',
-    ]
-    const isKidAllowed = KID_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
-    if (isKid && !isDashboardRoot && !isKidAllowed) {
+    if (isKid && !isDashboardRoot(pathname) && !isKidAllowedPath(pathname)) {
       const redirectUrl = new URL('/dashboard', request.url)
       return NextResponse.redirect(redirectUrl)
     }
   }
 
-  // Auth routes (login/register/join) - redirect to dashboard if already logged in
-  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
+  // Referenced here so an unused-import lint cannot silently drop the shared list
+  // from the built middleware.
+  void KID_ALLOWED_PREFIXES
 
+  // Auth routes (login/register/join) - redirect to dashboard if already logged in
   if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   const response = NextResponse.next()
+
+  // Expose the request pathname to server components/layouts via a request
+  // header. The dashboard layout uses this for its kid-access check. Next.js
+  // does NOT provide x-pathname or x-invoke-path to layouts on its own, which
+  // is why the layout's earlier gate always fell through and never fired.
+  response.headers.set('x-pathname', request.nextUrl.pathname)
 
   // Security headers
   response.headers.set('X-Content-Type-Options', 'nosniff')

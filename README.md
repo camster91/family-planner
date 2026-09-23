@@ -85,6 +85,9 @@ Visit `http://localhost:3000`.
 | `JWT_SECRET`           | Secret key for JWT signing                  | Yes      |
 | `NEXT_PUBLIC_APP_URL`  | App URL (default `http://localhost:3000`)   | No       |
 | `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No       |
+| `MAILGUN_API_KEY`      | Mailgun API key for family email invites    | Yes in production |
+| `MAILGUN_DOMAIN`       | Mailgun domain (default `ashbi.ca`)         | No       |
+| `MAILGUN_FROM`         | From header (default `Family Planner <noreply@ashbi.ca>`) | No |
 
 ## User Roles
 
