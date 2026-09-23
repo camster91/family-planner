@@ -322,7 +322,15 @@ CREATE TABLE IF NOT EXISTS "RateLimitEntry" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS "RateLimitEntry_key_idx" ON "RateLimitEntry"("key");
+-- key must be UNIQUE so concurrent requests upsert onto a single row instead
+-- of racing find-then-create (#168 review). Old rows may hold duplicate keys,
+-- so dedupe first, keeping the entry with the latest window.
+DELETE FROM "RateLimitEntry" a
+  USING "RateLimitEntry" b
+  WHERE a.key = b.key
+    AND (a."resetAt", a.created_at) < (b."resetAt", b.created_at);
+DROP INDEX IF EXISTS "RateLimitEntry_key_idx";
+CREATE UNIQUE INDEX IF NOT EXISTS "RateLimitEntry_key_key" ON "RateLimitEntry"("key");
 CREATE INDEX IF NOT EXISTS "RateLimitEntry_resetAt_idx" ON "RateLimitEntry"("resetAt");
 
 -- ============ FamilyInvite (email invites; token stored hashed) ============

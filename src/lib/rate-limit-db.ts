@@ -51,38 +51,53 @@ export async function checkRateLimit(
   }
 
   try {
-    // Find an unexpired entry for this key
-    const existing = await prisma.rateLimitEntry.findFirst({
-      where: {
+    // Atomic path: `key` is UNIQUE, so this is a single
+    // INSERT ... ON CONFLICT (key) DO UPDATE count = count + 1.
+    // Concurrent requests serialize on the row and each gets its own count,
+    // instead of racing findFirst/create/update past the limit.
+    const entry = await prisma.rateLimitEntry.upsert({
+      where: { key },
+      create: {
         key,
-        resetAt: { gt: new Date(now) },
+        count: 1,
+        windowStart: new Date(now),
+        resetAt: new Date(now + windowMs),
       },
+      update: { count: { increment: 1 } },
     })
 
-    if (!existing) {
-      // No active window — create a new one
-      await prisma.rateLimitEntry.create({
+    let count = entry.count
+    let resetAt = entry.resetAt
+
+    if (resetAt.getTime() <= now) {
+      // The upsert resurrected an expired window — restart it. updateMany only
+      // touches rows still carrying the expired resetAt, so a concurrent
+      // request that already restarted the window is left alone; we then read
+      // the fresh row instead of double-counting into a stale bucket.
+      const refreshed = await prisma.rateLimitEntry.updateMany({
+        where: { key, resetAt: { lte: new Date(now) } },
         data: {
-          key,
           count: 1,
           windowStart: new Date(now),
           resetAt: new Date(now + windowMs),
         },
       })
-      return { allowed: true, retryAfterMs: 0, remaining: maxAttempts - 1 }
+      if (refreshed.count > 0) {
+        count = 1
+        resetAt = new Date(now + windowMs)
+      } else {
+        const fresh = await prisma.rateLimitEntry.findUnique({ where: { key } })
+        if (fresh && fresh.resetAt.getTime() > now) {
+          count = fresh.count
+          resetAt = fresh.resetAt
+        }
+      }
     }
 
-    // Increment the existing entry
-    const newCount = existing.count + 1
-    await prisma.rateLimitEntry.update({
-      where: { id: existing.id },
-      data: { count: newCount },
-    })
-
-    if (newCount > maxAttempts) {
+    if (count > maxAttempts) {
       return {
         allowed: false,
-        retryAfterMs: existing.resetAt.getTime() - now,
+        retryAfterMs: resetAt.getTime() - now,
         remaining: 0,
       }
     }
@@ -90,7 +105,7 @@ export async function checkRateLimit(
     return {
       allowed: true,
       retryAfterMs: 0,
-      remaining: maxAttempts - newCount,
+      remaining: maxAttempts - count,
     }
   } catch (err) {
     // If the rate_limit_entries table doesn't exist yet (older deployment
