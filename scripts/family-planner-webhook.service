@@ -5,11 +5,50 @@ Wants=docker.service
 
 [Service]
 Type=simple
-User=root
+# Runs as a dedicated unprivileged user, NOT root. The deploy trigger does not
+# need root to run: the deploy script owns its own privileges (docker group for
+# the container swap). Running this listener as root turned an auth bug into a
+# root-level remote deploy. See #182.
+User=family-planner-webhook
+Group=family-planner-webhook
+
 ExecStart=/opt/family-planner-webhook.sh
+
 Restart=always
 RestartSec=5
-Environment=FAMILY_PLANNER_WEBHOOK_SECRET=please-change-me-to-a-real-secret
+
+# The secret is NOT set here. This file is committed and world-readable; an
+# inline Environment= line is a committed secret. Supply it via an environment
+# file that is root-owned and 0600, kept off the repository:
+#
+#   install -m 0600 /dev/null /opt/family-planner/config/webhook.env
+#   # then put ONE line in it:
+#   #   FAMILY_PLANNER_WEBHOOK_SECRET=<openssl rand -hex 32>
+#
+EnvironmentFile=-/opt/family-planner/config/webhook.env
+
+# Listen on loopback only. A deploy trigger must not be reachable from the
+# public internet without a deliberate reverse-proxy decision.
+Environment=FAMILY_PLANNER_WEBHOOK_BIND=127.0.0.1
+Environment=FAMILY_PLANNER_WEBHOOK_PORT=8741
+
+# --- Sandboxing ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/family-planner-webhook.log /opt/family-planner
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Needed only because the deploy path manages containers. Keep it minimal.
+SupplementaryGroups=docker
+
 StandardOutput=append:/var/log/family-planner-webhook.log
 StandardError=append:/var/log/family-planner-webhook.log
 
