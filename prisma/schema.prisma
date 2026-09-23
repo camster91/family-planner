@@ -789,14 +789,13 @@ model ProjectTask {
 // Survives across replicas and restarts.
 model RateLimitEntry {
   id          String   @id @default(cuid())
-  key         String // e.g. "login:1.2.3.4", "register:1.2.3.4"
+  key         String @unique // e.g. "login:1.2.3.4", "register:1.2.3.4"
   count       Int      @default(1)
   windowStart DateTime
   resetAt     DateTime
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  @@index([key])
   @@index([resetAt])
 }
 
