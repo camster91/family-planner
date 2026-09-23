@@ -19,16 +19,24 @@ Family Planner is a full-stack web app for family organization: chore tracking w
 - **CI/CD**: GitHub Actions → VPS deploy (see `.github/workflows/` and `scripts/release-over-ssh.sh`)
 - **Node**: >=20.9.0 (`.nvmrc` = 20; Docker images use `node:20-alpine`)
 
-## Database — 26 Models
+## Database — 45 Models
 
 All models in `prisma/schema.prisma`. `Family.features` is a JSON column holding per-family feature flags.
 
+```plain
+User, Family, FamilyInvite, Chore, ChoreAssignment, ImportJob, ImportedRecord,
+Recipe, Ingredient, RecipeIngredient, MealPlan, MealPlanEntry, ShoppingList,
+ShoppingItem, FinancialArchiveRecord, Habit, HabitLog, BadgeDefinition,
+EarnedBadge, RewardRedemption, FamilyGoal, PushSubscription, Event, Message,
+Notification, List, ListItem, Activity, Reward, Transaction, BudgetCategory,
+Project, ProjectTask, RateLimitEntry, FamilyMeal, PinnedNote, Anniversary,
+FamilyLocation, EmergencyContact, Pickup, Allowance, WishlistItem, Handoff,
+SickDay, Medication
 ```
-User, Family, Chore, Event, Message, Notification, List, ListItem,
-Activity, Reward, Transaction, BudgetCategory, Project, ProjectTask,
-RateLimitEntry, FamilyMeal, PinnedNote, Anniversary, FamilyLocation,
-Pickup, Allowance, EmergencyContact, SickDay, Medication, Handoff, WishlistItem
-```
+
+**Migration rule:** `scripts/migrate.js` is hand-rolled idempotent SQL that
+MUST stay in sync with `prisma/schema.prisma` — any schema change must be
+mirrored into it in the same PR.
 
 ## User Roles
 
@@ -41,17 +49,20 @@ Three roles: `parent`, `child`, `teen` (defined in `src/lib/constants.ts`).
 ## Key Patterns
 
 ### Authentication
+
 - JWT-based auth stored in `session_token` cookie
 - `src/lib/auth.ts` — `signToken()`, `verifyToken()`, `hashPassword()`, `verifyPassword()`
 - `src/lib/supabase/server.ts` — `getServerUser()` reads JWT from cookies (legacy name, NOT Supabase). Returns narrow type `{ id, email }` — cast to `SessionUser` at call site
 - `src/middleware.ts` — protects `/dashboard/*` routes, redirects auth routes if logged in
 
 ### API Auth Helpers (from `@/lib/api-auth`)
+
 - `authenticateRequest(request)` — validates JWT, returns user or 401
 - `authenticateWithFamily(request)` — validates JWT + family_id presence
 - `requireParent(request)` — validates parent role, returns 403 if not parent
 
 ### Database
+
 - Prisma client singleton in `src/lib/prisma.ts` (global cache for dev hot-reload)
 - Access via `prisma!.model.method()` — the `!` is needed because `prisma` can be `undefined` if `DATABASE_URL` is missing
 - Schema uses `cuid()` for IDs, `snake_case` field names
@@ -74,12 +85,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 **`getServerUser()` returns narrow type** — The helper returns `{ id, email }` only. The JWT also contains `role` and `family_id`. Always cast at the call site:
 
 ```ts
-type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
-const user = (await getServerUser()) as SessionUser | null
-if (user?.role !== 'parent') return NextResponse.json({ error: 'Parents only' }, { status: 403 })
+type SessionUser = {
+  id: string;
+  email: string;
+  role?: string;
+  family_id?: string | null;
+};
+const user = (await getServerUser()) as SessionUser | null;
+if (user?.role !== "parent")
+  return NextResponse.json({ error: "Parents only" }, { status: 403 });
 ```
 
 **CSRF protection** — All `/api/*` mutation routes are protected by CSRF validation (`validateCsrf()`) except:
+
 - `POST /api/auth/login`
 - `POST /api/auth/register`
 - `POST /api/auth/logout`
@@ -90,14 +108,15 @@ if (user?.role !== 'parent') return NextResponse.json({ error: 'Parents only' },
 
 Per-family opt-in/opt-out stored in `Family.features` JSON column. Source of truth: `src/lib/features.ts`.
 
-| Group | Features | Default |
-|-------|----------|---------|
-| **core** (cannot disable) | Chores, Calendar, Lists, Family | always on |
-| **planning** (on by default) | Meals, Notes, Anniversaries, Rewards, Budget, Projects, Messages, Analytics | on |
-| **family** (off by default) | Locations, Pickups, Allowance, Sick days, Handoff, Travel | off |
-| **core-adj** | Emergency contacts | on |
+| Group                        | Features                                                                    | Default   |
+| ---------------------------- | --------------------------------------------------------------------------- | --------- |
+| **core** (cannot disable)    | Chores, Calendar, Lists, Family                                             | always on |
+| **planning** (on by default) | Meals, Notes, Anniversaries, Rewards, Budget, Projects, Messages, Analytics | on        |
+| **family** (off by default)  | Locations, Pickups, Allowance, Sick days, Handoff, Travel                   | off       |
+| **core-adj**                 | Emergency contacts                                                          | on        |
 
 5 new features shipped (2026-06-06):
+
 - **Emergency contacts** — `emergency_contacts` — core-adj, default on
 - **Sick days & meds** — `sick_days` — family, default off
 - **Babysitter handoff** — `handoff` — family, default off
@@ -105,6 +124,7 @@ Per-family opt-in/opt-out stored in `Family.features` JSON column. Source of tru
 - **Travel mode** — `travel` — family, default off
 
 Key files:
+
 - `src/lib/features.ts` — `FeatureKey`, `FEATURES`, `normalizeFeatures`, `defaultFeatures`
 - `src/components/providers/features-provider.tsx` — React context, `useFeatures`, `useFeatureEnabled`
 - `src/components/ui/feature-gate.tsx` — `<FeatureGate featureKey="...">` wrapper
@@ -121,22 +141,23 @@ Key files:
 
 All in `src/components/ui/`:
 
-| Primitive | Purpose |
-|-----------|---------|
-| `Glyph` | Colorful rounded square icon (sizes: sm/md/lg; colors map to tint tokens) |
-| `Avatar` | Colored-circle monogram, deterministic color from name hash (sizes: xs–xl) |
-| `ProgressRing` | Apple Activity-style ring, 12 o'clock start, spring-animated |
-| `EmptyState` | Glyph + headline + sub + CTA for zero-data states |
-| `ListRow` | Settings-style row with icon, title, subtitle, trailing, chevron |
-| `InsetList` | iOS grouped table background (card wrapper) |
-| `SectionHeader` | iOS uppercase section label |
-| `LargeHeader` | "Good morning, Cam" Apple-style page header |
-| `CheckboxRow` | iOS Reminders-style full-row checkbox with bounce-pop |
-| `SearchField` | Rounded-full soft-fill search input |
-| `TabBar` | iOS bottom tab bar, mobile-only (`.md:hidden`), 4 destinations |
-| `FeatureGate` | Shows "turn on" state when feature is disabled |
+| Primitive       | Purpose                                                                    |
+| --------------- | -------------------------------------------------------------------------- |
+| `Glyph`         | Colorful rounded square icon (sizes: sm/md/lg; colors map to tint tokens)  |
+| `Avatar`        | Colored-circle monogram, deterministic color from name hash (sizes: xs–xl) |
+| `ProgressRing`  | Apple Activity-style ring, 12 o'clock start, spring-animated               |
+| `EmptyState`    | Glyph + headline + sub + CTA for zero-data states                          |
+| `ListRow`       | Settings-style row with icon, title, subtitle, trailing, chevron           |
+| `InsetList`     | iOS grouped table background (card wrapper)                                |
+| `SectionHeader` | iOS uppercase section label                                                |
+| `LargeHeader`   | "Good morning, Cam" Apple-style page header                                |
+| `CheckboxRow`   | iOS Reminders-style full-row checkbox with bounce-pop                      |
+| `SearchField`   | Rounded-full soft-fill search input                                        |
+| `TabBar`        | iOS bottom tab bar, mobile-only (`.md:hidden`), 4 destinations             |
+| `FeatureGate`   | Shows "turn on" state when feature is disabled                             |
 
 Plus 2 interaction primitives:
+
 - `SwipeRow` — swipe-left complete, swipe-right delete (100px threshold)
 - `LongPressRow` — 500ms hold triggers iOS action sheet
 
@@ -202,9 +223,9 @@ src/
 │   └── index.tsx           # en + es inline messages, useTranslation()
 └── middleware.ts           # JWT cookie check on /dashboard/*
 prisma/
-└── schema.prisma           # 26 models
+└── schema.prisma           # 45 models
 .github/
-└── workflows/              # 7 workflows: ci, build-push, deploy-from-ghcr, deploy, apk, stale-issues, auto-merge
+└── workflows/              # 6 workflows: ci, release, build-push, apk, stale-issues, auto-merge
 ```
 
 ## Development Commands
@@ -225,6 +246,7 @@ npx prisma studio    # Browse data
 ## Environment Variables
 
 Required (see `.env.example`):
+
 - `DATABASE_URL` — PostgreSQL connection string
 - `JWT_SECRET` — Secret for JWT signing (defaults to dev fallback)
 - `NEXT_PUBLIC_APP_URL` — App URL (default `http://localhost:3000`)
@@ -234,16 +256,14 @@ Required (see `.env.example`):
 
 Workflows in `.github/workflows/`:
 
-| Workflow | Purpose |
-|----------|---------|
-| `release.yml` | Build, test and release onto the ashbi.ca VPS (self-hosted runner) |
-| `ci.yml` | Build-only verification (lint + type-check + test + build) |
-| `build-push.yml` | Build image and push to `ghcr.io` |
-| `apk.yml` | Capacitor Android build |
-| `lint.yml` | Standalone lint |
-| `format.yml` | Prettier format check |
-| `auto-merge.yml` | Auto-merge dependabot PRs |
-| `stale-issues.yml` | Auto-close stale issues (currently disabled) |
+| Workflow           | Purpose                                                                                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `release.yml`      | Build, test and release onto the ashbi.ca VPS (self-hosted runner). Its build job is the **required `Build & Test` check** on `master`                            |
+| `ci.yml`           | Hosted verification: lint + type-check + test + build, migration idempotency (runs `scripts/migrate.js` twice), and the persisted family-import integration tests |
+| `build-push.yml`   | Build image by SHA and push to `ghcr.io` (push-only trigger, gated behind a `verify` job)                                                                         |
+| `apk.yml`          | Capacitor Android build                                                                                                                                           |
+| `auto-merge.yml`   | Auto-merge dependabot PRs                                                                                                                                         |
+| `stale-issues.yml` | Auto-close stale issues (currently disabled)                                                                                                                      |
 
 Canonical production deploy: `release.yml` onto the VPS. If GitHub Actions is
 unavailable, `scripts/release-over-ssh.sh` is the working manual path.
