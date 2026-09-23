@@ -2,28 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { createResetToken } from '@/lib/tokens'
-
-function buildResetEmail(userName: string, email: string, resetUrl: string, fromEmail: string): string {
-  const html = [
-    '<h2>Password Reset Request</h2>',
-    `<p>Hi ${userName},</p>`,
-    '<p>You requested a password reset for your Family Planner account.</p>',
-    `<p><a href="${resetUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a></p>`,
-    `<p>Or copy this link: ${resetUrl}</p>`,
-    '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>',
-  ].join('\n')
-
-  const mime = [
-    `From: Family Planner <${fromEmail}>`,
-    `To: ${email}`,
-    'Subject: Reset Your Family Planner Password',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    html,
-  ].join('\n')
-
-  return Buffer.from(mime).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-}
+import { sendMail } from '@/lib/mail'
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,25 +31,30 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
     const resetUrl = appUrl + '/reset-password?token=' + token
 
-    // Send email via Maton if configured
-    const matonKey = process.env.MATON_API_KEY || process.env.MATON_API_KEY_ASHBI
-    if (matonKey) {
-      try {
-        const mimeBody = buildResetEmail(user.name, user.email, resetUrl, process.env.FROM_EMAIL || 'noreply@family.ashbi.ca')
-        const res = await fetch('https://api.maton.ai/google-mail/gmail/v1/users/me/messages/send', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${matonKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ raw: mimeBody }),
-        })
-        if (!res.ok) console.warn('Maton email failed:', await res.text())
-      } catch (e) {
-        console.warn('Failed to send reset email:', e)
-      }
-    } else {
-      console.log(`[DEV] Reset URL for ${email}: ${resetUrl}`)
+    // Send the reset email through the shared Mailgun sender.
+    // Previously this route used an inline Maton/Gmail path that silently fell
+    // through to a dev-only console.log when MATON_API_KEY was unset, so
+    // production sent no email at all.
+    const html = [
+      '<h2>Password Reset Request</h2>',
+      `<p>Hi ${user.name},</p>`,
+      '<p>You requested a password reset for your Family Planner account.</p>',
+      `<p><a href="${resetUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a></p>`,
+      `<p>Or copy this link: ${resetUrl}</p>`,
+      '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>',
+    ].join('\n')
+
+    try {
+      await sendMail({
+        to: user.email,
+        subject: 'Reset Your Family Planner Password',
+        html,
+        text: `Reset your Family Planner password: ${resetUrl} - this link expires in 1 hour.`,
+      })
+    } catch (e) {
+      // Never surface send failures to the caller (avoids enumeration/probing),
+      // but make them visible in the logs.
+      console.warn('Failed to send reset email:', e)
     }
 
     return NextResponse.json({

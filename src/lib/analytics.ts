@@ -8,8 +8,15 @@ const isProd = () => {
   return window.location.hostname === 'family.ashbi.ca'
 }
 
+// Pages that never have a session; sending from here only produces 401 console noise.
+const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
+function isAuthPage(pathname: string) {
+  return AUTH_PAGES.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
+
 function sendEvent(eventName: string, metadata?: Record<string, any>) {
   if (!isProd()) return
+  if (typeof window !== 'undefined' && isAuthPage(window.location.pathname)) return
 
   fetch('/api/analytics/event', {
     method: 'POST',

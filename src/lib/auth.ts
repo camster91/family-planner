@@ -7,25 +7,42 @@ function getJwtSecret(): string {
   if (_jwtSecret) return _jwtSecret
 
   const secret = process.env.JWT_SECRET
+  const isNextBuild =
+    process.env.NEXT_PHASE === 'phase-production-build' ||
+    process.env.npm_lifecycle_event === 'build'
   if (secret) {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !isNextBuild &&
+      secret.length < 32
+    ) {
+      throw new Error(
+        'CRITICAL: JWT_SECRET must be at least 32 characters in production.'
+      )
+    }
     _jwtSecret = secret
     return secret
   }
 
-  // Allow build-time to bypass JWT_SECRET requirement
-  // (Next.js collects page data during build; JWT_SECRET isn't available yet)
-  if (process.env.SKIP_ENV_VALIDATION === 'true') {
+  // next build may evaluate this module without runtime secrets.
+  if (isNextBuild) {
     _jwtSecret = 'BUILD_TIME_TEMPORARY_SECRET'
     return _jwtSecret
   }
 
-  // Production must have a real secret — hard fail
+  // Production runtime must have a real secret — including when
+  // SKIP_ENV_VALIDATION is left on from a Coolify build-time example.
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'CRITICAL: JWT_SECRET environment variable is not set. ' +
       'Authentication cannot work without a secure secret. ' +
       'Set JWT_SECRET in your deployment environment.'
     )
+  }
+
+  if (process.env.SKIP_ENV_VALIDATION === 'true') {
+    _jwtSecret = 'BUILD_TIME_TEMPORARY_SECRET'
+    return _jwtSecret
   }
 
   // Development-only fallback
@@ -49,6 +66,14 @@ export interface TokenPayload {
   role?: string
   /** Family ID. Optional for the same reason. */
   family_id?: string | null
+  /**
+   * Session generation, mirrored from `User.token_version` at signing time.
+   * A password reset/change increments the DB column, which makes every JWT
+   * carrying an older `tv` fail authentication. Tokens issued before this claim
+   * existed are treated as generation 0, which matches the column default — so
+   * deploying this does not sign existing sessions out.
+   */
+  tv?: number
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -84,15 +109,20 @@ export function verifyToken(token: string): TokenPayload | null {
       email: decoded.email as string,
       role: (decoded as any).role,
       family_id: (decoded as any).family_id ?? null,
+      // Absent on tokens minted before the tv claim existed — generation 0.
+      tv: typeof (decoded as any).tv === 'number' ? (decoded as any).tv : 0,
     }
   } catch {
     return null
   }
 }
 
-// Rate limiting moved to src/lib/rate-limit-db.ts (Postgres-backed).
-// Kept here as a stub to avoid breaking any imports during migration.
-export function checkRateLimit(key: string, maxAttempts = 10, windowMs = 15 * 60 * 1000): { allowed: boolean; retryAfterMs: number } {
-  console.warn('checkRateLimit called from old in-memory implementation. Use rate-limit-db instead.')
-  return { allowed: true, retryAfterMs: 0 }
+export function checkRateLimit(
+  _key: string,
+  _maxAttempts = 10,
+  _windowMs = 15 * 60 * 1000
+): { allowed: boolean; retryAfterMs: number } {
+  throw new Error(
+    'checkRateLimit from @/lib/auth is removed. Import checkRateLimit from @/lib/rate-limit-db.'
+  )
 }

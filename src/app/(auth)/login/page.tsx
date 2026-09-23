@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LogIn, Eye, EyeOff, Users } from 'lucide-react'
@@ -13,7 +13,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [registerHref, setRegisterHref] = useState('/register')
   const router = useRouter()
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('token')
+    if (token) setRegisterHref(`/register?token=${encodeURIComponent(token)}`)
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,7 +38,16 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/dashboard')
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get('redirect')
+      const token = params.get('token')
+      if (redirect && redirect.startsWith('/')) {
+        router.push(redirect)
+      } else if (token) {
+        router.push(`/join?token=${encodeURIComponent(token)}`)
+      } else {
+        router.push('/dashboard')
+      }
       router.refresh()
     } catch {
       setError(t('auth.unexpectedError'))
@@ -132,7 +147,7 @@ export default function LoginPage() {
           <div className="mt-4 text-center">
             <p className="text-[15px] text-[var(--label-secondary)]">
               {t('auth.noAccount')}{' '}
-              <Link href="/register" className="btn-plain py-1 px-2 -my-1">
+              <Link href={registerHref} className="btn-plain py-1 px-2 -my-1">
                 {t('auth.signUp')}
               </Link>
             </p>
