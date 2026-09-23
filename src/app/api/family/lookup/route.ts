@@ -10,18 +10,10 @@ export const dynamic = 'force-dynamic'
 const LOOKUP_MAX_ATTEMPTS = 20
 const LOOKUP_WINDOW_MS = 60 * 1000
 
-function getClientIp(request: NextRequest): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip')?.trim() ||
-    'unknown'
-  )
-}
-
-function buildLookupRateLimitKey(userId: string, clientIp: string): string {
-  const fingerprint = createHash('sha256')
-    .update(`${userId}\0${clientIp}`)
-    .digest('hex')
+function buildLookupRateLimitKey(userId: string): string {
+  // Account-wide bucket: keyed on the authenticated user only, so rotating
+  // proxies or a spoofable X-Forwarded-For cannot reset the quota.
+  const fingerprint = createHash('sha256').update(userId).digest('hex')
 
   return `family-lookup:${fingerprint}`
 }
@@ -31,9 +23,10 @@ export async function GET(request: NextRequest) {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
-    // Use both authenticated identity and client IP without storing either in plaintext.
+    // Account-wide quota — an authenticated enumerator cannot reset it by
+    // varying their IP or X-Forwarded-For.
     const rateCheck = await checkRateLimit(
-      buildLookupRateLimitKey(payload.userId, getClientIp(request)),
+      buildLookupRateLimitKey(payload.userId),
       LOOKUP_MAX_ATTEMPTS,
       LOOKUP_WINDOW_MS
     )
