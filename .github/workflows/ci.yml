@@ -1,7 +1,7 @@
 name: CI Build
 
-# Build-only workflow: verifies the project builds cleanly. No deploy, no secrets required.
-# Triggered on push to default branch and on PRs targeting it. Manual dispatch available.
+# Canonical pull-request verification workflow. Keeps lint, formatting,
+# tests, migration checks, audit and build in one run to reduce Actions fan-out.
 
 on:
   push:
@@ -52,7 +52,6 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
         env:
-          # Placeholder so prisma schema validation passes (no DB connection is made during generate)
           DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
 
       - name: Type check
@@ -60,6 +59,11 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+        env:
+          CI: true
 
       - name: Test
         run: npm test -- --ci --runInBand --no-watchman
@@ -83,6 +87,5 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # CI-safe defaults so the build doesn't depend on real env vars
           NODE_ENV: production
           CI: true

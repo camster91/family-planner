@@ -1,0 +1,12 @@
+# Default owner for review and approval boundaries
+* @camster91
+
+# High-risk areas
+/prisma/ @camster91
+/android/ @camster91
+/.github/workflows/ @camster91
+/src/lib/auth.ts @camster91
+/src/lib/api-auth.ts @camster91
+/src/middleware.ts @camster91
+/docs/architecture/ @camster91
+/docs/runbooks/ @camster91
