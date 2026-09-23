@@ -2,22 +2,22 @@
 
 ## Project Overview
 
-Family Planner is a full-stack web app for family organization: chore tracking with points/rewards, shared calendar, family messaging, shared lists, meal planning, notes, birthdays/anniversaries, rewards, budget, projects, analytics, emergency contacts, sick day tracking, babysitter handoff, wishlist, travel mode, locations, pickups, and allowance. Built with Next.js 14 (App Router), TypeScript, Prisma 7, and PostgreSQL. Deployed via Docker to Coolify.
+Family Planner is a full-stack web app for family organization: chore tracking with points/rewards, shared calendar, family messaging, shared lists, meal planning, notes, birthdays/anniversaries, rewards, budget, projects, analytics, emergency contacts, sick day tracking, babysitter handoff, wishlist, travel mode, locations, pickups, and allowance. Built with Next.js 16 (App Router), TypeScript, Prisma 7, and PostgreSQL. Deployed via Docker on the ashbi.ca VPS.
 
 **Live:** https://family.ashbi.ca
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router, `output: 'standalone'`)
-- **Language**: TypeScript (strict mode)
+- **Framework**: Next.js 16 (App Router, `output: 'standalone'`)
+- **Language**: TypeScript (strict mode, `noImplicitAny: true`)
 - **Database**: PostgreSQL via Prisma 7 ORM
 - **Auth**: Self-hosted JWT (bcryptjs + jsonwebtoken) — migrated from Supabase. `src/lib/supabase/server.ts` is a legacy stub (uses JWT, NOT Supabase)
 - **Styling**: Tailwind CSS 3.4 with `clsx` + `tailwind-merge` (`cn()` helper in `src/lib/utils.ts`)
 - **State Management**: Zustand
 - **Forms**: React Hook Form + Zod validation
 - **Icons**: Lucide React
-- **CI/CD**: GitHub Actions → Coolify deployment
-- **Node**: >=20.0.0
+- **CI/CD**: GitHub Actions → VPS deploy (see `.github/workflows/` and `scripts/release-over-ssh.sh`)
+- **Node**: >=20.9.0 (`.nvmrc` = 20; Docker images use `node:20-alpine`)
 
 ## Database — 26 Models
 
@@ -61,7 +61,7 @@ Three roles: `parent`, `child`, `teen` (defined in `src/lib/constants.ts`).
 **`params` must be awaited** — Next.js 15 route handlers receive `params` as a `Promise`:
 
 ```ts
-// Old (Next 14) — build-fails
+// Old (Next 14 era) — build-fails
 export async function PATCH(request: Request, { params }: { params: { id: string } }) { ... }
 
 // New (Next.js 15) — required
@@ -230,25 +230,29 @@ Required (see `.env.example`):
 - `NEXT_PUBLIC_APP_URL` — App URL (default `http://localhost:3000`)
 - `NEXT_PUBLIC_APP_NAME` — App display name (e.g., "Family Planner")
 
-## CI/CD Pipeline — 7 GitHub Actions Workflows
+## CI/CD Pipeline
+
+Workflows in `.github/workflows/`:
 
 | Workflow | Purpose |
 |----------|---------|
-| `ci.yml` | lint + type-check + test + docker build |
+| `release.yml` | Build, test and release onto the ashbi.ca VPS (self-hosted runner) |
+| `ci.yml` | Build-only verification (lint + type-check + test + build) |
 | `build-push.yml` | Build image and push to `ghcr.io` |
-| `deploy-from-ghcr.yml` | Deploy from ghcr.io image to Coolify |
-| `deploy.yml` | Coolify source-build (git source, Coolify builds) |
 | `apk.yml` | Capacitor Android build |
-| `stale-issues.yml` | Auto-close stale issues |
+| `lint.yml` | Standalone lint |
+| `format.yml` | Prettier format check |
 | `auto-merge.yml` | Auto-merge dependabot PRs |
+| `stale-issues.yml` | Auto-close stale issues (currently disabled) |
 
-Canonical production deploy: `deploy.yml` (Coolify source build). `build-push.yml` + `deploy-from-ghcr.yml` used for image-based deploys.
+Canonical production deploy: `release.yml` onto the VPS. If GitHub Actions is
+unavailable, `scripts/release-over-ssh.sh` is the working manual path.
 
 ## Important Notes
 
 - **Legacy Supabase references**: `src/lib/supabase/server.ts` is a legacy stub — it wraps JWT auth only. Do NOT import actual Supabase libraries.
 - **Prisma nullable**: `prisma` can be `undefined` if `DATABASE_URL` is missing — always use `prisma!` or null-check.
-- **Install flag**: `npm ci --legacy-peer-deps` due to peer dependency conflicts.
+- **Install flag**: `npm ci` (CI uses `--no-audit --no-fund`).
 - **Path alias**: `@/*` maps to `./src/*`
-- **No cron**: Recurring chores expand lazily from user actions. Do not add Coolify scheduled tasks or external cron.
+- **No cron**: Recurring chores expand lazily from user actions. Do not add scheduled tasks or external cron.
 - **Subagent re-verification**: After parallel-agent batches, always re-run `tsc --noEmit` and `npm run build` directly — agents have fabricated clean outputs in past sessions.
