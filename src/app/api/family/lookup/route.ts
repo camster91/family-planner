@@ -55,14 +55,14 @@ export async function GET(request: NextRequest) {
 
     const family = await prisma!.family.findUnique({
       where: { invite_code: code },
-      select: { name: true },
+      select: { id: true, name: true },
     })
 
     if (!family) {
       return NextResponse.json({ error: 'Family not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ family: { name: family.name } })
+    return NextResponse.json({ family })
   } catch (error) {
     console.error('Error looking up family:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
