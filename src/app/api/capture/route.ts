@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
-import { draftFromText, draftFromImage, resolveCaptureConfig } from '@/lib/capture'
+import { CaptureError, draftFromText, draftFromImage, resolveCaptureConfig } from '@/lib/capture'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 
@@ -71,9 +71,13 @@ export async function POST(request: NextRequest) {
     const draft = await draftFromText(text, config)
     return NextResponse.json({ draft })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Capture failed'
-    console.warn('Capture error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Only messages written for users are returned; anything else (network
+    // errors, DNS failures) stays in the server log.
+    console.warn('Capture error:', error instanceof Error ? error.message : error)
+    if (error instanceof CaptureError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    return NextResponse.json({ error: 'Capture failed. Try again shortly.' }, { status: 500 })
   }
 }
 

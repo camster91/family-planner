@@ -139,3 +139,41 @@ export async function cleanupRateLimits(): Promise<number> {
   })
   return result.count
 }
+
+/**
+ * Read-only check: is `key` currently over `maxAttempts`? Does not count as an
+ * attempt. Used for failure-only limits (e.g. failed logins per account),
+ * where only failures are recorded via checkRateLimit.
+ */
+export async function isRateLimited(key: string, maxAttempts: number): Promise<RateLimitResult> {
+  const now = Date.now()
+  let entry: { count: number; resetAt: number } | undefined
+
+  if (prisma) {
+    try {
+      const row = await prisma.rateLimitEntry.findUnique({ where: { key } })
+      if (row) entry = { count: row.count, resetAt: row.resetAt.getTime() }
+    } catch {
+      entry = memStore.get(key)
+    }
+  } else {
+    entry = memStore.get(key)
+  }
+
+  if (entry && entry.resetAt > now && entry.count >= maxAttempts) {
+    return { allowed: false, retryAfterMs: entry.resetAt - now, remaining: 0 }
+  }
+  const used = entry && entry.resetAt > now ? entry.count : 0
+  return { allowed: true, retryAfterMs: 0, remaining: maxAttempts - used }
+}
+
+/** Forget a key's window, e.g. after a successful login. */
+export async function resetRateLimit(key: string): Promise<void> {
+  memStore.delete(key)
+  if (!prisma) return
+  try {
+    await prisma.rateLimitEntry.deleteMany({ where: { key } })
+  } catch {
+    // Best effort: the window expires on its own.
+  }
+}

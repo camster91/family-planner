@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { safeVerifyPassword, signToken } from '@/lib/auth'
-import { checkRateLimit } from '@/lib/rate-limit-db'
+import { checkRateLimit, isRateLimited, resetRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { loginSchema } from '@/lib/validations'
 import { log } from '@/lib/logger'
 
+// Failed attempts allowed per account per window, independent of source IP, so
+// rotating addresses cannot brute-force one password.
+const ACCOUNT_FAILURE_LIMIT = 10
+const ACCOUNT_FAILURE_WINDOW_MS = 15 * 60 * 1000
+
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(request)
   try {
     // Rate limiting by IP (Postgres-backed, works across replicas)
     const rateCheck = await checkRateLimit(`login:${ip}`, 30, 15 * 60 * 1000)
@@ -29,6 +35,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { email, password } = parsed.data
+
+    const accountKey = `login-fail:${email.toLowerCase()}`
+    const accountCheck = await isRateLimited(accountKey, ACCOUNT_FAILURE_LIMIT)
+    if (!accountCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(accountCheck.retryAfterMs / 1000)) } }
+      )
+    }
 
     // Explicit select — never widen this to a whole-row fetch. Returning the row
     // and stripping `password` leaked any live reset_token / verify_token to the
@@ -59,8 +74,10 @@ export async function POST(request: NextRequest) {
     const valid = await safeVerifyPassword(password, user?.password ?? null)
 
     if (!user || !valid) {
+      await checkRateLimit(accountKey, ACCOUNT_FAILURE_LIMIT, ACCOUNT_FAILURE_WINDOW_MS)
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
+    await resetRateLimit(accountKey)
 
     // Email verification gate — accounts must be confirmed before login.
     if (user.email_verified === false) {

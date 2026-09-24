@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { hashInviteToken, normalizeInviteToken } from '@/lib/family-invite'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(request)
   const rateCheck = await checkRateLimit(`invite-preview:${ip}`, 30, 60 * 60 * 1000)
   if (!rateCheck.allowed) {
     return NextResponse.json({ error: 'Too many attempts' }, { status: 429 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { createEmailInviteSchema } from '@/lib/validations'
 import {
   createInviteToken,
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(request)
     const familyLimit = await checkRateLimit(`invite:${auth.user.family_id}`, 20, 60 * 60 * 1000)
     const ipLimit = await checkRateLimit(`invite-ip:${ip}`, 30, 60 * 60 * 1000)
     if (!familyLimit.allowed || !ipLimit.allowed) {

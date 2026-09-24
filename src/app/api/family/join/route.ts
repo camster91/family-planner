@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest, attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { joinFamilySchema } from '@/lib/validations'
 import {
   hashInviteToken,
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(request)
     const rateCheck = await checkRateLimit(`join:${payload.userId}:${ip}`, 10, 60 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
