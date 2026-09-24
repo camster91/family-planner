@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
+import { featureGate } from '@/lib/feature-gate-server';
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,9 @@ export async function GET(request: NextRequest) {
 
     const parentError = requireParent(auth.user.role);
     if (parentError) return parentError;
+
+    const gate = await featureGate(auth.user.family_id, 'budget');
+    if (gate) return gate;
 
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month"); // optional: YYYY-MM override

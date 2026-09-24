@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,15 @@ export async function PATCH(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const body = await request.json()
+    const gate = await featureGate(auth.user.family_id, 'notes')
+    if (gate) return gate
+
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const { id, title, body: noteBody, color } = body
 
     if (!id || typeof id !== 'string') {
@@ -55,7 +64,15 @@ export async function DELETE(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const body = await request.json()
+    const gate = await featureGate(auth.user.family_id, 'notes')
+    if (gate) return gate
+
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const { id } = body
 
     if (!id || typeof id !== 'string') {

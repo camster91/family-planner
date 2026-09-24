@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,9 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'anniversaries')
+    if (gate) return gate
 
     const anniversaries = await prisma!.anniversary.findMany({
       where: { family_id: auth.user.family_id },
@@ -56,7 +60,15 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const body = await request.json()
+    const gate = await featureGate(auth.user.family_id, 'anniversaries')
+    if (gate) return gate
+
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const { name, type, date, notes, person_id } = body
 
     if (!name || !type || !date) {

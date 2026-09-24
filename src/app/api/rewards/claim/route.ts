@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { claimRewardSchema } from '@/lib/validations'
 import { notificationServiceServer } from '@/lib/notifications-server'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,15 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const body = await request.json()
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
+
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = claimRewardSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })

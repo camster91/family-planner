@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { createRewardSchema, updateRewardSchema } from '@/lib/validations'
 import { notificationServiceServer } from '@/lib/notifications-server'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,9 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -40,11 +44,19 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
+
     if (auth.user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can create rewards' }, { status: 403 })
     }
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = createRewardSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
@@ -98,11 +110,19 @@ export async function PATCH(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
+
     if (auth.user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can update rewards' }, { status: 403 })
     }
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = updateRewardSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })

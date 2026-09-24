@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,9 @@ export async function PATCH(
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'wishlist')
+    if (gate) return gate
 
     // Parents only for status changes
     const parentError = requireParent(auth.user.role)
@@ -27,7 +31,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const { status, denied_reason } = body
 
     const validStatuses = ['idle', 'on_the_way', 'received', 'denied']

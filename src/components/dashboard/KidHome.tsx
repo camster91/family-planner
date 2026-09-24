@@ -8,6 +8,8 @@ import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { ListRow } from '@/components/ui/list-row'
 import { cn } from '@/lib/utils'
+import { xpForNextLevel } from '@/lib/gamification'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
 
 interface Chore {
@@ -65,10 +67,9 @@ function formatTime(dateStr: string): string {
   })
 }
 
-// Stars needed per level (roughly exponential)
-function xpForLevel(level: number): number {
-  return level * 100
-}
+// XP threshold to level up from `level` — shared with the server logic
+// (gamification.ts xpForNextLevel) so the ring matches awardChoreXP.
+const xpForLevel = xpForNextLevel
 
 export default function KidHome({
   user,
@@ -78,11 +79,13 @@ export default function KidHome({
 }: KidHomeProps) {
   const [celebratingReward, setCelebratingReward] = useState<string | null>(null)
   const [claimingReward, setClaimingReward] = useState(false)
+  const rewardsEnabled = useFeatureEnabled('rewards')
   const [completedChores, setCompletedChores] = useState<Set<string>>(new Set())
 
   const userXp = user.xp ?? 0
   const userLevel = user.level ?? 1
-  const xpNextLevel = xpForLevel(userLevel + 1)
+  // Threshold to reach level+1 is xpForNextLevel(level) = 100 * level
+  const xpNextLevel = xpForLevel(userLevel)
   const xpProgress = Math.min(userXp / xpNextLevel, 1)
 
   // Today's chores (pending + in_progress) — up to 3
@@ -286,8 +289,9 @@ export default function KidHome({
           </section>
         )}
 
-        {/* Rewards card — claim most recent available reward */}
-        {claimableReward && (
+        {/* Rewards card — claim most recent available reward (hidden when the
+            rewards feature is off; the claim endpoint 403s in that case) */}
+        {rewardsEnabled && claimableReward && (
           <section>
             <p className="section-header">Rewards</p>
             <div className="card-apple p-4">

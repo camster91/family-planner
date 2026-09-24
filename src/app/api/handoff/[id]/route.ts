@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,9 @@ export async function PATCH(
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'handoff')
+    if (gate) return gate
 
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
@@ -26,7 +30,12 @@ export async function PATCH(
     const matchError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (matchError) return matchError
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const {
       sitter_name,
       sitter_phone,
@@ -92,6 +101,9 @@ export async function DELETE(
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'handoff')
+    if (gate) return gate
 
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError

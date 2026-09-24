@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { featureGate } from '@/lib/feature-gate-server'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -9,6 +10,9 @@ export async function GET() {
   if (!user?.family_id) {
     return NextResponse.json({ error: 'No family' }, { status: 400 })
   }
+
+  const gate = await featureGate(user.family_id, 'travel')
+  if (gate) return gate
 
   const family = await prisma!.family.findUnique({
     where: { id: user.family_id },
@@ -28,6 +32,9 @@ export async function PATCH(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = await featureGate(user.family_id, 'travel')
+  if (gate) return gate
   if (user.role !== 'parent') {
     return NextResponse.json({ error: 'Parents only' }, { status: 403 })
   }
@@ -35,7 +42,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'No family' }, { status: 400 })
   }
 
-  const body = await request.json()
+  let body: any
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
   const { travel_mode_active, travel_start_date, travel_end_date, travel_destination } = body
 
   const updated = await prisma!.family.update({

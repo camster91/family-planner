@@ -52,7 +52,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many invites. Try again later.' }, { status: 429 })
     }
 
-    const parsed = createEmailInviteSchema.safeParse(await request.json())
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const parsed = createEmailInviteSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
@@ -110,7 +117,12 @@ export async function POST(request: NextRequest) {
       role: parsed.data.role,
       joinUrl,
     })
-    await sendMail({ to: email, ...mail })
+    await sendMail({ to: email, ...mail }).catch(async (mailErr) => {
+      // The invite row is useless without its emailed join token — don't leave
+      // a pending invite whose link was never delivered.
+      await prisma!.familyInvite.deleteMany({ where: { token_hash } }).catch(() => undefined)
+      throw mailErr
+    })
 
     return NextResponse.json({
       success: true,

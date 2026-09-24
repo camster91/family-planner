@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { createProjectSchema } from '@/lib/validations'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,9 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'projects')
+    if (gate) return gate
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') as 'active' | 'completed' | 'archived' | null
@@ -65,7 +69,15 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const body = await request.json()
+    const gate = await featureGate(auth.user.family_id, 'projects')
+    if (gate) return gate
+
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = createProjectSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json(

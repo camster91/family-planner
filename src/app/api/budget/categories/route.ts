@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { createCategorySchema } from "@/lib/validations";
+import { featureGate } from '@/lib/feature-gate-server';
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,9 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+
+    const gate = await featureGate(auth.user.family_id, 'budget');
+    if (gate) return gate;
 
     const parentError = requireParent(auth.user.role);
     if (parentError) return parentError;
@@ -54,10 +58,18 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 
+    const gate = await featureGate(auth.user.family_id, 'budget');
+    if (gate) return gate;
+
     const parentError = requireParent(auth.user.role);
     if (parentError) return parentError;
 
-    const body = await request.json();
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    };
     const parsed = createCategorySchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

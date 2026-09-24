@@ -11,7 +11,12 @@ export async function POST(request: NextRequest) {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = createFamilySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
@@ -111,7 +116,12 @@ export async function PATCH(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = updateFamilySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
@@ -146,7 +156,12 @@ export async function DELETE(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = deleteFamilySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'familyId is required' }, { status: 400 })

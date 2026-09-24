@@ -42,7 +42,14 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    const { userId, title, message, type } = await request.json()
+    let payload: any
+    try {
+      payload = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const { userId, title, message, type } = payload
 
     if (!userId || !title || !message || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -82,7 +89,12 @@ export async function PATCH(request: NextRequest) {
     if (error) return error
     const userId = payload.userId
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = updateNotificationSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
@@ -124,7 +136,12 @@ export async function DELETE(request: NextRequest) {
     if (error) return error
     const userId = payload.userId
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = deleteNotificationSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })

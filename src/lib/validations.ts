@@ -41,6 +41,18 @@ export const deleteChoreSchema = z.object({
 })
 
 // Events
+// RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO") — consumed by the ICS feed.
+// The charset is deliberately restricted (no CR/LF, colons beyond the optional
+// RRULE: prefix) so an injected value cannot smuggle extra ICS lines into the
+// calendar feed, which interpolates recurrence verbatim.
+export const recurrenceSchema = z
+  .string()
+  .max(200)
+  .trim()
+  .refine((val) => /^(RRULE:)?[A-Za-z0-9;:=,.\-/]+$/.test(val), 'Invalid recurrence rule')
+  .nullable()
+  .optional()
+
 export const createEventSchema = z.object({
   title: z.string().min(1).max(200).trim(),
   description: z.string().max(1000).trim().nullable().optional(),
@@ -48,6 +60,7 @@ export const createEventSchema = z.object({
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).default('other'),
+  recurrence: recurrenceSchema,
 })
 
 // Family
@@ -166,6 +179,7 @@ export const updateEventSchema = z.object({
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).optional(),
+  recurrence: recurrenceSchema,
 })
 
 export const deleteEventSchema = z.object({
@@ -209,8 +223,19 @@ export const updateUserSchema = z.object({
 })
 
 // Budget - Transactions
+// Non-zero, at least 0.01, at most 2 decimal places. The decimal check runs on
+// the string form because float math is unreliable (19.99 * 100 is not 1999).
+const amountSchema = z
+  .number()
+  .refine((v) => v !== 0, 'Amount must not be zero')
+  .refine((v) => Math.abs(v) >= 0.01, 'Amount too small')
+  .refine(
+    (v) => /^-?\d+(\.\d{1,2})?$/.test(String(v)),
+    'Amount supports at most 2 decimal places'
+  )
+
 export const createTransactionSchema = z.object({
-  amount: z.number().refine((v) => v !== 0, 'Amount must not be zero'),
+  amount: amountSchema,
   type: z.enum(['income', 'expense']),
   category_id: z.string().min(1).optional().nullable(),
   description: z.string().max(500).trim().optional().nullable(),
@@ -222,7 +247,7 @@ export const createTransactionSchema = z.object({
 
 export const updateTransactionSchema = z.object({
   transactionId: z.string().min(1),
-  amount: z.number().refine((v) => v !== 0, 'Amount must not be zero').optional(),
+  amount: amountSchema.optional(),
   type: z.enum(['income', 'expense']).optional(),
   category_id: z.string().min(1).optional().nullable(),
   description: z.string().max(500).trim().optional().nullable(),
