@@ -19,7 +19,7 @@ All third-party actions in the retained workflows are pinned to full commit SHAs
 
 ## Production boundary
 
-Pull requests and ordinary pushes never deploy and never receive production credentials. A manual workflow dispatch on the actual default branch builds and smoke-tests the container, stores the verified image ID with a short-lived artifact, then transfers that exact image to the VPS over SSH. The VPS verifies the image ID before the existing health-gated container swap. No container is rebuilt on the host, and the workflow withholds host/application logs from public Actions output.
+Pull requests and ordinary pushes never deploy and never receive production credentials. A manual workflow dispatch on the actual default branch builds and smoke-tests the container, stores the verified image ID with a short-lived artifact, then transfers that exact image to the VPS over SSH. The VPS verifies the image ID before the existing health-gated container swap. The workflow then requests the public readiness endpoint through the production hostname and requires both HTTP 200 and the expected release commit header. No container is rebuilt on the host, and the workflow withholds host/application logs from public Actions output.
 
 The `production` GitHub Environment must contain:
 
@@ -31,7 +31,7 @@ The SSH account can control Docker and is therefore privileged. Treat its key ac
 
 ## Live repository settings observed on 2026-09-24
 
-- GitHub Actions are enabled.
+- The GitHub Actions setting requires live verification. The PR description records it as disabled, while this document previously recorded it as enabled.
 - The repository default workflow token permission was read-only.
 - Branch protection requires the strict `Build & Test` check and enforces it for administrators; required pull-request approvals are zero.
 - The `production` environment has no required reviewers or deployment-branch restrictions.
