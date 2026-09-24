@@ -6,6 +6,7 @@ import {
   requireParent,
 } from "@/lib/api-auth";
 import { createTransactionSchema } from "@/lib/validations";
+import { featureGate } from '@/lib/feature-gate-server';
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+
+    const gate = await featureGate(auth.user.family_id, 'budget');
+    if (gate) return gate;
 
     const parentError = requireParent(auth.user.role);
     if (parentError) return parentError;
@@ -81,6 +85,9 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+
+    const gate = await featureGate(auth.user.family_id, 'budget');
+    if (gate) return gate;
 
     const parentError = requireParent(auth.user.role);
     if (parentError) return parentError;

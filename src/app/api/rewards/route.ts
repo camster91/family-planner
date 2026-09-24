@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { createRewardSchema, updateRewardSchema } from '@/lib/validations'
 import { notificationServiceServer } from '@/lib/notifications-server'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,9 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -39,6 +43,9 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
 
     if (auth.user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can create rewards' }, { status: 403 })
@@ -102,6 +109,9 @@ export async function PATCH(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
 
     if (auth.user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can update rewards' }, { status: 403 })

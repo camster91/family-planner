@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { featureGate } from '@/lib/feature-gate-server'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
 export async function GET() {
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await featureGate(user.family_id, 'allowance')
+  if (gate) return gate
   if (!user.family_id) return NextResponse.json({ items: [] })
 
   const items = await prisma!.allowance.findMany({
@@ -40,6 +43,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await featureGate(user.family_id, 'allowance')
+  if (gate) return gate
   if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
   if (user.role !== 'parent') {
     return NextResponse.json({ error: 'Only parents can create allowance' }, { status: 403 })
