@@ -124,18 +124,23 @@ export default function KidHome({
   async function handleChoreToggle(choreId: string, alreadyDone: boolean) {
     if (alreadyDone || completedChores.has(choreId)) return
     setCompletedChores(prev => new Set([...prev, choreId]))
-    try {
-      await fetch('/api/chores/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ choreId }),
-      })
-    } catch {
+    const rollback = () =>
       setCompletedChores(prev => {
         const next = new Set(prev)
         next.delete(choreId)
         return next
       })
+    try {
+      const res = await fetch('/api/chores/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choreId }),
+      })
+      // fetch only rejects on network failure; a 4xx/5xx must also undo the
+      // optimistic tick, or the chore looks done while the server disagrees.
+      if (!res.ok) rollback()
+    } catch {
+      rollback()
     }
   }
 
