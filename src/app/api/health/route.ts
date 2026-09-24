@@ -34,7 +34,12 @@ export async function GET() {
       { status },
       {
         status: status === "healthy" ? 200 : 503,
-        headers: NO_STORE,
+        headers: {
+          ...NO_STORE,
+          ...(process.env.RELEASE_SHA
+            ? { "X-Release-Commit": process.env.RELEASE_SHA }
+            : {}),
+        },
       },
     );
   } catch {
