@@ -15,7 +15,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only parents can approve rewards' }, { status: 403 })
     }
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const { rewardId } = body
     if (!rewardId || typeof rewardId !== 'string') {
       return NextResponse.json({ error: 'rewardId is required' }, { status: 400 })

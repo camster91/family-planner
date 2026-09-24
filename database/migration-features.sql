@@ -3,9 +3,11 @@
 --       FamilyLocation, Pickup, Allowance tables.
 
 -- 1. Per-family feature flags
+-- Default mirrors src/lib/features.ts FEATURES (20 keys). Old rows keep
+-- whatever they have; normalizeFeatures fills any missing keys at read time.
 ALTER TABLE "Family"
   ADD COLUMN IF NOT EXISTS "features" JSONB
-  DEFAULT '{"meals":true,"notes":true,"anniversaries":true,"locations":false,"pickups":false,"allowance":false,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true}'::jsonb;
+  DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false}'::jsonb;
 
 -- 2. Family meals (the meal planning feature)
 CREATE TABLE IF NOT EXISTS "FamilyMeal" (

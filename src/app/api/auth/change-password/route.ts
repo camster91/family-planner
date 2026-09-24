@@ -9,7 +9,12 @@ export async function POST(request: NextRequest) {
     const [payload, authError] = await authenticateRequest(request)
     if (authError) return authError
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = changePasswordSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })

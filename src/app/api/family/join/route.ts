@@ -31,7 +31,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const parsed = joinFamilySchema.safeParse(await request.json())
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const parsed = joinFamilySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'inviteCode or token is required' }, { status: 400 })
     }

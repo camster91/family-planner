@@ -4,7 +4,14 @@ import { getServerUser } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { event, path, metadata } = await request.json()
+    let payload: any
+    try {
+      payload = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const { event, path, metadata } = payload
     if (!event || typeof event !== 'string') {
       return NextResponse.json({ error: 'Event name required' }, { status: 400 })
     }

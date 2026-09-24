@@ -34,7 +34,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const body = await request.json();
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    };
     const parsed = updateTransactionSchema.safeParse({
       ...body,
       transactionId: id,

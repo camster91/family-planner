@@ -35,7 +35,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'No family' }, { status: 400 })
   }
 
-  const body = await request.json()
+  let body: any
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
   const { travel_mode_active, travel_start_date, travel_end_date, travel_destination } = body
 
   const updated = await prisma!.family.update({

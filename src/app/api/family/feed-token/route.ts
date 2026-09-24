@@ -31,7 +31,12 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    const body = await request.json().catch(() => ({}))
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const regenerate = body?.regenerate === true
 
     const family = await prisma!.family.findUnique({

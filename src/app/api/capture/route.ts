@@ -45,7 +45,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json().catch(() => null)
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
 
     // Image path: extract several events from a photo/screenshot.
     if (typeof body?.imageBase64 === 'string' && body.imageBase64) {
