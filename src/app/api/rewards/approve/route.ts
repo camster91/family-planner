@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
+import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,9 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'rewards')
+    if (gate) return gate
 
     if (auth.user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can approve rewards' }, { status: 403 })

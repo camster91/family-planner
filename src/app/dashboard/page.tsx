@@ -1,5 +1,6 @@
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { normalizeFeatures } from '@/lib/features'
 import DashboardHome from '@/components/dashboard/DashboardHome'
 import KidHome from '@/components/dashboard/KidHome'
 
@@ -148,13 +149,18 @@ export default async function DashboardPage() {
         .filter((a) => a._days <= 90)
     : []
 
-  const rewardsForKid = rewards.map(r => ({
-    id: r.id,
-    name: r.name,
-    cost: r.cost,
-    description: r.description || undefined,
-    status: r.status as 'available' | 'claimed' | 'approved' | 'redeemed',
-  }))
+  // With the rewards feature off, the claim endpoint 403s — suppress the card
+  // instead of rendering an action that can only fail.
+  const features = normalizeFeatures(user.family?.features)
+  const rewardsForKid = features.rewards
+    ? rewards.map(r => ({
+        id: r.id,
+        name: r.name,
+        cost: r.cost,
+        description: r.description || undefined,
+        status: r.status as 'available' | 'claimed' | 'approved' | 'redeemed',
+      }))
+    : []
 
   if (isKid) {
     return (
