@@ -4,7 +4,7 @@
   "private": true,
   "description": "Family planner web app for chore tracking, calendar management, and family communication",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "npm": ">=10.0.0"
   },
   "scripts": {
@@ -17,7 +17,7 @@
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
-    "format:check": "prettier --check .github/workflows/ci.yml docs/CONSOLIDATION_PLAN.md docs/ISSUE_TRIAGE.md prisma.config.ts \"src/lib/imports/**/*.ts\" \"src/app/api/admin/imports/**/*.ts\" \"src/app/dashboard/settings/imports/**/*.tsx\"",
+    "format:check": "prettier --check .github/workflows/release.yml docs/CONSOLIDATION_PLAN.md docs/ISSUE_TRIAGE.md prisma.config.ts \"src/lib/imports/**/*.ts\" \"src/app/api/admin/imports/**/*.ts\" \"src/app/dashboard/settings/imports/**/*.tsx\" src/app/api/health/route.ts src/__tests__/health.test.ts",
     "prepare": "husky install",
     "validate": "npm run type-check && npx prisma validate",
     "verify:app": "prisma generate && npm run typecheck && npm run lint && npm test -- --runInBand && npm run build && npm audit --omit=dev --audit-level=high",

@@ -1,76 +1,55 @@
 #!/usr/bin/env bash
 #
-# Recreate the family-planner production container from the image of the commit
-# being released. Runs on the self-hosted VPS runner as `familyci`.
+# Promote the verified Family Planner image on the production Docker host.
+# GitHub-hosted Actions transfers the exact image and invokes this script over
+# pinned SSH. Runtime configuration, routing labels, and bind mounts are carried
+# forward from the current container without printing their values.
 #
-# Everything is inherited from the container currently serving traffic rather
-# than read from the host's config files, for two reasons:
-#
-#   * /opt/family-planner/config/app.env is 0600 root:root, the runner has no
-#     sudo, and `docker run --env-file` is parsed client-side by the CLI — so the
-#     runner cannot read it. That file is itself a copy of the previous
-#     container's environment (verified: all 15 key/value hashes matched), so the
-#     container is the original that the file copies.
-#   * The traefik labels and the bind mounts are read back for the same reason:
-#     one source of truth, and a mount or label added later is carried forward
-#     instead of silently dropped.
-#
-# Safety properties:
-#   * The new container must report healthy BEFORE the old one is stopped, so a
-#     bad image costs nothing.
-#   * The old container is stopped but never removed — that is the rollback.
-#     family-planner-9c9e315-r2 on the host is the precedent.
-#   * Re-releasing a commit whose container already exists appends -r2, -r3, ...
-#     so the live container is never removed before its replacement is healthy.
+# The replacement must report healthy before the current container is stopped.
+# The previous container is retained for recovery. Releasing the same commit
+# again gets a unique container name so an existing rollback candidate is kept.
 #
 set -euo pipefail
 
-SHA="${1:?usage: deploy-vps.sh <full-git-sha>}"
-TAG="${SHA:0:7}"
+on_unexpected_error() {
+  rc=$?
+  printf '::error::deployment stopped unexpectedly (exit %s, line %s)\n' "$rc" "$LINENO" >&2
+  exit "$rc"
+}
+trap on_unexpected_error ERR
+
+SHA="${1:?usage: deploy-vps.sh <full-git-sha> <expected-image-id>}"
+EXPECTED_IMAGE_ID="${2:?missing expected image id}"
+if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ || ! "$EXPECTED_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "::error::release identity is invalid"
+  exit 2
+fi
+TAG="$SHA"
 IMAGE="family-planner:${TAG}"
 ROUTER_LABEL='traefik.http.routers.family-planner.rule'
 
 # --- serialise releases ------------------------------------------------------
-# The workflow serialises itself with a concurrency group, but that cannot see a
-# release started by hand (scripts/release-over-ssh.sh), and the collision is
-# genuinely destructive rather than merely wasteful: both invocations resolve the
-# same running container as OLD, start separate replacements carrying identical
-# traefik labels, and then each stops that one shared OLD — leaving two versions
-# behind one router, round-robining, with nothing recording which is which. So
-# the lock belongs here, in the single script every release path runs, and not in
-# any of the callers.
-#
-# Two different users release: `familyci` from the Actions runner and `root` from
-# the SSH path. flock(2) works on any open file description, so opening the lock
-# read-only is enough and a 0644 file serves both — which is why it is the
-# *directory* that has to be writable, and why the fix below creates it rather
-# than requiring root to pre-create the file.
+# This host-side lock protects against overlapping deployments, including a
+# recovery operation started outside the GitHub workflow. The configured
+# deployment identity must be able to open it; otherwise fail before changing
+# the live container.
 LOCK_DIR="${LOCK_DIR:-/opt/family-planner/locks}"
 LOCK_FILE="${LOCK_DIR}/deploy.lock"
 if [ ! -r "${LOCK_FILE}" ]; then
-  echo "::error::cannot read the release lock ${LOCK_FILE}; create it once on the host as root:"
-  echo "  install -d -o familyci -g familyci -m 755 ${LOCK_DIR}"
-  echo "  install -m 644 /dev/null ${LOCK_FILE}"
+  echo "::error::release lock is unavailable; host setup is required"
   exit 1
 fi
 exec 9<"${LOCK_FILE}"
-# Bounded rather than fail-fast: colliding with a release that is already running
-# is usually bad luck, not a mistake, and a cold build takes 5-10 min. Ten
-# minutes is longer than any hand-started release and short enough to still leave
-# room inside the workflow job's 30-minute timeout.
+# Wait at most ten minutes for a release already holding the lock. This stays
+# within the GitHub job timeout while avoiding overlapping container swaps.
 if ! flock -w 600 9; then
-  echo "::error::another release has held ${LOCK_FILE} for 10 minutes; refusing to release concurrently"
+  echo "::error::another release held the lock too long; refusing to release concurrently"
   exit 1
 fi
-echo "release lock acquired (${LOCK_FILE})"
+echo "release lock acquired"
 
-# The lock is attached to an open file description, not to this process, so every
-# child inherits it. That is what we want — the lock has to span the whole release
-# including `docker build` — and it is self-healing rather than stale-prone: if
-# this script is killed outright, the lock is released as soon as its last
-# surviving child exits, so there is never a lock file to clear by hand. (Verified:
-# killing the holder with a 4s child leaves the next release blocked for exactly
-# the 3s that child had left.)
+# The file lock spans image verification and the container swap. It is released
+# automatically after this script and any child process holding the descriptor exit.
 
 # Persistent uploads. Declared here rather than inherited, because the release
 # that first introduces a mount has nothing to inherit it from — inheritance
@@ -80,19 +59,17 @@ UPLOADS_HOST_DIR="${UPLOADS_HOST_DIR:-/opt/family-planner/uploads}"
 UPLOADS_CONTAINER_DIR="${UPLOADS_CONTAINER_DIR:-/data/family-planner-uploads}"
 
 # The app writes as uid 1001 (nextjs), a bind mount carries numeric ids across
-# unchanged, and `familyci` is in the docker group but has no sudo — so it
-# cannot create this directory itself. Fail closed, naming the exact fix.
+# unchanged, and the configured deployment account must have Docker access, so it
+# cannot create this directory itself. Fail closed if the persistent storage is unavailable.
 if [ ! -d "${UPLOADS_HOST_DIR}" ]; then
-  echo "::error::${UPLOADS_HOST_DIR} does not exist; create it once on the host as root:"
-  echo "  install -d -o 1001 -g 65533 -m 755 ${UPLOADS_HOST_DIR}"
+  echo "::error::persistent uploads storage is unavailable; refusing to release"
   exit 1
 fi
 
 # --- locate the container currently serving traffic --------------------------
 OLD="$(docker ps --filter "label=${ROUTER_LABEL}" --format '{{.Names}}' | head -n1)"
 if [ -z "${OLD}" ]; then
-  echo "::error::no running container carries the ${ROUTER_LABEL} label"
-  docker ps --format '{{.Names}}  {{.Image}}' || true
+  echo "::error::no running application container was found; refusing to release"
   exit 1
 fi
 
@@ -103,8 +80,12 @@ while docker container inspect "${NEW}" >/dev/null 2>&1; do
   n=$((n + 1))
 done
 
-echo "Releasing ${TAG}: building ${IMAGE}, will replace ${OLD} with ${NEW}"
-docker build --tag "${IMAGE}" .
+actual_image_id="$(docker image inspect --format '{{.Id}}' "${IMAGE}")"
+if [ "${actual_image_id}" != "${EXPECTED_IMAGE_ID}" ]; then
+  echo "::error::the loaded production image does not match the verified candidate"
+  exit 1
+fi
+echo "Releasing commit ${SHA}: verified image will replace ${OLD} with ${NEW}"
 
 # --- inherit runtime configuration from the container being replaced ---------
 ENV_FILE="$(mktemp)"
@@ -112,7 +93,10 @@ trap 'rm -f "${ENV_FILE}"' EXIT
 chmod 600 "${ENV_FILE}"
 
 # Never echoed anywhere: this is the app's full runtime environment, secrets included.
-docker inspect "${OLD}" --format '{{range .Config.Env}}{{println .}}{{end}}' > "${ENV_FILE}"
+# RELEASE_SHA is baked into each image; inheriting the old value would make
+# /api/health report the previous commit and fail post-swap verification.
+docker inspect "${OLD}" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | { grep -v '^RELEASE_SHA=' || true; } > "${ENV_FILE}"
 
 LABEL_ARGS=()
 while IFS= read -r label; do
@@ -145,15 +129,13 @@ while IFS='|' read -r mtype msource mname mdest mrw; do
   # last one instead of trusting the parse.
   case "${mrw}" in
     true|false) ;;
-    *) echo "::error::could not parse a mount spec on ${OLD} (final field was '${mrw}'); refusing to release"
+    *) echo "::error::could not parse a mount entry; refusing to release"
        exit 1 ;;
   esac
   if [ "${mtype}" != "bind" ]; then
     # A named volume or tmpfs has no host path to carry across, and quietly
     # releasing without it is worse than not releasing. Fail closed and name it.
-    echo "::error::${OLD} has a ${mtype} mount this script does not carry; refusing to release:"
-    echo "  ${mtype} '${mname}' -> ${mdest}"
-    echo "  add it to deploy-vps.sh deliberately before releasing"
+    echo "::error::the running container has an unsupported mount type; refusing to release"
     exit 1
   fi
   # The uploads mount is declared explicitly below. Skipping an inherited copy of
@@ -187,8 +169,7 @@ while IFS= read -r bind; do
 done < <(docker inspect "${OLD}" --format '{{range .HostConfig.Binds}}{{println .}}{{end}}')
 
 if [ "$((legacy - legacy_carried))" -gt "${inherited}" ]; then
-  echo "::error::${OLD} reports $((legacy - legacy_carried)) legacy bind(s) but only ${inherited} mount(s) were carried; refusing to release"
-  docker inspect "${OLD}" --format '{{range .HostConfig.Binds}}  bind  {{.}}{{println}}{{end}}{{range .Mounts}}  mount {{.Type}} {{.Source}} -> {{.Destination}}{{println}}{{end}}' || true
+  echo "::error::not all existing container mounts could be carried forward; refusing to release"
   exit 1
 fi
 
@@ -206,6 +187,7 @@ docker run --detach \
   --log-opt max-file=3 \
   --network family-planner-internal \
   --env-file "${ENV_FILE}" \
+  --env "RELEASE_SHA=${SHA}" \
   --volume "${UPLOADS_HOST_DIR}:${UPLOADS_CONTAINER_DIR}" \
   "${BIND_ARGS[@]}" \
   "${LABEL_ARGS[@]}" \
@@ -228,15 +210,13 @@ for i in $(seq 1 60); do
       break
       ;;
     unhealthy)
-      echo "::error::${NEW} reported unhealthy; ${OLD} is untouched and still serving"
-      docker logs --tail 80 "${NEW}" || true
+      echo "::error::replacement container reported unhealthy; the previous container is still serving"
       docker rm --force "${NEW}" >/dev/null
       exit 1
       ;;
   esac
   if [ "${i}" -eq 60 ]; then
-    echo "::error::${NEW} never became healthy within 300s; ${OLD} is untouched and still serving"
-    docker logs --tail 80 "${NEW}" || true
+    echo "::error::replacement container did not become healthy in time; the previous container is still serving"
     docker rm --force "${NEW}" >/dev/null
     exit 1
   fi
@@ -248,16 +228,19 @@ done
 # wrong ownership starts healthy and then fails the first time a user uploads a
 # photo — which is exactly how the uploads bug shipped unnoticed. `docker exec`
 # runs as the image's USER (uid 1001), so this measures what the app will.
-if ! docker exec "${NEW}" sh -c \
-     "touch '${UPLOADS_CONTAINER_DIR}/.write-probe' && rm -f '${UPLOADS_CONTAINER_DIR}/.write-probe'" >/dev/null 2>&1; then
-  echo "::error::${UPLOADS_CONTAINER_DIR} is not writable inside ${NEW}; uploads would fail at runtime"
-  docker exec "${NEW}" sh -c "id; ls -ld '${UPLOADS_CONTAINER_DIR}'" || true
-  docker logs --tail 40 "${NEW}" || true
+UPLOAD_PROBE="${UPLOADS_CONTAINER_DIR%/}/.write-probe"
+if ! docker exec "${NEW}" touch "${UPLOAD_PROBE}" >/dev/null 2>&1; then
+  echo "::error::persistent uploads storage is not writable by the replacement container"
+  docker rm --force "${NEW}" >/dev/null
+  exit 1
+fi
+if ! docker exec "${NEW}" rm -f "${UPLOAD_PROBE}" >/dev/null 2>&1; then
+  docker exec "${NEW}" rm -f "${UPLOAD_PROBE}" >/dev/null 2>&1 || true
+  echo "::error::replacement container could not remove its uploads write probe"
   docker rm --force "${NEW}" >/dev/null
   exit 1
 fi
 echo "uploads directory is writable by the app user"
-
 # --- swap --------------------------------------------------------------------
 echo "Stopping previous container ${OLD} (kept, not removed, for rollback)"
 docker stop "${OLD}"
@@ -265,4 +248,4 @@ docker stop "${OLD}"
 # Dangling layers from the build only; images of running containers are never touched.
 docker image prune --force >/dev/null
 
-echo "Released ${TAG}: ${NEW} is serving, ${OLD} is stopped."
+echo "Released commit ${SHA}: replacement container is serving; previous container is retained for rollback."

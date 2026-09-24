@@ -1,13 +1,2 @@
-# Shell scripts must be LF on every platform.
-#
-# This repository is developed on Windows with core.autocrlf=true, which makes
-# the working tree CRLF while the blobs stay LF. For most files that is
-# invisible; for a shell script it is fatal — bash reads `set -euo pipefail\r`
-# and reports `set: pipefail: invalid option name`, an error that names neither
-# the file nor the real cause. A CRLF docker-entrypoint.sh fails the same way at
-# container start.
-#
-# scripts/release-over-ssh.sh is meant to run from a Windows checkout, so this
-# is load-bearing rather than cosmetic.
 *.sh text eol=lf
 *.bash text eol=lf

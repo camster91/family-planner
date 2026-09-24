@@ -1,7 +1,7 @@
 # syntax = docker/dockerfile:1
 
-# Use the official Node.js 20 Alpine image as the base
-FROM node:20-alpine AS base
+# Use the official Node.js 22 Alpine image as the base
+FROM node:22-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -41,6 +41,8 @@ RUN cp -r /app/public /app/.next/standalone/public
 FROM base AS runner
 WORKDIR /app
 
+ARG RELEASE_SHA
+ENV RELEASE_SHA=${RELEASE_SHA}
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 

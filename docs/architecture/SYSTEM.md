@@ -42,7 +42,7 @@ Document evidence before extracting a service. Examples:
 - a domain needs independent failure isolation or data residency.
 
 ## Deployment topology
-Current deployment uses the existing web/API application, PostgreSQL and Docker/Coolify path. Exact production topology must be freshly verified before operational changes.
+Current deployment uses the existing web/API application, PostgreSQL and Docker on a VPS. GitHub-hosted Actions validates and manually promotes a verified container image over pinned SSH. Exact host topology must be freshly verified before operational changes.
 
 ## Observability
 Every request should eventually support request/trace identity, structured error codes and release/build identity. Private household content must not be required to operate the platform.

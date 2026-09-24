@@ -45,18 +45,18 @@
 
 | Category       | Technology                                 |
 | -------------- | ------------------------------------------ |
-| Framework      | Next.js 14 (App Router, standalone output) |
+| Framework      | Next.js 16 (App Router, standalone output) |
 | Language       | TypeScript (strict mode)                   |
 | Database       | PostgreSQL via Prisma 7 ORM                |
 | Authentication | Self-hosted JWT (bcryptjs + jsonwebtoken)  |
 | Styling        | Tailwind CSS 3.4 (Apple HIG design system) |
 | State          | Zustand                                    |
 | Forms          | React Hook Form + Zod validation           |
-| Deployment     | Docker + Coolify                           |
+| Deployment     | Docker on VPS; GitHub Actions CI and manual releases                           |
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - PostgreSQL database
 - Git
 
@@ -135,7 +135,7 @@ prisma/
 └── schema.prisma          # 26 models
 
 .github/
-└── workflows/             # 7 CI/CD workflows
+└── workflows/             # GitHub Actions CI, release, Android, and maintenance workflows
 ```
 
 ## Deployment
@@ -150,13 +150,13 @@ docker run -p 3000:3000 \
   family-planner
 ```
 
-### Coolify
+### Production release
 
-See `DEPLOYMENT.md` for detailed Coolify deployment instructions.
+Production releases are started manually from the default branch in GitHub Actions. Pull requests and regular pushes validate without deploying. See DEPLOYMENT.md for the required production environment and SSH configuration.
 
 ### CI/CD
 
-7 GitHub Actions workflows handle lint/type/test/build/image-push/deploy/APK.
+One GitHub-hosted workflow owns application validation and the exact-image release path. Separate workflows handle Android artifacts and repository maintenance.
 
 ## Testing
 

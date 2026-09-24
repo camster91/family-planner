@@ -31,7 +31,7 @@ function getJwtSecret(): string {
   }
 
   // Production runtime must have a real secret — including when
-  // SKIP_ENV_VALIDATION is left on from a Coolify build-time example.
+  // SKIP_ENV_VALIDATION is set for build-time validation only.
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'CRITICAL: JWT_SECRET environment variable is not set. ' +

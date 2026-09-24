@@ -4,7 +4,7 @@
 > on 2026-08-28. Retained only for historical context.
 
 > ⚠️ **STALE — See finish plan:** `~/.hermes/plans/family-planner-finish-plan-2026-06-06.md`
-> Phase 2 references Vercel/Netlify. App now deploys to Coolify. See DEPLOYMENT.md for current deploy process.
+> Phase 2 references Vercel/Netlify. Use DEPLOYMENT.md for the current release process; this launch-plan document is historical.
 
 ## Phase 1: MVP & Prep
 

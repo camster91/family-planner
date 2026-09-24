@@ -1,189 +1,41 @@
-# Family Planner — Deployment Guide
+# Deployment
 
-## Deploy to Production (Docker + Coolify)
+Family Planner uses GitHub-hosted Actions for validation and controlled production promotion. The production VPS remains the Docker host, but it no longer runs a GitHub Actions runner and it does not build application code during a release.
 
-### Overview
+## Validation
 
-Family Planner deploys to Coolify via source-build (Coolify pulls from git and builds) or via pre-built Docker image. The 7 GitHub Actions workflows handle CI, building, and triggering deploys.
+The `Build, Test & Release` workflow runs the required `Build & Test` check for pull requests and default-branch pushes. It installs locked dependencies, runs the application and database checks, builds the production container, and smoke-tests it against an ephemeral PostgreSQL database with synthetic credentials.
 
-### Prerequisites
-- A Coolify instance (self-hosted or managed)
-- A PostgreSQL database (provisioned via Coolify or external)
-- GitHub repository connected to Coolify
+Pull requests and ordinary pushes do not receive production credentials and do not deploy.
 
-## Deploy Methods
+## Production release
 
-### Method 1: Coolify Source Build (Canonical Production Deploy)
+A release is started manually from the repository's default branch through GitHub Actions. The same workflow run:
 
-Uses `.github/workflows/deploy.yml` — Coolify pulls from git, builds the Next.js standalone image directly.
+1. Builds and smoke-tests the exact container image for that commit.
+2. Saves the image identity and deployment script as a short-lived workflow artifact.
+3. Transfers the image over SSH to the production host using a pinned SSH host key.
+4. Verifies that the host loaded the image with the same immutable image ID.
+5. Runs `.github/scripts/deploy-vps.sh` to start and health-check the replacement before stopping the current container.
 
-1. **Connect your GitHub repo** in the Coolify dashboard
-2. **Set build pack** to "Docker" (for Next.js standalone) or "Nixpacks" (auto-detects Node.js)
-3. **Add environment variables:**
-   - `DATABASE_URL` — PostgreSQL connection string
-   - `JWT_SECRET` — Secret for JWT signing (≥32 chars)
-   - `NEXT_PUBLIC_APP_URL` — Your production URL (e.g., `https://family.ashbi.ca`)
-   - `NEXT_PUBLIC_APP_NAME` — App display name
-   - `SKIP_ENV_VALIDATION=true` — Skip env validation during build
-4. **Build command:** `npx prisma generate && npm run build`
-5. **Start command:** `npm run start`
-6. **Deploy** — Coolify builds and starts the container
+The previous container is retained on the host for recovery. The workflow does not stream application/container logs or health diagnostics into public Actions logs.
 
-### Method 2: Pre-built Image (ghcr.io)
+## GitHub configuration required
 
-Uses `.github/workflows/build-push.yml` + `.github/workflows/deploy-from-ghcr.yml`:
+The repository `production` environment must be configured before production releases can run:
 
-1. **Build and push:** `build-push.yml` builds the Docker image and pushes to `ghcr.io/camster91/family-planner`
-2. **Deploy:** `deploy-from-ghcr.yml` tells Coolify to pull the new image and redeploy
+- Add environment variables `FP_SSH_HOST`, `FP_SSH_USER`, and optionally `FP_SSH_PORT` (defaults to `22`).
+- Add environment secrets `FP_SSH_PRIVATE_KEY` and `FP_SSH_KNOWN_HOSTS`.
+- Use a dedicated deploy identity. It needs the existing host permissions required to load and run Docker images and access the persistent upload mount; Docker-group access is privileged.
+- Pin the host key in `FP_SSH_KNOWN_HOSTS` for the exact configured host and port. Do not use `ssh-keyscan` at workflow runtime.
+- Configure the `production` environment to allow deployments only from the default branch and require a reviewer before secrets are released to the job.
 
-```bash
-# Manual image build and push
-docker build -t ghcr.io/camster91/family-planner:latest .
-docker push ghcr.io/camster91/family-planner:latest
-```
+The workflow fails closed if these values are missing or invalid. Do not paste private keys into source files, issues, pull requests, or chat.
 
-### Method 3: Docker (local or VPS)
+## Host requirements
 
-```bash
-docker build -t family-planner .
-docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
-  -e JWT_SECRET="your-secret" \
-  -e NEXT_PUBLIC_APP_URL="https://family.ashbi.ca" \
-  family-planner
-```
+The production host must already have the Docker network, persistent upload storage, and release lock expected by `.github/scripts/deploy-vps.sh`. Keep host setup and application logs private to the host. A failed health check leaves the previous container running; inspect the private host log before retrying a release whose SSH connection was interrupted.
 
-## GitHub Actions Workflows
+## Paths intentionally removed
 
-| Workflow | File | What it does |
-|----------|------|--------------|
-| CI | `ci.yml` | lint + type-check + test + docker build |
-| Image push | `build-push.yml` | Build + push to `ghcr.io` |
-| Image deploy | `deploy-from-ghcr.yml` | Pull image + redeploy to Coolify |
-| Source deploy | `deploy.yml` | Trigger Coolify source build |
-| Android APK | `apk.yml` | Capacitor Android build |
-| Stale issues | `stale-issues.yml` | Auto-close stale issues |
-| Auto-merge | `auto-merge.yml` | Auto-merge dependabot PRs |
-
-### CI Pipeline (`ci.yml`)
-
-1. Checkout → Setup Node 20
-2. `npm ci --legacy-peer-deps`
-3. `npx prisma generate` (with placeholder DATABASE_URL)
-4. `SKIP_ENV_VALIDATION=true npm run build`
-5. `npm test -- --passWithNoTests --ci`
-
-### Deploy Flow
-
-**Source build (deploy.yml):**
-1. Checkout → Setup Node 20
-2. `npm ci --legacy-peer-deps`
-3. `npx prisma generate`
-4. `SKIP_ENV_VALIDATION=true npm run build`
-5. Trigger Coolify deploy via API webhook
-
-**Image-based (build-push.yml + deploy-from-ghcr.yml):**
-1. Build Docker image with `docker/build-push` action
-2. Push to `ghcr.io/camster91/family-planner`
-3. Coolify webhook triggers redeploy from new image tag
-
-## Database Setup
-
-### PostgreSQL
-
-Provision via Coolify (built-in) or external provider.
-
-```bash
-# Push Prisma schema
-npx prisma db push
-
-# Or run SQL files manually
-# database/setup.sql       — Initial schema
-# database/updates.sql     — Phase updates
-```
-
-### Prisma
-
-```bash
-npx prisma generate   # Required before build (regenerate after every schema change)
-npx prisma db push     # Push schema to database
-npx prisma studio      # Browse data
-```
-
-## Environment Variables
-
-### Required
-
-```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/family_planner
-JWT_SECRET=your-secure-random-string-at-least-32-chars
-NEXT_PUBLIC_APP_URL=https://family.ashbi.ca
-NEXT_PUBLIC_APP_NAME=Family Planner
-SKIP_ENV_VALIDATION=true   # Required during build (env vars may not be set)
-```
-
-### Coolify Environment Block
-
-```
-DATABASE_URL=<your postgres connection string>
-JWT_SECRET=<generate with: openssl rand -base64 32>
-NEXT_PUBLIC_APP_URL=https://family.ashbi.ca
-NEXT_PUBLIC_APP_NAME=Family Planner
-MAILGUN_API_KEY=<Mailgun API key>
-MAILGUN_DOMAIN=ashbi.ca
-MAILGUN_FROM=Family Planner <noreply@ashbi.ca>
-```
-
-`SKIP_ENV_VALIDATION` is build-only. Do not set it on the running Coolify app.
-
-## Security Checklist
-
-### Before Launch
-- [ ] `JWT_SECRET` is strong (≥32 random chars, generated with `openssl rand -base64 32`)
-- [ ] Database connections use SSL in production (`?sslmode=require` in DATABASE_URL)
-- [ ] HTTPS configured via Coolify reverse proxy
-- [ ] Rate limiting enabled on auth endpoints (`/api/auth/*`)
-- [ ] Database backups configured
-
-### Ongoing
-- [ ] Regular dependency updates (`npm audit fix`)
-- [ ] Monitor for suspicious activity in Coolify logs
-- [ ] Database backups (daily recommended)
-- [ ] Update Node.js base image periodically
-
-## Monitoring
-
-- **Error tracking**: Check Coolify logs + `docker logs` for errors
-- **Uptime**: Use UptimeRobot or similar on `https://family.ashbi.ca`
-- **Performance**: Lighthouse CI on key pages
-
-## Scaling
-
-- **High traffic**: Add container replicas in Coolify
-- **Large database**: Consider read replicas (PostgreSQL)
-- **International users**: Deploy to multiple regions
-
-## Emergency Procedures
-
-### Rollback
-```bash
-# Redeploy a previous commit via Coolify dashboard
-# Or pull a specific ghcr.io tag
-docker pull ghcr.io/camster91/family-planner:<previous-tag>
-```
-
-### Container crash
-```bash
-docker logs <container_id>       # Check logs
-docker restart <container_id>   # Restart
-```
-
-### Build failure
-Check GitHub Actions logs for the failing step. Common causes:
-- `npx prisma generate` skipped after schema change → run it
-- Missing env var during build → ensure `SKIP_ENV_VALIDATION=true`
-- TypeScript errors → fix type errors before pushing
-
----
-
-*Built by Cameron Ashley*
+The old local SSH release helper and duplicate CI/GHCR image-publishing workflow were removed. There is one canonical CI workflow and one manually triggered production path.

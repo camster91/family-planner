@@ -1,6 +1,6 @@
 /**
  * Structured logger. Writes JSON lines to stdout in production
- * (consumed by Coolify/Docker log aggregation), human-readable in dev.
+ * (collected from the container output by the host), human-readable in dev.
  *
  * Why not Sentry? Costs $26/mo at minimal scale, requires source map
  * upload config, and for an app at <1000 users console.log aggregation

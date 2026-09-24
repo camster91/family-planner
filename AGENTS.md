@@ -12,7 +12,7 @@ This file is the primary instruction set for coding agents working in this repos
 If documents disagree, follow the authority order in `docs/START_HERE.md` and surface the conflict in the PR. Do not silently choose an older plan.
 
 ## Product direction
-Family Planner is one private, role-aware household operations product. The fridge/wall Android tablet is a primary shared surface, not a second product or backend. Phone experiences are companion surfaces. The product should feel calm, premium, delightful and obvious while remaining Android-appropriate, accessible, private by default and recoverable.
+Family Planner is a private, role-aware household operations app. The fridge/wall Android tablet is a primary shared surface, not a second product or backend. Phone experiences are companion surfaces. The product should feel calm, premium, delightful and obvious while remaining Android-appropriate, accessible, private by default and recoverable.
 
 ## Current baseline
 - Next.js App Router + TypeScript strict mode
@@ -20,7 +20,7 @@ Family Planner is one private, role-aware household operations product. The frid
 - Self-hosted JWT/session auth
 - Tailwind/design tokens and reusable React components
 - Capacitor Android shell
-- Docker/Coolify deployment path
+- Docker deployment on the existing VPS, promoted through GitHub-hosted Actions
 - Figma-first for significant tablet/mobile flows
 
 Use `package.json`, `prisma/schema.prisma` and `docs/CURRENT_STATE.md` for exact current versions/state. Do not trust stale version numbers in old prose.
