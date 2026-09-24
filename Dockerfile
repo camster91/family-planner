@@ -41,6 +41,8 @@ RUN cp -r /app/public /app/.next/standalone/public
 FROM base AS runner
 WORKDIR /app
 
+ARG RELEASE_SHA
+ENV RELEASE_SHA=${RELEASE_SHA}
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
