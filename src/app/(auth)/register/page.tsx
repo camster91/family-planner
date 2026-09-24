@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const { t } = useTranslation()
   const router = useRouter()
   const [showVerificationNotice, setShowVerificationNotice] = useState(false)
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [emailLocked, setEmailLocked] = useState(false)
@@ -87,6 +88,22 @@ export default function RegisterPage() {
     }
   }
 
+  const handleResend = async () => {
+    setResendState('sending')
+    try {
+      // Always answers 200 whether or not the account exists; nothing to
+      // surface beyond the confirmation state.
+      await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+    } catch {
+      // Transport error — the endpoint's own retries/rate limits apply.
+    }
+    setResendState('sent')
+  }
+
   if (showVerificationNotice) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
@@ -104,6 +121,18 @@ export default function RegisterPage() {
             <Link href="/login" className="btn-filled w-full py-3">
               Go to Sign In
             </Link>
+            <button
+              type="button"
+              className="btn-plain w-full py-3 mt-3"
+              onClick={handleResend}
+              disabled={resendState !== 'idle'}
+            >
+              {resendState === 'sent'
+                ? 'Verification email sent again'
+                : resendState === 'sending'
+                  ? 'Sending…'
+                  : 'Resend verification email'}
+            </button>
           </div>
         </div>
       </div>

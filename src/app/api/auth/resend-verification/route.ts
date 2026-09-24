@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
     const user = await prisma!.user.findUnique({ where: { email } })
 
     if (user && !user.email_verified) {
+      // Snapshot the existing token before createVerificationToken overwrites
+      // it, so a failed delivery can restore the previously issued link.
+      const oldToken = user.verify_token
+      const oldExpires = user.verify_token_expires
       // Best-effort: never leak delivery status through the response.
       try {
         const token = await createVerificationToken(user.id)
@@ -61,6 +65,14 @@ export async function POST(request: NextRequest) {
           text: `Verify your Family Planner email: ${verifyUrl} - this link expires in 24 hours.`,
         })
       } catch (e) {
+        // Delivery failed AFTER the new token was written — restore the prior
+        // token so the previously delivered link stays usable.
+        await prisma!.user
+          .update({
+            where: { id: user.id },
+            data: { verify_token: oldToken, verify_token_expires: oldExpires },
+          })
+          .catch(() => undefined)
         console.warn('Resend-verification mail failed:', e)
       }
     }

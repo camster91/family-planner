@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [registerHref, setRegisterHref] = useState('/register')
   const router = useRouter()
 
@@ -56,6 +57,22 @@ export default function LoginPage() {
     }
   }
 
+  const handleResend = async () => {
+    setResendState('sending')
+    try {
+      // Always answers 200 whether or not the account exists; nothing to
+      // surface beyond the confirmation state.
+      await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+    } catch {
+      // Transport error — the endpoint's own retries/rate limits apply.
+    }
+    setResendState('sent')
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
       <div className="w-full max-w-sm">
@@ -83,6 +100,21 @@ export default function LoginPage() {
               >
                 {error}
               </div>
+            )}
+
+            {error && /verify/i.test(error) && (
+              <button
+                type="button"
+                className="btn-plain w-full py-3"
+                onClick={handleResend}
+                disabled={resendState !== 'idle' || loading}
+              >
+                {resendState === 'sent'
+                  ? 'Verification email sent again'
+                  : resendState === 'sending'
+                    ? 'Sending…'
+                    : 'Resend verification email'}
+              </button>
             )}
 
             <div>
