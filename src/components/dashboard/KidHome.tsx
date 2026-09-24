@@ -9,6 +9,7 @@ import { ProgressRing } from '@/components/ui/progress-ring'
 import { ListRow } from '@/components/ui/list-row'
 import { cn } from '@/lib/utils'
 import { xpForNextLevel } from '@/lib/gamification'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
 
 interface Chore {
@@ -78,6 +79,7 @@ export default function KidHome({
 }: KidHomeProps) {
   const [celebratingReward, setCelebratingReward] = useState<string | null>(null)
   const [claimingReward, setClaimingReward] = useState(false)
+  const rewardsEnabled = useFeatureEnabled('rewards')
   const [completedChores, setCompletedChores] = useState<Set<string>>(new Set())
 
   const userXp = user.xp ?? 0
@@ -287,8 +289,9 @@ export default function KidHome({
           </section>
         )}
 
-        {/* Rewards card — claim most recent available reward */}
-        {claimableReward && (
+        {/* Rewards card — claim most recent available reward (hidden when the
+            rewards feature is off; the claim endpoint 403s in that case) */}
+        {rewardsEnabled && claimableReward && (
           <section>
             <p className="section-header">Rewards</p>
             <div className="card-apple p-4">
