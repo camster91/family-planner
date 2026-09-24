@@ -103,7 +103,7 @@ jobs:
           DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
 
       - name: Build container image
-        run: docker build --pull --tag "family-planner:${GITHUB_SHA}" .
+        run: docker build --pull --build-arg "RELEASE_SHA=${GITHUB_SHA}" --tag "family-planner:${GITHUB_SHA}" .
 
       - name: Smoke test container readiness
         run: |
@@ -229,3 +229,25 @@ jobs:
             "$GITHUB_SHA" \
             "$FP_IMAGE_ID" \
             "$RUNNER_TEMP/family-planner-release/release-bundle.tar.gz"
+
+      - name: Verify public route serves the released commit
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          trap 'rm -f "$headers"' EXIT
+          for attempt in $(seq 1 6); do
+            : > "$headers"
+            code="$(curl --silent --show-error --max-time 15 \
+              --header 'Cache-Control: no-cache' \
+              --dump-header "$headers" --output /dev/null \
+              --write-out '%{http_code}' \
+              https://family.ashbi.ca/api/health || true)"
+            served_sha="$(awk 'tolower($1) == "x-release-commit:" { gsub("\r", "", $2); print $2 }' "$headers" | tail -n 1)"
+            if [ "$code" = "200" ] && [ "$served_sha" = "$GITHUB_SHA" ]; then
+              echo "Public health route serves verified commit $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::public health route did not serve the verified release commit"
+          exit 1
