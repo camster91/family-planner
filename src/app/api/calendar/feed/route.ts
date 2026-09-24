@@ -56,7 +56,12 @@ export async function GET(request: NextRequest) {
     const events = await prisma!.event.findMany({
       where: {
         family_id: family.id,
-        start_time: { gte: from, lte: to },
+        OR: [
+          // Recurring series stay in the feed regardless of age so subscribers
+          // keep expanding future occurrences from their RRULE.
+          { recurrence: { not: null } },
+          { start_time: { gte: from, lte: to } },
+        ],
       },
       orderBy: { start_time: 'asc' },
       take: 2000,
@@ -81,7 +86,9 @@ export async function GET(request: NextRequest) {
       lines.push(fold(`SUMMARY:${escapeIcs(e.title)}`))
       if (e.description) lines.push(fold(`DESCRIPTION:${escapeIcs(e.description)}`))
       if (e.location) lines.push(fold(`LOCATION:${escapeIcs(e.location)}`))
-      if (e.recurrence) lines.push(`RRULE:${e.recurrence.toUpperCase()}`)
+      // Values may arrive with or without the RRULE: prefix — never emit both.
+      if (e.recurrence)
+        lines.push(`RRULE:${e.recurrence.replace(/^RRULE:/i, '').toUpperCase()}`)
       lines.push('END:VEVENT')
     }
 

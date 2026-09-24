@@ -110,7 +110,12 @@ export async function POST(request: NextRequest) {
       role: parsed.data.role,
       joinUrl,
     })
-    await sendMail({ to: email, ...mail })
+    await sendMail({ to: email, ...mail }).catch(async (mailErr) => {
+      // The invite row is useless without its emailed join token — don't leave
+      // a pending invite whose link was never delivered.
+      await prisma!.familyInvite.deleteMany({ where: { token_hash } }).catch(() => undefined)
+      throw mailErr
+    })
 
     return NextResponse.json({
       success: true,

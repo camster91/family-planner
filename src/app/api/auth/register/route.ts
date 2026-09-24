@@ -154,9 +154,15 @@ export async function POST(request: NextRequest) {
     // verify their email first, then log in. See /api/auth/login for the
     // verification gate.
 
-    const { password: _, ...userWithoutPassword } = user
+    // Same column allowlist as the invite path — never echo internal auth
+    // columns (reset_token, verify_token, token_version) to the client.
+    const { password: _pw, reset_token, verify_token, token_version, ...safeUser } = user as typeof user & {
+      reset_token?: string | null
+      verify_token?: string | null
+      token_version?: number
+    }
     const response = NextResponse.json({
-      user: userWithoutPassword,
+      user: safeUser,
       requiresVerification: true,
     })
     return response
