@@ -5,7 +5,7 @@ Do not treat a roadmap candidate as an active production processor. Add/update a
 | Provider | Purpose | Status | Data sent | Credentials | Failure/disable path | Privacy/security review |
 |---|---|---|---|---|---|---|
 | PostgreSQL hosting / current infrastructure | Core app data storage | Verify current production provider before public release | household application data | server-side | backup/restore/migration runbooks | required |
-| Coolify/current hosting | application deployment/hosting | existing path; verify exact production topology | application runtime/operational data | server-side | rollback runbook | required |
+| VPS/Docker hosting | application deployment/hosting | existing production host; provider and region require owner verification | application runtime/operational data | server-side | rollback runbook | required |
 | AI provider | contextual assistance | not committed by roadmap | task-minimized authorized context only | server-side | feature kill switch/manual workflows | required before prod |
 | Calendar provider | optional sync | not committed | authorized event/sync fields | server-side OAuth/token storage | disconnect/disable adapter | required before prod |
 | Weather provider | optional dashboard weather | not committed | coarse configured location if needed | server-side where possible | omit weather card | required before prod |

@@ -127,7 +127,7 @@ Family Planner already contains:
 - Next.js / TypeScript application.
 - Responsive web UI.
 - Android Capacitor shell and APK workflow.
-- Docker / Coolify deployment path.
+- Docker deployment on the existing VPS, promoted through GitHub-hosted Actions.
 
 The fridge program should extend this foundation rather than migrate to React Native unless a documented capability gap appears that cannot be solved cleanly with the existing Capacitor architecture.
 

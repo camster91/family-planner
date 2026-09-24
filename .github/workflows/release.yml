@@ -1,20 +1,3 @@
-# Build, test and release family-planner onto the VPS that serves it.
-#
-# This replaces the Coolify-API deploy in deploy-coolify.yml, which could not
-# work: there is no live Coolify control plane on the host (no containers, no
-# network, nothing on :8000, DNS pointing at a retired instance), the source
-# webhook at :8000 has refused all 29 deliveries since 2026-09-16, and the ghcr
-# image the fallback script pulls has never existed for this repo. The container
-# that actually runs was created by a throwaway script in /tmp.
-#
-# PR verification uses standard GitHub-hosted `ubuntu-24.04`. It runs dependency
-# installation and build scripts from pull-request branches, so it must never
-# execute on the production host.
-#
-# The `release` job still runs on the production VPS and replaces its live
-# container using Docker and inherited runtime configuration. Moving that deploy
-# path off-host requires a separately provisioned and reviewed access method;
-# this change leaves the production release behavior unchanged.
 name: Build, Test & Release
 
 on:
@@ -27,28 +10,36 @@ on:
 permissions:
   contents: read
 
-# Cancellation is OFF here on purpose. A workflow-level cancel aborts every job,
-# including the release — the release job's own `cancel-in-progress: false`
-# cannot protect it from that. Being killed between `docker run` and the health
-# check would leave an unverified container holding the production traefik
-# labels, and the next release would then adopt it as the container to replace.
-# Cancelling a *build* is harmless, so that job cancels on its own group instead.
+# Never cancel a production release. Build jobs have their own cancellable group.
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: family-planner-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
-    # DO NOT RENAME. This exact string is the required status check on master
-    # (classic branch protection: strict, enforce_admins). Renaming it silently
-    # makes every PR unmergeable.
     name: Build & Test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    # Safe to cancel: unlike the release, a build holds nothing.
+    timeout-minutes: 45
     concurrency:
-      group: build-${{ github.ref }}
+      group: family-planner-build-${{ github.ref }}
       cancel-in-progress: true
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          # Disposable database for this isolated, ephemeral hosted job.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: familyplanner_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d familyplanner_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    outputs:
+      image_id: ${{ steps.package-image.outputs.image_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -58,8 +49,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version-file: .nvmrc
+          cache: npm
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -67,47 +58,149 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
         env:
-          DATABASE_URL: postgresql://placeholder/placeholder
+          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
 
-      - name: Lint
-        run: npm run lint
+      - name: Validate Prisma schema
+        run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
-        env:
-          SKIP_ENV_VALIDATION: "true"
-          NODE_ENV: production
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
 
       - name: Test
         run: npm test -- --ci --runInBand --no-watchman
         env:
           CI: "true"
 
+      - name: Verify database migrations are idempotent
+        run: |
+          node scripts/migrate.js
+          node scripts/migrate.js
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+
+      - name: Test persisted family imports
+        run: npx jest src/lib/imports/__tests__/persistence.integration.test.ts --ci --runInBand --no-watchman --forceExit
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+          RUN_DB_INTEGRATION: "1"
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Build application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
+
+      - name: Build container image
+        run: docker build --pull --tag "family-planner:${GITHUB_SHA}" .
+
+      - name: Smoke test container readiness
+        run: |
+          set -euo pipefail
+          network="fp-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          database="fp-smoke-db-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          app="fp-smoke-app-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm --force "$app" "$database" >/dev/null 2>&1 || true
+            docker network rm "$network" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker network create "$network" >/dev/null
+          docker run --detach \
+            --name "$database" \
+            --network "$network" \
+            --env POSTGRES_USER=postgres \
+            # Throwaway database on the isolated smoke-test network.
+            --env POSTGRES_HOST_AUTH_METHOD=trust \
+            --env POSTGRES_DB=familyplanner_ci \
+            postgres:17-alpine >/dev/null
+
+          ready=0
+          for _ in $(seq 1 60); do
+            if docker exec "$database" pg_isready -U postgres -d familyplanner_ci >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::test database did not become ready"
+            exit 1
+          fi
+
+          docker run --detach \
+            --name "$app" \
+            --network "$network" \
+            --env DATABASE_URL="postgresql://postgres@${database}:5432/familyplanner_ci" \
+            --env JWT_SECRET="${GITHUB_SHA}${GITHUB_SHA}" \
+            --env NEXT_PUBLIC_APP_URL="http://family-planner.test" \
+            "family-planner:${GITHUB_SHA}" >/dev/null
+
+          healthy=0
+          for _ in $(seq 1 120); do
+            state="$(docker inspect --format '{{.State.Health.Status}}' "$app")"
+            if [ "$state" = healthy ]; then
+              healthy=1
+              break
+            fi
+            if [ "$state" = unhealthy ]; then
+              break
+            fi
+            sleep 5
+          done
+          if [ "$healthy" -ne 1 ]; then
+            echo "::error::container readiness smoke test failed; application logs remain on the ephemeral runner"
+            exit 1
+          fi
+
+      - name: Package verified release image
+        id: package-image
+        if: github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
+        run: |
+          set -euo pipefail
+          image="family-planner:${GITHUB_SHA}"
+          image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+          if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::unexpected container image identity"
+            exit 1
+          fi
+          release_dir="$RUNNER_TEMP/family-planner-release"
+          mkdir -p "$release_dir"
+          docker save --output "$release_dir/image.tar" "$image"
+          cp .github/scripts/deploy-vps.sh "$release_dir/deploy-vps.sh"
+          tar -czf "$release_dir/release-bundle.tar.gz" -C "$release_dir" image.tar deploy-vps.sh
+          echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified release image
+        if: github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: family-planner-release-${{ github.sha }}
+          path: ${{ runner.temp }}/family-planner-release/release-bundle.tar.gz
+          if-no-files-found: error
+          retention-days: 1
 
   release:
     name: Release to VPS
     needs: build
-    # Compare against the repository's *actual* default branch (master) instead
-    # of a hardcoded 'refs/heads/main'. The previous form never matched, so the
-    # deploy was dead on every push to the branch that ships. (#187)
-    #
-    # The `|| github.event_name == 'workflow_dispatch'` half of the #187 fix is
-    # deliberately dropped. It was harmless when the deploy was a dead API call;
-    # now that the deploy is real, it would mean `gh workflow run release.yml
-    # --ref <any-branch>` ships unreviewed code straight to production. Manual
-    # deploys still work — dispatch against master. A PR branch still earns the
-    # required `Build & Test` check, because that job is not gated here.
-    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
-    runs-on: [self-hosted, family-planner]
-    timeout-minutes: 30
+    # Production credentials are only available to a manually dispatched run on
+    # the actual default branch. Pull requests and ordinary pushes never deploy.
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
     environment: production
-    # Serialise releases. The workflow-level group cancels in progress; this one
-    # must not, or a racing ref could stop a container mid-swap.
     concurrency:
       group: family-planner-release
       cancel-in-progress: false
@@ -117,19 +210,22 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build image and swap the production container
-        run: bash ./.github/scripts/deploy-vps.sh "${GITHUB_SHA}"
+      - name: Download verified release image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: family-planner-release-${{ github.sha }}
+          path: ${{ runner.temp }}/family-planner-release
 
-      - name: Smoke test the released build
+      - name: Deploy exact verified image over pinned SSH
+        env:
+          FP_SSH_HOST: ${{ vars.FP_SSH_HOST }}
+          FP_SSH_USER: ${{ vars.FP_SSH_USER }}
+          FP_SSH_PORT: ${{ vars.FP_SSH_PORT }}
+          FP_SSH_PRIVATE_KEY: ${{ secrets.FP_SSH_PRIVATE_KEY }}
+          FP_SSH_KNOWN_HOSTS: ${{ secrets.FP_SSH_KNOWN_HOSTS }}
+          FP_IMAGE_ID: ${{ needs.build.outputs.image_id }}
         run: |
-          # /api/health/live exists only from e537e22 onward, so a 404 here means
-          # the old build is still serving no matter what the container reports.
-          # This goes through traefik over the public hostname on purpose.
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://family.ashbi.ca/api/health/live || echo 000)
-          echo "GET /api/health/live -> ${code}"
-          if [ "${code}" != "200" ]; then
-            echo "::error::released build is not serving (expected 200, got ${code})"
-            exit 1
-          fi
-          echo "GET /api/health:"
-          curl -s --max-time 20 https://family.ashbi.ca/api/health
+          bash ./.github/scripts/deploy-over-ssh.sh \
+            "$GITHUB_SHA" \
+            "$FP_IMAGE_ID" \
+            "$RUNNER_TEMP/family-planner-release/release-bundle.tar.gz"

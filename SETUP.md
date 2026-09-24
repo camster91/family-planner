@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-1. **Node.js 20+** - [Download](https://nodejs.org/)
+1. **Node.js 22+** - [Download](https://nodejs.org/)
 2. **Git** - [Download](https://git-scm.com/)
 3. **PostgreSQL** - Local install, Docker, or a managed instance
 4. **Code Editor** - VS Code recommended
@@ -125,7 +125,7 @@ family-planner/
 ├── prisma/               # Prisma schema
 ├── database/             # SQL migration files
 ├── public/               # Static assets
-└── .github/workflows/    # CI/CD (GitHub Actions -> Coolify)
+└── .github/workflows/    # GitHub-hosted validation and controlled release
 ```
 
 ## Key Files
