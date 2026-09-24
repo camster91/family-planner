@@ -4,7 +4,14 @@ import { consumeResetToken, resetTokenExists } from '@/lib/tokens'
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, password } = await request.json()
+    let payload: any
+    try {
+      payload = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const { token, password } = payload
 
     if (!token || !password) {
       return NextResponse.json({ error: 'Token and new password are required' }, { status: 400 })

@@ -29,6 +29,7 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/auth/verify-email',
+  '/api/auth/resend-verification', // pre-auth like forgot-password; unauthenticated callers have no CSRF cookie
   '/api/auth/logout', // authenticated via cookie only, no body
   '/api/health',
   // Machine-called cron endpoint (#184). An external scheduler sends only

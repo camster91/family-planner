@@ -16,7 +16,12 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = verifyChoreSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })

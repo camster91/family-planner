@@ -20,7 +20,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const parsed = registerSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
@@ -96,9 +101,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
       }
 
-      const { password: _pw, reset_token, verify_token, token_version, ...safeUser } = user as typeof user & {
+      const { password: _pw, reset_token, reset_token_expires, verify_token, verify_token_expires, token_version, ...safeUser } = user as typeof user & {
         reset_token?: string | null
+        reset_token_expires?: Date | null
         verify_token?: string | null
+        verify_token_expires?: Date | null
         token_version?: number
       }
       const response = NextResponse.json({
@@ -155,10 +162,12 @@ export async function POST(request: NextRequest) {
     // verification gate.
 
     // Same column allowlist as the invite path — never echo internal auth
-    // columns (reset_token, verify_token, token_version) to the client.
-    const { password: _pw, reset_token, verify_token, token_version, ...safeUser } = user as typeof user & {
+    // columns (reset/verify tokens, their expiries, token_version) to the client.
+    const { password: _pw, reset_token, reset_token_expires, verify_token, verify_token_expires, token_version, ...safeUser } = user as typeof user & {
       reset_token?: string | null
+      reset_token_expires?: Date | null
       verify_token?: string | null
+      verify_token_expires?: Date | null
       token_version?: number
     }
     const response = NextResponse.json({

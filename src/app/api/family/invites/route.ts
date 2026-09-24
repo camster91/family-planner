@@ -52,7 +52,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many invites. Try again later.' }, { status: 429 })
     }
 
-    const parsed = createEmailInviteSchema.safeParse(await request.json())
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const parsed = createEmailInviteSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }

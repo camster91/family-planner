@@ -26,7 +26,12 @@ export async function PATCH(
     const matchError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (matchError) return matchError
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     const {
       sitter_name,
       sitter_phone,
