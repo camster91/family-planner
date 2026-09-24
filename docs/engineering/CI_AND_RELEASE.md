@@ -31,13 +31,13 @@ The SSH account can control Docker and is therefore privileged. Treat its key ac
 
 ## Live repository settings observed on 2026-09-24
 
-- GitHub Actions were disabled.
+- GitHub Actions are enabled.
 - The repository default workflow token permission was read-only.
-- Branch protection requires `Build & Test`, with administrator enforcement and conversation resolution enabled.
-- Required pull-request approvals: zero.
-- The `production` environment existed without reviewers or deployment-branch restrictions, and it had no environment secret names configured.
+- Branch protection requires the strict `Build & Test` check and enforces it for administrators; required pull-request approvals are zero.
+- The `production` environment has no required reviewers or deployment-branch restrictions.
+- No `FP_SSH_PRIVATE_KEY` or `FP_SSH_KNOWN_HOSTS` secret names are configured at repository or production-environment scope, so the release transport has no confirmed SSH credentials available.
 
-The workflows and tests in this PR are prepared but cannot receive GitHub-hosted check results until Actions are enabled. Do not bypass the required check to merge. Before enabling production credentials, configure environment reviewers and default-branch restrictions. This PR changes no repository settings, secrets, or production credentials.
+Do not bypass the required `Build & Test` check; it must pass on the exact PR head before merge. Before configuring production credentials, add a required environment reviewer and default-branch deployment restriction, then verify the effective secret scopes. This PR changes no repository settings, secrets, or production credentials.
 
 ## Release limitations
 
