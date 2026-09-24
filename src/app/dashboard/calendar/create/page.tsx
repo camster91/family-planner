@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
+import { localDateTimeToISO, toDateOnlyLocal } from '@/lib/dates'
 
 export default function CreateEventPage() {
   const [title, setTitle] = useState('')
@@ -23,8 +24,15 @@ export default function CreateEventPage() {
     setError(null)
 
     try {
-      const startDateTime = `${startDate}T${startTime || '00:00'}`
-      const endDateTime = endDate ? `${endDate}T${endTime || '23:59'}` : startDateTime
+      // Form values are local wall-clock time; send real ISO instants (with offset)
+      const startDateTime = localDateTimeToISO(`${startDate}T${startTime || '00:00'}`)
+      const endDateTime = endDate ? localDateTimeToISO(`${endDate}T${endTime || '23:59'}`) : startDateTime
+
+      if (!startDateTime || !endDateTime) {
+        setError('Invalid date/time')
+        setLoading(false)
+        return
+      }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
         setError('End date/time must be after start date/time')
@@ -121,7 +129,7 @@ export default function CreateEventPage() {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className="input-apple"
-              min={new Date().toISOString().split('T')[0]}
+              min={toDateOnlyLocal(new Date())}
             />
             <input
               id="startTime"
@@ -143,7 +151,7 @@ export default function CreateEventPage() {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               className="input-apple"
-              min={startDate || new Date().toISOString().split('T')[0]}
+              min={startDate || toDateOnlyLocal(new Date())}
             />
             <input
               id="endTime"

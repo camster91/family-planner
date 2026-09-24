@@ -5,13 +5,30 @@ import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/v
 
 export const dynamic = 'force-dynamic'
 
-// GET - List events for the user's family
+// GET - List events for the user's family, or fetch one with ?id=
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
     const { searchParams } = new URL(request.url)
+
+    const id = searchParams.get('id')
+    if (id) {
+      const event = await prisma!.event.findUnique({
+        where: { id },
+        include: {
+          creator: { select: { id: true, name: true } },
+        },
+      })
+      if (!event) {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+      }
+      const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
+      if (familyError) return familyError
+      return NextResponse.json({ event })
+    }
+
     const upcoming = searchParams.get('upcoming') === 'true'
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
@@ -57,33 +74,42 @@ export async function POST(request: NextRequest) {
     const startDate = new Date(start_time)
     const endDate = end_time ? new Date(end_time) : startDate
 
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid start or end time' }, { status: 400 })
+    }
+
     if (endDate < startDate) {
       return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
     }
 
-    const event = await prisma!.event.create({
-      data: {
-        family_id: auth.user.family_id,
-        title,
-        description: description || null,
-        start_time: startDate,
-        end_time: endDate,
-        location: location || null,
-        event_type,
-        recurrence: recurrence || null,
-        created_by: auth.user.id,
-      },
-    })
+    // Create the event and its activity record atomically
+    const event = await prisma!.$transaction(async (tx) => {
+      const created = await tx.event.create({
+        data: {
+          family_id: auth.user.family_id,
+          title,
+          description: description || null,
+          start_time: startDate,
+          end_time: endDate,
+          location: location || null,
+          event_type,
+          recurrence: recurrence || null,
+          created_by: auth.user.id,
+        },
+      })
 
-    // Record activity
-    await prisma!.activity.create({
-      data: {
-        family_id: auth.user.family_id,
-        user_id: auth.user.id,
-        type: 'event_created',
-        title: `${auth.user.name} added "${title}" to the calendar`,
-        metadata: JSON.stringify({ eventId: event.id }),
-      },
+      // Record activity
+      await tx.activity.create({
+        data: {
+          family_id: auth.user.family_id,
+          user_id: auth.user.id,
+          type: 'event_created',
+          title: `${auth.user.name} added "${title}" to the calendar`,
+          metadata: JSON.stringify({ eventId: created.id }),
+        },
+      })
+
+      return created
     })
 
     return NextResponse.json({ event })
@@ -117,7 +143,7 @@ export async function PATCH(request: NextRequest) {
 
     const event = await prisma!.event.findUnique({
       where: { id: eventId },
-      select: { family_id: true },
+      select: { family_id: true, start_time: true, end_time: true },
     })
 
     if (!event) {
@@ -127,11 +153,26 @@ export async function PATCH(request: NextRequest) {
     const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
     if (familyError) return familyError
 
+    const newStart = updates.start_time !== undefined ? new Date(updates.start_time) : undefined
+    const newEnd = updates.end_time !== undefined ? new Date(updates.end_time) : undefined
+    if ((newStart && isNaN(newStart.getTime())) || (newEnd && isNaN(newEnd.getTime()))) {
+      return NextResponse.json({ error: 'Invalid start or end time' }, { status: 400 })
+    }
+
+    // Validate the merged range when either bound changes
+    if (newStart || newEnd) {
+      const effectiveStart = newStart ?? event.start_time
+      const effectiveEnd = newEnd ?? event.end_time
+      if (effectiveEnd && effectiveEnd < effectiveStart) {
+        return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
+      }
+    }
+
     const data: Record<string, unknown> = {}
     if (updates.title !== undefined) data.title = updates.title
     if (updates.description !== undefined) data.description = updates.description
-    if (updates.start_time !== undefined) data.start_time = new Date(updates.start_time)
-    if (updates.end_time !== undefined) data.end_time = new Date(updates.end_time)
+    if (newStart) data.start_time = newStart
+    if (newEnd) data.end_time = newEnd
     if (updates.location !== undefined) data.location = updates.location
     if (updates.event_type !== undefined) data.event_type = updates.event_type
     if (updates.recurrence !== undefined) data.recurrence = updates.recurrence
