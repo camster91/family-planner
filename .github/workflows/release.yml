@@ -7,20 +7,14 @@
 # image the fallback script pulls has never existed for this repo. The container
 # that actually runs was created by a throwaway script in /tmp.
 #
-# Everything runs on the self-hosted runner `ashbi-vps-family-planner`, which is
-# on the production host itself. That is deliberate, not incidental: GitHub-hosted
-# minutes are blocked for this account, and under that block an `ubuntu-latest`
-# job is never even created — so `Build & Test` below would never report and every
-# PR would be unmergeable. Self-hosted jobs allocate from this host and are
-# unaffected.
+# PR verification uses standard GitHub-hosted `ubuntu-24.04`. It runs dependency
+# installation and build scripts from pull-request branches, so it must never
+# execute on the production host.
 #
-# Security note, and a real residual risk: this runner is in the host's `docker`
-# group, which is root-equivalent, on a machine running ~95 other production
-# containers. Fork PRs are refused (see the first step of the build job), but a
-# PR from a *branch of this repo* still executes `npm ci` and build scripts on
-# the production host before review — and so does a Dependabot PR carrying a
-# compromised dependency. Closing that needs PR validation on a runner without
-# the production docker socket, which does not exist for this repo yet.
+# The `release` job still runs on the production VPS and replaces its live
+# container using Docker and inherited runtime configuration. Moving that deploy
+# path off-host requires a separately provisioned and reviewed access method;
+# this change leaves the production release behavior unchanged.
 name: Build, Test & Release
 
 on:
@@ -49,30 +43,20 @@ jobs:
     # (classic branch protection: strict, enforce_admins). Renaming it silently
     # makes every PR unmergeable.
     name: Build & Test
-    runs-on: [self-hosted, family-planner]
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Safe to cancel: unlike the release, a build holds nothing.
     concurrency:
       group: build-${{ github.ref }}
       cancel-in-progress: true
     steps:
-      # Fork PRs must not reach this runner — it has root-equivalent docker
-      # access on the production host. This has to be a *failing step*, not a
-      # job-level `if:`: a skipped job counts as a successful required status
-      # check, so gating the job would let a fork PR merge having run no build,
-      # lint, typecheck, test or audit at all. It is the first step, so no
-      # untrusted code has executed by the time it fails.
-      - name: Refuse fork PRs
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-        run: |
-          echo "::error::fork PRs are not validated on the self-hosted runner; push the branch to this repository instead"
-          exit 1
-
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
           cache: "npm"
@@ -129,7 +113,9 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Build image and swap the production container
         run: bash ./.github/scripts/deploy-vps.sh "${GITHUB_SHA}"
