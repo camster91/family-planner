@@ -5,6 +5,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
+const SEVERITIES = ['mild', 'moderate', 'severe'] as const
+
 export async function GET() {
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -63,6 +65,21 @@ export async function POST(request: Request) {
   }
   if (!body.person_id || !body.severity) {
     return NextResponse.json({ error: 'person_id and severity required' }, { status: 400 })
+  }
+  if (!(SEVERITIES as readonly string[]).includes(body.severity)) {
+    return NextResponse.json(
+      { error: `severity must be one of: ${SEVERITIES.join(', ')}` },
+      { status: 400 }
+    )
+  }
+
+  // The sick person must be a member of the caller's family.
+  const person = await prisma!.user.findFirst({
+    where: { id: body.person_id, family_id: user.family_id },
+    select: { id: true },
+  })
+  if (!person) {
+    return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
   }
 
   const created = await prisma!.sickDay.create({

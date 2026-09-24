@@ -39,7 +39,18 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma!.user.findUnique({ where: { id: userId }, select: { family_id: true } }).then(u =>
-        u?.family_id ? prisma!.family.findUnique({ where: { id: u.family_id } }) : null
+        // Explicit select: never export secrets (feed_token, invite_code,
+        // capture_ai_key_enc, capture_ai_base_url) — children can export too.
+        u?.family_id
+          ? prisma!.family.findUnique({
+              where: { id: u.family_id },
+              select: {
+                id: true, name: true, subscription_tier: true, features: true,
+                travel_mode_active: true, travel_start_date: true,
+                travel_end_date: true, travel_destination: true, created_at: true,
+              },
+            })
+          : null
       ),
       prisma!.chore.findMany({
         where: {

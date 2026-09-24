@@ -51,6 +51,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'title and pickup_time required' }, { status: 400 })
   }
 
+  // An assignee, if given, must be a member of the caller's family.
+  if (body.assigned_to) {
+    const assignee = await prisma!.user.findFirst({
+      where: { id: body.assigned_to, family_id: user.family_id },
+      select: { id: true },
+    })
+    if (!assignee) {
+      return NextResponse.json({ error: 'Assignee must be a member of your family' }, { status: 400 })
+    }
+  }
+
   const created = await prisma!.pickup.create({
     data: {
       family_id: user.family_id,

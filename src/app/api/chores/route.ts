@@ -76,8 +76,9 @@ export async function PATCH(request: NextRequest) {
     // verify awards and `assigned_to` decides who receives it. Letting a child
     // set either meant they could inflate points before verification, or point
     // the chore at any user id they could guess. Both are privilege boundaries,
-    // not cosmetic edits.
-    const PARENT_ONLY_FIELDS = ['points', 'assigned_to', 'frequency'] as const
+    // not cosmetic edits. `difficulty` feeds the XP multiplier the same way,
+    // so it is parent-only too.
+    const PARENT_ONLY_FIELDS = ['points', 'difficulty', 'assigned_to', 'frequency'] as const
     if (auth.user.role !== 'parent') {
       const attempted = PARENT_ONLY_FIELDS.filter((f) => updates[f] !== undefined)
       if (attempted.length > 0) {

@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { authenticateRequest } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -11,8 +12,10 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
 const FILENAME_RE = /^[a-f0-9]{16}\.(jpg|jpeg|png|webp|heic)$/i
 
 // GET /api/files/[filename] — serve an uploaded photo
-// Files are content-addressable (sha256 prefix + extension) so they can't
-// be guessed. We still validate the filename shape to prevent path traversal.
+// Files are content-addressable (sha256 prefix + extension), but an
+// unguessable name is not an access control — URLs leak via screenshots,
+// logs and shared caches. Require a session and never let shared caches keep
+// the bytes. We still validate the filename shape to prevent path traversal.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
@@ -23,6 +26,11 @@ export async function GET(
   if (!FILENAME_RE.test(filename)) {
     return new NextResponse('Not found', { status: 404 })
   }
+
+  // Authenticate before touching the filesystem, so an unauthenticated caller
+  // learns nothing — not even whether the file exists.
+  const [, authError] = await authenticateRequest(request)
+  if (authError) return authError
 
   const filepath = path.join(UPLOAD_DIR, filename)
 
@@ -39,12 +47,13 @@ export async function GET(
 
   const buf = await readFile(filepath)
 
-  // Cache aggressively — content-addressable means it's immutable
+  // Private: shared/intermediary caches must not retain user photos. The
+  // content hash still makes a short-lived browser cache safe.
   return new NextResponse(buf, {
     status: 200,
     headers: {
       'Content-Type': contentTypeFor(filename),
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': 'private, max-age=300',
       'ETag': `"${crypto.createHash('md5').update(buf).digest('hex')}"`,
     },
   })

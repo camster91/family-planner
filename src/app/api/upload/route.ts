@@ -4,11 +4,13 @@ import { existsSync } from 'fs'
 import path from 'path'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { log } from '@/lib/logger'
+import { sniffImageType } from '@/lib/image-sniff'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+// GIF is deliberately absent: /api/files/chores only serves jpg/png/webp/heic.
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
 
@@ -26,14 +28,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
-    // Validate type
-    if (!ALLOWED_TYPES.has(file.type)) {
-      return NextResponse.json(
-        { error: `Unsupported file type: ${file.type}. Allowed: ${[...ALLOWED_TYPES].join(', ')}` },
-        { status: 400 }
-      )
-    }
-
     // Validate size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -48,11 +42,23 @@ export async function POST(request: NextRequest) {
       await mkdir(choreUploadDir, { recursive: true })
     }
 
-    // Generate unique filename using cuid-style id + extension
-    const { createHash } = await import('crypto')
     const buf = Buffer.from(await file.arrayBuffer())
+
+    // Validate type from the file's magic bytes, not the client-declared MIME
+    // (which is attacker-controlled). The extension is derived from the
+    // sniffed type so the stored file is always served as what it really is.
+    const sniffed = sniffImageType(buf)
+    if (!sniffed || !ALLOWED_TYPES.has(sniffed.mime)) {
+      return NextResponse.json(
+        { error: `Unsupported file type. Allowed: ${[...ALLOWED_TYPES].join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    // Content-addressed filename: sha256 prefix + sniffed extension
+    const { createHash } = await import('crypto')
     const hash = createHash('sha256').update(buf).digest('hex').slice(0, 16)
-    const ext = file.type.split('/')[1] || 'bin'
+    const ext = sniffed.ext
     const filename = `${hash}.${ext}`
     const filepath = path.join(choreUploadDir, filename)
 
@@ -61,13 +67,13 @@ export async function POST(request: NextRequest) {
       await writeFile(filepath, buf)
     }
 
-    log.info('upload.photo', { userId: auth.user.id, filename, size: buf.length, type: file.type })
+    log.info('upload.photo', { userId: auth.user.id, filename, size: buf.length, type: sniffed.mime })
 
     return NextResponse.json({
       url: `/api/files/chores/${filename}`,
       filename,
       size: buf.length,
-      type: file.type,
+      type: sniffed.mime,
     })
   } catch (error) {
     log.error('upload.photo', error as Error)
