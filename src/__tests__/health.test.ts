@@ -10,6 +10,7 @@ jest.mock("next/server", () => ({
   NextResponse: {
     json: (data: unknown, init?: ResponseInit) => ({
       status: init?.status || 200,
+      headers: init?.headers,
       json: async () => data,
     }),
   },
@@ -22,11 +23,16 @@ const ORIGINAL = {
   DATABASE_URL: process.env.DATABASE_URL,
   JWT_SECRET: process.env.JWT_SECRET,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  RELEASE_SHA: process.env.RELEASE_SHA,
 };
 
 async function call(handler: () => Promise<unknown>) {
-  const res = (await handler()) as { status: number; json: () => Promise<any> };
-  return { status: res.status, body: await res.json() };
+  const res = (await handler()) as {
+    status: number;
+    headers?: HeadersInit;
+    json: () => Promise<any>;
+  };
+  return { status: res.status, headers: res.headers, body: await res.json() };
 }
 
 beforeEach(() => {
@@ -34,6 +40,7 @@ beforeEach(() => {
   process.env.DATABASE_URL = "postgresql://user@localhost:5432/familyplanner";
   process.env.JWT_SECRET = "a".repeat(32);
   process.env.NEXT_PUBLIC_APP_URL = "https://family.ashbi.ca";
+  delete process.env.RELEASE_SHA;
 });
 
 afterAll(() => {
@@ -48,6 +55,14 @@ describe("GET /api/health (readiness)", () => {
     const { status, body } = await call(health);
     expect(status).toBe(200);
     expect(body).toEqual({ status: "healthy" });
+  });
+
+  it("identifies the exact release image when its commit is configured", async () => {
+    const sha = "a".repeat(40);
+    process.env.RELEASE_SHA = sha;
+    const { status, headers } = await call(health);
+    expect(status).toBe(200);
+    expect(headers).toMatchObject({ "X-Release-Commit": sha });
   });
 
   it("returns only a degraded status when the database query fails", async () => {
