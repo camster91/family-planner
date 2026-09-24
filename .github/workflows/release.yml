@@ -118,11 +118,11 @@ jobs:
           trap cleanup EXIT
 
           docker network create "$network" >/dev/null
+          # Throwaway database on the isolated smoke-test network.
           docker run --detach \
             --name "$database" \
             --network "$network" \
             --env POSTGRES_USER=postgres \
-            # Throwaway database on the isolated smoke-test network.
             --env POSTGRES_HOST_AUTH_METHOD=trust \
             --env POSTGRES_DB=familyplanner_ci \
             postgres:17-alpine >/dev/null
