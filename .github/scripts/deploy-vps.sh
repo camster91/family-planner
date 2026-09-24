@@ -93,7 +93,10 @@ trap 'rm -f "${ENV_FILE}"' EXIT
 chmod 600 "${ENV_FILE}"
 
 # Never echoed anywhere: this is the app's full runtime environment, secrets included.
-docker inspect "${OLD}" --format '{{range .Config.Env}}{{println .}}{{end}}' > "${ENV_FILE}"
+# RELEASE_SHA is baked into each image; inheriting the old value would make
+# /api/health report the previous commit and fail post-swap verification.
+docker inspect "${OLD}" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | { grep -v '^RELEASE_SHA=' || true; } > "${ENV_FILE}"
 
 LABEL_ARGS=()
 while IFS= read -r label; do
@@ -184,6 +187,7 @@ docker run --detach \
   --log-opt max-file=3 \
   --network family-planner-internal \
   --env-file "${ENV_FILE}" \
+  --env "RELEASE_SHA=${SHA}" \
   --volume "${UPLOADS_HOST_DIR}:${UPLOADS_CONTAINER_DIR}" \
   "${BIND_ARGS[@]}" \
   "${LABEL_ARGS[@]}" \
