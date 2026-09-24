@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, start_time, end_time, location, event_type } = parsed.data
+    const { title, description, start_time, end_time, location, event_type, recurrence } = parsed.data
 
     const startDate = new Date(start_time)
     const endDate = end_time ? new Date(end_time) : startDate
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
         end_time: endDate,
         location: location || null,
         event_type,
+        recurrence: recurrence || null,
         created_by: auth.user.id,
       },
     })
@@ -123,6 +124,7 @@ export async function PATCH(request: NextRequest) {
     if (updates.end_time !== undefined) data.end_time = new Date(updates.end_time)
     if (updates.location !== undefined) data.location = updates.location
     if (updates.event_type !== undefined) data.event_type = updates.event_type
+    if (updates.recurrence !== undefined) data.recurrence = updates.recurrence
 
     const updated = await prisma!.event.update({
       where: { id: eventId },

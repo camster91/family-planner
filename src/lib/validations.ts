@@ -48,6 +48,14 @@ export const createEventSchema = z.object({
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).default('other'),
+  // RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO") — consumed by the ICS feed
+  recurrence: z
+    .string()
+    .max(200)
+    .trim()
+    .refine((val) => /^(RRULE:)?FREQ=/i.test(val), 'Invalid recurrence rule')
+    .nullable()
+    .optional(),
 })
 
 // Family
@@ -166,6 +174,13 @@ export const updateEventSchema = z.object({
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).optional(),
+  recurrence: z
+    .string()
+    .max(200)
+    .trim()
+    .refine((val) => /^(RRULE:)?FREQ=/i.test(val), 'Invalid recurrence rule')
+    .nullable()
+    .optional(),
 })
 
 export const deleteEventSchema = z.object({
@@ -210,7 +225,11 @@ export const updateUserSchema = z.object({
 
 // Budget - Transactions
 export const createTransactionSchema = z.object({
-  amount: z.number().refine((v) => v !== 0, 'Amount must not be zero'),
+  amount: z
+    .number()
+    .refine((v) => v !== 0, 'Amount must not be zero')
+    .refine((v) => Math.abs(v) >= 0.01, 'Amount too small')
+    .refine((v) => Math.round(v * 100) === v * 100, 'Amount supports at most 2 decimal places'),
   type: z.enum(['income', 'expense']),
   category_id: z.string().min(1).optional().nullable(),
   description: z.string().max(500).trim().optional().nullable(),

@@ -40,7 +40,9 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    if (chore.status !== 'completed') {
+    // 'verified' is accepted so re-verifying is idempotent (the updateMany
+    // below is a no-op and the alreadyVerified branch returns success).
+    if (chore.status !== 'completed' && chore.status !== 'verified') {
       return NextResponse.json({ error: 'Only completed chores can be verified' }, { status: 400 })
     }
 

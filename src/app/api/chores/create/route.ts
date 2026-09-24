@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
+import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
 import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
@@ -11,6 +11,11 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // Only parents can create chores (mirrors the PATCH gate — kids shouldn't
+    // be able to assign work or set their own point values)
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const body = await request.json()
     const parsed = createChoreSchema.safeParse(body)
