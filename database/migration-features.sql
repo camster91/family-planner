@@ -9,6 +9,12 @@ ALTER TABLE "Family"
   ADD COLUMN IF NOT EXISTS "features" JSONB
   DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false}'::jsonb;
 
+-- Upgraded deployments already have the column, so the ADD COLUMN IF NOT
+-- EXISTS above is skipped in its entirety (default included). Re-assert the
+-- 20-key default on the existing column; existing row values are untouched.
+ALTER TABLE "Family"
+  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false}'::jsonb;
+
 -- 2. Family meals (the meal planning feature)
 CREATE TABLE IF NOT EXISTS "FamilyMeal" (
   "id"           TEXT PRIMARY KEY,
