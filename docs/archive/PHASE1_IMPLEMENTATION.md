@@ -1,6 +1,6 @@
 # Family Planner - Phase 1 Implementation
 
-> **ARCHIVED:** Replaced by [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+> **ARCHIVED:** Replaced by [`docs/PRODUCT_PROGRAM.md`](../PRODUCT_PROGRAM.md)
 > on 2026-08-28. Retained only for historical context.
 
 > ⚠️ **STALE — See finish plan:** `~/.hermes/plans/family-planner-finish-plan-2026-06-06.md`

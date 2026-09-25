@@ -1,5 +1,10 @@
 # Coding Agent Kickoff
 
+> **ARCHIVED (2026-09-24):** This kickoff note describes the repository as it
+> stood while PR #129 was open and is no longer current. Use
+> [`AGENTS.md`](../../AGENTS.md) and [`docs/START_HERE.md`](../START_HERE.md)
+> instead. Retained only for historical context.
+
 ## Repository state
 
 - Default branch: `master`

@@ -9,9 +9,9 @@
 | --- | --- | --- | --- |
 | `release.yml` — `Build & Test` | Locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import integration test, production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
 | `release.yml` — `Release to VPS` | Transfer and promote the verified image for the exact workflow SHA | Manual dispatch on the actual default branch only | Production deployment after `production` environment credentials are configured |
-| `apk.yml` | Android APK build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags |
+| `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise |
 | `auto-merge.yml` | Merge a pull request carrying the explicit `auto-merge` label | `pull_request_target` label/change events | Can merge; does not deploy |
-| `stale-issues.yml` | Apply the repository's stale-issue policy | Weekly schedule or manual dispatch | Updates issues and pull requests |
+| `stale-issues.yml` | Apply the repository's stale-issue policy to issues | Manual dispatch only (no schedule, per AGENTS.md) | Labels and closes inactive issues; never touches pull requests |
 
 The required check name remains exactly `Build & Test`. The former duplicate `ci.yml` validation and unused `build-push.yml` GHCR publication path were removed to keep one owner for application validation and avoid publishing a second, unused release artifact.
 
@@ -28,6 +28,14 @@ The `production` GitHub Environment must contain:
 - A dedicated deploy key, a pinned known-host entry, default-branch-only deployment policy, and a required reviewer.
 
 The SSH account can control Docker and is therefore privileged. Treat its key accordingly, keep it limited to the production environment, and rotate it through the normal owner-controlled credential process.
+
+## Android release signing
+
+`android/app/build.gradle` applies a release signing config only when all of `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` are set. In `apk.yml` these come from repository secrets `ANDROID_KEYSTORE_BASE64` (the base64-encoded keystore, decoded to a temporary file on the runner), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. Without them the release build is unsigned, uploaded only as a workflow artifact, and the tag `release` job fails instead of publishing it. Whether these secrets exist has not been verified; creating them is an owner-controlled credential change.
+
+## Legacy deploy path (not supported)
+
+`scripts/webhook-receiver.sh` and `scripts/family-planner-webhook.service` implement a pull-based webhook deploy trigger on the host. They predate the `release.yml` SSH release path and are retained only as legacy reference. They must not be installed, enabled or used without Cameron's explicit approval for that exact action (AGENTS.md approval boundaries). If ever used, note that the unit's `docker` supplementary group is root-equivalent on the host, so the webhook secret is effectively a root credential. Whether this unit is installed on any host is unverified.
 
 ## Live repository settings observed on 2026-09-24
 

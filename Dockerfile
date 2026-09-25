@@ -8,11 +8,12 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-# Use `npm install` instead of `npm ci` for cross-platform lockfile resilience
-# (npm ci fails when package-lock.json has platform-specific resolutions that
-#  differ from the build host). Slower but reliable.
-RUN npm install --legacy-peer-deps --ignore-scripts
+COPY package.json package-lock.json ./
+# Install exactly what package-lock.json records, with the same flags as the
+# `Build & Test` CI gate (release.yml). `npm ci` fails if package.json and the
+# lockfile disagree instead of silently re-resolving. Install scripts are
+# skipped; the Prisma client is generated explicitly in the builder stage.
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -51,7 +52,8 @@ RUN adduser --system --uid 1001 nextjs
 
 # Install wget for health checks and pg for migration script
 RUN apk add --no-cache wget
-RUN npm install -g pg
+# Keep this pin in step with the `pg` version in package-lock.json.
+RUN npm install -g pg@8.23.0
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/.next/cache

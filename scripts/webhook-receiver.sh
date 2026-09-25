@@ -66,6 +66,7 @@ import hmac
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -78,6 +79,7 @@ BIND_ADDR = os.environ["BIND_ADDR"]
 
 # Only these methods may trigger work. A deploy is POST-only.
 MAX_BODY = 1 * 1024 * 1024  # 1 MiB
+TAG_RE = re.compile(r'[A-Za-z0-9._-]{1,128}')
 
 def log(msg):
     ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -150,17 +152,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 data = json.loads(body)
                 tag = data.get('ref', data.get('tag', data.get('image_tag', 'latest')))
-                if isinstance(tag, str) and tag.startswith('refs/heads/'):
+                if isinstance(tag, str) and tag.startswith(('refs/heads/', 'refs/tags/')):
                     tag = tag.split('/')[-1]
             except Exception:
                 pass
 
-        # Keep the tag to a safe character set: it is passed to the deploy script
-        # as an argument, and a crafted value must not become shell syntax.
-        if not isinstance(tag, str) or len(tag) > 100:
+        # Strict allowlist: the tag is passed to the deploy script as an argument
+        # and may end up in image references or paths. No '/', no whitespace, no
+        # shell metacharacters, no path traversal ('..'), and no leading '-' (which
+        # a downstream command could parse as an option).
+        if not isinstance(tag, str) or not TAG_RE.fullmatch(tag):
             self._deny(400, 'invalid tag')
             return
-        if not all(c.isalnum() or c in '._-/' for c in tag):
+        if '..' in tag or tag.startswith('-'):
             self._deny(400, 'invalid tag')
             return
 

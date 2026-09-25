@@ -1,3 +1,7 @@
+# LEGACY / SECONDARY deploy path. The supported production deploy is the
+# manually dispatched `release.yml` workflow (see docs/engineering/CI_AND_RELEASE.md).
+# Do not install or enable this unit on a production host without Cameron's
+# explicit approval for that exact action (AGENTS.md approval boundaries).
 [Unit]
 Description=Family Planner deploy webhook receiver
 After=network.target docker.service
@@ -46,7 +50,14 @@ RestrictRealtime=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 
-# Needed only because the deploy path manages containers. Keep it minimal.
+# SECURITY: membership of the docker group is root-equivalent on the host
+# (any docker group member can start a privileged container that mounts /).
+# The User= separation and sandboxing above limit accidental damage from the
+# listener process itself; they do NOT contain a compromised deploy path. Treat
+# FAMILY_PLANNER_WEBHOOK_SECRET as a root-level credential.
+#
+# Docker access works under ProtectSystem=strict because connecting to the
+# /run/docker.sock unix socket is not blocked by a read-only mount.
 SupplementaryGroups=docker
 
 StandardOutput=append:/var/log/family-planner-webhook.log

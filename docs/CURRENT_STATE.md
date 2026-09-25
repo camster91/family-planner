@@ -1,12 +1,14 @@
 # Current State
 
-**Last reconciled:** 2026-09-08  
+**Last reconciled:** 2026-09-08 (whole document); the "Verified source baseline" workflow/deploy bullets were re-reconciled against repository files on 2026-09-24  
 **Repository:** `camster91/family-planner`  
 **Protected default branch:** `master` at `6553f4d6971e6b0fab53d37f3a9883a0f3018202` when reconciled  
 **Canonical planning branch:** `plan/fridge-tablet-program`  
 **Canonical planning PR:** #129 (open; not merged when reconciled)
 
 This is a dated snapshot. Inspect GitHub and executable source again before changing code or reporting status.
+
+**Re-verification scope (2026-09-24):** only the workflow, deployment and Android-signing bullets under "Verified source baseline" were re-checked, and only against files in the working tree (`.github/workflows/*.yml`, `.github/scripts/*`, `android/app/build.gradle`). The branch/planning state, CI check evidence, domain overlap, release gates, open pull requests and current phase sections below were **not** re-verified on 2026-09-24 and still reflect 2026-09-08. Live GitHub settings, secrets and production health were not re-verified.
 
 ## Branch and planning state
 
@@ -20,7 +22,11 @@ PR #129 was mergeable at the Git level but GitHub reported `mergeable_state: blo
 - Actual schema: `prisma/schema.prisma`.
 - Auth: self-hosted JWT/session implementation. `src/lib/supabase/server.ts` is legacy-named and is not proof of active Supabase auth.
 - Android: a Capacitor project exists under `android/`; generated `ExampleUnitTest` and `ExampleInstrumentedTest` remain and are tracked by #160.
-- Workflows: ten YAML files existed under `.github/workflows/` when reconciled. Ownership and triggers are mapped in `docs/engineering/CI_AND_RELEASE.md`. PR validation cannot publish images or deploy; image publication and the only active Coolify deployment path now require manual dispatch. The older `deploy-from-ghcr.yml` path is explicitly disabled and retained only for historical run links.
+- Workflows (last reconciled 2026-09-24): four YAML files exist under `.github/workflows/`: `release.yml`, `apk.yml`, `auto-merge.yml` and `stale-issues.yml`. Ownership and triggers are mapped in `docs/engineering/CI_AND_RELEASE.md`. The earlier ten-workflow layout, Coolify deployment, GHCR image publication and `deploy-from-ghcr.yml` no longer exist in the repository.
+- Deployment (last reconciled 2026-09-24, repository files only): `release.yml` runs `Build & Test` on pull requests, `main`/`master` pushes and manual dispatch. Only a manual `workflow_dispatch` on the default branch runs `Release to VPS`, which transfers the exact smoke-tested image over SSH (`.github/scripts/deploy-over-ssh.sh`) and performs a health-gated container swap on the host (`.github/scripts/deploy-vps.sh`), then checks `https://family.ashbi.ca/api/health` for the released commit header. Whether production credentials are configured, and whether this path has run successfully, is unverified here; see `docs/engineering/CI_AND_RELEASE.md`.
+- Legacy deploy path: `scripts/webhook-receiver.sh` with `scripts/family-planner-webhook.service` is a secondary, pull-based deploy trigger. It is not the supported path and must not be installed or used without Cameron's explicit approval.
+- Scheduled jobs (last reconciled 2026-09-24): no workflow has a `schedule:` trigger. `stale-issues.yml` is manual-dispatch only, per the AGENTS.md scheduler rule.
+- Android release signing (last reconciled 2026-09-24): `android/app/build.gradle` signs release builds only when `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` are set. `apk.yml` decodes the keystore from the `ANDROID_KEYSTORE_BASE64` secret and refuses to publish an unsigned APK to GitHub Releases. Whether those secrets are configured is unverified.
 - Production identity/health was not re-verified during this repository-only reconciliation.
 
 ## CI and required-check evidence for PR #129
