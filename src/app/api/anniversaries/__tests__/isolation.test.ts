@@ -8,7 +8,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 
 import { GET, POST } from "../route";
 import { PATCH, DELETE } from "../[id]/route";
-import { db, req, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
+import { db, req, params, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
 
 const newDate = { name: "Gran", type: "birthday", date: "2026-12-01" };
 
@@ -18,8 +18,8 @@ describe("anniversaries — two households", () => {
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     expect((await GET(req())).status).toBe(401);
     expect((await POST(req({ body: newDate }))).status).toBe(401);
-    expect((await PATCH(req({ body: { id: "ann-a", name: "x" } }))).status).toBe(401);
-    expect((await DELETE(req({ query: { id: "ann-a" } }))).status).toBe(401);
+    expect((await PATCH(req({ body: { name: "x" } }), params({ id: "ann-a" }))).status).toBe(401);
+    expect((await DELETE(req(), params({ id: "ann-a" }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
   });
 
@@ -31,8 +31,8 @@ describe("anniversaries — two households", () => {
   });
 
   it("refuses to update or delete another family's anniversary", async () => {
-    await expectDenied(await PATCH(req({ as: "parentA", body: { id: "ann-b", name: "hijack" } })));
-    await expectDenied(await DELETE(req({ as: "parentA", query: { id: "ann-b" } })));
+    await expectDenied(await PATCH(req({ as: "parentA", body: { name: "hijack" } }), params({ id: "ann-b" })));
+    await expectDenied(await DELETE(req({ as: "parentA" }), params({ id: "ann-b" })));
     expect(db.find("anniversary", "ann-b")?.name).toContain("FOREIGN");
     expect(writesTo("anniversary")).toHaveLength(0);
   });
@@ -40,7 +40,7 @@ describe("anniversaries — two households", () => {
   it("rejects a family-B person_id on create and update", async () => {
     const created = await POST(req({ as: "parentA", body: { ...newDate, person_id: "child-b" } }));
     expect(created.status).toBe(400);
-    const updated = await PATCH(req({ as: "parentA", body: { id: "ann-a", person_id: "child-b" } }));
+    const updated = await PATCH(req({ as: "parentA", body: { person_id: "child-b" } }), params({ id: "ann-a" }));
     expect(updated.status).toBe(400);
     expect(writesTo("anniversary")).toHaveLength(0);
   });
@@ -52,9 +52,26 @@ describe("anniversaries — two households", () => {
   });
 
   it("lets a same-family member update and delete", async () => {
-    expect((await PATCH(req({ as: "parentA", body: { id: "ann-a", name: "Renamed", person_id: "teen-a" } }))).status).toBe(200);
+    expect((await PATCH(req({ as: "parentA", body: { name: "Renamed", person_id: "teen-a" } }), params({ id: "ann-a" }))).status).toBe(200);
     expect(db.find("anniversary", "ann-a")).toMatchObject({ name: "Renamed", person_id: "teen-a" });
-    expect((await DELETE(req({ as: "parentA", query: { id: "ann-a" } }))).status).toBe(200);
+    expect((await DELETE(req({ as: "parentA" }), params({ id: "ann-a" }))).status).toBe(200);
     expect(db.find("anniversary", "ann-a")).toBeUndefined();
+  });
+
+  it("takes the id from the path, ignoring any id in the body", async () => {
+    // Own-family path id, foreign id smuggled in the body: only ann-a changes.
+    const res = await PATCH(req({ as: "parentA", body: { id: "ann-b", name: "Renamed" } }), params({ id: "ann-a" }));
+    expect(res.status).toBe(200);
+    expect(db.find("anniversary", "ann-a")?.name).toBe("Renamed");
+    expect(db.find("anniversary", "ann-b")?.name).toContain("FOREIGN");
+    // Foreign path id with own-family id in the body is still denied.
+    await expectDenied(await PATCH(req({ as: "parentA", body: { id: "ann-a", name: "hijack" } }), params({ id: "ann-b" })));
+    expect(db.find("anniversary", "ann-b")?.name).toContain("FOREIGN");
+  });
+
+  it("ignores a query-string id on delete (path id is authoritative)", async () => {
+    await expectDenied(await DELETE(req({ as: "parentA", query: { id: "ann-a" } }), params({ id: "ann-b" })));
+    expect(db.find("anniversary", "ann-a")).toBeDefined();
+    expect(db.find("anniversary", "ann-b")).toBeDefined();
   });
 });
