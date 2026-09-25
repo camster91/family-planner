@@ -8,6 +8,24 @@ Family Planner uses issue-first, reviewable vertical slices.
 - Inspect current source and canonical models before editing.
 - Record unclear requirements as assumptions/questions instead of inventing product behaviour.
 
+## Local setup and checks
+Set up a checkout with [SETUP.md](SETUP.md) (Node 22 from `.nvmrc`, `npm ci`, PostgreSQL 17, `node scripts/migrate.js`).
+
+Before opening a PR, run the gate that matches CI's `Build & Test` job (`.github/workflows/release.yml`):
+
+```bash
+npx prisma generate
+npm run typecheck
+npm run lint
+npm run format:check
+npm test -- --runInBand
+npm run build
+```
+
+`npm run verify:app` runs generate, typecheck, lint, tests, build and the production dependency audit in one command. CI additionally checks that `scripts/migrate.js` and the fixture seed are idempotent against a disposable PostgreSQL 17 database and smoke-tests the Docker image; see [docs/engineering/CI_AND_RELEASE.md](docs/engineering/CI_AND_RELEASE.md). Record the commands you actually ran and their results in the PR.
+
+Schema changes must update `prisma/schema.prisma` and `scripts/migrate.js` (or an idempotent `database/migration-*.sql`) together.
+
 ## Branches
 Use descriptive branches such as `feat/<issue>-short-name`, `fix/<issue>-short-name`, `refactor/<issue>-short-name`, `docs/<issue>-short-name`.
 

@@ -1,173 +1,114 @@
-# Family Planner - Setup Guide
+# Family Planner - Local Setup
+
+This guide covers a local development checkout. Production deployment is documented in [DEPLOYMENT.md](DEPLOYMENT.md). Exact versions and scripts are defined in `package.json`; if this guide disagrees with executable source, the source wins.
 
 ## Prerequisites
 
-1. **Node.js 22+** - [Download](https://nodejs.org/)
-2. **Git** - [Download](https://git-scm.com/)
-3. **PostgreSQL** - Local install, Docker, or a managed instance
-4. **Code Editor** - VS Code recommended
+- **Node.js 22** (pinned in `.nvmrc`; `package.json` engines require node >= 22 and npm >= 10). The fixture commands need Node 22.18 or newer.
+- **Docker** with Compose, for the local PostgreSQL 17 database (or any PostgreSQL 17 you control).
+- **Git**.
 
-## Step 1: Clone and Install
+## 1. Clone and install
 
 ```bash
-# Clone the project
 git clone https://github.com/camster91/family-planner.git
 cd family-planner
-
-# Install dependencies
-npm ci --legacy-peer-deps
+nvm use        # reads .nvmrc
+npm ci         # installs exactly what package-lock.json records (same as CI)
 ```
 
-## Step 2: PostgreSQL Setup
+`setup.sh` / `setup.bat` perform the install and create `.env.local` for you.
 
-You need a running PostgreSQL instance. Options:
+## 2. Start PostgreSQL
 
-**Option A: Docker (quickest)**
-```bash
-docker run -d --name family-planner-db \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=family_planner \
-  -p 127.0.0.1:5432:5432 \
-  postgres:17-alpine
-```
-
-**Option B: Local PostgreSQL**
-Create a database named `family_planner` in your local PostgreSQL instance.
-
-**Option C: Managed (e.g., Neon, Railway, Supabase Postgres)**
-Use the connection string provided by your host.
-
-## Step 3: Environment Configuration
+`docker-compose.yml` reads `.env`. It refuses to start unless `POSTGRES_PASSWORD`, `DATABASE_URL` and `JWT_SECRET` are set.
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
+# Edit .env:
+#   POSTGRES_PASSWORD=<openssl rand -hex 16>
+#   DATABASE_URL=postgresql://family_planner:<POSTGRES_PASSWORD>@postgres:5432/family_planner
+#   JWT_SECRET=<openssl rand -hex 32>
+docker compose up -d postgres
 ```
 
-Edit `.env.local`:
+The database is published on `127.0.0.1:5432` only. The `DATABASE_URL` in `.env` uses the `postgres` service host, which is what the `app` container needs.
+
+If you have an old `postgres_data` volume from the previous `postgres:16` image, PostgreSQL 17 cannot open it; dump/restore it or remove the throwaway volume first (see the note in `docker-compose.yml`).
+
+## 3. Point the host-side app at the database
+
+When you run Next.js on your machine (not in the `app` container), it must reach the database via `localhost`. Next.js loads `.env.local` over `.env`:
+
 ```env
-# PostgreSQL connection string (required)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/family_planner
-
-# JWT secret for authentication (required)
-JWT_SECRET=your-secret-key-at-least-32-characters
-
-# App URL (optional, defaults to http://localhost:3000)
+# .env.local
+DATABASE_URL=postgresql://family_planner:<POSTGRES_PASSWORD>@localhost:5432/family_planner_dev
+JWT_SECRET=<at least 32 characters>
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-## Step 4: Database Setup with Prisma
+A database name containing `dev` keeps it clearly separate and is accepted by the fixture guard. See `.env.example` and the README environment table for optional variables.
+
+## 4. Create the schema
+
+The schema is applied by `scripts/migrate.js`, the same idempotent script the production container runs at start (via `docker-entrypoint.sh`). It creates the database if missing, creates/alters tables, then applies every `database/migration-*.sql` file in order.
+
+`scripts/migrate.js`, the Prisma CLI and the fixture commands do **not** read `.env` files, so export `DATABASE_URL` in your shell:
 
 ```bash
-# Generate the Prisma client
+export DATABASE_URL=postgresql://family_planner:<POSTGRES_PASSWORD>@localhost:5432/family_planner_dev
+node scripts/migrate.js
 npx prisma generate
-
-# Push the schema to your database
-npx prisma db push
 ```
 
-This creates all required tables (User, Family, Chore, Event, Message, Reward, Notification, etc.) based on `prisma/schema.prisma`.
+Do not use `prisma db push` as a migration path. Schema changes must update `prisma/schema.prisma` and `scripts/migrate.js` (or a new idempotent `database/migration-*.sql`) together; see the header of `scripts/migrate.js`.
 
-## Step 5: Run the Application
+## 5. Optional: load fixture households
 
 ```bash
-# Development mode
-npm run dev
-
-# Open http://localhost:3000
+FIXTURES_ALLOW=1 npm run fixtures:seed    # idempotent
+FIXTURES_ALLOW=1 npm run fixtures:reset   # removes fixture-owned rows only
 ```
 
-## Step 6: Create Your First Family
+The command refuses production-like targets. Accounts, the shared fake password and the guard rules are in [docs/testing/TEST_DATA.md](docs/testing/TEST_DATA.md).
 
-1. Open http://localhost:3000
-2. Click "Start Free Trial"
-3. Register with your email
-4. Create your first family
-5. Invite family members
+## 6. Run the app
 
-## Development Workflow
-
-### Daily Development
 ```bash
-npm run dev          # Start dev server (port 3000)
-npm run lint         # ESLint
-npm run type-check   # TypeScript type checking (tsc --noEmit)
-npm run format       # Prettier
-npm run validate     # Type-check + Prisma validate
-npm test             # Jest (runs with --passWithNoTests)
+npm run dev    # http://localhost:3000
 ```
 
-### Database Changes
+Register at `/register` (or sign in with a fixture account) and create or join a family.
+
+### Running the full stack in Docker instead
+
 ```bash
-# Edit prisma/schema.prisma, then:
-npx prisma db push     # Push schema to database
-npx prisma generate    # Regenerate Prisma client
-npx prisma studio      # Browse data in browser GUI
+docker compose up --build
 ```
 
-### Git Workflow
+This builds the production image and runs it with `NODE_ENV=production` against the compose database; the container runs `scripts/migrate.js` before starting the server. Production mode enforces a `JWT_SECRET` of at least 32 characters.
+
+## Everyday commands
+
 ```bash
-git checkout -b feature/new-feature
-# Make changes
-git add .
-git commit -m "Add new feature"
-git push origin feature/new-feature
+npm run lint
+npm run typecheck
+npm test                  # Jest
+npm run validate          # typecheck + prisma validate
+npm run verify:app        # full local gate in release order
+npx prisma studio         # browse data (needs DATABASE_URL exported)
 ```
 
-## Project Structure
-
-```
-family-planner/
-├── src/app/              # Next.js App Router pages & API routes
-├── src/components/       # React components by feature
-├── src/lib/              # Utilities (auth, prisma, constants, utils)
-├── src/types/            # TypeScript type definitions
-├── prisma/               # Prisma schema
-├── database/             # SQL migration files
-├── public/               # Static assets
-└── .github/workflows/    # GitHub-hosted validation and controlled release
-```
-
-## Key Files
-
-- `src/middleware.ts` - Auth middleware (JWT cookie check, protects /dashboard/*)
-- `src/lib/auth.ts` - JWT sign/verify, bcrypt hash/compare
-- `src/lib/prisma.ts` - Prisma client singleton
-- `src/lib/constants.ts` - App constants, roles, feature flags
-- `prisma/schema.prisma` - Database schema
+Before opening a PR, follow [CONTRIBUTING.md](CONTRIBUTING.md) and `docs/engineering/DEFINITION_OF_DONE.md`.
 
 ## Authentication
 
-The app uses self-hosted JWT authentication:
-- **Registration/Login**: API routes at `/api/auth/register` and `/api/auth/login`
-- **Session**: JWT stored in a `session_token` cookie
-- **Middleware**: Protects all `/dashboard/*` routes, redirects to login if no valid token
-- **Roles**: `parent` (admin), `teen`, `child`
+Self-hosted JWT sessions: `/api/auth/register` and `/api/auth/login` set a `session_token` cookie; `src/middleware.ts` gates `/dashboard` and the auth routes. Roles are `parent`, `teen` and `child`. Implementation: `src/lib/auth.ts`, `src/lib/api-auth.ts`. There is no Supabase auth; `src/lib/supabase/` is a legacy name only.
 
-## Common Issues
+## Common issues
 
-### 1. Database Connection Errors
-- Verify `DATABASE_URL` in `.env.local` is correct
-- Ensure PostgreSQL is running and accessible
-- Run `npx prisma db push` to sync schema
-
-### 2. Prisma Client Errors
-- Run `npx prisma generate` after any schema change
-- Clear `.next` directory if you see stale client errors
-
-### 3. Build Errors
-- Clear `.next` directory: `rm -rf .next`
-- Reinstall dependencies: `rm -rf node_modules && npm ci --legacy-peer-deps`
-- Check TypeScript errors: `npm run type-check`
-
-### 4. Auth Issues
-- Ensure `JWT_SECRET` is set in `.env.local`
-- Clear cookies if you get persistent 401 errors
-
-## Resources
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Prisma Documentation](https://www.prisma.io/docs)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [Zustand Documentation](https://github.com/pmndrs/zustand)
-- [React Hook Form Documentation](https://react-hook-form.com/)
+- **`docker compose` fails with "set DATABASE_URL" / "set JWT_SECRET"**: fill in those values in `.env`; Compose checks them even when you start only `postgres`.
+- **Database connection errors from the host**: the host-side `DATABASE_URL` must use `localhost`, not `postgres`.
+- **`fixtures:seed` refuses**: set `FIXTURES_ALLOW=1`, make sure `NODE_ENV` is not `production`, and use a loopback host; see the guard rules in `docs/testing/TEST_DATA.md`.
+- **Stale Prisma client**: run `npx prisma generate` and remove `.next/`.
+- **Persistent 401s**: check `JWT_SECRET` and clear cookies; changing the secret signs out every session.
