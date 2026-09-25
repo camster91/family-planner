@@ -7,7 +7,7 @@ Playwright drives the production build of the app in Chromium against the synthe
 | Spec | What it checks |
 |---|---|
 | `e2e/auth.setup.ts` | Signs in Family A parent, Family A child and Family B parent once via `POST /api/auth/login` and saves browser state to `e2e/.auth/` (gitignored). |
-| `e2e/journeys.spec.ts` | Signed-out redirect with return path; wrong password; offline and slow sign-in; parent UI login lands on a dashboard with real fixture rows; chores, calendar and budget pages; child kid-home with its own missions only; child redirected from `/dashboard/budget`, `/locations`, `/allowance`, `/settings`, `/chores`, `/family`; child nav hides links it would be redirected from; child gets 403 from budget APIs; a Family A list shows its items; Family A never sees Family B titles on shared pages, in collection APIs, or via a Family B list id in the URL (and the reverse for Family B); sign out (as the Family A teen, so the shared stored sessions survive the `token_version` bump) revokes the old cookie. |
+| `e2e/journeys.spec.ts` | Signed-out redirect with return path; wrong password; offline and slow sign-in; parent UI login lands on a dashboard with real fixture rows; chores, calendar and budget pages; child kid-home with its own missions only; child redirected from `/dashboard/budget`, `/locations`, `/allowance`, `/settings`, `/chores`, `/family`; child nav hides links it would be redirected from; child gets 403 from budget APIs; a Family A list shows its items; the parent dashboard Shopping card shows Family A's oldest 5 open grocery items (quantity rendered as "× n", long text included, checked items excluded) with a "1 more to buy" row linking to `/dashboard/lists`, and an item row opens `/dashboard/lists/fx_list_a_grocery`; Family B's card shows only its own single open item with no overflow row; Family A never sees Family B titles on shared pages, in collection APIs, or via a Family B list id in the URL (and the reverse for Family B); sign out (as the Family A teen, so the shared stored sessions survive the `token_version` bump) revokes the old cookie. |
 | `e2e/a11y.spec.ts` | axe-core (WCAG 2.0/2.1/2.2 A+AA tags) on login, parent dashboard (light and dark), chores, calendar and kid home. Fails on `serious`/`critical`; see the allowlist below. |
 | `e2e/visual.spec.ts` (`@visual`) | Screenshots of the login page and the parent dashboard in light and dark. |
 
@@ -90,12 +90,16 @@ Other sources of noise are also removed: reduced motion, `animations: 'disabled'
 
 `e2e/a11y.spec.ts` fails on any `serious`/`critical` axe violation except entries in `A11Y_ALLOWLIST`. Each entry matches rule + page + **exact node selector**, so a new element failing the same rule still fails. Every entry must cite an open issue and is removed when the issue is fixed. `minor`/`moderate` findings are attached to the report (`axe-*.json`) but do not fail yet.
 
-Current entries (pre-existing, found when this gate was added):
+Current entries: **none**. The allowlist is empty and axe enforces every serious/critical rule on every scanned page.
 
-| Rule | Page | Node | Measured | Tracking |
+Removed (fixed under #131 with text-safe semantic tokens in `src/app/globals.css`; `--warning` / `--danger` stay as decoration fills):
+
+| Rule | Page | Node | Before | After |
 |---|---|---|---|---|
-| `color-contrast` | `/dashboard` | `.text-[var(--warning)]` ("Review" label) | 2.19:1, `#FF9500` on white | #131 (semantic warning token) |
-| `color-contrast` | `/dashboard/chores` | `.btn-destructive` ("Reject") | 3.54:1, white on `#FF3B30` | #131 (semantic destructive token) |
+| `color-contrast` | `/dashboard` | "Review" label, now `.text-[var(--warning-text)]` | 2.19:1, `#FF9500` on white | 5.28:1, `--warning-text` `#C93400` on white (light); 9.54:1, `#FFB340` on `#1C1C1E` (dark) |
+| `color-contrast` | `/dashboard/chores` | `.btn-destructive` ("Reject") | 3.54:1, white on `#FF3B30` | 5.38:1, white on `--danger-fill` `#D70015` (both themes) |
+
+The same change moved all `text-[var(--danger)]` error text to `--danger-text` (`#C4001A` light, 6.25:1 on white, 4.80:1 on `--danger-tint`; `#FF6961` dark, 6.03:1 on `#1C1C1E`) and gave the offline banner black text on the orange fill (9.55:1).
 
 Fixed while adding the gate: on phone widths the top-bar home link had no accessible name because the wordmark is hidden below `sm` (axe `link-name`). It now has `aria-label="Family Planner home"`.
 
@@ -105,6 +109,6 @@ Fixed while adding the gate: on phone widths the top-bar home link had no access
 
 ## Known gaps / next steps
 
-- Teen role journeys, shared-device (tablet) fixtures and grocery/meal journeys wait on the fixtures listed as deferred in `TEST_DATA.md`.
+- Teen role journeys, shared-device (tablet) fixtures and meal journeys wait on the fixtures listed as deferred in `TEST_DATA.md`. Grocery coverage is limited to the dashboard Shopping card (read-only); checking items off in the browser is not covered yet.
 - Only Chromium. Android WebView/Capacitor lifecycle still needs device checks (`QA_MATRIX.md`).
 - Snapshots cover login and dashboard only. Add component/state galleries as #139 children land.

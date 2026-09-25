@@ -96,7 +96,7 @@ export default function LoginPage() {
               <div
                 role="alert"
                 aria-live="assertive"
-                className="bg-[var(--danger-tint)] text-[var(--danger)] text-[15px] rounded-[var(--radius-md)] px-4 py-3"
+                className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3"
               >
                 {error}
               </div>

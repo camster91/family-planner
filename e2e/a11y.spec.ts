@@ -31,24 +31,9 @@ interface AllowlistEntry {
  * a new regression pass.
  */
 const A11Y_ALLOWLIST: AllowlistEntry[] = [
-  {
-    rule: "color-contrast",
-    page: "/dashboard",
-    target: ".text-\\[var\\(--warning\\)\\]",
-    issue: "#131",
-    reason:
-      '"Review" label in the photo-verify queue: --warning #FF9500 on white is 2.19:1 (needs 4.5:1). ' +
-      "Fix belongs in the semantic warning/destructive colour tokens of the design system.",
-  },
-  {
-    rule: "color-contrast",
-    page: "/dashboard/chores",
-    target: ".btn-destructive",
-    issue: "#131",
-    reason:
-      '"Reject" button: white on --danger #FF3B30 is 3.54:1 (needs 4.5:1). Shared .btn-destructive style, ' +
-      "fix belongs in the semantic destructive colour token.",
-  },
+  // Empty. The two #131 colour-contrast entries ("Review" label on
+  // /dashboard, "Reject" .btn-destructive on /dashboard/chores) were removed
+  // when --warning-text / --danger-fill tokens landed; axe now enforces them.
 ];
 
 const BLOCKING: Impact[] = ["serious", "critical"];

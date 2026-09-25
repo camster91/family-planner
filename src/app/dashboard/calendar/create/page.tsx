@@ -87,7 +87,7 @@ export default function CreateEventPage() {
 
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
-            <p className="text-body text-[var(--danger)]">{error}</p>
+            <p className="text-body text-[var(--danger-text)]">{error}</p>
           </div>
         )}
 

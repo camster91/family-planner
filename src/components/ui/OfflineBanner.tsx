@@ -32,7 +32,7 @@ export function OfflineBanner() {
     <div
       className={cn(
         'fixed top-0 left-0 right-0 z-[100]',
-        'bg-[var(--warning)] text-white',
+        'bg-[var(--warning)] text-[var(--on-warning)]',
         'flex items-center justify-center gap-2 py-2 px-4',
         'text-subhead font-semibold',
         'animate-spring-in'

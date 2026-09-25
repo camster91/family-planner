@@ -45,6 +45,16 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    testOptions {
+        unitTests.all {
+            // JVM tests in src/test read the manifest, res/xml and Capacitor config from disk.
+            systemProperty 'familyplanner.appDir', projectDir.absolutePath
+            // Declare them as inputs so a config change re-runs the tests instead of UP-TO-DATE.
+            inputs.files('src/main/AndroidManifest.xml', 'src/main/assets/capacitor.config.json', '../../capacitor.config.ts')
+                .withPropertyName('securityConfigFiles')
+            inputs.dir('src/main/res/xml').withPropertyName('securityXmlResources')
+        }
+    }
 }
 
 repositories {

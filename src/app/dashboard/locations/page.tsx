@@ -215,7 +215,7 @@ function LocationRow({ location, onRemove, last }: { location: Location; onRemov
       <button
         type="button"
         onClick={() => onRemove(location.id)}
-        className="p-2 text-label-tertiary active:text-[var(--danger)] transition-colors"
+        className="p-2 text-label-tertiary active:text-[var(--danger-text)] transition-colors"
         aria-label="Remove"
       >
         <Trash2 className="w-4 h-4" />

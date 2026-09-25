@@ -68,6 +68,20 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      # JVM tests assert backup/cleartext/FileProvider hardening in the source
+      # and merged manifests plus the generated capacitor.config.json, so they
+      # must run after `cap sync` and before anything is assembled.
+      - name: Run Android unit tests
+        run: cd android && ./gradlew testDebugUnitTest
+
+      - name: Upload Android unit test report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: android-unit-test-report
+          path: android/app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
+
       - name: Build Debug APK
         if: github.event.inputs.build_type != 'release' && !startsWith(github.ref, 'refs/tags/v')
         run: cd android && ./gradlew assembleDebug
@@ -104,12 +118,33 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: cd android && ./gradlew assembleRelease
 
+      # Play-ready Android App Bundle. Built on every release run so bundling
+      # regressions surface even without secrets; an unsigned AAB is never
+      # uploaded or published (see the signed-only upload below).
+      - name: Build Release AAB
+        if: github.event.inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.signing.outputs.keystore_path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: cd android && ./gradlew bundleRelease
+
       - name: Verify release APK signature
         if: steps.signing.outputs.signed == 'true'
         run: |
           set -euo pipefail
           apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner"
           "$apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Verify release AAB signature
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          # jarsigner exits 0 for unsigned jars too, so require the explicit verdict.
+          out="$(jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab 2>&1)"
+          echo "$out"
+          grep -q '^jar verified\.' <<<"$out"
 
       - name: Remove release signing keystore
         if: always() && steps.signing.outputs.keystore_path != ''
@@ -132,6 +167,17 @@ jobs:
           name: family-planner-release-apk
           # app-release.apk when signed, app-release-unsigned.apk otherwise.
           path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Signed AAB only, for a manual Play Console upload that Cameron approves
+      # separately. It is deliberately not attached to GitHub Releases.
+      - name: Upload Release AAB
+        if: steps.signing.outputs.signed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: family-planner-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30
 

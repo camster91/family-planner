@@ -2,12 +2,14 @@
  * Browser journeys (#155): login, role gates, household isolation, logout.
  * Data: the #154 fixture households, seeded by e2e/global-setup.ts.
  */
+import type { Page } from "@playwright/test";
 import {
+  buildFixtureDataset,
   FIXTURE_EMAILS,
   FIXTURE_IDS,
   FIXTURE_LONG_TEXT,
 } from "../src/lib/fixtures/dataset";
-import { authFile } from "./support/env";
+import { authFile, E2E_ANCHOR } from "./support/env";
 import { delayRoute, goOffline, goOnline } from "./support/network";
 import { browserFetch, expect, loginViaUi, test } from "./support/test";
 
@@ -19,6 +21,9 @@ const FAMILY_B_ONLY = [
   "Family B movie night",
   "Family B to-dos",
   "Book car service",
+  "Family B shopping",
+  "Printer ink (Family B)",
+  "Light bulbs (Family B)",
 ];
 /** Titles that exist only in Family A. */
 const FAMILY_A_ONLY = [
@@ -27,7 +32,46 @@ const FAMILY_A_ONLY = [
   "Dentist (Casey)",
   "Weekend to-dos",
   "Mow the lawn",
+  "Groceries",
+  "Cheddar cheese",
+  "Dish soap",
 ];
+
+/** Dashboard Shopping card size (getOpenShoppingItems default limit). */
+const SHOPPING_CARD_LIMIT = 5;
+
+/**
+ * Open items of a family's grocery/shopping lists in the order the dashboard
+ * Shopping card shows them (oldest first, then id), as rendered titles.
+ */
+function openShoppingTitles(familyId: string) {
+  const ds = buildFixtureDataset(E2E_ANCHOR);
+  const lists = new Set(
+    ds.lists
+      .filter(
+        (l) =>
+          l.family_id === familyId &&
+          (l.type === "grocery" || l.type === "shopping"),
+      )
+      .map((l) => l.id),
+  );
+  return ds.listItems
+    .filter((i) => lists.has(i.list_id) && !i.checked)
+    .sort(
+      (a, b) =>
+        (a.created_at as Date).getTime() - (b.created_at as Date).getTime() ||
+        a.id.localeCompare(b.id),
+    )
+    .map((i) =>
+      (i.quantity ?? 1) > 1 ? `${i.content} × ${i.quantity}` : i.content,
+    );
+}
+
+function shoppingCard(page: Page) {
+  return page.locator("#main-content section").filter({
+    has: page.locator("p.section-header", { hasText: /^Shopping$/ }),
+  });
+}
 
 /** The routes middleware must bounce a child/teen away from (src/lib/kid-access.ts). */
 const PARENT_ONLY_ROUTES = [
@@ -171,6 +215,58 @@ test.describe("Family A parent", () => {
     }
   });
 
+  test("dashboard Shopping card shows open grocery items and links to the list", async ({
+    page,
+  }) => {
+    const open = openShoppingTitles(FIXTURE_IDS.familyA.family);
+    expect(open.length).toBeGreaterThan(SHOPPING_CARD_LIMIT);
+    const shown = open.slice(0, SHOPPING_CARD_LIMIT);
+    const hidden = open.slice(SHOPPING_CARD_LIMIT);
+
+    await page.goto("/dashboard");
+    const card = shoppingCard(page);
+    await expect(card).toHaveCount(1);
+    // Oldest open items first; quantity > 1 renders as "× n".
+    await expect(card.getByRole("link")).toHaveCount(shown.length + 1);
+    for (const [i, title] of shown.entries()) {
+      const row = card.getByRole("link").nth(i);
+      await expect(row).toContainText(title);
+      await expect(row).toContainText("Groceries");
+      await expect(row).toHaveAttribute(
+        "href",
+        `/dashboard/lists/${FIXTURE_IDS.familyA.groceryList}`,
+      );
+    }
+    expect(shown).toContain("Milk × 2");
+    expect(shown).toContain(FIXTURE_LONG_TEXT.groceryItem);
+    // Items past the limit collapse into one "N more to buy" row.
+    for (const title of hidden) {
+      await expect(card.getByText(title, { exact: true })).toHaveCount(0);
+    }
+    const more = card.getByRole("link", {
+      name: `${hidden.length} more to buy`,
+    });
+    await expect(more).toBeVisible();
+    await expect(more).toHaveAttribute("href", "/dashboard/lists");
+    // Checked items and the other household's items never appear.
+    for (const title of [
+      "Coffee beans",
+      "Olive oil",
+      ...openShoppingTitles(FIXTURE_IDS.familyB.family),
+    ]) {
+      await expect(card.getByText(title)).toHaveCount(0);
+    }
+
+    // The item row opens its list.
+    await card.getByRole("link").first().click();
+    await expect(page).toHaveURL(
+      new RegExp(`/dashboard/lists/${FIXTURE_IDS.familyA.groceryList}$`),
+    );
+    const main = page.locator("#main-content");
+    await expect(main.getByText("Cheddar cheese")).toBeVisible();
+    await expect(main.getByText(hidden[0])).toBeVisible();
+  });
+
   test("own list shows its seeded items", async ({ page }) => {
     await page.goto(`/dashboard/lists/${FIXTURE_IDS.familyA.list}`);
     const main = page.locator("#main-content");
@@ -249,6 +345,22 @@ test.describe("Family B parent", () => {
     for (const title of FAMILY_A_ONLY) {
       expect(text, `Family B dashboard leaked "${title}"`).not.toContain(title);
     }
+    // Shopping card: B's single open item, no overflow row, nothing from A.
+    const card = shoppingCard(page);
+    const open = openShoppingTitles(FIXTURE_IDS.familyB.family);
+    expect(open).toEqual(["Printer ink (Family B)"]);
+    await expect(card.getByRole("link")).toHaveCount(1);
+    await expect(card.getByRole("link").first()).toContainText(open[0]);
+    await expect(card.getByRole("link").first()).toHaveAttribute(
+      "href",
+      `/dashboard/lists/${FIXTURE_IDS.familyB.shoppingList}`,
+    );
+    await expect(card.getByText(/more to buy$/)).toHaveCount(0);
+    await expect(card.getByText("Light bulbs (Family B)")).toHaveCount(0);
+    for (const title of openShoppingTitles(FIXTURE_IDS.familyA.family)) {
+      await expect(card.getByText(title)).toHaveCount(0);
+    }
+
     await page.goto("/dashboard/chores");
     await expect(
       page.locator("#main-content").getByText("Water the plants"),
