@@ -91,10 +91,20 @@ Shared password for every fixture account: **`Fixture-Only-Passw0rd!`** (`FIXTUR
 Roles come from `User.role` (`parent` / `teen` / `child`) plus `User.age`. All accounts have `email_verified = true`.
 
 ### Scenarios
-- **Busy (Family A):** 14 events: today (school drop-off, stand-up, dentist, practice, long title), tomorrow, one crossing midnight UTC, a task event, a weekly RRULE event, a multi-day event, next week and yesterday. 11 chores covering every status (`pending`, `in_progress`, `completed`, `verified`, `overdue`), including one weekly recurring series (template `fx_chore_a_weekly_tpl` plus 3 occurrences, following the #184 `recurrence_id` / `is_template` model). 4 rewards (available, claimed, redeemed, inactive). 4 to-do lists (8-item list with 3 checked, a short list, a long-text list, an empty list).
-- **Sparse (Family B):** one each of event, chore (teen), reward, list and list item. B's child has no chores (empty per-user state). These exist so negative tests have real foreign ids.
+- **Busy (Family A):** 14 events: today (school drop-off, stand-up, dentist, practice, long title), tomorrow, one crossing midnight UTC, a task event, a weekly RRULE event, a multi-day event, next week and yesterday. 11 chores covering every status (`pending`, `in_progress`, `completed`, `verified`, `overdue`), including one weekly recurring series (template `fx_chore_a_weekly_tpl` plus 3 occurrences, following the #184 `recurrence_id` / `is_template` model). 4 rewards (available, claimed, redeemed, inactive). 4 to-do lists (8-item list with 3 checked, a short list, a long-text list, an empty list). One `type: 'grocery'` list (see below).
+- **Sparse (Family B):** one each of event, chore (teen), reward, to-do list and list item, plus one small `type: 'shopping'` list (see below). B's child has no chores (empty per-user state). These exist so negative tests have real foreign ids.
 - **Empty household (`fx_family_empty`):** one parent and no data, for new-household empty states.
-- **Long text:** `FIXTURE_LONG_TEXT` (long user name, event title, chore title, list item, and a description with accented characters).
+- **Long text:** `FIXTURE_LONG_TEXT` (long user name, event title, chore title, list item, grocery item, and a description with accented characters).
+
+### Grocery / shopping lists
+These use the existing `List` / `ListItem` model. The capture flow creates lists with `type: 'grocery'`; the dashboard Shopping card (`src/lib/shopping-snapshot.ts`) reads unchecked items from `grocery` and `shopping` lists, oldest `created_at` first, and shows at most 5 plus an "N more to buy" row. Grocery items have distinct, ascending `created_at` so that order is stable.
+
+| Household | List id | Type | Name | Items (in card order) |
+|---|---|---|---|---|
+| Family A | `fx_list_a_grocery` (`FIXTURE_IDS.familyA.groceryList`) | `grocery` | Groceries | `fx_item_a_grocery_1` Milk (quantity 2, renders "Milk × 2"); `_2` long-text sourdough loaf (`FIXTURE_LONG_TEXT.groceryItem`); `_3` Bananas; `_4` Coffee beans (**checked**); `_5` Eggs (dozen); `_6` Cheddar cheese; `_7` Olive oil (**checked**); `_8` Dish soap |
+| Family B | `fx_list_b_shopping` (`FIXTURE_IDS.familyB.shoppingList`) | `shopping` | Family B shopping | `fx_item_b_shopping_1` Printer ink (Family B); `fx_item_b_shopping_2` Light bulbs (Family B) (**checked**) |
+
+Family A has 6 open items, so its card shows the first 5 and "1 more to buy" (Dish soap is the hidden one). Family B's card shows its single open item and no overflow row. Family B item texts are unique to Family B so leak checks can search for them.
 
 ### Cross-family ids for negative tests
 `FIXTURE_CROSS_FAMILY.aToB` / `.bToA` give `{ actor, foreign }` id sets (`family`, `parent`, `teen`, `child`, `event`, `chore`, `list`, `listItem`, `reward`). Example:
@@ -105,7 +115,7 @@ const { actor, foreign } = FIXTURE_CROSS_FAMILY.aToB
 ```
 
 ### Not yet covered (deferred)
-- **Meal / recipe / grocery fixtures:** deferred until #149 settles the canonical meal/grocery model. Only `type: 'todo'` lists are seeded; no grocery `List`, `ShoppingList`, `Recipe` or `MealPlan` rows.
+- **Meal / recipe fixtures:** deferred until #149 settles the canonical meal model. Lists are seeded with `type` `todo`, `grocery` and `shopping` only; no `meal_plan` lists and no `ShoppingList`, `Recipe` or `MealPlan` rows.
 - **Shared-device (tablet) fixtures:** deferred because the paired-device schema does not exist yet.
 - Inventory/use-soon, offline/pending/conflict mock data, and DST-specific event edges beyond the midnight-UTC crossing. Use `FIXTURES_ANCHOR_DATE` near a DST change if you need that today.
 - Tables without a foreign key to `Family` are not swept by reset. Rows the app writes there for fixture users could be left orphaned; none are seeded.

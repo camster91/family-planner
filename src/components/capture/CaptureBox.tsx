@@ -316,7 +316,7 @@ export function CaptureBox() {
         </button>
       </div>
 
-      {error && <p className="text-subhead text-[var(--danger)] mt-3">{error}</p>}
+      {error && <p className="text-subhead text-[var(--danger-text)] mt-3">{error}</p>}
 
       {saved && (
         <p className="text-subhead text-[var(--success,#059669)] mt-3 flex items-center gap-1">
@@ -330,7 +330,7 @@ export function CaptureBox() {
             <KindIcon className="w-3.5 h-3.5" />
             {KIND_LABEL[draft.kind]}
             {draft.confidence === 'low' && (
-              <span className="text-[var(--danger)]">· not sure, please check</span>
+              <span className="text-[var(--danger-text)]">· not sure, please check</span>
             )}
           </div>
 

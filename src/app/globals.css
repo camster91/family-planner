@@ -62,6 +62,22 @@
     --danger: #FF3B30;
     --danger-tint: rgba(255, 59, 48, 0.12);
 
+    /* Text-safe semantic variants (#131). The Apple system orange/red
+       above are kept for non-text decoration (borders, dots, tints,
+       badges without text) but fail WCAG 2.1 AA as text:
+         #FF9500 on white = 2.20:1, white on #FF3B30 = 3.55:1.
+       Same split as --accent-text / --accent-fill:
+       --warning-text / --danger-text: text on neutral or tint surfaces
+       --danger-fill: filled destructive button behind white text
+       --on-warning: text on a --warning fill (e.g. offline banner)
+       Values are close to Apple's increased-contrast system colours.
+       Ratios below are WCAG 2.1 relative-luminance contrast; all >= 4.5:1. */
+    --warning-text: #C93400;             /* 5.28:1 on #FFF, 4.73:1 on #F2F2F7 */
+    --danger-text: #C4001A;              /* 6.25:1 on #FFF, 5.60:1 on #F2F2F7, 4.80:1 on danger-tint */
+    --danger-fill: #D70015;              /* white text 5.38:1 */
+    --danger-fill-pressed: #B8000F;
+    --on-warning: #000000;               /* 9.55:1 on #FF9500 */
+
     /* === Family module tints (used for category glyphs + avatars) ===
        Darkened in QA pass 3 (2026-06-06) so white text on avatar
        backgrounds hits WCAG 2.1 AA 4.5:1. The original
@@ -149,6 +165,11 @@
        point to lighter variants. */
     --tint-lists-text: var(--tint-lists);
     --tint-rewards-text: var(--tint-rewards);
+
+    /* Dark-mode text-safe semantic variants (#131): lighter for text on
+       dark surfaces. --danger-fill stays dark so white text passes. */
+    --warning-text: #FFB340;             /* 9.54:1 on #1C1C1E, 11.77:1 on #000 */
+    --danger-text: #FF6961;              /* 6.03:1 on #1C1C1E, 5.36:1 on danger-tint */
   }
 
   html {
@@ -291,13 +312,14 @@
     gap: 0.5rem;
     border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
-    background: var(--danger);
+    /* --danger-fill, not --danger: white on #FF3B30 is 3.55:1 (#131). */
+    background: var(--danger-fill);
     color: #fff;
     font-weight: 600;
     font-size: 17px;
     transition: transform 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
-  .btn-destructive:active { transform: scale(0.97); }
+  .btn-destructive:active { transform: scale(0.97); background: var(--danger-fill-pressed); }
   .btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(255, 59, 48, 0.24); }
 
   /* === Inputs === */

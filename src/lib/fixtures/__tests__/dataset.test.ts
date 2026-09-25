@@ -156,7 +156,60 @@ describe('fixture dataset', () => {
     )
   })
 
-  it('seeds no grocery/meal lists (deferred to #149)', () => {
-    for (const l of ds.lists) expect(l.type).toBe('todo')
+  it('seeds no meal-plan lists (deferred to #149)', () => {
+    for (const l of ds.lists) expect(['todo', 'grocery', 'shopping']).toContain(l.type)
+  })
+
+  describe('grocery/shopping lists (dashboard Shopping card)', () => {
+    const itemsOf = (listId: string) => ds.listItems.filter((i) => i.list_id === listId)
+    const open = (listId: string) => itemsOf(listId).filter((i) => !i.checked)
+    // Mirrors getOpenShoppingItems: oldest created_at first, then id.
+    const cardOrder = (items: typeof ds.listItems) =>
+      [...items].sort(
+        (a, b) =>
+          (a.created_at as Date).getTime() - (b.created_at as Date).getTime() || a.id.localeCompare(b.id)
+      )
+
+    it("gives Family A one 'grocery' list with more open items than the card shows", () => {
+      const lists = ds.lists.filter((l) => l.family_id === FIXTURE_IDS.familyA.family && l.type === 'grocery')
+      expect(lists.map((l) => l.id)).toEqual([FIXTURE_IDS.familyA.groceryList])
+      const items = itemsOf(FIXTURE_IDS.familyA.groceryList)
+      expect(items.length).toBeGreaterThanOrEqual(7)
+      expect(items.filter((i) => i.checked).length).toBeGreaterThanOrEqual(2)
+      expect(open(FIXTURE_IDS.familyA.groceryList).length).toBe(6) // card shows 5 + "1 more to buy"
+      expect(items.filter((i) => (i.quantity ?? 1) > 1)).toHaveLength(1)
+      expect(items.some((i) => i.content.length > 80)).toBe(true)
+      for (const i of items.filter((x) => x.checked)) {
+        expect(i.checked_by).toBeTruthy()
+        expect(i.checked_at).toBeInstanceOf(Date)
+      }
+    })
+
+    it('orders Family A open grocery items deterministically, quantity item first', () => {
+      const ordered = cardOrder(open(FIXTURE_IDS.familyA.groceryList))
+      const times = ordered.map((i) => (i.created_at as Date).getTime())
+      expect(new Set(times).size).toBe(times.length)
+      expect(ordered[0]).toMatchObject({ id: FIXTURE_IDS.familyA.groceryItem, quantity: 2 })
+    })
+
+    it("gives Family B one small 'shopping' list", () => {
+      const lists = ds.lists.filter(
+        (l) => l.family_id === FIXTURE_IDS.familyB.family && ['grocery', 'shopping'].includes(l.type as string)
+      )
+      expect(lists.map((l) => l.id)).toEqual([FIXTURE_IDS.familyB.shoppingList])
+      expect(lists[0].type).toBe('shopping')
+      const items = itemsOf(FIXTURE_IDS.familyB.shoppingList)
+      expect(items.length).toBeLessThanOrEqual(3)
+      expect(open(FIXTURE_IDS.familyB.shoppingList).map((i) => i.id)).toEqual([FIXTURE_IDS.familyB.shoppingItem])
+    })
+
+    it('shopping item texts do not repeat across households', () => {
+      const texts = (fam: string) => {
+        const listIds = new Set(ds.lists.filter((l) => l.family_id === fam).map((l) => l.id))
+        return new Set(ds.listItems.filter((i) => listIds.has(i.list_id)).map((i) => i.content))
+      }
+      const a = texts(FIXTURE_IDS.familyA.family)
+      for (const t of Array.from(texts(FIXTURE_IDS.familyB.family))) expect(a.has(t)).toBe(false)
+    })
   })
 })

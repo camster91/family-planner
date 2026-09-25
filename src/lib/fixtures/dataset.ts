@@ -10,8 +10,12 @@
  *   DEFAULT_FIXTURE_ANCHOR) so screenshots and snapshots are repeatable.
  * - `buildFixtureDataset` is pure: same anchor in, deep-equal dataset out.
  *
+ * Grocery/shopping lists use the existing List/ListItem model (type 'grocery'
+ * as created by the capture flow, and 'shopping'), which is what the dashboard
+ * Shopping card reads (src/lib/shopping-snapshot.ts).
+ *
  * Deliberately NOT included yet (see docs/testing/TEST_DATA.md):
- * - meal / recipe / grocery fixtures: waiting on the canonical model in #149;
+ * - meal / recipe fixtures: waiting on the canonical model in #149;
  * - shared-device (tablet) fixtures: schema not ready.
  *
  * This file must stay importable by plain Node type-stripping (used by
@@ -49,6 +53,10 @@ export const FIXTURE_IDS = {
     reward: 'fx_reward_a_available',
     list: 'fx_list_a_todo_weekend',
     listItem: 'fx_item_a_weekend_1',
+    /** type 'grocery': 6 open items (one more than the dashboard card shows) + 2 checked. */
+    groceryList: 'fx_list_a_grocery',
+    /** Oldest open grocery item (quantity 2): first row of the dashboard Shopping card. */
+    groceryItem: 'fx_item_a_grocery_1',
   },
   familyB: {
     family: 'fx_family_b',
@@ -60,6 +68,9 @@ export const FIXTURE_IDS = {
     reward: 'fx_reward_b_available',
     list: 'fx_list_b_todo',
     listItem: 'fx_item_b_1',
+    /** type 'shopping': one open item, one checked. */
+    shoppingList: 'fx_list_b_shopping',
+    shoppingItem: 'fx_item_b_shopping_1',
   },
   familyEmpty: {
     family: 'fx_family_empty',
@@ -141,6 +152,8 @@ export const FIXTURE_LONG_TEXT = {
     'Sort the entire garage shelf of mismatched sports equipment into labelled bins and donate outgrown items',
   listItem:
     'Replacement batteries for the upstairs smoke detector (the one near the linen closet that chirps at 3am)',
+  groceryItem:
+    'Sourdough sandwich loaf from the bakery counter, sliced thin (not the pre-packaged one on the bottom shelf)',
   description:
     'This description is intentionally long so layouts can be checked for wrapping, truncation and reflow. ' +
     'It repeats a little: café, naïve, façade, jalapeño — accented characters included on purpose. ' +
@@ -334,7 +347,7 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     reward(B.reward, B.family, B.parent, 'Family B movie night', 40),
   ]
 
-  // ---------- Lists (to-do only; grocery/meal lists wait on #149) ----------
+  // ---------- Lists (to-do + grocery/shopping; meal-plan lists wait on #149) ----------
   const list = (id: string, family_id: string, created_by: string, name: string, extra: Partial<FixtureList> = {}): FixtureList => ({
     id,
     family_id,
@@ -352,7 +365,9 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     list('fx_list_a_school', A.family, A.parent, 'School forms', { description: 'Permission slips and sign-ups' }),
     list('fx_list_a_long', A.family, A.parent, 'Household maintenance backlog with an intentionally long list name', { description: FIXTURE_LONG_TEXT.description }),
     list('fx_list_a_empty', A.family, A.parent, 'Empty list'),
+    list(A.groceryList, A.family, A.parent, 'Groceries', { type: 'grocery' }),
     list(B.list, B.family, B.parent, 'Family B to-dos'),
+    list(B.shoppingList, B.family, B.parent, 'Family B shopping', { type: 'shopping' }),
   ]
 
   const item = (
@@ -386,6 +401,26 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     'Swap winter tyres',
     'Call the plumber back',
   ]
+  // Grocery items get distinct, ascending created_at so the dashboard Shopping
+  // card (oldest open first, capped at 5) has a stable order. 6 open + 2 checked.
+  const grocery: Array<[content: string, extra: Partial<FixtureListItem>]> = [
+    ['Milk', { quantity: 2, category: 'Dairy' }],
+    [FIXTURE_LONG_TEXT.groceryItem, { category: 'Bakery' }],
+    ['Bananas', { category: 'Produce' }],
+    ['Coffee beans', { checked: true, checked_by: A.teen, checked_at: at(-5 * HOUR), purchased: true }],
+    ['Eggs (dozen)', { category: 'Dairy' }],
+    ['Cheddar cheese', { category: 'Dairy' }],
+    ['Olive oil', { checked: true, checked_by: A.parent, checked_at: at(-4 * HOUR), purchased: true }],
+    ['Dish soap', { category: 'Household' }],
+  ]
+  const groceryItems = grocery.map(([content, extra], i) =>
+    item(i === 0 ? A.groceryItem : `fx_item_a_grocery_${i + 1}`, A.groceryList, i % 3 === 2 ? A.teen : A.parent, content, i, {
+      created_at: at(-2 * DAY + i * HOUR),
+      updated_at: extra.checked_at ?? at(-2 * DAY + i * HOUR),
+      ...extra,
+    })
+  )
+
   const listItems: FixtureListItem[] = [
     ...weekend.map((content, i) =>
       item(
@@ -401,6 +436,16 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     item('fx_item_a_school_2', 'fx_list_a_school', A.parent, 'Photo day order form', 1, { checked: true, checked_by: A.parent, checked_at: at(-DAY) }),
     item('fx_item_a_long_1', 'fx_list_a_long', A.parent, FIXTURE_LONG_TEXT.listItem, 0, { notes: FIXTURE_LONG_TEXT.description }),
     item(B.listItem, B.list, B.parent, 'Book car service', 0),
+    ...groceryItems,
+    item(B.shoppingItem, B.shoppingList, B.parent, 'Printer ink (Family B)', 0, { created_at: at(-DAY), updated_at: at(-DAY) }),
+    item('fx_item_b_shopping_2', B.shoppingList, B.parent, 'Light bulbs (Family B)', 1, {
+      checked: true,
+      checked_by: B.parent,
+      checked_at: at(-HOUR),
+      purchased: true,
+      created_at: at(-DAY + HOUR),
+      updated_at: at(-HOUR),
+    }),
   ]
 
   return { anchor: anchor.toISOString(), families, users, events, chores, rewards, lists, listItems }

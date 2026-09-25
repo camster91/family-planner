@@ -47,8 +47,17 @@ module.exports = {
           "tint-strong": "var(--accent-tint-strong)",
         },
         success: "var(--success)",
-        warning: "var(--warning)",
-        danger: "var(--danger)",
+        // --warning/--danger are decoration fills; use the -text variants
+        // for text and danger-fill behind white text (WCAG AA, #131).
+        warning: {
+          DEFAULT: "var(--warning)",
+          text: "var(--warning-text)",
+        },
+        danger: {
+          DEFAULT: "var(--danger)",
+          text: "var(--danger-text)",
+          fill: "var(--danger-fill)",
+        },
         // Family planner tints (used as glyph backgrounds)
         chore: "var(--tint-chore)",
         "tint-calendar": "var(--tint-calendar)",

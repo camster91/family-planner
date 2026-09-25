@@ -13,6 +13,9 @@ const config = [
       'playwright-report/**',
       'test-results/**',
       'blob-report/**',
+      // Generated Android/Capacitor output (Gradle build, cap sync copies)
+      'android/**/build/**',
+      'android/app/src/main/assets/public/**',
     ],
   },
   ...compat.extends('next/core-web-vitals'),

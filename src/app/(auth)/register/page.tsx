@@ -159,7 +159,7 @@ export default function RegisterPage() {
 
           <form onSubmit={handleRegister} className="space-y-4">
             {error && (
-              <div className="bg-[var(--danger-tint)] text-[var(--danger)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
+              <div className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
                 {error}
               </div>
             )}

@@ -363,7 +363,7 @@ export default function DashboardHome({
                       {chore.assignee?.name} · {chore.photo_url ? 'Photo submitted' : 'Marked done'}
                     </div>
                   </div>
-                  <span className="text-caption-1 font-semibold text-[var(--warning)] uppercase tracking-wide">
+                  <span className="text-caption-1 font-semibold text-[var(--warning-text)] uppercase tracking-wide">
                     Review
                   </span>
                 </Link>

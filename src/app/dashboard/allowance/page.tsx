@@ -263,7 +263,7 @@ function AllowanceRow({
             <button
               type="button"
               onClick={() => onCancel(item.id)}
-              className="p-2 text-label-tertiary active:text-[var(--danger)]"
+              className="p-2 text-label-tertiary active:text-[var(--danger-text)]"
               aria-label="Cancel"
             >
               <Trash2 className="w-4 h-4" />
