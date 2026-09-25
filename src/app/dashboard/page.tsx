@@ -1,7 +1,8 @@
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
-import DashboardHome from '@/components/dashboard/DashboardHome'
+import { utcMonthRange } from '@/lib/dates'
+import DashboardHome, { type BudgetSnapshot } from '@/components/dashboard/DashboardHome'
 import KidHome from '@/components/dashboard/KidHome'
 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
@@ -126,17 +127,12 @@ export default async function DashboardPage() {
     role: m.role,
   }))
 
+  // Chore progress ("X of Y done today", "My chores") is derived in DashboardHome
+  // from `chores`, against the viewer's local calendar day.
   const stats = {
-    totalChores: chores?.length || 0,
-    completedChores: chores?.filter(c => c.status === 'completed' || c.status === 'verified').length || 0,
-    pendingChores: chores?.filter(c => c.status === 'pending' || c.status === 'in_progress').length || 0,
     upcomingEvents: events?.length || 0,
     unreadMessages: messages?.length || 0,
   }
-
-  const completionRate = stats.totalChores > 0
-    ? Math.round((stats.completedChores / stats.totalChores) * 100)
-    : 0
 
   // Anniversaries coming up in the next 90 days (parent only — kids don't need this)
   const upcomingAnniversaries = !isKid
@@ -165,6 +161,28 @@ export default async function DashboardPage() {
       }))
     : []
 
+  // Budget snapshot: parents only, and only with the budget feature on (the
+  // same gates as /api/budget/stats). Same source as that route: this UTC
+  // month's expense total against the sum of expense category limits.
+  let budget: BudgetSnapshot | null = null
+  if (user.role === 'parent' && features.budget) {
+    const { start: monthStart, end: monthEnd } = utcMonthRange(now.getUTCFullYear(), now.getUTCMonth() + 1)
+    const [expenses, limits] = await Promise.all([
+      prisma!.transaction.aggregate({
+        where: { family_id: familyId, type: 'expense', date: { gte: monthStart, lt: monthEnd } },
+        _sum: { amount: true },
+      }),
+      prisma!.budgetCategory.aggregate({
+        where: { family_id: familyId, type: 'expense' },
+        _sum: { budget_limit: true },
+      }),
+    ])
+    budget = {
+      spent: Math.round((expenses._sum.amount ?? 0) * 100) / 100,
+      limit: Math.round((limits._sum.budget_limit ?? 0) * 100) / 100,
+    }
+  }
+
   if (isKid) {
     return (
       <KidHome
@@ -183,12 +201,12 @@ export default async function DashboardPage() {
         chores={chores as any}
         events={events as any}
         stats={stats}
-        completionRate={completionRate}
         leaderboard={leaderboard}
         pickups={pickups}
         allowancePending={allowancePending}
         anniversaries={upcomingAnniversaries}
         photoVerifyQueue={photoVerifyQueue}
+        budget={budget}
       />
       <AdminControlsWrapper />
     </>

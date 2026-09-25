@@ -22,6 +22,7 @@ import { User as UserType, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { TabBar } from '@/components/ui/tab-bar'
+import { canRoleAccessPath, filterNavForRole } from '@/lib/kid-access'
 
 interface DashboardNavProps {
   user: UserType | null
@@ -47,6 +48,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false)
   const avatarRef = useRef<HTMLDivElement>(null)
+  // Hide links the role would only be redirected away from (src/lib/kid-access.ts).
+  const canSee = (href: string) => canRoleAccessPath(user?.role, href)
+  const primaryTabs = filterNavForRole(PRIMARY_TABS, user?.role)
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -93,7 +97,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
           {/* Primary tabs — lg+ only */}
           <div className="hidden lg:flex items-center gap-1">
-            {PRIMARY_TABS.map((tab) => {
+            {primaryTabs.map((tab) => {
               const isActive = tab.matchPrefix
                 ? pathname.startsWith(tab.href)
                 : pathname === tab.href
@@ -122,22 +126,26 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {/* Right-side action cluster — md+ */}
           <div className="flex items-center gap-1">
             {/* Search */}
-            <Link
-              href="/dashboard/search"
-              className="p-2 text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
-              aria-label="Search"
-            >
-              <Search className="w-5 h-5" />
-            </Link>
+            {canSee('/dashboard/search') && (
+              <Link
+                href="/dashboard/search"
+                className="p-2 text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" />
+              </Link>
+            )}
 
             {/* Notifications bell */}
-            <Link
-              href="/dashboard/notifications"
-              className="p-2 text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors relative"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-            </Link>
+            {canSee('/dashboard/notifications') && (
+              <Link
+                href="/dashboard/notifications"
+                className="p-2 text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors relative"
+                aria-label="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+              </Link>
+            )}
 
             {/* Avatar + overflow menu */}
             <div className="relative ml-1" ref={avatarRef}>
@@ -207,38 +215,46 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
                   {/* Menu items */}
                   <div className="py-1.5">
-                    <Link
-                      href="/dashboard/profile"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
-                      onClick={() => setAvatarOpen(false)}
-                    >
-                      <User className="w-4 h-4 text-label-secondary" />
-                      Profile
-                    </Link>
-                    <Link
-                      href="/dashboard/messages"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
-                      onClick={() => setAvatarOpen(false)}
-                    >
-                      <MessageCircle className="w-4 h-4 text-label-secondary" />
-                      Messages
-                    </Link>
-                    <Link
-                      href="/dashboard/family"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
-                      onClick={() => setAvatarOpen(false)}
-                    >
-                      <Users2 className="w-4 h-4 text-label-secondary" />
-                      Family
-                    </Link>
-                    <Link
-                      href="/dashboard/settings"
-                      className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
-                      onClick={() => setAvatarOpen(false)}
-                    >
-                      <Settings className="w-4 h-4 text-label-secondary" />
-                      Settings
-                    </Link>
+                    {canSee('/dashboard/profile') && (
+                      <Link
+                        href="/dashboard/profile"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <User className="w-4 h-4 text-label-secondary" />
+                        Profile
+                      </Link>
+                    )}
+                    {canSee('/dashboard/messages') && (
+                      <Link
+                        href="/dashboard/messages"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <MessageCircle className="w-4 h-4 text-label-secondary" />
+                        Messages
+                      </Link>
+                    )}
+                    {canSee('/dashboard/family') && (
+                      <Link
+                        href="/dashboard/family"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <Users2 className="w-4 h-4 text-label-secondary" />
+                        Family
+                      </Link>
+                    )}
+                    {canSee('/dashboard/settings') && (
+                      <Link
+                        href="/dashboard/settings"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <Settings className="w-4 h-4 text-label-secondary" />
+                        Settings
+                      </Link>
+                    )}
                   </div>
 
                   {/* Sign out */}

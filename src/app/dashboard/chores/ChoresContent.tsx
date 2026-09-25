@@ -11,6 +11,7 @@ import { Glyph } from '@/components/ui/glyph'
 import { useToast } from '@/components/ui/toast'
 import { LongPressRow } from '@/components/ui/long-press-row'
 import { cn } from '@/lib/utils'
+import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays } from '@/lib/dates'
 import type { Chore } from '@/types'
 
 type FilterMode = 'today' | 'week' | 'all'
@@ -20,35 +21,6 @@ interface ChoresContentProps {
   familyMembers: { id: string; name: string; role: string; age?: number }[]
   currentUserId: string
   userRole: string
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function formatRelativeDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  const today = new Date()
-  const tomorrow = new Date(today)
-  tomorrow.setDate(today.getDate() + 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function isToday(dateStr: string): boolean {
-  const d = new Date(dateStr)
-  const today = new Date()
-  return d.toDateString() === today.toDateString()
-}
-
-function isThisWeek(dateStr: string): boolean {
-  const d = new Date(dateStr)
-  const today = new Date()
-  const endOfWeek = new Date(today)
-  endOfWeek.setDate(today.getDate() + 7)
-  return d >= today && d <= endOfWeek
 }
 
 // Reassign modal
@@ -225,8 +197,8 @@ export default function ChoresContent({
   }, [addToast])
 
   const filtered = localChores.filter(c => {
-    if (filter === 'today') return isToday(c.due_date)
-    if (filter === 'week') return isThisWeek(c.due_date)
+    if (filter === 'today') return isDueToday(c.due_date)
+    if (filter === 'week') return isDueWithinDays(c.due_date, 7)
     return true
   })
 
@@ -304,8 +276,8 @@ export default function ChoresContent({
                     title={chore.title}
                     subtitle={
                       chore.assignee
-                        ? `${chore.assignee.name} · ${formatRelativeDate(chore.due_date)}`
-                        : formatRelativeDate(chore.due_date)
+                        ? `${chore.assignee.name} · ${formatRelativeDueDate(chore.due_date)}`
+                        : formatRelativeDueDate(chore.due_date)
                     }
                     glyph={
                       <Glyph color="chore" size="sm">
@@ -360,7 +332,7 @@ export default function ChoresContent({
                     icon={CheckSquare}
                     glyphColor="chore"
                     title={chore.title}
-                    subtitle={formatDate(chore.due_date)}
+                    subtitle={formatDateOnly(chore.due_date)}
                     showChevron={false}
                     trailing={<span className="text-footnote text-label-tertiary">+{chore.points}</span>}
                     className={cn(i === doneChores.length - 1 && 'border-b-0')}

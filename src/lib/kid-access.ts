@@ -1,11 +1,11 @@
-import { NextRequest } from 'next/server'
-
 // Shared kid-access rules.
 //
 // IMPORTANT: this is the single source of truth for which /dashboard routes a
 // child or teen may reach. The edge middleware (src/middleware.ts) imports it,
 // and the dashboard layout (src/app/dashboard/layout.tsx) uses it too. Keeping
-// one list means the two gates can never disagree.
+// one list means the two gates can never disagree. The nav (DashboardNav,
+// TabBar, CommandPalette) filters its links with canRoleAccessPath so a kid is
+// never shown a link that would only bounce them home.
 //
 // History: the layout previously tried to gate this itself by reading
 // `x-pathname` / `x-invoke-path` headers. Next.js never sends those to layouts,
@@ -32,4 +32,18 @@ export function isDashboardRoot(pathname: string): boolean {
 
 export function isKidRole(role: string | undefined | null): boolean {
   return role === 'child' || role === 'teen'
+}
+
+/** Whether a user with `role` may reach `pathname` (same rule as the middleware redirect). */
+export function canRoleAccessPath(role: string | undefined | null, pathname: string): boolean {
+  if (!isKidRole(role)) return true
+  return isDashboardRoot(pathname) || isKidAllowedPath(pathname)
+}
+
+/** Drop nav links the role would be redirected away from. */
+export function filterNavForRole<T extends { href: string }>(
+  items: readonly T[],
+  role: string | undefined | null
+): T[] {
+  return items.filter((item) => canRoleAccessPath(role, item.href))
 }

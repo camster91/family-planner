@@ -7,6 +7,10 @@ import {
   parseYearMonth,
   utcMonthRange,
   localDateTimeToISO,
+  formatDateOnly,
+  formatRelativeDueDate,
+  isDueToday,
+  isDueWithinDays,
 } from '../dates'
 
 describe('parseDateOnly', () => {
@@ -60,5 +64,42 @@ describe('localDateTimeToISO', () => {
   })
   it('returns null for invalid input', () => {
     expect(localDateTimeToISO('nope')).toBeNull()
+  })
+})
+
+describe('chore due-date helpers west of UTC', () => {
+  const originalTZ = process.env.TZ
+  beforeAll(() => {
+    process.env.TZ = 'America/Toronto'
+  })
+  afterAll(() => {
+    process.env.TZ = originalTZ
+  })
+
+  // Stored due date: UTC midnight of 2026-01-05 (that is Jan 4, 19:00 in Toronto).
+  const due = '2026-01-05T00:00:00.000Z'
+  // Viewer's local time: Monday 2026-01-05 07:00 in Toronto.
+  const now = new Date(2026, 0, 5, 7, 0)
+
+  it('formats the stored calendar day, not the shifted local day', () => {
+    expect(formatDateOnly(due)).toBe('Jan 5')
+    expect(formatDateOnly(new Date(due))).toBe('Jan 5')
+  })
+  it('compares the UTC date part with the local calendar day', () => {
+    expect(isDueToday(due, now)).toBe(true)
+    expect(isDueToday('2026-01-06T00:00:00.000Z', now)).toBe(false)
+  })
+  it('labels today, tomorrow and later dates', () => {
+    expect(formatRelativeDueDate(due, now)).toBe('Today')
+    expect(formatRelativeDueDate('2026-01-06T00:00:00.000Z', now)).toBe('Tomorrow')
+    expect(formatRelativeDueDate('2026-01-07T00:00:00.000Z', now)).toBe('Jan 7')
+    // Late evening locally is already the next UTC day; the label must not move.
+    expect(formatRelativeDueDate(due, new Date(2026, 0, 5, 22, 30))).toBe('Today')
+  })
+  it('keeps today inside a 7-day window', () => {
+    expect(isDueWithinDays(due, 7, now)).toBe(true)
+    expect(isDueWithinDays('2026-01-12T00:00:00.000Z', 7, now)).toBe(true)
+    expect(isDueWithinDays('2026-01-13T00:00:00.000Z', 7, now)).toBe(false)
+    expect(isDueWithinDays('2026-01-04T00:00:00.000Z', 7, now)).toBe(false)
   })
 })

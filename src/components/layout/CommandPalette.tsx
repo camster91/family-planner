@@ -7,13 +7,16 @@ import { SearchField } from '@/components/ui/search-field'
 import { navItems } from '@/lib/nav-items'
 import { useFeatures } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
+import { canRoleAccessPath } from '@/lib/kid-access'
 
 interface CommandPaletteProps {
   open: boolean
   onClose: () => void
+  /** Viewer's role: kids only see destinations on the kid allowlist. */
+  role?: string | null
 }
 
-export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
+export default function CommandPalette({ open, onClose, role }: CommandPaletteProps) {
   const [query, setQuery] = React.useState('')
   const router = useRouter()
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -47,6 +50,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   // Filter by both query and the family's enabled features.
   // Items without a featureKey are always visible (core surfaces).
   const filteredNav = navItems.filter((item) => {
+    if (!canRoleAccessPath(role, item.href)) return false
     if (item.featureKey && features[item.featureKey as keyof typeof features] === false) {
       return false
     }

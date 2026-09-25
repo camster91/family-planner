@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Home, Calendar, ListChecks, Heart, Users, LucideIcon } from 'lucide-react'
 import { User } from '@/types'
+import { filterNavForRole } from '@/lib/kid-access'
 
 /**
  * TabBar — iOS-style bottom tab bar.
@@ -30,11 +31,13 @@ const TABS: TabItem[] = [
 
 export function TabBar({ user }: { user: User | null }) {
   const pathname = usePathname()
+  // Kids only see tabs they can reach (same allowlist as the middleware redirect).
+  const tabs = filterNavForRole(TABS, user?.role)
 
   return (
     <nav className="tab-bar md:hidden">
       <ul className="flex items-stretch justify-around px-2 pt-1.5 pb-1.5">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = tab.matchPrefix
             ? pathname.startsWith(tab.href)
             : pathname === tab.href

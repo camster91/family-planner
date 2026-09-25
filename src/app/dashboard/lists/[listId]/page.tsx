@@ -34,11 +34,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
         })
       : null
     if (list) {
-      items = await (prisma as any).list_item.findMany({
-        where: { list_id: resolvedParams.listId },
+      items = await prisma!.listItem.findMany({
+        where: { list_id: list.id },
         include: {
-          added_by_user: { select: { name: true, avatar_url: true } },
-          checked_by_user: { select: { name: true } },
+          adder: { select: { name: true, avatar_url: true } },
+          checker: { select: { name: true } },
         },
         orderBy: { position: 'asc' },
       })
@@ -67,8 +67,8 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     checked: item.checked,
     quantity: item.quantity ?? 1,
     category: item.category ?? null,
-    added_by: item.added_by_user ?? { name: 'Unknown' },
-    checked_by: item.checked_by_user ?? undefined,
+    added_by: item.adder ?? { name: 'Unknown' },
+    checked_by: item.checker ?? undefined,
     checked_at: item.checked_at ?? undefined,
   }))
 

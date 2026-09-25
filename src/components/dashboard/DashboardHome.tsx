@@ -10,6 +10,7 @@ import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
+import { formatRelativeDueDate, isDueToday } from '@/lib/dates'
 import type { UserRole } from '@/types'
 
 interface Chore {
@@ -17,6 +18,7 @@ interface Chore {
   title: string
   due_date: string
   status: string
+  assigned_to: string
 }
 
 interface Event {
@@ -27,9 +29,6 @@ interface Event {
 }
 
 interface Stats {
-  totalChores: number
-  completedChores: number
-  pendingChores: number
   upcomingEvents: number
   unreadMessages: number
 }
@@ -46,8 +45,15 @@ interface LeaderboardMember {
   role: string
 }
 
+/** Current UTC month's expenses against the sum of category limits (parents, budget feature on). */
+export interface BudgetSnapshot {
+  spent: number
+  limit: number
+}
+
 interface DashboardHomeProps {
   user: {
+    id: string
     name?: string
     role?: UserRole
     avatar_url?: string | null
@@ -56,12 +62,21 @@ interface DashboardHomeProps {
   chores: Chore[]
   events: Event[]
   stats: Stats
-  completionRate: number
   leaderboard?: LeaderboardMember[]
   pickups?: any[]
   allowancePending?: any[]
   anniversaries?: any[]
   photoVerifyQueue?: any[]
+  /** null/undefined = don't render the budget card (not a parent, or budget feature off). */
+  budget?: BudgetSnapshot | null
+}
+
+function formatMoney(amount: number): string {
+  return amount.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  })
 }
 
 function formatDate(date: Date): string {
@@ -95,21 +110,27 @@ export default function DashboardHome({
   chores,
   events,
   stats,
-  completionRate,
   leaderboard = [],
   pickups = [],
   allowancePending = [],
   anniversaries = [],
   photoVerifyQueue = [],
+  budget = null,
 }: DashboardHomeProps) {
   const today = new Date()
   const greeting = getGreeting()
   const isParent = user.role === 'parent'
 
-  // Today's chores (pending + in_progress)
-  const todayChores = chores?.filter(
-    (c) => c.status === 'pending' || c.status === 'in_progress'
-  ) ?? []
+  const isDone = (c: Chore) => c.status === 'completed' || c.status === 'verified'
+  const isOpen = (c: Chore) => c.status === 'pending' || c.status === 'in_progress'
+
+  // "X of Y done today": household chores due on the viewer's local calendar day.
+  const dueToday = chores?.filter((c) => isDueToday(c.due_date)) ?? []
+  const doneTodayCount = dueToday.filter(isDone).length
+  const pendingTodayCount = dueToday.filter(isOpen).length
+
+  // "My chores": open chores assigned to the signed-in user.
+  const todayChores = chores?.filter((c) => c.assigned_to === user.id && isOpen(c)) ?? []
 
   // Shopping items: use unread messages as stand-in (max 5)
   const shoppingItems = (stats.unreadMessages ?? 0) > 0
@@ -144,23 +165,23 @@ export default function DashboardHome({
         {/* Progress Ring summary card */}
         <div className="card-apple p-5 flex items-center gap-5">
           <ProgressRing
-            progress={stats.totalChores > 0 ? stats.completedChores / stats.totalChores : 0}
+            progress={dueToday.length > 0 ? doneTodayCount / dueToday.length : 0}
             size={80}
             strokeWidth={8}
           >
             <span className="text-[28px] font-bold leading-none">
-              {stats.completedChores}
+              {doneTodayCount}
             </span>
           </ProgressRing>
           <div className="flex-1 min-w-0">
             <p className="text-title-3 text-label-primary leading-tight">
-              {stats.totalChores > 0
-                ? `${stats.completedChores} of ${stats.totalChores} done today`
+              {dueToday.length > 0
+                ? `${doneTodayCount} of ${dueToday.length} done today`
                 : 'No chores today'}
             </p>
-            {stats.pendingChores > 0 && (
+            {pendingTodayCount > 0 && (
               <p className="text-subhead text-label-secondary mt-1">
-                {stats.pendingChores} pending
+                {pendingTodayCount} pending
               </p>
             )}
           </div>
@@ -177,7 +198,7 @@ export default function DashboardHome({
                   checked={chore.status === 'completed' || chore.status === 'verified'}
                   onChange={() => {/* toggle chore status - to be wired to API */}}
                   title={chore.title}
-                  subtitle={formatRelativeDate(chore.due_date)}
+                  subtitle={formatRelativeDueDate(chore.due_date)}
                   glyph={
                     <Glyph color="chore" size="sm">
                       <span className="text-sm">✓</span>
@@ -276,21 +297,29 @@ export default function DashboardHome({
                 ))}
               </div>
 
-              {/* Budget snapshot for parents */}
-              {isParent && (
+              {/* Budget snapshot for parents (real month totals, or an explicit empty state) */}
+              {isParent && budget && (
                 <div className="mt-4 pt-4 border-t border-[var(--surface-separator)]">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-subhead text-label-secondary">Budget this month</span>
-                    <span className="text-subhead text-label-primary font-medium">
-                      $1,240 of $2,000
-                    </span>
+                    {budget.limit > 0 ? (
+                      <span className="text-subhead text-label-primary font-medium">
+                        {formatMoney(budget.spent)} of {formatMoney(budget.limit)}
+                      </span>
+                    ) : (
+                      <Link href="/dashboard/budget" className="text-subhead text-[var(--accent)] font-medium">
+                        No budget set
+                      </Link>
+                    )}
                   </div>
-                  <div className="h-1.5 rounded-full bg-[var(--surface-fill)] overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[var(--accent-fill)]"
-                      style={{ width: '62%' }}
-                    />
-                  </div>
+                  {budget.limit > 0 && (
+                    <div className="h-1.5 rounded-full bg-[var(--surface-fill)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[var(--accent-fill)]"
+                        style={{ width: `${Math.min(100, Math.round((budget.spent / budget.limit) * 100))}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
