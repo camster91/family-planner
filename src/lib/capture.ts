@@ -10,10 +10,21 @@
 //
 // A server-level CAPTURE_AI_KEY still works as a fallback so the deployment can
 // be configured centrally if ever needed, but the app path is the default.
+// The server key is only ever sent to the server-configured endpoint: a family
+// without its own key cannot redirect it with a custom base URL.
 // If neither is set, capture reports itself unavailable and the rest of the app
 // is unaffected.
 
 import { decryptSecret } from './secret-box'
+import { assertPublicProviderUrl } from './outbound-url'
+
+// Errors whose message is safe to show to the user. Anything else is reported
+// generically so upstream response bodies never reach the client.
+export class CaptureError extends Error {
+  constructor(message: string, readonly status: number = 502) {
+    super(message)
+  }
+}
 
 const DEFAULT_MODEL = 'deepseek-chat'
 const DEFAULT_BASE_URL = 'https://api.deepseek.com'
@@ -23,6 +34,9 @@ export interface CaptureConfig {
   apiKey: string
   baseUrl: string
   model: string
+  // True when baseUrl came from the family's settings and must be vetted
+  // before the server connects to it.
+  userSuppliedUrl: boolean
 }
 
 export type CaptureKind = 'event' | 'task' | 'listitem'
@@ -55,15 +69,27 @@ type CaptureSettingsInput = CaptureSettingsRow | null | undefined
 // environment only if the family has not set anything.
 export function resolveCaptureConfig(row?: CaptureSettingsInput): CaptureConfig | null {
   const familyKey = decryptSecret(row?.capture_ai_key_enc)
+  const envBaseUrl = process.env.CAPTURE_AI_BASE_URL?.trim() || DEFAULT_BASE_URL
+  const envModel = process.env.CAPTURE_AI_MODEL?.trim() || DEFAULT_MODEL
+
+  if (familyKey) {
+    return {
+      apiKey: familyKey,
+      baseUrl: (row?.capture_ai_base_url?.trim() || envBaseUrl).replace(/\/$/, ''),
+      model: row?.capture_ai_model?.trim() || envModel,
+      userSuppliedUrl: Boolean(row?.capture_ai_base_url?.trim()),
+    }
+  }
+
   const envKey = process.env.CAPTURE_AI_KEY?.trim() || null
+  if (!envKey) return null
 
-  const apiKey = familyKey || envKey
-  if (!apiKey) return null
-
+  // Deployment key: deployment endpoint and model only.
   return {
-    apiKey,
-    baseUrl: (row?.capture_ai_base_url?.trim() || process.env.CAPTURE_AI_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''),
-    model: row?.capture_ai_model?.trim() || process.env.CAPTURE_AI_MODEL || DEFAULT_MODEL,
+    apiKey: envKey,
+    baseUrl: envBaseUrl.replace(/\/$/, ''),
+    model: envModel,
+    userSuppliedUrl: false,
   }
 }
 
@@ -150,8 +176,19 @@ async function callModel(
 ): Promise<unknown> {
   const { apiKey, baseUrl, model } = config
 
+  if (config.userSuppliedUrl) {
+    try {
+      await assertPublicProviderUrl(baseUrl)
+    } catch (err) {
+      throw new CaptureError(err instanceof Error ? err.message : 'The provider URL is not allowed', 400)
+    }
+  }
+
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
+    // Never follow redirects: a provider could bounce the request (and the
+    // Authorization header) to an internal address.
+    redirect: 'manual',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
@@ -169,15 +206,17 @@ async function callModel(
   })
 
   if (!res.ok) {
-    const detail = await res.text()
-    throw new Error(`Capture model failed (${res.status}): ${detail.slice(0, 200)}`)
+    const detail = await res.text().catch(() => '')
+    // Log the detail server-side only; the client gets the status code.
+    console.warn(`Capture model failed (${res.status}): ${detail.slice(0, 200)}`)
+    throw new CaptureError(`The AI provider returned an error (${res.status}). Check the key and provider in Settings.`)
   }
 
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>
   }
   const raw = data.choices?.[0]?.message?.content
-  if (!raw) throw new Error('Capture model returned no content')
+  if (!raw) throw new CaptureError('The AI provider returned no content')
 
   // Tolerate stray fences even though we asked for bare JSON.
   const cleaned = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
@@ -185,15 +224,15 @@ async function callModel(
   try {
     return JSON.parse(cleaned)
   } catch {
-    throw new Error('Capture model returned invalid JSON')
+    throw new CaptureError('The AI provider returned an unreadable answer')
   }
 }
 
 // Public entry point used by the API route.
 export async function draftFromText(text: string, config: CaptureConfig): Promise<CaptureDraft> {
   const trimmed = text.trim()
-  if (!trimmed) throw new Error('Nothing to capture')
-  if (trimmed.length > 500) throw new Error('Phrase is too long (max 500 characters)')
+  if (!trimmed) throw new CaptureError('Nothing to capture', 400)
+  if (trimmed.length > 500) throw new CaptureError('Phrase is too long (max 500 characters)', 400)
 
   const parsed = await callModel(
     config,
@@ -205,7 +244,7 @@ export async function draftFromText(text: string, config: CaptureConfig): Promis
 
   const d = parsed as Partial<CaptureDraft>
   if (!d || typeof d.title !== 'string' || !d.title.trim()) {
-    throw new Error('Capture model returned no usable title')
+    throw new CaptureError('The AI provider returned no usable title')
   }
 
   const kinds: CaptureKind[] = ['event', 'task', 'listitem']
@@ -245,11 +284,11 @@ export async function draftFromImage(
   mimeType: string,
   config: CaptureConfig
 ): Promise<ImageCaptureResult> {
-  if (!base64) throw new Error('No image provided')
+  if (!base64) throw new CaptureError('No image provided', 400)
 
   // Guard the payload size. ~6MB of base64 is roughly a 4.5MB image, which is
   // generous for a photo of a flyer and keeps the model call bounded.
-  if (base64.length > 6_000_000) throw new Error('Image is too large (max ~4.5MB)')
+  if (base64.length > 6_000_000) throw new CaptureError('Image is too large (max ~4.5MB)', 400)
 
   const parsed = await callModel(
     config,

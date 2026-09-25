@@ -1,4 +1,8 @@
-version: '3.8'
+# Local development / self-contained stack. Production is deployed by the
+# manually dispatched release.yml workflow, not by this file.
+#
+# Required: set POSTGRES_PASSWORD, JWT_SECRET and DATABASE_URL (see .env.example).
+# PostgreSQL is published on loopback only.
 
 services:
   app:
@@ -9,24 +13,30 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=${DATABASE_URL:?set DATABASE_URL (see .env.example)}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET (see .env.example)}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+      - CRON_SECRET=${CRON_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    # Same major version as the CI database service in release.yml.
+    # Note: an existing postgres_data volume created by the previous
+    # postgres:16 image cannot be opened by 17. Dump and restore it (or remove
+    # the throwaway local volume) before upgrading.
+    image: postgres:17-alpine
     container_name: family-planner-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: family_planner
       POSTGRES_USER: family_planner
-      POSTGRES_PASSWORD: family_planner
+      # Required; the postgres image refuses to initialise without it.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

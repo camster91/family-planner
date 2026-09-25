@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { createResetToken } from '@/lib/tokens'
 import { sendMail } from '@/lib/mail'
+import { escapeHtml } from '@/lib/escape-html'
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(request)
     const rateCheck = await checkRateLimit(`forgot:${ip}`, 5, 60 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
@@ -44,10 +46,10 @@ export async function POST(request: NextRequest) {
     // production sent no email at all.
     const html = [
       '<h2>Password Reset Request</h2>',
-      `<p>Hi ${user.name},</p>`,
+      `<p>Hi ${escapeHtml(user.name)},</p>`,
       '<p>You requested a password reset for your Family Planner account.</p>',
-      `<p><a href="${resetUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a></p>`,
-      `<p>Or copy this link: ${resetUrl}</p>`,
+      `<p><a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a></p>`,
+      `<p>Or copy this link: ${escapeHtml(resetUrl)}</p>`,
       '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>',
     ].join('\n')
 

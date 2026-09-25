@@ -11,9 +11,10 @@
 
 set -euo pipefail
 
-DB_CONTAINER="${DB_CONTAINER:-b0gw8s0co0sk0og8084o4kws}"
-DB_USER="${DB_USER:-glowos}"
-DB_NAME="${DB_NAME:-familyplanner}"
+# Required environment (no defaults): DB_CONTAINER, DB_USER, DB_NAME.
+: "${DB_CONTAINER:?DB_CONTAINER must be set to the PostgreSQL container name or id}"
+: "${DB_USER:?DB_USER must be set to the database role to restore as}"
+: "${DB_NAME:?DB_NAME must be set to the database to restore into}"
 BACKUP_DIR="${1:-/data/backups/family-planner}"
 
 # Resolve which backup to use

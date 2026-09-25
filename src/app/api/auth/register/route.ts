@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendMail } from '@/lib/mail'
+import { escapeHtml } from '@/lib/escape-html'
 import { hashPassword } from '@/lib/auth'
 import { attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { registerSchema } from '@/lib/validations'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(request)
 
   // Rate limit BEFORE any DB lookup — prevents email enumeration attacks
   const rateCheck = await checkRateLimit(`register:${ip}`, 20, 60 * 60 * 1000)
@@ -132,10 +134,10 @@ export async function POST(request: NextRequest) {
 
       const html = [
         '<h2>Verify Your Email</h2>',
-        `<p>Hi ${name},</p>`,
+        `<p>Hi ${escapeHtml(name)},</p>`,
         '<p>Welcome to Family Planner! Please verify your email address to get started.</p>',
-        `<p><a href="${verifyUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
-        `<p>Or copy this link: ${verifyUrl}</p>`,
+        `<p><a href="${escapeHtml(verifyUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
+        `<p>Or copy this link: ${escapeHtml(verifyUrl)}</p>`,
         '<p>This link expires in 24 hours. If you did not sign up, you can ignore this email.</p>',
       ].join('\n')
 

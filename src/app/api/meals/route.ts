@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { addUTCDays, parseDateOnly, startOfTodayUTC } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
 type MealType = typeof MEAL_TYPES[number]
 
-// GET - List meals for the current family for the next 7 days
+// GET - List meals for the current family.
+// Optional `start`/`end` (YYYY-MM-DD, end exclusive) select a date-only range;
+// otherwise returns the next 7 days starting from today (UTC).
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -17,19 +20,38 @@ export async function GET(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'meals')
     if (gate) return gate
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const { searchParams } = new URL(request.url)
+    const startParam = searchParams.get('start')
+    const endParam = searchParams.get('end')
 
-    const weekEnd = new Date(today)
-    weekEnd.setDate(today.getDate() + 7)
-    weekEnd.setHours(0, 0, 0, 0)
+    let rangeStart = startOfTodayUTC()
+    let rangeEnd = addUTCDays(rangeStart, 7)
+
+    if (startParam !== null) {
+      const parsed = parseDateOnly(startParam)
+      if (!parsed) {
+        return NextResponse.json({ error: 'start must be YYYY-MM-DD' }, { status: 400 })
+      }
+      rangeStart = parsed
+      rangeEnd = addUTCDays(parsed, 7)
+    }
+    if (endParam !== null) {
+      const parsed = parseDateOnly(endParam)
+      if (!parsed) {
+        return NextResponse.json({ error: 'end must be YYYY-MM-DD' }, { status: 400 })
+      }
+      rangeEnd = parsed
+    }
+    if (rangeEnd <= rangeStart || rangeEnd.getTime() - rangeStart.getTime() > 62 * 24 * 60 * 60 * 1000) {
+      return NextResponse.json({ error: 'Invalid date range' }, { status: 400 })
+    }
 
     const meals = await prisma!.familyMeal.findMany({
       where: {
         family_id: auth.user.family_id,
         date: {
-          gte: today,
-          lt: weekEnd,
+          gte: rangeStart,
+          lt: rangeEnd,
         },
       },
       include: {
@@ -72,10 +94,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `meal_type must be one of: ${MEAL_TYPES.join(', ')}` }, { status: 400 })
     }
 
+    // Meal dates are date-only: stored as UTC midnight of the given day.
+    const mealDate = parseDateOnly(date)
+    if (!mealDate) {
+      return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
+    }
+
     const meal = await prisma!.familyMeal.create({
       data: {
         family_id: auth.user.family_id,
-        date: new Date(date),
+        date: mealDate,
         meal_type,
         recipe_name: recipe_name ?? '',
         notes: notes ?? null,

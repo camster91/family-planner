@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { ChoreFrequency } from '@/types'
 
@@ -41,112 +42,144 @@ const WINDOW_SIZE: Record<Exclude<ChoreFrequency, 'once'>, number> = {
   monthly: 3,
 }
 
+function startOfDay(d: Date): Date {
+  const out = new Date(d)
+  out.setHours(0, 0, 0, 0)
+  return out
+}
+
 /**
- * Generate occurrences for one recurring template, idempotently.
+ * Keep a recurring series topped up to `windowSize` upcoming occurrences,
+ * inside the caller's transaction.
  *
  * The series is identified by `recurrence_id` (the template's own id on the
  * template and on every occurrence it generates), NOT by matching
  * (title, assigned_to, due_date) — that key conflated two unrelated chores that
  * happened to share a title and date, silently swallowing one series' rows.
  *
- * The window advances from the LATEST occurrence already in the series, not
- * from the template's original due date. Generating from a fixed origin meant
- * that once the first window was written, every later run derived the same
- * dates, found them all present, and inserted nothing — the series stopped
- * after one window instead of continuing.
+ * `windowSize` means "how many upcoming occurrences to keep", where upcoming is
+ * `due_date >= start of today` (the template counts, like any other row in the
+ * series). Each run only creates enough rows to reach that count, and never a
+ * date beyond the horizon: `windowSize` intervals after the later of today and
+ * the template's first due date. Previously every run appended another
+ * `windowSize` rows after the latest one, so a daily cron grew each series
+ * without bound into the future.
  *
- * All of this runs inside a transaction with a unique constraint on
- * (recurrence_id, due_date) as the final guard, so two concurrent runs cannot
- * double-insert even if they race past the existence check.
+ * New dates continue from the LATEST occurrence already in the series (so the
+ * series keeps advancing rather than re-deriving the first window forever),
+ * skipping any date that has already passed — a series the cron has not
+ * touched for a while resumes from today instead of back-filling overdue rows.
+ *
+ * The unique constraint on (recurrence_id, due_date) is the final guard, so two
+ * concurrent runs cannot double-insert even if they race past the count.
+ */
+export async function expandSeriesInTx(
+  tx: Prisma.TransactionClient,
+  templateId: string,
+  familyId: string,
+  now: Date = new Date()
+): Promise<number> {
+  const original = await tx.chore.findUnique({
+    where: { id: templateId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      points: true,
+      difficulty: true,
+      frequency: true,
+      family_id: true,
+      assigned_to: true,
+      created_by: true,
+      due_date: true,
+    },
+  })
+
+  if (!original || original.frequency === 'once') return 0
+
+  const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>]
+  if (!windowSize) return 0
+
+  // The series anchor is the template id. An occurrence is any row whose
+  // recurrence_id is the template id; the anchor itself counts as the first.
+  const seriesId = original.id
+  const today = startOfDay(now)
+
+  // Horizon: `windowSize` intervals after the later of today and the series'
+  // first date (a series created to start next month still gets its window).
+  const firstDay = startOfDay(original.due_date)
+  let horizon: Date = firstDay > today ? firstDay : today
+  for (let i = 0; i < windowSize; i++) {
+    const next = nextDueDate(horizon, original.frequency)
+    if (!next) return 0
+    horizon = next
+  }
+
+  const upcoming = await tx.chore.findMany({
+    where: { recurrence_id: seriesId, due_date: { gte: today } },
+    select: { due_date: true },
+  })
+  const needed = windowSize - upcoming.length
+  if (needed <= 0) return 0
+
+  // Latest date already in the series. Falling back to the template's own due
+  // date means a brand-new series starts one interval after its first row.
+  const latest = await tx.chore.findFirst({
+    where: { recurrence_id: seriesId },
+    orderBy: { due_date: 'desc' },
+    select: { due_date: true },
+  })
+  const anchorDate = latest?.due_date ?? original.due_date
+
+  const existingKeys = new Set(upcoming.map((c) => c.due_date.getTime()))
+  const candidates: Date[] = []
+  let cursor = nextDueDate(anchorDate, original.frequency)
+  while (cursor && cursor < horizon && candidates.length < needed) {
+    if (cursor >= today && !existingKeys.has(cursor.getTime())) {
+      candidates.push(cursor)
+    }
+    cursor = nextDueDate(cursor, original.frequency)
+  }
+
+  if (candidates.length === 0) return 0
+
+  const occurrences = candidates.map((due_date) => ({
+    family_id: familyId,
+    title: original.title,
+    description: original.description,
+    points: original.points,
+    difficulty: original.difficulty,
+    // Instances are one-offs: only the template recurs, so the cron can
+    // never mistake a generated row for a template.
+    frequency: 'once',
+    assigned_to: original.assigned_to,
+    created_by: original.created_by,
+    due_date,
+    status: 'pending',
+    recurrence_id: seriesId,
+    is_template: false,
+  }))
+
+  const { count } = await tx.chore.createMany({
+    data: occurrences,
+    skipDuplicates: true,
+  })
+  return count
+}
+
+/**
+ * Generate occurrences for one recurring template, idempotently, in its own
+ * transaction. See `expandSeriesInTx` for the window rules.
  */
 export async function expandRecurringChores(
   template: { id: string; frequency: string },
-  familyId: string
+  familyId: string,
+  now: Date = new Date()
 ): Promise<number> {
   if (template.frequency === 'once') return 0
+  if (!WINDOW_SIZE[template.frequency as Exclude<ChoreFrequency, 'once'>]) return 0
 
-  const windowSize = WINDOW_SIZE[template.frequency as Exclude<ChoreFrequency, 'once'>]
-  if (!windowSize) return 0
-
-  return prisma!.$transaction(async (tx) => {
-    const original = await tx.chore.findUnique({
-      where: { id: template.id },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        points: true,
-        difficulty: true,
-        frequency: true,
-        family_id: true,
-        assigned_to: true,
-        created_by: true,
-        due_date: true,
-      },
-    })
-
-    if (!original) return 0
-
-    // The series anchor is the template id. An occurrence is any row whose
-    // recurrence_id is the template id; the anchor itself counts as the first.
-    const seriesId = original.id
-
-    // Latest date already in the series. Falling back to the template's own due
-    // date means a brand-new series starts one interval after its first row.
-    const latest = await tx.chore.findFirst({
-      where: { recurrence_id: seriesId },
-      orderBy: { due_date: 'desc' },
-      select: { due_date: true },
-    })
-
-    const anchorDate = latest?.due_date ?? original.due_date
-
-    // Build the next `windowSize` dates strictly after the anchor.
-    const candidates: Date[] = []
-    let cursor = new Date(anchorDate)
-    for (let i = 0; i < windowSize; i++) {
-      const next = nextDueDate(cursor, original.frequency)
-      if (!next) break
-      candidates.push(next)
-      cursor = next
-    }
-    if (candidates.length === 0) return 0
-
-    // Skip any that already exist for THIS series (the unique constraint would
-    // reject them anyway; this keeps the count honest and the insert quiet).
-    const existing = await tx.chore.findMany({
-      where: { recurrence_id: seriesId, due_date: { in: candidates } },
-      select: { due_date: true },
-    })
-    const existingKeys = new Set(existing.map((c) => c.due_date.getTime()))
-
-    const occurrences = candidates
-      .filter((d) => !existingKeys.has(d.getTime()))
-      .map((due_date) => ({
-        family_id: familyId,
-        title: original.title,
-        description: original.description,
-        points: original.points,
-        difficulty: original.difficulty,
-        // Instances are one-offs: only the template recurs, so the cron can
-        // never mistake a generated row for a template.
-        frequency: 'once',
-        assigned_to: original.assigned_to,
-        created_by: original.created_by,
-        due_date,
-        status: 'pending',
-        recurrence_id: seriesId,
-        is_template: false,
-      }))
-
-    if (occurrences.length === 0) return 0
-
-    const { count } = await tx.chore.createMany({
-      data: occurrences,
-      skipDuplicates: true,
-    })
-    return count
-  })
+  return prisma!.$transaction((tx) => expandSeriesInTx(tx, template.id, familyId, now))
 }
 
 /**
@@ -172,7 +205,7 @@ export async function markAsTemplate(choreId: string): Promise<void> {
  * and multiplied the whole table. Selecting on the explicit flag means a
  * legacy row is inert until it is deliberately adopted as a template.
  */
-export async function expandAllRecurringChores(familyId: string): Promise<number> {
+export async function expandAllRecurringChores(familyId: string, now: Date = new Date()): Promise<number> {
   const templates = await prisma!.chore.findMany({
     where: {
       family_id: familyId,
@@ -186,7 +219,7 @@ export async function expandAllRecurringChores(familyId: string): Promise<number
   for (const template of templates) {
     // Sequential rather than Promise.all: each expansion reads the series'
     // latest date, so concurrent expansion of the same series would race.
-    inserted += await expandRecurringChores(template, familyId)
+    inserted += await expandRecurringChores(template, familyId, now)
   }
   return inserted
 }

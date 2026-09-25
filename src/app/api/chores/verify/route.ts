@@ -51,60 +51,75 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only completed chores can be verified' }, { status: 400 })
     }
 
-    // Idempotent update — only updates if not already verified
-    const updateResult = await prisma!.chore.updateMany({
-      where: { id: choreId, status: 'completed' },
-      data: {
-        status: 'verified',
-        verified_at: new Date(),
-        verified_notes: verificationNotes || null,
-      },
+    // Status change, activity and XP award commit together. Previously the
+    // status was committed first and an XP failure was only logged, so the
+    // chore ended up verified with no XP and could never be re-verified to
+    // retry. Now any failure rolls everything back and the request returns 500,
+    // leaving the chore `completed` so verify can simply be retried.
+    const outcome = await prisma!.$transaction(async (tx) => {
+      // Idempotent update — only updates if not already verified
+      const updateResult = await tx.chore.updateMany({
+        where: { id: choreId, status: 'completed' },
+        data: {
+          status: 'verified',
+          verified_at: new Date(),
+          verified_notes: verificationNotes || null,
+        },
+      })
+
+      if (updateResult.count === 0) {
+        return { verified: false as const }
+      }
+
+      await tx.activity.create({
+        data: {
+          family_id: auth.user.family_id,
+          user_id: auth.user.id,
+          type: 'chore_verified',
+          title: `${auth.user.name} verified "${chore.title}"`,
+          description: chore.assignee ? `Verified ${chore.assignee.name}'s chore` : undefined,
+          metadata: JSON.stringify({ choreId }),
+        },
+      })
+
+      const xp = chore.assignee
+        ? await awardChoreXP(chore.assignee.id, chore.difficulty || 'medium', chore.points || 10, tx)
+        : null
+
+      return { verified: true as const, xp }
     })
 
-    if (updateResult.count === 0) {
+    if (!outcome.verified) {
       return NextResponse.json({ success: true, alreadyVerified: true })
     }
 
-    // Record activity
-    await prisma!.activity.create({
-      data: {
-        family_id: auth.user.family_id,
-        user_id: auth.user.id,
-        type: 'chore_verified',
-        title: `${auth.user.name} verified "${chore.title}"`,
-        description: chore.assignee ? `Verified ${chore.assignee.name}'s chore` : undefined,
-        metadata: JSON.stringify({ choreId }),
-      },
-    })
-
-    // Send notification to the assignee
+    // Notifications are sent only after the transaction commits, so a rolled-back
+    // verify never tells the child it succeeded. A notification failure must not
+    // turn a committed verify into a 500 (which would invite a pointless retry).
     if (chore.assignee) {
-      await notificationServiceServer.sendNotification({
-        userId: chore.assignee.id,
-        title: 'Chore Verified!',
-        message: `Your chore "${chore.title}" has been verified. Great job!`,
-        type: 'reward',
-      })
-
-      // Award XP + update stats
       try {
-        const result = await awardChoreXP(chore.assignee.id, chore.difficulty || 'medium', chore.points || 10)
+        await notificationServiceServer.sendNotification({
+          userId: chore.assignee.id,
+          title: 'Chore Verified!',
+          message: `Your chore "${chore.title}" has been verified. Great job!`,
+          type: 'reward',
+        })
 
-        // Send level-up/streak notification if applicable
-        if (result.levelUp) {
+        // Send level-up notification if applicable
+        if (outcome.xp?.levelUp) {
           await notificationServiceServer.sendNotification({
             userId: chore.assignee.id,
-            title: `Level Up! ${result.newLevel}`,
-            message: `You reached Level ${result.newLevel}! Keep it up!`,
+            title: `Level Up! ${outcome.xp.newLevel}`,
+            message: `You reached Level ${outcome.xp.newLevel}! Keep it up!`,
             type: 'system',
           })
         }
-      } catch (xpErr) {
-        console.error('XP award failed:', xpErr)
+      } catch (notifyErr) {
+        console.error('Verify notification failed:', notifyErr)
       }
     }
 
-    return NextResponse.json({ success: true, choreId, gamified: true })
+    return NextResponse.json({ success: true, choreId, gamified: outcome.xp !== null })
   } catch (error) {
     console.error('Error verifying chore:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -6,17 +6,23 @@
 #   ./backup.sh /path/to/dir       # backup to a custom directory
 #   ./backup.sh s3://bucket/path   # (future) upload to S3-compatible storage
 #
-# Designed to be run from cron:
-#   0 3 * * * /opt/family-planner/scripts/backup.sh >> /var/log/family-planner-backup.log 2>&1
+# Required environment (no defaults; the script refuses to run without them):
+#   DB_CONTAINER  name or id of the running PostgreSQL container
+#   DB_USER       database role used for pg_dump
+#   DB_NAME       database to dump
+#
+# Scheduling: do not install this on a cron/timer without Cameron's explicit
+# approval for that specific scheduler (AGENTS.md). Example invocation:
+#   DB_CONTAINER=... DB_USER=... DB_NAME=... /opt/family-planner/scripts/backup.sh
 #
 # Retention: keeps the last 14 daily backups + 4 weekly. Older are deleted.
 
 set -euo pipefail
 
 # --- Config ---
-DB_CONTAINER="${DB_CONTAINER:-b0gw8s0co0sk0og8084o4kws}"
-DB_USER="${DB_USER:-glowos}"
-DB_NAME="${DB_NAME:-familyplanner}"
+: "${DB_CONTAINER:?DB_CONTAINER must be set to the PostgreSQL container name or id}"
+: "${DB_USER:?DB_USER must be set to the database role used for pg_dump}"
+: "${DB_NAME:?DB_NAME must be set to the database to back up}"
 BACKUP_DIR="${1:-/data/backups/family-planner}"
 TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
 BACKUP_FILE="${BACKUP_DIR}/familyplanner-${TIMESTAMP}.sql.gz"

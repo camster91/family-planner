@@ -6,7 +6,6 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     url: 'https://family.ashbi.ca',
-    cleartext: true,
     allowNavigation: ['family.ashbi.ca'],
   },
   android: {

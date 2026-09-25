@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { featureGate } from '@/lib/feature-gate-server';
+import { parseYearMonth, utcMonthRange } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -21,15 +22,35 @@ export async function GET(request: NextRequest) {
     const monthParam = searchParams.get("month"); // optional: YYYY-MM override
     const yearParam = searchParams.get("year"); // optional: YYYY override
 
-    // Determine the target month range
+    // Determine the target month (UTC calendar month)
     const now = new Date();
-    const targetYear = yearParam ? parseInt(yearParam, 10) : now.getFullYear();
-    const targetMonth = monthParam
-      ? parseInt(monthParam, 10)
-      : now.getMonth() + 1;
+    let targetYear = now.getUTCFullYear();
+    let targetMonth = now.getUTCMonth() + 1;
 
-    const monthStart = new Date(targetYear, targetMonth - 1, 1);
-    const monthEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
+    if (monthParam !== null) {
+      const parsed = parseYearMonth(monthParam);
+      if (!parsed) {
+        return NextResponse.json(
+          { error: "month must be in YYYY-MM format" },
+          { status: 400 },
+        );
+      }
+      targetYear = parsed.year;
+      targetMonth = parsed.month;
+    } else if (yearParam !== null) {
+      if (!/^\d{4}$/.test(yearParam)) {
+        return NextResponse.json(
+          { error: "year must be in YYYY format" },
+          { status: 400 },
+        );
+      }
+      targetYear = Number(yearParam);
+    }
+
+    const { start: monthStart, end: monthEnd } = utcMonthRange(
+      targetYear,
+      targetMonth,
+    );
 
     const familyId = auth.user.family_id;
 
@@ -38,7 +59,7 @@ export async function GET(request: NextRequest) {
       by: ["type"],
       where: {
         family_id: familyId,
-        date: { gte: monthStart, lte: monthEnd },
+        date: { gte: monthStart, lt: monthEnd },
       },
       _sum: { amount: true },
     });
@@ -62,7 +83,7 @@ export async function GET(request: NextRequest) {
       where: {
         family_id: familyId,
         type: "expense",
-        date: { gte: monthStart, lte: monthEnd },
+        date: { gte: monthStart, lt: monthEnd },
       },
       _sum: { amount: true },
     });
@@ -136,27 +157,16 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     for (let i = 5; i >= 0; i--) {
-      const trendDate = new Date(targetYear, targetMonth - 1 - i, 1);
-      const trendStart = new Date(
-        trendDate.getFullYear(),
-        trendDate.getMonth(),
-        1,
-      );
-      const trendEnd = new Date(
-        trendDate.getFullYear(),
-        trendDate.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
+      const { start: trendStart, end: trendEnd } = utcMonthRange(
+        targetYear,
+        targetMonth - i,
       );
 
       const monthAgg = await prisma!.transaction.groupBy({
         by: ["type"],
         where: {
           family_id: familyId,
-          date: { gte: trendStart, lte: trendEnd },
+          date: { gte: trendStart, lt: trendEnd },
         },
         _sum: { amount: true },
       });
@@ -173,7 +183,7 @@ export async function GET(request: NextRequest) {
       }
 
       monthlyTrend.push({
-        month: `${trendDate.getFullYear()}-${String(trendDate.getMonth() + 1).padStart(2, "0")}`,
+        month: `${trendStart.getUTCFullYear()}-${String(trendStart.getUTCMonth() + 1).padStart(2, "0")}`,
         income: Math.round(monthIncome * 100) / 100,
         expenses: Math.round(monthExpenses * 100) / 100,
       });

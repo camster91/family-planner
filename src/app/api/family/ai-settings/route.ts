@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { encryptSecret, decryptSecret, maskSecret } from '@/lib/secret-box'
+import { checkProviderUrlShape } from '@/lib/outbound-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,11 +76,11 @@ export async function POST(request: NextRequest) {
     if (rawKey && rawKey.length < 12) {
       return NextResponse.json({ error: 'That key looks too short' }, { status: 400 })
     }
-    if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
-      return NextResponse.json(
-        { error: 'The provider URL must start with http:// or https://' },
-        { status: 400 }
-      )
+    if (baseUrl) {
+      const urlError = checkProviderUrlShape(baseUrl)
+      if (urlError) {
+        return NextResponse.json({ error: urlError }, { status: 400 })
+      }
     }
 
     const data: Record<string, string | null> = {

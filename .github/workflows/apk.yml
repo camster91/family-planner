@@ -3,21 +3,21 @@ name: Build Android APK
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Build type'
+        description: "Build type"
         required: true
-        default: 'debug'
+        default: "debug"
         type: choice
         options:
           - debug
           - release
 
 env:
-  NODE_VERSION: '22'
-  JAVA_VERSION: '21'
+  NODE_VERSION: "22"
+  JAVA_VERSION: "21"
 
 permissions:
   contents: read
@@ -26,6 +26,8 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+    outputs:
+      release_signed: ${{ steps.signing.outputs.signed }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,7 +38,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
@@ -50,13 +52,18 @@ jobs:
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
+          distribution: "temurin"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
+        # `yes` is killed by SIGPIPE once sdkmanager exits, so pipefail would
+        # report a failure even on success. Disable pipefail for this pipeline
+        # only; the step still fails if sdkmanager itself fails.
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -65,9 +72,50 @@ jobs:
         if: github.event.inputs.build_type != 'release' && !startsWith(github.ref, 'refs/tags/v')
         run: cd android && ./gradlew assembleDebug
 
+      - name: Prepare release signing keystore
+        id: signing
+        if: github.event.inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] \
+            || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::warning::Android signing secrets are not configured. The release APK will be UNSIGNED and will not be published to GitHub Releases."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          keystore="$RUNNER_TEMP/family-planner-release.keystore"
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          echo "keystore_path=$keystore" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
       - name: Build Release APK
         if: github.event.inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          # Empty when signing is not configured; build.gradle then skips signing.
+          ANDROID_KEYSTORE_PATH: ${{ steps.signing.outputs.keystore_path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: cd android && ./gradlew assembleRelease
+
+      - name: Verify release APK signature
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner"
+          "$apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Remove release signing keystore
+        if: always() && steps.signing.outputs.keystore_path != ''
+        env:
+          KEYSTORE_PATH: ${{ steps.signing.outputs.keystore_path }}
+        run: rm -f "$KEYSTORE_PATH"
 
       - name: Upload Debug APK
         if: github.event.inputs.build_type != 'release' && !startsWith(github.ref, 'refs/tags/v')
@@ -82,7 +130,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: family-planner-release-apk
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          # app-release.apk when signed, app-release-unsigned.apk otherwise.
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 30
 
   release:
@@ -93,8 +143,17 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      - name: Require a signed release APK
+        env:
+          RELEASE_SIGNED: ${{ needs.build.outputs.release_signed }}
+        run: |
+          if [ "$RELEASE_SIGNED" != "true" ]; then
+            echo "::error::Refusing to publish an unsigned APK to GitHub Releases. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD secrets, then re-run the tag build."
+            exit 1
+          fi
+
       - name: Download Release APK
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: family-planner-release-apk
           path: ./apk
@@ -102,7 +161,7 @@ jobs:
       - name: Rename APK
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          mv ./apk/app-release-unsigned.apk ./apk/family-planner-${VERSION}.apk
+          mv ./apk/app-release.apk "./apk/family-planner-${VERSION}.apk"
 
       - name: Create Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
@@ -111,4 +170,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

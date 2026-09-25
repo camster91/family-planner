@@ -28,8 +28,8 @@ docker run -d --name family-planner-db \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=family_planner \
-  -p 5432:5432 \
-  postgres:16-alpine
+  -p 127.0.0.1:5432:5432 \
+  postgres:17-alpine
 ```
 
 **Option B: Local PostgreSQL**

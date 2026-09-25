@@ -1,22 +1,7 @@
+import { escapeHtml } from '@/lib/escape-html'
+
 const DEFAULT_FROM = 'Family Planner <noreply@ashbi.ca>'
 const DEFAULT_DOMAIN = 'ashbi.ca'
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
-    switch (char) {
-      case '&':
-        return '&amp;'
-      case '<':
-        return '&lt;'
-      case '>':
-        return '&gt;'
-      case '"':
-        return '&quot;'
-      default:
-        return '&#39;'
-    }
-  })
-}
 
 export function isMailConfigured(): boolean {
   return Boolean(process.env.MAILGUN_API_KEY)
@@ -75,7 +60,7 @@ export function familyInviteEmail(options: {
   const html = [
     `<p>Hi,</p>`,
     `<p>${inviterName} invited you to join <strong>${familyName}</strong> as a <strong>${role}</strong>.</p>`,
-    `<p><a href="${options.joinUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Join family</a></p>`,
+    `<p><a href="${escapeHtml(options.joinUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Join family</a></p>`,
     `<p>Or copy this link: ${escapeHtml(options.joinUrl)}</p>`,
     `<p>This invite expires in 48 hours. If you were not expecting this, you can ignore it.</p>`,
   ].join('\n')

@@ -1,6 +1,6 @@
 # Family Planner — Status Update
 
-> **ARCHIVED:** Replaced by [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+> **ARCHIVED:** Replaced by [`docs/PRODUCT_PROGRAM.md`](../PRODUCT_PROGRAM.md)
 > on 2026-08-28. Retained only for historical context.
 
 **Date:** 2026-06-06

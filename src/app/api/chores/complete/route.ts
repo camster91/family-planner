@@ -4,7 +4,7 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { completeChoreSchema } from '@/lib/validations'
 // Shared date rule, so completion and the cron expander cannot disagree (#184).
-import { nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
+import { expandSeriesInTx, nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,24 +53,25 @@ export async function POST(request: NextRequest) {
     //
     // An explicit allowlist of source states closes it. `completed` and
     // `verified` are both no-ops, so a repeat click is still idempotent.
-    const updateResult = await prisma!.chore.updateMany({
-      where: { id: choreId, status: { in: ['pending', 'in_progress', 'overdue'] } },
-      data: {
-        status: 'completed',
-        completed_at: new Date(),
-        ...(photoUrl ? { photo_url: photoUrl, photo_verified: false } : {}),
-      },
-    })
+    //
+    // Status change, activity and successor all commit together, so a failure
+    // creating the next occurrence cannot leave the chore completed with no
+    // successor (the old code committed the status update first, on its own).
+    const completed = await prisma!.$transaction(async (tx) => {
+      const updateResult = await tx.chore.updateMany({
+        where: { id: choreId, status: { in: ['pending', 'in_progress', 'overdue'] } },
+        data: {
+          status: 'completed',
+          completed_at: new Date(),
+          ...(photoUrl ? { photo_url: photoUrl, photo_verified: false } : {}),
+        },
+      })
 
-    if (updateResult.count === 0) {
       // Either already completed/verified, or in a state that cannot be
       // completed. No XP is awarded here in either case — verify is the only
       // path that awards XP.
-      return NextResponse.json({ success: true, alreadyCompleted: true })
-    }
+      if (updateResult.count === 0) return false
 
-    // Record activity and create next occurrence atomically
-    await prisma!.$transaction(async (tx) => {
       await tx.activity.create({
         data: {
           family_id: auth.user.family_id,
@@ -80,37 +81,47 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Handle recurring chores — create the next occurrence.
+      // Handle recurring chores — make sure the next occurrence exists.
       //
-      // The date rule is shared with the expander (#184). Previously this path
-      // advanced monthly with `setMonth(+1)` while the expander used
-      // `setDate(+30)`, so the two produced different dates for the same chore.
-      //
-      // The row is inserted with `frequency: 'once'` for the same reason the
-      // expander does: a generated occurrence is a one-off, and only the
-      // template the user created recurs. Leaving `frequency` on instances is
-      // what let the cron re-expand its own output and multiply the series.
+      // A series template (recurrence_id set) is topped up with the SAME series
+      // logic the create route and the cron use, so its successor carries
+      // `recurrence_id` and the (recurrence_id, due_date) unique constraint
+      // dedups it. Previously this path inserted the next occurrence with
+      // recurrence_id null, duplicating the D+1 row the create route had
+      // already generated for the series.
       if (chore.frequency && chore.frequency !== 'once') {
-        const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
-        if (nextDueDate) {
-          await tx.chore.create({
-            data: {
-              family_id: chore.family_id,
-              title: chore.title,
-              description: chore.description,
-              points: chore.points,
-              assigned_to: chore.assigned_to,
-              due_date: nextDueDate,
-              status: 'pending',
-              // One-off occurrence, so the cron never re-expands it.
-              frequency: 'once',
-              difficulty: chore.difficulty,
-              created_by: chore.created_by,
-            },
-          })
+        if (chore.recurrence_id) {
+          await expandSeriesInTx(tx, chore.recurrence_id, chore.family_id)
+        } else {
+          // Legacy recurring row with no series: keep the old single-successor
+          // behaviour. The date rule is shared with the expander (#184), and
+          // the row is a one-off so the cron never re-expands it.
+          const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
+          if (nextDueDate) {
+            await tx.chore.create({
+              data: {
+                family_id: chore.family_id,
+                title: chore.title,
+                description: chore.description,
+                points: chore.points,
+                assigned_to: chore.assigned_to,
+                due_date: nextDueDate,
+                status: 'pending',
+                frequency: 'once',
+                difficulty: chore.difficulty,
+                created_by: chore.created_by,
+              },
+            })
+          }
         }
       }
+
+      return true
     })
+
+    if (!completed) {
+      return NextResponse.json({ success: true, alreadyCompleted: true })
+    }
 
     return NextResponse.json({
       success: true,

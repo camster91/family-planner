@@ -45,7 +45,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Historical/reference-only material
 
-`docs/CONSOLIDATION_PLAN.md`, `docs/ISSUE_TRIAGE.md`, old phase implementation files, archived source-app plans and stale branch-specific status notes are superseded for current planning. They may explain history but must not be used as current scope, dependency or runtime truth.
+`docs/CONSOLIDATION_PLAN.md`, `docs/ISSUE_TRIAGE.md`, everything under `docs/archive/`, old phase implementation files, archived source-app plans and stale branch-specific status notes are superseded for current planning. They may explain history but must not be used as current scope, dependency or runtime truth.
 
 `CLAUDE.md` is only an agent pointer. It must not duplicate or override `AGENTS.md`.
 

@@ -61,6 +61,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'person_id, name, dosage, and schedule required' }, { status: 400 })
   }
 
+  // The person and (optional) sick day must belong to the caller's family;
+  // otherwise a parent could attach records to another household's rows.
+  const person = await prisma!.user.findFirst({
+    where: { id: body.person_id, family_id: user.family_id },
+    select: { id: true },
+  })
+  if (!person) {
+    return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+  }
+  if (body.sick_day_id) {
+    const sickDay = await prisma!.sickDay.findFirst({
+      where: { id: body.sick_day_id, family_id: user.family_id },
+      select: { id: true },
+    })
+    if (!sickDay) {
+      return NextResponse.json({ error: 'Sick day not found' }, { status: 400 })
+    }
+  }
+
   const created = await prisma!.medication.create({
     data: {
       family_id: user.family_id,

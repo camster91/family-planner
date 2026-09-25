@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
+
+// Share links are unauthenticated, so they must be unguessable and short-lived.
+// 128-bit token like /api/handoff/[id]/regenerate-token. The link lives for at
+// least 6h, stretches to 6h after the planned departure so a handoff prepared
+// in advance still works, and never beyond 7 days.
+const SHARE_TOKEN_TTL_MS = 6 * 60 * 60 * 1000
+const SHARE_TOKEN_MAX_MS = 7 * 24 * 60 * 60 * 1000
+
+function shareExpiry(departure: Date | null): Date {
+  const now = Date.now()
+  const afterDeparture = departure && !isNaN(departure.getTime()) ? departure.getTime() + SHARE_TOKEN_TTL_MS : 0
+  return new Date(Math.min(Math.max(now + SHARE_TOKEN_TTL_MS, afterDeparture), now + SHARE_TOKEN_MAX_MS))
+}
 
 // GET /api/handoff - List all handoffs for the user's family
 export async function GET(request: NextRequest) {
@@ -95,6 +109,8 @@ export async function POST(request: NextRequest) {
         emergency_notes: emergency_notes?.trim() || null,
         house_notes: house_notes?.trim() || null,
         general_notes: general_notes?.trim() || null,
+        share_token: randomBytes(16).toString('hex'),
+        share_expires_at: shareExpiry(parsedDeparture),
         created_by: auth.user.id,
       },
     })

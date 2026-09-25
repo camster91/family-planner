@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
+    <!-- Capacitor's WebView file chooser (<input capture>) writes camera photos to
+         getExternalFilesDir(Environment.DIRECTORY_PICTURES) and shares them through
+         this provider (BridgeWebChromeClient.createImageFile). Expose only that
+         app-scoped directory, not the whole external storage root. -->
+    <external-files-path name="my_images" path="Pictures/" />
     <cache-path name="my_cache_images" path="." />
 </paths>

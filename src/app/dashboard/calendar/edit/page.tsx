@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { format } from 'date-fns'
+import { localDateTimeToISO } from '@/lib/dates'
 
 function EditEventForm() {
   const [title, setTitle] = useState('')
@@ -30,25 +32,26 @@ function EditEventForm() {
 
     const fetchEvent = async () => {
       try {
-        const res = await fetch('/api/events')
+        const res = await fetch(`/api/events?id=${encodeURIComponent(eventId)}`)
         if (res.ok) {
           const data = await res.json()
-          const event = data.events?.find((e: any) => e.id === eventId)
-          if (event) {
-            setTitle(event.title)
-            setDescription(event.description || '')
-            const start = new Date(event.start_time)
-            setStartDate(start.toISOString().split('T')[0])
-            setStartTime(start.toISOString().split('T')[1]?.substring(0, 5) || '')
-            if (event.end_time) {
-              const end = new Date(event.end_time)
-              setEndDate(end.toISOString().split('T')[0])
-              setEndTime(end.toISOString().split('T')[1]?.substring(0, 5) || '')
-            }
-            setLocation(event.location || '')
-          } else {
-            setError('Event not found')
+          const event = data.event
+          setTitle(event.title)
+          setDescription(event.description || '')
+          // Populate the form in the user's local time
+          const start = new Date(event.start_time)
+          setStartDate(format(start, 'yyyy-MM-dd'))
+          setStartTime(format(start, 'HH:mm'))
+          if (event.end_time) {
+            const end = new Date(event.end_time)
+            setEndDate(format(end, 'yyyy-MM-dd'))
+            setEndTime(format(end, 'HH:mm'))
           }
+          setLocation(event.location || '')
+        } else if (res.status === 404) {
+          setError('Event not found')
+        } else {
+          setError('Failed to load event data')
         }
       } catch (err) {
         console.error('Error fetching event:', err)
@@ -69,8 +72,15 @@ function EditEventForm() {
     setError(null)
 
     try {
-      const startDateTime = `${startDate}T${startTime || '00:00'}`
-      const endDateTime = endDate ? `${endDate}T${endTime || '23:59'}` : startDateTime
+      // Form values are local wall-clock time; send real ISO instants (with offset)
+      const startDateTime = localDateTimeToISO(`${startDate}T${startTime || '00:00'}`)
+      const endDateTime = endDate ? localDateTimeToISO(`${endDate}T${endTime || '23:59'}`) : startDateTime
+
+      if (!startDateTime || !endDateTime) {
+        setError('Invalid date/time')
+        setLoading(false)
+        return
+      }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
         setError('End date/time must be after start date/time')

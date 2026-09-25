@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { createVerificationToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
 import { sendMail } from '@/lib/mail'
+import { escapeHtml } from '@/lib/escape-html'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +15,7 @@ export const dynamic = 'force-dynamic'
 // emails exist or which of them are verified.
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(request)
     const rateCheck = await checkRateLimit(`resend-verify:${ip}`, 5, 60 * 60 * 1000)
     if (!rateCheck.allowed) {
       return NextResponse.json(
@@ -51,10 +53,10 @@ export async function POST(request: NextRequest) {
 
         const html = [
           '<h2>Verify Your Email</h2>',
-          `<p>Hi ${user.name},</p>`,
+          `<p>Hi ${escapeHtml(user.name)},</p>`,
           '<p>Here is a new verification link for your Family Planner account.</p>',
-          `<p><a href="${verifyUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
-          `<p>Or copy this link: ${verifyUrl}</p>`,
+          `<p><a href="${escapeHtml(verifyUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
+          `<p>Or copy this link: ${escapeHtml(verifyUrl)}</p>`,
           '<p>This link expires in 24 hours.</p>',
         ].join('\n')
 

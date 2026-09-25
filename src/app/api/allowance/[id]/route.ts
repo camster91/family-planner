@@ -5,6 +5,9 @@ import { featureGate } from '@/lib/feature-gate-server'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
+const ALLOWANCE_STATUSES = ['pending', 'paid', 'cancelled'] as const
+type AllowanceStatus = (typeof ALLOWANCE_STATUSES)[number]
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = (await getServerUser()) as SessionUser | null
@@ -12,6 +15,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const gate = await featureGate(user.family_id, 'allowance')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
+  if (user.role !== 'parent') {
+    return NextResponse.json({ error: 'Only parents can update allowance' }, { status: 403 })
+  }
 
   const existing = await prisma!.allowance.findUnique({
     where: { id },
@@ -21,19 +27,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  let body: { status?: 'pending' | 'paid' | 'cancelled' }
+  let body: { status?: unknown }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
-  if (!body.status) return NextResponse.json({ error: 'status required' }, { status: 400 })
+  if (!body || typeof body.status !== 'string' || !ALLOWANCE_STATUSES.includes(body.status as AllowanceStatus)) {
+    return NextResponse.json(
+      { error: `status must be one of: ${ALLOWANCE_STATUSES.join(', ')}` },
+      { status: 400 }
+    )
+  }
+  const status = body.status as AllowanceStatus
 
   const updated = await prisma!.allowance.update({
     where: { id },
     data: {
-      status: body.status,
-      paid_at: body.status === 'paid' ? new Date() : undefined,
+      status,
+      paid_at: status === 'paid' ? new Date() : undefined,
     },
   })
   return NextResponse.json({ allowance: updated })

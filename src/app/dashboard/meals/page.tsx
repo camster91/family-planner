@@ -8,20 +8,24 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
+import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
 interface MealSlot {
   id: string
-  type: MealType
+  meal_type: MealType
   recipe_name: string
   notes?: string | null
   cook_id?: string | null
+  // ISO string of UTC midnight; the YYYY-MM-DD prefix is the meal's calendar day
   date: string
 }
 
 interface DayPlan {
   date: Date
+  // Local calendar day as YYYY-MM-DD
+  dateKey: string
   label: string
   isToday: boolean
   meals: (MealSlot | null)[]
@@ -43,63 +47,38 @@ const mealLabels: Record<MealType, string> = {
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 
-function getWeekDays(): DayPlan[] {
-  const days: DayPlan[] = []
-  const today = new Date()
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    const isToday = i === 0
-
-    const label = isToday
-      ? 'Today'
-      : d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
-
-    days.push({
-      date: d,
-      label,
-      isToday,
-      meals: [null, null, null],
-    })
-  }
-  return days
-}
-
-function buildDayPlans(meals: MealSlot[]): DayPlan[] {
+// Local calendar days for the next 7 days, starting today
+function getWeekDates(): Date[] {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
-  const days: DayPlan[] = []
+  const dates: Date[] = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(today)
     d.setDate(today.getDate() + i)
+    dates.push(d)
+  }
+  return dates
+}
+
+// Meal dates are date-only: match on the YYYY-MM-DD prefix of the ISO string,
+// never by parsing into a local Date (which shifts the day off UTC).
+function buildDayPlans(meals: MealSlot[]): DayPlan[] {
+  return getWeekDates().map((d, i) => {
     const isToday = i === 0
+    const dateKey = toDateOnlyLocal(d)
 
     const label = isToday
       ? 'Today'
       : d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
 
-    const dayMeals = meals
-      .filter(m => {
-        const mDate = new Date(m.date)
-        mDate.setHours(0, 0, 0, 0)
-        return mDate.getTime() === d.getTime()
-      })
-      .sort((a, b) => {
-        const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 }
-        return (order[a.type as MealType] ?? 99) - (order[b.type as MealType] ?? 99)
-      })
+    const dayMeals = meals.filter(m => toDateOnlyUTC(m.date) === dateKey)
 
-    const slots: (MealSlot | null)[] = []
-    for (const type of MEAL_TYPES) {
-      const found = dayMeals.find(m => m.type === type)
-      slots.push(found ?? null)
-    }
+    const slots: (MealSlot | null)[] = MEAL_TYPES.map(
+      type => dayMeals.find(m => m.meal_type === type) ?? null
+    )
 
-    days.push({ date: d, label, isToday, meals: slots })
-  }
-  return days
+    return { date: d, dateKey, label, isToday, meals: slots }
+  })
 }
 
 // Add/Edit Modal
@@ -123,8 +102,8 @@ function MealModal({
   saving: boolean
 }) {
   const { t } = useTranslation()
-  const [date, setDate] = React.useState(initial?.date?.split('T')[0] ?? defaultDate ?? new Date().toISOString().split('T')[0])
-  const [meal_type, setMealType] = React.useState<MealType>(initial?.type ?? defaultMealType ?? 'dinner')
+  const [date, setDate] = React.useState(initial?.date ? toDateOnlyUTC(initial.date) : defaultDate ?? toDateOnlyLocal(new Date()))
+  const [meal_type, setMealType] = React.useState<MealType>(initial?.meal_type ?? defaultMealType ?? 'dinner')
   const [recipe_name, setRecipeName] = React.useState(initial?.recipe_name ?? '')
   const [notes, setNotes] = React.useState(initial?.notes ?? '')
 
@@ -224,10 +203,9 @@ export default function MealsPage() {
 
 function MealsPageInner() {
   const { t } = useTranslation()
-  const [week, setWeek] = React.useState<DayPlan[]>(getWeekDays)
+  const [week, setWeek] = React.useState<DayPlan[]>(() => buildDayPlans([]))
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [meals, setMeals] = React.useState<MealSlot[]>([])
 
   // Modal state
   const [modal, setModal] = React.useState<{
@@ -242,10 +220,14 @@ function MealsPageInner() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/meals')
+      const dates = getWeekDates()
+      const start = toDateOnlyLocal(dates[0])
+      const endDate = new Date(dates[dates.length - 1])
+      endDate.setDate(endDate.getDate() + 1)
+      const end = toDateOnlyLocal(endDate)
+      const res = await fetch(`/api/meals?start=${start}&end=${end}`)
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
-      setMeals(data.meals ?? [])
       setWeek(buildDayPlans(data.meals ?? []))
     } catch {
       setError(t('meals.errorLoad'))
@@ -260,11 +242,10 @@ function MealsPageInner() {
 
   const handleRowClick = (dayIndex: number, mealType: MealType, meal: MealSlot | null) => {
     if (meal) {
-      setModal({ mode: 'edit', meal: { ...meal, type: mealType } })
+      setModal({ mode: 'edit', meal: { ...meal, meal_type: mealType } })
     } else {
       const day = week[dayIndex]
-      const dateStr = day.date.toISOString().split('T')[0]
-      setModal({ mode: 'add', defaultDate: dateStr, defaultMealType: mealType })
+      setModal({ mode: 'add', defaultDate: day.dateKey, defaultMealType: mealType })
     }
   }
 
@@ -277,6 +258,8 @@ function MealsPageInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: modal.meal.id,
+            date: data.date,
+            meal_type: data.meal_type,
             recipe_name: data.recipe_name,
             notes: data.notes,
           }),
@@ -374,7 +357,7 @@ function MealsPageInner() {
           <div className="space-y-3 stagger">
             {week.map((day, dayIndex) => (
               <div
-                key={day.date.toISOString()}
+                key={day.dateKey}
                 className={cn(
                   'card-apple overflow-hidden',
                   day.isToday && 'ring-2 ring-[var(--accent)] ring-offset-2'
