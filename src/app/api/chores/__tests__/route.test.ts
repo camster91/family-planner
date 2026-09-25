@@ -160,3 +160,34 @@ describe("PATCH /api/chores — parent-only fields", () => {
     expect(mockChoreUpdate.mock.calls[0][0].data).toEqual({ assigned_to: "child2-a" });
   });
 });
+
+describe("PATCH /api/chores — due_date is stored as a date-only value", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockChoreFindUnique.mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
+    mockChoreUpdate.mockImplementation(async ({ where, data }: any) => ({ id: where.id, ...data }));
+  });
+
+  it.each([
+    ["a YYYY-MM-DD day", "2026-09-26", "2026-09-26T00:00:00.000Z"],
+    ["a timestamp (truncated to its UTC day)", "2026-09-26T15:42:10.123Z", "2026-09-26T00:00:00.000Z"],
+    ["a timestamp with an offset (UTC day, not local)", "2026-09-26T20:00:00-07:00", "2026-09-27T00:00:00.000Z"],
+  ])("normalizes %s to UTC midnight", async (_label, input, stored) => {
+    asCaller(USERS.childA);
+
+    const res = await PATCH(makeRequest({ choreId: "chore-a", due_date: input }));
+
+    expect(res.status).toBe(200);
+    const written = mockChoreUpdate.mock.calls[0][0].data.due_date as Date;
+    expect(written.toISOString()).toBe(stored);
+  });
+
+  it.each([["not-a-date"], ["2026-02-31"]])("rejects %s with 400 and writes nothing", async (input) => {
+    asCaller(USERS.parentA);
+
+    const res = await PATCH(makeRequest({ choreId: "chore-a", due_date: input }));
+
+    expect(res.status).toBe(400);
+    expect(mockChoreUpdate).not.toHaveBeenCalled();
+  });
+});

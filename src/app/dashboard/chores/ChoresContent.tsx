@@ -11,7 +11,7 @@ import { Glyph } from '@/components/ui/glyph'
 import { useToast } from '@/components/ui/toast'
 import { LongPressRow } from '@/components/ui/long-press-row'
 import { cn } from '@/lib/utils'
-import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays } from '@/lib/dates'
+import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays, snoozedDueDate } from '@/lib/dates'
 import type { Chore } from '@/types'
 
 type FilterMode = 'today' | 'week' | 'all'
@@ -124,21 +124,28 @@ export default function ChoresContent({
     }
   }, [addToast])
 
-  const handleSnoozeChore = React.useCallback(async (choreId: string) => {
-    const newDueDate = new Date(Date.now() + 3600000).toISOString()
+  const handleSnoozeChore = React.useCallback(async (choreId: string, currentDueDate: string) => {
+    // due_date is date-only (UTC midnight): snoozing moves it to the next day,
+    // never to a time of day.
+    const newDueDay = snoozedDueDate(currentDueDate)
     try {
       const response = await fetch('/api/chores', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ choreId, due_date: newDueDate }),
+        body: JSON.stringify({ choreId, due_date: newDueDay }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to snooze chore')
 
+      const storedDueDate: string = data.chore?.due_date ?? `${newDueDay}T00:00:00.000Z`
       setLocalChores(prev => prev.map(c =>
-        c.id === choreId ? { ...c, due_date: newDueDate } : c
+        c.id === choreId ? { ...c, due_date: storedDueDate } : c
       ))
-      addToast({ type: 'success', title: 'Snoozed 1h', message: 'New due time updated.' })
+      addToast({
+        type: 'success',
+        title: 'Snoozed a day',
+        message: `Now due ${formatRelativeDueDate(storedDueDate).replace('Tomorrow', 'tomorrow')}.`,
+      })
     } catch (error) {
       addToast({
         type: 'error',
@@ -252,8 +259,8 @@ export default function ChoresContent({
                   key={chore.id}
                   actions={[
                     {
-                      label: 'Snooze 1h',
-                      onClick: () => handleSnoozeChore(chore.id),
+                      label: 'Snooze a day',
+                      onClick: () => handleSnoozeChore(chore.id, chore.due_date),
                     },
                     {
                       label: 'Reassign',

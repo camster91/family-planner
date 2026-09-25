@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Clock, ChevronRight, Search } from 'lucide-react'
+import { X, ChevronRight, Search } from 'lucide-react'
 import { SearchField } from '@/components/ui/search-field'
 import { navItems } from '@/lib/nav-items'
 import { useFeatures } from '@/components/providers/features-provider'
@@ -108,31 +108,6 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
 
         {/* Content */}
         <div className="max-h-[60vh] overflow-y-auto py-2">
-          {/* Recent */}
-          {query === '' && (
-            <div>
-              <div className="section-header px-4 py-1">Recent</div>
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--surface-fill-secondary)]"
-                onClick={() => handleNavigate('/dashboard/chores')}
-              >
-                <Clock className="w-4 h-4 text-label-tertiary" />
-                <span className="text-body text-label-primary">Weekly chores</span>
-                <span className="text-caption-1 text-label-tertiary ml-auto">chore</span>
-              </button>
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--surface-fill-secondary)]"
-                onClick={() => handleNavigate('/dashboard/calendar')}
-              >
-                <Clock className="w-4 h-4 text-label-tertiary" />
-                <span className="text-body text-label-primary">Family dinner</span>
-                <span className="text-caption-1 text-label-tertiary ml-auto">event</span>
-              </button>
-            </div>
-          )}
-
           {/* Navigation shortcuts */}
           <div>
             <div className="section-header px-4 py-1">

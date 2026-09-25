@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 import { formatRelativeDueDate, isDueToday } from '@/lib/dates'
 import type { UserRole } from '@/types'
+import type { ShoppingSnapshot } from '@/lib/shopping-snapshot'
 
 interface Chore {
   id: string
@@ -69,6 +70,8 @@ interface DashboardHomeProps {
   photoVerifyQueue?: any[]
   /** null/undefined = don't render the budget card (not a parent, or budget feature off). */
   budget?: BudgetSnapshot | null
+  /** Open grocery/shopping list items. null/undefined = don't render the card (role can't open lists). */
+  shopping?: ShoppingSnapshot | null
 }
 
 function formatMoney(amount: number): string {
@@ -116,6 +119,7 @@ export default function DashboardHome({
   anniversaries = [],
   photoVerifyQueue = [],
   budget = null,
+  shopping = null,
 }: DashboardHomeProps) {
   const today = new Date()
   const greeting = getGreeting()
@@ -131,15 +135,6 @@ export default function DashboardHome({
 
   // "My chores": open chores assigned to the signed-in user.
   const todayChores = chores?.filter((c) => c.assigned_to === user.id && isOpen(c)) ?? []
-
-  // Shopping items: use unread messages as stand-in (max 5)
-  const shoppingItems = (stats.unreadMessages ?? 0) > 0
-    ? Array.from({ length: Math.min(stats.unreadMessages, 5) }).map((_, i) => ({
-        id: `shopping-${i}`,
-        title: `Shopping item ${i + 1}`,
-        checked: false,
-      }))
-    : []
 
   // Family members for avatar row (up to 6)
   const familyMembers = leaderboard.slice(0, 6)
@@ -257,26 +252,44 @@ export default function DashboardHome({
           )}
         </section>
 
-        {/* Shopping */}
-        {shoppingItems.length > 0 && (
+        {/* Shopping: open items from the family's grocery/shopping lists */}
+        {shopping && (
           <section>
             <p className="section-header">Shopping</p>
-            <div className="list-inset">
-              {shoppingItems.map((item, i) => (
-                <CheckboxRow
-                  key={item.id}
-                  checked={item.checked}
-                  onChange={() => {/* toggle shopping item */}}
-                  title={item.title}
-                  glyph={
-                    <Glyph color="lists" size="sm">
-                      <ShoppingCart className="w-4 h-4 text-white" />
-                    </Glyph>
-                  }
-                  className={cn(i === shoppingItems.length - 1 && 'border-b-0')}
-                />
-              ))}
-            </div>
+            {shopping.items.length > 0 ? (
+              <InsetList>
+                {shopping.items.map((item, i) => (
+                  <ListRow
+                    key={item.id}
+                    icon={ShoppingCart}
+                    glyphColor="lists"
+                    title={item.quantity > 1 ? `${item.content} × ${item.quantity}` : item.content}
+                    subtitle={item.listName}
+                    href={`/dashboard/lists/${item.listId}`}
+                    last={i === shopping.items.length - 1 && shopping.total <= shopping.items.length}
+                  />
+                ))}
+                {shopping.total > shopping.items.length && (
+                  <ListRow
+                    title={`${shopping.total - shopping.items.length} more to buy`}
+                    href="/dashboard/lists"
+                    last
+                  />
+                )}
+              </InsetList>
+            ) : (
+              <EmptyState
+                icon={ShoppingCart}
+                glyphColor="lists"
+                title="Nothing to buy"
+                description="Your shopping lists are all checked off."
+                action={
+                  <Link href="/dashboard/lists" className="text-subhead text-[var(--accent)] font-medium">
+                    Open lists
+                  </Link>
+                }
+              />
+            )}
           </section>
         )}
 

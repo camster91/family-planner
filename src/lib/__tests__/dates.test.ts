@@ -11,6 +11,8 @@ import {
   formatRelativeDueDate,
   isDueToday,
   isDueWithinDays,
+  normalizeDateOnlyInput,
+  snoozedDueDate,
 } from '../dates'
 
 describe('parseDateOnly', () => {
@@ -101,5 +103,51 @@ describe('chore due-date helpers west of UTC', () => {
     expect(isDueWithinDays('2026-01-12T00:00:00.000Z', 7, now)).toBe(true)
     expect(isDueWithinDays('2026-01-13T00:00:00.000Z', 7, now)).toBe(false)
     expect(isDueWithinDays('2026-01-04T00:00:00.000Z', 7, now)).toBe(false)
+  })
+})
+
+describe('normalizeDateOnlyInput', () => {
+  it('parses YYYY-MM-DD to UTC midnight', () => {
+    expect(normalizeDateOnlyInput('2026-09-26')?.toISOString()).toBe('2026-09-26T00:00:00.000Z')
+  })
+  it('truncates a timestamp to its UTC calendar day', () => {
+    expect(normalizeDateOnlyInput('2026-09-26T23:59:59.999Z')?.toISOString()).toBe('2026-09-26T00:00:00.000Z')
+    expect(normalizeDateOnlyInput('2026-09-26T20:00:00-07:00')?.toISOString()).toBe('2026-09-27T00:00:00.000Z')
+  })
+  it('rejects overflow days, garbage and non-strings', () => {
+    expect(normalizeDateOnlyInput('2026-02-31')).toBeNull()
+    expect(normalizeDateOnlyInput('soon')).toBeNull()
+    expect(normalizeDateOnlyInput('')).toBeNull()
+    expect(normalizeDateOnlyInput(123)).toBeNull()
+    expect(normalizeDateOnlyInput(undefined)).toBeNull()
+  })
+})
+
+describe('snoozedDueDate west of UTC', () => {
+  const originalTZ = process.env.TZ
+  beforeAll(() => {
+    process.env.TZ = 'America/Toronto'
+  })
+  afterAll(() => {
+    process.env.TZ = originalTZ
+  })
+
+  // Viewer's local time: Monday 2026-01-05 22:30 in Toronto (already Jan 6 in UTC).
+  const now = new Date(2026, 0, 5, 22, 30)
+
+  it('moves a chore due today to tomorrow (local), as a date-only value', () => {
+    expect(snoozedDueDate('2026-01-05T00:00:00.000Z', now)).toBe('2026-01-06')
+  })
+  it('moves an overdue chore to tomorrow, not the day after its old due date', () => {
+    expect(snoozedDueDate('2026-01-01T00:00:00.000Z', now)).toBe('2026-01-06')
+  })
+  it('moves a future chore back by one day rather than pulling it forward', () => {
+    expect(snoozedDueDate('2026-01-09T00:00:00.000Z', now)).toBe('2026-01-10')
+  })
+  it('crosses month and year boundaries', () => {
+    expect(snoozedDueDate('2026-12-31T00:00:00.000Z', new Date(2026, 11, 31, 9, 0))).toBe('2027-01-01')
+  })
+  it('falls back to tomorrow for a malformed stored value', () => {
+    expect(snoozedDueDate('garbage', now)).toBe('2026-01-06')
   })
 })

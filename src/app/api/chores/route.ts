@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
+import { normalizeDateOnlyInput } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,17 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { choreId, ...updates } = parsed.data
+
+    // due_date is a date-only value (UTC midnight). Accept `YYYY-MM-DD` or a
+    // timestamp, but always store the UTC calendar day, never a time of day.
+    let dueDate: Date | undefined
+    if (updates.due_date !== undefined) {
+      const normalized = normalizeDateOnlyInput(updates.due_date)
+      if (!normalized) {
+        return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+      }
+      dueDate = normalized
+    }
 
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
@@ -112,7 +124,7 @@ export async function PATCH(request: NextRequest) {
     if (updates.description !== undefined) data.description = updates.description
     if (updates.points !== undefined) data.points = updates.points
     if (updates.assigned_to !== undefined) data.assigned_to = updates.assigned_to
-    if (updates.due_date !== undefined) data.due_date = new Date(updates.due_date)
+    if (dueDate !== undefined) data.due_date = dueDate
     if (updates.difficulty !== undefined) data.difficulty = updates.difficulty
     if (updates.frequency !== undefined) data.frequency = updates.frequency
     if (updates.photo_url !== undefined) data.photo_url = updates.photo_url
