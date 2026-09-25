@@ -9,7 +9,7 @@ import CommandPalette from './CommandPalette'
  * handled inside the palette itself). Lives at the layout level
  * so it overlays every dashboard page.
  */
-export default function CommandPaletteHost() {
+export default function CommandPaletteHost({ role }: { role?: string | null }) {
   const [open, setOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -18,5 +18,5 @@ export default function CommandPaletteHost() {
     return () => document.removeEventListener('open-command-palette', onOpen)
   }, [])
 
-  return <CommandPalette open={open} onClose={() => setOpen(false)} />
+  return <CommandPalette open={open} onClose={() => setOpen(false)} role={role} />
 }

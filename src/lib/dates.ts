@@ -35,6 +35,49 @@ export function toDateOnlyLocal(date: Date): string {
   return format(date, 'yyyy-MM-dd')
 }
 
+/**
+ * Short calendar label (default "Jan 5") for a date-only value stored as UTC
+ * midnight, such as a chore due date. Formats in UTC so viewers west of UTC
+ * do not see the previous day.
+ */
+export function formatDateOnly(
+  value: Date | string,
+  options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+): string {
+  const date = parseDateOnly(toDateOnlyUTC(value))
+  if (!date) return ''
+  return date.toLocaleDateString('en-US', { ...options, timeZone: 'UTC' })
+}
+
+/** Local calendar day `days` after `now`, as `YYYY-MM-DD` (client-side use). */
+function localDateOnlyPlusDays(now: Date, days: number): string {
+  const next = new Date(now.getTime())
+  next.setDate(next.getDate() + days)
+  return toDateOnlyLocal(next)
+}
+
+/**
+ * Whether a date-only value (UTC midnight) falls on the viewer's local
+ * calendar day. Compares the stored UTC date part with the local date string.
+ */
+export function isDueToday(value: Date | string, now: Date = new Date()): boolean {
+  return toDateOnlyUTC(value) === toDateOnlyLocal(now)
+}
+
+/** Whether a date-only value falls within the next `days` local calendar days (today inclusive). */
+export function isDueWithinDays(value: Date | string, days: number, now: Date = new Date()): boolean {
+  const day = toDateOnlyUTC(value)
+  return day >= toDateOnlyLocal(now) && day <= localDateOnlyPlusDays(now, days)
+}
+
+/** "Today", "Tomorrow" or a short date for a date-only value such as a chore due date. */
+export function formatRelativeDueDate(value: Date | string, now: Date = new Date()): string {
+  const day = toDateOnlyUTC(value)
+  if (day === toDateOnlyLocal(now)) return 'Today'
+  if (day === localDateOnlyPlusDays(now, 1)) return 'Tomorrow'
+  return formatDateOnly(value)
+}
+
 /** Add whole days to a UTC-midnight date. */
 export function addUTCDays(date: Date, days: number): Date {
   const next = new Date(date.getTime())

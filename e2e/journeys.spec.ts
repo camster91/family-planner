@@ -97,10 +97,17 @@ test.describe("signed out", () => {
     await expect(
       main.getByText("Avery Fixture-A", { exact: true }).first(),
     ).toBeAttached();
-    // Seeded chores and "upcoming" events from the busy household.
-    await expect(main.getByText("Take out recycling")).toBeVisible();
+    // "My chores" is scoped to the signed-in parent, who has none assigned;
+    // the progress card counts the household's chores due today.
+    await expect(main.getByText("All done for today!")).toBeVisible();
+    await expect(main.getByText("Take out recycling")).toHaveCount(0);
+    await expect(main.getByText(/^\d+ of \d+ done today$/)).toBeVisible();
+    // Seeded "upcoming" events from the busy household.
     await expect(main.getByText("Dentist (Casey)")).toBeVisible();
     await expect(main.getByText("Soccer practice")).toBeVisible();
+    // Budget card: real month totals; the fixtures set no category limits.
+    await expect(main.getByText("Budget this month")).toBeVisible();
+    await expect(main.getByText("No budget set")).toBeVisible();
     // Completed-but-unverified chore lands in the parent review queue.
     await expect(main.getByText("Unload dishwasher")).toBeVisible();
   });
@@ -117,7 +124,16 @@ test.describe("Family A parent", () => {
     await expect(
       main.getByRole("heading", { name: "Chores", level: 1 }),
     ).toBeVisible();
+    // Due dates are UTC-midnight date-only values. In America/Toronto the
+    // "Today" filter must not pull in tomorrow's chore (it used to, because the
+    // date was parsed in local time and landed on the previous evening).
+    await expect(
+      main.getByText("Taylor Fixture-A · Today").first(),
+    ).toBeVisible();
+    await expect(main.getByText("Pack school bag")).toHaveCount(0);
+    await main.getByRole("button", { name: "Week", exact: true }).click();
     await expect(main.getByText("Pack school bag")).toBeVisible();
+    await expect(main.getByText("Casey Fixture-A · Tomorrow")).toBeVisible();
     await expect(main.getByText("Unload dishwasher")).toBeVisible();
   });
 
@@ -155,6 +171,13 @@ test.describe("Family A parent", () => {
     }
   });
 
+  test("own list shows its seeded items", async ({ page }) => {
+    await page.goto(`/dashboard/lists/${FIXTURE_IDS.familyA.list}`);
+    const main = page.locator("#main-content");
+    await expect(main.getByText("Return library books")).toBeVisible();
+    await expect(main.getByText("No items yet")).toHaveCount(0);
+  });
+
   test("Family B list id in the URL does not expose its items", async ({
     page,
   }) => {
@@ -184,12 +207,30 @@ test.describe("Family A parent", () => {
       }
     }
   });
+});
 
-  test("sign out ends the browser session", async ({ page }) => {
-    await page.goto("/dashboard");
+test.describe("sign out", () => {
+  // Logout bumps the user's token_version, revoking every session of that user.
+  // Use an account whose session is not shared through e2e/.auth storage state.
+  test("ends the session and revokes the old cookie", async ({
+    page,
+    context,
+  }) => {
+    await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    const oldSession = (await context.cookies()).find(
+      (c) => c.name === "session_token",
+    );
+    expect(oldSession).toBeTruthy();
+
     await page.getByRole("button", { name: "User menu" }).click();
     await page.getByRole("button", { name: "Sign Out" }).click();
     await expect(page).toHaveURL(/\/login$/);
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/login\?redirect=%2Fdashboard$/);
+
+    // Replaying the pre-logout cookie no longer authenticates.
+    await context.addCookies([oldSession!]);
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/login\?redirect=%2Fdashboard$/);
   });
@@ -201,10 +242,22 @@ test.describe("Family B parent", () => {
   test("sees only its own sparse household", async ({ page }) => {
     await page.goto("/dashboard");
     const main = page.locator("#main-content");
-    await expect(main.getByText("Water the plants")).toBeVisible();
-    const text = await page.locator("body").innerText();
+    // Water the plants is the teen's chore: not in the parent's "My chores",
+    // but listed on the household chores page.
+    await expect(main.getByText("All done for today!")).toBeVisible();
+    let text = await page.locator("body").innerText();
     for (const title of FAMILY_A_ONLY) {
       expect(text, `Family B dashboard leaked "${title}"`).not.toContain(title);
+    }
+    await page.goto("/dashboard/chores");
+    await expect(
+      page.locator("#main-content").getByText("Water the plants"),
+    ).toBeVisible();
+    text = await page.locator("body").innerText();
+    for (const title of FAMILY_A_ONLY) {
+      expect(text, `Family B chores page leaked "${title}"`).not.toContain(
+        title,
+      );
     }
   });
 });
@@ -237,6 +290,25 @@ test.describe("Family A child", () => {
       ).toBeVisible();
     });
   }
+
+  test("nav hides links the child would be redirected away from", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard");
+    await expect(
+      page.locator("#main-content").getByText("Hi, Casey Fixture-A!"),
+    ).toBeVisible();
+    for (const path of [
+      "/dashboard/calendar",
+      "/dashboard/lists",
+      "/dashboard/family",
+    ]) {
+      await expect(page.locator(`nav a[href="${path}"]`)).toHaveCount(0);
+    }
+    await expect(
+      page.locator('nav a[href="/dashboard/emergency"]').first(),
+    ).toBeAttached();
+  });
 
   test("kid-allowlisted emergency page stays reachable", async ({ page }) => {
     await page.goto("/dashboard/emergency");

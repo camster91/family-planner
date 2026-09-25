@@ -41,7 +41,7 @@ test.describe("@visual Family A parent", () => {
       if (theme === "dark")
         await expect(page.locator("html")).toHaveClass(/\bdark\b/);
       const main = page.locator("#main-content");
-      await expect(main.getByText("Take out recycling")).toBeVisible();
+      await expect(main.getByText("Dentist (Casey)")).toBeVisible();
       await ready(page);
       await expect(page).toHaveScreenshot(`dashboard-parent-${theme}.png`, {
         // Clock-derived text. It is pinned today, but it is the first thing to

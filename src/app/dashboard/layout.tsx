@@ -137,7 +137,7 @@ export default async function DashboardLayout({
         <TabBar user={user as any} />
 
         {/* Cmd+K global search palette */}
-        <CommandPaletteHost />
+        <CommandPaletteHost role={role} />
       </FeaturesProvider>
     </div>
   )
