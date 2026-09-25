@@ -11,3 +11,7 @@ Dockerfile*
 docker-compose*.yml
 README.md
 docs
+e2e
+playwright.config.ts
+playwright-report
+test-results

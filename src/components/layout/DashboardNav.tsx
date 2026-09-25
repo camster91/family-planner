@@ -81,7 +81,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       >
         <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-6">
           {/* Logo + name */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
+          {/* aria-label: below `sm` the wordmark is hidden and the link would have no name (axe link-name, #155). */}
+          <Link href="/dashboard" aria-label="Family Planner home" className="flex items-center gap-2.5 shrink-0">
             <div className="w-9 h-9 bg-accent-fill rounded-[22px] flex items-center justify-center shadow-sm">
               <Users className="w-5 h-5 text-white" />
             </div>
