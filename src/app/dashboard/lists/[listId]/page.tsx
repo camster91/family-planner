@@ -25,10 +25,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
   let items: any[] = []
 
   try {
-    list = await (prisma as any).list.findUnique({
-      where: { id: resolvedParams.listId },
-      include: { creator: { select: { name: true, avatar_url: true } } },
-    })
+    // Scope by household: an id from another family must read as "not found"
+    // (found by the #155 cross-family E2E journey).
+    list = user.family_id
+      ? await (prisma as any).list.findFirst({
+          where: { id: resolvedParams.listId, family_id: user.family_id },
+          include: { creator: { select: { name: true, avatar_url: true } } },
+        })
+      : null
     if (list) {
       items = await (prisma as any).list_item.findMany({
         where: { list_id: resolvedParams.listId },

@@ -5,8 +5,11 @@ import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
 
-// PATCH - Update an anniversary
-export async function PATCH(request: NextRequest) {
+type RouteContext = { params: Promise<{ id: string }> }
+
+// PATCH - Update an anniversary. The id comes from the path segment only;
+// any `id` in the body is ignored.
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
@@ -20,7 +23,8 @@ export async function PATCH(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { id, name, type, date, notes, person_id } = body
+    const { id } = await params
+    const { name, type, date, notes, person_id } = body
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -74,8 +78,8 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE - Remove an anniversary
-export async function DELETE(request: NextRequest) {
+// DELETE - Remove an anniversary (id from the path segment)
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
@@ -83,8 +87,7 @@ export async function DELETE(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'anniversaries')
     if (gate) return gate
 
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })

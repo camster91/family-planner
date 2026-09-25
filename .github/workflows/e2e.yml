@@ -1,0 +1,124 @@
+name: E2E (Playwright)
+
+# Browser journeys, accessibility smoke and visual snapshots (#155).
+# Informational: this workflow is not a required check unless branch
+# protection is changed to require it. See docs/testing/E2E.md.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: "Regenerate visual baselines on the CI runner and upload them as an artifact (never commits)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: family-planner-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          # Disposable database for this isolated, ephemeral hosted job.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Loopback + disposable name: accepted by the fixture guard (src/lib/fixtures/guard.ts).
+      DATABASE_URL: postgresql://postgres@localhost:5432/fp_e2e_ci
+      FIXTURES_ALLOW: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Migrate database
+        run: node scripts/migrate.js
+
+      - name: Build application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+
+      # Global setup seeds the fixtures (npm run fixtures:seed) before each run.
+      - name: Journeys and accessibility smoke
+        run: npx playwright test --grep-invert @visual
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_REPORT_DIR: playwright-report/journeys
+          E2E_OUTPUT_DIR: test-results/journeys
+
+      - name: Visual snapshots
+        if: ${{ !cancelled() && inputs.update_snapshots != true }}
+        run: npx playwright test --grep @visual
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_REPORT_DIR: playwright-report/visual
+          E2E_OUTPUT_DIR: test-results/visual
+
+      - name: Regenerate visual baselines
+        if: ${{ !cancelled() && inputs.update_snapshots == true }}
+        run: npx playwright test --grep @visual --update-snapshots=all
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_REPORT_DIR: playwright-report/visual
+          E2E_OUTPUT_DIR: test-results/visual
+
+      - name: Upload regenerated baselines
+        if: ${{ !cancelled() && inputs.update_snapshots == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-baselines-${{ github.sha }}
+          path: e2e/__screenshots__/
+          if-no-files-found: error
+          retention-days: 7
+
+      # Reports contain only synthetic fixture data (#154).
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

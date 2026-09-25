@@ -61,7 +61,9 @@ export default async function DashboardPage() {
     : { family_id: familyId }
   const [chores, events, messages, familyMembers, pickups, allowancePending, anniversaries, photoVerifyQueue, rewards] =
     await Promise.all([
-      prisma!.chore.findMany({ where: choresWhere }),
+      // Explicit, total order: without it rows come back in physical order, which
+      // changes whenever a row is updated (flaky UI order and visual baselines, #155).
+      prisma!.chore.findMany({ where: choresWhere, orderBy: [{ due_date: 'asc' }, { id: 'asc' }] }),
       prisma!.event.findMany({
         where: { family_id: familyId, start_time: { gte: now } },
         orderBy: { start_time: 'asc' },
@@ -76,7 +78,8 @@ export default async function DashboardPage() {
       }),
       prisma!.user.findMany({
         where: { family_id: familyId },
-        orderBy: { xp: 'desc' },
+        // Tie-break equal XP by id so the family row does not reshuffle between loads.
+        orderBy: [{ xp: 'desc' }, { id: 'asc' }],
         select: { id: true, name: true, xp: true, level: true, streak: true, best_streak: true, avatar_url: true, role: true },
       }),
       prisma!.pickup.findMany({

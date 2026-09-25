@@ -4,7 +4,7 @@
 
 **Live:** https://family.ashbi.ca
 
-**Product and release source of truth:** [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md)
+**Contributors and agents start here:** [`AGENTS.md`](AGENTS.md) and [`docs/START_HERE.md`](docs/START_HERE.md) (documentation authority). Release/security gates: [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md).
 
 20 features, all gated by per-family opt-in flags. Built for parents managing households with kids of all ages.
 
@@ -43,51 +43,51 @@
 
 ## Tech Stack
 
-| Category       | Technology                                 |
-| -------------- | ------------------------------------------ |
-| Framework      | Next.js 16 (App Router, standalone output) |
-| Language       | TypeScript (strict mode)                   |
-| Database       | PostgreSQL via Prisma 7 ORM                |
-| Authentication | Self-hosted JWT (bcryptjs + jsonwebtoken)  |
-| Styling        | Tailwind CSS 3.4 (Apple HIG design system) |
-| State          | Zustand                                    |
-| Forms          | React Hook Form + Zod validation           |
-| Deployment     | Docker on VPS; GitHub Actions CI and manual releases                           |
+Exact versions live in `package.json`; the schema lives in `prisma/schema.prisma`.
 
-## Prerequisites
+| Category       | Technology                                                  |
+| -------------- | ----------------------------------------------------------- |
+| Framework      | Next.js 16 (App Router, standalone output)                  |
+| Language       | TypeScript (strict mode)                                    |
+| Database       | PostgreSQL 17 via Prisma 7 (`@prisma/adapter-pg`)           |
+| Authentication | Self-hosted JWT session cookie (bcryptjs + jsonwebtoken)    |
+| Styling        | Tailwind CSS 3.4 with design tokens                         |
+| State / forms  | Zustand, React Hook Form + Zod                              |
+| Android        | Capacitor 8 shell (`android/`)                              |
+| Deployment     | Docker image on the VPS, released by a manual GitHub Actions run |
 
-- Node.js 22+
-- PostgreSQL database
-- Git
+## Quick Start
 
-## Installation
-
-### Quick Start
+Requires Node.js 22 (`.nvmrc`; `package.json` engines: node >= 22, npm >= 10), Docker for the local PostgreSQL, and Git.
 
 ```bash
 git clone https://github.com/camster91/family-planner.git
 cd family-planner
-npm ci --legacy-peer-deps
-cp .env.example .env.local
-# Edit .env.local with your DATABASE_URL and JWT_SECRET
-npx prisma generate
-npx prisma db push
-npm run dev
+nvm use                      # or any Node 22.18+ install
+npm ci
+cp .env.example .env         # set POSTGRES_PASSWORD, DATABASE_URL, JWT_SECRET
+docker compose up -d postgres
 ```
 
-Visit `http://localhost:3000`.
+The full walkthrough, including the host-side `DATABASE_URL`, schema setup and fixtures, is in [SETUP.md](SETUP.md).
 
-### Environment Variables
+### Environment variables
 
-| Variable               | Description                                 | Required |
-| ---------------------- | ------------------------------------------- | -------- |
-| `DATABASE_URL`         | PostgreSQL connection string                | Yes      |
-| `JWT_SECRET`           | Secret key for JWT signing                  | Yes      |
-| `NEXT_PUBLIC_APP_URL`  | App URL (default `http://localhost:3000`)   | No       |
-| `NEXT_PUBLIC_APP_NAME` | App display name (default "Family Planner") | No       |
-| `MAILGUN_API_KEY`      | Mailgun API key for family email invites    | Yes in production |
-| `MAILGUN_DOMAIN`       | Mailgun domain (default `ashbi.ca`)         | No       |
-| `MAILGUN_FROM`         | From header (default `Family Planner <noreply@ashbi.ca>`) | No |
+Templates: [`.env.example`](.env.example) (local) and [`.env.production.example`](.env.production.example) (production).
+
+| Variable                                                  | Purpose                                                                                     | Required                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------- |
+| `DATABASE_URL`                                            | PostgreSQL connection string                                                                | Yes                           |
+| `JWT_SECRET`                                              | Session signing and at-rest secret encryption; at least 32 characters in production         | Yes                           |
+| `POSTGRES_PASSWORD`                                       | Password for the `docker-compose.yml` database (must match `DATABASE_URL`)                  | For Docker Compose            |
+| `NEXT_PUBLIC_APP_URL`                                     | Public app URL used in links and emails                                                     | Recommended                   |
+| `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`       | Invite, verification and reset email                                                        | `MAILGUN_API_KEY` for email   |
+| `CRON_SECRET`                                             | Enables `POST /api/cron/recurring-chores`; empty keeps it disabled                          | No                            |
+| `TRUSTED_PROXY_HOPS`                                      | Reverse proxies in front of the app, for client-IP rate limiting (default 1)                | No                            |
+| `UPLOAD_DIR`                                              | Upload storage path (default `/data/family-planner-uploads`)                                | No                            |
+| `CAPTURE_AI_KEY`, `CAPTURE_AI_BASE_URL`, `CAPTURE_AI_MODEL` | Server-level fallback for AI capture; families normally configure this in Settings        | No                            |
+| `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`     | Client analytics; disabled when unset                                                       | No                            |
+| `MIGRATE_FALLBACK_DB`                                     | Maintenance database `scripts/migrate.js` uses when `postgres` is unavailable               | No                            |
 
 ## User Roles
 
@@ -100,73 +100,51 @@ Visit `http://localhost:3000`.
 ## Development
 
 ```bash
-npm run dev          # Start dev server (http://localhost:3000)
-npm run build        # Production build
-npm run start        # Start production server
-npm run lint          # ESLint
-npm run type-check   # TypeScript (tsc --noEmit)
-npm run format       # Prettier
-npx prisma studio    # Browse database
+npm run dev            # Dev server on http://localhost:3000
+npm run build          # Production build (next build --webpack)
+npm run start          # Serve the production build
+npm run lint           # ESLint
+npm run typecheck      # tsc --noEmit (type-check is an alias)
+npm run format:check   # Prettier on the file set CI checks
+npm run validate       # typecheck + prisma validate
+npx prisma studio      # Browse the database (needs DATABASE_URL in the shell)
 ```
+
+`npm run format` runs `prettier --write .` over the whole repository; prefer formatting only the files you changed.
 
 ## Project Structure
 
 ```
 src/
-├── app/
-│   ├── (auth)/            # Login, register
-│   ├── api/               # REST API routes
-│   ├── dashboard/         # Protected pages (FeatureGate on opt-in features)
-│   └── page.tsx           # Landing page
-├── components/
-│   ├── ui/               # 12 design primitives (Glyph, Avatar, ListRow, etc.)
-│   ├── dashboard/        # Feature components
-│   └── layout/           # Nav, CommandPalette, TabBar
-├── lib/
-│   ├── features.ts        # Feature flags (FEATURES, FeatureKey)
-│   ├── auth.ts            # JWT utilities
-│   ├── api-auth.ts        # Auth helpers (authenticateRequest, requireParent)
-│   ├── recurringChores.ts # Recurring chore expansion
-│   └── utils.ts           # cn() helper
-└── i18n/
-    └── index.tsx          # en + es inline messages
+├── app/               # App Router pages and REST API routes (api/)
+├── components/        # UI primitives, dashboard features, layout
+├── lib/               # Auth, Prisma client, feature flags, domain logic, fixtures
+├── i18n/              # Inline messages
+└── middleware.ts      # Session cookie gate for /dashboard and auth routes
 
-prisma/
-└── schema.prisma          # 26 models
-
-.github/
-└── workflows/             # GitHub Actions CI, release, Android, and maintenance workflows
+prisma/schema.prisma   # Canonical data model (Prisma client generation)
+scripts/migrate.js     # Idempotent schema migration, run at container start
+database/migration-*.sql  # Per-feature idempotent SQL applied by migrate.js
+android/               # Capacitor Android project
+.github/workflows/      # release.yml, apk.yml, auto-merge.yml, stale-issues.yml
 ```
-
-## Deployment
-
-### Docker
-
-```bash
-docker build -t family-planner .
-docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
-  -e JWT_SECRET="your-secret" \
-  family-planner
-```
-
-### Production release
-
-Production releases are started manually from the default branch in GitHub Actions. Pull requests and regular pushes validate without deploying. See DEPLOYMENT.md for the required production environment and SSH configuration.
-
-### CI/CD
-
-One GitHub-hosted workflow owns application validation and the exact-image release path. Separate workflows handle Android artifacts and repository maintenance.
 
 ## Testing
 
 ```bash
-npx prisma generate  # required after a clean install
-npm run type-check   # Must pass before PR
-npm test             # Unit and contract tests
-npm run build        # Must succeed before deploy
-npm run verify:app   # Complete application gate in release order
+npx prisma generate      # required after a clean install
+npm test                 # Jest unit and contract tests
+npm run verify:app       # Full local gate: generate, typecheck, lint, test, build, audit
 ```
+
+- Deterministic fixture households: `npm run fixtures:seed` / `npm run fixtures:reset` (guarded; see [docs/testing/TEST_DATA.md](docs/testing/TEST_DATA.md)).
+- Browser end-to-end tests: [docs/testing/E2E.md](docs/testing/E2E.md).
+
+CI runs the `Build & Test` job in `.github/workflows/release.yml` on every pull request; see [docs/engineering/CI_AND_RELEASE.md](docs/engineering/CI_AND_RELEASE.md).
+
+## Deployment
+
+`docker-compose.yml` is for local, self-contained runs only. Production is released by a manually dispatched `Release to VPS` job that promotes the exact smoke-tested image; the container runs `scripts/migrate.js` on start. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## License
 

@@ -284,7 +284,7 @@ function AnniversariesPageInner() {
     setSaving(true)
     try {
       if (editItem) {
-        const res = await fetch(`/api/anniversaries?id=${editItem.id}`, {
+        const res = await fetch(`/api/anniversaries/${encodeURIComponent(editItem.id)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
@@ -313,7 +313,7 @@ function AnniversariesPageInner() {
     if (!confirm(t('common.confirm') + '?')) return
     setSaving(true)
     try {
-      const res = await fetch(`/api/anniversaries?id=${editItem.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/anniversaries/${encodeURIComponent(editItem.id)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setEditItem(null)
       await fetchDates()
