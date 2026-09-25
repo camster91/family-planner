@@ -11,6 +11,11 @@ export async function GET() {
   const gate = await featureGate(user.family_id, 'allowance')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ items: [] })
+  // Household money is parent-only (#102). The allowance page is not on the kid
+  // allowlist; a kid view of their own allowance would need a product decision.
+  if (user.role !== 'parent') {
+    return NextResponse.json({ error: 'Only parents can view allowance' }, { status: 403 })
+  }
 
   const items = await prisma!.allowance.findMany({
     where: { family_id: user.family_id },

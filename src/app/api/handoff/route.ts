@@ -33,6 +33,15 @@ export async function GET(request: NextRequest) {
       orderBy: { created_at: 'desc' },
     })
 
+    // The share token is a bearer credential for the public sitter page, and
+    // tokens are parent-only (#102). Only parents can create or rotate it, so
+    // only parents receive it.
+    if (auth.user.role !== 'parent') {
+      return NextResponse.json({
+        handoffs: handoffs.map(({ share_token: _token, share_expires_at: _expires, ...rest }) => rest),
+      })
+    }
+
     return NextResponse.json({ handoffs })
   } catch (err) {
     console.error('GET /api/handoff error:', err)

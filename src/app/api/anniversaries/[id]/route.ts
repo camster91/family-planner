@@ -48,7 +48,19 @@ export async function PATCH(request: NextRequest) {
     }
     if (date !== undefined) data.date = new Date(date)
     if (notes !== undefined) data.notes = notes || null
-    if (person_id !== undefined) data.person_id = person_id || null
+    if (person_id !== undefined) {
+      // A linked person must be a member of the caller's family (#102).
+      if (person_id) {
+        const person = await prisma!.user.findFirst({
+          where: { id: person_id, family_id: auth.user.family_id },
+          select: { id: true },
+        })
+        if (!person) {
+          return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+        }
+      }
+      data.person_id = person_id || null
+    }
 
     const updated = await prisma!.anniversary.update({
       where: { id },
