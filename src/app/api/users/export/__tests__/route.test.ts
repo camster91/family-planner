@@ -173,6 +173,22 @@ describe("GET /api/users/export — family secrets", () => {
     expect(body.user).not.toHaveProperty("password");
   });
 
+  it("only a parent's export carries the family's travel plans (parent-only, #102)", async () => {
+    FAMILIES["family-A"].travel_destination = "Lisbon";
+
+    mockAuth.mockResolvedValue([{ userId: "child-a" }, null]);
+    const child = await (await GET(makeRequest())).json();
+    expect(child.family).not.toHaveProperty("travel_destination");
+    expect(child.family).not.toHaveProperty("travel_mode_active");
+    expect(JSON.stringify(child)).not.toContain("Lisbon");
+
+    mockAuth.mockResolvedValue([{ userId: "parent-a" }, null]);
+    const parent = await (await GET(makeRequest())).json();
+    expect(parent.family.travel_destination).toBe("Lisbon");
+
+    FAMILIES["family-A"].travel_destination = null;
+  });
+
   it("only ever exports the caller's own family, never another household", async () => {
     mockAuth.mockResolvedValue([{ userId: "parent-a" }, null]);
 

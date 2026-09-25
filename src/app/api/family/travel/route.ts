@@ -7,12 +7,20 @@ type SessionUser = { id: string; email: string; role?: string; family_id?: strin
 
 export async function GET() {
   const user = (await getServerUser()) as SessionUser | null
-  if (!user?.family_id) {
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (!user.family_id) {
     return NextResponse.json({ error: 'No family' }, { status: 400 })
   }
 
   const gate = await featureGate(user.family_id, 'travel')
   if (gate) return gate
+  // When the household is away and where it went is parent-only (#102). The
+  // travel page is not on the kid allowlist, so no kid surface reads this.
+  if (user.role !== 'parent') {
+    return NextResponse.json({ error: 'Parents only' }, { status: 403 })
+  }
 
   const family = await prisma!.family.findUnique({
     where: { id: user.family_id },

@@ -54,6 +54,17 @@ export async function PATCH(request: NextRequest) {
     const familyError = requireFamilyMatch(meal.family_id, auth.user.family_id)
     if (familyError) return familyError
 
+    // The cook must be a member of the caller's family (#102).
+    if (cook_id) {
+      const cook = await prisma!.user.findFirst({
+        where: { id: cook_id, family_id: auth.user.family_id },
+        select: { id: true },
+      })
+      if (!cook) {
+        return NextResponse.json({ error: 'Cook must be a member of your family' }, { status: 400 })
+      }
+    }
+
     const data: Record<string, unknown> = {}
     if (recipe_name !== undefined) data.recipe_name = recipe_name
     if (notes !== undefined) data.notes = notes

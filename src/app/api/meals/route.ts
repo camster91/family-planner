@@ -100,6 +100,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
     }
 
+    // The cook must be a member of the caller's family (#102). Without this a
+    // foreign user id was stored and its name echoed back through `include`.
+    if (cook_id) {
+      const cook = await prisma!.user.findFirst({
+        where: { id: cook_id, family_id: auth.user.family_id },
+        select: { id: true },
+      })
+      if (!cook) {
+        return NextResponse.json({ error: 'Cook must be a member of your family' }, { status: 400 })
+      }
+    }
+
     const meal = await prisma!.familyMeal.create({
       data: {
         family_id: auth.user.family_id,

@@ -11,6 +11,11 @@ export async function GET() {
   const gate = await featureGate(user.family_id, 'locations')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ locations: [] })
+  // Saved places carry precise addresses, which are parent-only (#102,
+  // AUTHORIZATION.md). The kid dashboard has no locations surface.
+  if (user.role !== 'parent') {
+    return NextResponse.json({ error: 'Only parents can view locations' }, { status: 403 })
+  }
 
   const locations = await prisma!.familyLocation.findMany({
     where: { family_id: user.family_id },

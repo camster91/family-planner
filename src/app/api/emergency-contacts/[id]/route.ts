@@ -53,6 +53,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Invalid relationship' }, { status: 400 })
     }
 
+    // A linked person must be a member of the caller's family (#102).
+    if (data.person_id) {
+      const person = await prisma!.user.findFirst({
+        where: { id: data.person_id as string, family_id: auth.user.family_id },
+        select: { id: true },
+      })
+      if (!person) {
+        return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+      }
+    }
+
     const updated = await prisma!.emergencyContact.update({
       where: { id },
       data,

@@ -82,6 +82,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
     }
 
+    // A linked person must be a member of the caller's family (#102).
+    if (person_id) {
+      const person = await prisma!.user.findFirst({
+        where: { id: person_id, family_id: auth.user.family_id },
+        select: { id: true },
+      })
+      if (!person) {
+        return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+      }
+    }
+
     const created = await prisma!.anniversary.create({
       data: {
         family_id: auth.user.family_id,
