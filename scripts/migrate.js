@@ -573,27 +573,35 @@ async function migrate() {
       console.log(`Database '${targetDb}' already exists`)
     }
   } catch (error) {
-    // If connecting to 'postgres' db fails, try 'glowos' (for Coolify-managed databases)
-    const fallbackUrl = new URL(databaseUrl)
-    fallbackUrl.pathname = '/glowos'
-    console.log(`Failed to connect to 'postgres' db, trying 'glowos'...`)
-    const fallbackClient = new Client({ connectionString: fallbackUrl.toString() })
-    try {
-      await fallbackClient.connect()
-      const result = await fallbackClient.query(
-        `SELECT 1 FROM pg_database WHERE datname = $1`,
-        [targetDb]
-      )
-      if (result.rows.length === 0) {
-        console.log(`Creating database '${targetDb}'...`)
-        await fallbackClient.query(`CREATE DATABASE "${targetDb}"`)
-        console.log(`Database '${targetDb}' created successfully`)
-      } else {
-        console.log(`Database '${targetDb}' already exists`)
+    // If the 'postgres' maintenance db is unavailable (some managed hosts
+    // rename it), MIGRATE_FALLBACK_DB names another db to connect through.
+    // Without it we skip creation: the target db usually already exists and
+    // the migrations below connect to it directly.
+    const fallbackDb = process.env.MIGRATE_FALLBACK_DB?.trim()
+    if (!fallbackDb) {
+      console.warn(`Could not connect to the 'postgres' db to check '${targetDb}' (${error.message}); set MIGRATE_FALLBACK_DB to use another maintenance db. Continuing.`)
+    } else {
+      const fallbackUrl = new URL(databaseUrl)
+      fallbackUrl.pathname = `/${fallbackDb}`
+      console.log(`Failed to connect to 'postgres' db, trying '${fallbackDb}'...`)
+      const fallbackClient = new Client({ connectionString: fallbackUrl.toString() })
+      try {
+        await fallbackClient.connect()
+        const result = await fallbackClient.query(
+          `SELECT 1 FROM pg_database WHERE datname = $1`,
+          [targetDb]
+        )
+        if (result.rows.length === 0) {
+          console.log(`Creating database '${targetDb}'...`)
+          await fallbackClient.query(`CREATE DATABASE "${targetDb}"`)
+          console.log(`Database '${targetDb}' created successfully`)
+        } else {
+          console.log(`Database '${targetDb}' already exists`)
+        }
+        await fallbackClient.end()
+      } catch (err2) {
+        console.error('Could not create database:', err2.message)
       }
-      await fallbackClient.end()
-    } catch (err2) {
-      console.error('Could not create database:', err2.message)
     }
   } finally {
     if (connected) {
