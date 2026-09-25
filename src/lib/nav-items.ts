@@ -64,10 +64,4 @@ export const navItems: NavItem[] = [
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
-export const recentItems = [
-  { id: '1', name: 'Weekly chores', type: 'chore' },
-  { id: '2', name: 'Family dinner', type: 'event' },
-  { id: '3', name: 'Grocery list', type: 'list' },
-]
-
 export const searchPlaceholder = 'Search across chores, events, lists, and people'

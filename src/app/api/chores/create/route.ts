@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
 import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
+import { normalizeDateOnlyInput } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,12 @@ export async function POST(request: NextRequest) {
 
     const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url } = parsed.data
 
+    // due_date is a date-only value: store the UTC calendar day at midnight.
+    const dueDate = normalizeDateOnlyInput(due_date)
+    if (!dueDate) {
+      return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+    }
+
     // Verify the assigned user belongs to the same family
     const assignee = await prisma!.user.findUnique({
       where: { id: assigned_to },
@@ -47,7 +54,7 @@ export async function POST(request: NextRequest) {
         description: description || null,
         points,
         assigned_to,
-        due_date: new Date(due_date),
+        due_date: dueDate,
         difficulty,
         frequency,
         status: 'pending',

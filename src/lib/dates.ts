@@ -90,6 +90,32 @@ export function startOfTodayUTC(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 }
 
+/**
+ * Normalize an API-supplied date-only field (e.g. a chore `due_date`) to UTC
+ * midnight. Accepts a strict `YYYY-MM-DD`, or any parseable timestamp, which is
+ * truncated to its UTC calendar day. Returns null for anything else.
+ */
+export function normalizeDateOnlyInput(value: unknown): Date | null {
+  if (typeof value !== 'string') return null
+  if (DATE_ONLY_RE.test(value)) return parseDateOnly(value)
+  const parsed = new Date(value)
+  if (isNaN(parsed.getTime())) return null
+  return startOfTodayUTC(parsed)
+}
+
+/**
+ * New due day (`YYYY-MM-DD`) when a date-only chore is snoozed: one day after
+ * the later of its current due day and the viewer's local today. An overdue or
+ * due-today chore moves to tomorrow; a future chore moves back by one day.
+ */
+export function snoozedDueDate(current: Date | string, now: Date = new Date()): string {
+  const currentDay = toDateOnlyUTC(current)
+  const today = toDateOnlyLocal(now)
+  const base = parseDateOnly(currentDay > today ? currentDay : today)
+  // `today` is always a valid date-only string, so base is only null for a malformed `current`.
+  return toDateOnlyUTC(addUTCDays(base ?? (parseDateOnly(today) as Date), 1))
+}
+
 /** Parse a strict `YYYY-MM` string. Returns null if invalid. */
 export function parseYearMonth(value: string): { year: number; month: number } | null {
   const match = YEAR_MONTH_RE.exec(value)

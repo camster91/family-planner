@@ -2,6 +2,8 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
 import { utcMonthRange } from '@/lib/dates'
+import { canRoleAccessPath } from '@/lib/kid-access'
+import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import DashboardHome, { type BudgetSnapshot } from '@/components/dashboard/DashboardHome'
 import KidHome from '@/components/dashboard/KidHome'
 
@@ -183,6 +185,12 @@ export default async function DashboardPage() {
     }
   }
 
+  // Shopping card: real open items from the family's grocery/shopping lists.
+  // Only for roles that may open /dashboard/lists (kids are bounced from it).
+  const shopping: ShoppingSnapshot | null = canRoleAccessPath(user.role, '/dashboard/lists')
+    ? await getOpenShoppingItems(prisma!, familyId)
+    : null
+
   if (isKid) {
     return (
       <KidHome
@@ -207,6 +215,7 @@ export default async function DashboardPage() {
         anniversaries={upcomingAnniversaries}
         photoVerifyQueue={photoVerifyQueue}
         budget={budget}
+        shopping={shopping}
       />
       <AdminControlsWrapper />
     </>
