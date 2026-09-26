@@ -58,18 +58,27 @@ describeWithDatabase('shared device against Postgres', () => {
     await prisma.deviceAuditEvent.deleteMany({ where: { family_id: { in: [FAM, FAM2] } } })
   })
 
-  async function seedActiveDevices(familyId: string, n: number) {
+  async function seedActiveDevices(familyId: string, n: number): Promise<string[]> {
+    const ids: string[] = []
     for (let i = 0; i < n; i++) {
       const d = await prisma.householdDevice.create({
         data: { family_id: familyId, label: `Tablet ${i}`, platform: 'web' },
         select: { id: true },
       })
       await lib.createDeviceSession(prisma, d.id, familyId, now())
+      ids.push(d.id)
     }
+    return ids
   }
 
-  async function confirmedPairing(familyId = FAM, createdBy = PARENT) {
-    const created = await pairing.createPairing(prisma, { familyId, userId: createdBy, label: 'New tablet', now: now() })
+  async function confirmedPairing(familyId = FAM, createdBy = PARENT, replacesDeviceId: string | null = null) {
+    const created = await pairing.createPairing(prisma, {
+      familyId,
+      userId: createdBy,
+      label: 'New tablet',
+      now: now(),
+      replacesDeviceId,
+    })
     if (!created.ok) throw new Error('create failed')
     const claimed = await pairing.claimPairing(prisma, { code: created.code, platform: 'web', appVersion: null, now: now() })
     if (!claimed.ok) throw new Error('claim failed')
@@ -107,6 +116,47 @@ describeWithDatabase('shared device against Postgres', () => {
     const results = await Promise.all(rows.map((row) => pairing.issuePairedDevice(prisma, row!, now())))
     expect(results.map((r) => r.kind).sort()).toEqual(['limit', 'paired'])
     expect(await prisma.householdDevice.count({ where: { family_id: FAM, revoked_at: null } })).toBe(5)
+  })
+
+  // §7 "Replace" (#241 review): at the limit, atomic revoke + issue.
+  it('a replacing pairing works at the limit: the old tablet is revoked in the issuing transaction', async () => {
+    const ids = await seedActiveDevices(FAM, 5)
+    const plain = await pairing.createPairing(prisma, { familyId: FAM, userId: PARENT, label: 'x', now: now() })
+    expect(plain).toEqual({ ok: false, code: 'DEVICE_LIMIT_REACHED' })
+    const a = await confirmedPairing(FAM, PARENT, ids[0])
+    const row = await pairing.findPairingByClaimToken(prisma, a.claimToken)
+    const issued = await pairing.issuePairedDevice(prisma, row!, now())
+    expect(issued).toMatchObject({ kind: 'paired', replacedDeviceId: ids[0] })
+    const old = await prisma.householdDevice.findUnique({ where: { id: ids[0] } })
+    expect(old).toMatchObject({ revoke_reason: 'replaced', revoked_by: PARENT })
+    expect(await prisma.deviceSession.count({ where: { device_id: ids[0], revoked_at: null } })).toBe(0)
+    expect(await prisma.householdDevice.count({ where: { family_id: FAM, revoked_at: null } })).toBe(5)
+  })
+
+  it('a replacing issue that would still exceed the limit rolls back the revoke', async () => {
+    const ids = await seedActiveDevices(FAM, 5)
+    const a = await confirmedPairing(FAM, PARENT, ids[0])
+    // Something else fills the freed slot before issue (bypassing capacity on purpose).
+    await seedActiveDevices(FAM, 1)
+    const row = await pairing.findPairingByClaimToken(prisma, a.claimToken)
+    expect(await pairing.issuePairedDevice(prisma, row!, now())).toEqual({ kind: 'limit' })
+    // The old tablet was not left revoked without a replacement.
+    expect((await prisma.householdDevice.findUnique({ where: { id: ids[0] } }))!.revoked_at).toBeNull()
+    expect((await prisma.devicePairing.findUnique({ where: { id: a.pairingId } }))!.cancelled_at).not.toBeNull()
+  })
+
+  it('deleting a replaced tablet row leaves the pairing (FK SET NULL)', async () => {
+    const ids = await seedActiveDevices(FAM, 1)
+    const created = await pairing.createPairing(prisma, {
+      familyId: FAM,
+      userId: PARENT,
+      label: 'x',
+      now: now(),
+      replacesDeviceId: ids[0],
+    })
+    if (!created.ok) throw new Error('create failed')
+    await prisma.householdDevice.delete({ where: { id: ids[0] } })
+    expect((await prisma.devicePairing.findUnique({ where: { id: created.pairingId } }))!.replaces_device_id).toBeNull()
   })
 
   it('the same pairing issued twice concurrently mints one device', async () => {

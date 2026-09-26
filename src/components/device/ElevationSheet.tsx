@@ -95,6 +95,10 @@ export default function ElevationSheet({
       setPin('')
       setPassword('')
       if (err instanceof DeviceApiError && err.terminal) return
+      if (err instanceof DeviceApiError && err.code === 'ELEVATION_BACKGROUNDED') {
+        setError('Parent mode ended because the tablet was put away. Try again.')
+        return
+      }
       if (err instanceof DeviceApiError && err.code === 'ELEVATION_INVALID_CREDENTIAL') {
         setError(method === 'pin' ? "That PIN didn't work. Try again." : "That password didn't work. Try again.")
       } else if (err instanceof DeviceApiError && err.code === 'ELEVATION_LOCKED') {

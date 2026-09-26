@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server'
 import { log } from '@/lib/logger'
 import type { RateLimitResult } from '@/lib/rate-limit-db'
+import { clearDeviceCookies } from '@/lib/device-session'
 
 /** Read at call time (Node runtime), so flipping the env needs no rebuild. */
 export function isSharedDeviceEnabled(): boolean {
@@ -113,9 +114,19 @@ export function deviceNotFound(): NextResponse {
   return deviceError(404, 'NOT_FOUND')
 }
 
-/** Returns the kill-switch 404, or null when shared-device mode is enabled. */
+/**
+ * Returns the kill-switch 404, or null when shared-device mode is enabled.
+ * The 404 also expires both device cookies (HttpOnly, so the tablet's own
+ * purge cannot): a tablet that was open when the switch went off must
+ * re-pair, not silently resume when it is turned back on (§13). It writes
+ * nothing to the database. Harmless on person routes, which carry no device
+ * cookies.
+ */
 export function killSwitch(): NextResponse | null {
-  return isSharedDeviceEnabled() ? null : deviceNotFound()
+  if (isSharedDeviceEnabled()) return null
+  const res = deviceNotFound()
+  clearDeviceCookies(res)
+  return res
 }
 
 export function rateLimited(result: RateLimitResult): NextResponse {

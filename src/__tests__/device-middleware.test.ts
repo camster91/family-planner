@@ -11,6 +11,7 @@ jest.mock('@/lib/prisma', () => ({ prisma: undefined }))
 import { middleware } from '@/middleware'
 import { signToken } from '@/lib/auth'
 import { resolveSession } from '@/lib/session'
+import { clearsDeviceCookies } from '@/__tests__/helpers/device'
 
 function request(path: string, cookies: Record<string, string> = {}, method = 'GET', headers: Record<string, string> = {}): any {
   const url = new URL(`http://localhost${path}`)
@@ -91,6 +92,17 @@ describe('middleware with shared-device cookies', () => {
       expect(location(await middleware(request('/', DEVICE)))).toBeNull()
       expect(location(await middleware(request('/dashboard', DEVICE)))).toBe('/login')
       expect(location(await middleware(request('/device/today')))).toBeNull()
+    })
+
+    it('expires device cookies (HttpOnly) so a tablet cannot resume when the switch returns', async () => {
+      for (const path of ['/device/today', '/', '/login']) {
+        const res: any = await middleware(request(path, { ...DEVICE, ...REFRESH_ONLY }))
+        expect(clearsDeviceCookies(res)).toBe(true)
+      }
+      // No device cookie, nothing to expire.
+      const plain: any = await middleware(request('/device/today'))
+      expect((plain.setCookies ?? []).map((c: any) => c.name)).not.toContain('fp_device')
+      expect(resolveSession).not.toHaveBeenCalled()
     })
   })
 })

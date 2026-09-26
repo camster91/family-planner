@@ -6,6 +6,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { PAIRING_POLL_MS } from '@/lib/device-client'
 import { formatCountdown, waitText } from './use-device-client'
 import {
+  dangerButtonClass,
   errorTextClass,
   inputClass,
   labelClass,
@@ -21,7 +22,12 @@ type Step =
   | { kind: 'code'; pairingId: string; code: string; expiresAt: number }
   | { kind: 'confirm'; pairingId: string; expiresAt: number }
   | { kind: 'connecting'; pairingId: string; expiresAt: number }
-  | { kind: 'done'; label: string }
+  | {
+      kind: 'done'
+      label: string
+      /** From the server: null (nothing replaced), or whether the old tablet is now removed. */
+      replaced: { removed: boolean } | null
+    }
   | { kind: 'ended'; reason: Ended }
 
 const ENDED_TEXT: Record<Ended, string> = {
@@ -45,8 +51,11 @@ async function readError(res: Response) {
  * "Pair a tablet" (SHARED_DEVICE.md §5.1 steps 1 and 3): name → one-time
  * code with its expiry countdown → poll until the tablet claims it → "Type
  * the number shown on the tablet" → confirmed → paired. "This isn't my
- * tablet" cancels. With `replace`, the old tablet is removed once the new one
- * is connected (§7 "Replace").
+ * tablet" cancels. With `replace` and the box ticked, the pairing carries
+ * `replacesDeviceId`: the server revokes the old tablet in the same
+ * transaction that connects the new one (so replacing works at the 5-tablet
+ * limit), and the dialog reports the removal only from the server's answer
+ * (§7 "Replace").
  */
 export default function PairTabletDialog({
   open,
@@ -101,16 +110,25 @@ export default function PairTabletDialog({
     return () => window.clearInterval(id)
   }, [expiresAt])
 
-  const finish = React.useCallback(async () => {
-    if (replace && removeOld) {
-      await fetch(`/api/family/devices/${encodeURIComponent(replace.id)}/revoke`, {
+  const [retryState, setRetryState] = React.useState<'idle' | 'busy' | 'failed'>('idle')
+
+  /** Recovery when the server did not remove the replaced tablet: a plain revoke, checked. */
+  const removeOldNow = async () => {
+    if (!replace || step.kind !== 'done') return
+    setRetryState('busy')
+    try {
+      const res = await fetch(`/api/family/devices/${encodeURIComponent(replace.id)}/revoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'replaced' }),
-      }).catch(() => null)
+      })
+      if (!res.ok) throw new Error(String(res.status))
+      setStep({ ...step, replaced: { removed: true } })
+      setRetryState('idle')
+    } catch {
+      setRetryState('failed')
     }
-    setStep({ kind: 'done', label: labelForDone.current })
-  }, [replace, removeOld])
+  }
 
   // Poll the pairing while waiting for the tablet (claim) or for issue (paired).
   React.useEffect(() => {
@@ -124,13 +142,21 @@ export default function PairTabletDialog({
         const res = await fetch(`/api/family/devices/pairings/${encodeURIComponent(pairingId)}`, { cache: 'no-store' })
         if (cancelled) return
         if (res.ok) {
-          const body = (await res.json()) as { status: string }
+          const body = (await res.json()) as {
+            status: string
+            replaces?: { deviceId: string; removed: boolean } | null
+          }
           if (body.status === 'claimed' && step.kind === 'code') {
             setStep({ kind: 'confirm', pairingId, expiresAt: expiresAt ?? Date.now() })
             return
           }
           if (body.status === 'paired') {
-            await finish()
+            setRetryState('idle')
+            setStep({
+              kind: 'done',
+              label: labelForDone.current,
+              replaced: body.replaces ? { removed: body.replaces.removed } : null,
+            })
             return
           }
           if (body.status === 'expired' || body.status === 'cancelled') {
@@ -151,7 +177,7 @@ export default function PairTabletDialog({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [polling, pairingId, expiresAt, step.kind, finish])
+  }, [polling, pairingId, expiresAt, step.kind])
 
   const cancelPairing = async (id: string) => {
     await fetch(`/api/family/devices/pairings/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null)
@@ -177,7 +203,7 @@ export default function PairTabletDialog({
       const res = await fetch('/api/family/devices/pairings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: trimmed }),
+        body: JSON.stringify(replace && removeOld ? { label: trimmed, replacesDeviceId: replace.id } : { label: trimmed }),
       })
       if (res.ok) {
         const body = (await res.json()) as { pairingId: string; code: string; expiresAt: string }
@@ -187,7 +213,15 @@ export default function PairTabletDialog({
       }
       const { code, retryAfter } = await readError(res)
       if (code === 'DEVICE_LIMIT_REACHED') {
-        setError('This household already has 5 tablets (or codes waiting). Remove one first.')
+        setError(
+          replace && !removeOld
+            ? 'This household already has 5 tablets (or codes waiting). Tick "Remove" above, or remove a tablet first.'
+            : 'This household already has 5 tablets (or codes waiting). Remove one first.'
+        )
+      } else if (replace && res.status === 404) {
+        setError(`${replace.label} is no longer in your household. Close this and pair a tablet instead.`)
+      } else if (replace && code === 'VALIDATION_ERROR') {
+        setError(`${replace.label} was already removed. Close this and pair a tablet instead.`)
       } else if (res.status === 429) {
         setError(`Too many pairing codes. Try again in ${waitText(retryAfter)}.`)
       } else {
@@ -390,8 +424,25 @@ export default function PairTabletDialog({
         <div className="space-y-5">
           <p role="status" className={noticeTextClass}>
             {step.label} is connected and showing today&apos;s board.
-            {replace && removeOld ? ` ${replace.label} was removed.` : ''}
+            {replace && step.replaced?.removed ? ` ${replace.label} was removed.` : ''}
           </p>
+          {replace && step.replaced && !step.replaced.removed && (
+            <div role="alert" className={`space-y-3 ${errorTextClass}`}>
+              <p>
+                {retryState === 'failed'
+                  ? `${replace.label} still could not be removed. Try again, or remove it from the list.`
+                  : `${replace.label} was not removed. Remove it now so it stops showing your family's information.`}
+              </p>
+              <button
+                type="button"
+                onClick={() => void removeOldNow()}
+                disabled={retryState === 'busy'}
+                className={dangerButtonClass}
+              >
+                Remove {replace.label}
+              </button>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => {

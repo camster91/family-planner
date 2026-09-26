@@ -5,8 +5,9 @@
  * - Every `/api/device/*` call goes through `request`. On
  *   `401 DEVICE_ACCESS_EXPIRED` it refreshes once (a single in-flight refresh
  *   shared by all callers) and retries the original request once.
- * - `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` from anything (and a 404 from
- *   `/api/device/me`, which is what the kill switch answers) run the §8 purge:
+ * - `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` from anything, and a 404 from
+ *   any `/api/device/*` endpoint of a paired tablet (the kill-switch answer;
+ *   those routes have no other 404), run the §8 purge:
  *   drop memory state, delete `fp-device:v1:*` storage, IndexedDB `fp-device`
  *   and device Cache Storage entries, drop the queue, then replace-navigate to
  *   `/device/removed`.
@@ -37,6 +38,14 @@ export const ELEVATION_HEADER = 'X-Device-Elevation'
 export const REMOVED_PATH = '/device/removed'
 
 const TERMINAL_CODES = new Set(['DEVICE_REVOKED', 'DEVICE_SESSION_INVALID'])
+
+/**
+ * A 404 from a paired tablet's device endpoint means shared-device mode is
+ * off (kill switch, SHARED_DEVICE.md §8, §13): terminal, like a revoke.
+ */
+function isKillSwitchResponse(path: string, status: number): boolean {
+  return status === 404 && path.startsWith('/api/device/')
+}
 const ELEVATION_ENDED_CODES = new Set(['ELEVATION_EXPIRED', 'ELEVATION_REQUIRED'])
 const SAFE_METHODS = new Set(['GET', 'HEAD'])
 
@@ -204,6 +213,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
   let claimToken: string | null = null
   let purging: Promise<void> | null = null
   let purged = false
+  let pageHidden = false
   const listeners = new Set<Listener>()
 
   const emit = (event: DeviceClientEvent) => {
@@ -305,7 +315,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         return { ok: true, accessExpiresAt }
       }
       const error = await toError(res)
-      if (error.terminal) {
+      if (error.terminal || isKillSwitchResponse('/api/device/session/refresh', res.status)) {
         await purge()
         return { ok: false, terminal: true, error }
       }
@@ -330,7 +340,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         if (!res.ok) error = await toError(res)
       }
       if (!res.ok) {
-        if (error.terminal || (res.status === 404 && path === '/api/device/me')) {
+        if (error.terminal || isKillSwitchResponse(path, res.status)) {
           await purge()
         } else if (options.elevated && ELEVATION_ENDED_CODES.has(error.code)) {
           dropElevation()
@@ -347,6 +357,29 @@ export function createDeviceClient(deps: DeviceClientDeps) {
     elevation = null
     if (previous) emit('elevation')
     return previous
+  }
+
+  /**
+   * Return to shared mode now; tell the server best effort (§6.3). The
+   * token is dropped before the request, so nothing can reuse it.
+   */
+  async function endElevation(): Promise<void> {
+    const previous = dropElevation()
+    if (!previous) return
+    try {
+      await deps.fetch('/api/device/elevation', {
+        method: 'DELETE',
+        headers: {
+          [ELEVATION_HEADER]: previous.token,
+          ...(deps.csrfToken() ? { 'X-CSRF-Token': deps.csrfToken() as string } : {}),
+        },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        keepalive: true,
+      })
+    } catch {
+      // Best effort: the server's idle/absolute limits apply regardless.
+    }
   }
 
   return {
@@ -415,31 +448,27 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         idleTimeoutMs: Math.max(0, body.idleTimeoutSeconds) * 1000,
         lastUsedAt: now,
       }
+      // Backgrounded (or unloading) while the credential was being checked:
+      // the hide listeners already ran with nothing to end, so end it here and
+      // never show parent mode on a tablet nobody is looking at (§6.3).
+      if (pageHidden || !deps.isVisible()) {
+        await endElevation()
+        throw new DeviceApiError(0, 'ELEVATION_BACKGROUNDED', 'Parent mode ended because the tablet was put away.')
+      }
       emit('elevation')
       return elevation
     },
 
-    /**
-     * Return to shared mode now; tell the server best effort (§6.3). The
-     * token is dropped before the request, so nothing can reuse it.
-     */
-    async endElevation(): Promise<void> {
-      const previous = dropElevation()
-      if (!previous) return
-      try {
-        await deps.fetch('/api/device/elevation', {
-          method: 'DELETE',
-          headers: {
-            [ELEVATION_HEADER]: previous.token,
-            ...(deps.csrfToken() ? { 'X-CSRF-Token': deps.csrfToken() as string } : {}),
-          },
-          credentials: 'same-origin',
-          cache: 'no-store',
-          keepalive: true,
-        })
-      } catch {
-        // Best effort: the server's idle/absolute limits apply regardless.
-      }
+    endElevation,
+
+    /** `pagehide` (navigation, reload, process death): end parent mode; refuse one that lands later. */
+    notePageHide(): void {
+      pageHidden = true
+      void endElevation()
+    },
+    /** `pageshow` (including a back/forward-cache restore). */
+    notePageShow(): void {
+      pageHidden = false
     },
 
     // -- Pairing (§5), claim token memory only --------------------------------

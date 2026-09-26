@@ -434,6 +434,26 @@ export async function hasLiveDeviceCredential(db: Db, cookies: DeviceCookieValue
 // Revocation (§8)
 
 /**
+ * The revocation writes alone, inside the caller's transaction (no audit):
+ * mark the device, revoke every session generation, clear any elevation.
+ * Used by `revokeDevice` and by a replacing pairing's issue (§5.1, §7), which
+ * must revoke the old tablet atomically with creating the new one.
+ */
+export async function revokeDeviceInTransaction(
+  tx: Tx,
+  args: { deviceId: string; familyId: string; revokedBy: string | null; reason: RevokeReason; now: Date }
+): Promise<boolean> {
+  const { deviceId, familyId, revokedBy, reason, now } = args
+  const { count } = await tx.householdDevice.updateMany({
+    where: { id: deviceId, family_id: familyId, revoked_at: null },
+    data: { revoked_at: now, revoked_by: revokedBy, revoke_reason: reason, ...CLEARED_ELEVATION },
+  })
+  if (count !== 1) return false
+  await tx.deviceSession.updateMany({ where: { device_id: deviceId, revoked_at: null }, data: { revoked_at: now } })
+  return true
+}
+
+/**
  * Revoke a device: mark it, revoke every session generation and clear any
  * elevation in one transaction, then audit. Idempotent: returns false (and
  * writes nothing) when the device is already revoked or not in `familyId`.
@@ -442,16 +462,8 @@ export async function revokeDevice(
   db: Db,
   args: { deviceId: string; familyId: string; revokedBy: string | null; reason: RevokeReason; now: Date }
 ): Promise<boolean> {
-  const { deviceId, familyId, revokedBy, reason, now } = args
-  const changed = await db.$transaction(async (tx) => {
-    const { count } = await tx.householdDevice.updateMany({
-      where: { id: deviceId, family_id: familyId, revoked_at: null },
-      data: { revoked_at: now, revoked_by: revokedBy, revoke_reason: reason, ...CLEARED_ELEVATION },
-    })
-    if (count !== 1) return false
-    await tx.deviceSession.updateMany({ where: { device_id: deviceId, revoked_at: null }, data: { revoked_at: now } })
-    return true
-  })
+  const { deviceId, familyId, revokedBy, reason } = args
+  const changed = await db.$transaction((tx) => revokeDeviceInTransaction(tx, args))
   if (changed) {
     await writeDeviceAudit(db, {
       familyId,

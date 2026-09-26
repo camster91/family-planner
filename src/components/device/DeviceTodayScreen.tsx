@@ -99,19 +99,25 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
   const elevated = elevation !== null
 
   // Auto-exit: backgrounding, page hide (navigation, reload, process death).
+  // Installed for the page's whole life, not only while elevated: an
+  // elevation that resolves after the tablet was hidden is refused by the
+  // client (it checks visibility and page hide when the credential returns).
   React.useEffect(() => {
-    if (!client || !elevated) return
+    if (!client) return
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') void client.endElevation()
     }
-    const onPageHide = () => void client.endElevation()
+    const onPageHide = () => client.notePageHide()
+    const onPageShow = () => client.notePageShow()
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
     }
-  }, [client, elevated])
+  }, [client])
 
   // Close the elevated dialogs when parent mode ends for any reason.
   React.useEffect(() => {

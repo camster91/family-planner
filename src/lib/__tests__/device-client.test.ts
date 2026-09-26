@@ -226,11 +226,26 @@ describe('terminal errors purge (§8)', () => {
     expect(t.local.getItem(DEVICE_QUEUE_KEY)).toBeNull()
   })
 
-  it('purges on 404 from /api/device/me (kill switch off)', async () => {
+  it.each([ME, TODAY, '/api/device/label'])('purges on the kill-switch 404 from %s', async (path) => {
     const t = setup(() => envelope(404, 'NOT_FOUND'))
     seedStorage(t)
-    await expect(t.client.request(ME)).rejects.toMatchObject({ status: 404 })
+    await expect(t.client.request(path)).rejects.toMatchObject({ status: 404 })
     expect(t.navigate).toHaveBeenCalledWith(REMOVED_PATH)
+    expect(t.local.getItem(DEVICE_QUEUE_KEY)).toBeNull()
+  })
+
+  it('purges when the refresh endpoint answers the kill-switch 404', async () => {
+    const t = setup((path) => (path === REFRESH ? envelope(404, 'NOT_FOUND') : envelope(401, 'DEVICE_ACCESS_EXPIRED')))
+    seedStorage(t)
+    await expect(t.client.request(TODAY)).rejects.toMatchObject({ status: 404 })
+    expect(t.count(TODAY)).toBe(1)
+    expect(t.navigate).toHaveBeenCalledWith(REMOVED_PATH)
+  })
+
+  it('a 404 from a pairing endpoint (unpaired tablet) does not purge', async () => {
+    const t = setup(() => envelope(404, 'NOT_FOUND'))
+    await expect(t.client.claim('ABCDEFGH', 'web', 'web')).rejects.toMatchObject({ status: 404 })
+    expect(t.navigate).not.toHaveBeenCalled()
   })
 
   it('purges when the server reports a different device than this browser cached', async () => {
@@ -366,6 +381,41 @@ describe('elevation is memory-only (§6.3)', () => {
     await expect(t.client.request(TODAY)).rejects.toBeInstanceOf(DeviceApiError)
     expect(t.client.getElevation()).toBeNull()
     expect(t.client.hasClaim()).toBe(false)
+  })
+
+  it('refuses an elevation that resolves after the tablet was hidden, and deletes it on the server', async () => {
+    const t = elevatedSetup()
+    t.setVisible(false)
+    await expect(t.client.elevate('u_parent', 'pin', '246810')).rejects.toMatchObject({ code: 'ELEVATION_BACKGROUNDED' })
+    expect(t.client.getElevation()).toBeNull()
+    const del = t.calls.find((c) => c.path === '/api/device/elevation' && c.init.method === 'DELETE')!
+    expect((del.init.headers as Record<string, string>)['X-Device-Elevation']).toBe(TOKEN)
+    expect(del.init.keepalive).toBe(true)
+  })
+
+  it('refuses an elevation that resolves after pagehide; pageshow allows the next one', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const t = setup(async (_path, init) => {
+      if (init.method === 'DELETE') return new Response(null, { status: 204 })
+      await gate
+      return json(200, {
+        elevationToken: TOKEN,
+        expiresAt: '2026-01-05T12:15:00.000Z',
+        idleTimeoutSeconds: 300,
+        member: { id: 'u_parent', name: 'Avery' },
+      })
+    })
+    const pending = t.client.elevate('u_parent', 'pin', '246810')
+    // The hide handler runs while the credential is in flight: nothing to end yet.
+    t.client.notePageHide()
+    release()
+    await expect(pending).rejects.toMatchObject({ code: 'ELEVATION_BACKGROUNDED' })
+    expect(t.client.getElevation()).toBeNull()
+    expect(t.calls.filter((c) => c.init.method === 'DELETE')).toHaveLength(1)
+
+    t.client.notePageShow()
+    await expect(t.client.elevate('u_parent', 'pin', '246810')).resolves.toMatchObject({ token: TOKEN })
   })
 
   it('reports lockout and bad credentials without elevating', async () => {

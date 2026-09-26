@@ -598,6 +598,99 @@ test.describe("Shared tablet", () => {
     }
   });
 
+  test("replacing a tablet works at the 5-tablet limit and removes the old one", async ({
+    page: oldTablet,
+    browser,
+  }, testInfo) => {
+    const parent = await openContext(browser, testInfo, authFile("parentA"));
+    const newTablet = await openContext(browser, testInfo);
+    try {
+      await pairViaApi(parent.page, oldTablet);
+      // Fill the household to the limit with four more (spec-owned) tablets.
+      await withDb(async (db) => {
+        for (let i = 1; i <= 4; i++) {
+          await db.query(
+            `INSERT INTO "HouseholdDevice" (id, family_id, label, platform, paired_at, created_at, updated_at)
+             VALUES ($1, $2, $3, 'web', $4, $4, $4)`,
+            [
+              `fx_e2e_device_spare_${i}`,
+              A.family,
+              `Spare tablet ${i}`,
+              E2E_ANCHOR,
+            ],
+          );
+        }
+      });
+
+      await parent.page.goto("/dashboard/settings/devices");
+      await expect(parent.page.getByTestId("device-row")).toHaveCount(5);
+      // A plain pairing is refused at the limit.
+      await parent.page.getByRole("button", { name: "Pair a tablet" }).click();
+      const dialog = parent.page.getByTestId("pair-dialog");
+      await dialog.getByRole("button", { name: "Get a code" }).click();
+      await expect(dialog.getByRole("alert")).toContainText("5 tablets");
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+
+      const oldRow = parent.page
+        .getByTestId("device-row")
+        .filter({ hasText: "Kitchen tablet" });
+      await oldRow.getByRole("button", { name: "Replace" }).click();
+      await expect(
+        dialog.getByLabel(
+          "Remove Kitchen tablet when the new one is connected",
+        ),
+      ).toBeChecked();
+      await dialog.getByLabel("Tablet name").fill("New kitchen tablet");
+      await dialog.getByRole("button", { name: "Get a code" }).click();
+      const code = (
+        await dialog.getByTestId("pairing-code").innerText()
+      ).trim();
+
+      await newTablet.page.goto("/device/pair");
+      await newTablet.page.getByLabel("Pairing code").fill(code);
+      await newTablet.page.getByRole("button", { name: "Connect" }).click();
+      const digits = (
+        await newTablet.page.getByTestId("confirm-digits").innerText()
+      ).trim();
+      const digitsInput = dialog.getByLabel("Number on the tablet");
+      await expect(digitsInput).toBeVisible({ timeout: 15_000 });
+      await digitsInput.fill(digits);
+      await dialog.getByRole("button", { name: "Connect tablet" }).click();
+      await expect(newTablet.page).toHaveURL(/\/device\/today$/, {
+        timeout: 20_000,
+      });
+      // Reported from the server's answer, not assumed.
+      await expect(dialog.getByRole("status")).toContainText(
+        "Kitchen tablet was removed.",
+        { timeout: 15_000 },
+      );
+      await dialog.getByRole("button", { name: "Done" }).click();
+
+      await expect(
+        parent.page
+          .getByTestId("device-row")
+          .filter({ hasText: "New kitchen tablet" }),
+      ).toHaveAttribute("data-status", "active");
+      await expect(
+        parent.page
+          .getByTestId("device-row")
+          .filter({ hasText: /^Kitchen tablet/ }),
+      ).toHaveAttribute("data-status", "removed");
+      await expect(
+        parent.page.locator(
+          '[data-testid="device-row"][data-status="removed"]',
+        ),
+      ).toContainText("(replaced)");
+
+      // The old tablet is purged on its next refresh.
+      await oldTablet.clock.runFor(5 * 60 * 1000);
+      await expect(oldTablet).toHaveURL(/\/device\/removed$/);
+    } finally {
+      await newTablet.context.close();
+      await parent.context.close();
+    }
+  });
+
   test("pairing handles an invalid code and a parent who cancels", async ({
     page: tablet,
     browser,

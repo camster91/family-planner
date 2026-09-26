@@ -1161,6 +1161,7 @@ model HouseholdDevice {
   creator  User?              @relation("DeviceCreator", fields: [created_by], references: [id], onDelete: SetNull)
   sessions DeviceSession[]
   events   DeviceAuditEvent[]
+  replacedByPairings DevicePairing[] @relation("DevicePairingReplaces")
 
   @@index([family_id, revoked_at])
 }
@@ -1182,12 +1183,17 @@ model DevicePairing {
   confirmed_by        String?
   cancelled_at        DateTime?
   device_id           String?   @unique // set once, when the session is issued
+  // "Replace": this household tablet is revoked (reason 'replaced') in the same
+  // transaction that issues the new one, and does not count toward capacity.
+  replaces_device_id  String?
   created_at          DateTime  @default(now())
 
-  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator User   @relation("DevicePairingCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  family   Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator  User             @relation("DevicePairingCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  replaces HouseholdDevice? @relation("DevicePairingReplaces", fields: [replaces_device_id], references: [id], onDelete: SetNull)
 
   @@index([family_id, expires_at])
+  @@index([replaces_device_id])
 }
 
 model DeviceSession {

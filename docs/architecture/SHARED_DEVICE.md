@@ -341,10 +341,15 @@ digits on **their** screen, the real tablet shows "code already used", and the p
 
 - Max 5 active (unrevoked) devices per household (**O-9**). Pending pairings reserve capacity: pairing creation
   counts active devices **plus** unexpired, uncancelled, not-yet-issued pairings and returns
-  `409 DEVICE_LIMIT_REACHED` when that sum is already 5.
+  `409 DEVICE_LIMIT_REACHED` when that sum is already 5. A replacing pairing (`replacesDeviceId`, §7 "Replace")
+  frees its target's slot: active tablets that a pending pairing (or this one) replaces are subtracted, each
+  tablet once, so a full household can still replace a tablet.
 - The limit is re-checked at issue (§5.1 step 4) inside the same transaction that creates the `HouseholdDevice`,
   after `SELECT … FOR UPDATE` on the household's `Family` row, so concurrent issues serialise. Over the limit →
-  the pairing is cancelled and the tablet's status returns `409 DEVICE_LIMIT_REACHED`.
+  the pairing is cancelled and the tablet's status returns `409 DEVICE_LIMIT_REACHED`. A replacing pairing
+  revokes its target (reason `replaced`, `revoked_by` = the confirming parent, sessions revoked, elevation
+  cleared) in that same transaction, before the re-check; if the household would still be over the limit the
+  whole transaction rolls back (the old tablet stays active) and the pairing is cancelled.
 - Rate limits in §11.
 
 ## 6. Elevation (parent on the tablet)
@@ -417,7 +422,10 @@ Page: `/dashboard/settings/devices` (person session, parent only; teens and chil
   showing your family's information the next time it connects." with optional reason Lost / Replaced / Other).
   Revoke is idempotent.
 - **Pair a tablet** (creates a code) and **Replace** (pairs a new tablet with a "Remove Kitchen tablet when the new
-  one is connected" checkbox, applied at confirmation).
+  one is connected" checkbox). With the box ticked the pairing is created with `replacesDeviceId` (stored as
+  `DevicePairing.replaces_device_id`, nullable FK, `SET NULL`) and the server revokes the old tablet atomically
+  when the new one is issued (§5.3); the dialog reports the removal only from the pairing's `replaces.removed`,
+  and otherwise offers a checked "Remove" retry.
 - Recent activity per device: last 50 `DeviceAuditEvent` rows, rendered from the fixed vocabulary.
 - Removed devices stay visible, greyed, for 30 days. There is no "restore": re-pair instead.
 - Elevation PIN: Settings → Security → "Tablet PIN" (set, change, remove).
@@ -610,14 +618,15 @@ Abuse cases and responses:
 Error envelope for all new routes (API_CONTRACTS.md target shape):
 `{ "error": { "code": "…", "message": "…", "retryable": false } }`. All device responses send
 `Cache-Control: private, no-store`. All unsafe methods require CSRF (existing middleware, no new exemptions).
-When the kill switch is off every route below returns `404`.
+When the kill switch is off every route below returns `404`, and that response also expires both device cookies
+(`Max-Age=0`, `Path=/`; no database access), as does the middleware for any request that carries them (§13).
 
 ### 12.1 Parent routes (person session, `role = 'parent'`, same household)
 
 | Method | Path | Request | Response | Errors |
 |---|---|---|---|---|
-| POST | `/api/family/devices/pairings` | `{ label }` (1–40 chars) | `201 { pairingId, code: "ABCD-EFGH", expiresAt }` | 401, 403 `PARENT_REQUIRED`, 409 `DEVICE_LIMIT_REACHED`, 429 |
-| GET | `/api/family/devices/pairings/:id` | — | `200 { status: 'waiting' \| 'claimed' \| 'confirmed' \| 'paired' \| 'expired' \| 'cancelled', claim?: { platform, appVersion } }` (never the digits) | 401, 403, 404, 429 |
+| POST | `/api/family/devices/pairings` | `{ label, replacesDeviceId? }` (1–40 chars; an active tablet of this household) | `201 { pairingId, code: "ABCD-EFGH", expiresAt, replacesDeviceId }` | 400 (already removed), 401, 403 `PARENT_REQUIRED`, 404 (foreign/unknown tablet), 409 `DEVICE_LIMIT_REACHED`, 429 |
+| GET | `/api/family/devices/pairings/:id` | — | `200 { status: 'waiting' \| 'claimed' \| 'confirmed' \| 'paired' \| 'expired' \| 'cancelled', claim?: { platform, appVersion }, replaces: null \| { deviceId, removed } }` (never the digits) | 401, 403, 404, 429 |
 | POST | `/api/family/devices/pairings/:id/confirm` | `{ digits }` (4 digits) | `200 { status: 'confirmed' }` | 400 `PAIRING_DIGITS_MISMATCH` (`attemptsLeft`), 404, 410 `PAIRING_EXPIRED` / `PAIRING_CANCELLED` |
 | DELETE | `/api/family/devices/pairings/:id` | — | `204` (idempotent) | 401, 403, 404 |
 | GET | `/api/family/devices` | — | `200 { devices: [{ id, label, platform, pairedAt, lastSeenAt, appVersion, status: 'active' \| 'removed' \| 'expired', revokedAt, revokeReason }] }` | 401, 403 |
@@ -679,7 +688,9 @@ refresh token has not expired resume; others re-pair. With the kill switch turne
 client purge runs on `404 /api/device/me`, so turning it back on requires re-pairing; this is accepted.
 
 **Kill switch.** Server env `SHARED_DEVICE_ENABLED` (default off). Setting it in production is an environment
-change that needs Cameron's approval. A per-household opt-in (`Family.features` key) is not needed for v1.
+change that needs Cameron's approval. While off, the device routes' 404 and the middleware expire the HttpOnly
+device cookies, and the tablet client treats any `/api/device/*` 404 as terminal (purge), so an open board does
+not linger and a tablet re-pairs rather than resuming when the switch returns. A per-household opt-in (`Family.features` key) is not needed for v1.
 
 **Person clients.** No change to `session_token`, JWT claims, `token_version`, `/api/auth/*` (other than the 409 on
 login while a device cookie is present, which no existing client sends), CSRF exemptions or any existing route
@@ -1014,7 +1025,7 @@ Settings entries (Devices, Tablet PIN) are not rendered; the decision is made se
 
 | Area | Source |
 |---|---|
-| Device client: single-flight refresh, one retry on `DEVICE_ACCESS_EXPIRED`, proactive refresh (< 5 min left, visible), cold-launch bootstrap, §8 purge on `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` / `404 /api/device/me` / a different cached device id, `503` / `429` / network never purge, memory-only elevation and claim tokens | `src/lib/device-client.ts` (unit tests `src/lib/__tests__/device-client.test.ts`) |
+| Device client: single-flight refresh, one retry on `DEVICE_ACCESS_EXPIRED`, proactive refresh (< 5 min left, visible), cold-launch bootstrap, §8 purge on `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` / a `404` from any `/api/device/*` endpoint (kill switch) / a different cached device id, `503` / `429` / network never purge, memory-only elevation and claim tokens, an elevation that resolves after the tablet was hidden or unloading is ended at once (`DELETE`) and refused | `src/lib/device-client.ts` (unit tests `src/lib/__tests__/device-client.test.ts`) |
 | Chrome-free shell, no person profile | `src/app/device/layout.tsx` |
 | Pairing screen (code normalisation, 4 digits large, 3 s polling, expired/cancelled/invalid/rate-limited/device-limit states) | `src/app/device/pair/page.tsx`, `src/components/device/PairScreen.tsx` |
 | Board from `GET /api/device/today` (links null), parent picker, PIN pad with password fallback, lockout, elevated banner (countdown in the last 60 s), auto-exit on idle, max, hidden, page hide, reload and "Done", rename and "Remove this tablet" under elevation | `src/app/device/today/page.tsx`, `src/components/device/DeviceTodayScreen.tsx`, `ElevationSheet.tsx`, `ElevatedBanner.tsx` |
@@ -1032,9 +1043,12 @@ As implemented:
   The purge also deletes IndexedDB `fp-device`, Cache Storage entries starting `fp-device` and the reserved queue
   key `fp-device:v1:queue`; no offline snapshot is written yet (#162).
 - Purge navigation is `location.replace`, so Back never returns to the board.
-- "Replace" pairs a new tablet and, when the checkbox is on, revokes the old one with reason `replaced` from the
-  parent's dialog once the new one reports `paired`. Closing the pairing dialog before confirmation cancels the
-  code.
+- "Replace" sends `replacesDeviceId`; the server revokes the old tablet in the issuing transaction (§5.3, §7) and
+  the dialog reports it from `GET …/pairings/:id` `replaces.removed`, with a checked retry otherwise. Closing the
+  pairing dialog before confirmation cancels the code.
+- Hide listeners (`visibilitychange` hidden, `pagehide`) are installed for the page's whole life; the client
+  also re-checks visibility and page hide when an elevation response arrives, so a PIN entered just before the
+  tablet was backgrounded never leaves parent mode on.
 - Idle expiry is mirrored on the client from the last successful elevated request; the server remains the
   authority.
 - E2E: `e2e/device.spec.ts` (docs/testing/E2E.md). §14.3 item 24 (24-hour offline snapshot) waits on #162.

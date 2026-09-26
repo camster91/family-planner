@@ -18,7 +18,8 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/family/devices/pairings/:id — the parent's dialog polls this. Never
- * returns the code or the confirmation digits.
+ * returns the code or the confirmation digits. `replaces` is null unless the
+ * pairing replaces a tablet, then `{ deviceId, removed }`.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const off = killSwitch()
@@ -38,9 +39,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!row) return deviceError(404, 'NOT_FOUND')
 
     const status = parentPairingStatus(row, deviceClock.now())
+    // "Replace": report the old tablet's state from the database, so the
+    // dialog says it was removed only when it really was (§7).
+    let replaces: { deviceId: string; removed: boolean } | null = null
+    if (row.replaces_device_id) {
+      const old = await prisma!.householdDevice.findFirst({
+        where: { id: row.replaces_device_id, family_id: manager.familyId },
+        select: { revoked_at: true },
+      })
+      replaces = { deviceId: row.replaces_device_id, removed: Boolean(old?.revoked_at) }
+    }
     return deviceJson({
       status,
       ...(row.claimed_at ? { claim: { platform: row.claim_platform, appVersion: row.claim_app_version } } : {}),
+      replaces,
     })
   } catch (error) {
     return deviceInternalError('family_devices.pairing_get', error)
