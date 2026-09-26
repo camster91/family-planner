@@ -47,6 +47,15 @@ export async function POST(request: NextRequest) {
         })
         return deviceError(409, 'DEVICE_LIMIT_REACHED')
       case 'paired': {
+        if (result.replacedDeviceId) {
+          await writeDeviceAudit(prisma!, {
+            familyId: row.family_id,
+            deviceId: result.replacedDeviceId,
+            actorUserId: row.confirmed_by,
+            type: 'device.revoked',
+            metadata: { reason: 'replaced' },
+          })
+        }
         await writeDeviceAudit(prisma!, {
           familyId: row.family_id,
           deviceId: result.device.id,

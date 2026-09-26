@@ -13,6 +13,19 @@ export interface User {
   created_at: string
 }
 
+/**
+ * What the dashboard nav (DashboardNav, TabBar) receives. Deliberately no
+ * email, age, family id, XP, level or streak: the layout serialises this into
+ * every dashboard page's RSC payload, including the fridge-mode Today board
+ * (#241, SHARED_DEVICE.md §1).
+ */
+export interface NavUser {
+  id: string
+  name: string
+  role: UserRole
+  avatar_url: string | null
+}
+
 // Partial user type for queries that don't return all fields
 export interface BasicUser {
   id: string

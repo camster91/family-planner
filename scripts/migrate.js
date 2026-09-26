@@ -441,6 +441,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_code_hash_key" ON "DevicePairin
 CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_claim_token_hash_key" ON "DevicePairing"("claim_token_hash");
 CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_device_id_key" ON "DevicePairing"("device_id");
 CREATE INDEX IF NOT EXISTS "DevicePairing_family_id_expires_at_idx" ON "DevicePairing"("family_id", "expires_at");
+-- #241 review: a pairing that replaces an existing tablet (additive, nullable).
+ALTER TABLE "DevicePairing" ADD COLUMN IF NOT EXISTS "replaces_device_id" TEXT;
+CREATE INDEX IF NOT EXISTS "DevicePairing_replaces_device_id_idx" ON "DevicePairing"("replaces_device_id");
 
 CREATE TABLE IF NOT EXISTS "DeviceSession" (
   "id" TEXT PRIMARY KEY,
@@ -515,6 +518,9 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_replaces_device_id_fkey" FOREIGN KEY ("replaces_device_id") REFERENCES "HouseholdDevice"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "DeviceSession" ADD CONSTRAINT "DeviceSession_device_id_fkey" FOREIGN KEY ("device_id") REFERENCES "HouseholdDevice"("id") ON DELETE CASCADE ON UPDATE CASCADE;

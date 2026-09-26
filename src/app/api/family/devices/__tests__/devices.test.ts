@@ -96,7 +96,7 @@ describe('shared-device pairing and management', () => {
 
       // Parent sees "waiting"; the code is never returned again or stored in plaintext.
       const waiting = await pairingById.GET(deviceReq({ as: 'parentA' }), params({ id: pairingId }))
-      expect(await waiting.json()).toEqual({ status: 'waiting' })
+      expect(await waiting.json()).toEqual({ status: 'waiting', replaces: null })
       const rawCode = created.body.code.replace('-', '')
       expect(db.find('devicePairing', pairingId)!.code_hash).toBe(hashToken(rawCode))
       expect(JSON.stringify(db.rows('devicePairing'))).not.toContain(rawCode)
@@ -116,7 +116,7 @@ describe('shared-device pairing and management', () => {
       expect(JSON.stringify(row)).not.toContain(claimed.body.claimToken)
 
       const claimedView = await (await pairingById.GET(deviceReq({ as: 'parentA' }), params({ id: pairingId }))).json()
-      expect(claimedView).toEqual({ status: 'claimed', claim: { platform: 'android', appVersion: '1.0' } })
+      expect(claimedView).toEqual({ status: 'claimed', claim: { platform: 'android', appVersion: '1.0' }, replaces: null })
       expect(JSON.stringify(claimedView)).not.toContain(claimed.body.confirmDigits)
 
       const pending = await pollStatus(claimed.body.claimToken)
@@ -252,6 +252,72 @@ describe('shared-device pairing and management', () => {
       expect(blocked.res.status).toBe(409)
       // The refused attempt left no side effects (rolled back).
       expect(db.rows('devicePairing').filter((p) => !p.cancelled_at)).toHaveLength(1)
+    })
+
+    // §7 "Replace" (#241 review): works at the limit, revokes atomically at issue.
+    it('replacing works at the 5-tablet limit and revokes the old tablet when the new one is issued', async () => {
+      for (let i = 0; i < 5; i++) seedDevice(`dev-${i}`, FAMILY_A)
+      const plain = await createPairing()
+      expect(plain.res.status).toBe(409)
+
+      const res = await pairings.POST(
+        deviceReq({ method: 'POST', as: 'parentA', body: { label: 'New kitchen', replacesDeviceId: 'dev-2' } })
+      )
+      expect(res.status).toBe(201)
+      const created = await res.json()
+      expect(created.replacesDeviceId).toBe('dev-2')
+      expect(db.find('devicePairing', created.pairingId)!.replaces_device_id).toBe('dev-2')
+
+      // A second pending replacement of the same tablet frees no second slot.
+      const again = await pairings.POST(
+        deviceReq({ method: 'POST', as: 'parentA', body: { label: 'Other', replacesDeviceId: 'dev-2' } })
+      )
+      expect(again.status).toBe(409)
+
+      const claimed = await claimCode(created.code)
+      expect((await confirm(created.pairingId, claimed.body.confirmDigits)).status).toBe(200)
+      // Nothing is revoked before the new tablet is issued.
+      expect(db.find('householdDevice', 'dev-2')!.revoked_at).toBeNull()
+      const before = await (await pairingById.GET(deviceReq({ as: 'parentA' }), params({ id: created.pairingId }))).json()
+      expect(before).toMatchObject({ status: 'confirmed', replaces: { deviceId: 'dev-2', removed: false } })
+
+      const issued = await pollStatus(claimed.body.claimToken)
+      expect(issued.status).toBe(200)
+      const old = db.find('householdDevice', 'dev-2')!
+      expect(old.revoked_at).toEqual(T0)
+      expect(old.revoke_reason).toBe('replaced')
+      expect(db.rows('deviceSession').filter((x) => x.device_id === 'dev-2').every((x) => x.revoked_at)).toBe(true)
+      expect(db.rows('householdDevice').filter((d) => d.family_id === FAMILY_A && !d.revoked_at)).toHaveLength(5)
+      expect(
+        db.rows('deviceAuditEvent').some(
+          (e) => e.device_id === 'dev-2' && e.type === 'device.revoked' && (e.metadata as any).reason === 'replaced'
+        )
+      ).toBe(true)
+
+      const after = await (await pairingById.GET(deviceReq({ as: 'parentA' }), params({ id: created.pairingId }))).json()
+      expect(after).toMatchObject({ status: 'paired', replaces: { deviceId: 'dev-2', removed: true } })
+    })
+
+    it('replacesDeviceId must be an active tablet of this household', async () => {
+      seedDevice('dev-a', FAMILY_A)
+      seedDevice('dev-b', FAMILY_B)
+      const create = (replacesDeviceId: unknown) =>
+        pairings.POST(deviceReq({ method: 'POST', as: 'parentA', body: { label: 'New', replacesDeviceId } }))
+
+      expect((await create('dev-b')).status).toBe(404)
+      expect((await create('no-such-device')).status).toBe(404)
+      expect((await create(42)).status).toBe(400)
+      await deviceRevoke.POST(deviceReq({ method: 'POST', as: 'parentA', body: {} }), params({ id: 'dev-a' }))
+      const removed = await create('dev-a')
+      expect(removed.status).toBe(400)
+      expect(await errorCode(removed)).toBe('VALIDATION_ERROR')
+      // Nothing was created, and the foreign tablet is untouched.
+      expect(db.rows('devicePairing')).toHaveLength(0)
+      expect(db.find('householdDevice', 'dev-b')!.revoked_at).toBeNull()
+      // A plain pairing reports no replacement.
+      const plain = await createPairing()
+      const got = await (await pairingById.GET(deviceReq({ as: 'parentA' }), params({ id: plain.body.pairingId }))).json()
+      expect(got.replaces).toBeNull()
     })
 
     it('the limit is re-checked at issue: over the limit the pairing is cancelled and the tablet gets 409', async () => {

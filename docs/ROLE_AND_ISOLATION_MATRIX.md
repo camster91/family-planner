@@ -145,15 +145,16 @@ calendar, chores, meals and features only to roles that may open them. DTO:
 
 Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audience: 'device'` (all links
 `null`, shopping only when the lists feature is on), is the entire shared-device read surface, served by
-`GET /api/device/today`. The `/device/today` page with a layout that loads no person profile is #241. Known gap
-until then: in `?mode=fridge` the dashboard layout still serialises the signed-in person's profile (name,
-email, age, XP, level, streak) into the hidden nav's props.
+`GET /api/device/today`. The `/device/today` page (#241) fetches it on the client under a layout that loads no
+person profile, so the page's HTML and RSC payload carry no household data. The earlier `?mode=fridge` gap is
+closed by #241 too: the dashboard layout now passes only `{ id, name, role, avatar_url }` to the nav, so no
+dashboard page serialises the signed-in person's email, age, XP, level or streak.
 
 ## Deferred
 
 - **D7 / #157 shared-device sessions.** Contract in ADR-0006 and `docs/architecture/SHARED_DEVICE.md`. The
-  schema/auth/API child issue (#240) is implemented behind `SHARED_DEVICE_ENABLED` (default off); the UI (#241),
-  device writes (phase 2, O-4/O-5), other elevated actions and Android integration are not. Each later child
+  schema/auth/API child issue (#240) and the web UI (#241: pairing, tablet shell, elevation, device
+  management, Tablet PIN) are implemented behind `SHARED_DEVICE_ENABLED` (default off); device writes (phase 2, O-4/O-5), other elevated actions and Android integration are not. Each later child
   issue updates the affected rows, the route-allowlist test and the isolation audit. Owner decisions: O-1, O-2,
   O-4 and O-11 confirmed by Cameron; the rest use the recommended defaults (SHARED_DEVICE.md §16).
 - **D3 contract step.** Photo ownership is implemented with an `Upload` record (expand phase). Legacy files

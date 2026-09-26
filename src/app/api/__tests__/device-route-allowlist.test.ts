@@ -24,6 +24,7 @@ import {
   H1_CANARIES,
   db,
   deviceReq,
+  clearsDeviceCookies,
   disableSharedDevice,
   enableSharedDevice,
   resetClock,
@@ -171,7 +172,7 @@ describe('device cookie route allowlist', () => {
     }
   })
 
-  it('kill switch off: every device and device-management route is 404, whoever calls', async () => {
+  it('kill switch off: every device and device-management route is 404 and expires device cookies, whoever calls', async () => {
     disableSharedDevice()
     const deviceFiles = files.filter((f) =>
       /\/api\/(device|family\/devices)\//.test(urlPath(f) + '/') || urlPath(f) === '/api/users/elevation-pin'
@@ -197,6 +198,8 @@ describe('device cookie route allowlist', () => {
           )
           expect([`${method} ${urlPath(file)}`, res.status]).toEqual([`${method} ${urlPath(file)}`, 404])
           expect(db.writes).toEqual([])
+          // HttpOnly device cookies are expired server-side (the tablet's JS cannot).
+          expect([`${method} ${urlPath(file)}`, clearsDeviceCookies(res)]).toEqual([`${method} ${urlPath(file)}`, true])
         }
       }
     }

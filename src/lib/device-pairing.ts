@@ -9,7 +9,12 @@ import crypto from 'crypto'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { hashToken } from '@/lib/tokens'
 import { timingSafeEqualStr } from '@/lib/constant-time'
-import { createDeviceSession, generateDeviceToken, type IssuedDeviceTokens } from '@/lib/device-session'
+import {
+  createDeviceSession,
+  generateDeviceToken,
+  revokeDeviceInTransaction,
+  type IssuedDeviceTokens,
+} from '@/lib/device-session'
 
 type Db = PrismaClient
 type Tx = Prisma.TransactionClient
@@ -58,7 +63,13 @@ async function lockFamily(tx: Tx, familyId: string): Promise<void> {
 }
 
 class DeviceLimitError extends Error {}
+class ReplaceTargetError extends Error {
+  constructor(readonly reason: 'not_found' | 'removed') {
+    super(reason)
+  }
+}
 class IssueRaceError extends Error {}
+class IssueLimitError extends Error {}
 
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
@@ -69,18 +80,24 @@ function isUniqueViolation(error: unknown): boolean {
 
 export type CreatePairingResult =
   | { ok: true; pairingId: string; code: string; expiresAt: Date; superseded: string[] }
-  | { ok: false; code: 'DEVICE_LIMIT_REACHED' }
+  | { ok: false; code: 'DEVICE_LIMIT_REACHED' | 'REPLACE_NOT_FOUND' | 'REPLACE_REMOVED' }
 
 /**
  * Create a pairing code. A fourth live, unclaimed code cancels the oldest.
  * Capacity counts active devices plus pending (unexpired, uncancelled,
  * not-yet-issued) pairings, so pending pairings reserve a slot.
+ *
+ * `replacesDeviceId` ("Replace", §7): an active tablet of the same household
+ * that the new one replaces. It is revoked when the new tablet is issued, so
+ * it does not count toward capacity while a pending pairing replaces it; a
+ * household at the limit can still replace a tablet.
  */
 export async function createPairing(
   db: Db,
-  args: { familyId: string; userId: string; label: string; now: Date }
+  args: { familyId: string; userId: string; label: string; now: Date; replacesDeviceId?: string | null }
 ): Promise<CreatePairingResult> {
   const { familyId, userId, label, now } = args
+  const replacesDeviceId = args.replacesDeviceId ?? null
   const expiresAt = new Date(now.getTime() + PAIRING_TTL_MS)
 
   for (let attempt = 0; ; attempt++) {
@@ -88,6 +105,16 @@ export async function createPairing(
     try {
       return await db.$transaction(async (tx) => {
         await lockFamily(tx, familyId)
+
+        // Validated before any write: foreign and missing ids look the same.
+        if (replacesDeviceId) {
+          const target = await tx.householdDevice.findFirst({
+            where: { id: replacesDeviceId, family_id: familyId },
+            select: { revoked_at: true },
+          })
+          if (!target) throw new ReplaceTargetError('not_found')
+          if (target.revoked_at) throw new ReplaceTargetError('removed')
+        }
 
         const unclaimed = await tx.devicePairing.findMany({
           where: { family_id: familyId, expires_at: { gt: now }, claimed_at: null, cancelled_at: null, device_id: null },
@@ -102,14 +129,26 @@ export async function createPairing(
           })
         }
 
-        const [active, pending] = await Promise.all([
+        const pendingWhere = { family_id: familyId, expires_at: { gt: now }, cancelled_at: null, device_id: null }
+        const [active, pending, replacing] = await Promise.all([
           tx.householdDevice.count({ where: { family_id: familyId, revoked_at: null } }),
-          tx.devicePairing.count({
-            where: { family_id: familyId, expires_at: { gt: now }, cancelled_at: null, device_id: null },
+          tx.devicePairing.count({ where: pendingWhere }),
+          tx.devicePairing.findMany({
+            where: { ...pendingWhere, replaces_device_id: { not: null } },
+            select: { replaces_device_id: true },
           }),
         ])
+        // Active tablets that a pending pairing (or this one) will revoke at
+        // issue free their slot; each tablet counts once.
+        const targets = new Set(replacing.map((p) => p.replaces_device_id as string))
+        if (replacesDeviceId) targets.add(replacesDeviceId)
+        const freed = targets.size
+          ? await tx.householdDevice.count({
+              where: { id: { in: Array.from(targets) }, family_id: familyId, revoked_at: null },
+            })
+          : 0
         // Throwing rolls back the superseding cancel too.
-        if (active + pending >= MAX_ACTIVE_DEVICES) throw new DeviceLimitError()
+        if (active - freed + pending >= MAX_ACTIVE_DEVICES) throw new DeviceLimitError()
 
         const created = await tx.devicePairing.create({
           data: {
@@ -125,6 +164,7 @@ export async function createPairing(
             confirmed_at: null,
             cancelled_at: null,
             device_id: null,
+            replaces_device_id: replacesDeviceId,
             created_at: now,
           },
           select: { id: true },
@@ -133,6 +173,9 @@ export async function createPairing(
       })
     } catch (error) {
       if (error instanceof DeviceLimitError) return { ok: false, code: 'DEVICE_LIMIT_REACHED' }
+      if (error instanceof ReplaceTargetError) {
+        return { ok: false, code: error.reason === 'removed' ? 'REPLACE_REMOVED' : 'REPLACE_NOT_FOUND' }
+      }
       // A code_hash collision (≈1 in 10^12) is retried with a fresh code.
       if (isUniqueViolation(error) && attempt < 2) continue
       throw error
@@ -219,6 +262,7 @@ export const PARENT_PAIRING_SELECT = {
   device_id: true,
   claim_platform: true,
   claim_app_version: true,
+  replaces_device_id: true,
 } as const
 
 export type ConfirmResult =
@@ -306,6 +350,7 @@ export const TABLET_PAIRING_SELECT = {
   device_id: true,
   claim_platform: true,
   claim_app_version: true,
+  replaces_device_id: true,
 } as const
 
 export async function findPairingByClaimToken(db: Db, claimToken: unknown) {
@@ -323,13 +368,22 @@ export type IssueResult =
   | { kind: 'expired' }
   | { kind: 'cancelled' }
   | { kind: 'limit' }
-  | { kind: 'paired'; device: { id: string; label: string }; tokens: IssuedDeviceTokens }
+  | {
+      kind: 'paired'
+      device: { id: string; label: string }
+      tokens: IssuedDeviceTokens
+      /** The tablet this pairing replaced, revoked in the same transaction (audit it). */
+      replacedDeviceId: string | null
+    }
 
 /**
  * The first status call after confirmation creates the device and its first
  * session. The 5-device limit is re-checked under `SELECT … FOR UPDATE` on the
  * Family row so concurrent issues in one household serialise; `device_id` is
- * set once, so a second call cannot mint a second device.
+ * set once, so a second call cannot mint a second device. A replacing
+ * pairing revokes the old tablet (reason 'replaced') inside the same
+ * transaction, before the capacity check, so the household never holds more
+ * than 5 active tablets and never loses the old one without gaining the new.
  */
 export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date): Promise<IssueResult> {
   if (row.device_id) return { kind: 'expired' }
@@ -342,20 +396,29 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
       await lockFamily(tx, row.family_id)
       const fresh = await tx.devicePairing.findUnique({
         where: { id: row.id },
-        select: { device_id: true, cancelled_at: true, expires_at: true, confirmed_at: true },
+        select: { device_id: true, cancelled_at: true, expires_at: true, confirmed_at: true, replaces_device_id: true },
       })
       if (!fresh || fresh.device_id) return { kind: 'expired' }
       if (fresh.cancelled_at) return { kind: 'cancelled' }
       if (fresh.expires_at.getTime() <= now.getTime() || !fresh.confirmed_at) return { kind: 'expired' }
 
+      // Scoped by household: a foreign or already-removed id revokes nothing.
+      const replacedDeviceId =
+        fresh.replaces_device_id &&
+        (await revokeDeviceInTransaction(tx, {
+          deviceId: fresh.replaces_device_id,
+          familyId: row.family_id,
+          revokedBy: row.confirmed_by,
+          reason: 'replaced',
+          now,
+        }))
+          ? fresh.replaces_device_id
+          : null
+
       const active = await tx.householdDevice.count({ where: { family_id: row.family_id, revoked_at: null } })
-      if (active >= MAX_ACTIVE_DEVICES) {
-        await tx.devicePairing.updateMany({
-          where: { id: row.id, cancelled_at: null, device_id: null },
-          data: { cancelled_at: now },
-        })
-        return { kind: 'limit' }
-      }
+      // Throw (roll back) rather than return, so a replaced tablet is never
+      // revoked without its replacement; the pairing is cancelled below.
+      if (active >= MAX_ACTIVE_DEVICES) throw new IssueLimitError()
 
       const device = await tx.householdDevice.create({
         data: {
@@ -382,9 +445,16 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
       })
       if (claimed.count !== 1) throw new IssueRaceError()
       const tokens = await createDeviceSession(tx, device.id, row.family_id, now)
-      return { kind: 'paired', device, tokens }
+      return { kind: 'paired', device, tokens, replacedDeviceId }
     })
   } catch (error) {
+    if (error instanceof IssueLimitError) {
+      await db.devicePairing.updateMany({
+        where: { id: row.id, cancelled_at: null, device_id: null },
+        data: { cancelled_at: now },
+      })
+      return { kind: 'limit' }
+    }
     if (error instanceof IssueRaceError || isUniqueViolation(error)) return { kind: 'expired' }
     throw error
   }

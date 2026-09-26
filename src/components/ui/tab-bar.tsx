@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Home, Calendar, ListChecks, Heart, Users, LucideIcon } from 'lucide-react'
-import { User } from '@/types'
+import type { NavUser } from '@/types'
 import { filterNavForRole } from '@/lib/kid-access'
 
 /**
@@ -29,7 +29,7 @@ const TABS: TabItem[] = [
   { href: '/dashboard/family', label: 'Family', icon: Users, matchPrefix: true },
 ]
 
-export function TabBar({ user }: { user: User | null }) {
+export function TabBar({ user }: { user: NavUser | null }) {
   const pathname = usePathname()
   // Kids only see tabs they can reach (same allowlist as the middleware redirect).
   const tabs = filterNavForRole(TABS, user?.role)

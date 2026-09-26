@@ -138,6 +138,9 @@ export default defineConfig({
       TZ: E2E_TIMEZONE,
       JWT_SECRET: process.env.JWT_SECRET || E2E_DEFAULT_JWT_SECRET,
       NEXT_TELEMETRY_DISABLED: "1",
+      // Shared-device mode (#241, e2e/device.spec.ts). Only requests that
+      // carry device cookies behave differently, and no other spec sends one.
+      SHARED_DEVICE_ENABLED: "1",
     },
   },
 });
