@@ -28,6 +28,8 @@ Excluded by default: detailed finance, private messages, precise addresses, medi
 
 Parent-only operations from a shared device require explicit elevation/re-auth/PIN design and must automatically return to shared mode.
 
+Proposed contract (#157, not implemented): ADR-0006 and [`SHARED_DEVICE.md`](SHARED_DEVICE.md). In short: a device authenticates with its own opaque, hashed, rotating credentials and never with `session_token`; existing routes stay person-only so a device is refused by default; the device reads only the Today board DTO with a device audience; a parent elevates with a per-parent tablet PIN (password fallback) for 5 minutes idle / 15 minutes maximum, memory-only on the client; step 2 for an elevated request re-reads the parent's `role`, `family_id` and `token_version`.
+
 ## Not-found vs forbidden
 Avoid revealing the existence of foreign-family records. Use consistent purpose-appropriate semantics. Tests should verify both status and response body do not leak foreign data.
 
@@ -43,7 +45,7 @@ The matrix records the per-domain parent/teen/child capability decided on issue 
 Step 2 above is implemented in `resolveSession` (`src/lib/session.ts`): one query per request reads `token_version`, `role` and `family_id`. `verifySessionToken`, and therefore `authenticateRequest`, `getServerUser()` and the middleware kid gate, return the database role and family, never the JWT claims.
 
 ## Device lifecycle
-Shared device authorization needs pairing, revocation, token rotation, last-seen/health visibility and cache-clearing behaviour after revoke. Offline access never grants future refresh after revocation.
+Shared device authorization needs pairing, revocation, token rotation, last-seen/health visibility and cache-clearing behaviour after revoke. Offline access never grants future refresh after revocation. The proposed pairing, rotation, revocation, purge, audit and rate-limit contract is in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §4–§11.
 
 ## Required tests
 Every family-owned domain should have two-family negative tests and role/device tests. Direct API tests are required; browser navigation tests alone are insufficient.

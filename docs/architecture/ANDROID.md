@@ -22,7 +22,7 @@ Planned capabilities include:
 - offline recent dashboard;
 - device revoke and re-pair.
 
-Do not store reusable parent credentials in the shared-device session.
+Do not store reusable parent credentials in the shared-device session. Proposed device-session contract and Android integration issue: [`SHARED_DEVICE.md`](SHARED_DEVICE.md) (#157, ADR-0006). Because the app loads the web experience from `server.url`, device mode needs no new APK; native work is limited to cookie flush on pause, back behaviour and lifecycle evidence.
 
 ## Lifecycle requirements
 Relevant releases should test:
