@@ -84,6 +84,8 @@ model User {
   created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
   family_invites_created        FamilyInvite[]     @relation("FamilyInviteCreator")
   calendar_subscriptions        CalendarSubscription[] @relation("CalendarSubscriptionCreator")
+  uploads                       Upload[]           @relation("UploadUploader")
+  created_anniversaries         Anniversary[]      @relation("AnniversaryCreator")
 
   @@index([family_id])
 }
@@ -144,6 +146,31 @@ model Family {
   finance_records    FinancialArchiveRecord[]
   invites            FamilyInvite[]
   calendar_subscriptions CalendarSubscription[]
+  uploads            Upload[]
+}
+
+// Ownership record for a stored upload (D3, #102). One row per file written by
+// POST /api/upload. The file is served, and may be attached to a chore, only
+// within `family_id`. Files stored before this table existed have no row; they
+// are still served through the chore/assignment that references them (legacy
+// fallback, see docs/security/API_ISOLATION_AUDIT.md D3) until a backfill lands.
+model Upload {
+  id           String   @id @default(cuid())
+  family_id    String
+  // Nullable so deleting a member's account keeps the family's photos owned by
+  // the family (the file belongs to the household, not only to the uploader).
+  uploaded_by  String?
+  // Bare stored filename, e.g. `0123456789abcdef.jpg` (no path).
+  filename     String   @unique
+  content_type String
+  size_bytes   Int
+  created_at   DateTime @default(now())
+
+  family   Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  uploader User?  @relation("UploadUploader", fields: [uploaded_by], references: [id], onDelete: SetNull)
+
+  @@index([family_id])
+  @@index([uploaded_by])
 }
 
 // Read-only ICS calendar subscription (#232). The feed URL is a bearer secret
@@ -885,13 +912,18 @@ model Anniversary {
   date       DateTime // month + day, year is optional context
   notes      String?
   person_id  String? // optional link to a User
+  // Who created the row (D9). Null on rows created before the column existed;
+  // those stay parent-edit-only because ownership cannot be proven.
+  created_by String?
   created_at DateTime @default(now())
 
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person User?  @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull)
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  person  User?  @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull)
+  creator User?  @relation("AnniversaryCreator", fields: [created_by], references: [id], onDelete: SetNull)
 
   @@index([family_id])
   @@index([family_id, date])
+  @@index([created_by])
 }
 
 model FamilyLocation {

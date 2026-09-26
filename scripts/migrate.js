@@ -3,6 +3,7 @@
 // 2. Creates the target database if it doesn't exist
 // 3. Creates/updates tables to match the current Prisma schema
 // 4. Runs any database/migration-*.sql files (sorted alphabetically, idempotent)
+// 5. Runs POST_FEATURE_SQL (changes to tables those files create)
 // Called from docker-entrypoint.sh before starting the server
 //
 // IMPORTANT: This file MUST stay in sync with prisma/schema.prisma.
@@ -371,6 +372,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS "FamilyInvite_token_hash_key" ON "FamilyInvite
 CREATE INDEX IF NOT EXISTS "FamilyInvite_family_id_email_idx" ON "FamilyInvite"("family_id", "email");
 CREATE INDEX IF NOT EXISTS "FamilyInvite_expires_at_idx" ON "FamilyInvite"("expires_at");
 
+-- ============ Upload (D3 chore photo ownership, #102) ============
+-- Additive (expand phase): one ownership row per file stored by /api/upload.
+-- Files stored before this table existed have no row and are served through
+-- the legacy chore/assignment-reference fallback until they are backfilled.
+CREATE TABLE IF NOT EXISTS "Upload" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "uploaded_by" TEXT,
+  "filename" TEXT NOT NULL,
+  "content_type" TEXT NOT NULL,
+  "size_bytes" INTEGER NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "Upload_filename_key" ON "Upload"("filename");
+CREATE INDEX IF NOT EXISTS "Upload_family_id_idx" ON "Upload"("family_id");
+CREATE INDEX IF NOT EXISTS "Upload_uploaded_by_idx" ON "Upload"("uploaded_by");
+
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -381,6 +399,13 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "FamilyInvite" ADD CONSTRAINT "FamilyInvite_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "Upload" ADD CONSTRAINT "Upload_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Upload" ADD CONSTRAINT "Upload_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -562,6 +587,19 @@ CREATE INDEX IF NOT EXISTS "ProjectTask_project_id_idx" ON "ProjectTask"("projec
 CREATE INDEX IF NOT EXISTS "ProjectTask_assigned_to_idx" ON "ProjectTask"("assigned_to");
 `
 
+// Runs AFTER the database/migration-*.sql files, for changes to tables those
+// files create (e.g. "Anniversary" comes from migration-features.sql, so an
+// ALTER in CREATE_TABLES_SQL would fail on a fresh database). Idempotent.
+const POST_FEATURE_SQL = `
+-- ============ Anniversary.created_by (D9, #102) ============
+-- Additive and nullable: legacy rows keep NULL and stay parent-edit-only.
+ALTER TABLE "Anniversary" ADD COLUMN IF NOT EXISTS "created_by" TEXT;
+DO $$ BEGIN
+  ALTER TABLE "Anniversary" ADD CONSTRAINT "Anniversary_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "Anniversary_created_by_idx" ON "Anniversary"("created_by");
+`
+
 async function migrate() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
@@ -676,6 +714,10 @@ async function migrate() {
         }
       }
     }
+
+    // Step 4: changes to tables created by the per-feature files above.
+    await dbClient.query(POST_FEATURE_SQL)
+    console.log('Post-feature schema migration completed successfully')
   } catch (error) {
     console.error('Schema migration failed:', error.message)
     throw error

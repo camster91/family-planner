@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { completeChoreSchema } from '@/lib/validations'
+import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 // Shared date rule, so completion and the cron expander cannot disagree (#184).
 import { expandSeriesInTx, nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
 
@@ -42,6 +43,14 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
+    // D3 (#102): a completion photo must be an upload owned by the caller's
+    // family. Checked before the transaction so a bad photo changes nothing.
+    const photo = await resolveChorePhotoForWrite(auth.user.family_id, photoUrl, chore.photo_url)
+    if (!photo.ok) {
+      return NextResponse.json({ error: photo.error }, { status: 400 })
+    }
+    const photoValue = photo.value
+
     // Complete only from a state that has not already been completed OR
     // verified (#185).
     //
@@ -63,7 +72,7 @@ export async function POST(request: NextRequest) {
         data: {
           status: 'completed',
           completed_at: new Date(),
-          ...(photoUrl ? { photo_url: photoUrl, photo_verified: false } : {}),
+          ...(photoValue ? { photo_url: photoValue, photo_verified: false } : {}),
         },
       })
 

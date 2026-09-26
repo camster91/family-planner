@@ -5,6 +5,8 @@ import path from 'path'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { log } from '@/lib/logger'
 import { sniffImageType } from '@/lib/image-sniff'
+import { prisma } from '@/lib/prisma'
+import { chorePhotoPath } from '@/lib/chore-photos'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -17,6 +19,11 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
 // POST /api/upload — upload a photo (used for chore completion verification)
 // Body: multipart/form-data with a 'file' field
 // Returns: { url: string, filename: string, size: number, type: string }
+//
+// Ownership (D3, #102): every stored file gets an `Upload` row recording the
+// caller's family and the uploader. That row is what lets the file be attached
+// to a chore (/api/chores create/update/complete) and served back
+// (/api/files/chores/[filename]) — and only inside that family.
 export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -55,12 +62,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Content-addressed filename: sha256 prefix + sniffed extension
+    // Content-addressed per family: sha256(family_id, bytes) prefix + sniffed
+    // extension. Namespacing by family means two households uploading the
+    // same image get different files and different Upload rows (filename is
+    // unique), and a filename reveals nothing about another family's files.
+    // Re-uploading the same image in the same family still dedups.
     const { createHash } = await import('crypto')
-    const hash = createHash('sha256').update(buf).digest('hex').slice(0, 16)
+    const familyId = auth.user.family_id
+    const hash = createHash('sha256')
+      .update(`family:${familyId}\n`)
+      .update(buf)
+      .digest('hex')
+      .slice(0, 16)
     const ext = sniffed.ext
     const filename = `${hash}.${ext}`
     const filepath = path.join(choreUploadDir, filename)
+
+    // Ownership row first, so a stored file is never left without an owner.
+    // A re-upload in the same family reuses the existing row. A row owned by
+    // another family would mean a 64-bit hash collision across households:
+    // refuse rather than hand over or share the file.
+    const existing = await prisma!.upload.findUnique({
+      where: { filename },
+      select: { family_id: true },
+    })
+    if (existing && existing.family_id !== familyId) {
+      log.warn('upload.photo.collision', { userId: auth.user.id, filename })
+      return NextResponse.json({ error: 'Upload failed, please try again' }, { status: 409 })
+    }
+    if (!existing) {
+      try {
+        await prisma!.upload.create({
+          data: {
+            family_id: familyId,
+            uploaded_by: auth.user.id,
+            filename,
+            content_type: sniffed.mime,
+            size_bytes: buf.length,
+          },
+        })
+      } catch (err) {
+        // A concurrent upload of the same image in the same family won the
+        // unique(filename) race; that row is just as good. Anything else fails.
+        const raced = await prisma!.upload.findUnique({ where: { filename }, select: { family_id: true } })
+        if (!raced || raced.family_id !== familyId) throw err
+      }
+    }
 
     // Only write if not already there (dedup)
     if (!existsSync(filepath)) {
@@ -70,7 +117,7 @@ export async function POST(request: NextRequest) {
     log.info('upload.photo', { userId: auth.user.id, filename, size: buf.length, type: sniffed.mime })
 
     return NextResponse.json({
-      url: `/api/files/chores/${filename}`,
+      url: chorePhotoPath(filename),
       filename,
       size: buf.length,
       type: sniffed.mime,
