@@ -5,6 +5,8 @@ import { checkRateLimit, isRateLimited, resetRateLimit } from '@/lib/rate-limit-
 import { getClientIp } from '@/lib/client-ip'
 import { loginSchema } from '@/lib/validations'
 import { log } from '@/lib/logger'
+import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
+import { hasLiveDeviceCredential, readDeviceCookies } from '@/lib/device-session'
 
 // Failed attempts allowed per account per window, independent of source IP, so
 // rotating addresses cannot brute-force one password.
@@ -21,6 +23,20 @@ export async function POST(request: NextRequest) {
         { error: 'Too many login attempts. Please try again later.' },
         { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
       )
+    }
+
+    // Shared tablet (#157/#240, O-13): a parent must not leave a persisted
+    // person session on a paired device. A valid access cookie, or a refresh
+    // cookie of a live session (looked up, never rotated here), blocks login;
+    // parents use elevation instead. Ignored while the kill switch is off.
+    if (isSharedDeviceEnabled()) {
+      const deviceCookies = readDeviceCookies(request)
+      if (
+        (deviceCookies.access || deviceCookies.refresh) &&
+        (await hasLiveDeviceCredential(prisma!, deviceCookies, deviceClock.now()))
+      ) {
+        return deviceError(409, 'DEVICE_MODE_LOGIN_BLOCKED')
+      }
     }
 
     let body: any

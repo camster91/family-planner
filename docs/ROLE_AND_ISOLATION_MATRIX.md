@@ -12,10 +12,15 @@ capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md
   its data never appears in a response. That rule has no exceptions and is not repeated per row.
 - **Roles.** `parent`, `teen` and `child` are human sessions. Teen and child are separate columns on purpose
   (AUTHORIZATION.md: "Do not assume teen equals child forever").
-- **Shared device (proposed, not implemented).** The shared household tablet session does not exist in the API
-  yet. The shared-device column records the **proposed** contract from #157 (ADR-0006,
-  `docs/architecture/SHARED_DEVICE.md`); `O-n` points to an owner decision listed there. Until device auth ships,
-  a shared tablet signed in as a person has exactly that person's rights. Shared-device values:
+- **Shared device.** Device auth, pairing, sessions, elevation and revocation are **implemented (behind
+  SHARED_DEVICE_ENABLED)** by #240, default off (`docs/architecture/SHARED_DEVICE.md` §18). What ships: the
+  read surface (the Today board DTO with a device audience at `GET /api/device/today`, names-only
+  `GET /api/device/me`), parent device management and the tablet PIN, and, under elevation, rename or remove
+  **this** tablet. Every `no` in the column is enforced: existing routes accept only person sessions, guarded
+  by the route-allowlist test. Cells marked `elevated only` for other domains and every `phase 2 candidate`
+  remain **proposed** (#157 contract; no such device route exists yet). `O-n` points to an owner decision in
+  SHARED_DEVICE.md §16. A tablet signed in as a person still has exactly that person's rights. Shared-device
+  values:
   - `no`: a device session is refused (existing routes authenticate only person sessions). Elevation does not
     change this unless the cell says `elevated only`.
   - `elevated only`: allowed only while a parent is elevated on the tablet (5 min idle / 15 min max).
@@ -123,8 +128,8 @@ hidden for a child; delete-list and swipe-to-delete-item are hidden for teens an
 | Travel mode | parent | — | parent | — | no | |
 | Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | |
 | Account (`/api/users`, export) | own | — | own | own | no | Export includes travel fields for parents only. |
-| Shared devices (list, rename, revoke, pairing codes, audit) | parent | parent | parent | parent (revoke) | this device only: rename/revoke elevated only | Proposed in #157; teens and children have no access. |
-| Tablet elevation PIN | own (parent) | own (parent) | own (parent) | own (parent) | used, never read | Proposed in #157 (O-1). |
+| Shared devices (list, rename, revoke, pairing codes, audit) | parent | parent | parent | parent (revoke) | this device only: rename/revoke elevated only | Implemented (behind SHARED_DEVICE_ENABLED), #240; teens and children get 403 `PARENT_REQUIRED`. |
+| Tablet elevation PIN | own (parent) | own (parent) | own (parent) | own (parent) | used, never read | Implemented (behind SHARED_DEVICE_ENABLED), #240 (O-1 confirmed). Set/change needs the current password; a password reset deletes it. |
 
 Teen and child: identical in this table unless a column names them, which is the D8 audit result for these
 domains.
@@ -138,17 +143,19 @@ reads no finance, allowance, messages, medical, location, handoff or account dat
 calendar, chores, meals and features only to roles that may open them. DTO:
 `src/app/dashboard/today/today-board-data.ts`.
 
-Proposed (#157): the same DTO, built with a device audience (all links `null`), is the entire shared-device read
-surface, served at `/device/today` from a layout that loads no person profile. Known gap until then: in
-`?mode=fridge` the dashboard layout still serialises the signed-in person's profile (name, email, age, XP,
-level, streak) into the hidden nav's props.
+Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audience: 'device'` (all links
+`null`, shopping only when the lists feature is on), is the entire shared-device read surface, served by
+`GET /api/device/today`. The `/device/today` page with a layout that loads no person profile is #241. Known gap
+until then: in `?mode=fridge` the dashboard layout still serialises the signed-in person's profile (name,
+email, age, XP, level, streak) into the hidden nav's props.
 
 ## Deferred
 
-- **D7 / #157 shared-device sessions.** Contract proposed in ADR-0006 and `docs/architecture/SHARED_DEVICE.md`;
-  the shared-device values above follow it and are not implemented. They become enforced facts only when the
-  #157 child issues ship, each updating the affected rows, the route-allowlist test and the isolation audit.
-  Open owner decisions O-1 to O-14 are listed in SHARED_DEVICE.md §16.
+- **D7 / #157 shared-device sessions.** Contract in ADR-0006 and `docs/architecture/SHARED_DEVICE.md`. The
+  schema/auth/API child issue (#240) is implemented behind `SHARED_DEVICE_ENABLED` (default off); the UI (#241),
+  device writes (phase 2, O-4/O-5), other elevated actions and Android integration are not. Each later child
+  issue updates the affected rows, the route-allowlist test and the isolation audit. Owner decisions: O-1, O-2,
+  O-4 and O-11 confirmed by Cameron; the rest use the recommended defaults (SHARED_DEVICE.md §16).
 - **D3 contract step.** Photo ownership is implemented with an `Upload` record (expand phase). Legacy files
   with no `Upload` row are still served through the referencing chore of the same household until they are
   backfilled and the fallback is removed; see the audit's "D3 legacy path and contract step".

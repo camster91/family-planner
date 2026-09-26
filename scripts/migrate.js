@@ -389,6 +389,101 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Upload_filename_key" ON "Upload"("filename");
 CREATE INDEX IF NOT EXISTS "Upload_family_id_idx" ON "Upload"("family_id");
 CREATE INDEX IF NOT EXISTS "Upload_uploaded_by_idx" ON "Upload"("uploaded_by");
 
+-- ============ Shared device (#157 contract, #240; additive) ============
+-- docs/architecture/SHARED_DEVICE.md §3. Tokens, codes, digits and PINs are
+-- stored as hashes only. Expand only: no backfill, nothing to contract.
+CREATE TABLE IF NOT EXISTS "HouseholdDevice" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "platform" TEXT NOT NULL,
+  "created_by" TEXT,
+  "confirmed_by" TEXT,
+  "paired_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "last_seen_at" TIMESTAMP(3),
+  "last_seen_app_version" TEXT,
+  "revoked_at" TIMESTAMP(3),
+  "revoked_by" TEXT,
+  "revoke_reason" TEXT,
+  "elevation_token_hash" TEXT,
+  "elevated_user_id" TEXT,
+  "elevated_token_version" INTEGER,
+  "elevation_method" TEXT,
+  "elevation_started_at" TIMESTAMP(3),
+  "elevation_last_used_at" TIMESTAMP(3),
+  "elevation_expires_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "HouseholdDevice_elevation_token_hash_key" ON "HouseholdDevice"("elevation_token_hash");
+CREATE INDEX IF NOT EXISTS "HouseholdDevice_family_id_revoked_at_idx" ON "HouseholdDevice"("family_id", "revoked_at");
+
+CREATE TABLE IF NOT EXISTS "DevicePairing" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "code_hash" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "created_by" TEXT NOT NULL,
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "claimed_at" TIMESTAMP(3),
+  "claim_token_hash" TEXT,
+  "confirm_digits_hash" TEXT,
+  "confirm_attempts" INTEGER NOT NULL DEFAULT 0,
+  "claim_platform" TEXT,
+  "claim_app_version" TEXT,
+  "confirmed_at" TIMESTAMP(3),
+  "confirmed_by" TEXT,
+  "cancelled_at" TIMESTAMP(3),
+  "device_id" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_code_hash_key" ON "DevicePairing"("code_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_claim_token_hash_key" ON "DevicePairing"("claim_token_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_device_id_key" ON "DevicePairing"("device_id");
+CREATE INDEX IF NOT EXISTS "DevicePairing_family_id_expires_at_idx" ON "DevicePairing"("family_id", "expires_at");
+
+CREATE TABLE IF NOT EXISTS "DeviceSession" (
+  "id" TEXT PRIMARY KEY,
+  "device_id" TEXT NOT NULL,
+  "family_id" TEXT NOT NULL,
+  "access_token_hash" TEXT NOT NULL,
+  "access_expires_at" TIMESTAMP(3) NOT NULL,
+  "refresh_token_hash" TEXT NOT NULL,
+  "refresh_expires_at" TIMESTAMP(3) NOT NULL,
+  "first_used_at" TIMESTAMP(3),
+  "rotated_at" TIMESTAMP(3),
+  "replaced_by_id" TEXT,
+  "revoked_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "DeviceSession_access_token_hash_key" ON "DeviceSession"("access_token_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DeviceSession_refresh_token_hash_key" ON "DeviceSession"("refresh_token_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DeviceSession_replaced_by_id_key" ON "DeviceSession"("replaced_by_id");
+CREATE INDEX IF NOT EXISTS "DeviceSession_device_id_revoked_at_idx" ON "DeviceSession"("device_id", "revoked_at");
+CREATE INDEX IF NOT EXISTS "DeviceSession_family_id_idx" ON "DeviceSession"("family_id");
+
+CREATE TABLE IF NOT EXISTS "ParentElevationPin" (
+  "user_id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "pin_hash" TEXT NOT NULL,
+  "locked_until" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "ParentElevationPin_family_id_idx" ON "ParentElevationPin"("family_id");
+
+CREATE TABLE IF NOT EXISTS "DeviceAuditEvent" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "device_id" TEXT,
+  "actor_user_id" TEXT,
+  "type" TEXT NOT NULL,
+  "metadata" JSONB,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_family_id_created_at_idx" ON "DeviceAuditEvent"("family_id", "created_at");
+CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_device_id_created_at_idx" ON "DeviceAuditEvent"("device_id", "created_at");
+
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -406,6 +501,38 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "Upload" ADD CONSTRAINT "Upload_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Shared device (#157, #240)
+DO $$ BEGIN
+  ALTER TABLE "HouseholdDevice" ADD CONSTRAINT "HouseholdDevice_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "HouseholdDevice" ADD CONSTRAINT "HouseholdDevice_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceSession" ADD CONSTRAINT "DeviceSession_device_id_fkey" FOREIGN KEY ("device_id") REFERENCES "HouseholdDevice"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ParentElevationPin" ADD CONSTRAINT "ParentElevationPin_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ParentElevationPin" ADD CONSTRAINT "ParentElevationPin_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_device_id_fkey" FOREIGN KEY ("device_id") REFERENCES "HouseholdDevice"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

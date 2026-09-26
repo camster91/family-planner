@@ -4,6 +4,11 @@ import { verifyToken } from '@/lib/auth'
 import { resolveSession } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
 import { KID_ALLOWED_PREFIXES, isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
+import { isSharedDeviceEnabled } from '@/lib/device-http'
+import { DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE } from '@/lib/device-session'
+
+// Shared-device pages that need no device cookie (SHARED_DEVICE.md §12).
+const DEVICE_PUBLIC_PAGES = new Set(['/device/pair', '/device/removed'])
 
 // Use Node.js runtime so JWT_SECRET is read from runtime env, not bundled at build time.
 // Edge runtime (default) embeds env vars at build, causing token verification failures
@@ -68,6 +73,27 @@ export async function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get('session_token')?.value
+
+  // Shared device (#157/#240). Presence checks only, no database call: the
+  // /device pages and /api/device routes do the real validation. Off with the
+  // kill switch, so device cookies are then ignored entirely.
+  if (isSharedDeviceEnabled()) {
+    const pathname = request.nextUrl.pathname
+    const hasDeviceCookie = Boolean(
+      request.cookies.get(DEVICE_ACCESS_COOKIE)?.value || request.cookies.get(DEVICE_REFRESH_COOKIE)?.value
+    )
+    const isDevicePage = pathname === '/device' || pathname.startsWith('/device/')
+    if (isDevicePage && !DEVICE_PUBLIC_PAGES.has(pathname) && !hasDeviceCookie) {
+      return NextResponse.redirect(new URL('/device/pair', request.url))
+    }
+    // Cold launch (Capacitor loads `/`) and stray navigation on a paired
+    // tablet land on the board, never on a person sign-in or dashboard.
+    const isPersonEntry = pathname === '/' || pathname === '/login' || pathname.startsWith('/dashboard')
+    if (isPersonEntry && hasDeviceCookie && !token) {
+      return NextResponse.redirect(new URL('/device/today', request.url))
+    }
+  }
+
   const payload = token ? verifyToken(token) : null
 
   // Protected routes

@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { prisma } from './prisma'
+import { writeDeviceAudit } from './device-audit'
 
 // Tokens are stored as sha256(token). The plaintext is only ever held in the
 // email link we send and in the caller's local variable — never in the database.
@@ -86,6 +87,21 @@ export async function consumeResetToken(
   token: string,
   hashedPassword: string
 ): Promise<boolean> {
+  // A reset implies possible compromise, so it also removes the parent's
+  // tablet elevation PIN (SHARED_DEVICE.md §6.1). The PIN row is deleted
+  // BEFORE the claim: if the claim then loses a race, the winner is the same
+  // account and would delete it anyway, so this can only fail safe.
+  const target = await prisma!.user.findFirst({
+    where: {
+      reset_token: tokenMatch(token),
+      reset_token_expires: { gt: new Date() },
+    },
+    select: { id: true, family_id: true },
+  })
+  const pinsCleared = target
+    ? (await prisma!.parentElevationPin.deleteMany({ where: { user_id: target.id } })).count
+    : 0
+
   const { count } = await prisma!.user.updateMany({
     where: {
       reset_token: tokenMatch(token),
@@ -98,6 +114,15 @@ export async function consumeResetToken(
       token_version: { increment: 1 },
     },
   })
+
+  if (count === 1 && pinsCleared > 0 && target?.family_id) {
+    await writeDeviceAudit(prisma!, {
+      familyId: target.family_id,
+      actorUserId: target.id,
+      type: 'parent_pin.cleared_by_reset',
+      metadata: {},
+    })
+  }
 
   return count === 1
 }

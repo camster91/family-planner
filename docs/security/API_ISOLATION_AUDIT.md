@@ -17,6 +17,14 @@ file stored by `/api/upload`; chore create, update and complete accept a photo o
 the caller's family. `Anniversary.created_by` (nullable) lets teens and children edit anniversaries they
 created. See [D3 legacy path and contract step](#d3-legacy-path-and-contract-step).
 
+**Update 2026-09-26 (#240): shared-device routes.** 19 handlers in 16 new route files (`/api/device/*`,
+`/api/family/devices/*`, `/api/users/elevation-pin`), all `implemented (behind SHARED_DEVICE_ENABLED)` and 404 while
+the switch is off (the default). New auth values: `device` = the `fp_device` access cookie resolved by
+`src/lib/device-session.ts` (never `session_token`); `device + elevation` = additionally `X-Device-Elevation`
+bound to that device; `session (person only)` = `authenticateRequest`, which never reads device cookies. Every
+device route's household is the device's own `family_id` from the database. The route-allowlist test is the
+guard that no other route accepts a device cookie. Contract: `docs/architecture/SHARED_DEVICE.md` §12 and §18.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -59,12 +67,12 @@ recorded in route comments, as the de facto matrix.
 | /api/anniversaries/[id] | DELETE | family | match (403) | P | none | anniversaries/iso | implemented (D9) |
 | /api/auth/change-password | POST | session | n/a (self) | all | none | — | ok |
 | /api/auth/forgot-password | POST | public | n/a | n/a | none | — | ok |
-| /api/auth/login | POST | public | n/a | n/a | none | — | ok |
+| /api/auth/login | POST | public | n/a | n/a | none | src/app/api/auth/login/__tests__/device-guard.test.ts | ok; 409 `DEVICE_MODE_LOGIN_BLOCKED` while a live device credential is present (#240, switch on only) |
 | /api/auth/logout | POST | cookie clear | n/a | n/a | none | — | ok |
 | /api/auth/me | GET | session | n/a (self) | all | none | — | ok |
 | /api/auth/register | POST | public | invite binds family | n/a | invite token + email match | — | ok |
 | /api/auth/resend-verification | POST | public | n/a | n/a | none | — | ok |
-| /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |
+| /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts, device/__tests__/device-routes.test.ts | ok; also deletes the parent's `ParentElevationPin` (#240) |
 | /api/auth/verify-email | GET | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |
 | /api/budget/categories | GET | family | where | P | none | budget/iso | ok |
 | /api/budget/categories | POST | family | session family | P | none | budget/iso | ok |
@@ -85,6 +93,15 @@ recorded in route comments, as the de facto matrix.
 | /api/chores/create | POST | family | session family | P | assigned_to verified; photo_url must be an `Upload` of the caller's family (400) | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/chores/verify | POST | family | match (403) | P | none | chores/iso | ok |
 | /api/cron/recurring-chores | POST | cron | per-family expansion | n/a | none | src/__tests__/recurring-chores.test.ts | ok |
+| /api/device/elevation | POST | device | device's family | target must be a `parent` of the device's family (DB); PIN or password; every failure the same 401 | `userId` verified in device family; foreign/teen/child ids = uniform 401 and never touch that account's lockout | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/elevation | DELETE | device | this device only | n/a | elevation header must match this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/label | PATCH | device + elevation | this device only | elevated parent (role, family, token_version re-read) | elevation token bound to this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/me | GET | device | where (device's family) | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/pair/claim | POST | public (pairing code) | household from the code only; body family/member ids ignored | n/a | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/pair/status | POST | token (claim token, body) | the claimed pairing's family | n/a | none | family/devices/__tests__/devices.test.ts, src/lib/__tests__/device.integration.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/revoke-self | POST | device + elevation | this device only | elevated parent | elevation token bound to this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/session/refresh | POST | device (refresh cookie) | session's device/family | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts, src/lib/__tests__/device-session.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/today | GET | device | where (device's family); device-audience DTO | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/emergency-contacts | GET | family | where | all (kid-readable by design, kid-access.ts) | none | emergency-contacts/iso | ok |
 | /api/emergency-contacts | POST | family | session family | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
 | /api/emergency-contacts/[id] | PATCH | family | match (403) | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
@@ -99,6 +116,14 @@ recorded in route comments, as the de facto matrix.
 | /api/family | DELETE | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
 | /api/family/ai-settings | GET | family | own family | P | none | family/iso | ok |
 | /api/family/ai-settings | POST | family | own family | P | none | family/iso | ok |
+| /api/family/devices | GET | session (person only) | where | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/[id] | PATCH | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/[id]/events | GET | session (person only) | where id + family (404); actor names only for current members | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/[id]/revoke | POST | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts, device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings | POST | session (person only) | session family | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings/[id] | GET | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings/[id] | DELETE | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings/[id]/confirm | POST | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/family/features | GET | jwt | own family | all | none | family/iso | ok |
 | /api/family/features | PATCH | jwt | own family | P | none | family/iso | ok |
 | /api/family/feed-token | GET | family | own family | P | none | family/iso | ok |
@@ -178,6 +203,8 @@ recorded in route comments, as the de facto matrix.
 | /api/users | GET | session | self | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | PATCH | session | self (id/family_id/role not writable) | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
+| /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/export | GET | session | self + own family; travel fields **now** parent-only | all | none | users/export/__tests__/route.test.ts | fixed |
 | /api/wishlist | GET | family | where | all | none | wishlist/iso | ok |
 | /api/wishlist | POST | family | session family | all | none | wishlist/iso | ok |
@@ -185,7 +212,7 @@ recorded in route comments, as the de facto matrix.
 | /api/wishlist/[id] | DELETE | family | match (403) | requester or P | none | wishlist/iso | ok |
 | /api/wishlist/[id]/status | PATCH | family | match (403) | P | none | wishlist/iso | ok |
 
-Totals: 139 handlers. After the #102 decisions: 28 rows carry `implemented (Dn)` (some alongside `fixed`),
+Totals: 139 handlers before #240, plus the 19 shared-device handlers above (158). After the #102 decisions: 28 rows carry `implemented (Dn)` (some alongside `fixed`),
 including the five D3 chore/upload/file rows; no row is `gap-needs-decision`, and every other row is `ok` or
 `fixed`. D6 changed the auth
 helper rather than individual rows: every `jwt` and `family` row now resolves role and family from the
@@ -226,7 +253,7 @@ Cameron's decisions on issue #102, as implemented. The per-role result is in
 | D4 | Capture spend | decided, implemented | Parents and teens may use `POST /api/capture`. Children get 403 `Ask a parent to add this.` before any provider call. `GET /api/capture` returns `allowed`, and the capture box shows the same message to a child. |
 | D5 | A kid's own allowance | decided, implemented | Teens and children `GET` only rows paid to them (`to_user_id = self`), read-only. `POST`/`PATCH` stay parent-only. `/dashboard/allowance` is kid-reachable with the write controls hidden. |
 | D6 | `getServerUser()` trusted JWT claims | decided, implemented | `resolveSession` (`src/lib/session.ts`) reads `token_version`, `role` and `family_id` in one query; `verifySessionToken` returns the database values. That covers `authenticateRequest`, `getServerUser()` and so all 14 `jwt` route files without per-file changes. The middleware kid gate uses the same lookup's role. |
-| D7 | Shared-device sessions | deferred (#157) | No device-session concept yet. The matrix marks the shared-device column deferred. |
+| D7 | Shared-device sessions | implemented behind `SHARED_DEVICE_ENABLED` (#157 contract, #240) | Device identity, pairing, sessions, elevation and revocation ship as the `/api/device/*`, `/api/family/devices/*` and `/api/users/elevation-pin` rows above, default off. Existing routes stay person-only; `src/app/api/__tests__/device-route-allowlist.test.ts` calls every handler with only a device cookie and requires 401/404 outside the allowlist. UI (#241), device writes (phase 2) and Android integration are not implemented. |
 | D8 | Write the matrix | done | `docs/ROLE_AND_ISOLATION_MATRIX.md`, linked from `AUTHORIZATION.md`. |
 | D9 | Child/teen writes in low-sensitivity domains | decided, implemented | Lists: every member reads, adds and ticks items; parents and teens create lists; deleting a list or item is parent-only. `/dashboard/lists` is kid-reachable and in the kid nav. Notes: every member creates; teens and children edit only notes they created; delete is parent-only. Anniversaries: every member creates; delete is parent-only; teens and children edit only anniversaries they created (`Anniversary.created_by = self`, set on create, not writable by PATCH). Rows created before the column existed have `created_by` NULL and stay parent-edit-only. Pickups: delete is parent-only. The other D9 domains (meals, events create, projects and tasks create, messages, wishlist create, chore completion) stay open to every member, as confirmed in the matrix. |
 

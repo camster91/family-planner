@@ -203,4 +203,57 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     expect(db.calendarSubscription.findMany).not.toHaveBeenCalled()
     expect(data.events).toEqual([])
   })
+
+  // Shared device (#240, SHARED_DEVICE.md §9.1 and §14.1 item 4).
+  describe("audience 'device'", () => {
+    it('returns every link null, even where a null role would get all links', async () => {
+      const nullRole = await buildTodayBoard(mockDb() as any, {
+        familyId: FAMILY,
+        role: null,
+        features: defaultFeatures(),
+        now: NOW,
+      })
+      expect(Object.values(nullRole.links).some((l) => l !== null)).toBe(true)
+
+      const device = await buildTodayBoard(mockDb() as any, {
+        familyId: FAMILY,
+        audience: 'device',
+        features: defaultFeatures(),
+        now: NOW,
+      })
+      expect(device.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null })
+    })
+
+    it('reads the same household-scoped, allowlisted data as the person board', async () => {
+      const db = mockDb()
+      const data = await buildTodayBoard(db as any, {
+        familyId: FAMILY,
+        audience: 'device',
+        features: defaultFeatures(),
+        now: NOW,
+      })
+      expect(db.user.findMany.mock.calls[0][0]).toMatchObject({
+        where: { family_id: FAMILY },
+        select: { id: true, name: true },
+      })
+      expect(data.members).toEqual([
+        { id: 'u_parent', name: 'Avery Parent' },
+        { id: 'u_child', name: 'Casey Child' },
+      ])
+      expect(data.shopping?.total).toBe(1)
+      expect(data.dinners).toHaveLength(2)
+    })
+
+    it('includes shopping only when the lists feature is on', async () => {
+      const db = mockDb()
+      const data = await buildTodayBoard(db as any, {
+        familyId: FAMILY,
+        audience: 'device',
+        features: { ...defaultFeatures(), lists: false },
+        now: NOW,
+      })
+      expect(data.shopping).toBeNull()
+      expect(db.listItem.findMany).not.toHaveBeenCalled()
+    })
+  })
 })

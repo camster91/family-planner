@@ -86,6 +86,11 @@ model User {
   calendar_subscriptions        CalendarSubscription[] @relation("CalendarSubscriptionCreator")
   uploads                       Upload[]           @relation("UploadUploader")
   created_anniversaries         Anniversary[]      @relation("AnniversaryCreator")
+  // Shared device (#157, #240). Relation fields only; no new User columns.
+  devices_created               HouseholdDevice[]  @relation("DeviceCreator")
+  device_pairings_created       DevicePairing[]    @relation("DevicePairingCreator")
+  elevation_pin                 ParentElevationPin? @relation("ParentElevationPin")
+  device_audit_events           DeviceAuditEvent[] @relation("DeviceAuditActor")
 
   @@index([family_id])
 }
@@ -147,6 +152,11 @@ model Family {
   invites            FamilyInvite[]
   calendar_subscriptions CalendarSubscription[]
   uploads            Upload[]
+  // Shared device (#157, #240)
+  devices             HouseholdDevice[]
+  device_pairings     DevicePairing[]
+  elevation_pins      ParentElevationPin[]
+  device_audit_events DeviceAuditEvent[]
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -1116,4 +1126,117 @@ model Medication {
 
   @@index([family_id, active])
   @@index([person_id])
+}
+
+// ============ Shared device (#157 contract, #240 implementation) ============
+// Additive only: docs/architecture/SHARED_DEVICE.md §3, ADR-0006. Tokens, codes,
+// confirmation digits and PINs are stored as hashes; plaintext never reaches
+// the database.
+
+model HouseholdDevice {
+  id                     String    @id @default(cuid())
+  family_id              String
+  label                  String // parent-chosen, 1–40 chars
+  platform               String // 'android' | 'web'
+  created_by             String? // parent who created the pairing code
+  confirmed_by           String? // parent who confirmed the claim
+  paired_at              DateTime  @default(now())
+  last_seen_at           DateTime?
+  last_seen_app_version  String?
+  revoked_at             DateTime?
+  revoked_by             String? // null = system (token reuse)
+  revoke_reason          String? // 'parent' | 'lost' | 'replaced' | 'token_reuse'
+  // Elevation overlay: at most one per device. Server keeps only a hash.
+  elevation_token_hash   String?   @unique
+  elevated_user_id       String?
+  elevated_token_version Int?
+  elevation_method       String? // 'pin' | 'password'
+  elevation_started_at   DateTime?
+  elevation_last_used_at DateTime?
+  elevation_expires_at   DateTime?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  family   Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator  User?              @relation("DeviceCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  sessions DeviceSession[]
+  events   DeviceAuditEvent[]
+
+  @@index([family_id, revoked_at])
+}
+
+model DevicePairing {
+  id                  String    @id @default(cuid())
+  family_id           String
+  code_hash           String    @unique // sha256(normalised 8-char code)
+  label               String
+  created_by          String
+  expires_at          DateTime // created_at + 10 min
+  claimed_at          DateTime?
+  claim_token_hash    String?   @unique
+  confirm_digits_hash String?
+  confirm_attempts    Int       @default(0)
+  claim_platform      String?
+  claim_app_version   String?
+  confirmed_at        DateTime?
+  confirmed_by        String?
+  cancelled_at        DateTime?
+  device_id           String?   @unique // set once, when the session is issued
+  created_at          DateTime  @default(now())
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User   @relation("DevicePairingCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([family_id, expires_at])
+}
+
+model DeviceSession {
+  id                 String    @id @default(cuid())
+  device_id          String
+  family_id          String // denormalised; must equal device.family_id
+  access_token_hash  String    @unique
+  access_expires_at  DateTime
+  refresh_token_hash String    @unique
+  refresh_expires_at DateTime
+  first_used_at      DateTime?
+  rotated_at         DateTime?
+  replaced_by_id     String?   @unique
+  revoked_at         DateTime?
+  created_at         DateTime  @default(now())
+
+  device HouseholdDevice @relation(fields: [device_id], references: [id], onDelete: Cascade)
+
+  @@index([device_id, revoked_at])
+  @@index([family_id])
+}
+
+model ParentElevationPin {
+  user_id      String    @id
+  family_id    String
+  pin_hash     String // bcrypt cost 12
+  locked_until DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  user   User   @relation("ParentElevationPin", fields: [user_id], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id])
+}
+
+model DeviceAuditEvent {
+  id            String   @id @default(cuid())
+  family_id     String
+  device_id     String?
+  actor_user_id String?
+  type          String // fixed vocabulary, SHARED_DEVICE.md §10
+  metadata      Json? // fixed keys only; never content, credentials or IPs
+  created_at    DateTime @default(now())
+
+  family Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  device HouseholdDevice? @relation(fields: [device_id], references: [id], onDelete: SetNull)
+  actor  User?            @relation("DeviceAuditActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
+
+  @@index([family_id, created_at])
+  @@index([device_id, created_at])
 }

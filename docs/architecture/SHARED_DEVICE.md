@@ -1,6 +1,9 @@
 # Shared Device Contract
 
-**Status:** Proposed (#157). Nothing in this document is implemented yet. Decision record: ADR-0006
+**Status:** Contract from #157. The schema, device auth and API (§3–§6, §8–§12; child issue §17.1, #240) are
+**implemented (behind `SHARED_DEVICE_ENABLED`, default off)**; see §18 for exactly what shipped and how the
+implementation resolved details this contract left open. UI pages (§7, §17.2), device writes (§9.2), the offline
+cache (§8 client purge/cache rules) and Android work (§17.3) are not implemented. Decision record: ADR-0006
 (`adr/0006-shared-device-session-contract.md`), which implements ADR-0002.
 **Last grounded against source:** 2026-09-26.
 **Parent:** #127. **Related:** #120 (Android appliance), #131 (Figma), #136 (security), #159 (Today board),
@@ -11,8 +14,8 @@ person. It covers identity, tokens, pairing, elevation, revocation, the shared a
 endpoints, compatibility and tests. Numbers marked **(O-n)** are recommended defaults for an open owner decision
 listed in §16.
 
-Until the child issues in §17 ship, a tablet signed in as a person has exactly that person's rights
-(`docs/ROLE_AND_ISOLATION_MATRIX.md`).
+A tablet signed in as a person still has exactly that person's rights (`docs/ROLE_AND_ISOLATION_MATRIX.md`);
+device mode is an opt-in re-pair and, until the UI child issue (§17.2) ships, is reachable only through the API.
 
 ## 1. Source facts this contract builds on
 
@@ -540,7 +543,7 @@ user agents.
 | `device.pairing_created` | parent | `{ pairingId }` |
 | `device.pairing_claimed` | — | `{ pairingId, platform, appVersion }` |
 | `device.pairing_confirmed` | parent | `{ pairingId }` |
-| `device.pairing_cancelled` | parent or — | `{ pairingId, reason: 'parent' \| 'digits_mismatch' \| 'superseded' }` |
+| `device.pairing_cancelled` | parent or — | `{ pairingId, reason: 'parent' \| 'digits_mismatch' \| 'superseded' \| 'device_limit' }` |
 | `device.paired` | parent (confirmer) | `{ pairingId, platform }` |
 | `device.renamed` | parent | `{}` |
 | `device.revoked` | parent or — | `{ reason: 'parent' \| 'lost' \| 'replaced' \| 'token_reuse' }` |
@@ -775,25 +778,25 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 
 ## 16. Owner decisions
 
-Genuinely open choices. Each has a recommended default that the child issues assume unless Cameron decides
-otherwise on #157.
+Owner choices. O-1, O-2, O-4 and O-11 are confirmed by Cameron; every other row uses its recommended default,
+which the child issues assume unless Cameron decides otherwise on #157.
 
-| # | Decision | Recommended default | Alternative |
-|---|---|---|---|
-| O-1 | Elevation credential | Per-parent 6-digit tablet PIN, password fallback | Account password only in v1 |
-| O-2 | Elevation timeouts | 5 min idle, 15 min absolute | 2 min idle / 10 min absolute (stricter) |
-| O-3 | Elevated scope | Short list of shared-surface parent actions (§6.4); parent-only data domains never on the tablet | Allow reading finance/messages/medical under elevation |
-| O-4 | Kids complete chores from the tablet | Yes (phase 2): chores due today, completion pending parent verify, no photo, no XP shown | Chores read-only on the tablet |
-| O-5 | Attribution of device writes | "Who's this?" member picker, unverified, device id audited | Device-only attribution (needs nullable `added_by`/`completed_by`, a contract migration) |
-| O-6 | Pairing confirmation | Parent types the tablet's 4 digits | Code only, no confirmation step |
-| O-7 | Offline snapshot max display age | 24 hours | 12 h or 72 h |
-| O-8 | Refresh idle expiry | 30 days | 14 or 90 days |
-| O-9 | Active devices per household | 5 | 3 or 10 |
-| O-10 | Emergency contacts on the tablet | Excluded; later opt-in minimal card (contact name and phone only) | Show the kid-readable view |
-| O-11 | Pinned notes, anniversaries, pickups on the tablet | Excluded in v1; per-domain opt-in later with field allowlists | Include pinned notes (a fridge note board is natural) |
-| O-12 | Audit retention | 180 days, pruned on parent read | 90 or 365 days |
-| O-13 | Block person login while a device cookie is present | Yes (409) | Allow, and warn |
-| O-14 | "Turn this tablet into the family tablet" from a signed-in parent session | Defer; code flow only | Offer it, with password re-entry |
+| # | Decision | Recommended default | Alternative | Status |
+|---|---|---|---|---|
+| O-1 | Elevation credential | Per-parent 6-digit tablet PIN, password fallback | Account password only in v1 | Confirmed (Cameron, 2026-09-26) |
+| O-2 | Elevation timeouts | 5 min idle, 15 min absolute | 2 min idle / 10 min absolute (stricter) | Confirmed (Cameron, 2026-09-26) |
+| O-3 | Elevated scope | Short list of shared-surface parent actions (§6.4); parent-only data domains never on the tablet | Allow reading finance/messages/medical under elevation | Recommended default applied |
+| O-4 | Kids complete chores from the tablet | Yes (phase 2): chores due today, completion pending parent verify, no photo, no XP shown | Chores read-only on the tablet | Confirmed (Cameron, 2026-09-26): phase 2, not in #240 |
+| O-5 | Attribution of device writes | "Who's this?" member picker, unverified, device id audited | Device-only attribution (needs nullable `added_by`/`completed_by`, a contract migration) | Recommended default applied |
+| O-6 | Pairing confirmation | Parent types the tablet's 4 digits | Code only, no confirmation step | Recommended default applied |
+| O-7 | Offline snapshot max display age | 24 hours | 12 h or 72 h | Recommended default applied |
+| O-8 | Refresh idle expiry | 30 days | 14 or 90 days | Recommended default applied |
+| O-9 | Active devices per household | 5 | 3 or 10 | Recommended default applied |
+| O-10 | Emergency contacts on the tablet | Excluded; later opt-in minimal card (contact name and phone only) | Show the kid-readable view | Recommended default applied |
+| O-11 | Pinned notes, anniversaries, pickups on the tablet | Excluded in v1; per-domain opt-in later with field allowlists | Include pinned notes (a fridge note board is natural) | Confirmed (Cameron, 2026-09-26): board-only on the device |
+| O-12 | Audit retention | 180 days, pruned on parent read | 90 or 365 days | Recommended default applied |
+| O-13 | Block person login while a device cookie is present | Yes (409) | Allow, and warn | Recommended default applied |
+| O-14 | "Turn this tablet into the family tablet" from a signed-in parent session | Defer; code flow only | Offer it, with password re-entry | Recommended default applied |
 
 ## 17. Child issues (ready to file)
 
@@ -938,3 +941,64 @@ in docs/architecture/ANDROID.md; record Samsung-class and stock Android results.
 No Play Store publication, no signing or secret changes, no device-owner or lock-task policy, no production
 deploy.
 ```
+
+## 18. Implementation status (#240)
+
+Shipped behind the server kill switch `SHARED_DEVICE_ENABLED` (default off; `.env.example`,
+`.env.production.example`). With it off, every `/api/device/*`, `/api/family/devices/*` and
+`/api/users/elevation-pin` handler returns `404`, the middleware ignores device cookies and the login guard is
+skipped.
+
+| Area | Source |
+|---|---|
+| Schema (§3) | `prisma/schema.prisma` (five models, relation fields on `Family`/`User`); `scripts/migrate.js` `CREATE_TABLES_SQL` and FK block |
+| Tokens, resolution, refresh rules 1–4, elevation, revocation, cookies (§4, §6, §8) | `src/lib/device-session.ts` |
+| Pairing codes, claim, confirm, issue with `SELECT … FOR UPDATE` (§5) | `src/lib/device-pairing.ts` |
+| Route guards (device cookie only / person parent only) | `src/lib/device-route.ts` |
+| Error envelope, `Cache-Control: private, no-store`, kill switch | `src/lib/device-http.ts` |
+| Audit vocabulary (§10) | `src/lib/device-audit.ts` |
+| PIN rules (§6.1) | `src/lib/elevation-pin.ts` |
+| Routes (§12.1–§12.3) | `src/app/api/device/**`, `src/app/api/family/devices/**`, `src/app/api/users/elevation-pin` |
+| Device read DTO (§9.1) | `buildTodayBoard({ audience: 'device' })` in `src/app/dashboard/today/today-board-data.ts` |
+| Login 409 (O-13), reset clears PIN (§6.1) | `src/app/api/auth/login/route.ts`, `src/lib/tokens.ts` `consumeResetToken` |
+| Middleware (§4 cold launch, §12 pages) | `src/middleware.ts` (cookie presence only; no new CSRF exemption) |
+
+Tests: `src/lib/__tests__/device-session.test.ts`, `src/app/api/device/__tests__/device-routes.test.ts`,
+`src/app/api/family/devices/__tests__/devices.test.ts`, `src/app/api/__tests__/device-route-allowlist.test.ts`
+(§14.1 item 1, walks every `src/app/api/**/route.ts`), `src/app/api/auth/login/__tests__/device-guard.test.ts`,
+`src/__tests__/device-middleware.test.ts`, the device-audience cases in
+`src/app/dashboard/today/__tests__/today-board-data.test.ts`, and the real-Postgres suite
+`src/lib/__tests__/device.integration.test.ts` (`RUN_DB_INTEGRATION=1`; parallel claims, concurrent issue under
+`FOR UPDATE`, no plaintext at rest, family-delete cascade).
+
+Details this contract left open, as implemented:
+
+- **Missing access cookie.** With a refresh cookie present the device routes answer `401 DEVICE_ACCESS_EXPIRED`
+  (the browser drops the 1-hour cookie, and the client should refresh, not purge); with neither cookie,
+  `401 DEVICE_SESSION_INVALID`. A rotated generation's access token also answers `DEVICE_ACCESS_EXPIRED`.
+- **Database error during resolution** fails closed with `503 SERVICE_UNAVAILABLE` (`retryable: true`), not a
+  terminal code, so a database blip never makes a tablet purge itself.
+- **Grace window (rule 3)** is measured from the first rotation of the replayed row; re-issues do not extend it.
+  A concurrent double refresh from the same browser lands in rule 3 rather than rule 4.
+- **Pairing capacity.** A fourth live code first supersedes the oldest, then capacity (active devices plus
+  pending pairings) is checked; a refused creation rolls back the supersede. Creation also takes the Family
+  row lock so concurrent creations cannot over-reserve.
+- **Issue over the limit** cancels the pairing and audits `device.pairing_cancelled` with the added reason
+  `device_limit`.
+- **Confirm before claim** returns `409 PAIRING_NOT_CLAIMED`; the third wrong attempt returns
+  `400 PAIRING_DIGITS_MISMATCH` with `attemptsLeft: 0` and cancels, later calls get `410 PAIRING_CANCELLED`.
+- **Revoke reasons.** Request `reason: 'other'` (or none) is stored and audited as `parent`, keeping the §10
+  vocabulary fixed.
+- **Parent routes** answer `403 FAMILY_REQUIRED` for a parent with no household, and a removed tablet cannot be
+  renamed (`400`).
+- **Elevation limits.** The account-wide counter, the PIN lock and `login-fail:<email>` only move for a real
+  parent of the device's household, so a tablet cannot lock out another household's parent by guessing with
+  their id; device-scoped counters count every attempt. The account lock (`locked_until`) blocks the PIN
+  method only (`423 ELEVATION_LOCKED`); the password fallback stays available under the login lockout. Every
+  attempt costs one bcrypt compare against a well-formed dummy hash when there is nothing to compare.
+- **`GET /api/device/me` `hasPin`** is true only when the PIN row's household matches.
+- **Middleware.** `/`, `/login` and `/dashboard/*` with a device cookie and no `session_token` redirect to
+  `/device/today` (§4). §14.1 item 2 ("every `/dashboard/*` path redirects to `/login`") predates that rule;
+  the §4 redirect is what ships, so a device alone still never reaches a dashboard page.
+- **Subscribed calendars** are not refreshed by `GET /api/device/today` (the person Today page does it after
+  render); the device page in §17.2 should trigger the same refresh.
