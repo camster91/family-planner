@@ -24,6 +24,14 @@ Planned capabilities include:
 
 Do not store reusable parent credentials in the shared-device session. Proposed device-session contract and Android integration issue: [`SHARED_DEVICE.md`](SHARED_DEVICE.md) (#157, ADR-0006). Because the app loads the web experience from `server.url`, device mode needs no new APK; native work is limited to cookie flush on pause, back behaviour and lifecycle evidence.
 
+### Shared-device native behaviour (#242)
+- `MainActivity.onPause` calls `CookieManager.getInstance().flush()`. Device refresh tokens rotate on every refresh (SHARED_DEVICE.md §4), so the rotated cookie is persisted before the process can be killed in the background; otherwise a restart could replay a rotated token and, after the 60 s grace, revoke the tablet. A refresh still in flight at pause lands after that flush, so follow-up flushes run 2 s, 10 s and 30 s after pause (and on `onStop`), cancelled on resume. If device evidence shows a refresh can still land later than that, add a small Capacitor plugin so `device-client.ts` asks native code to flush right after each refresh.
+- Back on a `/device/*` page (`SharedDeviceNavigation.isDevicePage`) moves the task to the background instead of finishing or navigating, so it never reaches `/login` or `/dashboard`. Elsewhere Back keeps the existing system behaviour.
+- Revocation purge is web-side (`src/lib/device-client.ts`: storage, IndexedDB, Cache Storage, and HttpOnly cookies cleared by the server). Native `WebStorage.deleteAllData()` is only to be added if device evidence shows the web purge is insufficient.
+- Backup and device transfer already exclude all app data (`data_extraction_rules.xml`, `ManifestSecurityTest`), so device cookies and storage are never copied off the tablet.
+- **Old clients:** every installed build loads the live site, so device mode works on the released APK (versionCode 1) without an update. Builds without this change still work; they only lack the pause flush (a process kill right after a refresh may force a re-pair) and use system Back (which exits the app on `/device/*`). Supported window: versionCode 1 onward.
+- **Device evidence still needed** (cannot be produced in CI): on a real tablet, pair, then cold launch, warm launch, rotation and `adb shell am kill com.ashbi.familyplanner` (including right after a refresh) all return to the board without re-pairing; after revoke the next launch shows the removed screen; parent mode does not survive backgrounding or process death. Record Samsung-class and stock Android results in #242.
+
 ## Lifecycle requirements
 Relevant releases should test:
 - cold/warm launch;
