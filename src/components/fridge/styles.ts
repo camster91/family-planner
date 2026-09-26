@@ -24,6 +24,7 @@ export const rowLinkClass = [
 export const regionClass = [
   'min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]',
   'bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-sm)] lg:p-6',
+  focusRing,
 ].join(' ')
 
 /** Region heading: readable from across the kitchen. */

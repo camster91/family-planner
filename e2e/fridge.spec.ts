@@ -403,6 +403,27 @@ test.describe("Today board: Family A parent", () => {
     await axeScan(page, testInfo, "/dashboard/today?mode=fridge");
   });
 
+  test("fridge mode fits every region in a landscape tablet viewport", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "fridge-landscape-1280x800",
+      "The fit-to-screen layout is for landscape fridge tablets.",
+    );
+    await openBoard(page, "/dashboard/today?mode=fridge");
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("No viewport");
+    const pageHeight = await page.evaluate(
+      () => document.documentElement.scrollHeight,
+    );
+    expect(pageHeight).toBeLessThanOrEqual(viewport.height);
+    for (const area of ["today", "dinner", "chores", "groceries", "coming"]) {
+      const box = await page.getByTestId(`region-${area}`).boundingBox();
+      expect(box, area).not.toBeNull();
+      expect(box!.y + box!.height, area).toBeLessThanOrEqual(viewport.height);
+    }
+  });
+
   test("@visual fridge view baseline", async ({ page }, testInfo) => {
     test.skip(
       !["fridge-landscape-1280x800", "tablet-portrait-800x1280"].includes(

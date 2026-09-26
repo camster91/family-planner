@@ -172,7 +172,10 @@ export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData;
       data-mode={fridgeMode ? 'fridge' : 'app'}
       className={
         fridgeMode
-          ? 'min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6'
+          ? // On a landscape fridge tablet the board fits the viewport: the grid
+            // takes the height left under the header and each region scrolls
+            // inside itself instead of pushing content below the fold.
+            'min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden'
           : 'bg-[var(--surface-grouped)]'
       }
     >
@@ -242,7 +245,11 @@ export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData;
             'grid gap-5',
             'md:grid-cols-2 md:[grid-template-areas:"today_dinner"_"chores_groceries"_"coming_coming"]',
             'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"coming_coming_coming"]',
-          ].join(' ')}
+            fridgeMode &&
+              'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:overflow-y-auto',
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           <ScheduleRegion events={view.today} calendarHref={data.links.calendar} />
           <DinnerRegion
@@ -253,7 +260,7 @@ export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData;
           />
           <ChoresRegion people={view.chores} choresHref={data.links.chores} />
           <GroceriesRegion shopping={data.shopping} listsHref={data.links.lists} />
-          <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} />
+          <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
         </div>
       ) : (
         <BoardSkeleton />

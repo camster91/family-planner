@@ -59,7 +59,14 @@ function Region({
     coming: 'md:[grid-area:coming]',
   }[area]
   return (
-    <section aria-labelledby={`${id}-title`} data-testid={`region-${area}`} className={cn(regionClass, areaClass)}>
+    <section
+      aria-labelledby={`${id}-title`}
+      data-testid={`region-${area}`}
+      // On a landscape fridge tablet each region scrolls inside itself, so it
+      // must be reachable by keyboard to scroll (WCAG 2.1.1).
+      tabIndex={0}
+      className={cn(regionClass, areaClass)}
+    >
       <div className="mb-4 flex items-center gap-3">
         <Glyph color={glyph} size="md">
           <Icon className="h-5 w-5" aria-hidden="true" />
@@ -345,10 +352,19 @@ export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; c
   )
 }
 
-export function ComingUpRegion({ days, mealsEnabled }: { days: ComingUpDay[]; mealsEnabled: boolean }) {
+export function ComingUpRegion({
+  days,
+  mealsEnabled,
+  stackInLandscape = false,
+}: {
+  days: ComingUpDay[]
+  mealsEnabled: boolean
+  /** Fridge landscape gives this region a narrow column, so days stack. */
+  stackInLandscape?: boolean
+}) {
   return (
     <Region id="board-coming" area="coming" title="Coming up" icon={CalendarRange} glyph="family">
-      <ul className="grid gap-5 sm:grid-cols-3">
+      <ul className={cn('grid gap-5 sm:grid-cols-3', stackInLandscape && 'lg:landscape:grid-cols-1')}>
         {days.map((day) => {
           const shown = day.events.slice(0, MAX_COMING_UP_EVENTS)
           const more = day.events.length - shown.length
