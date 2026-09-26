@@ -487,6 +487,26 @@ CREATE TABLE IF NOT EXISTS "DeviceAuditEvent" (
 CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_family_id_created_at_idx" ON "DeviceAuditEvent"("family_id", "created_at");
 CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_device_id_created_at_idx" ON "DeviceAuditEvent"("device_id", "created_at");
 
+-- ============ Idempotency records (#162 offline sync; additive) ============
+-- docs/architecture/OFFLINE_SYNC.md. Expand only: new table, no backfill.
+CREATE TABLE IF NOT EXISTS "IdempotencyRecord" (
+  "id" TEXT PRIMARY KEY,
+  "scope" TEXT NOT NULL,
+  "key" TEXT NOT NULL,
+  "family_id" TEXT NOT NULL,
+  "user_id" TEXT,
+  "action" TEXT NOT NULL,
+  "request_hash" TEXT NOT NULL,
+  "response_status" INTEGER,
+  "response_body" JSONB,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "expires_at" TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "IdempotencyRecord_scope_key_key" ON "IdempotencyRecord"("scope", "key");
+CREATE INDEX IF NOT EXISTS "IdempotencyRecord_expires_at_idx" ON "IdempotencyRecord"("expires_at");
+CREATE INDEX IF NOT EXISTS "IdempotencyRecord_family_id_idx" ON "IdempotencyRecord"("family_id");
+CREATE INDEX IF NOT EXISTS "IdempotencyRecord_user_id_idx" ON "IdempotencyRecord"("user_id");
+
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -539,6 +559,13 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Idempotency records (#162)
+DO $$ BEGIN
+  ALTER TABLE "IdempotencyRecord" ADD CONSTRAINT "IdempotencyRecord_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "IdempotencyRecord" ADD CONSTRAINT "IdempotencyRecord_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

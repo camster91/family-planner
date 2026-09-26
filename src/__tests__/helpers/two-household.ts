@@ -529,6 +529,17 @@ function notFound(model: string): Error {
   return err
 }
 
+// Composite unique indexes the fake enforces (create throws P2002 like Prisma).
+const UNIQUE: Record<string, string[][]> = {
+  idempotencyRecord: [['scope', 'key']],
+}
+
+function uniqueViolation(model: string): Error {
+  const err = new Error(`fake prisma: unique constraint failed on ${model}`) as Error & { code: string }
+  err.code = 'P2002'
+  return err
+}
+
 function delegate(model: string) {
   const all = () => db.rows(model)
   const log = (op: string, args: any) => db.writes.push({ model, op, args })
@@ -547,6 +558,9 @@ function delegate(model: string) {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
       applyData(model, row, args.data)
+      for (const cols of UNIQUE[model] ?? []) {
+        if (all().some((r) => cols.every((c) => cmp(r[c], row[c]) === 0))) throw uniqueViolation(model)
+      }
       all().push(row)
       return project(model, row, args)
     },
@@ -725,6 +739,8 @@ export type RequestOptions = {
   path?: string
   query?: Record<string, string>
   body?: unknown
+  /** Extra request headers, e.g. `Idempotency-Key`. */
+  headers?: Record<string, string>
 }
 
 /**
@@ -739,7 +755,7 @@ export function req(opts: RequestOptions = {}): any {
     method: opts.method ?? 'GET',
     url: url.toString(),
     nextUrl: url,
-    headers: new Headers({ 'x-forwarded-for': '198.51.100.7' }),
+    headers: new Headers({ 'x-forwarded-for': '198.51.100.7', ...(opts.headers ?? {}) }),
     cookies: { get: (name: string) => (name === 'session_token' && token ? { value: token } : undefined) },
     json: async () => {
       if (opts.body === undefined) throw new SyntaxError('Unexpected end of JSON input')

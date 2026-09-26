@@ -25,6 +25,14 @@ bound to that device; `session (person only)` = `authenticateRequest`, which nev
 device route's household is the device's own `family_id` from the database. The route-allowlist test is the
 guard that no other route accepts a device cookie. Contract: `docs/architecture/SHARED_DEVICE.md` §12 and §18.
 
+**Update 2026-09-26 (#162): idempotency.** `PATCH /api/lists/items/update` accepts an optional
+`Idempotency-Key` header through `src/lib/idempotency.ts`. The new `IdempotencyRecord` table is keyed by
+`(scope, key)` with `scope = user:<userId>` and carries `family_id` (FK, cascade) and `user_id` (FK, cascade).
+Authentication and household checks run before any record is read; a record is replayed only to the same scope
+and household, and only 2xx outcomes are stored, so a denied or foreign-item request leaves no record. Tests:
+`src/app/api/lists/__tests__/idempotency.test.ts`, `src/lib/__tests__/idempotency.test.ts` and the opt-in
+`src/lib/__tests__/idempotency.integration.test.ts`. Contract: `docs/architecture/OFFLINE_SYNC.md`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -152,7 +160,7 @@ recorded in route comments, as the de facto matrix.
 | /api/lists/create | POST | family | session family | P+T | none | lists/iso | implemented (D9) |
 | /api/lists/items | GET | family | list match (403) | all | none | lists/iso | ok |
 | /api/lists/items/create | POST | family | list match (403) | all | listId verified | lists/iso | ok |
-| /api/lists/items/update | PATCH | family | item's list match (403) | all | none | lists/iso | ok |
+| /api/lists/items/update | PATCH | family | item's list match (403) | all | none | lists/iso, lists/idempotency | ok; optional `Idempotency-Key` (#162): records scoped to `user:<id>` + `family_id`, never replayed across users or households, 401 before any lookup |
 | /api/lists/items/delete | DELETE | family | item's list match (403) | P | none | lists/iso | ok |
 | /api/locations | GET | jwt | where | P (was all) | none | locations/iso | fixed |
 | /api/locations | POST | jwt | session family | P | none | locations/iso | ok |

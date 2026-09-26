@@ -465,6 +465,9 @@ large layout work before these frames exist (AGENTS.md "Figma-first").
 2. Delete every client storage key under the `fp-device:v1:` namespace (localStorage and IndexedDB database
    `fp-device`) and any Cache Storage entry the device layer created.
 3. Drop the offline mutation queue (#162). Pending items are not replayed; they were never server-confirmed.
+   The queue's device namespace is the reserved `fp-device:v1:queue` key in the `fp-device` database
+   (`queueLocation({ kind: 'device' })` in `src/lib/offline-queue.ts`), so steps 2 and 3 are the same wipe.
+   Device writes stay disabled; #162 enables queueing for person sessions only.
 4. Navigate (replace, not push) to the "Removed" screen.
 
 **Cache rules (for #162):** the only cached payload is the latest device `TodayBoardData` plus `generatedAt`,

@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { TabBar } from '@/components/ui/tab-bar'
 import { canRoleAccessPath, filterNavForRole } from '@/lib/kid-access'
+import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
 
 interface DashboardNavProps {
   user: NavUser | null
@@ -66,6 +67,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   }, [])
 
   const handleSignOut = async () => {
+    // Offline changes belong to this session; sign-out drops them (#162).
+    await clearAllPersonQueues()
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
     router.refresh()
