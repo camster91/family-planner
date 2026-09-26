@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import CalendarSubscriptionsSection from './CalendarSubscriptionsSection'
 import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles } from 'lucide-react'
 
 export default function SettingsPage() {
@@ -641,6 +642,9 @@ export default function SettingsPage() {
 
             {feedError && <p className="text-sm text-red-600 mt-3">{feedError}</p>}
           </div>
+
+          {/* Subscribed (read-only ICS) calendars, #232. Parents only; the API enforces it too. */}
+          {role === 'parent' && <CalendarSubscriptionsSection />}
 
           {/* Language Settings */}
           <div className="card">

@@ -133,4 +133,12 @@ test.describe("a11y: Family A child", () => {
     await settle(page);
     await scan(page, testInfo, "/dashboard (kid)");
   });
+
+  // Newly reachable for kids with the #102 decisions (D9).
+  test("kid lists", async ({ page }, testInfo) => {
+    await page.goto("/dashboard/lists");
+    await expect(page.locator("#main-content")).toBeVisible();
+    await settle(page);
+    await scan(page, testInfo, "/dashboard/lists (kid)");
+  });
 });

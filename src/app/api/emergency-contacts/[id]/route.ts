@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +13,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const gate = await featureGate(auth.user.family_id, 'emergency')
     if (gate) return gate
+
+    // D1 (#102): teens and children may read emergency contacts but not change them.
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const { id } = await params
     let body: any
@@ -84,6 +88,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const gate = await featureGate(auth.user.family_id, 'emergency')
     if (gate) return gate
+
+    // D1 (#102): teens and children may read emergency contacts but not change them.
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const { id } = await params
 

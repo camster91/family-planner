@@ -38,6 +38,18 @@ function AllowancePageInner() {
   const [adding, setAdding] = React.useState(false)
   const [draft, setDraft] = React.useState({ to_user_id: '', amount: '', reason: '' })
   const [saving, setSaving] = React.useState(false)
+  // D5 (#102): teens and children see only their own allowance, read-only.
+  // The API filters the rows; the page hides every control that would write.
+  // Null until /api/auth/me answers, so the controls never flash for a kid.
+  const [role, setRole] = React.useState<string | null>(null)
+  const isParent = role === 'parent'
+
+  React.useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setRole(d?.user?.role ?? null))
+      .catch(() => {})
+  }, [])
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -103,9 +115,13 @@ function AllowancePageInner() {
       <LargeHeader
         greeting="Family"
         title="Allowance"
-        subtitle="Track weekly allowance and money owed between members."
+        subtitle={
+          role === null || isParent
+            ? 'Track weekly allowance and money owed between members.'
+            : 'Your allowance: what you have coming and what has been paid.'
+        }
         trailing={
-          !adding ? (
+          isParent && !adding ? (
             <button type="button" onClick={() => setAdding(true)} className="btn-tinted">
               <Plus className="w-4 h-4" />
               <span>Add</span>
@@ -114,7 +130,7 @@ function AllowancePageInner() {
         }
       />
 
-      {adding && (
+      {isParent && adding && (
         <form onSubmit={add} className="card-apple p-4 space-y-3 animate-spring-up">
           <div className="flex items-center gap-2">
             <div className="glyph bg-tint-budget">
@@ -189,7 +205,11 @@ function AllowancePageInner() {
           icon={Wallet}
           glyphColor="budget"
           title="No allowance yet"
-          description="Track weekly allowance and money owed between members. Kids can see what they have coming."
+          description={
+            role === null || isParent
+              ? 'Track weekly allowance and money owed between members. Kids can see what they have coming.'
+              : 'Nothing yet. When a parent adds allowance for you, it shows up here.'
+          }
         />
       ) : (
         <>
@@ -201,6 +221,7 @@ function AllowancePageInner() {
                   <AllowanceRow
                     key={it.id}
                     item={it}
+                    canManage={isParent}
                     onMarkPaid={markPaid}
                     onCancel={cancel}
                     last={i === pending.length - 1}
@@ -214,7 +235,7 @@ function AllowancePageInner() {
               <SectionHeader>Recently paid</SectionHeader>
               <InsetList>
                 {paid.map((it, i) => (
-                  <AllowanceRow key={it.id} item={it} onMarkPaid={markPaid} onCancel={cancel} last={i === paid.length - 1} />
+                  <AllowanceRow key={it.id} item={it} canManage={isParent} onMarkPaid={markPaid} onCancel={cancel} last={i === paid.length - 1} />
                 ))}
               </InsetList>
             </section>
@@ -227,11 +248,13 @@ function AllowancePageInner() {
 
 function AllowanceRow({
   item,
+  canManage,
   onMarkPaid,
   onCancel,
   last,
 }: {
   item: AllowanceItem
+  canManage: boolean
   onMarkPaid: (id: string) => void
   onCancel: (id: string) => void
   last: boolean
@@ -250,7 +273,10 @@ function AllowanceRow({
               : 'No reason')}
           </div>
         </div>
-        {item.status === 'pending' && (
+        {item.status === 'pending' && !canManage && (
+          <span className="text-caption-1 font-semibold text-label-secondary uppercase tracking-wide">Pending</span>
+        )}
+        {item.status === 'pending' && canManage && (
           <div className="flex items-center gap-1">
             <button
               type="button"

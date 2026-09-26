@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { Sparkles, Loader2, Check, X, ListPlus, CalendarDays, ClipboardList, Camera } from 'lucide-react'
+import { CAPTURE_CHILD_MESSAGE } from '@/lib/role-capabilities'
 
 // Small, focused capture box. One input. Type a phrase, confirm what it understood.
 // Deliberately not a chat: there is no conversation, no history, one job.
@@ -94,6 +95,8 @@ export function CaptureBox() {
   const [error, setError] = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState<string | null>(null)
   const [unavailable, setUnavailable] = React.useState(false)
+  // D4 (#102): children may not use capture; the API says so via `allowed`.
+  const [childBlocked, setChildBlocked] = React.useState(false)
   const [photoBusy, setPhotoBusy] = React.useState(false)
   const [photoEvents, setPhotoEvents] = React.useState<PhotoEvent[] | null>(null)
   const [photoNote, setPhotoNote] = React.useState<string | null>(null)
@@ -104,7 +107,8 @@ export function CaptureBox() {
     fetch('/api/capture')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d && d.configured === false) setUnavailable(true)
+        if (d && d.allowed === false) setChildBlocked(true)
+        else if (d && d.configured === false) setUnavailable(true)
       })
       .catch(() => {})
   }, [])
@@ -253,6 +257,14 @@ export function CaptureBox() {
     } finally {
       setPhotoBusy(false)
     }
+  }
+
+  if (childBlocked) {
+    return (
+      <div className="card-apple p-4 text-subhead text-label-secondary" role="note" data-testid="capture-child-blocked">
+        {CAPTURE_CHILD_MESSAGE}
+      </div>
+    )
   }
 
   if (unavailable) {

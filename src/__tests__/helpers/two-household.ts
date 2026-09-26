@@ -629,7 +629,10 @@ async function payloadFor(token: string | undefined | null) {
 }
 
 export const sessionMock = {
+  // Like the real verifySessionToken (D6), role and family_id always come from
+  // the user table, so a test can change a member's role mid-test.
   verifySessionToken: payloadFor,
+  resolveSession: async (p: { userId: string }) => payloadFor(`session:${p.userId}`),
   isSessionCurrent: async () => true,
   getTokenVersion: async (id: string) => db.find('user', id)?.token_version ?? null,
 }

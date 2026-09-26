@@ -21,6 +21,8 @@ interface EventData {
   location?: string | null
   event_type: string
   creator?: { name: string } | null
+  // Set for events imported from a subscribed calendar (#232); those are read-only.
+  source?: { subscription_id: string; name: string; color: string | null } | null
 }
 
 interface CalendarPageClientProps {
@@ -85,6 +87,22 @@ const CALENDAR_ICON_COLORS: Record<string, string> = {
   family: 'calendar',
   work: 'calendar',
   other: 'calendar',
+}
+
+export function SourceBadge({ name, color }: { name: string; color: string | null }) {
+  return (
+    <span
+      className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-full bg-[var(--surface-fill)] px-2 py-0.5 text-caption-1 text-label-secondary"
+      title={`Read-only. Imported from ${name}`}
+    >
+      <span
+        aria-hidden="true"
+        className="inline-block h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color ?? 'var(--label-tertiary, #8e8e93)' }}
+      />
+      <span className="truncate">From {name}</span>
+    </span>
+  )
 }
 
 export default function CalendarPageClient({
@@ -161,29 +179,46 @@ export default function CalendarPageClient({
               <section key={dayKey}>
                 <p className="section-header">{formatDayLabel(dayEvents[0].start_time)}</p>
                 <div className="list-inset stagger">
-                  {dayEvents.map((event, i) => (
-                    <ListRow
-                      key={event.id}
-                      icon={CalendarIcon}
-                      glyphColor="calendar"
-                      title={event.title}
-                      subtitle={
-                        event.location
-                          ? `${formatTime(event.start_time)} · ${event.location}`
-                          : formatTime(event.start_time)
-                      }
-                      showChevron={true}
-                      href={`/dashboard/calendar/edit?id=${event.id}`}
-                      trailing={
-                        event.event_type && event.event_type !== 'other' ? (
-                          <span className="text-caption-1 text-label-tertiary capitalize">
-                            {event.event_type}
-                          </span>
-                        ) : undefined
-                      }
-                      className={cn(i === dayEvents.length - 1 && 'border-b-0')}
-                    />
-                  ))}
+                  {dayEvents.map((event, i) => {
+                    const subtitle = event.location
+                      ? `${formatTime(event.start_time)} · ${event.location}`
+                      : formatTime(event.start_time)
+                    // Imported events are read-only: no edit link, and a text
+                    // badge naming the source (not colour alone).
+                    if (event.source) {
+                      return (
+                        <ListRow
+                          key={event.id}
+                          icon={CalendarIcon}
+                          glyphColor="calendar"
+                          title={event.title}
+                          subtitle={subtitle}
+                          showChevron={false}
+                          trailing={<SourceBadge name={event.source.name} color={event.source.color} />}
+                          className={cn(i === dayEvents.length - 1 && 'border-b-0')}
+                        />
+                      )
+                    }
+                    return (
+                      <ListRow
+                        key={event.id}
+                        icon={CalendarIcon}
+                        glyphColor="calendar"
+                        title={event.title}
+                        subtitle={subtitle}
+                        showChevron={true}
+                        href={`/dashboard/calendar/edit?id=${event.id}`}
+                        trailing={
+                          event.event_type && event.event_type !== 'other' ? (
+                            <span className="text-caption-1 text-label-tertiary capitalize">
+                              {event.event_type}
+                            </span>
+                          ) : undefined
+                        }
+                        className={cn(i === dayEvents.length - 1 && 'border-b-0')}
+                      />
+                    )
+                  })}
                 </div>
               </section>
             )

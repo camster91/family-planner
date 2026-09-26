@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers'
 import { verifySessionToken } from '@/lib/session'
 
-// Stub: returns the authenticated user from the JWT cookie.
-// Used by server components that previously called supabase.auth.getSession().
-// The JWT payload now includes role + family_id (added 2026-06-06); we surface
-// them here so route handlers can do role checks without an extra DB lookup.
-// For legacy tokens issued before the JWT change, role will be undefined and
-// callers should treat as 'parent' (the safe default) or do a DB lookup.
+// Returns the authenticated user from the session cookie. Used by server
+// components and route handlers. `role` and `family_id` are the member's
+// CURRENT values from the database (D6, #102): `verifySessionToken` resolves
+// them in the same query as the session-generation check, so a role or
+// household change takes effect on the next request instead of when the
+// cookie expires. The JWT's own role/family_id claims are never trusted.
 //
 // This is the server-component counterpart to `authenticateRequest`, and it
 // goes through the SAME `verifySessionToken` check. Using bare `verifyToken`

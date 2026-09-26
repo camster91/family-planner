@@ -8,7 +8,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 
 import { GET, POST } from "../route";
 import { PATCH, DELETE } from "../[id]/route";
-import { db, req, params, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
+import { db, req, params, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 const newDate = { name: "Gran", type: "birthday", date: "2026-12-01" };
 
@@ -73,5 +73,25 @@ describe("anniversaries — two households", () => {
     await expectDenied(await DELETE(req({ as: "parentA", query: { id: "ann-a" } }), params({ id: "ann-b" })));
     expect(db.find("anniversary", "ann-a")).toBeDefined();
     expect(db.find("anniversary", "ann-b")).toBeDefined();
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s can create an anniversary in their own family", async (who) => {
+    const res = await POST(req({ as: who, body: { ...newDate, family_id: "family-B" } }));
+    expect(res.status).toBe(201);
+    expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A" });
+  });
+
+  // Anniversary has no created_by column, so "edit your own" cannot be proven
+  // and editing is parent-only for now (docs/ROLE_AND_ISOLATION_MATRIX.md).
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s cannot edit or delete an anniversary", async (who) => {
+    expect((await PATCH(req({ as: who, body: { name: "x" } }), params({ id: "ann-a" }))).status).toBe(403);
+    expect((await DELETE(req({ as: who }), params({ id: "ann-a" }))).status).toBe(403);
+    expect(db.find("anniversary", "ann-a")?.name).toBe("Home birthday");
+  });
+
+  it("D9: a family-B child is denied family A's anniversary without leaking it", async () => {
+    await expectDenied(await PATCH(req({ as: "childB", body: { name: "x" } }), params({ id: "ann-a" })));
+    await expectDenied(await DELETE(req({ as: "childB" }), params({ id: "ann-a" })));
+    expect(db.writes).toHaveLength(0);
   });
 });

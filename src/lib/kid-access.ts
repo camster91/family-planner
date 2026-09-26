@@ -17,7 +17,21 @@ export const KID_ALLOWED_PREFIXES = [
   '/dashboard/wishlist',
   // Emergency and medical info. Deliberately kid-accessible: a child home alone
   // in an emergency must be able to find the contacts and medical details.
+  // Read-only for teens and children (D1, #102).
   '/dashboard/emergency',
+  // Shared lists (D9, #102): every member may add and tick items. Parents and
+  // teens may create a list; deleting a list or an item is parent-only. The
+  // API enforces each rule; the pages hide the controls a role cannot use.
+  '/dashboard/lists',
+  // Their own allowance, read-only (D5, #102). The API returns only rows paid
+  // to the caller and refuses POST/PATCH.
+  '/dashboard/allowance',
+  // Sitter handoff, read-only (D2, #102). Teens see the full handoff; children
+  // see only the sitter's name and arrival/departure times.
+  '/dashboard/handoff',
+  // Their own sick days and medications (D1, #102): report themselves sick and
+  // log a dose of their own medication. Everything else stays with parents.
+  '/dashboard/sick-days',
 ] as const
 
 export function isKidAllowedPath(pathname: string): boolean {

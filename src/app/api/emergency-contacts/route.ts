@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
+import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create an emergency contact (any family member)
+// POST - Create an emergency contact (parents only)
 export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
 
     const gate = await featureGate(auth.user.family_id, 'emergency')
     if (gate) return gate
+
+    // D1 (#102): teens and children may read emergency contacts but not change them.
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     let body: any
     try {

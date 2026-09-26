@@ -83,6 +83,7 @@ model User {
   created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
   created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
   family_invites_created        FamilyInvite[]     @relation("FamilyInviteCreator")
+  calendar_subscriptions        CalendarSubscription[] @relation("CalendarSubscriptionCreator")
 
   @@index([family_id])
 }
@@ -142,6 +143,33 @@ model Family {
   shopping_lists     ShoppingList[]
   finance_records    FinancialArchiveRecord[]
   invites            FamilyInvite[]
+  calendar_subscriptions CalendarSubscription[]
+}
+
+// Read-only ICS calendar subscription (#232). The feed URL is a bearer secret
+// (private Google/Outlook links embed a token), so it is stored encrypted with
+// lib/secret-box.ts and never returned or logged after saving.
+// See docs/architecture/CALENDAR_IMPORT.md.
+model CalendarSubscription {
+  id              String    @id @default(cuid())
+  family_id       String
+  name            String
+  url_enc         String // encrypted https URL (secret-box "v1:..." format)
+  color           String?
+  last_fetched_at DateTime?
+  last_status     String    @default("pending") // 'pending' | 'ok' | 'error'
+  last_error      String? // short, fixed-vocabulary message; never feed content
+  etag            String?
+  last_modified   String?
+  created_by      String
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  family  Family  @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User    @relation("CalendarSubscriptionCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  events  Event[]
+
+  @@index([family_id])
 }
 
 model FamilyInvite {
@@ -549,15 +577,26 @@ model Event {
   created_by  String // user_id
   created_at  DateTime @default(now())
 
-  // Relations
-  family  Family   @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator User     @relation("CreatedEvents", fields: [created_by], references: [id])
-  project Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  // Imported (read-only) events from a CalendarSubscription (#232). All null
+  // for events created in the app. Identity of an imported occurrence is
+  // (subscription, iCalendar UID, original occurrence start): the
+  // RECURRENCE-ID instant for recurring instances, DTSTART otherwise.
+  source_subscription_id  String?
+  source_uid              String?
+  source_occurrence_start DateTime?
 
+  // Relations
+  family              Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator             User                  @relation("CreatedEvents", fields: [created_by], references: [id])
+  project             Project?              @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  source_subscription CalendarSubscription? @relation(fields: [source_subscription_id], references: [id], onDelete: Cascade)
+
+  @@unique([source_subscription_id, source_uid, source_occurrence_start])
   @@index([family_id])
   @@index([start_time])
   @@index([family_id, start_time])
   @@index([project_id])
+  @@index([source_subscription_id, start_time])
 }
 
 model Message {

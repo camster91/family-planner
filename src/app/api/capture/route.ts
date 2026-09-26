@@ -3,6 +3,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { CaptureError, draftFromText, draftFromImage, resolveCaptureConfig } from '@/lib/capture'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { CAPTURE_CHILD_MESSAGE, canUseCapture } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,12 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // D4 (#102): capture spends the family's own AI key. Parents and teens may
+    // use it; a child is refused before any provider lookup or rate-limit write.
+    if (!canUseCapture(auth.user.role)) {
+      return NextResponse.json({ error: CAPTURE_CHILD_MESSAGE }, { status: 403 })
+    }
 
     // The provider is configured per family, in the app, not in the server env.
     const family = await prisma!.family.findUnique({
@@ -95,5 +102,13 @@ export async function GET(request: NextRequest) {
     },
   })
   const config = resolveCaptureConfig(family)
-  return NextResponse.json({ configured: Boolean(config), model: config?.model ?? null })
+  // `allowed` lets the UI show "Ask a parent to add this." to a child instead
+  // of a box that would only ever return 403 (D4).
+  const allowed = canUseCapture(auth.user.role)
+  return NextResponse.json({
+    configured: Boolean(config),
+    model: config?.model ?? null,
+    allowed,
+    ...(allowed ? {} : { message: CAPTURE_CHILD_MESSAGE }),
+  })
 }

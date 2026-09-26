@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
+import { isKidRole } from '@/lib/kid-access'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -12,8 +13,13 @@ export async function GET() {
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ medications: [] })
 
+  // D1 (#102): a teen or child sees only medications prescribed to them.
   const medications = await prisma!.medication.findMany({
-    where: { family_id: user.family_id, active: true },
+    where: {
+      family_id: user.family_id,
+      active: true,
+      ...(isKidRole(user.role) ? { person_id: user.id } : {}),
+    },
     include: { person: { select: { id: true, name: true, avatar_url: true } } },
     orderBy: { created_at: 'desc' },
   })

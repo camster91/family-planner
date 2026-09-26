@@ -32,6 +32,8 @@ interface ListDetailClientProps {
   listType: ListType
   items: Item[]
   userId: string
+  /** D9 (#102): deleting an item is parent-only. */
+  canDeleteItems?: boolean
 }
 
 // -----------------------------------------------------------------------
@@ -44,6 +46,7 @@ export default function ListDetailClient({
   listType,
   items: initialItems,
   userId,
+  canDeleteItems = true,
 }: ListDetailClientProps) {
   const [listItems, setListItems] = React.useState<Item[]>(initialItems)
   const [newItemText, setNewItemText] = React.useState('')
@@ -147,7 +150,7 @@ export default function ListDetailClient({
               {grouped[category].map((item, i) => (
                 <SwipeRow
                   key={item.id}
-                  onSwipeLeft={() => handleDeleteItem(item.id)}
+                  onSwipeLeft={canDeleteItems ? () => handleDeleteItem(item.id) : undefined}
                 >
                   <CheckboxRow
                     checked={item.checked}

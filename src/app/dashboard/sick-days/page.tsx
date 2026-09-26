@@ -133,6 +133,7 @@ function SickDaysPageInner() {
   const [showAddMedModal, setShowAddMedModal] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [userRole, setUserRole] = React.useState<string>('child')
+  const [userId, setUserId] = React.useState<string | null>(null)
 
   // Start sick day form
   const [startForm, setStartForm] = React.useState({ person_id: '', severity: 'mild', symptoms: '' })
@@ -172,6 +173,7 @@ function SickDaysPageInner() {
     // Get user role from me endpoint
     fetch('/api/auth/me').then((r) => r.json()).then((d) => {
       if (d.user?.role) setUserRole(d.user.role)
+      if (d.user?.id) setUserId(d.user.id)
     }).catch(() => {})
   }, [load])
 
@@ -280,6 +282,11 @@ function SickDaysPageInner() {
   }
 
   const isParent = userRole === 'parent'
+  // D1 (#102): a teen or child sees only their own sick days and medications
+  // (the API filters them), may report only themselves as sick, and may log a
+  // dose of their own medication. Temperatures, ending a sick day and
+  // prescriptions stay with parents.
+  const reportableMembers = isParent ? members : members.filter((m) => m.id === userId)
 
   if (loading) {
     return (
@@ -364,7 +371,7 @@ function SickDaysPageInner() {
                 className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               >
                 <option value="">{t('sickDays.selectPerson')}</option>
-                {members.map((m) => (
+                {reportableMembers.map((m) => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </select>
@@ -433,13 +440,15 @@ function SickDaysPageInner() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-caption-1 text-label-secondary uppercase tracking-wide">{t('sickDays.temperatureLog')}</p>
-                <button
-                  type="button"
-                  onClick={() => setShowAddTempModal(true)}
-                  className="text-caption-1 text-[var(--accent)] font-medium"
-                >
-                  + {t('sickDays.addTemperature')}
-                </button>
+                {isParent && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTempModal(true)}
+                    className="text-caption-1 text-[var(--accent)] font-medium"
+                  >
+                    + {t('sickDays.addTemperature')}
+                  </button>
+                )}
               </div>
               {selectedSickDay.temperature_log && selectedSickDay.temperature_log.length > 0 ? (
                 <div className="space-y-1">
@@ -497,16 +506,18 @@ function SickDaysPageInner() {
             </div>
           </div>
 
-          <div className="px-4 pb-4">
-            <button
-              type="button"
-              onClick={endSickness}
-              disabled={saving}
-              className="w-full btn-ghost text-label-destructive"
-            >
-              {t('sickDays.endSickness')}
-            </button>
-          </div>
+          {isParent && (
+            <div className="px-4 pb-4">
+              <button
+                type="button"
+                onClick={endSickness}
+                disabled={saving}
+                className="w-full btn-ghost text-label-destructive"
+              >
+                {t('sickDays.endSickness')}
+              </button>
+            </div>
+          )}
         </Modal>
       )}
 

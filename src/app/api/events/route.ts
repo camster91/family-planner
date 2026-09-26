@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/validations'
+import { attachEventSources, EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-import/source'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest) {
       }
       const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
       if (familyError) return familyError
-      return NextResponse.json({ event })
+      const [withSource] = await attachEventSources(prisma!, auth.user.family_id, [event])
+      return NextResponse.json({ event: withSource })
     }
 
     const upcoming = searchParams.get('upcoming') === 'true'
@@ -45,7 +47,8 @@ export async function GET(request: NextRequest) {
       take: 100,
     })
 
-    return NextResponse.json({ events })
+    // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
+    return NextResponse.json({ events: await attachEventSources(prisma!, auth.user.family_id, events) })
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -143,7 +146,7 @@ export async function PATCH(request: NextRequest) {
 
     const event = await prisma!.event.findUnique({
       where: { id: eventId },
-      select: { family_id: true, start_time: true, end_time: true },
+      select: { family_id: true, start_time: true, end_time: true, source_subscription_id: true },
     })
 
     if (!event) {
@@ -152,6 +155,11 @@ export async function PATCH(request: NextRequest) {
 
     const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    // Imported events are owned by their source calendar (#232).
+    if (event.source_subscription_id) {
+      return NextResponse.json({ error: EVENT_READ_ONLY_MESSAGE, code: EVENT_READ_ONLY_CODE }, { status: 409 })
+    }
 
     const newStart = updates.start_time !== undefined ? new Date(updates.start_time) : undefined
     const newEnd = updates.end_time !== undefined ? new Date(updates.end_time) : undefined
@@ -212,7 +220,7 @@ export async function DELETE(request: NextRequest) {
 
     const event = await prisma!.event.findUnique({
       where: { id: parsed.data.eventId },
-      select: { family_id: true },
+      select: { family_id: true, source_subscription_id: true },
     })
 
     if (!event) {
@@ -221,6 +229,11 @@ export async function DELETE(request: NextRequest) {
 
     const familyError = requireFamilyMatch(event.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    // Imported events are removed by removing their subscription (#232).
+    if (event.source_subscription_id) {
+      return NextResponse.json({ error: EVENT_READ_ONLY_MESSAGE, code: EVENT_READ_ONLY_CODE }, { status: 409 })
+    }
 
     await prisma!.event.delete({ where: { id: parsed.data.eventId } })
 

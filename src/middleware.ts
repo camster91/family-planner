@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { isSessionCurrent } from '@/lib/session'
+import { resolveSession } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
 import { KID_ALLOWED_PREFIXES, isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
 
@@ -89,11 +89,17 @@ export async function middleware(request: NextRequest) {
   // Fail-closed on error: a DB outage degrades a logged-in user to the login
   // page, where the app is unusable anyway, rather than admitting a session
   // that may have been revoked.
+  //
+  // The same lookup also returns the member's CURRENT role (D6, #102), and the
+  // kid gate below uses that rather than the role claim inside the JWT.
   let isAuthenticated = false
+  let currentRole: string | undefined = payload?.role
   if (payload) {
     if (isProtectedRoute || isAuthRoute) {
       try {
-        isAuthenticated = await isSessionCurrent(payload)
+        const resolved = await resolveSession(payload)
+        isAuthenticated = resolved !== null
+        currentRole = resolved?.role
       } catch (error) {
         // Fail closed, but not silently: a database outage that logs every user
         // out with zero trace in the logs is far harder to diagnose than one
@@ -118,7 +124,7 @@ export async function middleware(request: NextRequest) {
   // The allowlist is the single source of truth — the dashboard layout uses the
   // same helper, so the two gates cannot disagree.
   if (isProtectedRoute && isAuthenticated && payload) {
-    const isKid = isKidRole(payload.role)
+    const isKid = isKidRole(currentRole)
     const pathname = request.nextUrl.pathname
     if (isKid && !isDashboardRoot(pathname) && !isKidAllowedPath(pathname)) {
       const redirectUrl = new URL('/dashboard', request.url)

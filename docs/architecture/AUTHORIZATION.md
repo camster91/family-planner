@@ -35,7 +35,12 @@ Avoid revealing the existence of foreign-family records. Use consistent purpose-
 If a request creates/updates a relation (`assigned_to`, `cook_id`, `person_id`, recipe, list, device, etc.), verify that related object belongs to the same household and that the actor may use it.
 
 ## Child/teen rules
-Do not assume teen equals child forever. Role capability must be explicit per domain and reflected in `docs/ROLE_AND_ISOLATION_MATRIX.md` when changed.
+Do not assume teen equals child forever. Role capability must be explicit per domain and reflected in [`docs/ROLE_AND_ISOLATION_MATRIX.md`](../ROLE_AND_ISOLATION_MATRIX.md) when changed.
+
+The matrix records the per-domain parent/teen/child capability decided on issue #102 (D1–D9). Shared code: `src/lib/role-capabilities.ts` for per-domain capability, `src/lib/kid-access.ts` for which `/dashboard` pages a teen or child may open.
+
+## Current role and household
+Step 2 above is implemented in `resolveSession` (`src/lib/session.ts`): one query per request reads `token_version`, `role` and `family_id`. `verifySessionToken`, and therefore `authenticateRequest`, `getServerUser()` and the middleware kid gate, return the database role and family, never the JWT claims.
 
 ## Device lifecycle
 Shared device authorization needs pairing, revocation, token rotation, last-seen/health visibility and cache-clearing behaviour after revoke. Offline access never grants future refresh after revocation.

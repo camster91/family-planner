@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +41,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const familyError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    // D9 (#102): a teen or child may edit only anniversaries they created, but
+    // Anniversary has no created_by column yet, so ownership cannot be proven
+    // and editing is parent-only until that column exists (see
+    // docs/ROLE_AND_ISOLATION_MATRIX.md). Creating stays open to every member.
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     const data: Record<string, unknown> = {}
     if (name !== undefined) data.name = name
@@ -104,6 +111,10 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const familyError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    // D9 (#102): deleting an anniversary is parent-only.
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     await prisma!.anniversary.delete({ where: { id } })
 

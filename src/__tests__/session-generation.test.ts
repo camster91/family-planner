@@ -19,7 +19,7 @@ jest.mock('@/lib/prisma', () => ({
 }))
 
 import { signToken } from '@/lib/auth'
-import { getTokenVersion, isSessionCurrent, verifySessionToken } from '@/lib/session'
+import { getTokenVersion, isSessionCurrent, resolveSession, verifySessionToken } from '@/lib/session'
 
 const USER_ID = 'user-1'
 const SECRET = 'a'.repeat(32)
@@ -99,5 +99,55 @@ describe('verifySessionToken', () => {
   it('returns null for a tampered token, without touching the database', async () => {
     expect(await verifySessionToken(tokenFor(1) + 'x')).toBeNull()
     expect(mockPrisma!.user.findUnique).not.toHaveBeenCalled()
+  })
+})
+
+// D6 (#102): role and family_id are resolved from the database on every
+// request, in the same lookup as the generation check. The claims baked into
+// the JWT at sign-in are never authoritative.
+describe('resolveSession / verifySessionToken — current role and family (D6)', () => {
+  function tokenWithClaims(role: string, family_id: string | null, tv = 0): string {
+    return signToken({ userId: USER_ID, email: 'cam@example.com', role, family_id, tv })
+  }
+
+  it('reads role and family_id in the same single query as token_version', async () => {
+    mockPrisma!.user.findUnique.mockResolvedValue({ token_version: 0, role: 'parent', family_id: 'fam-1' })
+    await verifySessionToken(tokenWithClaims('parent', 'fam-1'))
+    expect(mockPrisma!.user.findUnique).toHaveBeenCalledTimes(1)
+    expect(mockPrisma!.user.findUnique).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      select: { token_version: true, role: true, family_id: true },
+    })
+  })
+
+  it('a demoted member (JWT says parent, DB says child) is a child on the next request', async () => {
+    mockPrisma!.user.findUnique.mockResolvedValue({ token_version: 0, role: 'child', family_id: 'fam-1' })
+    const payload = await verifySessionToken(tokenWithClaims('parent', 'fam-1'))
+    expect(payload).toMatchObject({ userId: USER_ID, role: 'child', family_id: 'fam-1' })
+  })
+
+  it('a member moved out of a household loses the old family_id immediately', async () => {
+    mockPrisma!.user.findUnique.mockResolvedValue({ token_version: 0, role: 'parent', family_id: null })
+    const payload = await verifySessionToken(tokenWithClaims('parent', 'fam-old'))
+    expect(payload!.family_id).toBeNull()
+  })
+
+  it('a member moved to another household gets the new family_id, not the JWT one', async () => {
+    mockPrisma!.user.findUnique.mockResolvedValue({ token_version: 0, role: 'teen', family_id: 'fam-new' })
+    const payload = await verifySessionToken(tokenWithClaims('parent', 'fam-old'))
+    expect(payload).toMatchObject({ role: 'teen', family_id: 'fam-new' })
+  })
+
+  it('a legacy token with no role claim still gets the DB role', async () => {
+    mockPrisma!.user.findUnique.mockResolvedValue({ token_version: 0, role: 'child', family_id: 'fam-1' })
+    const payload = await resolveSession({ userId: USER_ID, email: 'e' })
+    expect(payload!.role).toBe('child')
+  })
+
+  it('still rejects a revoked generation and a deleted account', async () => {
+    mockPrisma!.user.findUnique.mockResolvedValue({ token_version: 5, role: 'parent', family_id: 'fam-1' })
+    expect(await verifySessionToken(tokenWithClaims('parent', 'fam-1', 4))).toBeNull()
+    mockPrisma!.user.findUnique.mockResolvedValue(null)
+    expect(await resolveSession({ userId: USER_ID, email: 'e', tv: 0 })).toBeNull()
   })
 })

@@ -38,15 +38,43 @@ describe("capture — two households", () => {
 
   it("family A does not inherit family B's configured key", async () => {
     const status = await (await GET(req({ as: "parentA" }))).json();
-    expect(status).toEqual({ configured: false, model: null });
+    expect(status).toEqual({ configured: false, model: null, allowed: true });
 
-    const res = await POST(req({ as: "childA", body: { text: "dentist tuesday" } }));
+    const res = await POST(req({ as: "teenA", body: { text: "dentist tuesday" } }));
     expect(res.status).toBe(503);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("family B sees its own configuration", async () => {
+    const status = await (await GET(req({ as: "parentB" }))).json();
+    expect(status).toEqual({ configured: true, model: "model-b", allowed: true });
+  });
+
+  it("D4: a child is refused with 'Ask a parent to add this.' and the key is never used", async () => {
+    const res = await POST(req({ as: "childB", body: { text: "dentist tuesday" } }));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Ask a parent to add this." });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
     const status = await (await GET(req({ as: "childB" }))).json();
-    expect(status).toEqual({ configured: true, model: "model-b" });
+    expect(status).toEqual({
+      configured: true,
+      model: "model-b",
+      allowed: false,
+      message: "Ask a parent to add this.",
+    });
+  });
+
+  it("D4: a teen may use capture (reaches the family's provider)", async () => {
+    const a = db.find("family", "family-A")!;
+    a.capture_ai_key_enc = encryptSecret("sk-family-a-secret-key");
+    a.capture_ai_model = "model-a";
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "grocery", title: "milk" }) } }] }),
+    });
+    const res = await POST(req({ as: "teenA", body: { text: "milk" } }));
+    expect(res.status).not.toBe(403);
+    expect(fetchSpy).toHaveBeenCalled();
   });
 });

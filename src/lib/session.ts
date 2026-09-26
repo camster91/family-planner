@@ -39,11 +39,35 @@ export async function isSessionCurrent(payload: TokenPayload): Promise<boolean> 
 }
 
 /**
+ * Resolve a verified JWT payload against the database (D6, #102).
+ *
+ * One query reads the session generation AND the member's current `role` and
+ * `family_id`. The session is rejected when the account is gone or the
+ * generation moved on; otherwise the returned payload carries the database
+ * role and family, never the values baked into the JWT at sign-in. A role or
+ * household change therefore takes effect on the member's next request rather
+ * than when the 7-day cookie expires (AUTHORIZATION.md step 2: resolve current
+ * state from authoritative server data).
+ */
+export async function resolveSession(payload: TokenPayload): Promise<TokenPayload | null> {
+  if (!prisma) return null
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { token_version: true, role: true, family_id: true },
+  })
+  if (!user || user.token_version !== (payload.tv ?? 0)) return null
+  return { ...payload, role: user.role, family_id: user.family_id ?? null }
+}
+
+/**
  * Verify a session cookie end-to-end: signature, expiry AND generation.
- * Returns the payload only when all three hold, else null.
+ * Returns the payload only when all three hold, else null. `role` and
+ * `family_id` on the returned payload come from the database (see
+ * `resolveSession`), so every caller — `authenticateRequest`,
+ * `getServerUser()` and the pages built on them — sees the current values.
  */
 export async function verifySessionToken(token: string): Promise<TokenPayload | null> {
   const payload = verifyToken(token)
   if (!payload) return null
-  return (await isSessionCurrent(payload)) ? payload : null
+  return resolveSession(payload)
 }

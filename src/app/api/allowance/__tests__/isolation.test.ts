@@ -10,7 +10,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 import * as allowance from "../route";
 import { db, req, writesTo, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
-describe("allowance — two households, parent only", () => {
+describe("allowance — two households; parents manage, kids read their own", () => {
   beforeEach(() => db.reset());
 
   it("returns 401 without a session", async () => {
@@ -20,13 +20,35 @@ describe("allowance — two households, parent only", () => {
     expect(db.writes).toHaveLength(0);
   });
 
-  it.each<[UserKey]>([["teenA"], ["childA"]])("%s cannot read or create allowance", async (who) => {
-    req({ as: who });
-    const read = await allowance.GET();
-    expect(read.status).toBe(403);
-    expect(await read.json()).not.toHaveProperty("items");
+  it.each<[UserKey]>([["teenA"], ["childA"]])("%s cannot create allowance", async (who) => {
     expect((await allowance.POST(req({ as: who, body: { to_user_id: who === "teenA" ? "teen-a" : "child-a", amount: 5 } }))).status).toBe(403);
     expect(db.writes).toHaveLength(0);
+  });
+
+  it("D5: a child reads only their own allowance rows", async () => {
+    db.rows("allowance").push({
+      id: "allow-a-teen", family_id: "family-A", from_user_id: "parent-a", to_user_id: "teen-a",
+      amount: 20, reason: "Teen weekly", status: "pending", scheduled_for: null, paid_at: null,
+      created_at: new Date("2026-09-02T00:00:00Z"),
+    });
+    req({ as: "childA" });
+    const res = await allowance.GET();
+    expect(res.status).toBe(200);
+    const body = await expectNoForeignData(res);
+    expect(body.items.map((a: any) => a.id)).toEqual(["allow-a"]);
+    expect(JSON.stringify(body)).not.toContain("Teen weekly");
+  });
+
+  it("D5: a teen reads only their own allowance rows (none for a sibling)", async () => {
+    req({ as: "teenA" });
+    const body = await expectNoForeignData(await allowance.GET());
+    expect(body.items).toEqual([]);
+  });
+
+  it("D5: a family-B child never sees family A's rows", async () => {
+    req({ as: "childB" });
+    const body = await (await allowance.GET()).json();
+    expect(body.items.map((a: any) => a.id)).toEqual(["allow-b"]);
   });
 
   it("a parent lists only their own family", async () => {
@@ -44,5 +66,15 @@ describe("allowance — two households, parent only", () => {
     const res = await allowance.POST(req({ as: "parentA", body: { to_user_id: "child-a", amount: 5, family_id: "family-B" } }));
     expect(res.status).toBe(201);
     expect(writesTo("allowance")[0].args.data).toMatchObject({ family_id: "family-A", from_user_id: "parent-a" });
+  });
+
+  it("D6: a role change in the database applies on the next request (getServerUser re-reads it)", async () => {
+    req({ as: "childA" });
+    expect((await (await allowance.GET()).json()).items.map((a: any) => a.id)).toEqual(["allow-a"]);
+    // Same session, member demoted/promoted out of band: the route follows the DB.
+    db.find("user", "child-a")!.role = "parent";
+    expect((await allowance.POST(req({ as: "childA", body: { to_user_id: "teen-a", amount: 1 } }))).status).toBe(201);
+    db.find("user", "child-a")!.role = "child";
+    expect((await allowance.POST(req({ as: "childA", body: { to_user_id: "teen-a", amount: 1 } }))).status).toBe(403);
   });
 });

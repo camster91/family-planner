@@ -399,6 +399,17 @@ function EmergencyPageInner() {
   const [showAdd, setShowAdd] = React.useState(false)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
+  // D1 (#102): every member can read the cards (a child home alone must find
+  // them); only parents can add, edit or delete. Unknown until /api/auth/me
+  // answers, so the controls stay hidden rather than flash for a child.
+  const [isParent, setIsParent] = React.useState(false)
+
+  React.useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setIsParent(d?.user?.role === 'parent'))
+      .catch(() => {})
+  }, [])
 
   const fetchContacts = React.useCallback(async () => {
     try {
@@ -512,13 +523,15 @@ function EmergencyPageInner() {
                 {t('emergency.print')}
               </button>
             )}
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent-fill)] text-white text-subhead font-semibold"
-            >
-              <Plus className="w-4 h-4" />
-              {t('emergency.addCard')}
-            </button>
+            {isParent && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent-fill)] text-white text-subhead font-semibold"
+              >
+                <Plus className="w-4 h-4" />
+                {t('emergency.addCard')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -527,12 +540,14 @@ function EmergencyPageInner() {
             <Heart className="w-10 h-10 text-label-tertiary mx-auto mb-3" />
             <h3 className="text-title-3 text-label-primary">{t('emergency.empty')}</h3>
             <p className="text-subhead text-label-secondary mt-1">{t('emergency.emptySubtitle')}</p>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
-            >
-              {t('emergency.addCard')}
-            </button>
+            {isParent && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
+              >
+                {t('emergency.addCard')}
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -570,12 +585,14 @@ function EmergencyPageInner() {
                   </div>
                   <EmergencyCardPrint contact={editContact} t={t} />
                   <div className="px-4 py-3 border-t border-[var(--surface-separator)] flex gap-2 no-print">
-                    <button
-                      onClick={() => { setEditContact(null); setShowAdd(true) }}
-                      className="px-3 py-1.5 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
-                    >
-                      {t('emergency.editCard')}
-                    </button>
+                    {isParent && (
+                      <button
+                        onClick={() => { setEditContact(null); setShowAdd(true) }}
+                        className="px-3 py-1.5 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
+                      >
+                        {t('emergency.editCard')}
+                      </button>
+                    )}
                     <button
                       onClick={handlePrint}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-fill)] text-label-primary text-subhead font-medium"
@@ -596,7 +613,7 @@ function EmergencyPageInner() {
         )}
 
         {/* Add modal */}
-        <Modal open={showAdd && !editContact} onClose={closeModal}>
+        <Modal open={isParent && showAdd && !editContact} onClose={closeModal}>
           <AddEditModal
             mode="add"
             onSave={handleSave}
@@ -607,8 +624,8 @@ function EmergencyPageInner() {
         </Modal>
 
         {/* Edit modal */}
-        <Modal open={!!editContact} onClose={() => setEditContact(null)}>
-          {editContact && (
+        <Modal open={isParent && !!editContact} onClose={() => setEditContact(null)}>
+          {isParent && editContact && (
             <AddEditModal
               mode="edit"
               initial={editContact}

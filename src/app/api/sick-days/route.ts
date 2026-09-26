@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
+import { isKidRole } from '@/lib/kid-access'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -14,11 +15,14 @@ export async function GET() {
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ sickDays: [] })
 
+  // D1 (#102): a teen or child sees only their own sick days, and only their
+  // own medications inside them.
+  const ownOnly = isKidRole(user.role) ? { person_id: user.id } : {}
   const sickDays = await prisma!.sickDay.findMany({
-    where: { family_id: user.family_id, status: 'active' },
+    where: { family_id: user.family_id, status: 'active', ...ownOnly },
     include: {
       person: { select: { id: true, name: true, avatar_url: true } },
-      medications: { where: { active: true } },
+      medications: { where: { active: true, ...ownOnly } },
     },
     orderBy: { started_at: 'desc' },
   })
@@ -80,6 +84,10 @@ export async function POST(request: Request) {
   })
   if (!person) {
     return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+  }
+  // D1 (#102): a teen or child may report only themselves as sick.
+  if (isKidRole(user.role) && body.person_id !== user.id) {
+    return NextResponse.json({ error: 'You can only report yourself as sick' }, { status: 403 })
   }
 
   const created = await prisma!.sickDay.create({

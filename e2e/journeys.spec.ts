@@ -9,9 +9,15 @@ import {
   FIXTURE_IDS,
   FIXTURE_LONG_TEXT,
 } from "../src/lib/fixtures/dataset";
-import { authFile, E2E_ANCHOR } from "./support/env";
+import { authFile, E2E_ANCHOR, E2E_BASE_URL } from "./support/env";
 import { delayRoute, goOffline, goOnline } from "./support/network";
-import { browserFetch, expect, loginViaUi, test } from "./support/test";
+import {
+  browserFetch,
+  browserSend,
+  expect,
+  loginViaUi,
+  test,
+} from "./support/test";
 
 /** Titles that exist only in Family B. None may ever render for Family A. */
 const FAMILY_B_ONLY = [
@@ -73,11 +79,14 @@ function shoppingCard(page: Page) {
   });
 }
 
-/** The routes middleware must bounce a child/teen away from (src/lib/kid-access.ts). */
+/**
+ * The routes middleware must bounce a child/teen away from (src/lib/kid-access.ts).
+ * /dashboard/allowance left this list with D5 (#102): kids now get a read-only
+ * view of their own allowance.
+ */
 const PARENT_ONLY_ROUTES = [
   "/dashboard/budget",
   "/dashboard/locations",
-  "/dashboard/allowance",
   "/dashboard/settings",
   "/dashboard/chores",
   "/dashboard/family",
@@ -410,16 +419,63 @@ test.describe("Family A child", () => {
     await expect(
       page.locator("#main-content").getByText("Hi, Casey Fixture-A!"),
     ).toBeVisible();
-    for (const path of [
-      "/dashboard/calendar",
-      "/dashboard/lists",
-      "/dashboard/family",
-    ]) {
+    for (const path of ["/dashboard/calendar", "/dashboard/family"]) {
       await expect(page.locator(`nav a[href="${path}"]`)).toHaveCount(0);
     }
+    // Lists joined the kid allowlist with D9 (#102).
+    for (const path of ["/dashboard/emergency", "/dashboard/lists"]) {
+      await expect(
+        page.locator(`nav a[href="${path}"]`).first(),
+      ).toBeAttached();
+    }
+  });
+
+  test("D9: opens Lists and a list read/tick-only (no create or delete)", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/lists");
+    await expect(page).toHaveURL(/\/dashboard\/lists$/);
+    const main = page.locator("#main-content");
+    await expect(main.getByText("Groceries").first()).toBeVisible();
+    // A child cannot create a list: no "Add list" link.
+    await expect(main.getByRole("link", { name: "Add list" })).toHaveCount(0);
+
+    await page.goto(`/dashboard/lists/${FIXTURE_IDS.familyA.list}`);
+    await expect(main.getByText("Return library books")).toBeVisible();
+    // Deleting a list is parent-only.
     await expect(
-      page.locator('nav a[href="/dashboard/emergency"]').first(),
-    ).toBeAttached();
+      page.getByRole("button", { name: /^Delete list / }),
+    ).toHaveCount(0);
+
+    // Direct API: adding an item is allowed for a child, creating a list is not.
+    const create = await browserSend(page, "POST", "/api/lists/create", {
+      name: "Child list",
+      type: "todo",
+    });
+    expect(create.status).toBe(403);
+    expect(create.body).toContain("Ask a parent");
+  });
+
+  test("D4: capture API refuses a child with 'Ask a parent to add this.'", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard");
+    const status = await browserFetch(page, "/api/capture");
+    expect(status.status).toBe(200);
+    expect(JSON.parse(status.body)).toMatchObject({
+      allowed: false,
+      message: "Ask a parent to add this.",
+    });
+    const res = await browserSend(page, "POST", "/api/capture", {
+      text: "dentist tuesday 3pm",
+    });
+    expect(res.status).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({
+      error: "Ask a parent to add this.",
+    });
+    // The capture box lives on the calendar, which a child cannot open.
+    await page.goto("/dashboard/calendar");
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test("kid-allowlisted emergency page stays reachable", async ({ page }) => {
@@ -432,6 +488,109 @@ test.describe("Family A child", () => {
     for (const path of ["/api/budget/transactions", "/api/budget/stats"]) {
       const { status } = await browserFetch(page, path);
       expect(status, path).toBe(403);
+    }
+  });
+});
+
+// D2 + D5 (#102). Handoff and allowance are default-off features with no
+// fixture rows, so the Family A parent switches them on and creates a handoff
+// through the real API, and everything is put back afterwards. The projects
+// run with one worker, so no other test observes the temporary state.
+test.describe("Family A child — handoff and allowance (D2, D5)", () => {
+  test.use({ storageState: authFile("childA") });
+
+  test("child sees only the sitter and times; allowance is own-rows, read-only", async ({
+    page,
+    browser,
+  }) => {
+    const parentCtx = await browser.newContext({
+      storageState: authFile("parentA"),
+      baseURL: E2E_BASE_URL,
+    });
+    const parent = await parentCtx.newPage();
+    await parent.goto("/dashboard");
+    const original = JSON.parse(
+      (await browserFetch(parent, "/api/family/features")).body,
+    ).features;
+    let handoffId: string | null = null;
+    try {
+      const enable = await browserSend(
+        parent,
+        "PATCH",
+        "/api/family/features",
+        {
+          features: { ...original, handoff: true, allowance: true },
+        },
+      );
+      expect(enable.status, enable.body).toBe(200);
+      const created = await browserSend(parent, "POST", "/api/handoff", {
+        sitter_name: "E2E Sitter Sam",
+        sitter_phone: "555-0199",
+        code_words: "E2E-PINEAPPLE",
+        house_notes: "E2E alarm code 2468",
+        pickup_authorized: "E2E Grandma",
+        arrival_time: "2026-01-05T22:00:00.000Z",
+      });
+      expect(created.status, created.body).toBe(201);
+      handoffId = JSON.parse(created.body).handoff.id;
+
+      // Handoff page: the sitter's name is there, nothing sensitive is.
+      await page.goto("/dashboard/handoff");
+      await expect(page).toHaveURL(/\/dashboard\/handoff$/);
+      const main = page.locator("#main-content");
+      await expect(main.getByText("E2E Sitter Sam")).toBeVisible();
+      const text = await page.locator("body").innerText();
+      for (const secret of [
+        "E2E-PINEAPPLE",
+        "555-0199",
+        "2468",
+        "E2E Grandma",
+      ]) {
+        expect(text, `child handoff view leaked ${secret}`).not.toContain(
+          secret,
+        );
+      }
+      await expect(
+        page.getByRole("button", { name: "Edit handoff" }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Share with sitter" }),
+      ).toHaveCount(0);
+
+      const api = JSON.parse((await browserFetch(page, "/api/handoff")).body);
+      const mine = api.handoffs.find((h: { id: string }) => h.id === handoffId);
+      expect(Object.keys(mine).sort()).toEqual([
+        "arrival_time",
+        "departure_time",
+        "id",
+        "sitter_name",
+      ]);
+
+      // Allowance: reachable, read-only, only rows paid to this child.
+      await page.goto("/dashboard/allowance");
+      await expect(page).toHaveURL(/\/dashboard\/allowance$/);
+      await expect(
+        main.getByRole("heading", { name: "Allowance", exact: true }),
+      ).toBeVisible();
+      await expect(main.getByRole("button", { name: "Add" })).toHaveCount(0);
+      const allowance = await browserFetch(page, "/api/allowance");
+      expect(allowance.status).toBe(200);
+      for (const row of JSON.parse(allowance.body).items) {
+        expect(row.to_user_id).toBe(FIXTURE_IDS.familyA.child);
+      }
+      const pay = await browserSend(page, "POST", "/api/allowance", {
+        to_user_id: FIXTURE_IDS.familyA.child,
+        amount: 100,
+      });
+      expect(pay.status).toBe(403);
+    } finally {
+      if (handoffId) {
+        await browserSend(parent, "DELETE", `/api/handoff/${handoffId}`);
+      }
+      await browserSend(parent, "PATCH", "/api/family/features", {
+        features: original,
+      });
+      await parentCtx.close();
     }
   });
 });

@@ -9,7 +9,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 
 import { GET } from "../route";
 import * as pickup from "../[id]/route";
-import { db, req, params, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
+import { db, req, params, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 describe("pickups — two households", () => {
   beforeEach(() => db.reset());
@@ -38,5 +38,21 @@ describe("pickups — two households", () => {
   it("a same-family member can complete a pickup", async () => {
     expect((await pickup.PATCH(req({ as: "parentA", body: { completed: true } }), params({ id: "pickup-a" }))).status).toBe(200);
     expect(db.find("pickup", "pickup-a")?.completed).toBe(true);
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s can complete but not delete a pickup", async (who) => {
+    expect((await pickup.PATCH(req({ as: who, body: { completed: true } }), params({ id: "pickup-a" }))).status).toBe(200);
+    expect((await pickup.DELETE(req({ as: who }), params({ id: "pickup-a" }))).status).toBe(403);
+    expect(db.find("pickup", "pickup-a")).toBeDefined();
+  });
+
+  it("D9: a parent can delete their own family's pickup", async () => {
+    expect((await pickup.DELETE(req({ as: "parentA" }), params({ id: "pickup-a" }))).status).toBe(200);
+    expect(db.find("pickup", "pickup-a")).toBeUndefined();
+  });
+
+  it("D9: a family-B child is denied family A's pickup without leaking it", async () => {
+    await expectDenied(await pickup.DELETE(req({ as: "childB" }), params({ id: "pickup-a" })));
+    expect(db.find("pickup", "pickup-a")).toBeDefined();
   });
 });
