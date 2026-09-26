@@ -241,7 +241,7 @@ and a second run to prove idempotency.
 | Access TTL | 60 minutes. |
 | Refresh TTL | 30 days idle (**O-8**); each rotation issues a new 30-day refresh. No absolute cap while the device keeps refreshing. |
 | Access cookie | `fp_device`, httpOnly, `Secure` in production (same rule as `session_token`), `SameSite=Lax`, `Path=/`, `Max-Age=3600`. |
-| Refresh cookie | `fp_device_refresh`, httpOnly, `Secure` in production, `SameSite=Strict`, `Path=/api/device/session`, `Max-Age=2592000`. Sent only to the refresh endpoint. |
+| Refresh cookie | `fp_device_refresh`, httpOnly, `Secure` in production, `SameSite=Strict`, `Path=/`, `Max-Age=2592000`. `Path=/` so a cold launch (Capacitor loads `/`) and `POST /api/auth/login` can see it after the 1-hour access cookie has expired. The server **rotates** it only at the refresh endpoint; elsewhere it is only looked up (bootstrap and the login guard below), never accepted as an access credential. |
 | Elevation token | `fpd1_e_` + base64url(32 bytes). Returned in the JSON body, held in JS memory only, sent as `X-Device-Elevation`. Never a cookie, never in storage. |
 | Pairing claim token | `fpd1_p_` + base64url(32 bytes). JSON body, memory only, sent in the status POST body. |
 
@@ -259,10 +259,11 @@ database error, as the middleware does for person sessions.
    device row is revoked) and clear both cookies.
 2. Live and unrotated → in one transaction create the successor session, set `rotated_at` and `replaced_by_id` on
    the old row, return new cookies.
-3. Already rotated and the successor has **never been used** (`first_used_at` null) → the client lost the previous
-   response (WebView killed mid-refresh). Revoke the unused successor, issue a fresh successor from this row,
-   return new cookies. No time window is needed: a legitimate device uses its successor within one access TTL.
-4. Already rotated and the successor **has been used** → token reuse. Revoke the device
+3. Already rotated **less than 60 seconds ago** and the successor has **never been used** (`first_used_at` null)
+   → the client most likely lost the previous response (WebView killed mid-refresh). Revoke the unused successor,
+   issue a fresh successor from this row, return new cookies. The 60-second grace bounds this path: a copied
+   ancestor token replayed later cannot take over the device, it falls into rule 4.
+4. Already rotated and **either** the successor has been used **or** the grace window has passed → token reuse. Revoke the device
    (`revoke_reason = 'token_reuse'`, `revoked_by = null`), write `device.token_reuse_detected`, return
    `401 DEVICE_REVOKED`. This also kills a thief who refreshed first.
 
@@ -278,8 +279,15 @@ callers.
 
 - Pairing completion clears `session_token` on that browser (`Max-Age=0`). It does **not** bump
   `token_version`, so the parent's other sessions keep working.
-- `POST /api/auth/login` returns `409 DEVICE_MODE_LOGIN_BLOCKED` when the request carries a valid device cookie
-  (**O-13**), so a parent cannot leave a persisted parent session on a shared tablet. Parents use elevation instead.
+- `POST /api/auth/login` returns `409 DEVICE_MODE_LOGIN_BLOCKED` when the request carries a valid `fp_device`
+  access cookie **or** a `fp_device_refresh` cookie whose hash matches a live, unrevoked session (looked up, not
+  rotated) (**O-13**), so a parent cannot leave a persisted parent session on a shared tablet even after the access
+  cookie has expired. Parents use elevation instead.
+- **Cold-launch bootstrap.** Middleware on `/`, `/login` and `/dashboard/*`: when `fp_device_refresh` or
+  `fp_device` is present and no `session_token` is, redirect to `/device/today`. That page's client calls the
+  refresh endpoint when the access cookie is missing or expired, then loads; on `DEVICE_REVOKED` or
+  `DEVICE_SESSION_INVALID` it purges (§8) and shows the paired-device-removed screen with a link to `/device/pair`.
+  The middleware only checks cookie presence (no database call); the page and API do the real validation.
 - `/device/*` pages and `/api/device/*` routes authenticate only the device cookie. `/dashboard/*` pages and all
   existing `/api/*` routes authenticate only `session_token`, so a device alone is redirected to `/login` or gets
   `401`.
@@ -325,7 +333,12 @@ digits on **their** screen, the real tablet shows "code already used", and the p
 
 ### 5.3 Limits
 
-- Max 5 active (unrevoked) devices per household (**O-9**); pairing creation returns `409 DEVICE_LIMIT_REACHED`.
+- Max 5 active (unrevoked) devices per household (**O-9**). Pending pairings reserve capacity: pairing creation
+  counts active devices **plus** unexpired, uncancelled, not-yet-issued pairings and returns
+  `409 DEVICE_LIMIT_REACHED` when that sum is already 5.
+- The limit is re-checked at issue (§5.1 step 4) inside the same transaction that creates the `HouseholdDevice`,
+  after `SELECT … FOR UPDATE` on the household's `Family` row, so concurrent issues serialise. Over the limit →
+  the pairing is cancelled and the tablet's status returns `409 DEVICE_LIMIT_REACHED`.
 - Rate limits in §11.
 
 ## 6. Elevation (parent on the tablet)
@@ -704,7 +717,8 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 
 16. Tokens are stored hashed: no plaintext `fpd1_` value in any table after pairing, refresh and elevation.
 17. Access expired → `401 DEVICE_ACCESS_EXPIRED`; refresh → new cookies; old access token rejected.
-18. Refresh reuse with unused successor → re-issue, device stays active.
+18. Refresh reuse within 60 s with unused successor → re-issue, device stays active; the same reuse after 60 s
+    (fake clock) → device revoked (`token_reuse_detected`).
 19. Refresh reuse after the successor was used → device revoked, `device.token_reuse_detected`, both the old and
     the successor tokens rejected.
 20. Revoke → next access, refresh and elevation return `401 DEVICE_REVOKED` with cookie-clearing headers.
@@ -718,7 +732,8 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 
 25. Code is single use under concurrency (two parallel claims → one success).
 26. Expired, used, cancelled and unknown codes return the identical `400 PAIRING_CODE_INVALID` body.
-27. Fourth live code cancels the oldest; sixth active device → `409`.
+27. Fourth live code cancels the oldest; sixth active device → `409`. With 4 active devices and 1 pending pairing,
+    creating another pairing → `409`; two concurrent issues with one slot left → exactly one device created.
 28. Three wrong confirmation digits cancel the pairing; the tablet's status then returns `410`.
 29. Status after `paired` returns `410`; a second status call cannot mint a second device.
 30. Teen/child sessions get `403` on every parent route.
@@ -739,7 +754,9 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 
 39. Pairing clears `session_token` on the tablet and does not change P1's `token_version` (P1's phone session
     still works).
-40. `POST /api/auth/login` with a valid device cookie → `409 DEVICE_MODE_LOGIN_BLOCKED`; without one, unchanged.
+40. `POST /api/auth/login` with a valid device access cookie, or with only a live refresh cookie (access expired)
+    → `409 DEVICE_MODE_LOGIN_BLOCKED`; with a revoked refresh cookie or none, unchanged. Cold launch at `/` with
+    only a refresh cookie → redirected to `/device/today`, which refreshes and loads the board.
 41. Existing suites (`src/__tests__/session-generation.test.ts`, `auth-tokens.test.ts`, every `isolation.test.ts`,
     `e2e/fridge.spec.ts`) pass unchanged.
 42. Kill switch off: all device routes `404`, device cookies ignored, `/dashboard/today?mode=fridge` unchanged.

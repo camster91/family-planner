@@ -33,7 +33,9 @@ This ADR records the durable decisions.
 2. **Opaque, hashed, rotating tokens.** Device access and refresh tokens are 256-bit random opaque values
    (not JWTs), stored only as SHA-256 hashes (the `src/lib/tokens.ts` pattern). Access tokens live 60 minutes;
    refresh tokens are single-use, rotate on every refresh and expire after 30 days idle. Reuse of a rotated
-   refresh token whose successor has already been used revokes the device.
+   refresh token revokes the device unless it arrives within 60 seconds and its successor was never used (a
+   lost response). The refresh cookie is `Path=/` so cold launch and the login guard can see it; it is only
+   rotated at the refresh endpoint.
 3. **Parent-initiated, confirmed pairing.** A parent (person session, parent role) creates a single-use
    8-character code valid for 10 minutes; the tablet claims it; the parent confirms by typing a 4-digit number
    shown on the tablet. The household is always taken from the code, never from the client. Creation, claim,
@@ -86,7 +88,7 @@ This ADR records the durable decisions.
 - Three new tables plus one PIN table, new routes, a new layout and a middleware branch.
 - Some domain logic must be extracted from route handlers into shared functions so `/api/device/*` does not
   fork business rules (AGENTS.md: one backend).
-- Refresh rotation in a WebView can race with process death; mitigated by the "successor never used" rule and an
+- Refresh rotation in a WebView can race with process death; mitigated by the 60-second "successor never used" grace rule and an
   Android cookie flush on pause.
 - Elevation PIN is a new credential to store (bcrypt), rate-limit, reset and explain.
 
