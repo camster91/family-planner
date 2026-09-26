@@ -116,7 +116,7 @@ const { actor, foreign } = FIXTURE_CROSS_FAMILY.aToB
 
 ### Not yet covered (deferred)
 - **Meal / recipe fixtures:** deferred until #149 settles the canonical meal model. Lists are seeded with `type` `todo`, `grocery` and `shopping` only; no `meal_plan` lists and no `ShoppingList`, `Recipe` or `MealPlan` rows.
-- **Shared-device (tablet) fixtures:** deferred because the paired-device schema does not exist yet.
+- **Shared-device (tablet) fixtures:** not seeded. The schema exists (#240); `e2e/device.spec.ts` (#241) pairs tablets per test through the real pairing flow and deletes them afterwards.
 - Inventory/use-soon, offline/pending/conflict mock data, and DST-specific event edges beyond the midnight-UTC crossing. Use `FIXTURES_ANCHOR_DATE` near a DST change if you need that today.
 - Tables without a foreign key to `Family` are not swept by reset. Rows the app writes there for fixture users could be left orphaned; none are seeded.
 

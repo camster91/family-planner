@@ -19,14 +19,14 @@ import {
   Heart,
   LayoutDashboard,
 } from 'lucide-react'
-import { User as UserType, UserRole } from '@/types'
+import type { NavUser, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { TabBar } from '@/components/ui/tab-bar'
 import { canRoleAccessPath, filterNavForRole } from '@/lib/kid-access'
 
 interface DashboardNavProps {
-  user: UserType | null
+  user: NavUser | null
 }
 
 const PRIMARY_TABS = [
@@ -177,9 +177,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   <div className="px-4 py-3 border-b border-[var(--surface-separator)]">
                     <p className="text-[15px] font-semibold text-label-primary truncate">
                       {user?.name}
-                    </p>
-                    <p className="text-[13px] text-label-secondary truncate mt-0.5">
-                      {user?.email}
                     </p>
                     <span className={cn(
                       'inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide',

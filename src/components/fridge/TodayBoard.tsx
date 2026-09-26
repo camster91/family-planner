@@ -56,12 +56,17 @@ function useOnline(): boolean {
  * BOARD_REFRESH_MS while visible and online, when the connection returns, and
  * when the tab becomes visible again with data older than the interval.
  */
-function useAutoRefresh(receivedAtRef: React.MutableRefObject<number>) {
+function useAutoRefresh(receivedAtRef: React.MutableRefObject<number>, onRefresh?: () => void) {
   const router = useRouter()
+  // Latest callback without re-arming the timers on every render.
+  const onRefreshRef = React.useRef(onRefresh)
+  onRefreshRef.current = onRefresh
 
   React.useEffect(() => {
     const refresh = () => {
-      if (navigator.onLine) router.refresh()
+      if (!navigator.onLine) return
+      if (onRefreshRef.current) onRefreshRef.current()
+      else router.refresh()
     }
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
@@ -129,7 +134,25 @@ function BoardSkeleton() {
   )
 }
 
-export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData; fridgeMode: boolean }) {
+export default function TodayBoard({
+  data,
+  fridgeMode,
+  onRefresh,
+  actions,
+  banner,
+}: {
+  data: TodayBoardData
+  fridgeMode: boolean
+  /**
+   * Shared tablet (/device/today, #241): re-fetch the device DTO instead of
+   * re-requesting a person server component.
+   */
+  onRefresh?: () => void
+  /** Replaces the fridge-mode toggle in the header (the tablet has no person pages to return to). */
+  actions?: React.ReactNode
+  /** Shown above the header, inside the board (the tablet's parent-mode banner). */
+  banner?: React.ReactNode
+}) {
   // "Today" is the viewer's local day, which the server cannot know, so the
   // board renders after mount (a brief skeleton) instead of risking a
   // hydration mismatch or a wrong-day render on a server in another zone.
@@ -138,7 +161,7 @@ export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData;
   const [receivedAt, setReceivedAt] = React.useState<Date | null>(null)
   const receivedAtRef = React.useRef(0)
   const online = useOnline()
-  useAutoRefresh(receivedAtRef)
+  useAutoRefresh(receivedAtRef, onRefresh)
   useWakeLock(fridgeMode)
 
   React.useEffect(() => {
@@ -180,6 +203,7 @@ export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData;
       }
     >
       {fridgeMode && <style>{FRIDGE_CHROME_CSS}</style>}
+      {banner}
 
       <header className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 lg:mb-6">
         <div className="min-w-0">
@@ -211,7 +235,9 @@ export default function TodayBoard({ data, fridgeMode }: { data: TodayBoardData;
               Updated {formatTime(receivedAt)}
             </p>
           )}
-          {fridgeMode ? (
+          {actions ? (
+            actions
+          ) : fridgeMode ? (
             <Link href="/dashboard/today" className={actionLinkClass}>
               <Minimize2 className="h-5 w-5" aria-hidden="true" />
               Exit fridge mode

@@ -59,4 +59,15 @@ describe('kid allowlist after the #102 decisions', () => {
   ])('still sends a kid away from %s', (path) => {
     expect(canRoleAccessPath('child', path)).toBe(false)
   })
+
+  // Shared-tablet management and the tablet PIN are parent-only (#241,
+  // SHARED_DEVICE.md §7): no kid prefix may ever cover them.
+  it.each(['/dashboard/settings/devices', '/dashboard/settings/devices/x'])(
+    'keeps teens and children out of %s',
+    (path) => {
+      expect(canRoleAccessPath('child', path)).toBe(false)
+      expect(canRoleAccessPath('teen', path)).toBe(false)
+      expect(canRoleAccessPath('parent', path)).toBe(true)
+    }
+  )
 })

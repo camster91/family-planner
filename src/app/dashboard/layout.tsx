@@ -9,6 +9,11 @@ import CommandPaletteHost from '@/components/layout/CommandPaletteHost'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { defaultFeatures, normalizeFeatures } from '@/lib/features'
 import { isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
+import type { NavUser, UserRole } from '@/types'
+
+function toUserRole(role: string | null | undefined): UserRole {
+  return role === 'teen' || role === 'child' ? role : 'parent'
+}
 
 export default async function DashboardLayout({
   children,
@@ -35,11 +40,15 @@ export default async function DashboardLayout({
 
   // Look up the role (don't trust the JWT for this — do a fresh DB read so
   // role changes take effect immediately and the layout is the source of truth).
-  const dbUser = await prisma!.user.findUnique({
+  // The same read supplies the nav's fields (#241): only what the nav renders,
+  // never email, age, family id, XP, level or streak. These props are
+  // serialised into every dashboard page, including
+  // /dashboard/today?mode=fridge on a tablet signed in as a person.
+  const profile = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { role: true },
+    select: { id: true, name: true, role: true, avatar_url: true },
   })
-  const role = dbUser?.role || sessionUser.role || 'parent'
+  const role = profile?.role || sessionUser.role || 'parent'
 
   // Server-side role gate, second line of defence behind the middleware
   // (src/middleware.ts). Both read the SAME allowlist from src/lib/kid-access.ts,
@@ -69,23 +78,9 @@ export default async function DashboardLayout({
     }
   }
 
-  // Get user profile
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      age: true,
-      family_id: true,
-      avatar_url: true,
-      xp: true,
-      level: true,
-      streak: true,
-      created_at: true,
-    },
-  })
+  const navUser: NavUser | null = profile
+    ? { id: profile.id, name: profile.name, role: toUserRole(profile.role), avatar_url: profile.avatar_url }
+    : null
 
   // Get user's family features so the client can hydrate without a roundtrip
   const familyFeatures = sessionUser?.family_id
@@ -118,7 +113,7 @@ export default async function DashboardLayout({
         </a>
 
         {/* Apple HIG top bar nav */}
-        <DashboardNav user={user as any} />
+        <DashboardNav user={navUser} />
 
         {/* Main content — padded for top bar height + TabBar safe area on mobile */}
         <main
@@ -134,7 +129,7 @@ export default async function DashboardLayout({
         </main>
 
         {/* Mobile-only bottom tab bar */}
-        <TabBar user={user as any} />
+        <TabBar user={navUser} />
 
         {/* Cmd+K global search palette */}
         <CommandPaletteHost role={role} />

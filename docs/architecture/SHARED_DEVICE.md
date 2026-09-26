@@ -2,8 +2,9 @@
 
 **Status:** Contract from #157. The schema, device auth and API (§3–§6, §8–§12; child issue §17.1, #240) are
 **implemented (behind `SHARED_DEVICE_ENABLED`, default off)**; see §18 for exactly what shipped and how the
-implementation resolved details this contract left open. UI pages (§7, §17.2), device writes (§9.2), the offline
-cache (§8 client purge/cache rules) and Android work (§17.3) are not implemented. Decision record: ADR-0006
+implementation resolved details this contract left open. The web UI (§7, §17.2, #241) is implemented behind the
+same switch; see §19. Device writes (§9.2), the offline snapshot cache (§8 cache rules, #162) and Android work
+(§17.3) are not implemented. Decision record: ADR-0006
 (`adr/0006-shared-device-session-contract.md`), which implements ADR-0002.
 **Last grounded against source:** 2026-09-26.
 **Parent:** #127. **Related:** #120 (Android appliance), #131 (Figma), #136 (security), #159 (Today board),
@@ -15,7 +16,7 @@ endpoints, compatibility and tests. Numbers marked **(O-n)** are recommended def
 listed in §16.
 
 A tablet signed in as a person still has exactly that person's rights (`docs/ROLE_AND_ISOLATION_MATRIX.md`);
-device mode is an opt-in re-pair and, until the UI child issue (§17.2) ships, is reachable only through the API.
+device mode is an opt-in re-pair through Settings → Devices (§19) while the kill switch is on.
 
 ## 1. Source facts this contract builds on
 
@@ -32,7 +33,7 @@ device mode is an opt-in re-pair and, until the UI child issue (§17.2) ships, i
 | Role capability helpers: `isParentRole`, `canCreateList`, `shapeHandoffForRole`, etc. | `src/lib/role-capabilities.ts` |
 | Shared-surface DTO with explicit `select`s, scoped by `family_id`. | `src/app/dashboard/today/today-board-data.ts` |
 | `buildTodayBoard` derives links from `canRoleAccessPath(role, …)`; a `null`/unknown role is treated as non-kid and would get **every** link. | `today-board-data.ts` `allowedLink`, `src/lib/kid-access.ts` |
-| Dashboard layout passes `id, email, name, role, age, family_id, avatar_url, xp, level, streak, created_at` to `DashboardNav` and `TabBar`, so fridge mode still serialises them. | `src/app/dashboard/layout.tsx` |
+| Dashboard layout passed `id, email, name, role, age, family_id, avatar_url, xp, level, streak, created_at` to `DashboardNav` and `TabBar`, so fridge mode serialised them. Fixed by #241: only `id, name, role, avatar_url`. | `src/app/dashboard/layout.tsx` |
 | `Activity.user_id` is required, so device events cannot be stored there without a contract change. | `prisma/schema.prisma` `Activity` |
 | `ListItem.added_by`, `Chore.created_by`, `Event.created_by`, `FamilyMeal.created_by` are required `User` FKs. | `prisma/schema.prisma` |
 | Android is a Capacitor shell loading `https://family.ashbi.ca`; `MainActivity` is a bare `BridgeActivity`; backup and device transfer are disabled. | `capacitor.config.ts`, `android/app/src/main/java/.../MainActivity.java`, `docs/architecture/ANDROID.md` |
@@ -1004,3 +1005,37 @@ Details this contract left open, as implemented:
   the §4 redirect is what ships, so a device alone still never reaches a dashboard page.
 - **Subscribed calendars** are not refreshed by `GET /api/device/today` (the person Today page does it after
   render); the device page in §17.2 should trigger the same refresh.
+
+## 19. Web UI status (#241)
+
+Shipped behind `SHARED_DEVICE_ENABLED` (default off). With it off, `/device/*` pages render "Tablet mode is not
+available right now." (and wipe any `fp-device:v1:*` storage), `/dashboard/settings/devices` is a 404 and the
+Settings entries (Devices, Tablet PIN) are not rendered; the decision is made server-side per request.
+
+| Area | Source |
+|---|---|
+| Device client: single-flight refresh, one retry on `DEVICE_ACCESS_EXPIRED`, proactive refresh (< 5 min left, visible), cold-launch bootstrap, §8 purge on `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` / `404 /api/device/me` / a different cached device id, `503` / `429` / network never purge, memory-only elevation and claim tokens | `src/lib/device-client.ts` (unit tests `src/lib/__tests__/device-client.test.ts`) |
+| Chrome-free shell, no person profile | `src/app/device/layout.tsx` |
+| Pairing screen (code normalisation, 4 digits large, 3 s polling, expired/cancelled/invalid/rate-limited/device-limit states) | `src/app/device/pair/page.tsx`, `src/components/device/PairScreen.tsx` |
+| Board from `GET /api/device/today` (links null), parent picker, PIN pad with password fallback, lockout, elevated banner (countdown in the last 60 s), auto-exit on idle, max, hidden, page hide, reload and "Done", rename and "Remove this tablet" under elevation | `src/app/device/today/page.tsx`, `src/components/device/DeviceTodayScreen.tsx`, `ElevationSheet.tsx`, `ElevatedBanner.tsx` |
+| Removed screen | `src/app/device/removed/page.tsx`, `src/components/device/StatusScreens.tsx` |
+| Device management (list, last seen, status, rename, remove with reason, pair and replace dialogs with the confirmation-digits step, recent activity) | `src/app/dashboard/settings/devices/page.tsx`, `src/components/device/DevicesManager.tsx`, `PairTabletDialog.tsx` |
+| Settings → Privacy & Security → Devices and Tablet PIN (set/change with current password, remove) | `src/app/dashboard/settings/page.tsx` (server wrapper), `SharedDeviceSettings.tsx` |
+| Nav props reduced to `{ id, name, role, avatar_url }` on every dashboard page | `src/app/dashboard/layout.tsx`, `src/types` `NavUser` |
+
+As implemented:
+
+- `/device/today` serialises only whether the access cookie is present; the board is fetched on the client. When
+  the cookie is present the page resolves the device once server-side to trigger the view-driven subscribed
+  calendar refresh (§18 last bullet); nothing from that lookup reaches the page.
+- The tablet stores one key, `fp-device:v1:device-id`, to detect a different device on the same browser (§8).
+  The purge also deletes IndexedDB `fp-device`, Cache Storage entries starting `fp-device` and the reserved queue
+  key `fp-device:v1:queue`; no offline snapshot is written yet (#162).
+- Purge navigation is `location.replace`, so Back never returns to the board.
+- "Replace" pairs a new tablet and, when the checkbox is on, revokes the old one with reason `replaced` from the
+  parent's dialog once the new one reports `paired`. Closing the pairing dialog before confirmation cancels the
+  code.
+- Idle expiry is mirrored on the client from the last successful elevated request; the server remains the
+  authority.
+- E2E: `e2e/device.spec.ts` (docs/testing/E2E.md). §14.3 item 24 (24-hour offline snapshot) waits on #162.
+- Figma frames (#131) still do not exist; the screens reuse the Today board tokens and are intentionally simple.

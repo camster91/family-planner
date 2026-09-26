@@ -12,6 +12,9 @@
 // so the check always fell through and the gate never fired. It is now driven by
 // this list instead.
 
+// Deliberately absent: /dashboard/settings and everything under it, including
+// shared-tablet management at /dashboard/settings/devices and the Tablet PIN
+// (#241, SHARED_DEVICE.md §7). Teens and children must never see those.
 export const KID_ALLOWED_PREFIXES = [
   // Their own wishlist — harmless, and how they engage with the app.
   '/dashboard/wishlist',
