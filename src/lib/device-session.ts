@@ -653,3 +653,21 @@ export function clearPersonSessionCookie(response: NextResponse) {
     maxAge: 0,
   })
 }
+
+/**
+ * True when the request comes from a paired shared device: the kill switch is
+ * on and it carries a working device access cookie or a live refresh cookie.
+ * Every route that issues a person `session_token` without an existing person
+ * session (login, invite registration) refuses such requests (O-13).
+ */
+export async function isPairedDeviceRequest(
+  db: Db,
+  request: CookieSource,
+  now: Date,
+  enabled: boolean
+): Promise<boolean> {
+  if (!enabled) return false
+  const cookies = readDeviceCookies(request)
+  if (!cookies.access && !cookies.refresh) return false
+  return hasLiveDeviceCredential(db, cookies, now)
+}

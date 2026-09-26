@@ -286,8 +286,10 @@ callers.
   access cookie **or** a `fp_device_refresh` cookie whose hash matches a live, unrevoked session (looked up, not
   rotated) (**O-13**), so a parent cannot leave a persisted parent session on a shared tablet even after the access
   cookie has expired. Parents use elevation instead.
-- **Cold-launch bootstrap.** Middleware on `/`, `/login` and `/dashboard/*`: when `fp_device_refresh` or
-  `fp_device` is present and no `session_token` is, redirect to `/device/today`. That page's client calls the
+- `POST /api/auth/register` is refused the same way (its invite branch issues a person session).
+- **Cold-launch bootstrap.** Middleware on `/`, `/login`, `/register` and `/dashboard/*`: when `fp_device_refresh`
+  or `fp_device` is present, redirect to `/device/today`, even if a `session_token` is also present (the device
+  cookie wins, so a paired tablet never runs a person dashboard). That page's client calls the
   refresh endpoint when the access cookie is missing or expired, then loads; on `DEVICE_REVOKED` or
   `DEVICE_SESSION_INVALID` it purges (§8) and shows the paired-device-removed screen with a link to `/device/pair`.
   The middleware only checks cookie presence (no database call); the page and API do the real validation.

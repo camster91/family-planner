@@ -42,7 +42,7 @@ describe('middleware with shared-device cookies', () => {
       process.env.SHARED_DEVICE_ENABLED = 'true'
     })
 
-    it.each(['/', '/login', '/dashboard', '/dashboard/today', '/dashboard/budget'])(
+    it.each(['/', '/login', '/register', '/dashboard', '/dashboard/today', '/dashboard/budget'])(
       'a device cookie without session_token sends %s to /device/today (no DB call)',
       async (path) => {
         for (const cookies of [DEVICE, REFRESH_ONLY]) {
@@ -60,10 +60,18 @@ describe('middleware with shared-device cookies', () => {
       expect(location(await middleware(request('/device/removed')))).toBeNull()
     })
 
-    it('a person session is never redirected to the device board', async () => {
+    it('the device cookie wins over a person session on a paired tablet', async () => {
       const token = signToken({ userId: 'parent-a', email: 'p@x.test', tv: 0 })
-      const res = await middleware(request('/dashboard', { session_token: token, ...DEVICE }))
-      expect(location(res)).toBeNull()
+      for (const path of ['/dashboard', '/register', '/login', '/']) {
+        const res = await middleware(request(path, { session_token: token, ...DEVICE }))
+        expect(location(res)).toBe('/device/today')
+      }
+    })
+
+    it('a person session without device cookies is never redirected to the device board', async () => {
+      const token = signToken({ userId: 'parent-a', email: 'p@x.test', tv: 0 })
+      const res = await middleware(request('/dashboard', { session_token: token }))
+      expect(location(res)).not.toBe('/device/today')
     })
 
     it('device API mutations still require CSRF (no new exemption)', async () => {

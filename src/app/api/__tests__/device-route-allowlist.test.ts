@@ -56,7 +56,7 @@ const DEVICE_ALLOWED_ROUTES = new Set([
  */
 const PUBLIC_ROUTES: Record<string, number[]> = {
   'POST /api/auth/login': [409], // device cookie present → DEVICE_MODE_LOGIN_BLOCKED
-  'POST /api/auth/register': [400],
+  'POST /api/auth/register': [409], // device cookie present → DEVICE_MODE_LOGIN_BLOCKED (invite branch issues a session)
   'POST /api/auth/forgot-password': [400],
   'POST /api/auth/reset-password': [400],
   'POST /api/auth/resend-verification': [400],

@@ -70,7 +70,7 @@ recorded in route comments, as the de facto matrix.
 | /api/auth/login | POST | public | n/a | n/a | none | src/app/api/auth/login/__tests__/device-guard.test.ts | ok; 409 `DEVICE_MODE_LOGIN_BLOCKED` while a live device credential is present (#240, switch on only) |
 | /api/auth/logout | POST | cookie clear | n/a | n/a | none | — | ok |
 | /api/auth/me | GET | session | n/a (self) | all | none | — | ok |
-| /api/auth/register | POST | public | invite binds family | n/a | invite token + email match | — | ok |
+| /api/auth/register | POST | public | invite binds family | n/a | invite token + email match; 409 `DEVICE_MODE_LOGIN_BLOCKED` on a paired device (#240) | — | ok |
 | /api/auth/resend-verification | POST | public | n/a | n/a | none | — | ok |
 | /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts, device/__tests__/device-routes.test.ts | ok; also deletes the parent's `ParentElevationPin` (#240) |
 | /api/auth/verify-email | GET | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |

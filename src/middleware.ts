@@ -87,9 +87,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/device/pair', request.url))
     }
     // Cold launch (Capacitor loads `/`) and stray navigation on a paired
-    // tablet land on the board, never on a person sign-in or dashboard.
-    const isPersonEntry = pathname === '/' || pathname === '/login' || pathname.startsWith('/dashboard')
-    if (isPersonEntry && hasDeviceCookie && !token) {
+    // tablet land on the board, never on a person sign-in, registration or
+    // dashboard. The device cookie wins even if a session_token is present:
+    // a paired tablet must never run a person dashboard (pairing clears
+    // session_token, and login/registration refuse to issue one).
+    const isPersonEntry =
+      pathname === '/' || pathname === '/login' || pathname === '/register' || pathname.startsWith('/dashboard')
+    if (isPersonEntry && hasDeviceCookie) {
       return NextResponse.redirect(new URL('/device/today', request.url))
     }
   }
