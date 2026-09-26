@@ -54,13 +54,15 @@ interface ListSummary {
 interface ListsClientProps {
   lists: ListSummary[]
   familyName: string
+  /** D9 (#102): parents and teens may create lists; a child may not. */
+  canCreate?: boolean
 }
 
 // -----------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------
 
-export default function ListsClient({ lists, familyName }: ListsClientProps) {
+export default function ListsClient({ lists, familyName, canCreate = true }: ListsClientProps) {
   const router = useRouter()
 
   // 4 main type cards to show at the top
@@ -73,9 +75,11 @@ export default function ListsClient({ lists, familyName }: ListsClientProps) {
         title={familyName}
         subtitle="Shared Lists"
         trailing={
-          <Link href="/dashboard/lists/create" className="btn-tinted" aria-label="Add list">
-            <Plus className="w-4 h-4" />
-          </Link>
+          canCreate ? (
+            <Link href="/dashboard/lists/create" className="btn-tinted" aria-label="Add list">
+              <Plus className="w-4 h-4" />
+            </Link>
+          ) : undefined
         }
         className="px-4"
       />
@@ -141,12 +145,18 @@ export default function ListsClient({ lists, familyName }: ListsClientProps) {
             icon={List}
             glyphColor="lists"
             title="No lists yet"
-            description="Create your first shared list for the family."
+            description={
+              canCreate
+                ? 'Create your first shared list for the family.'
+                : 'Ask a parent to create a new list.'
+            }
             action={
-              <Link href="/dashboard/lists/create" className="btn-filled">
-                <Plus className="w-4 h-4" />
-                <span>Create List</span>
-              </Link>
+              canCreate ? (
+                <Link href="/dashboard/lists/create" className="btn-filled">
+                  <Plus className="w-4 h-4" />
+                  <span>Create List</span>
+                </Link>
+              ) : undefined
             }
           />
         )}

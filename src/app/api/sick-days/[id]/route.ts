@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
+import { isKidRole } from '@/lib/kid-access'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -20,10 +21,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const existing = await prisma!.sickDay.findUnique({
       where: { id },
-      select: { family_id: true },
+      select: { family_id: true, person_id: true },
     })
     if (!existing || existing.family_id !== familyId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+    // D1 (#102): editing a sick day is parent-only. Another member's record is
+    // not visible to a teen or child at all, so it is "not found" for them.
+    if (isKidRole(user.role)) {
+      return existing.person_id === user.id
+        ? NextResponse.json({ error: 'Parents only' }, { status: 403 })
+        : NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     let body: {
@@ -128,10 +136,15 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   const existing = await prisma!.sickDay.findUnique({
     where: { id },
-    select: { family_id: true },
+    select: { family_id: true, person_id: true },
   })
   if (!existing || existing.family_id !== user.family_id) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  if (isKidRole(user.role)) {
+    return existing.person_id === user.id
+      ? NextResponse.json({ error: 'Parents only' }, { status: 403 })
+      : NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   await prisma!.sickDay.delete({ where: { id } })

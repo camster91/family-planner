@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { Plus, ShoppingCart, CheckSquare, UtensilsCrossed, Heart, ShoppingBag, List, LucideIcon } from 'lucide-react'
 import Link from 'next/link'
+import { canCreateList } from '@/lib/role-capabilities'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
@@ -54,6 +55,8 @@ export default async function ListsByTypePage({ params }: { params: Promise<{ ty
     select: { family_id: true },
   })
   if (!user) return null
+  // D9 (#102): parents and teens may create lists; a child may not.
+  const canCreate = canCreateList(sessionUser.role)
 
   const typeConfig = TYPE_CONFIG[type]
   if (!typeConfig) {
@@ -101,9 +104,11 @@ export default async function ListsByTypePage({ params }: { params: Promise<{ ty
         greeting="Family"
         title={typeConfig.name}
         trailing={
-          <Link href={`/dashboard/lists/create?type=${type}`} className="btn-tinted">
-            <Plus className="w-4 h-4" />
-          </Link>
+          canCreate ? (
+            <Link href={`/dashboard/lists/create?type=${type}`} className="btn-tinted" aria-label="Add list">
+              <Plus className="w-4 h-4" />
+            </Link>
+          ) : undefined
         }
         className="px-4"
       />
@@ -152,12 +157,18 @@ export default async function ListsByTypePage({ params }: { params: Promise<{ ty
             icon={Icon}
             glyphColor={typeConfig.color}
             title={`No ${typeConfig.name} lists`}
-            description={`Create your first ${typeConfig.name.toLowerCase()} list.`}
+            description={
+              canCreate
+                ? `Create your first ${typeConfig.name.toLowerCase()} list.`
+                : 'Ask a parent to create a new list.'
+            }
             action={
-              <Link href={`/dashboard/lists/create?type=${type}`} className="btn-filled">
-                <Plus className="w-4 h-4" />
-                <span>Create List</span>
-              </Link>
+              canCreate ? (
+                <Link href={`/dashboard/lists/create?type=${type}`} className="btn-filled">
+                  <Plus className="w-4 h-4" />
+                  <span>Create List</span>
+                </Link>
+              ) : undefined
             }
           />
         )}

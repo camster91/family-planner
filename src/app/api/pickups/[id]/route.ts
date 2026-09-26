@@ -53,6 +53,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!existing || existing.family_id !== user.family_id) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
+  // D9 (#102): any member may create or complete a pickup; deleting one is
+  // parent-only.
+  if (user.role !== 'parent') {
+    return NextResponse.json({ error: 'Parents only' }, { status: 403 })
+  }
 
   await prisma!.pickup.delete({ where: { id } })
   return NextResponse.json({ ok: true })

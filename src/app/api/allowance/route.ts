@@ -11,14 +11,12 @@ export async function GET() {
   const gate = await featureGate(user.family_id, 'allowance')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ items: [] })
-  // Household money is parent-only (#102). The allowance page is not on the kid
-  // allowlist; a kid view of their own allowance would need a product decision.
-  if (user.role !== 'parent') {
-    return NextResponse.json({ error: 'Only parents can view allowance' }, { status: 403 })
-  }
+  // D5 (#102): parents see the household's allowance. A teen or child sees
+  // only the rows paid to them, read-only (POST/PATCH stay parent-only).
+  const ownOnly = user.role === 'parent' ? {} : { to_user_id: user.id }
 
   const items = await prisma!.allowance.findMany({
-    where: { family_id: user.family_id },
+    where: { family_id: user.family_id, ...ownOnly },
     include: {
       from_user: { select: { id: true, name: true } },
       to_user: { select: { id: true, name: true, avatar_url: true } },

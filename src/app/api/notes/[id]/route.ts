@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
+import { canEditOwnedRecord } from '@/lib/role-capabilities'
 import { featureGate } from '@/lib/feature-gate-server'
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +29,7 @@ export async function PATCH(request: NextRequest) {
 
     const note = await prisma!.pinnedNote.findUnique({
       where: { id },
-      select: { family_id: true },
+      select: { family_id: true, created_by: true },
     })
 
     if (!note) {
@@ -37,6 +38,11 @@ export async function PATCH(request: NextRequest) {
 
     const familyError = requireFamilyMatch(note.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    // D9 (#102): a teen or child may edit only notes they created.
+    if (!canEditOwnedRecord(auth.user.role, auth.user.id, note.created_by)) {
+      return NextResponse.json({ error: 'You can only edit notes you created' }, { status: 403 })
+    }
 
     const data: Record<string, unknown> = {}
     if (title !== undefined) data.title = title.trim()
@@ -66,6 +72,10 @@ export async function DELETE(request: NextRequest) {
 
     const gate = await featureGate(auth.user.family_id, 'notes')
     if (gate) return gate
+
+    // D9 (#102): deleting a note is parent-only.
+    const parentError = requireParent(auth.user.role)
+    if (parentError) return parentError
 
     let body: any
     try {

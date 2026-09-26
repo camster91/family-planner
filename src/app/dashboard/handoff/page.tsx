@@ -6,23 +6,27 @@ import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/i18n'
 
+// D2 (#102): the API returns every field to parents, everything except the
+// share token to teens, and only id/sitter_name/arrival_time/departure_time to
+// children. Every other field is therefore optional here, and the card renders
+// only what is present.
 interface Handoff {
   id: string
   sitter_name: string
-  sitter_phone: string | null
+  sitter_phone?: string | null
   arrival_time: string | null
   departure_time: string | null
-  kids_bedtimes: string | null
-  where_snacks: string | null
-  pickup_authorized: string | null
-  code_words: string | null
-  pet_care: string | null
-  emergency_notes: string | null
-  house_notes: string | null
-  general_notes: string | null
-  share_token: string
-  share_expires_at: string | null
-  created_at: string
+  kids_bedtimes?: string | null
+  where_snacks?: string | null
+  pickup_authorized?: string | null
+  code_words?: string | null
+  pet_care?: string | null
+  emergency_notes?: string | null
+  house_notes?: string | null
+  general_notes?: string | null
+  share_token?: string
+  share_expires_at?: string | null
+  created_at?: string
 }
 
 interface HandoffFormData {
@@ -258,12 +262,15 @@ function HandoffModal({
 
 function HandoffCard({
   handoff,
+  canManage,
   onEdit,
   onShare,
   onPrint,
   t,
 }: {
   handoff: Handoff
+  /** Parents only: share link and edit. Teens and children get a read-only card. */
+  canManage: boolean
   onEdit: () => void
   onShare: () => void
   onPrint: () => void
@@ -280,27 +287,34 @@ function HandoffCard({
             )}
           </div>
           <div className="flex gap-1">
-            <button
-              onClick={onShare}
-              className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
-              title={t('handoff.shareWithSitter')}
-            >
-              <Link2 className="w-4 h-4" />
-            </button>
+            {canManage && (
+              <button
+                onClick={onShare}
+                className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
+                title={t('handoff.shareWithSitter')}
+                aria-label={t('handoff.shareWithSitter')}
+              >
+                <Link2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onPrint}
               className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
               title={t('handoff.print')}
+              aria-label={t('handoff.print')}
             >
               <Printer className="w-4 h-4" />
             </button>
-            <button
-              onClick={onEdit}
-              className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
-              title={t('handoff.editHandoff')}
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
+            {canManage && (
+              <button
+                onClick={onEdit}
+                className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
+                title={t('handoff.editHandoff')}
+                aria-label={t('handoff.editHandoff')}
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -568,6 +582,7 @@ function HandoffPageInner() {
             <HandoffCard
               key={h.id}
               handoff={h}
+              canManage={isParent}
               onEdit={() => setEditHandoff(h)}
               onShare={() => handleShare(h)}
               onPrint={handlePrint}
@@ -578,7 +593,7 @@ function HandoffPageInner() {
       </div>
 
       {/* Add modal */}
-      <Modal open={showAdd} onClose={closeModal}>
+      <Modal open={isParent && showAdd} onClose={closeModal}>
         <HandoffModal
           mode="add"
           onSave={handleSave}
@@ -590,8 +605,8 @@ function HandoffPageInner() {
       </Modal>
 
       {/* Edit modal */}
-      <Modal open={!!editHandoff} onClose={closeModal}>
-        {editHandoff && (
+      <Modal open={isParent && !!editHandoff} onClose={closeModal}>
+        {isParent && editHandoff && (
           <HandoffModal
             mode="edit"
             initial={editHandoff}

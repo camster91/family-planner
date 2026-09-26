@@ -8,7 +8,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 
 import * as notes from "../route";
 import * as note from "../[id]/route";
-import { db, req, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
+import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 describe("notes — two households", () => {
   beforeEach(() => db.reset());
@@ -37,5 +37,30 @@ describe("notes — two households", () => {
     expect(writesTo("pinnedNote")[0].args.data).toMatchObject({ family_id: "family-A" });
     expect((await note.PATCH(req({ as: "parentA", body: { id: "note-a", title: "New" } }))).status).toBe(200);
     expect((await note.DELETE(req({ as: "parentA", body: { id: "note-a" } }))).status).toBe(200);
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s can create a note and edit their own", async (who) => {
+    const res = await notes.POST(req({ as: who, body: { title: "Mine" } }));
+    expect(res.status).toBe(201);
+    const id = (await res.json()).note.id;
+    expect((await note.PATCH(req({ as: who, body: { id, title: "Still mine" } }))).status).toBe(200);
+    expect(db.find("pinnedNote", id)?.title).toBe("Still mine");
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s cannot edit a note someone else created", async (who) => {
+    expect((await note.PATCH(req({ as: who, body: { id: "note-a", title: "hijack" } }))).status).toBe(403);
+    expect(db.find("pinnedNote", "note-a")?.title).toBe("Home wifi");
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s cannot delete a note, even their own", async (who) => {
+    db.find("pinnedNote", "note-a")!.created_by = who === "teenA" ? "teen-a" : "child-a";
+    expect((await note.DELETE(req({ as: who, body: { id: "note-a" } }))).status).toBe(403);
+    expect(db.find("pinnedNote", "note-a")).toBeDefined();
+  });
+
+  it("D9: a family-B child cannot edit a family-A note", async () => {
+    db.find("pinnedNote", "note-a")!.created_by = "child-b";
+    await expectDenied(await note.PATCH(req({ as: "childB", body: { id: "note-a", title: "x" } })));
+    expect(db.writes).toHaveLength(0);
   });
 });

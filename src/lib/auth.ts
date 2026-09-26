@@ -101,9 +101,11 @@ export function verifyToken(token: string): TokenPayload | null {
     if (!decoded.userId || !decoded.email) {
       return null
     }
-    // role + family_id are optional (older tokens don't have them). Routes that
-    // need them must fall back to a DB lookup (use authenticateWithFamily, not
-    // getServerUser) or treat them as 'parent' for legacy tokens.
+    // role + family_id are optional (older tokens don't have them) and are
+    // NOT authoritative: `verifySessionToken` (src/lib/session.ts) replaces
+    // both with the database values on every request (D6, #102). Only code
+    // that calls verifyToken directly sees the claims, and it must not use
+    // them for authorization.
     return {
       userId: decoded.userId as string,
       email: decoded.email as string,

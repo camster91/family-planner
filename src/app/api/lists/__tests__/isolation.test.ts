@@ -51,10 +51,25 @@ describe("lists — two households", () => {
     expect(db.writes).toHaveLength(0);
   });
 
-  it("same-family members can create, read and tick items", async () => {
-    const created = await createList(req({ as: "childA", body: { name: "Party", type: "todo", family_id: "family-B" } }));
+  it("D9: a child cannot create a list", async () => {
+    const res = await createList(req({ as: "childA", body: { name: "Party", type: "todo" } }));
+    expect(res.status).toBe(403);
+    expect(writesTo("list")).toHaveLength(0);
+  });
+
+  it.each<[UserKey]>([["parentA"], ["teenA"]])("D9: %s can create a list, pinned to their own family", async (who) => {
+    const created = await createList(req({ as: who, body: { name: "Party", type: "todo", family_id: "family-B" } }));
     expect(created.status).toBe(200);
     expect(writesTo("list")[0].args.data).toMatchObject({ family_id: "family-A" });
+  });
+
+  it("D9: a family-B child cannot add to or tick family A's list", async () => {
+    await expectDenied(await createItem(req({ as: "childB", body: { listId: "list-a", content: "eggs" } })));
+    await expectDenied(await updateItem(req({ as: "childB", body: { itemId: "item-a", checked: true } })));
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("same-family members can read, add and tick items", async () => {
     const items = await expectNoForeignData(await getItems(req({ as: "childA", query: { listId: "list-a" } })));
     expect(items.items.map((i: any) => i.id)).toEqual(["item-a"]);
     expect((await createItem(req({ as: "childA", body: { listId: "list-a", content: "eggs" } }))).status).toBe(200);

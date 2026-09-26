@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { createListSchema } from '@/lib/validations'
+import { canCreateList } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,12 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // D9 (#102): parents and teens may create a list. A child can add and tick
+    // items on existing lists but not create one.
+    if (!canCreateList(auth.user.role)) {
+      return NextResponse.json({ error: 'Ask a parent to create a new list.' }, { status: 403 })
+    }
 
     let body: any
     try {

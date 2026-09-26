@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
+import { isKidRole } from '@/lib/kid-access'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -15,9 +16,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const existing = await prisma!.medication.findUnique({
     where: { id },
-    select: { family_id: true, created_by: true },
+    select: { family_id: true, created_by: true, person_id: true },
   })
   if (!existing || existing.family_id !== user.family_id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  // D1 (#102): a teen or child can only see their own medications, so another
+  // member's medication is "not found" for them, the same as a foreign one.
+  const isKid = isKidRole(user.role)
+  if (isKid && existing.person_id !== user.id) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -33,6 +40,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  // A teen or child may only log a dose of their own medication. Prescription
+  // fields they send are ignored below; a request with no dose log is refused.
+  if (isKid && !body.markDoseTaken) {
+    return NextResponse.json({ error: 'Only parents can edit medications' }, { status: 403 })
   }
 
   const data: Record<string, unknown> = {}

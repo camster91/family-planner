@@ -10,7 +10,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 
 import * as contacts from "../route";
 import * as contact from "../[id]/route";
-import { db, req, params, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
+import { db, req, params, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 const newContact = { person_name: "Gran", relationship: "parent" };
 
@@ -49,5 +49,24 @@ describe("emergency contacts — two households", () => {
     expect(res.status).toBe(201);
     expect(writesTo("emergencyContact")[0].args.data).toMatchObject({ family_id: "family-A", person_id: "teen-a" });
     expect((await contact.PATCH(req({ as: "parentA", body: { person_id: "teen-a" } }), params({ id: "contact-a" }))).status).toBe(200);
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D1: %s can read but not create, edit or delete contacts", async (who) => {
+    const body = await expectNoForeignData(await contacts.GET(req({ as: who })));
+    expect(body.contacts.map((c: any) => c.id)).toEqual(["contact-a"]);
+    expect((await contacts.POST(req({ as: who, body: newContact }))).status).toBe(403);
+    expect((await contact.PATCH(req({ as: who, body: { notes: "x" } }), params({ id: "contact-a" }))).status).toBe(403);
+    expect((await contact.DELETE(req({ as: who }), params({ id: "contact-a" }))).status).toBe(403);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("D1: a parent can delete their own family's contact", async () => {
+    expect((await contact.DELETE(req({ as: "parentA" }), params({ id: "contact-a" }))).status).toBe(200);
+  });
+
+  it("D1: a family-B child is denied family A's contact without leaking it", async () => {
+    await expectDenied(await contact.PATCH(req({ as: "childB", body: { notes: "x" } }), params({ id: "contact-a" })));
+    await expectDenied(await contact.DELETE(req({ as: "childB" }), params({ id: "contact-a" })));
+    expect(db.writes).toHaveLength(0);
   });
 });

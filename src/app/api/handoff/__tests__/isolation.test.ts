@@ -44,6 +44,34 @@ describe("handoff — two households", () => {
     expect(JSON.stringify(body)).not.toContain("share-token-a");
   });
 
+  it("D2: a teen sees the full handoff (minus the share token)", async () => {
+    const body = await expectNoForeignData(await handoffs.GET(req({ as: "teenA" })));
+    expect(body.handoffs[0]).toMatchObject({
+      id: "handoff-a",
+      sitter_name: "Home sitter",
+      sitter_phone: "555",
+      code_words: "Home pineapple",
+    });
+  });
+
+  it("D2: a child sees only the sitter name and arrival/departure times", async () => {
+    db.find("handoff", "handoff-a")!.arrival_time = new Date("2026-09-26T17:00:00Z");
+    db.find("handoff", "handoff-a")!.pickup_authorized = "Gran";
+    db.find("handoff", "handoff-a")!.house_notes = "alarm 1234";
+    const body = await expectNoForeignData(await handoffs.GET(req({ as: "childA" })));
+    expect(Object.keys(body.handoffs[0]).sort()).toEqual(["arrival_time", "departure_time", "id", "sitter_name"]);
+    expect(body.handoffs[0].sitter_name).toBe("Home sitter");
+    const text = JSON.stringify(body);
+    for (const secret of ["pineapple", "555", "Gran", "alarm 1234"]) expect(text).not.toContain(secret);
+  });
+
+  it("D2: a child in family B sees only family B's minimal handoff", async () => {
+    const body = await handoffs.GET(req({ as: "childB" })).then((r: any) => r.json());
+    expect(body.handoffs.map((h: any) => h.id)).toEqual(["handoff-b"]);
+    expect(JSON.stringify(body)).not.toContain("Home");
+    expect(body.handoffs[0]).not.toHaveProperty("code_words");
+  });
+
   it.each<[UserKey]>([["teenA"], ["childA"]])("%s cannot create, edit, delete or rotate", async (who) => {
     expect((await handoffs.POST(req({ as: who, body: { sitter_name: "Sam" } }))).status).toBe(403);
     expect((await handoff.PATCH(req({ as: who, body: { sitter_name: "x" } }), params({ id: "handoff-a" }))).status).toBe(403);

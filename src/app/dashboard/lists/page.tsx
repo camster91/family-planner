@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ListsClient from './ListsClient'
+import { canCreateList } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export default async function ListsPage() {
     <ListsClient
       lists={listsWithCounts}
       familyName={user.family?.name || 'Family'}
+      canCreate={canCreateList(sessionUser.role)}
     />
   )
 }

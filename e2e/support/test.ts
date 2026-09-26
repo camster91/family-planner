@@ -46,3 +46,33 @@ export async function browserFetch(
     return { status: res.status, body: await res.text() };
   }, path);
 }
+
+/**
+ * Same-origin state-changing request from inside the page, carrying the
+ * browser's session cookie and the double-submit CSRF header the middleware
+ * requires (csrf_token cookie echoed as X-CSRF-Token).
+ */
+export async function browserSend(
+  page: Page,
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; body: string }> {
+  return page.evaluate(
+    async ({ m, p, b }) => {
+      const csrf =
+        document.cookie
+          .split("; ")
+          .find((c) => c.startsWith("csrf_token="))
+          ?.slice("csrf_token=".length) ?? "";
+      const res = await fetch(p, {
+        method: m,
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: b === undefined ? undefined : JSON.stringify(b),
+      });
+      return { status: res.status, body: await res.text() };
+    },
+    { m: method, p: path, b: body },
+  );
+}

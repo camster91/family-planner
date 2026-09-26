@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import ListDetailClient from './ListDetailClient'
 import DeleteListButton from './DeleteListButton'
 import type { ListType } from '@/types'
+import { canDeleteListOrItem } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,9 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     select: { id: true, family_id: true },
   })
   if (!user) return null
+  // D9 (#102): every member may add and tick items; deleting a list or an
+  // item is parent-only (the API enforces it; the page hides the controls).
+  const canDelete = canDeleteListOrItem(sessionUser.role)
 
   let list: any = null
   let items: any[] = []
@@ -80,7 +84,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
           <ArrowLeft className="w-4 h-4" />
           <span>Lists</span>
         </Link>
-        <DeleteListButton listId={list.id} listName={list.name} />
+        {canDelete && <DeleteListButton listId={list.id} listName={list.name} />}
       </div>
 
       <ListDetailClient
@@ -89,6 +93,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
         listType={list.type as ListType}
         items={mappedItems}
         userId={user.id}
+        canDeleteItems={canDelete}
       />
     </div>
   )

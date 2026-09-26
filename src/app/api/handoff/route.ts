@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { shapeHandoffForRole } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,16 +34,12 @@ export async function GET(request: NextRequest) {
       orderBy: { created_at: 'desc' },
     })
 
-    // The share token is a bearer credential for the public sitter page, and
-    // tokens are parent-only (#102). Only parents can create or rotate it, so
-    // only parents receive it.
-    if (auth.user.role !== 'parent') {
-      return NextResponse.json({
-        handoffs: handoffs.map(({ share_token: _token, share_expires_at: _expires, ...rest }) => rest),
-      })
-    }
-
-    return NextResponse.json({ handoffs })
+    // D2 (#102): parents get every field. Teens get everything except the
+    // share token (a bearer credential for the public sitter page). Children
+    // get only who is coming and when (CHILD_HANDOFF_FIELDS).
+    return NextResponse.json({
+      handoffs: handoffs.map((h) => shapeHandoffForRole(h, auth.user.role)),
+    })
   } catch (err) {
     console.error('GET /api/handoff error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -15,7 +15,7 @@ describe('nav filtering by role (same allowlist as the middleware redirect)', ()
   })
 
   it.each(['child', 'teen'])('shows a %s only home and kid-allowlisted links', (role) => {
-    expect(filterNavForRole(NAV, role).map((i) => i.label)).toEqual(['Today', 'Emergency', 'Wishlist'])
+    expect(filterNavForRole(NAV, role).map((i) => i.label)).toEqual(['Today', 'Lists', 'Emergency', 'Wishlist'])
   })
 
   it('agrees with the redirect rule for every link', () => {
@@ -27,5 +27,34 @@ describe('nav filtering by role (same allowlist as the middleware redirect)', ()
 
   it('does not restrict an unknown/missing role (the server gate still applies)', () => {
     expect(canRoleAccessPath(undefined, '/dashboard/calendar')).toBe(true)
+  })
+})
+
+describe('kid allowlist after the #102 decisions', () => {
+  it.each([
+    '/dashboard/lists',
+    '/dashboard/lists/fx_list_a_grocery',
+    '/dashboard/lists/type/grocery',
+    '/dashboard/allowance',
+    '/dashboard/handoff',
+    '/dashboard/sick-days',
+    '/dashboard/emergency',
+    '/dashboard/wishlist',
+  ])('lets a kid open %s', (path) => {
+    expect(canRoleAccessPath('child', path)).toBe(true)
+    expect(canRoleAccessPath('teen', path)).toBe(true)
+  })
+
+  it.each([
+    '/dashboard/budget',
+    '/dashboard/locations',
+    '/dashboard/travel',
+    '/dashboard/settings',
+    '/dashboard/calendar',
+    '/dashboard/chores',
+    '/dashboard/family',
+    '/dashboard/listsx',
+  ])('still sends a kid away from %s', (path) => {
+    expect(canRoleAccessPath('child', path)).toBe(false)
   })
 })
