@@ -6,6 +6,7 @@
 - `AUTHORIZATION.md`
 - `OFFLINE_SYNC.md`
 - `ANDROID.md`
+- `SHARED_DEVICE.md` (proposed contract, #157)
 - `OBSERVABILITY.md`
 - `adr/README.md`
 

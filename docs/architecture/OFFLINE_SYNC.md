@@ -42,7 +42,7 @@ Define by domain, not one global last-write-wins:
 Prefer event/realtime delivery or bounded refresh over aggressive polling. Reconnect should reconcile from server authority before replaying dependent actions.
 
 ## Security
-Shared-device cache excludes sensitive parent-only data. Device revocation blocks future refresh and should clear protected cached state at next contact.
+Shared-device cache excludes sensitive parent-only data. Device revocation blocks future refresh and should clear protected cached state at next contact. Proposed cache namespace, purge triggers and maximum display age: [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §8 (#157).
 
 ## Tests
 Cover network loss, flapping, duplicate retry, conflict, process restart, queue corruption/limit, stale tombstone, revoked device, and two devices editing the same grocery/list record.

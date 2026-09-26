@@ -1,6 +1,6 @@
 # ADR-0002: A fridge tablet uses a dedicated shared-device identity/session
 
-**Status:** Accepted at architecture level; implementation contract pending #127/#120
+**Status:** Accepted at architecture level; implementation contract proposed in ADR-0006 (#157)
 **Date:** 2026-09-08
 **Related:** #120, #127, #136
 
