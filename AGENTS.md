@@ -37,6 +37,17 @@ Use `package.json`, `prisma/schema.prisma` and `docs/CURRENT_STATE.md` for exact
 - Preserve accessibility: semantic structure, labels, visible focus, reduced motion, >=44x44 primary targets, no colour-only meaning, long-text/reflow support.
 - Keep Android back, lifecycle, process-death, orientation and permission behaviour in scope for Android-facing changes.
 
+## How to talk to Cameron
+
+- Use simple, plain English (about grade 8 level).
+- Keep answers short. No walls of text.
+- When Cameron needs to decide something, give 2–4 clear choices and say which one you recommend.
+- Lead with the answer or next step. Skip the background unless asked.
+- Use short bullet points instead of long paragraphs.
+- Explain technical terms in a few words, or skip them.
+- Do the hard technical work yourself. Just say what you did and what Cameron needs to decide.
+- This applies to chat replies only. Code, commits, PRs and docs keep their normal detail.
+
 ## Approval boundaries
 Agents MAY analyze, design, edit code/docs, add tests, create branches/commits and open PRs.
 
