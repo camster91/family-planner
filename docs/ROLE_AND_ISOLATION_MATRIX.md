@@ -1,6 +1,7 @@
 # Role and isolation matrix
 
-Status: current as of 2026-09-26. Records Cameron's decisions D1–D9 on issue #102 as implemented.
+Status: current as of 2026-09-26. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
+(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`).
 Authority: `docs/architecture/AUTHORIZATION.md` (model and decision order) points here for per-domain
 capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md`.
 
@@ -91,7 +92,7 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Pinned notes | U | yes | own | own | deferred (#157) | `created_by = self`, else 403. |
 | Pinned notes | D | yes | no | no | deferred (#157) | |
 | Anniversaries | R / C | yes | yes | yes | deferred (#157) | |
-| Anniversaries | U | yes | no (see note) | no (see note) | deferred (#157) | Approved rule is "own (`created_by = self`)". `Anniversary` has no `created_by` column, so ownership cannot be proven and edits are parent-only until an expand-only migration adds it. |
+| Anniversaries | U | yes | own | own | deferred (#157) | `created_by = self`, else 403. `created_by` is set on create and is not writable by PATCH. Rows created before the column existed have `created_by` NULL and are parent-edit-only. |
 | Anniversaries | D | yes | no | no | deferred (#157) | |
 | Pickups | R / C / U (complete) | yes | yes | yes | deferred (#157) | |
 | Pickups | D | yes | no | no | deferred (#157) | |
@@ -104,7 +105,7 @@ hidden for a child; delete-list and swipe-to-delete-item are hidden for teens an
 | Domain | R | C | U | D | Notes |
 |---|---|---|---|---|---|
 | Events (calendar) | all | all | parent | parent | Page `/dashboard/calendar` is parent-only in the UI (kid allowlist). |
-| Chores | all | parent | parent, or assignee for status | parent, or assignee | Completion open to any member for any household chore. Photo ownership: D3 (see audit). |
+| Chores | all | parent | parent, or assignee for status | parent, or assignee | Completion open to any member for any household chore. Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. |
 | Rewards | all | parent | parent | — | Claim: all. Approve: parent. |
 | Wishlist | all | all | requester or parent | requester or parent | Status changes: parent. |
 | Meals | all | all | all | all | `cook_id` verified in household. |
@@ -126,9 +127,9 @@ names them, which is the D8 audit result for these domains.
   needs a shared-device value, defaulting to AUTHORIZATION.md's shared-surface list (glanceable schedule,
   approved household tasks, meals, groceries) and excluding finance, messages, addresses, medical notes,
   account settings, tokens and destructive operations.
-- **D3 chore photo ownership.** Needs an upload-ownership record; see the audit.
-- **Anniversary ownership.** Needs `Anniversary.created_by` (expand-only migration) before teens and children
-  can edit their own dates.
+- **D3 contract step.** Photo ownership is implemented with an `Upload` record (expand phase). Legacy files
+  with no `Upload` row are still served through the referencing chore of the same household until they are
+  backfilled and the fallback is removed; see the audit's "D3 legacy path and contract step".
 
 ## Changing this matrix
 

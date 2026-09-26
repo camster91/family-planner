@@ -4,14 +4,14 @@ import { existsSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { authenticateWithFamily } from '@/lib/api-auth'
-import { prisma } from '@/lib/prisma'
+import { CHORE_PHOTO_FILENAME_RE, canFamilyReadChorePhoto } from '@/lib/chore-photos'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
 const CHORES_SUBDIR = 'chores'
-const FILENAME_RE = /^[a-f0-9]{16}\.(jpg|jpeg|png|webp|heic)$/i
+const FILENAME_RE = CHORE_PHOTO_FILENAME_RE
 
 // GET /api/files/chores/[filename] — serve a chore verification photo
 //
@@ -23,10 +23,13 @@ const FILENAME_RE = /^[a-f0-9]{16}\.(jpg|jpeg|png|webp|heic)$/i
 //
 // Now: authenticated callers only, and only the family that owns the photo.
 //
-// Ownership is resolved through the chore that references the photo rather than
-// a stored family_id column. That needs no schema change — which matters while
-// the migration path is unproven — and it cannot disagree with the chore it is
-// attached to. A file no chore references is not served at all.
+// Ownership (D3, #102): an `Upload` row, written by POST /api/upload, records
+// the owning family of every file stored since D3, and is authoritative when
+// present. Files stored earlier have no row; for those (legacy, expand phase)
+// ownership is resolved through a chore or chore assignment of the caller's
+// family that references the file. See canFamilyReadChorePhoto and
+// docs/security/API_ISOLATION_AUDIT.md (D3) for the planned contract step. A
+// file that neither path assigns to the caller's family is not served at all.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
@@ -52,38 +55,9 @@ export async function GET(
     return new NextResponse('Forbidden', { status: 403 })
   }
 
-  // Resolve ownership: which family does a chore referencing this photo belong
-  // to? `photo_url` is stored as the full `/api/files/chores/<name>` path, so
-  // match on that suffix. `endsWith` is exact enough here — the filename is a
-  // content hash, and the stored value is either the path form or the bare name.
-  const publicPath = `/api/files/chores/${filename}`
-  const chore = await prisma!.chore.findFirst({
-    where: {
-      OR: [{ photo_url: publicPath }, { photo_url: filename }],
-    },
-    select: { family_id: true },
-  })
-
-  const assignment = chore
-    ? null
-    : await prisma!.choreAssignment.findFirst({
-        where: {
-          OR: [{ photo_url: publicPath }, { photo_url: filename }],
-        },
-        select: { family_id: true },
-      })
-
-  const ownerFamilyId = chore?.family_id ?? assignment?.family_id ?? null
-
-  // Not referenced by anything: do not serve it. This also covers orphaned
-  // uploads, which have no owner to authorize against.
-  if (!ownerFamilyId) {
-    return new NextResponse('Not found', { status: 404 })
-  }
-
-  // Cross-family reads are refused. 404 rather than 403 so the response does not
-  // confirm that a file exists in another household.
-  if (ownerFamilyId !== auth.user.family_id) {
+  // Cross-family and unowned files get the same 404 as a missing file, so the
+  // response does not confirm that a file exists in another household.
+  if (!(await canFamilyReadChorePhoto(auth.user.family_id, filename))) {
     return new NextResponse('Not found', { status: 404 })
   }
 

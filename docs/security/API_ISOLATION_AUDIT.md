@@ -8,9 +8,14 @@ medical notes, account controls, tokens and secrets), `docs/PRODUCT_PROGRAM.md` 
 
 **Update 2026-09-26: decisions D1–D9 are recorded and implemented.** Cameron approved the role rules on issue
 #102. They are written up in [`docs/ROLE_AND_ISOLATION_MATRIX.md`](../ROLE_AND_ISOLATION_MATRIX.md) and
-implemented in the routes below; the rows that were `gap-needs-decision` now say `implemented (Dn)`. D3 (chore
-photo ownership) still needs a schema change and D7 (shared-device sessions) is deferred to #157. See
-[Decisions](#decisions) for what was decided.
+implemented in the routes below; the rows that were `gap-needs-decision` now say `implemented (Dn)`. D7
+(shared-device sessions) is deferred to #157. See [Decisions](#decisions) for what was decided.
+
+**Update 2026-09-26 (later): D3 is implemented and D9 anniversary ownership is complete.** Cameron approved the
+expand/contract schema change. The additive `Upload` table records the owning family and uploader of every
+file stored by `/api/upload`; chore create, update and complete accept a photo only when it names an upload of
+the caller's family. `Anniversary.created_by` (nullable) lets teens and children edit anniversaries they
+created. See [D3 legacy path and contract step](#d3-legacy-path-and-contract-step).
 
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
@@ -50,7 +55,7 @@ recorded in route comments, as the de facto matrix.
 | /api/analytics/event | POST | jwt (anonymous = no-op) | family from DB user | all | none | analytics/iso | ok |
 | /api/anniversaries | GET | family | where | all | none | anniversaries/iso | ok |
 | /api/anniversaries | POST | family | session family | all | person_id **now** verified | anniversaries/iso | fixed; implemented (D9) |
-| /api/anniversaries/[id] | PATCH | family | match (403) | P (own-edit needs `created_by`, see matrix) | person_id **now** verified | anniversaries/iso | fixed; implemented (D9) |
+| /api/anniversaries/[id] | PATCH | family | match (403) | P; teen/child own (`created_by = self`; NULL = parent-only) | person_id **now** verified | anniversaries/iso | fixed; implemented (D9) |
 | /api/anniversaries/[id] | DELETE | family | match (403) | P | none | anniversaries/iso | implemented (D9) |
 | /api/auth/change-password | POST | session | n/a (self) | all | none | — | ok |
 | /api/auth/forgot-password | POST | public | n/a | n/a | none | — | ok |
@@ -74,10 +79,10 @@ recorded in route comments, as the de facto matrix.
 | /api/capture | GET | family | caller family's config | all; returns `allowed` (false for child) | none | capture/iso | implemented (D4) |
 | /api/capture | POST | family | caller family's config | P+T (child 403 "Ask a parent to add this.") | none | capture/iso, capture/route.test.ts | implemented (D4) |
 | /api/chores | GET | family | where | all | assigned_to filter cannot widen | chores/iso | ok |
-| /api/chores | PATCH | family | match (403) | P or assignee; P-only fields | assigned_to verified; photo_url unverified | chores/iso, chores/route.test.ts | gap-needs-decision (D3) |
+| /api/chores | PATCH | family | match (403) | P or assignee; P-only fields | assigned_to verified; photo_url must be an `Upload` of the caller's family (400), or the chore's unchanged current value | chores/iso, chores/route.test.ts, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/chores | DELETE | family | match (403) | P or assignee | none | chores/iso | ok |
-| /api/chores/complete | POST | family | match (403) | all (any family chore, by design) | photoUrl unverified | chores/iso | gap-needs-decision (D3) |
-| /api/chores/create | POST | family | session family | P | assigned_to verified; photo_url unverified | chores/iso | gap-needs-decision (D3) |
+| /api/chores/complete | POST | family | match (403) | all (any family chore, by design) | photoUrl must be an `Upload` of the caller's family (400), or the chore's unchanged current value | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
+| /api/chores/create | POST | family | session family | P | assigned_to verified; photo_url must be an `Upload` of the caller's family (400) | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/chores/verify | POST | family | match (403) | P | none | chores/iso | ok |
 | /api/cron/recurring-chores | POST | cron | per-family expansion | n/a | none | src/__tests__/recurring-chores.test.ts | ok |
 | /api/emergency-contacts | GET | family | where | all (kid-readable by design, kid-access.ts) | none | emergency-contacts/iso | ok |
@@ -108,7 +113,7 @@ recorded in route comments, as the de facto matrix.
 | /api/family/travel | GET | jwt (**now** 401 when signed out; was 400) | own family | P (was all) | none | family/iso | fixed |
 | /api/family/travel | PATCH | jwt | own family | P | none | family/iso | ok |
 | /api/files/[filename] | GET | family (was session only) | **now** served only when a chore/assignment of the caller's family references the file (404 otherwise) | all | none | files/[filename]/__tests__/route.test.ts | fixed |
-| /api/files/chores/[filename] | GET | family | owner via referencing chore/assignment (404) | all | n/a | src/__tests__/chore-photo-auth.test.ts | gap-needs-decision (D3) |
+| /api/files/chores/[filename] | GET | family | `Upload` row family (authoritative); legacy files with no row: a chore/assignment of the caller's family references it (404 otherwise) | all | n/a | src/__tests__/chore-photo-auth.test.ts, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/handoff | GET | family | where | all; teen: no share token; child: `id`, `sitter_name`, `arrival_time`, `departure_time` only | none | handoff/iso | fixed; implemented (D2) |
 | /api/handoff | POST | family | session family | P | none | handoff/iso | ok |
 | /api/handoff/[id] | PATCH | family | match (403) | P | none | handoff/iso | ok |
@@ -169,7 +174,7 @@ recorded in route comments, as the de facto matrix.
 | /api/sick-days | POST | jwt | session family | P; teen/child own (report self only) | person_id verified | sick-days/route.test.ts, sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | PATCH | jwt | match (404); raw SQL also filters family_id | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | DELETE | jwt | match (404) | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
-| /api/upload | POST | family | n/a (writes an unowned file; see D3) | all | none | — | ok |
+| /api/upload | POST | family | records an `Upload` row (caller's family, uploader); filename namespaced per family | all | none | src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/users | GET | session | self | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | PATCH | session | self (id/family_id/role not writable) | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
@@ -180,8 +185,9 @@ recorded in route comments, as the de facto matrix.
 | /api/wishlist/[id] | DELETE | family | match (403) | requester or P | none | wishlist/iso | ok |
 | /api/wishlist/[id]/status | PATCH | family | match (403) | P | none | wishlist/iso | ok |
 
-Totals: 139 handlers. After the #102 decisions: 23 rows carry `implemented (Dn)` (some alongside `fixed`), 4
-chore/file rows remain `gap-needs-decision (D3)`, and every other row is `ok` or `fixed`. D6 changed the auth
+Totals: 139 handlers. After the #102 decisions: 28 rows carry `implemented (Dn)` (some alongside `fixed`),
+including the five D3 chore/upload/file rows; no row is `gap-needs-decision`, and every other row is `ok` or
+`fixed`. D6 changed the auth
 helper rather than individual rows: every `jwt` and `family` row now resolves role and family from the
 database. No confirmed cross-family read or write remains open.
 
@@ -216,13 +222,45 @@ Cameron's decisions on issue #102, as implemented. The per-role result is in
 |---|---|---|---|
 | D1 | Medical data for child and teen | decided, implemented | Teens and children see only their own medications and sick days (`person_id = self`), may report only themselves sick, and may log a dose of their own medication (`PATCH /api/medications/[id]` with `markDoseTaken`; any other kid PATCH is 403, a sibling's medication is 404). Sick-day edits and deletes are parent-only. Emergency contacts: every member reads, only parents create, edit or delete. Parents unchanged. |
 | D2 | Handoff contents for kids | decided, implemented | Teens see the full handoff (still without the share token). Children see only `id`, `sitter_name`, `arrival_time`, `departure_time`. `/dashboard/handoff` is kid-reachable and read-only for kids. |
-| D3 | Chore photo ownership | open | Still needs an upload-ownership record (schema + migration). Unchanged by this round. |
+| D3 | Chore photo ownership | decided, implemented (expand phase) | Additive `Upload` table (`id`, `family_id` FK cascade, `uploaded_by` FK user set-null, unique `filename`, `content_type`, `size_bytes`, `created_at`). `POST /api/upload` records a row for the caller's family and names files `sha256(family_id, bytes)`, so identical images in two households no longer share a file. Chore create, update and complete accept only `/api/files/chores/<filename>` or the bare filename (stored in the canonical path form) of an upload owned by the caller's family; anything else, including another family's upload, is 400. `null`/`''` clears; re-sending the chore's current value is accepted unchanged. Serving: an `Upload` row decides ownership when it exists; legacy files with no row fall back to the referencing chore/assignment of the caller's family (now family-scoped). See [D3 legacy path and contract step](#d3-legacy-path-and-contract-step). |
 | D4 | Capture spend | decided, implemented | Parents and teens may use `POST /api/capture`. Children get 403 `Ask a parent to add this.` before any provider call. `GET /api/capture` returns `allowed`, and the capture box shows the same message to a child. |
 | D5 | A kid's own allowance | decided, implemented | Teens and children `GET` only rows paid to them (`to_user_id = self`), read-only. `POST`/`PATCH` stay parent-only. `/dashboard/allowance` is kid-reachable with the write controls hidden. |
 | D6 | `getServerUser()` trusted JWT claims | decided, implemented | `resolveSession` (`src/lib/session.ts`) reads `token_version`, `role` and `family_id` in one query; `verifySessionToken` returns the database values. That covers `authenticateRequest`, `getServerUser()` and so all 14 `jwt` route files without per-file changes. The middleware kid gate uses the same lookup's role. |
 | D7 | Shared-device sessions | deferred (#157) | No device-session concept yet. The matrix marks the shared-device column deferred. |
 | D8 | Write the matrix | done | `docs/ROLE_AND_ISOLATION_MATRIX.md`, linked from `AUTHORIZATION.md`. |
-| D9 | Child/teen writes in low-sensitivity domains | decided, implemented | Lists: every member reads, adds and ticks items; parents and teens create lists; deleting a list or item is parent-only. `/dashboard/lists` is kid-reachable and in the kid nav. Notes: every member creates; teens and children edit only notes they created; delete is parent-only. Anniversaries: every member creates; delete is parent-only; edit is parent-only for now because `Anniversary` has no `created_by` column to prove ownership. Pickups: delete is parent-only. The other D9 domains (meals, events create, projects and tasks create, messages, wishlist create, chore completion) stay open to every member, as confirmed in the matrix. |
+| D9 | Child/teen writes in low-sensitivity domains | decided, implemented | Lists: every member reads, adds and ticks items; parents and teens create lists; deleting a list or item is parent-only. `/dashboard/lists` is kid-reachable and in the kid nav. Notes: every member creates; teens and children edit only notes they created; delete is parent-only. Anniversaries: every member creates; delete is parent-only; teens and children edit only anniversaries they created (`Anniversary.created_by = self`, set on create, not writable by PATCH). Rows created before the column existed have `created_by` NULL and stay parent-edit-only. Pickups: delete is parent-only. The other D9 domains (meals, events create, projects and tasks create, messages, wishlist create, chore completion) stay open to every member, as confirmed in the matrix. |
+
+### D3 legacy path and contract step
+
+Expand phase (current):
+
+- **Writes are contracted now.** A new chore photo (create, update, complete) needs an `Upload` row owned by
+  the caller's family. The only exception is re-sending a chore's own current `photo_url` unchanged, so edit
+  forms that post back what they loaded keep working for legacy chores. It grants no access the chore did not
+  already have.
+- **Reads keep a legacy fallback.** Files stored before D3 have no `Upload` row. `GET /api/files/chores/[filename]`
+  still serves them when a chore or chore assignment of the caller's family references the file by
+  `/api/files/chores/<filename>` or bare filename (`canFamilyReadChorePhoto` in `src/lib/chore-photos.ts`). The
+  lookup is now scoped to the caller's family, which fixes the unscoped `findFirst` noted in the original D3
+  question. When an `Upload` row exists it is authoritative: a chore reference from another family never
+  overrides it.
+- **Residual risk.** A cross-family attachment made *before* D3 shipped (a family-A chore pointing at a
+  family-B legacy filename) is still served to A through the fallback. No new ones can be created.
+- `/api/files/[filename]` (the older upload root) is unchanged: it already serves only files referenced by the
+  caller's family, and nothing writes there any more.
+
+Contract step (future, needs Cameron's approval because it touches production data):
+
+1. Backfill `Upload` rows for legacy files: for each file under `UPLOAD_DIR/chores`, find the chores and chore
+   assignments that reference it. If every reference is in one family, insert an `Upload` row for that family
+   (`uploaded_by` NULL, `content_type` from the extension, `size_bytes` from the file). If references span
+   families, do not guess: list them for a manual decision. Unreferenced files get no row. Run it as a one-off
+   script, idempotent (`ON CONFLICT (filename) DO NOTHING`), dry-run first.
+2. Verify on a copy of production that every chore/assignment `photo_url` under `/api/files/chores/` has an
+   `Upload` row in the same family.
+3. Remove the legacy reference fallback from `canFamilyReadChorePhoto`, and the "unchanged current value"
+   exception from `resolveChorePhotoForWrite`, so ownership comes only from `Upload`.
+4. Optionally retire `/api/files/[filename]` the same way once its files are migrated or confirmed unused.
 
 ### Original questions (for history)
 

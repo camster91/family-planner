@@ -100,7 +100,8 @@ function seed(): Tables {
     ],
     anniversary: perFamily((f, family_id, tag) => ({
       id: `ann-${f}`, family_id, name: `${tag} birthday`, type: 'birthday', date: T0, notes: null,
-      person_id: `child-${f}`, created_at: T0,
+      // Legacy rows: created before Anniversary.created_by existed (D9).
+      person_id: `child-${f}`, created_by: null, created_at: T0,
     })),
     event: perFamily((f, family_id, tag) => ({
       id: `event-${f}`, family_id, title: `${tag} dentist`, description: null, start_time: SOON,
@@ -114,6 +115,9 @@ function seed(): Tables {
       recurrence_id: null, completed_at: null, created_at: T0,
     })),
     choreAssignment: [],
+    // D3 ownership records. Empty at seed: the seeded chore photos above are
+    // legacy files with no Upload row. Tests add rows as POST /api/upload would.
+    upload: [],
     list: perFamily((f, family_id, tag) => ({
       id: `list-${f}`, family_id, name: `${tag} groceries`, type: 'grocery', description: null,
       created_by: `parent-${f}`, created_at: T0, updated_at: T0,
@@ -228,6 +232,8 @@ type Rel = { model: string; fk: string; many?: boolean; ref?: string }
 const RELATIONS: Record<string, Record<string, Rel>> = {
   user: { family: { model: 'family', fk: 'family_id' } },
   family: { members: { model: 'user', fk: 'family_id', many: true, ref: 'id' } },
+  anniversary: { creator: { model: 'user', fk: 'created_by' }, person: { model: 'user', fk: 'person_id' } },
+  upload: { family: { model: 'family', fk: 'family_id' }, uploader: { model: 'user', fk: 'uploaded_by' } },
   chore: {
     assignee: { model: 'user', fk: 'assigned_to' },
     creator: { model: 'user', fk: 'created_by' },

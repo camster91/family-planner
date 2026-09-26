@@ -5,6 +5,7 @@ import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
 import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
 import { normalizeDateOnlyInput } from '@/lib/dates'
+import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Assigned user must be in your family' }, { status: 400 })
     }
 
+    // D3 (#102): a photo must be an upload owned by the caller's family.
+    const photo = await resolveChorePhotoForWrite(auth.user.family_id, photo_url)
+    if (!photo.ok) {
+      return NextResponse.json({ error: photo.error }, { status: 400 })
+    }
+
     const newChore = await prisma!.chore.create({
       data: {
         family_id: auth.user.family_id,
@@ -59,7 +66,7 @@ export async function POST(request: NextRequest) {
         frequency,
         status: 'pending',
         created_by: auth.user.id,
-        photo_url: photo_url || null,
+        photo_url: photo.value ?? null,
       },
       include: {
         assignee: { select: { id: true, name: true, avatar_url: true, role: true } },

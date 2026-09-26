@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         date: a.date.toISOString(),
         notes: a.notes,
         person_id: a.person_id,
+        created_by: a.created_by,
         days_until: daysUntil,
         next_occurrence: nextOccurrence.toISOString(),
       }
@@ -101,6 +102,8 @@ export async function POST(request: NextRequest) {
         date: new Date(date),
         notes: notes || null,
         person_id: person_id || null,
+        // D9 (#102): records who may edit it later (teens/children: own only).
+        created_by: auth.user.id,
       },
     })
 

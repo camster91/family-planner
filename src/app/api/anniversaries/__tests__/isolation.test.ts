@@ -51,6 +51,12 @@ describe("anniversaries — two households", () => {
     expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A", person_id: "child-a" });
   });
 
+  it("D9: records the creator on create, and a smuggled created_by is ignored", async () => {
+    const res = await POST(req({ as: "teenA", body: { ...newDate, created_by: "parent-a" } }));
+    expect(res.status).toBe(201);
+    expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A", created_by: "teen-a" });
+  });
+
   it("lets a same-family member update and delete", async () => {
     expect((await PATCH(req({ as: "parentA", body: { name: "Renamed", person_id: "teen-a" } }), params({ id: "ann-a" }))).status).toBe(200);
     expect(db.find("anniversary", "ann-a")).toMatchObject({ name: "Renamed", person_id: "teen-a" });
@@ -81,12 +87,46 @@ describe("anniversaries — two households", () => {
     expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A" });
   });
 
-  // Anniversary has no created_by column, so "edit your own" cannot be proven
-  // and editing is parent-only for now (docs/ROLE_AND_ISOLATION_MATRIX.md).
-  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s cannot edit or delete an anniversary", async (who) => {
+  // Legacy rows (created_by NULL, created before the column existed) cannot
+  // prove ownership, so they stay parent-edit-only (docs/ROLE_AND_ISOLATION_MATRIX.md).
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s cannot edit or delete a legacy anniversary", async (who) => {
+    expect(db.find("anniversary", "ann-a")?.created_by).toBeNull();
     expect((await PATCH(req({ as: who, body: { name: "x" } }), params({ id: "ann-a" }))).status).toBe(403);
     expect((await DELETE(req({ as: who }), params({ id: "ann-a" }))).status).toBe(403);
     expect(db.find("anniversary", "ann-a")?.name).toBe("Home birthday");
+  });
+
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s edits an anniversary they created, but cannot delete it", async (who) => {
+    const created = await POST(req({ as: who, body: newDate }));
+    expect(created.status).toBe(201);
+    const id = (await created.json()).date.id;
+
+    const res = await PATCH(req({ as: who, body: { name: "Gran (Mum's side)", created_by: "parent-a" } }), params({ id }));
+    expect(res.status).toBe(200);
+    // created_by is not writable through PATCH.
+    expect(db.find("anniversary", id)).toMatchObject({ name: "Gran (Mum's side)", created_by: `${who === "teenA" ? "teen" : "child"}-a` });
+
+    expect((await DELETE(req({ as: who }), params({ id }))).status).toBe(403);
+    expect(db.find("anniversary", id)).toBeDefined();
+  });
+
+  it("D9: a teen cannot edit an anniversary a sibling or parent created", async () => {
+    db.rows("anniversary").push(
+      { id: "ann-child", family_id: "family-A", name: "Child's date", type: "custom", date: new Date(), notes: null, person_id: null, created_by: "child-a", created_at: new Date() },
+      { id: "ann-parent", family_id: "family-A", name: "Parent's date", type: "custom", date: new Date(), notes: null, person_id: null, created_by: "parent-a", created_at: new Date() },
+    );
+    expect((await PATCH(req({ as: "teenA", body: { name: "x" } }), params({ id: "ann-child" }))).status).toBe(403);
+    expect((await PATCH(req({ as: "teenA", body: { name: "x" } }), params({ id: "ann-parent" }))).status).toBe(403);
+    expect(writesTo("anniversary")).toHaveLength(0);
+    // A parent still edits and deletes any household row, including a kid's.
+    expect((await PATCH(req({ as: "parentA", body: { name: "Fixed" } }), params({ id: "ann-child" }))).status).toBe(200);
+    expect((await DELETE(req({ as: "parentA" }), params({ id: "ann-child" }))).status).toBe(200);
+  });
+
+  it("D9: a created_by pointing at a family-B child grants that child nothing in family A", async () => {
+    db.find("anniversary", "ann-a")!.created_by = "child-b"; // nonsensical, but must not grant access
+    await expectDenied(await PATCH(req({ as: "childB", body: { name: "x" } }), params({ id: "ann-a" })));
+    expect(writesTo("anniversary")).toHaveLength(0);
   });
 
   it("D9: a family-B child is denied family A's anniversary without leaking it", async () => {

@@ -17,18 +17,21 @@ export const registerSchema = z.object({
 // Chores
 export const createChoreSchema = z.object({
   title: z.string().min(1).max(200).trim(),
-  description: z.string().max(1000).trim().optional(),
+  // The chore forms send null for an empty description.
+  description: z.string().max(1000).trim().nullable().optional(),
   points: z.number().int().min(0).max(1000).default(10),
   assigned_to: z.string().min(1),
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
   difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
-  photo_url: z.string().max(500).optional(),
+  // An /api/upload result owned by the caller's family (D3); checked in the route.
+  photo_url: z.string().max(500).nullable().optional(),
 })
 
 export const completeChoreSchema = z.object({
   choreId: z.string().min(1),
-  photoUrl: z.string().max(500000).nullable().optional(),
+  // An /api/upload result owned by the caller's family (D3); checked in the route.
+  photoUrl: z.string().max(500).nullable().optional(),
 })
 
 export const verifyChoreSchema = z.object({
@@ -161,13 +164,16 @@ export const updateListItemSchema = z.object({
 export const updateChoreSchema = z.object({
   choreId: z.string().min(1),
   title: z.string().min(1).max(200).trim().optional(),
-  description: z.string().max(1000).trim().optional(),
+  // null clears the description (the edit form sends null when emptied).
+  description: z.string().max(1000).trim().nullable().optional(),
   points: z.number().int().min(0).max(1000).optional(),
   assigned_to: z.string().min(1).optional(),
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
-  photo_url: z.string().max(500).optional(),
+  // An /api/upload result owned by the caller's family (D3), or null to clear;
+  // checked in the route.
+  photo_url: z.string().max(500).nullable().optional(),
 })
 
 // Events (update + delete)

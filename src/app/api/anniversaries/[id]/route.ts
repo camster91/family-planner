@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { canEditOwnedRecord } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const existing = await prisma!.anniversary.findUnique({
       where: { id },
-      select: { family_id: true },
+      select: { family_id: true, created_by: true },
     })
 
     if (!existing) {
@@ -42,12 +43,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const familyError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    // D9 (#102): a teen or child may edit only anniversaries they created, but
-    // Anniversary has no created_by column yet, so ownership cannot be proven
-    // and editing is parent-only until that column exists (see
-    // docs/ROLE_AND_ISOLATION_MATRIX.md). Creating stays open to every member.
-    const parentError = requireParent(auth.user.role)
-    if (parentError) return parentError
+    // D9 (#102): parents edit any anniversary of the household; a teen or
+    // child edits only anniversaries they created (created_by = self). Rows
+    // created before created_by existed have NULL there, so ownership cannot
+    // be proven and they stay parent-edit-only. Creating is open to every
+    // member; delete is parent-only (below).
+    if (!canEditOwnedRecord(auth.user.role, auth.user.id, existing.created_by)) {
+      return NextResponse.json(
+        { error: 'You can only edit dates you added' },
+        { status: 403 }
+      )
+    }
 
     const data: Record<string, unknown> = {}
     if (name !== undefined) data.name = name

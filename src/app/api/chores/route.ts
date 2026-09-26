@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
 import { normalizeDateOnlyInput } from '@/lib/dates'
+import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +69,7 @@ export async function PATCH(request: NextRequest) {
 
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
-      select: { family_id: true, assigned_to: true },
+      select: { family_id: true, assigned_to: true, photo_url: true },
     })
 
     if (!chore) {
@@ -119,6 +120,14 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // D3 (#102): a new photo must be an upload owned by the caller's family.
+    // Re-sending the chore's current value (an edit form posting back what it
+    // loaded, including a legacy file with no Upload row) is left unchanged.
+    const photo = await resolveChorePhotoForWrite(auth.user.family_id, updates.photo_url, chore.photo_url)
+    if (!photo.ok) {
+      return NextResponse.json({ error: photo.error }, { status: 400 })
+    }
+
     const data: Record<string, unknown> = {}
     if (updates.title !== undefined) data.title = updates.title
     if (updates.description !== undefined) data.description = updates.description
@@ -127,7 +136,7 @@ export async function PATCH(request: NextRequest) {
     if (dueDate !== undefined) data.due_date = dueDate
     if (updates.difficulty !== undefined) data.difficulty = updates.difficulty
     if (updates.frequency !== undefined) data.frequency = updates.frequency
-    if (updates.photo_url !== undefined) data.photo_url = updates.photo_url
+    if (photo.value !== undefined) data.photo_url = photo.value
 
     const updated = await prisma!.chore.update({
       where: { id: choreId },
