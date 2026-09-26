@@ -56,8 +56,11 @@ function getJwtSecret(): string {
   return _jwtSecret
 }
 
-// Dummy hash for timing-safe login (prevents email enumeration)
-const DUMMY_HASH = '$2a$12$LJ3m4ys3Lz0Y5y5Zy5ZzOeQz5Zz5Zz5Zz5Zz5Zz5Zz5Zz5Zz5Zy'
+// Dummy hash for timing-safe login (prevents email enumeration). It must be a
+// well-formed cost-12 bcrypt hash (60 chars) of a random, discarded secret:
+// bcrypt rejects a malformed hash in ~1 ms instead of doing a full compare,
+// which would make "no such account" measurably faster than "wrong password".
+export const DUMMY_HASH = '$2b$12$wOZx1BTJJDONf/Kgbg472uG0LPK4fJ.a2aETijX6YRz2wpUAy0IAq'
 
 export interface TokenPayload {
   userId: string

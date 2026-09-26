@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { verifyPassword } from '@/lib/auth'
+import { DUMMY_HASH, verifyPassword } from '@/lib/auth'
 import { checkRateLimit, isRateLimited, resetRateLimit } from '@/lib/rate-limit-db'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { isValidPinFormat } from '@/lib/elevation-pin'
@@ -33,11 +33,6 @@ const ACCOUNT_LIMIT = 10
 const LOGIN_ACCOUNT_LIMIT = 10 // shared with POST /api/auth/login
 const LOCK_MS = 60 * MIN
 
-// A well-formed cost-12 bcrypt hash of a random, discarded secret. Compared
-// against when there is no PIN/password to check, so every attempt costs one
-// full bcrypt round. (`safeVerifyPassword`'s dummy is not a valid 60-char hash,
-// so bcryptjs rejects it in ~1 ms; see the #240 report.)
-const ELEVATION_DUMMY_HASH = '$2b$12$W4bM51anF3VllFWGRQ81XeuX31LTRKNd1f/8kw73F6uc.ypIOe9LO'
 
 const bodySchema = z.object({
   userId: z.string().min(1).max(64),
@@ -119,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Always one bcrypt compare (dummy hash when there is nothing to compare).
     const wellFormed = method === 'password' || isValidPinFormat(secret)
-    const matched = await verifyPassword(secret, secretHash ?? ELEVATION_DUMMY_HASH)
+    const matched = await verifyPassword(secret, secretHash ?? DUMMY_HASH)
     const valid = Boolean(target && secretHash && wellFormed && matched)
 
     if (!valid || !target) {
