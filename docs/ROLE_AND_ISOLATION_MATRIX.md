@@ -121,6 +121,15 @@ hidden for a child; delete-list and swipe-to-delete-item are hidden for teens an
 Shared device: `deferred (#157)` for every row. Teen and child: identical in this table unless a column
 names them, which is the D8 audit result for these domains.
 
+### Today board page (#119 / #159)
+
+`/dashboard/today` (the fridge/wall tablet view) is on the kid allowlist for parent, teen and child. It is read-only
+and shows only data every member may already read above: events (without location or description), chores
+(title, due day, status, assignee name), dinners (recipe and cook name, without notes) and open grocery items. It
+reads no finance, allowance, messages, medical, location, handoff or account data. The page offers links to
+calendar, chores, meals and features only to roles that may open them. DTO:
+`src/app/dashboard/today/today-board-data.ts`.
+
 ## Deferred
 
 - **D7 / #157 shared-device sessions.** No device-session concept exists yet. When it does, each row above

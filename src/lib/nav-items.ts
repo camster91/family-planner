@@ -23,6 +23,7 @@ import {
   Heart,
   UserPlus,
   Plane,
+  LayoutDashboard,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -36,6 +37,9 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   // Core — always visible
   { name: 'Today', href: '/dashboard', icon: Home },
+  // Glanceable household board for the fridge/wall tablet (#119 / #159).
+  // Every role may open it (src/lib/kid-access.ts).
+  { name: 'Today board', href: '/dashboard/today', icon: LayoutDashboard },
   { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, featureKey: 'calendar' },
   { name: 'Chores', href: '/dashboard/chores', icon: CheckSquare, featureKey: 'chores' },
   { name: 'Lists', href: '/dashboard/lists', icon: List, featureKey: 'lists' },

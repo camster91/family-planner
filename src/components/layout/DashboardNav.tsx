@@ -17,6 +17,7 @@ import {
   LogOut,
   MessageCircle,
   Heart,
+  LayoutDashboard,
 } from 'lucide-react'
 import { User as UserType, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
@@ -215,6 +216,16 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
                   {/* Menu items */}
                   <div className="py-1.5">
+                    {canSee('/dashboard/today') && (
+                      <Link
+                        href="/dashboard/today"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-label-secondary" />
+                        Today board
+                      </Link>
+                    )}
                     {canSee('/dashboard/profile') && (
                       <Link
                         href="/dashboard/profile"

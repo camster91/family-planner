@@ -32,6 +32,11 @@ export const KID_ALLOWED_PREFIXES = [
   // Their own sick days and medications (D1, #102): report themselves sick and
   // log a dose of their own medication. Everything else stays with parents.
   '/dashboard/sick-days',
+  // Today board (#119 / #159): the shared household view for the fridge
+  // tablet. It reads only shared-surface fields every member may already read
+  // (schedule, chores, dinner, groceries); see
+  // src/app/dashboard/today/today-board-data.ts.
+  '/dashboard/today',
 ] as const
 
 export function isKidAllowedPath(pathname: string): boolean {
