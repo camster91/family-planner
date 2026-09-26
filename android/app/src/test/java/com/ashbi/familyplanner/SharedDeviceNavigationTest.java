@@ -38,5 +38,7 @@ public class SharedDeviceNavigationTest {
         );
         assertTrue("onPause must flush the WebView cookie store", source.contains("CookieManager.getInstance().flush()"));
         assertTrue("Back on /device/* must background the task", source.contains("moveTaskToBack(true)"));
+        assertTrue("a refresh landing after pause must be flushed too", source.contains("postDelayed(flushCookies"));
+        assertTrue("follow-up flushes must cover at least 30 s", MainActivity.FOLLOW_UP_FLUSH_DELAYS_MS[MainActivity.FOLLOW_UP_FLUSH_DELAYS_MS.length - 1] >= 30_000L);
     }
 }
