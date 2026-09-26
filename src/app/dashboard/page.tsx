@@ -1,9 +1,11 @@
+import { after } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
 import { utcMonthRange } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
 import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
+import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import DashboardHome, { type BudgetSnapshot } from '@/components/dashboard/DashboardHome'
 import KidHome from '@/components/dashboard/KidHome'
 
@@ -54,6 +56,11 @@ export default async function DashboardPage() {
   }
 
   const familyId = user.family_id
+
+  // Subscribed calendars (#232): refresh any not fetched in 15 minutes AFTER
+  // the response is sent, so the dashboard never waits on a third party. A
+  // per-subscription lease in refreshStaleSubscriptions prevents stampedes.
+  after(() => refreshStaleSubscriptions(familyId))
   const isKid = user.role === 'child' || user.role === 'teen'
   const now = new Date()
   const inOneWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)

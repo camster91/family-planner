@@ -116,6 +116,28 @@ CREATE TABLE IF NOT EXISTS "Event" (
 );
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "is_task" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "project_id" TEXT;
+-- #232 read-only ICS import: source identity of imported events (null for local events)
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_subscription_id" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_uid" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_occurrence_start" TIMESTAMP(3);
+
+-- ============ CalendarSubscription (#232; feed URL stored encrypted) ============
+CREATE TABLE IF NOT EXISTS "CalendarSubscription" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "url_enc" TEXT NOT NULL,
+  "color" TEXT,
+  "last_fetched_at" TIMESTAMP(3),
+  "last_status" TEXT NOT NULL DEFAULT 'pending',
+  "last_error" TEXT,
+  "etag" TEXT,
+  "last_modified" TEXT,
+  "created_by" TEXT NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "CalendarSubscription_family_id_idx" ON "CalendarSubscription"("family_id");
 
 -- ============ Message ============
 CREATE TABLE IF NOT EXISTS "Message" (
@@ -380,6 +402,16 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "Event" ADD CONSTRAINT "Event_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "Project"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Event" ADD CONSTRAINT "Event_source_subscription_id_fkey" FOREIGN KEY ("source_subscription_id") REFERENCES "CalendarSubscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "CalendarSubscription" ADD CONSTRAINT "CalendarSubscription_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarSubscription" ADD CONSTRAINT "CalendarSubscription_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE "Message" ADD CONSTRAINT "Message_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -487,6 +519,9 @@ CREATE INDEX IF NOT EXISTS "Event_family_id_idx" ON "Event"("family_id");
 CREATE INDEX IF NOT EXISTS "Event_start_time_idx" ON "Event"("start_time");
 CREATE INDEX IF NOT EXISTS "Event_family_id_start_time_idx" ON "Event"("family_id", "start_time");
 CREATE INDEX IF NOT EXISTS "Event_project_id_idx" ON "Event"("project_id");
+CREATE INDEX IF NOT EXISTS "Event_source_subscription_id_start_time_idx" ON "Event"("source_subscription_id", "start_time");
+-- Idempotent import upsert key (#232). NULLs are distinct, so local events never collide.
+CREATE UNIQUE INDEX IF NOT EXISTS "Event_source_subscription_id_source_uid_source_occurrence_s_key" ON "Event"("source_subscription_id", "source_uid", "source_occurrence_start");
 
 CREATE INDEX IF NOT EXISTS "Message_family_id_idx" ON "Message"("family_id");
 CREATE INDEX IF NOT EXISTS "Message_sender_id_idx" ON "Message"("sender_id");

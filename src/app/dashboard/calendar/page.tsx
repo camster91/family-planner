@@ -1,5 +1,6 @@
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { attachEventSources } from '@/lib/calendar-import/source'
 import CalendarPageClient from './CalendarPageClient'
 
 interface CalendarPageProps {
@@ -45,12 +46,16 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       })
     : []
 
+  // Imported events (#232) get their subscription name for the "From …" badge.
+  const withSources = familyId ? await attachEventSources(prisma!, familyId, events) : []
+
   // Serialize dates to ISO strings for client component
-  const serializedEvents = events.map((e) => ({
+  const serializedEvents = withSources.map((e) => ({
     ...e,
     start_time: e.start_time.toISOString(),
     end_time: e.end_time.toISOString(),
     created_at: e.created_at.toISOString(),
+    source_occurrence_start: e.source_occurrence_start ? e.source_occurrence_start.toISOString() : null,
   }))
 
   return (

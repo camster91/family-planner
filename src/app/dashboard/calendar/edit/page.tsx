@@ -19,6 +19,8 @@ function EditEventForm() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Imported events (#232) are read-only; the API refuses edits with 409.
+  const [source, setSource] = useState<{ name: string } | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
@@ -48,6 +50,7 @@ function EditEventForm() {
             setEndTime(format(end, 'HH:mm'))
           }
           setLocation(event.location || '')
+          setSource(event.source ? { name: event.source.name } : null)
         } else if (res.status === 404) {
           setError('Event not found')
         } else {
@@ -131,6 +134,22 @@ function EditEventForm() {
         <div className="card-apple p-8">
           <h2 className="text-title-2 text-label-primary mb-2">No Event Selected</h2>
           <p className="text-body text-label-secondary mb-6">Please select an event to edit.</p>
+          <Link href="/dashboard/calendar" className="btn-filled">Back to Calendar</Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (source) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-12">
+        <div className="card-apple p-8">
+          <h1 className="text-title-2 text-label-primary mb-2">{title}</h1>
+          <p className="text-body text-label-secondary mb-2">From {source.name}</p>
+          <p className="text-body text-label-secondary mb-6">
+            This event comes from a subscribed calendar, so it is read-only here. Change it in the original
+            calendar and it will update on the next refresh.
+          </p>
           <Link href="/dashboard/calendar" className="btn-filled">Back to Calendar</Link>
         </div>
       </div>
