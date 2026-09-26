@@ -17,6 +17,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET (see .env.example)}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
       - CRON_SECRET=${CRON_SECRET:-}
+      - SHARED_DEVICE_ENABLED=${SHARED_DEVICE_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

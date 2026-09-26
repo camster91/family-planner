@@ -46,7 +46,7 @@ Do not create a third parallel model generation. Do not mark canonicalization co
 
 Subject to ADR/schema review:
 
-- shared devices/sessions/preferences — proposed in #157 as `HouseholdDevice`, `DevicePairing`, `DeviceSession`, `ParentElevationPin` and `DeviceAuditEvent` (additive only; sketches and `scripts/migrate.js` DDL notes in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §3, ADR-0006); dashboard preferences are not part of #157;
+- shared devices/sessions — implemented in #240 (tables unused while `SHARED_DEVICE_ENABLED` is off) as `HouseholdDevice`, `DevicePairing`, `DeviceSession`, `ParentElevationPin` and `DeviceAuditEvent` (additive only; sketches and `scripts/migrate.js` DDL notes in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §3, ADR-0006); dashboard preferences are not part of #157;
 - food inventory/locations/adjustments/expiry observations;
 - bounded sync mutations/conflict metadata;
 - AI suggestions/action proposals;

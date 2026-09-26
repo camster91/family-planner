@@ -83,19 +83,29 @@ export interface TodayBoardData {
   chores: BoardChore[]
   /** null when meal planning is turned off for the household. */
   dinners: BoardDinner[] | null
-  /** null when the role may not open lists (never for the current roles). */
+  /** null when the role may not open lists (never for the current roles), or for a device when lists are off. */
   shopping: ShoppingSnapshot | null
   links: BoardLinks
 }
 
 type Db = Pick<PrismaClient, 'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem'>
 
-export interface BuildTodayBoardOptions {
+interface BuildTodayBoardBase {
   familyId: string
-  role: string | null | undefined
   features: FamilyFeatures
   now?: Date
 }
+
+/**
+ * `audience: 'person'` (default): links follow the member's role.
+ * `audience: 'device'` (shared tablet, #157/#240): no role exists, so every
+ * link is null and shopping follows only the `lists` feature. A device must
+ * never be passed as `role: null`, which `allowedLink` treats as non-kid.
+ */
+export type BuildTodayBoardOptions = BuildTodayBoardBase &
+  ({ audience?: 'person'; role: string | null | undefined } | { audience: 'device'; role?: never })
+
+const NO_LINKS: BoardLinks = { calendar: null, chores: null, meals: null, lists: null, features: null }
 
 /**
  * Link target if the role may open it and its feature is on, else null. The
@@ -107,8 +117,11 @@ function allowedLink(role: string | null | undefined, href: string, enabled = tr
 }
 
 export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): Promise<TodayBoardData> {
-  const { familyId, role, features } = options
+  const { familyId, features } = options
+  const isDevice = options.audience === 'device'
+  const role = isDevice ? undefined : options.role
   const now = options.now ?? new Date()
+  const includeShopping = isDevice ? features.lists : canRoleAccessPath(role, '/dashboard/lists')
 
   // A UTC-day window that contains "today" through "today + COMING_UP_DAYS"
   // for every zone from UTC-12 to UTC+14.
@@ -148,7 +161,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         })
       : Promise.resolve(null),
-    canRoleAccessPath(role, '/dashboard/lists') ? getOpenShoppingItems(db, familyId) : Promise.resolve(null),
+    includeShopping ? getOpenShoppingItems(db, familyId) : Promise.resolve(null),
   ])
 
   // Subscription names for imported events, looked up in this family only so a
@@ -200,12 +213,14 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         }))
       : null,
     shopping,
-    links: {
-      calendar: allowedLink(role, '/dashboard/calendar', features.calendar),
-      chores: allowedLink(role, '/dashboard/chores', features.chores),
-      meals: allowedLink(role, '/dashboard/meals', features.meals),
-      lists: allowedLink(role, '/dashboard/lists', features.lists),
-      features: allowedLink(role, '/dashboard/features'),
-    },
+    links: isDevice
+      ? { ...NO_LINKS }
+      : {
+          calendar: allowedLink(role, '/dashboard/calendar', features.calendar),
+          chores: allowedLink(role, '/dashboard/chores', features.chores),
+          meals: allowedLink(role, '/dashboard/meals', features.meals),
+          lists: allowedLink(role, '/dashboard/lists', features.lists),
+          features: allowedLink(role, '/dashboard/features'),
+        },
   }
 }

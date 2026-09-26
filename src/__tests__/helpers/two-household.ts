@@ -275,6 +275,21 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
   message: { sender: { model: 'user', fk: 'sender_id' } },
   activity: { user: { model: 'user', fk: 'user_id' }, family: { model: 'family', fk: 'family_id' } },
   familyInvite: { family: { model: 'family', fk: 'family_id' } },
+  // Shared device (#240)
+  householdDevice: {
+    family: { model: 'family', fk: 'family_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    sessions: { model: 'deviceSession', fk: 'device_id', many: true },
+    events: { model: 'deviceAuditEvent', fk: 'device_id', many: true },
+  },
+  deviceSession: { device: { model: 'householdDevice', fk: 'device_id' } },
+  devicePairing: { family: { model: 'family', fk: 'family_id' }, creator: { model: 'user', fk: 'created_by' } },
+  parentElevationPin: { user: { model: 'user', fk: 'user_id' }, family: { model: 'family', fk: 'family_id' } },
+  deviceAuditEvent: {
+    family: { model: 'family', fk: 'family_id' },
+    device: { model: 'householdDevice', fk: 'device_id' },
+    actor: { model: 'user', fk: 'actor_user_id' },
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -322,8 +337,9 @@ class FakeDb {
 export const db = new FakeDb()
 
 function cmp(a: any, b: any): number {
-  const av = a instanceof Date ? a.getTime() : a
-  const bv = b instanceof Date ? b.getTime() : b
+  // A column never written reads as NULL, as in the database.
+  const av = a instanceof Date ? a.getTime() : a === undefined ? null : a
+  const bv = b instanceof Date ? b.getTime() : b === undefined ? null : b
   if (av === bv) return 0
   if (av == null) return -1
   if (bv == null) return 1
@@ -541,6 +557,18 @@ function delegate(model: string) {
       applyData(model, row, args.data)
       return project(model, row, args)
     },
+    upsert: async (args: any) => {
+      log('upsert', args)
+      const row = all().find((r) => matches(model, r, args.where))
+      if (row) {
+        applyData(model, row, args.update)
+        return project(model, row, args)
+      }
+      const created: Row = { id: db.nextId(model), created_at: new Date() }
+      applyData(model, created, args.create)
+      all().push(created)
+      return project(model, created, args)
+    },
     updateMany: async (args: any) => {
       log('updateMany', args)
       const rows = all().filter((r) => matches(model, r, args.where))
@@ -653,11 +681,20 @@ export const nextHeadersMock = {
 // ---------------------------------------------------------------------------
 // next/server + requests.
 
+export type SetCookie = { name: string; value: string; options: Record<string, unknown> }
+
 class MockNextResponse {
   status: number
   headers: Headers
   body: unknown
-  cookies = { set: () => undefined, get: () => undefined }
+  /** Every `cookies.set` call, in order, so tests can assert Set-Cookie behaviour. */
+  setCookies: SetCookie[] = []
+  cookies = {
+    set: (name: string, value: string, options: Record<string, unknown> = {}) => {
+      this.setCookies.push({ name, value, options })
+    },
+    get: () => undefined,
+  }
   constructor(body?: unknown, init?: { status?: number; headers?: Record<string, string> }) {
     this.body = body
     this.status = init?.status ?? 200

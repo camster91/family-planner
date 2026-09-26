@@ -8,6 +8,8 @@ import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { registerSchema } from '@/lib/validations'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
+import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
+import { isPairedDeviceRequest } from '@/lib/device-session'
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
@@ -22,6 +24,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Shared tablet (#240, O-13): registration can issue a person session
+    // (invite branch), so a paired device is refused exactly like login.
+    if (await isPairedDeviceRequest(prisma!, request, deviceClock.now(), isSharedDeviceEnabled())) {
+      return deviceError(409, 'DEVICE_MODE_LOGIN_BLOCKED')
+    }
+
     let body: any
     try {
       body = await request.json()
