@@ -41,6 +41,39 @@ Do not expose stack traces, database details, foreign record existence or secret
 ## Idempotency
 Client-generated keys should be scoped to authenticated actor/device + operation. Replays should return the prior logical result or a deterministic conflict, never duplicate visible state.
 
+Implemented in #162 (`src/lib/idempotency.ts`, record `IdempotencyRecord`). Routes that accept it today:
+`PATCH /api/lists/items/update`. Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
+
+- **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
+  UUID generated once per logical change and reused for every retry of it. Without the header the route
+  behaves exactly as before (older clients need no change).
+- **Order of checks:** authentication (401) → key format (400) → body validation (400) → idempotency → the
+  route's own household/role checks. A signed-out or revoked session therefore never reaches a stored response.
+- **Scope:** records are unique per `(scope, key)`, where `scope` is `user:<userId>` for a person session
+  (`device:<deviceId>` is reserved; device writes are not enabled). The same key from another user is a
+  different record. A record is only replayed to the household it was written in.
+- **Request identity:** a SHA-256 of the action name and the validated body in canonical (key-sorted) JSON.
+  The body itself is not stored.
+- **Outcomes:**
+
+| Situation | Response |
+| --- | --- |
+| First request with a new key | The route runs; a 2xx result is stored (status + body up to 8 KB, else `{ "success": true }`). |
+| Same key, same request, first one finished | The stored status and body, with `Idempotency-Replayed: true`. The effect does not run again. |
+| Same key, same request, first one still running | `409` `IDEMPOTENCY_IN_PROGRESS`, `retryable: true`, `Retry-After: 1`. |
+| Same key, different body, action or household | `422` `IDEMPOTENCY_KEY_REUSED`, `retryable: false`. |
+| Malformed key | `400` `IDEMPOTENCY_KEY_INVALID`. |
+| First request ended non-2xx or threw | Nothing is stored; the same key may be retried. |
+| First request died mid-flight (row in progress for more than 30 s) | The next request with the key takes over and runs the route again (allowlisted actions converge). |
+| Record older than 7 days | Treated as absent; the key starts over. |
+
+- **Error shape:** the three codes above use the target envelope `{ "error": { "code", "message", "retryable" } }`
+  with `Cache-Control: private, no-store`. The route's existing errors keep their current shape.
+- **Retention:** `expires_at = created_at + 7 days`. A small random share (5%) of keyed requests deletes expired
+  rows; there is no scheduled job. Rows cascade away with their household or user.
+- **Concurrency:** the in-progress row is inserted before the effect runs, so the unique index serialises
+  concurrent duplicates (proved against Postgres in `src/lib/__tests__/idempotency.integration.test.ts`).
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

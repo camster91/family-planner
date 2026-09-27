@@ -48,7 +48,7 @@ Subject to ADR/schema review:
 
 - shared devices/sessions — implemented in #240 (tables unused while `SHARED_DEVICE_ENABLED` is off) as `HouseholdDevice`, `DevicePairing`, `DeviceSession`, `ParentElevationPin` and `DeviceAuditEvent` (additive only; sketches and `scripts/migrate.js` DDL notes in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §3, ADR-0006); dashboard preferences are not part of #157;
 - food inventory/locations/adjustments/expiry observations;
-- bounded sync mutations/conflict metadata;
+- bounded sync mutations/conflict metadata — server side implemented in #162 as `IdempotencyRecord` (additive: `(scope, key)` unique, `family_id` and nullable `user_id` FKs with cascade, 7-day `expires_at`, pruned opportunistically; DDL in `scripts/migrate.js`; contract in [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md)). The queued operations themselves live only on the client;
 - AI suggestions/action proposals;
 - integration connections;
 - leftovers only after product evidence.

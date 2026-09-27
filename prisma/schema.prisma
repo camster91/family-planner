@@ -91,6 +91,8 @@ model User {
   device_pairings_created       DevicePairing[]    @relation("DevicePairingCreator")
   elevation_pin                 ParentElevationPin? @relation("ParentElevationPin")
   device_audit_events           DeviceAuditEvent[] @relation("DeviceAuditActor")
+  // Offline sync (#162). Relation field only; no new User columns.
+  idempotency_records           IdempotencyRecord[] @relation("IdempotencyRecordUser")
 
   @@index([family_id])
 }
@@ -157,6 +159,8 @@ model Family {
   device_pairings     DevicePairing[]
   elevation_pins      ParentElevationPin[]
   device_audit_events DeviceAuditEvent[]
+  // Offline sync (#162)
+  idempotency_records IdempotencyRecord[]
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -1245,4 +1249,33 @@ model DeviceAuditEvent {
 
   @@index([family_id, created_at])
   @@index([device_id, created_at])
+}
+
+// Durable idempotency record for retryable mutations (#162; contract in
+// docs/architecture/OFFLINE_SYNC.md and API_CONTRACTS.md "Idempotency").
+// One row per (scope, key): `scope` is `user:<userId>` for a person session
+// (`device:<deviceId>` is reserved for device writes, not enabled). The row is
+// created in progress (`response_status` NULL) before the handler runs, so a
+// concurrent duplicate hits the unique index; only a 2xx outcome is stored and
+// replayed. Rows expire after 7 days and are pruned opportunistically (no cron).
+model IdempotencyRecord {
+  id              String   @id @default(cuid())
+  scope           String
+  key             String
+  family_id       String
+  user_id         String?
+  action          String // fixed action name, e.g. 'list-item.set-checked'
+  request_hash    String // sha256 of action + canonical request body
+  response_status Int? // NULL while the first request is still running
+  response_body   Json? // small 2xx body, replayed verbatim (capped size)
+  created_at      DateTime @default(now())
+  expires_at      DateTime
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User?  @relation("IdempotencyRecordUser", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([scope, key])
+  @@index([expires_at])
+  @@index([family_id])
+  @@index([user_id])
 }

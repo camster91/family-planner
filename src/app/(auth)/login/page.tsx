@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LogIn, Eye, EyeOff, Users } from 'lucide-react'
 import { useTranslation } from '@/i18n'
+import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
 
 export default function LoginPage() {
   const { t } = useTranslation()
@@ -18,6 +19,10 @@ export default function LoginPage() {
   const router = useRouter()
 
   useEffect(() => {
+    // Nobody is signed in on this page (the middleware sends a signed-in user
+    // away), so offline changes left by an ended session are dropped, never
+    // replayed (#162, OFFLINE_SYNC.md "Security").
+    void clearAllPersonQueues()
     const token = new URLSearchParams(window.location.search).get('token')
     if (token) setRegisterHref(`/register?token=${encodeURIComponent(token)}`)
   }, [])

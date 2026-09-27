@@ -97,7 +97,7 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Lists | R | yes | yes | yes | open grocery items only | |
 | Lists | C (new list) | yes | yes | no | no | Child: 403 "Ask a parent to create a new list." |
 | Lists | D | yes | no | no | elevated only | |
-| List items | C (add) / U (tick) | yes | yes | yes | no (phase 2 candidate, O-5) | On an existing list of the household. |
+| List items | C (add) / U (tick) | yes | yes | yes | no (phase 2 candidate, O-5) | On an existing list of the household. Tick/untick may be queued offline and retried with an `Idempotency-Key` (#162, person sessions only; `docs/architecture/OFFLINE_SYNC.md`). |
 | List items | D | yes | no | no | elevated only | |
 | Pinned notes | R / C | yes | yes | yes | no (O-11) | |
 | Pinned notes | U | yes | own | own | no | `created_by = self`, else 403. |
