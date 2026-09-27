@@ -90,6 +90,8 @@ Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" sr
 | `created_by` | `MealPlan.created_by` | |
 | provenance | `ImportedRecord(source_app='fp-canonical-149', source_model='MealPlanEntry', source_id, target_model='FamilyMeal', target_id)` | also stores `MealPlan.name` and range in the `ImportJob.summary` |
 
+**`MealPlan` itself has no canonical row** (O-2: archive only). Its canonical target is the backfill `ImportJob` that archives its name and range: the backfill records `ImportedRecord(source_model='MealPlan', source_id, target_model='ImportJob', target_id=<that job>)`. Existing importer mappings `ImportedRecord(target_model='MealPlan')` are rewritten to the same `ImportJob` target in child E step 1, never deleted, so re-importing the same meal-planner export still recognizes the plan and creates 0 rows. The retargeted importer (child B) treats any existing mapping for a source `MealPlan` id as "already imported", whatever its `target_model`.
+
 **Collision** (a `FamilyMeal` already exists for the same family, date and type):
 - Same name (case-insensitive, trimmed) → **link**: set `recipe_id` only if it is null, record the mapping, and create no row.
 - Different name → **insert as an additional meal** (O-1 = allow). If Cameron chooses O-1 = one meal per slot, the rule becomes **skip and report** instead.
@@ -132,6 +134,8 @@ ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION;
 ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "unit" TEXT;
 ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_key" TEXT; -- immutable 'meal:<id>' | 'recipe:<id>'
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_request_id" TEXT; -- IdempotencyRecord.id of the from-recipe request that created the row (undo + replay provenance)
+CREATE INDEX IF NOT EXISTS "ListItem_source_request_id_idx" ON "ListItem"("source_request_id");
 -- FKs: ingredient_id -> Ingredient, recipe_id -> Recipe, meal_id -> FamilyMeal, all ON DELETE SET NULL
 CREATE INDEX IF NOT EXISTS "ListItem_ingredient_id_idx" ON "ListItem"("ingredient_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "ListItem_open_recipe_source_key"
@@ -149,6 +153,7 @@ Script: `scripts/backfill-meals-groceries.mjs` (name indicative). It uses the sa
 
 - **Default dry-run.** It prints, for each family, the counts of source rows, rows that would be created, linked, skipped (with reasons) and foreign references nulled. It writes nothing.
 - **Apply mode.** It processes one family per transaction. It creates one `ImportJob(source_app='fp-canonical-149', dry_run=false, started_by=<--started-by or the family's oldest parent>)` and records every mapping in `ImportedRecord`. Before creating anything it checks `ImportedRecord`, so a re-run or a resume after a crash creates 0 duplicates. This is the same pattern as `persist-meal-planner.ts`.
+- **Skipped rows are archived, never dropped.** Every skipped source row (unrecognized `meal_type`, empty `ingredient_name`, or any other skip reason) is written verbatim (all columns, as JSON) with its reason into `ImportJob.summary.skipped[]` of that family's backfill job. The user export includes backfill `ImportJob` summaries, so the last exportable copy of a skipped row survives the contract step. Each run prints the skipped count per family.
 - **Never** updates or deletes legacy rows. The only change to a live canonical row is the collision "link", which sets `FamilyMeal.recipe_id` only where it is null.
 - **Reverse mode** (rehearsal and emergency): deletes canonical rows created by a given job only while they are unmodified (`FamilyMeal.updated_at = created_at`; `ListItem.updated_at = created_at`). It reports anything it had to keep.
 
@@ -203,9 +208,9 @@ Expected results:
 - Body (Zod): `{ recipeId: string; mealId?: string; listId?: string; servings?: int 1..50; ingredientIds?: string[] (max 100, subset of the recipe's) }`.
 - Validation: the recipe is in the household. The meal, if given, is in the household and has `recipe_id === recipeId` (otherwise 400). The list, if given, is in the household and has type `grocery` or `shopping` (otherwise 400/404 without revealing foreign existence). Without `listId`, the server resolves the default list per O-4 using `resolveDefaultGroceryList(familyId)`, under `pg_advisory_xact_lock(hashtext(family_id))`, so concurrent first adds create a single "Groceries" list. `CaptureBox` moves to the same helper.
 - Scaling: `amount = RecipeIngredient.amount × (servings ?? meal.servings ?? recipe.servings) / recipe.servings`, rounded to 2 decimal places. `unit = RecipeIngredient.unit ?? Ingredient.unit`.
-- Write: one `createMany({ skipDuplicates: true })` of rows with `source='recipe'`, `source_key = mealId ? 'meal:'+mealId : 'recipe:'+recipeId`, `ingredient_id`, `recipe_id`, `meal_id`, `content = Ingredient.name`, `quantity=1`, `amount`, `unit`, `added_by`. The partial unique index turns a race into a skip.
-- Response 201: `{ listId, created: [{ itemId, ingredientId }], alreadyOnList: [{ ingredientId, itemId }], possibleDuplicates: [{ ingredientId, itemId, matchedItemId }] }`. The same body is replayed with `Idempotency-Replayed: true`.
-- Undo (O-5): `POST /api/lists/items/undo-add { idempotencyKey }` deletes only the still-unchecked rows that request created. It is allowed for the same user within 10 minutes; everything else returns 403 or 409.
+- Write: one `createMany({ skipDuplicates: true })` of rows with `source='recipe'`, `source_key = mealId ? 'meal:'+mealId : 'recipe:'+recipeId`, `source_request_id` = the request's `IdempotencyRecord.id`, `ingredient_id`, `recipe_id`, `meal_id`, `content = Ingredient.name`, `quantity=1`, `amount`, `unit`, `added_by`. The partial unique index turns a race into a skip.
+- Response 201 is **compact and bounded** so it always fits the #247 replay cap (`IDEMPOTENCY_MAX_BODY_CHARS`, 8 KiB) even at the 100-ingredient maximum: `{ listId, requestId, createdCount, alreadyOnListCount, possibleDuplicates: [{ ingredientId, matchedItemId }] (at most 20, plus possibleDuplicatesTruncated) }`. No per-row id arrays; the client refetches the list to render. A test asserts the serialized body stays under the cap for 100 ingredients with maximal-length ids. The same body is replayed with `Idempotency-Replayed: true`.
+- Undo (O-5): `POST /api/lists/items/undo-add { requestId }` deletes only still-unchecked rows with `source_request_id = requestId` created by the same user within 10 minutes. It relies on row provenance, not on the stored replay body; everything else returns 403 or 409.
 - Not offline-queueable in v1 (O-10). The `OFFLINE_SYNC.md` allowlist is unchanged.
 
 ## 8. Compatibility and rollback summary
@@ -227,7 +232,7 @@ Expected results:
 
 **Scope**
 - `prisma/schema.prisma` and `scripts/migrate.js` `POST_FEATURE_SQL`: the additive columns, FKs (`SET NULL`), indexes and partial unique index in §5. Idempotent DDL.
-- `scripts/backfill-meals-groceries.mjs`: dry-run default, per-family apply, reverse mode, and target guard (§6).
+- `scripts/backfill-meals-groceries.mjs`: dry-run default, per-family apply, reverse mode, and target guard (§6). Skipped rows archived verbatim in `ImportJob.summary.skipped[]`; `MealPlan` → `ImportJob` mappings recorded (§4).
 - Fixture extensions in `src/lib/fixtures/dataset.ts`/`seed.ts` (§6 synthetic rehearsal).
 - A `docs/runbooks/` entry for the gated production run.
 
@@ -311,10 +316,10 @@ Expected results:
 
 **Outcome:** The legacy `MealPlan`, `MealPlanEntry`, `ShoppingList` and `ShoppingItem` tables are retired only after evidence shows nothing depends on them.
 
-**Preconditions (all required):** ADR-0007 accepted; A–D merged and deployed; the production backfill run approved and completed with a reconciled report; at least one release cycle with zero legacy reads or writes; a verified backup/restore (`docs/runbooks/`) taken immediately before; **Cameron's explicit approval for the drop.**
+**Preconditions (all required):** ADR-0007 accepted; A–D merged and deployed; the production backfill run approved and completed with a reconciled report; at least one release cycle with zero legacy reads or writes; a verified backup/restore (`docs/runbooks/`) taken immediately before; every skipped legacy row archived in a backfill `ImportJob.summary.skipped[]` (the reconciliation report shows source count = created + linked + archived-skipped per family, and any unarchived skip blocks the drop); the user export includes backfill `ImportJob` summaries; **Cameron's explicit approval for the drop.**
 
 **Scope**
-1. Rewrite `ImportedRecord` rows whose `target_model` is a legacy table to their canonical target, using the backfill mappings.
+1. Rewrite `ImportedRecord` rows whose `target_model` is a legacy table to their canonical target, using the backfill mappings. `MealPlan` mappings are rewritten to the backfill `ImportJob` that archives the plan (§4); no mapping is deleted.
 2. Remove the legacy tables from the export (their content is now exported via canonical tables).
 3. Remove the models from `schema.prisma` and drop the tables in `migrate.js`, guarded.
 4. Remove `database/migration-meal-planner-domains.sql` statements for the dropped tables, or make them no-ops.

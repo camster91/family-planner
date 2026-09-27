@@ -93,7 +93,7 @@ Covered in "Household ownership and authorization" above. Additional points:
 
 ## Validation
 
-- A synthetic rehearsal on the #154 fixtures, extended with legacy `MealPlan`/`ShoppingList` rows in two households, reconciles the counts: for each family, `MealPlanEntry` = created + linked + skipped (reported), and `ShoppingItem` = created + skipped. A second run creates 0 rows. Foreign-ID injection rows are refused or nulled.
+- A synthetic rehearsal on the #154 fixtures, extended with legacy `MealPlan`/`ShoppingList` rows in two households, reconciles the counts: for each family, `MealPlanEntry` = created + linked + skipped, and `ShoppingItem` = created + skipped, where every skipped row is archived verbatim in the backfill `ImportJob.summary` so nothing is lost when legacy tables are later dropped. A second run creates 0 rows. Foreign-ID injection rows are refused or nulled.
 - Two-household negative tests pass for `/api/recipes`, the `/api/meals` recipe link, the new `ListItem` references and `from-recipe`.
 - The `from-recipe` race test (N concurrent requests with the same key, and two different keys for the same meal) yields one row per ingredient.
 - Old-shape requests to `/api/meals` and `/api/lists/items/*` (fixtures without the new fields) still pass.
