@@ -9,6 +9,7 @@ import {
   classifyResponse,
   clearPersonQueues,
   createOfflineQueue,
+  fallbackQueueStore,
   indexedDbQueueStore,
   isQueueableAction,
   localStorageQueueStore,
@@ -20,6 +21,7 @@ import {
   QUEUE_SCHEMA_VERSION,
   QUEUEABLE_ACTIONS,
   QueueError,
+  QueueStorageError,
   queueLocation,
   RETRY_BASE_DELAY_MS,
   RETRY_MAX_ATTEMPTS,
@@ -514,5 +516,175 @@ describe('namespaces, logout and device purge', () => {
     await client.purge()
     expect(storage.keys()).toEqual([])
     expect(deleted).toContain(DEVICE_IDB_NAME)
+  })
+})
+
+describe('offline: no retry timers (Codex P1 on #247)', () => {
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  function realTimerQueue(online: { value: boolean }, send: OfflineQueueDeps['send']) {
+    let n = 0
+    return createOfflineQueue({
+      store: memoryStore(),
+      send,
+      now: () => Date.now(),
+      random: () => 0.5,
+      newKey: () => `offline-key-${++n}-aaaaaaaaaa`,
+      isOnline: () => online.value,
+      setTimer: (fn, ms) => setTimeout(fn, ms),
+      clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+    })
+  }
+
+  it('a due operation while offline schedules no timer, and draining resumes on online', async () => {
+    jest.useFakeTimers()
+    const online = { value: false }
+    const sent: SendRequest[] = []
+    const queue = realTimerQueue(online, async (r) => {
+      sent.push(r)
+      return { status: 200, body: null }
+    })
+    await queue.enqueue('list-item.set-checked', tick('item-1'))
+    for (let i = 0; i < 5; i++) await queue.drain()
+    expect(jest.getTimerCount()).toBe(0)
+    // Time passing during the outage does nothing at all.
+    await jest.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(jest.getTimerCount()).toBe(0)
+    expect(sent).toHaveLength(0)
+    expect(queue.list()[0]).toMatchObject({ state: 'pending', attempts: 0 })
+
+    online.value = true
+    await queue.handleOnline()
+    expect(sent).toHaveLength(1)
+    expect(queue.list()).toHaveLength(0)
+    expect(jest.getTimerCount()).toBe(0)
+  })
+
+  it('a backoff timer that fires after the connection dropped does not re-arm itself', async () => {
+    jest.useFakeTimers()
+    const online = { value: true }
+    let fail = true
+    const sent: SendRequest[] = []
+    const queue = realTimerQueue(online, async (r) => {
+      sent.push(r)
+      if (fail) throw new TypeError('Failed to fetch')
+      return { status: 200, body: null }
+    })
+    await queue.enqueue('list-item.set-checked', tick('item-1'))
+    await jest.advanceTimersByTimeAsync(0)
+    expect(sent).toHaveLength(1)
+    expect(jest.getTimerCount()).toBe(1) // backoff while online
+
+    online.value = false
+    await jest.advanceTimersByTimeAsync(RETRY_MAX_DELAY_MS)
+    expect(jest.getTimerCount()).toBe(0)
+    await jest.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(sent).toHaveLength(1)
+
+    fail = false
+    online.value = true
+    await queue.handleOnline()
+    expect(sent).toHaveLength(2)
+    expect(queue.list()).toHaveLength(0)
+  })
+})
+
+describe('durability (Codex P2 on #247)', () => {
+  function flakyStore(): QueueStore & { failing: boolean; value: string | null } {
+    const s = {
+      failing: false,
+      value: null as string | null,
+      read: async () => s.value,
+      write: async (v: string) => {
+        if (s.failing) throw new DOMException('quota', 'QuotaExceededError')
+        s.value = v
+      },
+      remove: async () => {
+        if (s.failing) throw new DOMException('quota', 'QuotaExceededError')
+        s.value = null
+      },
+    }
+    return s
+  }
+
+  it('reports a failed write: enqueue says not durable, the queue says so, and it recovers', async () => {
+    const store = flakyStore()
+    const t = setup({ online: false, store })
+    const first = await t.queue.enqueue('list-item.set-checked', tick('item-1'))
+    expect(first.durable).toBe(true)
+    expect(t.queue.isDurable()).toBe(true)
+
+    store.failing = true
+    const changes = t.events.length
+    const second = await t.queue.enqueue('list-item.set-checked', tick('item-2'))
+    expect(second.durable).toBe(false)
+    expect(t.queue.isDurable()).toBe(false)
+    expect(t.events.length).toBeGreaterThan(changes)
+    // Still queued in memory and still sent once the network is back.
+    expect(t.queue.list().map((o) => o.payload.itemId)).toEqual(['item-1', 'item-2'])
+    expect(store.value).not.toContain('item-2')
+
+    store.failing = false
+    const third = await t.queue.enqueue('list-item.set-checked', tick('item-3'))
+    expect(third.durable).toBe(true)
+    expect(t.queue.isDurable()).toBe(true)
+    expect(store.value).toContain('item-2')
+    t.setOnline(true)
+    await t.queue.handleOnline()
+    expect(t.sent).toHaveLength(3)
+  })
+
+  it('falls back to the next store when the current one starts refusing writes', async () => {
+    const primary = flakyStore()
+    const secondary = flakyStore()
+    const store = fallbackQueueStore([primary, secondary])
+    const t = setup({ online: false, store })
+    await t.queue.enqueue('list-item.set-checked', tick('item-1'))
+    expect(primary.value).toContain('item-1')
+
+    primary.failing = true
+    const op = await t.queue.enqueue('list-item.set-checked', tick('item-2'))
+    expect(op.durable).toBe(true)
+    expect(secondary.value).toContain('item-2')
+    expect(secondary.value).toContain('item-1')
+
+    // A restart reads the store that holds the data.
+    primary.failing = false
+    const reread = await store.read()
+    expect(reread).toContain('item-2')
+  })
+
+  it('is not durable when every store refuses writes, and never pretends to be', async () => {
+    const a = flakyStore()
+    const b = flakyStore()
+    a.failing = true
+    b.failing = true
+    const store = fallbackQueueStore([a, b])
+    await expect(store.write('x')).rejects.toBeInstanceOf(QueueStorageError)
+    const t = setup({ online: false, store })
+    const op = await t.queue.enqueue('list-item.set-checked', tick('item-1'))
+    expect(op.durable).toBe(false)
+    expect(t.queue.isDurable()).toBe(false)
+  })
+
+  it('with no readable store at all, reads are empty and writes are not durable', async () => {
+    const broken: QueueStore = {
+      read: async () => {
+        throw new Error('blocked')
+      },
+      write: async () => {
+        throw new Error('blocked')
+      },
+      remove: async () => {
+        throw new Error('blocked')
+      },
+    }
+    const store = fallbackQueueStore([broken])
+    expect(await store.read()).toBeNull()
+    await expect(store.write('x')).rejects.toBeInstanceOf(QueueStorageError)
+    const none = preferredQueueStore(queueLocation({ kind: 'person', userId: 'u1' }), {})
+    await expect(none.write('x')).rejects.toBeInstanceOf(QueueStorageError)
   })
 })

@@ -115,6 +115,8 @@ one is in flight, the newer one waits behind it so the server receives them in o
   counts are kept, so a flapping network cannot exceed the attempt cap), `visibilitychange` to visible, and the
   backoff timer.
 - Operations are sent one at a time in queue order. A network failure stops the drain (the rest would fail too).
+- While `navigator.onLine` is false no retry timer is armed at all (not even one already due); the `online`
+  event resumes the drain. An outage therefore costs no CPU or battery on an always-on tablet.
 - Response handling: 2xx → synced; 401 → terminal, the whole queue is dropped; `409 IDEMPOTENCY_IN_PROGRESS`, 408,
   425, 429 and 5xx → retry with backoff; 404 → conflict; other 409 → conflict; 403, 422 and other 4xx → failed.
 - An operation that was `syncing` when the page or app died is `pending` again on the next load and is resent
@@ -125,6 +127,10 @@ one is in flight, the newer one waits behind it so the server receives them in o
 Tick/untick sends the explicit desired state (`checked: true|false`), never a toggle. Two devices converge
 by **last write received by the server wins**. Setting an item to the state it already has is a no-op, so a
 duplicate, a replay or a second device making the same change keeps the original `checked_by`/`checked_at`.
+The compare-and-write is atomic: `src/lib/list-item-update.ts` locks the item row (`SELECT … FOR UPDATE`) in
+one transaction, so concurrent requests apply in lock order, each compares against its predecessor's committed
+state, and each response is the row exactly as that request left it (proved against Postgres with deliberately
+contended opposite updates in `src/lib/__tests__/list-item-update.integration.test.ts`).
 A late replay of an old key never re-applies it (the stored response is returned). The known cost: an offline
 device that reconnects after another person changed the same item overwrites that change; for a grocery tick
 the result is visible on both devices and one tap undoes it. Quantity/text edits will need version checks when
@@ -132,8 +138,14 @@ they become queueable.
 
 ### Storage, scope and security
 
-- Storage: IndexedDB when available (database `fp-sync`, store `kv`), else localStorage, else memory for the
-  page. One key per signed-in person: `fp-sync:v1:<userId>:queue`.
+- Storage: IndexedDB when available (database `fp-sync`, store `kv`), else localStorage. One key per
+  signed-in person: `fp-sync:v1:<userId>:queue`. If the current store later refuses a write (quota, eviction,
+  WebView storage error), the whole queue is written to the next store, which becomes current (the failed one
+  is cleared best-effort).
+- Durability is reported, never assumed: when no store accepts a write, `enqueue` returns `durable: false`,
+  `isDurable()` is false and the list page shows "Couldn't save changes on this device. Keep this page open
+  until they sync, or they will be lost." The offline banner then drops its "saved on this device" wording.
+  The changes still sync from memory, and the next successful write makes the queue durable again.
 - Sign-out (`DashboardNav`) and every visit to `/login` delete the whole `fp-sync:v1:` localStorage namespace and
   the `fp-sync` database, bounded to 1 s so sign-out never hangs. A 401 while draining drops the queue. A
   logged-out or revoked session cannot replay: the server authenticates before it reads any idempotency record.
@@ -147,7 +159,8 @@ they become queueable.
 
 ### Tests
 
-- `src/lib/__tests__/offline-queue.test.ts`: allowlist rejection, payload minimisation, state transitions,
+- `src/lib/__tests__/offline-queue.test.ts`: no timers while offline (Jest fake timers) and resume on
+  `online`, durability reporting and store fallback with failing stores, allowlist rejection, payload minimisation, state transitions,
   backoff caps and jitter, max attempts, single flight, per-item ordering, bounds, age expiry and retention,
   versioning and corruption, 401 drop, restart persistence (fake-indexeddb and the localStorage fallback),
   logout clearing and the device purge.
@@ -156,5 +169,7 @@ they become queueable.
 - `src/app/api/lists/__tests__/idempotency.test.ts`: the route on the two-household harness.
 - `src/lib/__tests__/idempotency.integration.test.ts` (`RUN_DB_INTEGRATION=1`): concurrent duplicates against
   Postgres run the effect exactly once.
+- `src/lib/__tests__/list-item-update.integration.test.ts` (`RUN_DB_INTEGRATION=1`): contended opposite ticks
+  end in the last received state, each response is its real outcome, and same-state ticks keep attribution.
 - `e2e/sync.spec.ts`: offline tick → pending → reload → reconnect → synced once; lost response → replay;
   failed with Retry; removed item → conflict with Discard; sign-out drops the queue.

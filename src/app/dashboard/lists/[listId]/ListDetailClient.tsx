@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, CheckSquare, CloudOff } from 'lucide-react'
+import { Plus, CheckSquare, CloudOff, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { SwipeRow } from '@/components/ui/swipe-row'
@@ -167,7 +167,13 @@ export default function ListDetailClient({
         </Glyph>
       </div>
 
-      <SyncBanner online={sync.online} pendingCount={sync.pendingCount} notice={sync.notice} onDismiss={sync.dismissNotice} />
+      <SyncBanner
+        online={sync.online}
+        durable={sync.durable}
+        pendingCount={sync.pendingCount}
+        notice={sync.notice}
+        onDismiss={sync.dismissNotice}
+      />
 
       {/* Items grouped by category */}
       {total > 0 ? (
@@ -289,11 +295,13 @@ function syncStatusText(op: QueuedOperation | undefined, recentlySynced: boolean
 
 function SyncBanner({
   online,
+  durable,
   pendingCount,
   notice,
   onDismiss,
 }: {
   online: boolean
+  durable: boolean
   pendingCount: number
   notice: SyncNotice
   onDismiss: () => void
@@ -309,8 +317,18 @@ function SyncBanner({
         <div className="card-apple flex items-start gap-3 p-4" data-testid="offline-banner">
           <CloudOff className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-subhead text-label-primary">
-            You’re offline. Ticks are saved on this device and sync when you reconnect.
+            {durable
+              ? 'You’re offline. Ticks are saved on this device and sync when you reconnect.'
+              : 'You’re offline. Ticks sync when you reconnect.'}
             {pendingCount > 0 && ` ${pendingCount} waiting.`}
+          </p>
+        </div>
+      )}
+      {!durable && pendingCount > 0 && (
+        <div className="card-apple flex items-start gap-3 p-4" data-testid="not-durable-banner">
+          <AlertTriangle className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-subhead text-label-primary">
+            Couldn’t save changes on this device. Keep this page open until they sync, or they will be lost.
           </p>
         </div>
       )}

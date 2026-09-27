@@ -283,6 +283,8 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   let disposed = false
   const listeners = new Set<(event: QueueEvent) => void>()
   let loadReport: LoadReport = { dropped: 0 }
+  /** False while the last write to storage failed (see `persist`). */
+  let durable = true
 
   const emit = (event: QueueEvent) => {
     for (const listener of Array.from(listeners)) {
@@ -294,13 +296,25 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     }
   }
 
-  async function persist(): Promise<void> {
+  /**
+   * Write the queue through. Returns false when storage refused the write
+   * (quota, eviction, blocked WebView storage): the operations then live only
+   * in this page's memory, `isDurable()` turns false and a `change` event lets
+   * the UI say so. The next successful write makes it durable again.
+   */
+  async function persist(): Promise<boolean> {
+    let ok = true
     try {
       if (ops.length === 0) await deps.store.remove()
       else await deps.store.write(serializeQueue(ops))
     } catch {
-      // Storage full or blocked: the in-memory queue keeps working for this page.
+      ok = false
     }
+    if (ok !== durable) {
+      durable = ok
+      emit({ type: 'change' })
+    }
+    return ok
   }
 
   /** Age rules (OFFLINE_SYNC.md). Returns how many operations were dropped. */
@@ -353,7 +367,9 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       deps.clearTimer(timer)
       timer = null
     }
-    if (disposed) return
+    // Offline: no timers at all. The `online` event (handleOnline) resumes the
+    // drain, so an outage never spins a zero-delay retry loop.
+    if (disposed || !deps.isOnline()) return
     const waiting = ops.filter((o) => o.state === 'pending')
     if (waiting.length === 0) return
     const next = Math.min(...waiting.map((o) => o.nextAttemptAt))
@@ -373,7 +389,14 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     return ops.some((o, i) => i > idx && o.target === op.target)
   }
 
-  async function enqueue<A extends QueueableAction>(action: A, payload: PayloadOf<A> | unknown): Promise<QueuedOperation> {
+  /**
+   * Queue a change. `durable: false` means storage refused the write: the
+   * change is queued for this page only and is lost if the page closes.
+   */
+  async function enqueue<A extends QueueableAction>(
+    action: A,
+    payload: PayloadOf<A> | unknown
+  ): Promise<QueuedOperation & { durable: boolean }> {
     await ready
     if (!isQueueableAction(action)) throw new QueueError('NOT_QUEUEABLE')
     const spec = specOf(action)
@@ -396,10 +419,10 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     }
     ops.push(op)
     supersede(target, op)
-    await persist()
+    const saved = await persist()
     emit({ type: 'change' })
     void drain()
-    return { ...op }
+    return { ...op, durable: saved }
   }
 
   async function finish(op: QueuedOperation, outcome: Outcome, body: unknown): Promise<'continue' | 'stop'> {
@@ -555,6 +578,8 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   return {
     ready,
     loadReport: () => loadReport,
+    /** False while queued changes exist only in memory because storage refused the last write. */
+    isDurable: () => durable,
     list: snapshot,
     enqueue,
     drain,
@@ -671,52 +696,80 @@ export function indexedDbQueueStore(idb: IDBFactory, dbName: string, key: string
   }
 }
 
+export class QueueStorageError extends Error {
+  constructor() {
+    super('No storage accepted the offline queue')
+    this.name = 'QueueStorageError'
+  }
+}
+
 /**
- * IndexedDB when it works, localStorage otherwise. The choice is made on the
- * first read and kept for the life of the store, so reads and writes never
- * split across the two.
+ * IndexedDB when it works, localStorage otherwise. The first store that can be
+ * read is used. If a later write to it fails (quota, eviction, a WebView
+ * storage error), the next store is tried with the whole queue and becomes the
+ * current one; the failed store is cleared on a best-effort basis so a later
+ * load does not read a stale copy. When no store accepts a write, `write`
+ * throws, so the queue reports that it is not durable. There is deliberately
+ * no silent in-memory store here: the queue itself holds operations in memory.
  */
 export function preferredQueueStore(
   location: { dbName: string; key: string },
   env: { indexedDB?: IDBFactory | null; localStorage?: StorageLike | null }
 ): QueueStore {
-  const fallback = env.localStorage ? localStorageQueueStore(env.localStorage, location.key) : null
-  let chosen: Promise<QueueStore> | null = null
-  const memory = new Map<string, string>()
-  const memoryStore: QueueStore = {
-    read: async () => memory.get(location.key) ?? null,
-    write: async (v) => void memory.set(location.key, v),
-    remove: async () => void memory.delete(location.key),
-  }
-  function choose(): Promise<QueueStore> {
+  const candidates: QueueStore[] = []
+  if (env.indexedDB) candidates.push(indexedDbQueueStore(env.indexedDB, location.dbName, location.key))
+  if (env.localStorage) candidates.push(localStorageQueueStore(env.localStorage, location.key))
+  return fallbackQueueStore(candidates)
+}
+
+/** The fallback chain behind `preferredQueueStore`, in preference order. */
+export function fallbackQueueStore(candidates: QueueStore[]): QueueStore {
+  let current = -1
+  let chosen: Promise<void> | null = null
+
+  function choose(): Promise<void> {
     if (!chosen) {
       chosen = (async () => {
-        if (env.indexedDB) {
-          const idbStore = indexedDbQueueStore(env.indexedDB, location.dbName, location.key)
+        for (let i = 0; i < candidates.length; i++) {
           try {
-            await idbStore.read()
-            return idbStore
+            await candidates[i].read()
+            current = i
+            return
           } catch {
-            // Blocked or unavailable IndexedDB (private mode, old WebView): fall back.
+            // Blocked or unavailable (private mode, old WebView): try the next one.
           }
         }
-        if (fallback) {
-          try {
-            await fallback.read()
-            return fallback
-          } catch {
-            // localStorage blocked too.
-          }
-        }
-        return memoryStore
       })()
     }
     return chosen
   }
+
+  async function writeThrough(op: (store: QueueStore) => Promise<void>): Promise<void> {
+    await choose()
+    if (current < 0) throw new QueueStorageError()
+    for (let i = current; i < candidates.length; i++) {
+      try {
+        await op(candidates[i])
+        if (i !== current) {
+          const failed = candidates[current]
+          current = i
+          await failed.remove().catch(() => {})
+        }
+        return
+      } catch {
+        // This store refused the write: fall through to the next one.
+      }
+    }
+    throw new QueueStorageError()
+  }
+
   return {
-    read: async () => (await choose()).read(),
-    write: async (v) => (await choose()).write(v),
-    remove: async () => (await choose()).remove(),
+    read: async () => {
+      await choose()
+      return current < 0 ? null : candidates[current].read()
+    },
+    write: (v) => writeThrough((store) => store.write(v)),
+    remove: () => writeThrough((store) => store.remove()),
   }
 }
 

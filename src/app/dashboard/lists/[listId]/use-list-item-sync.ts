@@ -15,6 +15,8 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
   const [ops, setOps] = React.useState<QueuedOperation[]>([])
   const [online, setOnline] = React.useState(true)
   const [notice, setNotice] = React.useState<SyncNotice>(null)
+  // False while storage refuses writes: queued ticks then live only in this page.
+  const [durable, setDurable] = React.useState(true)
   const queueRef = React.useRef<OfflineQueue | null>(null)
   const onSyncedRef = React.useRef(onSynced)
   onSyncedRef.current = onSynced
@@ -29,10 +31,12 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       if (event.type === 'auth-lost') setNotice('signed-out')
       if (event.type === 'dropped') setNotice('dropped')
       setOps(queue.list())
+      setDurable(queue.isDurable())
     })
     void queue.ready.then(() => {
       if (!active) return
       setOps(queue.list())
+      setDurable(queue.isDurable())
       if (queue.loadReport().dropped > 0) setNotice('dropped')
     })
 
@@ -67,6 +71,7 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
 
   return {
     online,
+    durable,
     notice,
     dismissNotice: () => setNotice(null),
     stateFor: (itemId: string) => latestByItem.get(itemId),
