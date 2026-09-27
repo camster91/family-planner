@@ -2,6 +2,7 @@
 
 - `SYSTEM.md`
 - `DATA_MODEL.md`
+- `MEALS_AND_GROCERIES.md` (ADR-0007 detail, proposed: canonical meal/recipe/grocery models, backfill, recipe → grocery contract, child issues)
 - `API_CONTRACTS.md`
 - `AUTHORIZATION.md`
 - `OFFLINE_SYNC.md`
