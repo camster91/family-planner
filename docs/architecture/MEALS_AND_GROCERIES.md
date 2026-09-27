@@ -83,7 +83,7 @@ Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" sr
 | `family_id` | `MealPlan.family_id` | always the plan's family |
 | `date` | `MealPlanEntry.date` (DATE) | UTC midnight timestamp, the same convention as `parseDateOnly` |
 | `meal_type` | `MealPlanEntry.meal_type` | `lower(trim())`. Values outside `breakfast\|lunch\|dinner\|snack` are **skipped and reported**, never coerced. |
-| `recipe_id` | `MealPlanEntry.recipe_id` | only if the recipe's `family_id` matches, otherwise null + reported |
+| `recipe_id` | `MealPlanEntry.recipe_id` | only if the recipe's `family_id` matches. Otherwise the entry is **skipped, archived and reported** (`foreign_recipe`): its only content is the recipe reference, so a copy would be an empty slot or would carry another household's title (implemented in #250). |
 | `recipe_name` | `Recipe.title` | snapshot for old clients and the board |
 | `servings` (new) | `MealPlanEntry.servings` | |
 | `notes`, `cook_id` | none | null |

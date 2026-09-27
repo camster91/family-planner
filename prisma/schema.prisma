@@ -369,6 +369,9 @@ model Recipe {
   creator      User               @relation("RecipeCreator", fields: [created_by], references: [id], onDelete: Restrict)
   ingredients  RecipeIngredient[]
   meal_entries MealPlanEntry[]
+  // Canonical links (ADR-0007): meals and grocery items that reference this recipe.
+  meals        FamilyMeal[]
+  list_items   ListItem[]
 
   @@index([family_id, title])
 }
@@ -381,6 +384,7 @@ model Ingredient {
 
   family             Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
   recipe_ingredients RecipeIngredient[]
+  list_items         ListItem[]
 
   @@unique([family_id, name])
 }
@@ -717,13 +721,39 @@ model ListItem {
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
 
+  // Grocery provenance (ADR-0007, #250). All nullable/defaulted and additive;
+  // generic to-do lists leave them unset. Nested ownership: every reference
+  // must be proven to be in the list's household before it is written.
+  ingredient_id     String?
+  recipe_id         String?
+  meal_id           String?
+  amount            Float?
+  unit              String?
+  source            String    @default("manual") // 'manual' | 'capture' | 'recipe' | 'import'
+  // Immutable 'meal:<id>' | 'recipe:<id>' for recipe-added rows; never rewritten,
+  // so the partial unique index below survives ON DELETE SET NULL on meal/recipe.
+  source_key        String?
+  // IdempotencyRecord.id of the from-recipe request that created the row (undo/replay provenance). No FK: idempotency records expire.
+  source_request_id String?
+
   // Relations
-  list    List  @relation(fields: [list_id], references: [id], onDelete: Cascade)
-  adder   User  @relation("AddedItems", fields: [added_by], references: [id])
-  checker User? @relation("CheckedItems", fields: [checked_by], references: [id])
+  list       List        @relation(fields: [list_id], references: [id], onDelete: Cascade)
+  adder      User        @relation("AddedItems", fields: [added_by], references: [id])
+  checker    User?       @relation("CheckedItems", fields: [checked_by], references: [id])
+  ingredient Ingredient? @relation(fields: [ingredient_id], references: [id], onDelete: SetNull)
+  recipe     Recipe?     @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
+  meal       FamilyMeal? @relation(fields: [meal_id], references: [id], onDelete: SetNull)
 
   @@index([list_id])
   @@index([list_id, checked])
+  @@index([ingredient_id])
+  @@index([recipe_id])
+  @@index([meal_id])
+  @@index([source_request_id])
+  // Partial unique index "ListItem_open_recipe_source_key" on
+  // (list_id, ingredient_id, source_key) WHERE checked = false AND source_key IS NOT NULL
+  // AND ingredient_id IS NOT NULL cannot be expressed in Prisma; it is owned by
+  // scripts/migrate.js POST_FEATURE_SQL (docs/architecture/MEALS_AND_GROCERIES.md §5).
 }
 
 model Activity {
@@ -892,13 +922,20 @@ model FamilyMeal {
   cook_id     String?
   created_by  String
   created_at  DateTime @default(now())
+  // Recipe link (ADR-0007, #250). recipe_name stays the display snapshot.
+  recipe_id   String?
+  servings    Int?
+  updated_at  DateTime @default(now()) @updatedAt
 
-  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  cook    User?  @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull)
-  creator User   @relation("FamilyMealCreator", fields: [created_by], references: [id])
+  family     Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  cook       User?      @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull)
+  creator    User       @relation("FamilyMealCreator", fields: [created_by], references: [id])
+  recipe     Recipe?    @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
+  list_items ListItem[]
 
   @@index([family_id])
   @@index([family_id, date])
+  @@index([recipe_id])
 }
 
 model PinnedNote {

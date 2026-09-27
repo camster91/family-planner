@@ -771,6 +771,48 @@ UPDATE "Family"
 SET "features" = COALESCE("features", '{}'::jsonb) || '{"gamification":true}'::jsonb
 WHERE "features" IS NULL
    OR (jsonb_typeof("features") = 'object' AND NOT ("features" ? 'gamification'));
+
+-- ============ Canonical meal/grocery expand (ADR-0007, #250) ============
+-- Additive only: nullable or defaulted columns, SET NULL foreign keys and
+-- indexes. "FamilyMeal" comes from migration-features.sql and "Recipe" /
+-- "Ingredient" from migration-meal-planner-domains.sql, so this lives here.
+-- See docs/architecture/MEALS_AND_GROCERIES.md section 5.
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "recipe_id" TEXT;
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "servings" INTEGER;
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+DO $$ BEGIN
+  ALTER TABLE "FamilyMeal" ADD CONSTRAINT "FamilyMeal_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "Recipe"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "FamilyMeal_recipe_id_idx" ON "FamilyMeal"("recipe_id");
+
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "ingredient_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "recipe_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "meal_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "unit" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'manual';
+-- Immutable 'meal:<id>' | 'recipe:<id>'; never rewritten (see the partial index below).
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_key" TEXT;
+-- IdempotencyRecord.id of the from-recipe request that created the row. No FK: records expire.
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_request_id" TEXT;
+DO $$ BEGIN
+  ALTER TABLE "ListItem" ADD CONSTRAINT "ListItem_ingredient_id_fkey" FOREIGN KEY ("ingredient_id") REFERENCES "Ingredient"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ListItem" ADD CONSTRAINT "ListItem_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "Recipe"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ListItem" ADD CONSTRAINT "ListItem_meal_id_fkey" FOREIGN KEY ("meal_id") REFERENCES "FamilyMeal"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "ListItem_ingredient_id_idx" ON "ListItem"("ingredient_id");
+CREATE INDEX IF NOT EXISTS "ListItem_recipe_id_idx" ON "ListItem"("recipe_id");
+CREATE INDEX IF NOT EXISTS "ListItem_meal_id_idx" ON "ListItem"("meal_id");
+CREATE INDEX IF NOT EXISTS "ListItem_source_request_id_idx" ON "ListItem"("source_request_id");
+-- One open recipe-added row per (list, ingredient, source). Prisma cannot
+-- express a partial index, so this file owns it (schema.prisma points here).
+CREATE UNIQUE INDEX IF NOT EXISTS "ListItem_open_recipe_source_key"
+  ON "ListItem"("list_id", "ingredient_id", "source_key")
+  WHERE "checked" = false AND "source_key" IS NOT NULL AND "ingredient_id" IS NOT NULL;
 `
 
 async function migrate() {

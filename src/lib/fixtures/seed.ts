@@ -124,6 +124,14 @@ export async function seedFixtures(
     rewards: ds.rewards.map((r) => r.id),
     lists: ds.lists.map((r) => r.id),
     listItems: ds.listItems.map((r) => r.id),
+    recipes: ds.recipes.map((r) => r.id),
+    ingredients: ds.ingredients.map((r) => r.id),
+    recipeIngredients: ds.recipeIngredients.map((r) => r.id),
+    familyMeals: ds.familyMeals.map((r) => r.id),
+    mealPlans: ds.mealPlans.map((r) => r.id),
+    mealPlanEntries: ds.mealPlanEntries.map((r) => r.id),
+    shoppingLists: ds.shoppingLists.map((r) => r.id),
+    shoppingItems: ds.shoppingItems.map((r) => r.id),
   }
 
   return db.$transaction(async (tx) => {
@@ -223,12 +231,92 @@ export async function seedFixtures(
     }
     upserted.listItems = ds.listItems.length
 
+    // Meals/recipes and legacy import-generation rows (ADR-0007 backfill rehearsal, #250).
+    for (const r of ds.recipes) {
+      await tx.recipe.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.RecipeUncheckedUpdateInput, select: { id: true } })
+    }
+    upserted.recipes = ds.recipes.length
+    for (const r of ds.ingredients) {
+      await tx.ingredient.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.IngredientUncheckedUpdateInput, select: { id: true } })
+    }
+    upserted.ingredients = ds.ingredients.length
+    for (const r of ds.recipeIngredients) {
+      await tx.recipeIngredient.upsert({
+        where: { id: r.id },
+        create: r,
+        update: stripId(r) as Prisma.RecipeIngredientUncheckedUpdateInput,
+        select: { id: true },
+      })
+    }
+    upserted.recipeIngredients = ds.recipeIngredients.length
+    for (const r of ds.familyMeals) {
+      await tx.familyMeal.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.FamilyMealUncheckedUpdateInput, select: { id: true } })
+    }
+    upserted.familyMeals = ds.familyMeals.length
+    for (const r of ds.mealPlans) {
+      await tx.mealPlan.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.MealPlanUncheckedUpdateInput, select: { id: true } })
+    }
+    upserted.mealPlans = ds.mealPlans.length
+    for (const r of ds.mealPlanEntries) {
+      await tx.mealPlanEntry.upsert({
+        where: { id: r.id },
+        create: r,
+        update: stripId(r) as Prisma.MealPlanEntryUncheckedUpdateInput,
+        select: { id: true },
+      })
+    }
+    upserted.mealPlanEntries = ds.mealPlanEntries.length
+    for (const r of ds.shoppingLists) {
+      await tx.shoppingList.upsert({
+        where: { id: r.id },
+        create: r,
+        update: stripId(r) as Prisma.ShoppingListUncheckedUpdateInput,
+        select: { id: true },
+      })
+    }
+    upserted.shoppingLists = ds.shoppingLists.length
+    for (const r of ds.shoppingItems) {
+      await tx.shoppingItem.upsert({
+        where: { id: r.id },
+        create: r,
+        update: stripId(r) as Prisma.ShoppingItemUncheckedUpdateInput,
+        select: { id: true },
+      })
+    }
+    upserted.shoppingItems = ds.shoppingItems.length
+
     // Prune stale fx_ rows (from an older dataset version) inside fixture families.
     const stale = (rows: Array<{ id: string }>, keepIds: string[]) => {
       const k = new Set(keepIds)
       return ids(rows).filter((id) => !k.has(id))
     }
     const inFamilies = { family_id: { in: familyIds }, id: { startsWith: PREFIX } }
+    const inFixtureFamily = { family_id: { in: familyIds } }
+    const staleShopItems = stale(
+      await tx.shoppingItem.findMany({ where: { id: { startsWith: PREFIX }, shopping_list: inFixtureFamily }, select: { id: true } }),
+      keep.shoppingItems
+    )
+    pruned.shoppingItems = (await tx.shoppingItem.deleteMany({ where: { id: { in: staleShopItems } } })).count
+    const staleShopLists = stale(await tx.shoppingList.findMany({ where: inFamilies, select: { id: true } }), keep.shoppingLists)
+    pruned.shoppingLists = (await tx.shoppingList.deleteMany({ where: { id: { in: staleShopLists }, ...inFixtureFamily } })).count
+    const staleEntries = stale(
+      await tx.mealPlanEntry.findMany({ where: { id: { startsWith: PREFIX }, meal_plan: inFixtureFamily }, select: { id: true } }),
+      keep.mealPlanEntries
+    )
+    pruned.mealPlanEntries = (await tx.mealPlanEntry.deleteMany({ where: { id: { in: staleEntries } } })).count
+    const stalePlans = stale(await tx.mealPlan.findMany({ where: inFamilies, select: { id: true } }), keep.mealPlans)
+    pruned.mealPlans = (await tx.mealPlan.deleteMany({ where: { id: { in: stalePlans }, ...inFixtureFamily } })).count
+    const staleMeals = stale(await tx.familyMeal.findMany({ where: inFamilies, select: { id: true } }), keep.familyMeals)
+    pruned.familyMeals = (await tx.familyMeal.deleteMany({ where: { id: { in: staleMeals }, ...inFixtureFamily } })).count
+    const staleRecipeIngs = stale(
+      await tx.recipeIngredient.findMany({ where: { id: { startsWith: PREFIX }, recipe: inFixtureFamily }, select: { id: true } }),
+      keep.recipeIngredients
+    )
+    pruned.recipeIngredients = (await tx.recipeIngredient.deleteMany({ where: { id: { in: staleRecipeIngs } } })).count
+    const staleIngredients = stale(await tx.ingredient.findMany({ where: inFamilies, select: { id: true } }), keep.ingredients)
+    pruned.ingredients = (await tx.ingredient.deleteMany({ where: { id: { in: staleIngredients }, ...inFixtureFamily } })).count
+    const staleRecipes = stale(await tx.recipe.findMany({ where: inFamilies, select: { id: true } }), keep.recipes)
+    pruned.recipes = (await tx.recipe.deleteMany({ where: { id: { in: staleRecipes }, ...inFixtureFamily } })).count
     const staleItems = stale(
       await tx.listItem.findMany({ where: { id: { startsWith: PREFIX }, list: { family_id: { in: familyIds } } }, select: { id: true } }),
       keep.listItems
@@ -286,6 +374,12 @@ export async function resetFixtures(db: PrismaClient, ds: FixtureDataset): Promi
           },
         }),
       ],
+      // Restrict/NO ACTION foreign keys to User (ADR-0007 tables, import provenance).
+      ['meals', await tx.familyMeal.count({ where: { ...outside, OR: [{ created_by: { in: userIds } }, { cook_id: { in: userIds } }] } })],
+      ['recipes', await tx.recipe.count({ where: { ...outside, created_by: { in: userIds } } })],
+      ['meal plans', await tx.mealPlan.count({ where: { ...outside, created_by: { in: userIds } } })],
+      ['shopping lists', await tx.shoppingList.count({ where: { ...outside, created_by: { in: userIds } } })],
+      ['import jobs', await tx.importJob.count({ where: { ...outside, started_by: { in: userIds } } })],
     ]
     for (const [label, n] of counts) {
       if (n > 0) problems.push(`${n} ${label} in non-fixture families reference fixture users`)
