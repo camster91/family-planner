@@ -6,7 +6,7 @@ Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.m
 
 - Inspected on `master` @ `2fd6cc5` on 2026-09-27. Static source inspection only. No production data was read, and no row counts in this document come from a live database.
 - #148 (route/domain inventory, deliverable `docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`) is **still open and its output does not exist**. `EXECUTION_ORDER.md` puts #149 after #148. To avoid blocking on it, this document includes its own inventory of the meal/list slice (§2). #148 must reconcile with it and trigger the ADR's revisit clause if it finds another live path.
-- The idempotency primitive (`src/lib/idempotency.ts`, `IdempotencyRecord`, `Idempotency-Key`) is **not on `master` yet**. It is in open PR #247 (#162). This decision references it as the mechanism, and child D depends on it.
+- The idempotency primitive (`src/lib/idempotency.ts`, `IdempotencyRecord`, `Idempotency-Key`) is on `master` (merged in #247 for #162). Child D builds on it.
 
 ## 2. Source inventory
 

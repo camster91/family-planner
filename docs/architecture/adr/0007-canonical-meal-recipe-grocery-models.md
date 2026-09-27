@@ -75,7 +75,7 @@ Expand → backfill → switch → (gated) contract. There is no dual write and 
 
 1. **Expand (child A):** nullable columns, FKs with `SET NULL`, indexes and the partial unique index, added in `prisma/schema.prisma` and in `scripts/migrate.js` `POST_FEATURE_SQL` (idempotent `ADD COLUMN IF NOT EXISTS`). A backfill script is added. It defaults to dry-run, is scoped per family, resumes via `ImportedRecord`, and is rehearsed on the synthetic fixtures.
 2. **API (child B)** and **UI (child C):** additive response fields only. Existing request and response shapes of `/api/meals` and `/api/lists/**` are unchanged. The importer is retargeted.
-3. **Recipe → grocery (child D):** a new endpoint, which depends on #247 merging.
+3. **Recipe → grocery (child D):** a new endpoint, built on the idempotency primitive merged in #247.
 4. **Production backfill run:** a non-destructive insert into live tables, which needs Cameron's explicit approval for the run.
 5. **Contract (child E, gated):** first stop all legacy writes and reads. Dropping the legacy tables needs a separate explicit approval and a verified backup.
 
@@ -125,7 +125,7 @@ Ready-to-file bodies are in [`../MEALS_AND_GROCERIES.md` §9](../MEALS_AND_GROCE
 - **A.** Schema expand + backfill tooling + fixture rehearsal
 - **B.** API unification (`/api/recipes`, recipe link on meals, `ListItem` provenance fields, lists feature gate, export, importer retarget)
 - **C.** UI migration (meals slot rendering + recipe picker, grocery item amount/provenance, `meal_plan` type retirement, dead list components)
-- **D.** Recipe → grocery add with idempotency and duplicate rules (depends on PR #247)
+- **D.** Recipe → grocery add with idempotency and duplicate rules (builds on #247, merged)
 - **E.** Contract/cleanup of the legacy tables (gated on Cameron's approval)
 
 ## Revisit trigger
