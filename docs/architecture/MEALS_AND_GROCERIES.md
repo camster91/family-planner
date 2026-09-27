@@ -1,6 +1,6 @@
 # Meals, recipes and groceries: canonical models and migration
 
-Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Proposed — pending Cameron's acceptance**, issue #149). If this file and the ADR disagree, the ADR wins. `prisma/schema.prisma` and the route source remain authoritative for what exists today.
+Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Accepted 2026-09-27**, issue #149). If this file and the ADR disagree, the ADR wins. `prisma/schema.prisma` and the route source remain authoritative for what exists today.
 
 ## 1. Evidence base
 

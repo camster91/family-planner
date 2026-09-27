@@ -1,6 +1,6 @@
 # ADR-0007: Canonical meal, recipe, grocery and list models
 
-**Status:** Proposed — pending Cameron's acceptance
+**Status:** Accepted (Cameron, 2026-09-27) with all recommended owner-decision defaults O-1 to O-12
 **Date:** 2026-09-27
 **Owners:** Cameron (decision); implementing agents (child issues)
 **Supersedes (on acceptance):** the provisional "exact canonical models pending" clause of [ADR-0005](0005-canonical-data-before-new-writes.md). The ADR-0005 constraint itself (no broad cross-domain writes before canonicalization, no third model generation) stays in force.
@@ -101,7 +101,7 @@ Covered in "Household ownership and authorization" above. Additional points:
 
 ## Owner decisions
 
-Each is open until Cameron confirms. The recommended default applies if this ADR is accepted without comment.
+Confirmed by Cameron on 2026-09-27: every decision below takes its recommended default.
 
 | # | Decision | Recommended default |
 | --- | --- | --- |

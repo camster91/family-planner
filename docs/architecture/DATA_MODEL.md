@@ -15,9 +15,9 @@ Every private household-domain record must be traceable to exactly one household
 
 ## Overlapping meal/list generations (#149)
 
-The schema contains both generations. [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Proposed — pending Cameron's acceptance**) records the proposed outcome. The detail (source inventory, mapping, backfill, recipe → grocery contract and child issues) is in [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md).
+The schema contains both generations. [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Accepted 2026-09-27**) records the outcome. The detail (source inventory, mapping, backfill, recipe → grocery contract and child issues) is in [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md).
 
-| Domain | Live today (source-verified 2026-09-27) | Import-only today | Proposed role (ADR-0007) |
+| Domain | Live today (source-verified 2026-09-27) | Import-only today | Canonical role (ADR-0007) |
 | --- | --- | --- | --- |
 | Meal slots | `FamilyMeal` (`/api/meals`, `/dashboard/meals`, fridge Today board) | `MealPlan` + `MealPlanEntry` | **Canonical:** `FamilyMeal`, expanded with a nullable `recipe_id`/`servings`. `MealPlan*` is frozen: backfilled into `FamilyMeal`, then archived. |
 | Recipes | none (`FamilyMeal.recipe_name` is free text) | `Recipe`, `Ingredient`, `RecipeIngredient` | **Canonical:** these three, with a new `/api/recipes`. |

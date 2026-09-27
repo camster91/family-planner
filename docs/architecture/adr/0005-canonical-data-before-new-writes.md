@@ -1,6 +1,6 @@
 # ADR-0005: Canonicalize overlapping meal/list models before broad new cross-domain writes
 
-**Status:** Accepted as a migration constraint. The "exact canonical models pending" clause is superseded-by-proposal: [ADR-0007](0007-canonical-meal-recipe-grocery-models.md) (Proposed — pending Cameron's acceptance) names the canonical models. Until ADR-0007 is accepted, this constraint applies unchanged.
+**Status:** Accepted as a migration constraint. The "exact canonical models pending" clause is superseded by [ADR-0007](0007-canonical-meal-recipe-grocery-models.md) (Accepted 2026-09-27), which names the canonical models. New cross-domain writes follow ADR-0007.
 **Date:** 2026-09-08
 **Related:** #122, #134, #143
 
