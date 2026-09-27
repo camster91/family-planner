@@ -13,6 +13,7 @@ import {
   planFamilyBackfill,
   planHasWork,
   reconcile,
+  resolveActor,
   utcMidnightLiteral,
 } from '../meals-groceries'
 import type { FamilySource } from '../meals-groceries'
@@ -68,6 +69,8 @@ function sourceFromDataset(ds: FixtureDataset, familyId: string, mappings: Famil
     ingredients: ds.ingredients.filter((g) => g.family_id === familyId).map((g) => ({ id: g.id, name: g.name })),
     mappings,
     existingListIds: [],
+    userFamilies: Object.fromEntries(ds.users.map((u) => [u.id, u.family_id])),
+    fallbackActor: ds.users.find((u) => u.family_id === familyId && u.role === 'parent')?.id ?? null,
   }
 }
 
@@ -196,27 +199,73 @@ describe('planFamilyBackfill on the fixture rehearsal rows', () => {
   const A = FIXTURE_IDS.familyA.family
   const B = FIXTURE_IDS.familyB.family
 
-  it('plans family A: 2 created, 1 linked, 1 archived skip; 1 list + 2 items', () => {
+  it('plans family A: 3 created, 1 linked, 1 archived skip; 2 lists + 3 items', () => {
     const plan = planFamilyBackfill(sourceFromDataset(ds, A), idGen())
-    expect(plan.counts.meals).toEqual({ created: 2, linked: 1, skipped: 1, alreadyMapped: 0 })
-    expect(plan.counts.mealPlans).toEqual({ archived: 1, alreadyMapped: 0 })
-    expect(plan.counts.lists).toEqual({ created: 1, alreadyMapped: 0 })
-    expect(plan.counts.items).toEqual({ created: 2, skipped: 0, alreadyMapped: 0 })
+    expect(plan.counts.meals).toEqual({ created: 3, linked: 1, skipped: 1, alreadyMapped: 0 })
+    expect(plan.counts.mealPlans).toEqual({ archived: 2, alreadyMapped: 0 })
+    expect(plan.counts.lists).toEqual({ created: 2, skipped: 0, alreadyMapped: 0 })
+    expect(plan.counts.items).toEqual({ created: 3, skipped: 0, alreadyMapped: 0 })
     expect(plan.counts.recipeRefsNulled).toBe(0)
+    expect(plan.counts.creatorsRemapped).toBe(3)
     expect(reconcile(plan.counts).ok).toBe(true)
 
     expect(plan.mealLinks).toEqual([{ sourceId: L.familyA.entrySameName, mealId: L.familyA.mealSameName, setRecipeId: L.familyA.recipeLasagna }])
     expect(plan.mealCreates.map((m) => [m.sourceId, m.mealType, m.recipeId, m.recipeName])).toEqual([
       [L.familyA.entryOtherName, 'dinner', L.familyA.recipeSoup, 'Tomato soup'],
       [L.familyA.entryLunch, 'lunch', L.familyA.recipeStirFry, 'Tofu stir-fry'],
+      [L.familyA.entryForeignCreator, 'dinner', L.familyA.recipeStirFry, 'Tofu stir-fry'],
     ])
     expect(plan.skipped).toEqual([
       expect.objectContaining({ sourceModel: 'MealPlanEntry', sourceId: L.familyA.entryBrunch, reason: 'unmappable_meal_type', row: expect.objectContaining({ meal_type: 'Brunch' }) }),
     ])
-    const [sheets, tomatoes] = plan.itemCreates
+    const [sheets, tomatoes] = plan.itemCreates.filter((i) => i.sourceId !== L.familyA.itemForeignCreator)
     expect(sheets).toMatchObject({ content: 'Lasagna sheets', checked: true, ingredientId: L.familyA.ingredientLasagnaSheets, position: 0, amount: 1, unit: 'box' })
     expect(tomatoes).toMatchObject({ content: 'tomatoes', recipeId: L.familyA.recipeSoup, ingredientId: L.familyA.ingredientTomatoes, position: 1 })
-    expect(new Set(plan.itemCreates.map((i) => i.listId))).toEqual(new Set([plan.listCreates[0].id]))
+    const main = plan.listCreates.find((l) => l.sourceId === L.familyA.shoppingList)!
+    expect(sheets.listId).toBe(main.id)
+    expect(tomatoes.listId).toBe(main.id)
+  })
+
+  it('never copies a Family B creator into Family A rows: remaps to the in-family parent and reports it', () => {
+    const plan = planFamilyBackfill(sourceFromDataset(ds, A), idGen())
+    const aParent = FIXTURE_IDS.familyA.parent
+    const bUsers = new Set(ds.users.filter((u) => u.family_id === B).map((u) => u.id))
+    for (const m of plan.mealCreates) expect(bUsers.has(m.createdBy)).toBe(false)
+    for (const l of plan.listCreates) expect(bUsers.has(l.createdBy)).toBe(false)
+    for (const i of plan.itemCreates) expect(bUsers.has(i.addedBy)).toBe(false)
+    expect(plan.mealCreates.find((m) => m.sourceId === L.familyA.entryForeignCreator)!.createdBy).toBe(aParent)
+    expect(plan.listCreates.find((l) => l.sourceId === L.familyA.shoppingListForeignCreator)!.createdBy).toBe(aParent)
+    expect(plan.itemCreates.find((i) => i.sourceId === L.familyA.itemForeignCreator)!.addedBy).toBe(aParent)
+    expect(plan.remapped).toEqual([
+      { sourceModel: 'MealPlanEntry', sourceId: L.familyA.entryForeignCreator, field: 'FamilyMeal.created_by', reason: 'foreign_creator' },
+      { sourceModel: 'ShoppingList', sourceId: L.familyA.shoppingListForeignCreator, field: 'List.created_by', reason: 'foreign_creator' },
+      { sourceModel: 'ShoppingItem', sourceId: L.familyA.itemForeignCreator, field: 'ListItem.added_by', reason: 'foreign_creator' },
+    ])
+    expect(JSON.stringify([plan.mealCreates, plan.listCreates, plan.itemCreates, plan.remapped])).not.toContain(FIXTURE_IDS.familyB.parent)
+  })
+
+  it('skips and archives rows with a foreign creator when the family has no parent to stand in', () => {
+    const plan = planFamilyBackfill({ ...sourceFromDataset(ds, A), fallbackActor: null }, idGen())
+    expect(plan.counts.meals).toEqual({ created: 2, linked: 1, skipped: 2, alreadyMapped: 0 })
+    expect(plan.counts.lists).toEqual({ created: 1, skipped: 1, alreadyMapped: 0 })
+    expect(plan.counts.items).toEqual({ created: 2, skipped: 1, alreadyMapped: 0 })
+    expect(plan.counts.creatorsRemapped).toBe(0)
+    expect(plan.counts.skipReasons.no_in_family_actor).toBe(3)
+    expect(plan.skipped.filter((s) => s.reason === 'no_in_family_actor').map((s) => [s.sourceModel, s.sourceId])).toEqual([
+      ['MealPlanEntry', L.familyA.entryForeignCreator],
+      ['ShoppingList', L.familyA.shoppingListForeignCreator],
+      ['ShoppingItem', L.familyA.itemForeignCreator],
+    ])
+    expect(reconcile(plan.counts).ok).toBe(true)
+  })
+
+  it('resolveActor keeps members, remaps foreign or missing creators, and never returns the foreign id', () => {
+    const fams = { u_a: 'fa', u_b: 'fb' }
+    expect(resolveActor('u_a', fams, 'fa', 'p_a')).toEqual({ actor: 'u_a', remapped: null })
+    expect(resolveActor('u_b', fams, 'fa', 'p_a')).toEqual({ actor: 'p_a', remapped: 'foreign_creator' })
+    expect(resolveActor('ghost', fams, 'fa', 'p_a')).toEqual({ actor: 'p_a', remapped: 'missing_creator' })
+    expect(resolveActor('u_b', fams, 'fa', null)).toEqual({ actor: null, remapped: 'foreign_creator' })
+    expect(resolveActor(null, fams, 'fa', 'p_a')).toEqual({ actor: 'p_a', remapped: 'missing_creator' })
   })
 
   it('plans family B: foreign references never cross households', () => {
@@ -250,7 +299,8 @@ describe('planFamilyBackfill on the fixture rehearsal rows', () => {
     const src = { ...sourceFromDataset(ds, A, mappings), existingListIds: first.listCreates.map((l) => l.id) }
     const again = planFamilyBackfill(src, idGen())
     expect(planHasWork(again)).toBe(false)
-    expect(again.counts.meals).toEqual({ created: 0, linked: 0, skipped: 0, alreadyMapped: 4 })
+    expect(again.counts.meals).toEqual({ created: 0, linked: 0, skipped: 0, alreadyMapped: 5 })
+    expect(again.counts.creatorsRemapped).toBe(0)
     expect(reconcile(again.counts).ok).toBe(true)
   })
 
@@ -258,7 +308,7 @@ describe('planFamilyBackfill on the fixture rehearsal rows', () => {
     const src = sourceFromDataset(ds, A)
     const dup = { ...src.entries.find((e) => e.id === L.familyA.entryLunch)!, id: 'other_plan_entry' }
     const plan = planFamilyBackfill({ ...src, entries: [...src.entries, dup] }, idGen())
-    expect(plan.counts.meals.created).toBe(2)
+    expect(plan.counts.meals.created).toBe(3)
     expect(plan.counts.meals.linked).toBe(2)
     const created = plan.mealCreates.find((c) => c.sourceId === L.familyA.entryLunch)!
     expect(plan.mealLinks).toContainEqual({ sourceId: 'other_plan_entry', mealId: created.id, setRecipeId: null })
@@ -270,7 +320,7 @@ describe('planFamilyBackfill on the fixture rehearsal rows', () => {
       { ...src, shoppingItems: src.shoppingItems.map((i) => ({ ...i, recipeId: 'deleted_recipe', recipeFamilyId: null })) },
       idGen()
     )
-    expect(plan.counts.items).toEqual({ created: 0, skipped: 2, alreadyMapped: 0 })
+    expect(plan.counts.items).toEqual({ created: 1, skipped: 2, alreadyMapped: 0 })
     expect(plan.counts.skipReasons.target_list_missing).toBe(2)
     expect(reconcile(plan.counts).ok).toBe(true)
 
@@ -278,7 +328,7 @@ describe('planFamilyBackfill on the fixture rehearsal rows', () => {
       { ...sourceFromDataset(ds, A), shoppingItems: src.shoppingItems.map((i) => ({ ...i, recipeId: 'deleted_recipe', recipeFamilyId: null })) },
       idGen()
     )
-    expect(withList.counts.nullReasons).toEqual({ missing_recipe: 2 })
+    expect(withList.counts.nullReasons).toEqual({ missing_recipe: 3 })
   })
 
   it('detects a broken reconciliation', () => {

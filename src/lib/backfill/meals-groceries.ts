@@ -27,6 +27,12 @@
  *     (see `RecordMarker`), because reverse must tell created rows from
  *     linked live rows. Anything already mapped is never written again, so
  *     a second apply creates 0 rows (not even an ImportJob).
+ *   - Creator columns (FamilyMeal.created_by, List.created_by,
+ *     ListItem.added_by) only ever receive a member of the target family. A
+ *     legacy creator from another household (or a missing one) is replaced by
+ *     the in-family fallback actor (--started-by, else the oldest parent) and
+ *     reported; with no such actor the row is skipped as 'no_in_family_actor'.
+ *     The inserts re-check membership in SQL. cook_id/checked_by stay null.
  *   - Every skipped legacy row is archived verbatim (all columns as JSON)
  *     with its reason in that family's ImportJob.summary.skipped[] and
  *     mapped to the job, as is every MealPlan (O-2: archive only).
@@ -53,8 +59,36 @@ export type RecordMarker =
   | 'archived'
   | `skipped:${SkipReason}`
 
-export type SkipReason = 'unmappable_meal_type' | 'foreign_recipe' | 'empty_name' | 'target_list_missing'
+export type SkipReason =
+  | 'unmappable_meal_type'
+  | 'foreign_recipe'
+  | 'empty_name'
+  | 'target_list_missing'
+  | 'no_in_family_actor'
 export type NullReason = 'foreign_recipe' | 'missing_recipe'
+/** Why a legacy creator id was replaced by the family's fallback actor. */
+export type RemapReason = 'foreign_creator' | 'missing_creator'
+
+/**
+ * Resolve the user id to write into a canonical creator column
+ * (FamilyMeal.created_by, List.created_by, ListItem.added_by). A legacy
+ * creator is kept only when they are a member of the target family; anything
+ * else becomes the in-family fallback actor (the job's started_by or the
+ * family's oldest parent) and is reported. With no fallback the row cannot be
+ * written without a foreign reference, so the caller skips and archives it.
+ * The foreign id itself is never returned.
+ */
+export function resolveActor(
+  creatorId: string | null | undefined,
+  userFamilies: Readonly<Record<string, string>>,
+  familyId: string,
+  fallbackActor: string | null
+): { actor: string | null; remapped: RemapReason | null } {
+  const home = creatorId ? userFamilies[creatorId] : undefined
+  if (creatorId && home === familyId) return { actor: creatorId, remapped: null }
+  const reason: RemapReason = home ? 'foreign_creator' : 'missing_creator'
+  return { actor: fallbackActor, remapped: reason }
+}
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -375,6 +409,14 @@ export interface FamilySource {
   mappings: Record<string, ExistingMapping>
   /** Mapped List targets that still exist in this family. */
   existingListIds: string[]
+  /** user id -> family_id for this family's members and every legacy creator referenced. */
+  userFamilies: Record<string, string>
+  /**
+   * In-family actor that replaces a foreign or missing legacy creator: the
+   * job's started_by when given, else the family's oldest parent. Null when
+   * the family has no parent (those rows are skipped as 'no_in_family_actor').
+   */
+  fallbackActor: string | null
 }
 
 export interface MealCreate {
@@ -419,7 +461,7 @@ export interface ItemCreate {
 }
 
 export interface SkippedRow {
-  sourceModel: 'MealPlanEntry' | 'ShoppingItem'
+  sourceModel: 'MealPlanEntry' | 'ShoppingList' | 'ShoppingItem'
   sourceId: string
   reason: SkipReason
   /** The legacy row verbatim (all columns). */
@@ -432,13 +474,23 @@ export interface NulledRef {
   reason: NullReason
 }
 
+export interface RemappedCreator {
+  sourceModel: 'MealPlanEntry' | 'ShoppingList' | 'ShoppingItem'
+  sourceId: string
+  /** Canonical column that received the in-family actor. */
+  field: 'FamilyMeal.created_by' | 'List.created_by' | 'ListItem.added_by'
+  reason: RemapReason
+}
+
 export interface FamilyCounts {
   source: { mealPlans: number; mealPlanEntries: number; shoppingLists: number; shoppingItems: number }
   meals: { created: number; linked: number; skipped: number; alreadyMapped: number }
   mealPlans: { archived: number; alreadyMapped: number }
-  lists: { created: number; alreadyMapped: number }
+  lists: { created: number; skipped: number; alreadyMapped: number }
   items: { created: number; skipped: number; alreadyMapped: number }
   recipeRefsNulled: number
+  /** Canonical rows whose creator column got the in-family fallback actor. */
+  creatorsRemapped: number
   skipReasons: Record<string, number>
   nullReasons: Record<string, number>
 }
@@ -452,6 +504,7 @@ export interface FamilyPlan {
   itemCreates: ItemCreate[]
   skipped: SkippedRow[]
   nulled: NulledRef[]
+  remapped: RemappedCreator[]
   counts: FamilyCounts
 }
 
@@ -472,6 +525,7 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
     itemCreates: [],
     skipped: [],
     nulled: [],
+    remapped: [],
     counts: {
       source: {
         mealPlans: src.mealPlans.length,
@@ -481,9 +535,10 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
       },
       meals: { created: 0, linked: 0, skipped: 0, alreadyMapped: 0 },
       mealPlans: { archived: 0, alreadyMapped: 0 },
-      lists: { created: 0, alreadyMapped: 0 },
+      lists: { created: 0, skipped: 0, alreadyMapped: 0 },
       items: { created: 0, skipped: 0, alreadyMapped: 0 },
       recipeRefsNulled: 0,
+      creatorsRemapped: 0,
       skipReasons: {},
       nullReasons: {},
     },
@@ -493,6 +548,20 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
   const skip = (row: SkippedRow) => {
     plan.skipped.push(row)
     bump(c.skipReasons, row.reason)
+  }
+  // Creator columns never receive a user outside this family.
+  const actorFor = (
+    creatorId: string,
+    sourceModel: RemappedCreator['sourceModel'],
+    sourceId: string,
+    field: RemappedCreator['field']
+  ): string | null => {
+    const r = resolveActor(creatorId, src.userFamilies, src.familyId, src.fallbackActor)
+    if (r.remapped && r.actor) {
+      plan.remapped.push({ sourceModel, sourceId, field, reason: r.remapped })
+      c.creatorsRemapped++
+    }
+    return r.actor
   }
 
   // MealPlan: archive only (O-2); mapped to the job that archives it.
@@ -537,6 +606,12 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
       c.meals.linked++
       continue
     }
+    const createdBy = actorFor(e.createdBy, 'MealPlanEntry', e.id, 'FamilyMeal.created_by')
+    if (!createdBy) {
+      skip({ sourceModel: 'MealPlanEntry', sourceId: e.id, reason: 'no_in_family_actor', row: e.raw })
+      c.meals.skipped++
+      continue
+    }
     const id = newId()
     plan.mealCreates.push({
       sourceId: e.id,
@@ -546,7 +621,7 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
       recipeId: ref.recipeId,
       recipeName: title,
       servings: e.servings,
-      createdBy: e.createdBy,
+      createdBy,
     })
     pool.push({ id, day: e.day, mealType, recipeName: title, recipeId: ref.recipeId })
     c.meals.created++
@@ -556,16 +631,25 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
   const listTarget = new Map<string, string | null>()
   const existingLists = new Set(src.existingListIds)
   const listOwner = new Map<string, string>()
+  const listSkip = new Map<string, SkipReason>()
   for (const s of src.shoppingLists) {
     listOwner.set(s.id, s.createdBy)
     const m = mapped('ShoppingList', s.id)
     if (m) {
       c.lists.alreadyMapped++
-      listTarget.set(s.id, existingLists.has(m.targetId) ? m.targetId : null)
+      listTarget.set(s.id, m.targetModel === 'List' && existingLists.has(m.targetId) ? m.targetId : null)
+      continue
+    }
+    const createdBy = actorFor(s.createdBy, 'ShoppingList', s.id, 'List.created_by')
+    if (!createdBy) {
+      skip({ sourceModel: 'ShoppingList', sourceId: s.id, reason: 'no_in_family_actor', row: s.raw })
+      c.lists.skipped++
+      listTarget.set(s.id, null)
+      listSkip.set(s.id, 'no_in_family_actor')
       continue
     }
     const id = newId()
-    plan.listCreates.push({ sourceId: s.id, id, name: s.name, createdBy: s.createdBy, createdAt: s.createdAt })
+    plan.listCreates.push({ sourceId: s.id, id, name: s.name, createdBy, createdAt: s.createdAt })
     listTarget.set(s.id, id)
     c.lists.created++
   }
@@ -585,7 +669,14 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
     }
     const listId = listTarget.get(it.shoppingListId) ?? null
     if (!listId) {
-      skip({ sourceModel: 'ShoppingItem', sourceId: it.id, reason: 'target_list_missing', row: it.raw })
+      skip({ sourceModel: 'ShoppingItem', sourceId: it.id, reason: listSkip.get(it.shoppingListId) ?? 'target_list_missing', row: it.raw })
+      c.items.skipped++
+      continue
+    }
+    // Legacy items have no author; the list's creator is the adder, checked for membership like any creator.
+    const addedBy = actorFor(listOwner.get(it.shoppingListId) ?? '', 'ShoppingItem', it.id, 'ListItem.added_by')
+    if (!addedBy) {
+      skip({ sourceModel: 'ShoppingItem', sourceId: it.id, reason: 'no_in_family_actor', row: it.raw })
       c.items.skipped++
       continue
     }
@@ -606,7 +697,7 @@ export function planFamilyBackfill(src: FamilySource, newId: () => string): Fami
       checked: it.checked,
       recipeId: ref.recipeId,
       ingredientId: matchIngredient(content, src.ingredients),
-      addedBy: listOwner.get(it.shoppingListId) ?? '',
+      addedBy,
       position,
     })
     c.items.created++
@@ -637,8 +728,8 @@ export function reconcile(c: FamilyCounts): { ok: boolean; problems: string[] } 
   if (c.source.mealPlans !== c.mealPlans.archived + c.mealPlans.alreadyMapped) {
     problems.push('MealPlan != archived + already mapped')
   }
-  if (c.source.shoppingLists !== c.lists.created + c.lists.alreadyMapped) {
-    problems.push('ShoppingList != created + already mapped')
+  if (c.source.shoppingLists !== c.lists.created + c.lists.skipped + c.lists.alreadyMapped) {
+    problems.push('ShoppingList != created + archived-skipped + already mapped')
   }
   const i = c.items
   if (c.source.shoppingItems !== i.created + i.skipped + i.alreadyMapped) {
@@ -710,6 +801,21 @@ export async function loadFamilySource(db: Queryable, familyId: string): Promise
   const existingLists = listTargets.length
     ? await db.query(`SELECT id FROM "List" WHERE family_id = $1 AND id = ANY($2::text[])`, [familyId, listTargets])
     : { rows: [] }
+  // Members plus every legacy creator referenced, so a foreign creator is
+  // recognised as foreign (not merely missing). Only ids and family ids are read.
+  const creatorIds = Array.from(
+    new Set([...entries.rows.map((r) => r.created_by as string), ...lists.rows.map((r) => r.created_by as string)])
+  )
+  const users = await db.query(
+    `SELECT id, family_id FROM "User" WHERE family_id = $1 OR id = ANY($2::text[])`,
+    [familyId, creatorIds]
+  )
+  const userFamilies: Record<string, string> = {}
+  for (const u of users.rows) userFamilies[u.id] = u.family_id
+  const parent = await db.query(
+    `SELECT id FROM "User" WHERE family_id = $1 AND role = 'parent' ORDER BY created_at, id LIMIT 1`,
+    [familyId]
+  )
 
   return {
     familyId,
@@ -755,12 +861,29 @@ export async function loadFamilySource(db: Queryable, familyId: string): Promise
     ingredients: ingredients.rows.map((r) => ({ id: r.id, name: r.name })),
     mappings,
     existingListIds: existingLists.rows.map((r) => r.id as string),
+    userFamilies,
+    fallbackActor: parent.rows[0]?.id ?? null,
   }
+}
+
+/**
+ * Copy of a legacy row for an archive in this family's job summary, with a
+ * creator from another household (or a missing one) replaced by null so no
+ * foreign user id is stored in this family's exportable data.
+ */
+function redactForeignCreator(raw: Json, userFamilies: Readonly<Record<string, string>>, familyId: string): Json {
+  const createdBy = raw.created_by
+  if (typeof createdBy !== 'string' || userFamilies[createdBy] === familyId) return raw
+  return { ...raw, created_by: null, created_by_redacted: userFamilies[createdBy] ? 'foreign_creator' : 'missing_creator' }
 }
 
 export interface RunOptions {
   mode: 'dry-run' | 'apply'
-  /** ImportJob.started_by; defaults to the family's oldest parent, then its oldest member. */
+  /**
+   * ImportJob.started_by; defaults to the family's oldest parent, then its
+   * oldest member. When given (validated as a member) it is also the actor
+   * that replaces foreign/missing legacy creators.
+   */
   startedBy?: string | null
   newId?: () => string
   now?: () => Date
@@ -776,6 +899,7 @@ export interface FamilyRunResult {
   /** Canonical rows written (0 in dry-run). */
   rowsWritten: number
   nulled: NulledRef[]
+  remapped: RemappedCreator[]
   skipped: Array<Omit<SkippedRow, 'row'>>
   error?: string
 }
@@ -802,6 +926,7 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
     if (exists.rows.length === 0) throw new Error(`Family ${familyId} does not exist`)
 
     const src = await loadFamilySource(db, familyId)
+    if (opts.startedBy) src.fallbackActor = await resolveStarter(db, familyId, opts.startedBy)
     const plan = planFamilyBackfill(src, newId)
     const rec = reconcile(plan.counts)
     const result: FamilyRunResult = {
@@ -813,6 +938,7 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
       problems: rec.problems,
       rowsWritten: 0,
       nulled: plan.nulled,
+      remapped: plan.remapped,
       skipped: plan.skipped.map((s) => ({ sourceModel: s.sourceModel, sourceId: s.sourceId, reason: s.reason })),
     }
     if (!apply || !planHasWork(plan)) {
@@ -839,12 +965,15 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
 
     let written = 0
     for (const m of plan.mealCreates) {
-      await db.query(
+      // created_by must be a member of this family (checked again here, not only in the planner).
+      const ins = await db.query(
         `INSERT INTO "FamilyMeal"
            (id, family_id, date, meal_type, recipe_name, recipe_id, servings, notes, cook_id, created_by, created_at, updated_at)
-         VALUES ($1, $2, $3::timestamp(3), $4, $5, $6, $7, NULL, NULL, $8, $9::timestamp(3), $9::timestamp(3))`,
+         SELECT $1, $2, $3::timestamp(3), $4, $5, $6, $7, NULL, NULL, u.id, $9::timestamp(3), $9::timestamp(3)
+           FROM "User" u WHERE u.id = $8 AND u.family_id = $2`,
         [m.id, familyId, utcMidnightLiteral(m.day), m.mealType, m.recipeName, m.recipeId, m.servings, m.createdBy, now]
       )
+      if (ins.rowCount !== 1) throw new Error(`Creator for MealPlanEntry ${m.sourceId} is not in this family`)
       await track('MealPlanEntry', m.sourceId, 'FamilyMeal', m.id, 'created')
       written++
     }
@@ -863,11 +992,13 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
     }
     for (const p of plan.planArchives) await track('MealPlan', p.id, 'ImportJob', jobId, 'archived')
     for (const l of plan.listCreates) {
-      await db.query(
+      const ins = await db.query(
         `INSERT INTO "List" (id, family_id, name, type, description, is_repeatable, created_by, created_at, updated_at)
-         VALUES ($1, $2, $3, 'grocery', $4, false, $5, $6::timestamp(3), $6::timestamp(3))`,
+         SELECT $1, $2, $3, 'grocery', $4, false, u.id, $6::timestamp(3), $6::timestamp(3)
+           FROM "User" u WHERE u.id = $5 AND u.family_id = $2`,
         [l.id, familyId, l.name, IMPORTED_LIST_DESCRIPTION, l.createdBy, l.createdAt]
       )
+      if (ins.rowCount !== 1) throw new Error(`Creator for ShoppingList ${l.sourceId} is not in this family`)
       await track('ShoppingList', l.sourceId, 'List', l.id, 'created')
       written++
     }
@@ -877,8 +1008,9 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
         `INSERT INTO "ListItem"
            (id, list_id, content, checked, quantity, purchased, category, added_by, position, created_at, updated_at,
             ingredient_id, recipe_id, amount, unit, source)
-         SELECT $1, l.id, $3, $4, 1, false, $5, $6, $7, $8::timestamp(3), $8::timestamp(3), $9, $10, $11, $12, 'import'
-           FROM "List" l WHERE l.id = $2 AND l.family_id = $13`,
+         SELECT $1, l.id, $3, $4, 1, false, $5, u.id, $7, $8::timestamp(3), $8::timestamp(3), $9, $10, $11, $12, 'import'
+           FROM "List" l JOIN "User" u ON u.id = $6 AND u.family_id = l.family_id
+          WHERE l.id = $2 AND l.family_id = $13`,
         [
           it.id,
           it.listId,
@@ -895,7 +1027,7 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
           familyId,
         ]
       )
-      if (ins.rowCount !== 1) throw new Error(`Target list for ShoppingItem ${it.sourceId} is not in this family`)
+      if (ins.rowCount !== 1) throw new Error(`Target list or adder for ShoppingItem ${it.sourceId} is not in this family`)
       await track('ShoppingItem', it.sourceId, 'ListItem', it.id, 'created')
       written++
     }
@@ -905,10 +1037,11 @@ export async function runFamily(db: Queryable, familyId: string, opts: RunOption
       adr: 'ADR-0007',
       issue: 250,
       counts: plan.counts,
-      mealPlans: plan.planArchives.map((p) => p.raw),
+      mealPlans: plan.planArchives.map((p) => redactForeignCreator(p.raw, src.userFamilies, familyId)),
       linked: plan.mealLinks.map((l) => ({ sourceId: l.sourceId, mealId: l.mealId, recipeSet: Boolean(l.setRecipeId) })),
       nulled: plan.nulled,
-      skipped: plan.skipped,
+      remapped: plan.remapped,
+      skipped: plan.skipped.map((sk) => ({ ...sk, row: redactForeignCreator(sk.row, src.userFamilies, familyId) })),
     }
     await db.query(
       `UPDATE "ImportJob" SET status = 'completed', completed_at = $2::timestamp(3), summary = $3::jsonb WHERE id = $1`,
@@ -1111,9 +1244,9 @@ export function formatRunResult(r: FamilyRunResult): string {
     `  source: MealPlan=${c.source.mealPlans} MealPlanEntry=${c.source.mealPlanEntries} ShoppingList=${c.source.shoppingLists} ShoppingItem=${c.source.shoppingItems}`,
     `  FamilyMeal: create=${c.meals.created} link=${c.meals.linked} skip(archived)=${c.meals.skipped} already=${c.meals.alreadyMapped}`,
     `  MealPlan: archive=${c.mealPlans.archived} already=${c.mealPlans.alreadyMapped}`,
-    `  List: create=${c.lists.created} already=${c.lists.alreadyMapped}`,
+    `  List: create=${c.lists.created} skip(archived)=${c.lists.skipped} already=${c.lists.alreadyMapped}`,
     `  ListItem: create=${c.items.created} skip(archived)=${c.items.skipped} already=${c.items.alreadyMapped}`,
-    `  skipped: ${c.meals.skipped + c.items.skipped} (${reasons(c.skipReasons)}); recipe refs nulled: ${c.recipeRefsNulled} (${reasons(c.nullReasons)})`,
+    `  skipped: ${c.meals.skipped + c.lists.skipped + c.items.skipped} (${reasons(c.skipReasons)}); recipe refs nulled: ${c.recipeRefsNulled} (${reasons(c.nullReasons)}); creators remapped to an in-family actor: ${c.creatorsRemapped}`,
     `  rows written: ${r.rowsWritten}`,
     ...r.problems.map((p) => `  problem: ${p}`),
   ].join('\n')

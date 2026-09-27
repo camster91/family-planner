@@ -132,9 +132,16 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     const report = JSON.parse(out) as { mode: string; results: FamilyRunResult[] }
     expect(report.mode).toBe('dry-run')
     const [a, b] = report.results
-    expect(a.counts.meals).toEqual({ created: 2, linked: 1, skipped: 1, alreadyMapped: 0 })
-    expect(a.counts.lists.created).toBe(1)
-    expect(a.counts.items).toEqual({ created: 2, skipped: 0, alreadyMapped: 0 })
+    expect(a.counts.meals).toEqual({ created: 3, linked: 1, skipped: 1, alreadyMapped: 0 })
+    expect(a.counts.lists.created).toBe(2)
+    expect(a.counts.items).toEqual({ created: 3, skipped: 0, alreadyMapped: 0 })
+    expect(a.counts.creatorsRemapped).toBe(3)
+    expect(a.remapped.map((r) => [r.sourceId, r.field, r.reason])).toEqual([
+      [L.familyA.entryForeignCreator, 'FamilyMeal.created_by', 'foreign_creator'],
+      [L.familyA.shoppingListForeignCreator, 'List.created_by', 'foreign_creator'],
+      [L.familyA.itemForeignCreator, 'ListItem.added_by', 'foreign_creator'],
+    ])
+    expect(b.counts.creatorsRemapped).toBe(0)
     expect(b.counts.meals).toEqual({ created: 0, linked: 0, skipped: 1, alreadyMapped: 0 })
     expect(b.counts.items).toEqual({ created: 1, skipped: 1, alreadyMapped: 0 })
     expect(b.counts.recipeRefsNulled).toBe(1)
@@ -146,25 +153,28 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     }
     // Counts only on stdout: no legacy content leaks into the report.
     expect(out).not.toMatch(/Paper towels|Lasagna sheets|Tomato soup/)
+    expect(out).not.toContain(FIXTURE_IDS.familyB.parent)
     expect(await hashes(CANONICAL)).toEqual(baseline)
   })
 
   it('apply creates exactly the expected rows, per household, with provenance', async () => {
     const a = await apply(A)
     const b = await apply(B)
-    expect(a).toMatchObject({ reconciled: true, rowsWritten: 6 })
+    expect(a).toMatchObject({ reconciled: true, rowsWritten: 9 })
     expect(b).toMatchObject({ reconciled: true, rowsWritten: 2 })
 
     // Family A meals: 2 created, 1 linked (recipe set on the existing fx_ meal).
     const aMeals = await pool.query(
-      `SELECT id, to_char(date, 'YYYY-MM-DD HH24:MI:SS') AS d, meal_type, recipe_name, recipe_id, servings,
+      `SELECT id, to_char(date, 'YYYY-MM-DD HH24:MI:SS') AS d, meal_type, recipe_name, recipe_id, servings, created_by,
               updated_at = created_at AS pristine
          FROM "FamilyMeal" WHERE family_id = $1 AND id NOT LIKE 'fx\\_%' ORDER BY date`,
       [A]
     )
-    expect(aMeals.rows.map((r) => [r.meal_type, r.recipe_name, r.recipe_id, r.servings, r.pristine])).toEqual([
-      ['dinner', 'Tomato soup', L.familyA.recipeSoup, 4, true],
-      ['lunch', 'Tofu stir-fry', L.familyA.recipeStirFry, 3, true],
+    // The last meal comes from the plan a Family B user created: its creator is Family A's parent.
+    expect(aMeals.rows.map((r) => [r.meal_type, r.recipe_name, r.recipe_id, r.servings, r.created_by, r.pristine])).toEqual([
+      ['dinner', 'Tomato soup', L.familyA.recipeSoup, 4, FIXTURE_IDS.familyA.parent, true],
+      ['lunch', 'Tofu stir-fry', L.familyA.recipeStirFry, 3, FIXTURE_IDS.familyA.parent, true],
+      ['dinner', 'Tofu stir-fry', L.familyA.recipeStirFry, 4, FIXTURE_IDS.familyA.parent, true],
     ])
     for (const r of aMeals.rows) expect(r.d).toMatch(/ 00:00:00$/)
     const linked = await prisma.familyMeal.findUniqueOrThrow({ where: { id: L.familyA.mealSameName } })
@@ -173,8 +183,18 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     expect((await prisma.familyMeal.findUniqueOrThrow({ where: { id: L.familyA.mealOtherName } })).recipe_id).toBeNull()
 
     // Family A: one imported grocery list with two provenance-tagged items.
-    const aLists = await prisma.list.findMany({ where: { family_id: A, description: 'Imported from Meal Planner' }, include: { items: { orderBy: { position: 'asc' } } } })
+    const aLists = await prisma.list.findMany({
+      where: { family_id: A, description: 'Imported from Meal Planner', name: 'Imported shopping (Family A)' },
+      include: { items: { orderBy: { position: 'asc' } } },
+    })
     expect(aLists).toHaveLength(1)
+    // The list a Family B user created in Family A: creator and adder are Family A's parent.
+    const foreignCreated = await prisma.list.findFirstOrThrow({
+      where: { family_id: A, name: 'Imported shopping (Family A, foreign creator)' },
+      include: { items: true },
+    })
+    expect(foreignCreated.created_by).toBe(FIXTURE_IDS.familyA.parent)
+    expect(foreignCreated.items.map((i) => [i.content, i.added_by])).toEqual([['Rice', FIXTURE_IDS.familyA.parent]])
     expect(aLists[0]).toMatchObject({ type: 'grocery', name: 'Imported shopping (Family A)' })
     expect(aLists[0].items.map((i) => [i.content, i.checked, i.source, i.ingredient_id, i.recipe_id, i.amount, i.unit, i.quantity])).toEqual([
       ['Lasagna sheets', true, 'import', L.familyA.ingredientLasagnaSheets, null, 1, 'box', 1],
@@ -195,24 +215,53 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
        UNION ALL
        SELECT 'item-ingredient', i.id FROM "ListItem" i JOIN "List" l ON l.id = i.list_id JOIN "Ingredient" g ON g.id = i.ingredient_id WHERE g.family_id <> l.family_id
        UNION ALL
-       SELECT 'record', ir.id FROM "ImportedRecord" ir JOIN "ImportJob" j ON j.id = ir.import_job_id WHERE j.family_id <> ir.family_id`
+       SELECT 'record', ir.id FROM "ImportedRecord" ir JOIN "ImportJob" j ON j.id = ir.import_job_id WHERE j.family_id <> ir.family_id
+       UNION ALL
+       SELECT 'meal-creator', m.id FROM "FamilyMeal" m JOIN "User" u ON u.id = m.created_by WHERE u.family_id IS DISTINCT FROM m.family_id
+       UNION ALL
+       SELECT 'meal-cook', m.id FROM "FamilyMeal" m JOIN "User" u ON u.id = m.cook_id WHERE u.family_id IS DISTINCT FROM m.family_id
+       UNION ALL
+       SELECT 'list-creator', l.id FROM "List" l JOIN "User" u ON u.id = l.created_by WHERE u.family_id IS DISTINCT FROM l.family_id
+       UNION ALL
+       SELECT 'item-adder', i.id FROM "ListItem" i JOIN "List" l ON l.id = i.list_id JOIN "User" u ON u.id = i.added_by WHERE u.family_id IS DISTINCT FROM l.family_id
+       UNION ALL
+       SELECT 'item-checker', i.id FROM "ListItem" i JOIN "List" l ON l.id = i.list_id JOIN "User" u ON u.id = i.checked_by WHERE u.family_id IS DISTINCT FROM l.family_id
+       UNION ALL
+       SELECT 'job-starter', j.id FROM "ImportJob" j JOIN "User" u ON u.id = j.started_by WHERE u.family_id IS DISTINCT FROM j.family_id`
     )
     expect(leaks.rows).toEqual([])
 
     // Provenance: MealPlan -> ImportJob mapping and skipped rows archived verbatim in the job summary.
-    for (const [fam, res, plan] of [
-      [A, a, L.familyA.mealPlan],
-      [B, b, L.familyB.mealPlan],
+    for (const [fam, res, plans] of [
+      [A, a, [L.familyA.mealPlan, L.familyA.mealPlanForeignCreator]],
+      [B, b, [L.familyB.mealPlan]],
     ] as const) {
       const job = await prisma.importJob.findUniqueOrThrow({ where: { id: res.jobId! } })
       expect(job).toMatchObject({ family_id: fam, source_app: BACKFILL_SOURCE_APP, status: 'completed', dry_run: false })
-      const planMap = await prisma.importedRecord.findUniqueOrThrow({
-        where: { family_id_source_app_source_model_source_id: { family_id: fam, source_app: BACKFILL_SOURCE_APP, source_model: 'MealPlan', source_id: plan } },
-      })
-      expect(planMap).toMatchObject({ target_model: 'ImportJob', target_id: job.id, import_job_id: job.id })
-      const summary = job.summary as { mealPlans: Array<{ id: string; name: string }>; skipped: Array<{ sourceId: string; reason: string; row: Record<string, unknown> }> }
-      expect(summary.mealPlans.map((p) => p.id)).toEqual([plan])
+      for (const plan of plans) {
+        const planMap = await prisma.importedRecord.findUniqueOrThrow({
+          where: { family_id_source_app_source_model_source_id: { family_id: fam, source_app: BACKFILL_SOURCE_APP, source_model: 'MealPlan', source_id: plan } },
+        })
+        expect(planMap).toMatchObject({ target_model: 'ImportJob', target_id: job.id, import_job_id: job.id })
+      }
+      const summary = job.summary as {
+        mealPlans: Array<{ id: string; name: string; created_by: string | null; created_by_redacted?: string }>
+        skipped: Array<{ sourceId: string; reason: string; row: Record<string, unknown> }>
+        remapped: Array<{ sourceId: string; field: string; reason: string }>
+      }
+      expect(summary.mealPlans.map((p) => p.id).sort()).toEqual([...plans].sort())
       if (fam === A) {
+        // No Family B user id is stored in Family A's (exportable) job summary.
+        expect(JSON.stringify(job.summary)).not.toContain(FIXTURE_IDS.familyB.parent)
+        expect(summary.mealPlans.find((p) => p.id === L.familyA.mealPlanForeignCreator)).toMatchObject({
+          created_by: null,
+          created_by_redacted: 'foreign_creator',
+        })
+        expect(summary.remapped.map((r) => r.sourceId)).toEqual([
+          L.familyA.entryForeignCreator,
+          L.familyA.shoppingListForeignCreator,
+          L.familyA.itemForeignCreator,
+        ])
         expect(summary.skipped).toEqual([
           {
             sourceModel: 'MealPlanEntry',
@@ -245,10 +294,10 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
       [BACKFILL_SOURCE_APP]
     )
     expect(recs.rows).toEqual([
-      { family_id: A, source_model: 'MealPlan', n: 1 },
-      { family_id: A, source_model: 'MealPlanEntry', n: 4 },
-      { family_id: A, source_model: 'ShoppingItem', n: 2 },
-      { family_id: A, source_model: 'ShoppingList', n: 1 },
+      { family_id: A, source_model: 'MealPlan', n: 2 },
+      { family_id: A, source_model: 'MealPlanEntry', n: 5 },
+      { family_id: A, source_model: 'ShoppingItem', n: 3 },
+      { family_id: A, source_model: 'ShoppingList', n: 2 },
       { family_id: B, source_model: 'MealPlan', n: 1 },
       { family_id: B, source_model: 'MealPlanEntry', n: 1 },
       { family_id: B, source_model: 'ShoppingItem', n: 2 },
@@ -269,7 +318,7 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
   it('reverse removes exactly the rows it created and restores the linked meal', async () => {
     const a = await reverse(A)
     const b = await reverse(B)
-    expect(a).toMatchObject({ jobs: 1, jobsDeleted: 1, removed: { FamilyMeal: 2, List: 1, ListItem: 2 }, unlinked: 1, kept: [] })
+    expect(a).toMatchObject({ jobs: 1, jobsDeleted: 1, removed: { FamilyMeal: 3, List: 2, ListItem: 3 }, unlinked: 1, kept: [] })
     expect(b).toMatchObject({ jobs: 1, jobsDeleted: 1, removed: { FamilyMeal: 0, List: 1, ListItem: 1 }, unlinked: 0, kept: [] })
     expect(await hashes(CANONICAL)).toEqual(baseline)
   })
@@ -281,7 +330,7 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     await prisma.listItem.update({ where: { id: item.id }, data: { checked: true } })
 
     const partial = await reverse(A, res.jobId!)
-    expect(partial.removed).toEqual({ FamilyMeal: 2, List: 0, ListItem: 1 })
+    expect(partial.removed).toEqual({ FamilyMeal: 3, List: 1, ListItem: 2 })
     expect(partial.kept.map((k) => [k.model, k.reason]).sort()).toEqual([
       ['List', 'not_empty'],
       ['ListItem', 'modified'],
@@ -291,8 +340,8 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     expect((job.summary as { skipped: unknown[] }).skipped).toHaveLength(1)
     // Kept rows stay mapped, so a re-apply does not duplicate them.
     const reapply = await apply(A)
-    expect(reapply.counts.items).toEqual({ created: 1, skipped: 0, alreadyMapped: 1 })
-    expect(reapply.counts.lists).toEqual({ created: 0, alreadyMapped: 1 })
+    expect(reapply.counts.items).toEqual({ created: 2, skipped: 0, alreadyMapped: 1 })
+    expect(reapply.counts.lists).toEqual({ created: 1, skipped: 0, alreadyMapped: 1 })
     await reverse(A, reapply.jobId!)
 
     await prisma.listItem.delete({ where: { id: item.id } })

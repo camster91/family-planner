@@ -190,8 +190,16 @@ describe('fixture dataset', () => {
       const ingredientFamily = new Map(ds.ingredients.map((i) => [i.id, i.family_id]))
       for (const r of ds.recipes) expect(userFamily.get(r.created_by)).toBe(r.family_id)
       for (const m of ds.familyMeals) expect(userFamily.get(m.created_by)).toBe(m.family_id)
-      for (const p of ds.mealPlans) expect(userFamily.get(p.created_by)).toBe(p.family_id)
-      for (const s of ds.shoppingLists) expect(userFamily.get(s.created_by)).toBe(s.family_id)
+      const creatorCrossing = [
+        ...ds.mealPlans.filter((p) => userFamily.get(p.created_by) !== p.family_id).map((p) => p.id),
+        ...ds.shoppingLists.filter((s) => userFamily.get(s.created_by) !== s.family_id).map((s) => s.id),
+      ]
+      expect(creatorCrossing.sort()).toEqual([L.familyA.mealPlanForeignCreator, L.familyA.shoppingListForeignCreator].sort())
+      for (const id of creatorCrossing) {
+        const row = ds.mealPlans.find((p) => p.id === id) ?? ds.shoppingLists.find((s) => s.id === id)!
+        expect(row.family_id).toBe(A)
+        expect(userFamily.get(row.created_by)).toBe(B)
+      }
       for (const ri of ds.recipeIngredients) expect(ingredientFamily.get(ri.ingredient_id)).toBe(recipeFamily.get(ri.recipe_id))
 
       const crossing = [
@@ -205,12 +213,12 @@ describe('fixture dataset', () => {
 
     it('covers every section 6 rehearsal case', () => {
       const entries = (fam: string) => ds.mealPlanEntries.filter((e) => ds.mealPlans.find((p) => p.id === e.meal_plan_id)?.family_id === fam)
-      expect(entries(A)).toHaveLength(4)
+      expect(entries(A)).toHaveLength(5)
       expect(entries(A).map((e) => e.meal_type)).toContain('Brunch')
       expect(entries(B)).toHaveLength(1)
       const items = (fam: string) =>
         ds.shoppingItems.filter((i) => ds.shoppingLists.find((s) => s.id === i.shopping_list_id)?.family_id === fam)
-      expect(items(A)).toHaveLength(2)
+      expect(items(A)).toHaveLength(3)
       expect(items(A).some((i) => i.checked)).toBe(true)
       expect(items(B).some((i) => i.ingredient_name.trim() === '')).toBe(true)
       expect(ds.familyMeals.every((m) => m.recipe_id === null)).toBe(true)

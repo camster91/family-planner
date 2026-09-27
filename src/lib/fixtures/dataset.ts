@@ -104,15 +104,19 @@ export const FIXTURE_EMAILS = {
 /**
  * Meal/recipe and legacy (import-generation) rows for the ADR-0007 backfill
  * rehearsal (#250). Expected backfill result, per family:
- * - A: FamilyMeal 2 created (`entryOtherName`, `entryLunch`), 1 linked
- *   (`entrySameName` -> `mealSameName`, recipe link set), 1 skipped and
- *   archived (`entryBrunch`, meal_type 'Brunch'); MealPlan 1 archived;
- *   List 1 + ListItem 2 created.
+ * - A: FamilyMeal 3 created (`entryOtherName`, `entryLunch`,
+ *   `entryForeignCreator`), 1 linked (`entrySameName` -> `mealSameName`,
+ *   recipe link set), 1 skipped and archived (`entryBrunch`, meal_type
+ *   'Brunch'); MealPlan 2 archived; List 2 + ListItem 3 created. The
+ *   `*ForeignCreator` plan and list were created by a Family B user: their
+ *   meal, list and item get Family A's oldest parent as creator/adder
+ *   (3 creators remapped), never the Family B id.
  * - B: `entryForeignRecipe` skipped and archived (it points at an A recipe);
  *   MealPlan 1 archived; List 1 + ListItem 1 created with the foreign
  *   `recipe_id` nulled (`itemForeignRecipe`); `itemEmptyName` skipped and archived.
- * `itemForeignRecipe` and `entryForeignRecipe` are deliberate cross-household
- * injections; nothing else in the dataset crosses families.
+ * `itemForeignRecipe`, `entryForeignRecipe`, `mealPlanForeignCreator` and
+ * `shoppingListForeignCreator` are deliberate cross-household injections;
+ * nothing else in the dataset crosses families.
  */
 export const FIXTURE_LEGACY_MEAL_IDS = {
   familyA: {
@@ -134,6 +138,11 @@ export const FIXTURE_LEGACY_MEAL_IDS = {
     shoppingList: 'fx_shoplist_a_legacy',
     itemChecked: 'fx_shopitem_a_1_sheets',
     itemWithRecipe: 'fx_shopitem_a_2_tomatoes',
+    /** Family A plan/list whose created_by is a Family B user (creator injection). */
+    mealPlanForeignCreator: 'fx_mealplan_a_foreign_creator',
+    entryForeignCreator: 'fx_mpentry_a_5_foreign_creator',
+    shoppingListForeignCreator: 'fx_shoplist_a_foreign_creator',
+    itemForeignCreator: 'fx_shopitem_a_3_foreign_creator',
   },
   familyB: {
     mealPlan: 'fx_mealplan_b_legacy',
@@ -575,6 +584,8 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
   ]
   const mealPlans: FixtureMealPlan[] = [
     { id: L.familyA.mealPlan, family_id: A.family, name: 'Imported week (Family A)', start_date: legacyDay(0), end_date: legacyDay(6), created_by: A.parent, created_at: created },
+    // Cross-household injection: a Family A plan whose creator is a Family B user.
+    { id: L.familyA.mealPlanForeignCreator, family_id: A.family, name: 'Imported week (Family A, foreign creator)', start_date: legacyDay(0), end_date: legacyDay(6), created_by: B.parent, created_at: created },
     { id: L.familyB.mealPlan, family_id: B.family, name: 'Imported week (Family B)', start_date: legacyDay(0), end_date: legacyDay(6), created_by: B.parent, created_at: created },
   ]
   const entry = (id: string, meal_plan_id: string, recipe_id: string, day: number, meal_type: string, servings: number): FixtureMealPlanEntry => ({
@@ -590,11 +601,14 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     entry(L.familyA.entryOtherName, L.familyA.mealPlan, L.familyA.recipeSoup, 1, 'Dinner', 4),
     entry(L.familyA.entryLunch, L.familyA.mealPlan, L.familyA.recipeStirFry, 2, 'lunch', 3),
     entry(L.familyA.entryBrunch, L.familyA.mealPlan, L.familyA.recipeSoup, 3, 'Brunch', 2),
+    entry(L.familyA.entryForeignCreator, L.familyA.mealPlanForeignCreator, L.familyA.recipeStirFry, 4, 'dinner', 4),
     // Cross-household injection: a Family B plan slot pointing at a Family A recipe.
     entry(L.familyB.entryForeignRecipe, L.familyB.mealPlan, L.familyA.recipeLasagna, 0, 'dinner', 2),
   ]
   const shoppingLists: FixtureShoppingList[] = [
     { id: L.familyA.shoppingList, family_id: A.family, name: 'Imported shopping (Family A)', created_by: A.parent, created_at: legacyDay(0), updated_at: legacyDay(0) },
+    // Cross-household injection: a Family A list whose creator is a Family B user.
+    { id: L.familyA.shoppingListForeignCreator, family_id: A.family, name: 'Imported shopping (Family A, foreign creator)', created_by: B.parent, created_at: legacyDay(1), updated_at: legacyDay(1) },
     { id: L.familyB.shoppingList, family_id: B.family, name: 'Imported shopping (Family B)', created_by: B.parent, created_at: legacyDay(0), updated_at: legacyDay(0) },
   ]
   const shopItem = (id: string, shopping_list_id: string, ingredient_name: string, extra: Partial<FixtureShoppingItem>): FixtureShoppingItem => ({
@@ -611,6 +625,7 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
   const shoppingItems: FixtureShoppingItem[] = [
     shopItem(L.familyA.itemChecked, L.familyA.shoppingList, 'Lasagna sheets', { amount: 1, unit: 'box', category: 'Pantry', checked: true }),
     shopItem(L.familyA.itemWithRecipe, L.familyA.shoppingList, ' tomatoes ', { amount: 8, category: 'Produce', recipe_id: L.familyA.recipeSoup }),
+    shopItem(L.familyA.itemForeignCreator, L.familyA.shoppingListForeignCreator, 'Rice', { amount: 1, unit: 'kg', category: 'Pantry' }),
     // Cross-household injection: bare recipe_id (no FK) pointing at a Family A recipe.
     shopItem(L.familyB.itemForeignRecipe, L.familyB.shoppingList, 'Paper towels (Family B)', { recipe_id: L.familyA.recipeSoup }),
     shopItem(L.familyB.itemEmptyName, L.familyB.shoppingList, '   ', { amount: 2, unit: 'kg' }),
