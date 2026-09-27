@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
+import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,12 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { due_date: 'asc' },
     })
+
+    // Points & streaks off for this family (#248): the chore's points value is
+    // not sent. It is still stored, and verify still awards XP from it.
+    if (!(await isGamificationOn(auth.user.family_id))) {
+      return NextResponse.json({ chores: chores.map(omitChorePoints) })
+    }
 
     return NextResponse.json({ chores })
   } catch (error) {
@@ -146,6 +153,10 @@ export async function PATCH(request: NextRequest) {
         creator: { select: { id: true, name: true } },
       },
     })
+
+    if (!(await isGamificationOn(auth.user.family_id))) {
+      return NextResponse.json({ chore: omitChorePoints(updated) })
+    }
 
     return NextResponse.json({ chore: updated })
   } catch (error) {

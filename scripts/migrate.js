@@ -758,6 +758,19 @@ DO $$ BEGIN
   ALTER TABLE "Anniversary" ADD CONSTRAINT "Anniversary_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS "Anniversary_created_by_idx" ON "Anniversary"("created_by");
+
+-- ============ Family.features.gamification (#248) ============
+-- Points, streaks and the leaderboard became an opt-in family setting. New
+-- households get "gamification":false from the column default (see
+-- database/migration-features.sql) and from POST /api/family. Households that
+-- existed before the flag keep it ON: stamp true on every row whose blob lacks
+-- the key. Only rows WITHOUT the key are touched, so re-running is a no-op and
+-- a household a parent later turned off stays off. A NULL blob counts as
+-- "lacks the key" (normalizeFeatures fills the other keys with defaults).
+UPDATE "Family"
+SET "features" = COALESCE("features", '{}'::jsonb) || '{"gamification":true}'::jsonb
+WHERE "features" IS NULL
+   OR (jsonb_typeof("features") = 'object' AND NOT ("features" ? 'gamification'));
 `
 
 async function migrate() {

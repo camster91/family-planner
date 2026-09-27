@@ -7,6 +7,7 @@ import { SearchField } from '@/components/ui/search-field'
 import { navItems } from '@/lib/nav-items'
 import { useFeatures } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
+import { isFeatureEnabled } from '@/lib/features'
 import { canRoleAccessPath } from '@/lib/kid-access'
 
 interface CommandPaletteProps {
@@ -48,10 +49,11 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
   }, [open, onClose])
 
   // Filter by both query and the family's enabled features.
-  // Items without a featureKey are always visible (core surfaces).
+  // Items without a featureKey are always visible (core surfaces). Effective
+  // value: Rewards and Analytics also hide while Points & streaks is off (#248).
   const filteredNav = navItems.filter((item) => {
     if (!canRoleAccessPath(role, item.href)) return false
-    if (item.featureKey && features[item.featureKey as keyof typeof features] === false) {
+    if (item.featureKey && !isFeatureEnabled(features, item.featureKey)) {
       return false
     }
     return item.name.toLowerCase().includes(query.toLowerCase())

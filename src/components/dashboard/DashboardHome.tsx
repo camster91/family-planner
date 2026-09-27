@@ -34,14 +34,18 @@ interface Stats {
   unreadMessages: number
 }
 
+/**
+ * One family member for the avatar row. The XP/level/streak fields are absent
+ * when the family has Points & streaks off (#248): the server never sends them.
+ */
 interface LeaderboardMember {
   rank: number
   id: string
   name: string
-  xp: number
-  level: number
-  streak: number
-  bestStreak: number
+  xp?: number
+  level?: number
+  streak?: number
+  bestStreak?: number
   avatar?: string | null
   role: string
 }
@@ -304,7 +308,7 @@ export default function DashboardHome({
                   <div key={member.id} className="flex flex-col items-center gap-1.5">
                     <Avatar name={member.name} src={member.avatar} size="lg" />
                     <span className="text-caption-1 text-label-secondary font-medium">
-                      {member.xp} XP
+                      {typeof member.xp === 'number' ? `${member.xp} XP` : member.name.split(' ')[0]}
                     </span>
                   </div>
                 ))}

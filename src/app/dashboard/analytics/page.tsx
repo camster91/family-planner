@@ -8,6 +8,7 @@ import { Glyph } from '@/components/ui/glyph'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { InsetList } from '@/components/ui/list-row'
 import { cn } from '@/lib/utils'
+import { FeatureGate } from '@/components/ui/feature-gate'
 
 interface Member {
   id: string
@@ -20,7 +21,7 @@ interface Member {
   avatar_url?: string | null
 }
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [weeklyCompletion, setWeeklyCompletion] = useState(0)
@@ -146,5 +147,15 @@ export default function AnalyticsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+// Off state instead of the page while Analytics (and Points & streaks, which the leaderboard needs, #248) is off.
+// The API behind it returns 403 in that case too.
+export default function AnalyticsPage() {
+  return (
+    <FeatureGate featureKey="analytics">
+      <AnalyticsPageContent />
+    </FeatureGate>
   )
 }

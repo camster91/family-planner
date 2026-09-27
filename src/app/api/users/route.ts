@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { updateUserSchema } from '@/lib/validations'
 import { SAFE_USER_SELECT } from '@/lib/user-select'
+import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,11 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // Points & streaks off for this family (#248): no XP/level/streak values.
+    if (!(await isGamificationOn(user.family_id))) {
+      return NextResponse.json({ user: omitUserGamification(user) })
     }
 
     return NextResponse.json({ user })
@@ -60,6 +66,10 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
       select: SAFE_USER_SELECT,
     })
+
+    if (!(await isGamificationOn(user.family_id))) {
+      return NextResponse.json({ user: omitUserGamification(user) })
+    }
 
     return NextResponse.json({ user })
   } catch (error) {

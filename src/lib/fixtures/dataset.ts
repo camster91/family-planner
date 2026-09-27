@@ -105,6 +105,13 @@ export const FIXTURE_CROSS_FAMILY = {
   bToA: { actor: FIXTURE_IDS.familyB, foreign: FIXTURE_IDS.familyA },
 } as const
 
+/**
+ * Stored feature flags for every fixture household. Only `gamification` is
+ * explicit: fixtures stand in for households that existed before #248, which
+ * keep Points & streaks on (existing visual baselines show XP).
+ */
+export const FIXTURE_FEATURES = { gamification: true } as const
+
 type WithId<T> = T & { id: string }
 
 export type FixtureFamily = WithId<Prisma.FamilyUncheckedCreateInput> & { invite_code: string }
@@ -173,10 +180,14 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
   const B = FIXTURE_IDS.familyB
   const E = FIXTURE_IDS.familyEmpty
 
+  // Fixture households model EXISTING households (#248): Points & streaks on,
+  // every other flag at its default (normalizeFeatures fills missing keys). The
+  // seed writes this on every run, so a test that toggles a flag is reset.
+  const features = { ...FIXTURE_FEATURES }
   const families: FixtureFamily[] = [
-    { id: A.family, name: 'Fixture Family A (busy)', invite_code: 'fx-invite-family-a', created_at: created },
-    { id: B.family, name: 'Fixture Family B (sparse)', invite_code: 'fx-invite-family-b', created_at: created },
-    { id: E.family, name: 'Fixture Family (empty)', invite_code: 'fx-invite-family-empty', created_at: created },
+    { id: A.family, name: 'Fixture Family A (busy)', invite_code: 'fx-invite-family-a', created_at: created, features },
+    { id: B.family, name: 'Fixture Family B (sparse)', invite_code: 'fx-invite-family-b', created_at: created, features },
+    { id: E.family, name: 'Fixture Family (empty)', invite_code: 'fx-invite-family-empty', created_at: created, features },
   ]
 
   const user = (

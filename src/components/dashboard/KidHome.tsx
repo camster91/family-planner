@@ -80,6 +80,9 @@ export default function KidHome({
   const [celebratingReward, setCelebratingReward] = useState<string | null>(null)
   const [claimingReward, setClaimingReward] = useState(false)
   const rewardsEnabled = useFeatureEnabled('rewards')
+  // Points & streaks (#248). When off the server also omits xp/level and the
+  // chores' points, so this only decides what to draw.
+  const gamification = useFeatureEnabled('gamification')
   const [completedChores, setCompletedChores] = useState<Set<string>>(new Set())
 
   const userXp = user.xp ?? 0
@@ -161,38 +164,40 @@ export default function KidHome({
 
       <div className="space-y-6 px-4">
 
-        {/* Stars card — XP + level progress */}
-        <div className="card-apple p-5 flex items-center gap-5">
-          <ProgressRing
-            progress={xpProgress}
-            size={88}
-            strokeWidth={9}
-            color="var(--accent)"
-          >
-            <div className="flex flex-col items-center leading-none">
-              <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
-              <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
-                {userXp}
-              </span>
-            </div>
-          </ProgressRing>
-          <div className="flex-1 min-w-0">
-            <p className="text-title-3 text-label-primary leading-tight font-semibold">
-              Level {userLevel}
-            </p>
-            <p className="text-subhead text-label-secondary mt-1">
-              {xpNextLevel - userXp} XP to go!
-            </p>
-            <div className="mt-3 flex items-center gap-1.5">
-              {[...Array(Math.min(userLevel, 5))].map((_, i) => (
-                <Sparkles key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
-              ))}
-              {userLevel > 5 && (
-                <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
-              )}
+        {/* Stars card — XP + level progress (only with Points & streaks on) */}
+        {gamification && (
+          <div className="card-apple p-5 flex items-center gap-5">
+            <ProgressRing
+              progress={xpProgress}
+              size={88}
+              strokeWidth={9}
+              color="var(--accent)"
+            >
+              <div className="flex flex-col items-center leading-none">
+                <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
+                <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
+                  {userXp}
+                </span>
+              </div>
+            </ProgressRing>
+            <div className="flex-1 min-w-0">
+              <p className="text-title-3 text-label-primary leading-tight font-semibold">
+                Level {userLevel}
+              </p>
+              <p className="text-subhead text-label-secondary mt-1">
+                {xpNextLevel - userXp} XP to go!
+              </p>
+              <div className="mt-3 flex items-center gap-1.5">
+                {[...Array(Math.min(userLevel, 5))].map((_, i) => (
+                  <Sparkles key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                ))}
+                {userLevel > 5 && (
+                  <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Today's Chores */}
         {todayChores.length > 0 && (
@@ -236,7 +241,7 @@ export default function KidHome({
                         )}>
                           {chore.title}
                         </div>
-                        {chore.points && (
+                        {gamification && chore.points && (
                           <div className="flex items-center gap-1 mt-1">
                             <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                             <span className="text-footnote text-label-secondary">{chore.points} XP</span>

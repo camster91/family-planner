@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
+import { FeatureOffState } from '@/components/ui/feature-gate'
+import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 
 export const dynamic = 'force-dynamic'
 
@@ -165,7 +167,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
     where: { id: sessionUser.id },
     select: {
       family_id: true,
-      family: { select: { name: true } },
+      family: { select: { name: true, features: true } },
     },
   })
 
@@ -184,6 +186,12 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
         </div>
       </div>
     )
+  }
+
+  // Server-side gate (#248): with Rewards off, or Points & streaks off (which
+  // Rewards needs), no XP balance or reward cost is rendered or serialised.
+  if (!isFeatureEnabled(normalizeFeatures(user?.family?.features), 'rewards')) {
+    return <FeatureOffState featureKey="rewards" />
   }
 
   return (

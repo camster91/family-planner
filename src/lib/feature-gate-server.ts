@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { normalizeFeatures, type FeatureKey } from '@/lib/features'
+import { isFeatureEnabled, normalizeFeatures, type FeatureKey } from '@/lib/features'
 
 /**
  * Server-side feature-flag gate for API handlers.
@@ -15,6 +15,8 @@ import { normalizeFeatures, type FeatureKey } from '@/lib/features'
  *
  * Returns null when the feature is enabled (or family_id is unknown, in which
  * case other auth layers already rejected the request), otherwise a 403.
+ * "Enabled" is the effective value: Rewards and Analytics are also off while
+ * Points & streaks (`gamification`) is off (#248).
  * Core features cannot be disabled (family/features PATCH rejects them), so
  * core routes do not need this.
  */
@@ -29,7 +31,7 @@ export async function featureGate(
     select: { features: true },
   })
   const features = normalizeFeatures(family?.features)
-  if (features[key]) return null
+  if (isFeatureEnabled(features, key)) return null
 
   return NextResponse.json(
     { error: 'This feature is turned off for your family' },
