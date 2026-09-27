@@ -61,6 +61,8 @@ The schema contains:
 
 Issue #149 is the canonical decision issue. None of these overlapping generations has been declared the universal canonical write model. Do not add another model generation or begin cross-domain inventory → meal → grocery writes first.
 
+Update 2026-09-27: [ADR-0007](architecture/adr/0007-canonical-meal-recipe-grocery-models.md) (**Proposed — pending Cameron's acceptance**) proposes `FamilyMeal`, `Recipe`/`Ingredient`/`RecipeIngredient` and `List`/`ListItem` as canonical, and `MealPlan*`/`Shopping*` as frozen import/archive tables. The constraint above holds until it is accepted.
+
 ## Release/security gates
 
 Issues #84, #85 and #102–#110 remain active gates. The fridge programme does not authorize bypassing CI, isolation/security, email, migration, QA, exact-artifact release, beta evidence, calendar validation or billing validation.

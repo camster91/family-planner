@@ -14,7 +14,7 @@ Each should include:
 - pending/completed/verified chores;
 - rewards;
 - grocery/list data;
-- meal/recipe data using whichever models #134 declares canonical;
+- meal/recipe data using the canonical models decided in #149 (ADR-0007, proposed: `FamilyMeal` + `Recipe`/`Ingredient`/`RecipeIngredient`; groceries on `List`/`ListItem`), plus legacy `MealPlan`/`ShoppingList` rows for the backfill rehearsal (`docs/architecture/MEALS_AND_GROCERIES.md` §6);
 - inventory/use-soon data once implemented;
 - empty-state variants.
 
