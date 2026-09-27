@@ -6,6 +6,7 @@ import { createChoreSchema } from '@/lib/validations'
 import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
+import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +103,11 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error('Error expanding recurring chores:', err)
       }
+    }
+
+    // Points & streaks off (#248): the points value is stored but not echoed.
+    if (!(await isGamificationOn(auth.user.family_id))) {
+      return NextResponse.json({ chore: omitChorePoints(newChore) })
     }
 
     return NextResponse.json({ chore: newChore })

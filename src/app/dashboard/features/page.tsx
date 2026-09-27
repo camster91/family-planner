@@ -4,11 +4,11 @@ import * as React from 'react'
 import { Lock, UtensilsCrossed, StickyNote, Cake, MapPin, Car, Wallet, Gift, TrendingUp, MessageSquare, FolderKanban, CheckSquare, Calendar, ListChecks, Users } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { useFeatures } from '@/components/providers/features-provider'
-import { FEATURES, groupFeatures, type FeatureKey, type FeatureMeta } from '@/lib/features'
+import { FEATURES, groupFeatures, isFeatureEnabled, type FeatureKey, type FeatureMeta } from '@/lib/features'
 
 const GROUP_LABELS: Record<FeatureMeta['group'], { title: string; sub: string }> = {
   core: { title: 'Core', sub: 'Always on. These keep the app working.' },
-  planning: { title: 'Planning', sub: 'On by default. Turn off what you do not use.' },
+  planning: { title: 'Planning', sub: 'Mostly on by default. Turn off what you do not use.' },
   family: { title: 'Family life', sub: 'Off by default. Turn on to add to your dashboard.' },
 }
 
@@ -23,6 +23,9 @@ export default function FeaturesPage() {
 
   async function toggle(feature: FeatureMeta) {
     if (feature.group === 'core') return
+    // A feature whose requirement is off (Rewards/Analytics without Points &
+    // streaks, #248) cannot be toggled until that is on.
+    if (feature.requires && !isFeatureEnabled(flags, feature.requires)) return
     const next = !flags[feature.key]
     setPending(feature.key)
     try {
@@ -110,17 +113,23 @@ function FeatureGroup({
         <p className="text-footnote text-label-secondary mt-0.5">{subtitle}</p>
       </div>
       <div className="list-inset">
-        {features.map((f, i) => (
-          <FeatureRow
-            key={f.key}
-            feature={f}
-            enabled={flags[f.key] === true}
-            onToggle={() => onToggle(f)}
-            disabled={f.group === 'core'}
-            pending={pending === f.key}
-            last={i === features.length - 1}
-          />
-        ))}
+        {features.map((f, i) => {
+          const needs = f.requires && !isFeatureEnabled(flags, f.requires)
+            ? FEATURES.find((m) => m.key === f.requires)
+            : undefined
+          return (
+            <FeatureRow
+              key={f.key}
+              feature={f}
+              enabled={isFeatureEnabled(flags, f.key)}
+              onToggle={() => onToggle(f)}
+              disabled={f.group === 'core' || needs !== undefined}
+              needsTitle={needs?.title}
+              pending={pending === f.key}
+              last={i === features.length - 1}
+            />
+          )
+        })}
       </div>
     </section>
   )
@@ -131,6 +140,7 @@ function FeatureRow({
   enabled,
   onToggle,
   disabled,
+  needsTitle,
   pending,
   last,
 }: {
@@ -138,6 +148,8 @@ function FeatureRow({
   enabled: boolean
   onToggle: () => void
   disabled: boolean
+  /** Title of the feature this one needs, when that one is off. */
+  needsTitle?: string
   pending: boolean
   last: boolean
 }) {
@@ -167,6 +179,9 @@ function FeatureRow({
           {disabled && <Lock className="w-3.5 h-3.5 text-label-tertiary" />}
         </div>
         <div className="text-footnote text-label-secondary truncate">{feature.description}</div>
+        {needsTitle && (
+          <div className="text-footnote text-label-tertiary">Needs {needsTitle}. Turn that on first.</div>
+        )}
       </div>
       <ToggleSwitch
         checked={enabled}

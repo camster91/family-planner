@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { FeatureGate } from '@/components/ui/feature-gate'
 
 const ICON_OPTIONS = ['🎁', '🎮', '🍕', '🍦', '🎬', '📚', '⏰', '💰', '🏆', '⭐']
 
-export default function CreateRewardPage() {
+function CreateRewardPageContent() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -142,5 +143,15 @@ export default function CreateRewardPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+// Off state instead of the page while Rewards (and Points & streaks, which Rewards needs, #248) is off.
+// The API behind it returns 403 in that case too.
+export default function CreateRewardPage() {
+  return (
+    <FeatureGate featureKey="rewards">
+      <CreateRewardPageContent />
+    </FeatureGate>
   )
 }

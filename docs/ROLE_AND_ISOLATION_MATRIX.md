@@ -117,16 +117,16 @@ hidden for a child; delete-list and swipe-to-delete-item are hidden for teens an
 |---|---|---|---|---|---|---|
 | Events (calendar) | all | all | parent | parent | R: `id`, title, start/end, is-task, imported-calendar name/colour only; C/U/D: elevated only (when tablet flows exist) | Page `/dashboard/calendar` is parent-only in the UI (kid allowlist). Device never reads `location` or `description`. |
 | Chores | all | parent | parent, or assignee for status | parent, or assignee | R: title, due day, status, assignee name; complete: phase 2 candidate (O-4); verify: elevated only | Completion open to any member for any household chore. Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. |
-| Rewards | all | parent | parent | — | no | Claim: all. Approve: parent. |
+| Rewards | all | parent | parent | — | no | Claim: all. Approve: parent. Every handler 403s unless Rewards AND Points & streaks are on (#248). |
 | Wishlist | all | all | requester or parent | requester or parent | no | Status changes: parent. |
 | Meals | all | all | all | all | R: dinners only, recipe name and cook name; C/U: elevated only (when tablet flows exist); D: no | `cook_id` verified in household. Device never reads `notes`. |
 | Projects and tasks | all | all | parent | parent | no | |
 | Messages | all | all | all (mark read) | — | no | |
-| Activity, analytics | all | — | — | — | no | |
+| Activity, analytics | all | — | — | — | no | `/api/analytics` (the leaderboard) 403s unless Analytics AND Points & streaks are on (#248). |
 | Notifications | own | parent (to a household member) | own | own | no | |
 | Locations | parent | parent | — | parent | no | Precise addresses. |
 | Travel mode | parent | — | parent | — | no | |
-| Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | |
+| Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | Feature toggles, including Points & streaks (`gamification`, #248): PATCH is parent-only, teen/child 403. |
 | Account (`/api/users`, export) | own | — | own | own | no | Export includes travel fields for parents only. |
 | Shared devices (list, rename, revoke, pairing codes, audit) | parent | parent | parent | parent (revoke) | this device only: rename/revoke elevated only | Implemented (behind SHARED_DEVICE_ENABLED), #240; teens and children get 403 `PARENT_REQUIRED`. |
 | Tablet elevation PIN | own (parent) | own (parent) | own (parent) | own (parent) | used, never read | Implemented (behind SHARED_DEVICE_ENABLED), #240 (O-1 confirmed). Set/change needs the current password; a password reset deletes it. |
@@ -149,6 +149,31 @@ Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audi
 person profile, so the page's HTML and RSC payload carry no household data. The earlier `?mode=fridge` gap is
 closed by #241 too: the dashboard layout now passes only `{ id, name, role, avatar_url }` to the nav, so no
 dashboard page serialises the signed-in person's email, age, XP, level or streak.
+
+### Points & streaks setting (#248)
+
+XP, levels, streaks, chore points and the leaderboard are a per-family setting, `gamification` in
+`Family.features` (`src/lib/features.ts`). Owner decision (Cameron, 2026-09-27): new households default **off**;
+households that existed before the flag keep it **on** (`scripts/migrate.js` stamps `gamification: true` on every
+stored blob that lacks the key, and `normalizeFeatures` reads a missing key as on).
+
+| Surface | Parent | Teen | Child | Shared device / Today board |
+|---|---|---|---|---|
+| Toggle (`PATCH /api/family/features`, Features settings) | yes | 403 | 403 | no |
+| When OFF: XP / level / streak / chore points in `/dashboard` (home and kid home), `/dashboard/chores`, `/dashboard/rewards` HTML and RSC payload | none | none | none | never shown, whatever the setting |
+| When OFF: `/api/auth/me`, `/api/auth/login`, `/api/users`, `/api/chores` (GET, PATCH), `/api/chores/create` | fields omitted | fields omitted | fields omitted | n/a |
+| When OFF: `/api/analytics`, `/api/rewards`, `/api/rewards/claim`, `/api/rewards/approve` | 403 | 403 | 403 | n/a |
+| When OFF: `/dashboard/rewards`, `/dashboard/rewards/create`, `/dashboard/analytics` | off state | kid allowlist redirect | kid allowlist redirect | n/a |
+
+Rewards and Analytics require Points & streaks: `isFeatureEnabled` (used by `featureGate`, `FeatureGate`, the
+command palette and the pages above) treats them as off while it is off, but keeps their own stored flag, so
+turning Points & streaks back on restores the previous Rewards/Analytics choice.
+
+Chore completion and verification are unchanged, and XP keeps accruing in the background while the setting is
+off (verify still calls `awardChoreXP`; only the level-up notification is skipped). Switching it back on
+therefore shows current totals rather than a reset; this is deliberate, not a regression. The account export
+(`/api/users/export`) still includes the person's own XP/level/streak: it is their data. The Today board and
+the shared-device DTO never carry gamification fields, independent of this setting.
 
 ## Deferred
 

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Lock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { useFeatures } from '@/components/providers/features-provider'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { FeatureKey } from '@/lib/features'
 import { FEATURES } from '@/lib/features'
 
@@ -18,11 +18,18 @@ export function FeatureGate({
   featureKey: FeatureKey
   children: React.ReactNode
 }) {
-  const { features } = useFeatures()
-  const enabled = features[featureKey] === true
+  const enabled = useFeatureEnabled(featureKey)
 
   if (enabled) return <>{children}</>
 
+  return <FeatureOffState featureKey={featureKey} />
+}
+
+/**
+ * The calm "this is off" state. No hooks, so server components can render it
+ * too (the rewards page gates on the server, #248).
+ */
+export function FeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
   const meta = FEATURES.find((f) => f.key === featureKey)
 
   return (

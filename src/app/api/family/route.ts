@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest, authenticateWithFamily, attachSessionCookie, requireParent } from '@/lib/api-auth'
 import { createFamilySchema, updateFamilySchema, deleteFamilySchema } from '@/lib/validations'
+import { defaultFeatures } from '@/lib/features'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,8 +34,10 @@ export async function POST(request: NextRequest) {
     }
 
     const family = await prisma!.$transaction(async (tx) => {
+      // Explicit new-household flags (#248): Points & streaks start OFF. A blob
+      // without the `gamification` key would read as an existing household.
       const newFamily = await tx.family.create({
-        data: { name: parsed.data.name },
+        data: { name: parsed.data.name, features: defaultFeatures() },
       })
       await tx.user.update({
         where: { id: payload.userId },

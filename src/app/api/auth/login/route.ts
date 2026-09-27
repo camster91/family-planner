@@ -7,6 +7,7 @@ import { loginSchema } from '@/lib/validations'
 import { log } from '@/lib/logger'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
+import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
 
 // Failed attempts allowed per account per window, independent of source IP, so
 // rotating addresses cannot brute-force one password.
@@ -107,7 +108,10 @@ export async function POST(request: NextRequest) {
 
     const { password: _pw, token_version: _tv, ...safeUser } = user
 
-    const response = NextResponse.json({ user: safeUser })
+    // Points & streaks off for this family (#248): no XP/level/streak values.
+    const response = NextResponse.json({
+      user: (await isGamificationOn(user.family_id)) ? safeUser : omitUserGamification(safeUser),
+    })
     response.cookies.set('session_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

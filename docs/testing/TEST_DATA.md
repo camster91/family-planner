@@ -90,6 +90,9 @@ Shared password for every fixture account: **`Fixture-Only-Passw0rd!`** (`FIXTUR
 
 Roles come from `User.role` (`parent` / `teen` / `child`) plus `User.age`. All accounts have `email_verified = true`.
 
+### Feature flags
+Every fixture household stores `features = {"gamification": true}` (`FIXTURE_FEATURES` in `src/lib/fixtures/dataset.ts`); every other flag reads as its default. Fixtures model households that existed before #248, which keep Points & streaks on, so the existing dashboard visual baselines (family row "N XP") are unchanged. The seed rewrites the blob on every run, so a test that toggles a flag is reset. A test that needs the new-household state (Points & streaks off) turns it off itself; `e2e/gamification.spec.ts` does, and restores `FIXTURE_FEATURES` afterwards.
+
 ### Scenarios
 - **Busy (Family A):** 14 events: today (school drop-off, stand-up, dentist, practice, long title), tomorrow, one crossing midnight UTC, a task event, a weekly RRULE event, a multi-day event, next week and yesterday. 11 chores covering every status (`pending`, `in_progress`, `completed`, `verified`, `overdue`), including one weekly recurring series (template `fx_chore_a_weekly_tpl` plus 3 occurrences, following the #184 `recurrence_id` / `is_template` model). 4 rewards (available, claimed, redeemed, inactive). 4 to-do lists (8-item list with 3 checked, a short list, a long-text list, an empty list). One `type: 'grocery'` list (see below).
 - **Sparse (Family B):** one each of event, chore (teen), reward, to-do list and list item, plus one small `type: 'shopping'` list (see below). B's child has no chores (empty per-user state). These exist so negative tests have real foreign ids.

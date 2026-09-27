@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -26,6 +27,9 @@ export default function CreateChorePage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [points, setPoints] = useState(10)
+  // Points & streaks off (#248): the field is hidden and the default is sent,
+  // so XP keeps accruing in the background if the family turns it back on.
+  const gamification = useFeatureEnabled('gamification')
   const [assignedTo, setAssignedTo] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
@@ -144,20 +148,22 @@ export default function CreateChorePage() {
           />
         </div>
 
-        {/* Points + Assignee row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label-apple" htmlFor="points">Points</label>
-            <input
-              id="points"
-              type="number"
-              min="1"
-              max="1000"
-              value={points}
-              onChange={(e) => setPoints(parseInt(e.target.value) || 10)}
-              className="input-apple"
-            />
-          </div>
+        {/* Points + Assignee row (points only with Points & streaks on) */}
+        <div className={cn(gamification && 'grid grid-cols-2 gap-3')}>
+          {gamification && (
+            <div>
+              <label className="label-apple" htmlFor="points">Points</label>
+              <input
+                id="points"
+                type="number"
+                min="1"
+                max="1000"
+                value={points ?? 10}
+                onChange={(e) => setPoints(parseInt(e.target.value) || 10)}
+                className="input-apple"
+              />
+            </div>
+          )}
           <div>
             <label className="label-apple" htmlFor="assignedTo">Assign To</label>
             <select

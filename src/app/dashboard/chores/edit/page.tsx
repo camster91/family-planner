@@ -6,6 +6,7 @@ import { ArrowLeft, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -26,7 +27,10 @@ const frequencyOptions: { value: Frequency; label: string }[] = [
 function EditChoreForm() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [points, setPoints] = useState(10)
+  // undefined when the chore API omits points (Points & streaks off, #248):
+  // the PATCH then leaves the stored value alone.
+  const [points, setPoints] = useState<number | undefined>(10)
+  const gamification = useFeatureEnabled('gamification')
   const [assignedTo, setAssignedTo] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
@@ -63,7 +67,7 @@ function EditChoreForm() {
           if (chore) {
             setTitle(chore.title)
             setDescription(chore.description || '')
-            setPoints(chore.points)
+            setPoints(typeof chore.points === 'number' ? chore.points : undefined)
             setAssignedTo(chore.assigned_to)
             const d = new Date(chore.due_date)
             setDueDate(d.toISOString().split('T')[0])
@@ -205,20 +209,22 @@ function EditChoreForm() {
           />
         </div>
 
-        {/* Points + Assignee row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label-apple" htmlFor="points">Points</label>
-            <input
-              id="points"
-              type="number"
-              min="1"
-              max="1000"
-              value={points}
-              onChange={(e) => setPoints(parseInt(e.target.value) || 10)}
-              className="input-apple"
-            />
-          </div>
+        {/* Points + Assignee row (points only with Points & streaks on) */}
+        <div className={cn(gamification && 'grid grid-cols-2 gap-3')}>
+          {gamification && (
+            <div>
+              <label className="label-apple" htmlFor="points">Points</label>
+              <input
+                id="points"
+                type="number"
+                min="1"
+                max="1000"
+                value={points ?? 10}
+                onChange={(e) => setPoints(parseInt(e.target.value) || 10)}
+                className="input-apple"
+              />
+            </div>
+          )}
           <div>
             <label className="label-apple" htmlFor="assignedTo">Assign To</label>
             <select

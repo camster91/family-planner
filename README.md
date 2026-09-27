@@ -6,13 +6,13 @@
 
 **Contributors and agents start here:** [`AGENTS.md`](AGENTS.md) and [`docs/START_HERE.md`](docs/START_HERE.md) (documentation authority). Release/security gates: [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md).
 
-20 features, all gated by per-family opt-in flags. Built for parents managing households with kids of all ages.
+21 features, all gated by per-family flags. Built for parents managing households with kids of all ages.
 
 ## Features
 
 ### Core (always on)
 
-- **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly). XP points + streak tracking.
+- **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly).
 - **Family Calendar** — events with dates, times, locations. Shared across all family members.
 - **Shared Lists** — shopping, to-do, meal plan, wishlist. Real-time sync.
 - **Family Management** — create/join family, invite members, role-based access.
@@ -22,11 +22,12 @@
 - **Meal Planning** — weekly meal calendar with breakfast/lunch/dinner slots.
 - **Notes** — pinned family notes, color-coded.
 - **Birthdays & Anniversaries** — track important dates with countdown.
-- **Rewards** — XP-based reward catalog, one-tap claim for kids.
+- **Points & streaks** — opt-in per family (off for new households): XP, levels, streaks and the leaderboard.
+- **Rewards** — XP-based reward catalog, one-tap claim for kids (needs Points & streaks).
 - **Budget** — transaction tracking + budget categories.
 - **Projects** — trip planning, home projects, task breakdowns.
 - **Family Messaging** — real-time chat between family members.
-- **Analytics** — weekly completion stats, leaderboard, streaks.
+- **Analytics** — weekly completion stats, leaderboard, streaks (needs Points & streaks).
 
 ### Family Life (opt-in, off by default)
 

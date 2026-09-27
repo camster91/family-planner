@@ -1,7 +1,8 @@
 import { after } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { normalizeFeatures } from '@/lib/features'
+import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
+import { omitChorePoints, omitUserGamification } from '@/lib/gamification-visibility'
 import { utcMonthRange } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
 import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
@@ -56,6 +57,11 @@ export default async function DashboardPage() {
   }
 
   const familyId = user.family_id
+  const features = normalizeFeatures(user.family?.features)
+  // Points & streaks (#248). When off, no XP / level / streak / chore-points
+  // value is put into the client props below, so none reaches the HTML or the
+  // RSC payload for any role.
+  const gamification = features.gamification
 
   // Subscribed calendars (#232): refresh any not fetched in 15 minutes AFTER
   // the response is sent, so the dashboard never waits on a third party. A
@@ -88,8 +94,9 @@ export default async function DashboardPage() {
       }),
       prisma!.user.findMany({
         where: { family_id: familyId },
-        // Tie-break equal XP by id so the family row does not reshuffle between loads.
-        orderBy: [{ xp: 'desc' }, { id: 'asc' }],
+        // Tie-break equal XP by id so the family row does not reshuffle between
+        // loads. With points off there is no ranking: a stable, neutral order.
+        orderBy: gamification ? [{ xp: 'desc' }, { id: 'asc' }] : [{ name: 'asc' }, { id: 'asc' }],
         select: { id: true, name: true, xp: true, level: true, streak: true, best_streak: true, avatar_url: true, role: true },
       }),
       prisma!.pickup.findMany({
@@ -115,7 +122,7 @@ export default async function DashboardPage() {
         orderBy: { completed_at: 'desc' },
         take: 5,
       }),
-      isKid
+      isKid && isFeatureEnabled(features, 'rewards')
         ? prisma!.reward.findMany({
             where: { family_id: familyId, status: 'available' },
             orderBy: { created_at: 'desc' },
@@ -124,17 +131,22 @@ export default async function DashboardPage() {
         : Promise.resolve([]),
     ])
 
-  const leaderboard = familyMembers.map((m, i) => ({
-    rank: i + 1,
-    id: m.id,
-    name: m.name,
-    xp: m.xp || 0,
-    level: m.level || 1,
-    streak: m.streak || 0,
-    bestStreak: m.best_streak || 0,
-    avatar: m.avatar_url,
-    role: m.role,
-  }))
+  // Points off: the XP/level/streak values stay on the server.
+  const leaderboard = familyMembers.map((m, i) =>
+    gamification
+      ? {
+          rank: i + 1,
+          id: m.id,
+          name: m.name,
+          xp: m.xp || 0,
+          level: m.level || 1,
+          streak: m.streak || 0,
+          bestStreak: m.best_streak || 0,
+          avatar: m.avatar_url,
+          role: m.role,
+        }
+      : { rank: i + 1, id: m.id, name: m.name, avatar: m.avatar_url, role: m.role }
+  )
 
   // Chore progress ("X of Y done today", "My chores") is derived in DashboardHome
   // from `chores`, against the viewer's local calendar day.
@@ -157,10 +169,10 @@ export default async function DashboardPage() {
         .filter((a) => a._days <= 90)
     : []
 
-  // With the rewards feature off, the claim endpoint 403s — suppress the card
-  // instead of rendering an action that can only fail.
-  const features = normalizeFeatures(user.family?.features)
-  const rewardsForKid = features.rewards
+  // With the rewards feature off (or Points & streaks off, which Rewards needs)
+  // the claim endpoint 403s — suppress the card instead of rendering an action
+  // that can only fail.
+  const rewardsForKid = isFeatureEnabled(features, 'rewards')
     ? rewards.map(r => ({
         id: r.id,
         name: r.name,
@@ -198,11 +210,14 @@ export default async function DashboardPage() {
     ? await getOpenShoppingItems(prisma!, familyId)
     : null
 
+  const viewer = gamification ? user : omitUserGamification(user)
+  const visibleChores = gamification ? chores : chores.map(omitChorePoints)
+
   if (isKid) {
     return (
       <KidHome
-        user={user as any}
-        chores={chores as any}
+        user={viewer as any}
+        chores={visibleChores as any}
         events={events as any}
         rewards={rewardsForKid}
       />
@@ -212,15 +227,15 @@ export default async function DashboardPage() {
   return (
     <>
       <DashboardHome
-        user={user as any}
-        chores={chores as any}
+        user={viewer as any}
+        chores={visibleChores as any}
         events={events as any}
         stats={stats}
         leaderboard={leaderboard}
         pickups={pickups}
         allowancePending={allowancePending}
         anniversaries={upcomingAnniversaries}
-        photoVerifyQueue={photoVerifyQueue}
+        photoVerifyQueue={gamification ? photoVerifyQueue : photoVerifyQueue.map(omitChorePoints)}
         budget={budget}
         shopping={shopping}
       />

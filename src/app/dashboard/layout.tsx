@@ -103,7 +103,7 @@ export default async function DashboardLayout({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(initialFeatures) }}
       />
 
-      <FeaturesProvider>
+      <FeaturesProvider initial={initialFeatures}>
         {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
         <a
           href="#main-content"

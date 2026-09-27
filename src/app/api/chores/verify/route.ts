@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { verifyChoreSchema } from '@/lib/validations'
 import { awardChoreXP } from '@/lib/gamification-server'
+import { isGamificationOn } from '@/lib/gamification-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,8 +106,9 @@ export async function POST(request: NextRequest) {
           type: 'reward',
         })
 
-        // Send level-up notification if applicable
-        if (outcome.xp?.levelUp) {
+        // Send level-up notification if applicable. XP still accrues with
+        // Points & streaks off (#248), but the level-up message is not sent.
+        if (outcome.xp?.levelUp && (await isGamificationOn(auth.user.family_id))) {
           await notificationServiceServer.sendNotification({
             userId: chore.assignee.id,
             title: `Level Up! ${outcome.xp.newLevel}`,

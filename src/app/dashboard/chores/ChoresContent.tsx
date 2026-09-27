@@ -11,6 +11,7 @@ import { Glyph } from '@/components/ui/glyph'
 import { useToast } from '@/components/ui/toast'
 import { LongPressRow } from '@/components/ui/long-press-row'
 import { cn } from '@/lib/utils'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays, snoozedDueDate } from '@/lib/dates'
 import type { Chore } from '@/types'
 
@@ -95,6 +96,9 @@ export default function ChoresContent({
   const [localChores, setLocalChores] = React.useState(chores)
   const [doneCollapsed, setDoneCollapsed] = React.useState(true)
   const { addToast } = useToast()
+  // Points & streaks (#248). When off, the page's server component already
+  // omits each chore's points and streak; this only decides what to draw.
+  const gamification = useFeatureEnabled('gamification')
   const [reassignTarget, setReassignTarget] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -292,7 +296,7 @@ export default function ChoresContent({
                       </Glyph>
                     }
                     meta={
-                      chore.points > 0 || (chore.streak && chore.streak >= 3)
+                      gamification && (chore.points > 0 || (chore.streak && chore.streak >= 3))
                         ? (
                           <span className="flex items-center gap-1">
                             {chore.points > 0 && <span className="text-footnote text-label-tertiary">+{chore.points}</span>}
@@ -341,7 +345,7 @@ export default function ChoresContent({
                     title={chore.title}
                     subtitle={formatDateOnly(chore.due_date)}
                     showChevron={false}
-                    trailing={<span className="text-footnote text-label-tertiary">+{chore.points}</span>}
+                    trailing={gamification ? <span className="text-footnote text-label-tertiary">+{chore.points}</span> : undefined}
                     className={cn(i === doneChores.length - 1 && 'border-b-0')}
                   />
                 ))}

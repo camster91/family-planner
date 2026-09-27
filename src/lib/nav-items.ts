@@ -25,13 +25,14 @@ import {
   Plane,
   LayoutDashboard,
 } from 'lucide-react'
+import type { FeatureKey } from '@/lib/features'
 
 export interface NavItem {
   name: string
   href: string
   icon: React.ComponentType<{ className?: string }>
   /** Feature key that gates this nav item. undefined = always visible (core). */
-  featureKey?: string
+  featureKey?: FeatureKey
 }
 
 export const navItems: NavItem[] = [

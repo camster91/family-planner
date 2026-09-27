@@ -40,7 +40,8 @@ interface ChoreData {
   id: string
   title: string
   description?: string | null
-  points: number
+  /** Absent when the family has Points & streaks off (#248). */
+  points?: number
   assigned_to: string
   due_date: string
   status: string
@@ -1379,7 +1380,10 @@ function DayView({
                     )}
                     {isChore && (
                       <div className="text-xs" style={{ color: block.color }}>
-                        {(block.data as ChoreData).points} pts
+                        {/* Points are absent when Points & streaks is off (#248). */}
+                        {typeof (block.data as ChoreData).points === 'number'
+                          ? `${(block.data as ChoreData).points} pts`
+                          : 'Chore'}
                         {block.choreStatus && ` · ${block.choreStatus}`}
                       </div>
                     )}

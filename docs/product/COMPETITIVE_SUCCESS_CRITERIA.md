@@ -26,7 +26,7 @@ Core actions must remain useful without AI.
 - Shared device least privilege/revocation.
 - Privacy-safe analytics/logging.
 - Clear account export/deletion/recovery.
-- No manipulative engagement patterns.
+- No manipulative engagement patterns. Points, streaks and leaderboards are an opt-in household setting, off for new households (#248).
 
 ## Reliability
 Targets mature with scale, but the system must measure:
