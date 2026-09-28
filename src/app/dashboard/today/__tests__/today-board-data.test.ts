@@ -167,6 +167,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       meals: '/dashboard/meals',
       lists: '/dashboard/lists',
       features: '/dashboard/features',
+      // Inventory is off by default (#263), so no link.
+      inventory: null,
     })
   })
 
@@ -189,7 +191,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         features: defaultFeatures(),
         now: NOW,
       })
-      expect(data.links).toEqual({ calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null })
+      expect(data.links).toEqual({ calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null, inventory: null })
       // Shared household data every member may already read (ROLE_AND_ISOLATION_MATRIX.md).
       expect(data.shopping?.total).toBe(1)
       expect(data.chores).toHaveLength(1)
@@ -231,7 +233,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         features: defaultFeatures(),
         now: NOW,
       })
-      expect(device.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null })
+      expect(device.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null })
     })
 
     it('reads the same household-scoped, allowlisted data as the person board', async () => {
@@ -307,6 +309,51 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         ['e_import', null],
         ['e_gone', null],
       ])
+    })
+  })
+
+  describe('use soon (#263 data, #262 tile)', () => {
+    const inventoryRows = [
+      { id: 'inv1', name: 'Spinach', location: 'fridge', expires_on: new Date('2026-01-04T00:00:00Z') },
+      { id: 'inv2', name: 'Yogurt', location: 'fridge', expires_on: new Date('2026-01-07T00:00:00Z') },
+    ]
+
+    it('does not read inventory when the feature is off (the default), and has no link', async () => {
+      const db = mockDb({ inventoryItem: { findMany: jest.fn() } })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+      expect(data.useSoon).toBeNull()
+      expect(data.links.inventory).toBeNull()
+      expect((db as any).inventoryItem.findMany).not.toHaveBeenCalled()
+    })
+
+    it('reads the household window with board-safe fields only when the feature is on', async () => {
+      const findMany = jest.fn().mockResolvedValue(inventoryRows)
+      const db = mockDb({ inventoryItem: { findMany } })
+      const features = { ...defaultFeatures(), inventory: true }
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'child', features, now: NOW })
+      const args = findMany.mock.calls[0][0]
+      expect(args.where.family_id).toBe(FAMILY)
+      // One UTC day ahead plus the 3-day window covers the viewer's local today in any zone.
+      expect(args.where.expires_on.lte.toISOString()).toBe('2026-01-09T00:00:00.000Z')
+      expect(Object.keys(args.select).sort()).toEqual(['expires_on', 'id', 'location', 'name'])
+      expect(data.useSoon).toEqual([
+        { id: 'inv1', name: 'Spinach', location: 'fridge', expiresOn: '2026-01-04' },
+        { id: 'inv2', name: 'Yogurt', location: 'fridge', expiresOn: '2026-01-07' },
+      ])
+      // The inventory page is on the kid allowlist, so a child gets the link.
+      expect(data.links.inventory).toBe('/dashboard/inventory')
+    })
+
+    it('gives the device the same items and no link', async () => {
+      const db = mockDb({ inventoryItem: { findMany: jest.fn().mockResolvedValue(inventoryRows) } })
+      const data = await buildTodayBoard(db as any, {
+        familyId: FAMILY,
+        audience: 'device',
+        features: { ...defaultFeatures(), inventory: true },
+        now: NOW,
+      })
+      expect(data.useSoon).toHaveLength(2)
+      expect(data.links.inventory).toBeNull()
     })
   })
 })

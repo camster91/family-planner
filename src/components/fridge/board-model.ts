@@ -7,8 +7,15 @@
  * due days, meal days) are compared by their `YYYY-MM-DD` string, never parsed
  * into a local Date (src/lib/dates.ts).
  */
-import { toDateOnlyLocal } from '@/lib/dates'
-import type { BoardChore, BoardDinner, BoardEvent, BoardMember } from '@/app/dashboard/today/today-board-data'
+import { parseDateOnly, toDateOnlyLocal } from '@/lib/dates'
+import type {
+  BoardChore,
+  BoardDinner,
+  BoardEvent,
+  BoardMember,
+  BoardUseSoonItem,
+} from '@/app/dashboard/today/today-board-data'
+import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus } from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { MEMBER_COLOR_KEYS, type MemberColorKey } from '@/lib/member-colors'
 
@@ -186,4 +193,29 @@ export function memberDisplayNames(members: BoardMember[]): Map<string, string> 
   const counts = new Map<string, number>()
   for (const m of members) counts.set(firstName(m.name), (counts.get(firstName(m.name)) ?? 0) + 1)
   return new Map(members.map((m) => [m.id, (counts.get(firstName(m.name)) ?? 0) > 1 ? m.name : firstName(m.name)]))
+}
+
+export interface UseSoonEntry extends BoardUseSoonItem {
+  status: 'expired' | 'today' | 'soon'
+  daysLeft: number
+  /** "Expired yesterday", "Use today", "Use in 2 days" (text carries the state). */
+  label: string
+}
+
+/**
+ * Items to use soon against the viewer's LOCAL today (#263 data, #262 tile):
+ * expired, due today, or due within DEFAULT_USE_SOON_DAYS. The server sends a
+ * window wide enough for any zone; rows not yet due are dropped here.
+ */
+export function itemsToUseSoon(items: BoardUseSoonItem[] | null | undefined, now: Date): UseSoonEntry[] {
+  if (!items || items.length === 0) return []
+  const today = parseDateOnly(localDayKey(now))
+  if (!today) return []
+  return items
+    .flatMap((item) => {
+      const { status, daysLeft } = expiryStatus(item.expiresOn, today, DEFAULT_USE_SOON_DAYS)
+      if (daysLeft === null || (status !== 'expired' && status !== 'today' && status !== 'soon')) return []
+      return [{ ...item, status, daysLeft, label: expiryLabel(status, daysLeft) }]
+    })
+    .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }

@@ -17,6 +17,7 @@ import {
   localDayKey,
   memberColors,
   weatherView,
+  itemsToUseSoon,
 } from './board-model'
 import {
   ChoresRegion,
@@ -29,6 +30,7 @@ import {
 } from './regions'
 import { actionLinkClass } from './styles'
 import { WeatherTile } from './weather-tile'
+import { UseSoonRegion } from './use-soon-region'
 
 /** Client refresh interval for an always-on board. Not a server job. */
 export const BOARD_REFRESH_MS = 5 * 60 * 1000
@@ -196,11 +198,10 @@ export default function TodayBoard({
   /** Shown above the header, inside the board (the tablet's parent-mode banner). */
   banner?: React.ReactNode
   /**
-   * Extension slot for the inventory "Use soon" tile (#263). When provided it
-   * gets its own grid area (`usesoon`): under Groceries in the fridge
-   * landscape hub, a full-width row elsewhere. Pass a `<Region area="usesoon">`
-   * (src/components/fridge/regions.tsx) built from the board DTO; the board
-   * does not fetch anything for it.
+   * Overrides the "Use soon" slot (`usesoon` grid area: under Groceries in the
+   * fridge landscape hub, a full-width row elsewhere). By default the board
+   * fills it from `data.useSoon` (#263) with UseSoonRegion, and leaves it out
+   * entirely when there is nothing to use soon or inventory is off.
    */
   useSoon?: React.ReactNode
 }) {
@@ -244,8 +245,16 @@ export default function TodayBoard({
       comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS),
       people,
       weather: weatherView(data.weather, now),
+      useSoon: itemsToUseSoon(data.useSoon, now),
     }
   }, [data, now])
+
+  // "Use soon" tile (#263): only when there is something to use (null otherwise).
+  const useSoonSlot =
+    useSoon ??
+    (view && view.useSoon.length > 0 ? (
+      <UseSoonRegion items={view.useSoon} inventoryHref={data.links.inventory ?? null} />
+    ) : null)
 
   const stale = now && receivedAt ? now.getTime() - receivedAt.getTime() > STALE_AFTER_MS : false
 
@@ -336,7 +345,7 @@ export default function TodayBoard({
       )}
 
       {view ? (
-        <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoon))}>
+        <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot))}>
           <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} />
           <DinnerRegion
             dinner={view.dinner}
@@ -347,9 +356,9 @@ export default function TodayBoard({
           <ChoresRegion people={view.chores} choresHref={data.links.chores} />
           <GroceriesRegion shopping={data.shopping} listsHref={data.links.lists} />
           <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
-          {useSoon && (
+          {useSoonSlot && (
             <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon}`}>
-              {useSoon}
+              {useSoonSlot}
             </div>
           )}
         </div>

@@ -88,7 +88,7 @@ describe('device routes', () => {
       const body = await res.json()
       const text = JSON.stringify(body)
       expect(text).not.toContain(FOREIGN)
-      expect(body.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null })
+      expect(body.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null })
       expect(body.members.map((m: any) => m.id).sort()).toEqual(['child-a', 'parent-a', 'teen-a'])
       for (const m of body.members) expect(Object.keys(m).sort()).toEqual(['color', 'id', 'name'])
       for (const banned of ['@example.test', 'Home clinic', 'xp', 'streak', 'avatar_url', 'password', 'price', 'notes']) {
@@ -148,6 +148,31 @@ describe('device routes', () => {
       } finally {
         fetchSpy.mockRestore()
       }
+    })
+
+    // #262 tile on #263 data: household food names like the grocery items above.
+    it("use soon: each tablet gets only its own household's items, board-safe fields, and none when inventory is off", async () => {
+      const day = (offset: number) => new Date(Date.UTC(2026, 8, 26 + offset))
+      for (const row of db.rows('inventoryItem')) row.expires_on = day(1)
+      db.rows('inventoryItem').push({
+        id: 'inv-a-later', family_id: FAMILY_A, name: 'Home jam', ingredient_id: null, amount: null, unit: null,
+        location: 'pantry', expires_on: day(30), added_by: 'parent-a', created_at: T0, updated_at: T0,
+      })
+
+      const off = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+      expect(off.useSoon).toBeNull()
+
+      db.find('family', FAMILY_A)!.features = { inventory: true }
+      db.find('family', 'family-B')!.features = { inventory: true }
+      const d1 = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+      expect(d1.useSoon).toEqual([{ id: 'inv-a', name: 'Home Tomato', location: 'fridge', expiresOn: '2026-09-27' }])
+      expect(JSON.stringify(d1)).not.toContain(FOREIGN)
+      // No amount, author or ingredient link, and no inventory link on a device.
+      expect(Object.keys(d1.useSoon[0]).sort()).toEqual(['expiresOn', 'id', 'location', 'name'])
+      expect(d1.links.inventory).toBeNull()
+
+      const d2 = await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json()
+      expect(d2.useSoon.map((i: any) => i.name)).toEqual([`${FOREIGN} Tomato`])
     })
 
     it('shopping follows only the lists feature for a device', async () => {
