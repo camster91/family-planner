@@ -32,6 +32,9 @@ model User {
   /// Session generation. Incremented on password reset/change to invalidate
   /// every JWT issued before that point (checked against the `tv` claim).
   token_version                 Int                @default(0)
+  /// Today board colour (#262): a palette key from src/lib/member-colors.ts,
+  /// set by a parent. NULL = deterministic fallback by household order.
+  board_color                   String?
   created_at                    DateTime           @default(now())
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
@@ -116,6 +119,14 @@ model Family {
   capture_ai_key_enc String?
   capture_ai_base_url String?
   capture_ai_model   String?
+  // Today board weather (#262). Opt-in per household, default off. Only a
+  // coarse place is stored: latitude/longitude rounded to 2 decimals and a
+  // display label. Sent to Open-Meteo only while enabled (src/lib/weather).
+  weather_enabled    Boolean   @default(false)
+  weather_latitude   Float?
+  weather_longitude  Float?
+  weather_label      String?
+  weather_unit       String    @default("celsius") // 'celsius' | 'fahrenheit'
   created_at         DateTime  @default(now())
 
   // Relations
@@ -170,6 +181,8 @@ model Family {
   idempotency_records IdempotencyRecord[]
   // Food inventory (#263)
   inventory_items     InventoryItem[]
+  // Today board weather cache (#262)
+  weather_cache       WeatherCache?
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -1449,4 +1462,21 @@ model InventoryItem {
   @@index([family_id, location])
   @@index([family_id, expires_on])
   @@index([ingredient_id])
+}
+
+// Per-household weather cache for the Today board (#262). One row per family,
+// keyed by the coarse coordinates it was fetched for; a place change makes the
+// row stale. `status` 'ok' carries the normalized forecast in `payload`;
+// 'error' records a failed fetch so the board backs off instead of retrying on
+// every render. Refreshed by viewing the board (no cron).
+model WeatherCache {
+  family_id  String   @id
+  latitude   Float
+  longitude  Float
+  status     String // 'ok' | 'error'
+  payload    Json?
+  fetched_at DateTime
+  updated_at DateTime @default(now()) @updatedAt
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
 }

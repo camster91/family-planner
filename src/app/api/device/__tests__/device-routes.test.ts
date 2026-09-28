@@ -88,9 +88,9 @@ describe('device routes', () => {
       const body = await res.json()
       const text = JSON.stringify(body)
       expect(text).not.toContain(FOREIGN)
-      expect(body.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null })
+      expect(body.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null })
       expect(body.members.map((m: any) => m.id).sort()).toEqual(['child-a', 'parent-a', 'teen-a'])
-      for (const m of body.members) expect(Object.keys(m).sort()).toEqual(['id', 'name'])
+      for (const m of body.members) expect(Object.keys(m).sort()).toEqual(['color', 'id', 'name'])
       for (const banned of ['@example.test', 'Home clinic', 'xp', 'streak', 'avatar_url', 'password', 'price', 'notes']) {
         expect(text).not.toContain(banned)
       }
@@ -101,6 +101,85 @@ describe('device routes', () => {
       const text = JSON.stringify(await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json())
       for (const canary of H1_CANARIES) expect(text).not.toContain(canary)
       expect(text).toContain(FOREIGN)
+    })
+
+    // #262: weather is per household, read from that household's cache only.
+    it("weather: each tablet gets only its own household's opt-in forecast, and none when off", async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(new Error('no network in tests'))
+      // The kill switch is off unless explicitly set.
+      const previousWeather = process.env.WEATHER_ENABLED
+      process.env.WEATHER_ENABLED = '1'
+      try {
+        const snapshot = (temp: number) => ({
+          utcOffsetSeconds: 0,
+          timezone: null,
+          current: { temperatureC: temp, code: 3, isDay: true },
+          daily: [{ day: '2026-09-26', highC: temp + 2, lowC: temp - 5, code: 3, precipitationChance: 10 }],
+        })
+        for (const [familyId, label, lat, temp] of [
+          [FAMILY_A, 'Home town', 43.65, 12],
+          ['family-B', `${FOREIGN} town`, 51.5, 25],
+        ] as const) {
+          Object.assign(db.find('family', familyId)!, {
+            weather_enabled: true,
+            weather_latitude: lat,
+            weather_longitude: -1.25,
+            weather_label: label,
+            weather_unit: 'celsius',
+          })
+          db.rows('weatherCache').push({
+            family_id: familyId,
+            latitude: lat,
+            longitude: -1.25,
+            status: 'ok',
+            payload: snapshot(temp),
+            fetched_at: new Date(T0.getTime() - 60_000),
+          })
+        }
+
+        const d1 = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+        expect(d1.weather).toMatchObject({ label: 'Home town', unit: 'C', current: { temperature: 12, summary: 'Cloudy' } })
+        expect(JSON.stringify(d1)).not.toContain(FOREIGN)
+        // Coordinates are never part of the board DTO.
+        expect(JSON.stringify(d1.weather)).not.toContain('43.65')
+
+        const d2 = await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json()
+        expect(d2.weather).toMatchObject({ label: `${FOREIGN} town`, current: { temperature: 25 } })
+
+        db.find('family', FAMILY_A)!.weather_enabled = false
+        const off = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+        expect(off.weather).toBeNull()
+        expect(fetchSpy).not.toHaveBeenCalled()
+      } finally {
+        fetchSpy.mockRestore()
+        if (previousWeather === undefined) delete process.env.WEATHER_ENABLED
+        else process.env.WEATHER_ENABLED = previousWeather
+      }
+    })
+
+    // #262 tile on #263 data: household food names like the grocery items above.
+    it("use soon: each tablet gets only its own household's items, board-safe fields, and none when inventory is off", async () => {
+      const day = (offset: number) => new Date(Date.UTC(2026, 8, 26 + offset))
+      for (const row of db.rows('inventoryItem')) row.expires_on = day(1)
+      db.rows('inventoryItem').push({
+        id: 'inv-a-later', family_id: FAMILY_A, name: 'Home jam', ingredient_id: null, amount: null, unit: null,
+        location: 'pantry', expires_on: day(30), added_by: 'parent-a', created_at: T0, updated_at: T0,
+      })
+
+      const off = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+      expect(off.useSoon).toBeNull()
+
+      db.find('family', FAMILY_A)!.features = { inventory: true }
+      db.find('family', 'family-B')!.features = { inventory: true }
+      const d1 = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+      expect(d1.useSoon).toEqual([{ id: 'inv-a', name: 'Home Tomato', location: 'fridge', expiresOn: '2026-09-27' }])
+      expect(JSON.stringify(d1)).not.toContain(FOREIGN)
+      // No amount, author or ingredient link, and no inventory link on a device.
+      expect(Object.keys(d1.useSoon[0]).sort()).toEqual(['expiresOn', 'id', 'location', 'name'])
+      expect(d1.links.inventory).toBeNull()
+
+      const d2 = await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json()
+      expect(d2.useSoon.map((i: any) => i.name)).toEqual([`${FOREIGN} Tomato`])
     })
 
     it('shopping follows only the lists feature for a device', async () => {

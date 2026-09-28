@@ -8,8 +8,8 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
   const db = {
     user: {
       findMany: jest.fn().mockResolvedValue([
-        { id: 'u_parent', name: 'Avery Parent' },
-        { id: 'u_child', name: 'Casey Child' },
+        { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
+        { id: 'u_child', name: 'Casey Child', color: 'sky' },
       ]),
     },
     event: {
@@ -97,7 +97,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     }
     expect(db.listItem.findMany.mock.calls[0][0].where.list.family_id).toBe(FAMILY)
 
-    expect(selectedKeys(userArgs.select).sort()).toEqual(['id', 'name'])
+    expect(selectedKeys(userArgs.select).sort()).toEqual(['board_color', 'id', 'name'])
     // Free-text fields that can carry addresses or private notes are never read.
     expect(selectedKeys(eventArgs.select)).not.toContain('description')
     expect(selectedKeys(eventArgs.select)).not.toContain('location')
@@ -143,8 +143,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     })
     expect(data.generatedAt).toBe(NOW.toISOString())
     expect(data.members).toEqual([
-      { id: 'u_parent', name: 'Avery Parent' },
-      { id: 'u_child', name: 'Casey Child' },
+      { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
+      { id: 'u_child', name: 'Casey Child', color: 'sky' },
     ])
     expect(data.events.map((e) => [e.id, e.source])).toEqual([
       ['e_local', null],
@@ -167,6 +167,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       meals: '/dashboard/meals',
       lists: '/dashboard/lists',
       features: '/dashboard/features',
+      // Inventory is off by default (#263), so no link.
+      inventory: null,
     })
   })
 
@@ -189,7 +191,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         features: defaultFeatures(),
         now: NOW,
       })
-      expect(data.links).toEqual({ calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null })
+      expect(data.links).toEqual({ calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null, inventory: null })
       // Shared household data every member may already read (ROLE_AND_ISOLATION_MATRIX.md).
       expect(data.shopping?.total).toBe(1)
       expect(data.chores).toHaveLength(1)
@@ -231,7 +233,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         features: defaultFeatures(),
         now: NOW,
       })
-      expect(device.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null })
+      expect(device.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null })
     })
 
     it('reads the same household-scoped, allowlisted data as the person board', async () => {
@@ -247,8 +249,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         select: { id: true, name: true },
       })
       expect(data.members).toEqual([
-        { id: 'u_parent', name: 'Avery Parent' },
-        { id: 'u_child', name: 'Casey Child' },
+        { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
+        { id: 'u_child', name: 'Casey Child', color: 'sky' },
       ])
       expect(data.shopping?.total).toBe(1)
       expect(data.dinners).toHaveLength(2)
@@ -264,6 +266,97 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       })
       expect(data.shopping).toBeNull()
       expect(db.listItem.findMany).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('member colours and who added an event (#262)', () => {
+    it('uses a parent-chosen colour, falls back by household order, and ignores unknown keys', async () => {
+      const db = mockDb({
+        user: {
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'u_parent', name: 'Avery Parent', board_color: null },
+            { id: 'u_teen', name: 'Blake Teen', board_color: 'indigo' },
+            { id: 'u_child', name: 'Casey Child', board_color: 'not-a-colour' },
+          ]),
+        },
+      })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+      // Blake chose indigo, so the fallbacks skip it.
+      expect(data.members.map((m) => [m.id, m.color])).toEqual([
+        ['u_parent', 'sky'],
+        ['u_teen', 'indigo'],
+        ['u_child', 'green'],
+      ])
+      // Only the colour key leaves the server, never the raw column.
+      for (const m of data.members) expect(Object.keys(m).sort()).toEqual(['color', 'id', 'name'])
+    })
+
+    it('names the member who added a local event, never for subscribed or provider-synced imports or non-members', async () => {
+      const base = { end_time: new Date('2026-01-05T15:00:00Z'), start_time: new Date('2026-01-05T14:00:00Z'), is_task: false }
+      const db = mockDb({
+        event: {
+          findMany: jest.fn().mockResolvedValue([
+            { ...base, id: 'e_mine', title: 'Dentist', source_subscription_id: null, created_by: 'u_parent' },
+            { ...base, id: 'e_import', title: 'Assembly', source_subscription_id: 'sub_a', created_by: 'u_parent' },
+            { ...base, id: 'e_gone', title: 'Old', source_subscription_id: null, created_by: 'u_left_household' },
+            // Provider-synced (#264): created_by is the connection owner, not an author.
+            { ...base, id: 'e_synced', title: 'Work sync', source_subscription_id: null, source_connection_id: 'conn_a', created_by: 'u_parent' },
+          ]),
+        },
+      })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: defaultFeatures(), now: NOW })
+      expect(db.event.findMany.mock.calls[0][0].select).toMatchObject({ created_by: true, source_connection_id: true })
+      expect(data.events.map((e) => [e.id, e.addedById])).toEqual([
+        ['e_mine', 'u_parent'],
+        ['e_import', null],
+        ['e_gone', null],
+        ['e_synced', null],
+      ])
+    })
+  })
+
+  describe('use soon (#263 data, #262 tile)', () => {
+    const inventoryRows = [
+      { id: 'inv1', name: 'Spinach', location: 'fridge', expires_on: new Date('2026-01-04T00:00:00Z') },
+      { id: 'inv2', name: 'Yogurt', location: 'fridge', expires_on: new Date('2026-01-07T00:00:00Z') },
+    ]
+
+    it('does not read inventory when the feature is off (the default), and has no link', async () => {
+      const db = mockDb({ inventoryItem: { findMany: jest.fn() } })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+      expect(data.useSoon).toBeNull()
+      expect(data.links.inventory).toBeNull()
+      expect((db as any).inventoryItem.findMany).not.toHaveBeenCalled()
+    })
+
+    it('reads the household window with board-safe fields only when the feature is on', async () => {
+      const findMany = jest.fn().mockResolvedValue(inventoryRows)
+      const db = mockDb({ inventoryItem: { findMany } })
+      const features = { ...defaultFeatures(), inventory: true }
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'child', features, now: NOW })
+      const args = findMany.mock.calls[0][0]
+      expect(args.where.family_id).toBe(FAMILY)
+      // One UTC day ahead plus the 3-day window covers the viewer's local today in any zone.
+      expect(args.where.expires_on.lte.toISOString()).toBe('2026-01-09T00:00:00.000Z')
+      expect(Object.keys(args.select).sort()).toEqual(['expires_on', 'id', 'location', 'name'])
+      expect(data.useSoon).toEqual([
+        { id: 'inv1', name: 'Spinach', location: 'fridge', expiresOn: '2026-01-04' },
+        { id: 'inv2', name: 'Yogurt', location: 'fridge', expiresOn: '2026-01-07' },
+      ])
+      // The inventory page is on the kid allowlist, so a child gets the link.
+      expect(data.links.inventory).toBe('/dashboard/inventory')
+    })
+
+    it('gives the device the same items and no link', async () => {
+      const db = mockDb({ inventoryItem: { findMany: jest.fn().mockResolvedValue(inventoryRows) } })
+      const data = await buildTodayBoard(db as any, {
+        familyId: FAMILY,
+        audience: 'device',
+        features: { ...defaultFeatures(), inventory: true },
+        now: NOW,
+      })
+      expect(data.useSoon).toHaveLength(2)
+      expect(data.links.inventory).toBeNull()
     })
   })
 })

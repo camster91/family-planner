@@ -144,6 +144,11 @@ export default defineConfig({
       // Fridge photo scan (#265) stays off in E2E: no provider is ever called.
       // Blank overrides a key that might be set in the developer's shell.
       INVENTORY_SCAN_ANTHROPIC_API_KEY: "",
+      // Board weather (#262). The kill switch is off unless set, so it is set
+      // here; no household has weather on unless a spec turns it on with a
+      // fresh WeatherCache row, so the server never calls Open-Meteo
+      // (e2e/fridge.spec.ts).
+      WEATHER_ENABLED: "1",
     },
   },
 });

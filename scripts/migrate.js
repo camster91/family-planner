@@ -35,6 +35,13 @@ ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_key_enc" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_base_url" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_model" TEXT;
 
+-- Today board weather (#262; opt-in, default off; coarse place only)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_enabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_latitude" DOUBLE PRECISION;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_longitude" DOUBLE PRECISION;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_label" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_unit" TEXT NOT NULL DEFAULT 'celsius';
+
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
   "id" TEXT PRIMARY KEY,
@@ -71,6 +78,8 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "reset_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "token_version" INTEGER NOT NULL DEFAULT 0;
+-- Today board member colour (#262; palette key, NULL = fallback)
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "board_color" TEXT;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (
@@ -573,6 +582,17 @@ CREATE INDEX IF NOT EXISTS "IdempotencyRecord_expires_at_idx" ON "IdempotencyRec
 CREATE INDEX IF NOT EXISTS "IdempotencyRecord_family_id_idx" ON "IdempotencyRecord"("family_id");
 CREATE INDEX IF NOT EXISTS "IdempotencyRecord_user_id_idx" ON "IdempotencyRecord"("user_id");
 
+-- ============ Today board weather cache (#262; additive) ============
+CREATE TABLE IF NOT EXISTS "WeatherCache" (
+  "family_id" TEXT PRIMARY KEY,
+  "latitude" DOUBLE PRECISION NOT NULL,
+  "longitude" DOUBLE PRECISION NOT NULL,
+  "status" TEXT NOT NULL,
+  "payload" JSONB,
+  "fetched_at" TIMESTAMP(3) NOT NULL,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -625,6 +645,10 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Today board weather cache (#262)
+DO $$ BEGIN
+  ALTER TABLE "WeatherCache" ADD CONSTRAINT "WeatherCache_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Idempotency records (#162)
 DO $$ BEGIN

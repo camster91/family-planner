@@ -48,6 +48,18 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Weather on the Today board (optional)</h2>
+            <p>
+              Weather is off unless a parent turns it on in Family settings. When it is on, our server
+              sends the place the parent chose, as an approximate location rounded to about 1 km, to
+              Open-Meteo (open-meteo.com) to get the forecast, and sends the place name a parent types
+              when searching for a town. No names, accounts or other household information are sent.
+              Turning weather off or removing the place stops these requests and deletes the cached
+              forecast.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>

@@ -117,6 +117,7 @@ jobs:
           src/lib/calendar-import/__tests__/sync.integration.test.ts
           src/lib/calendar-sync/__tests__/sync.integration.test.ts
           src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts
+          src/lib/weather/__tests__/board-weather.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
           RUN_DB_INTEGRATION: "1"

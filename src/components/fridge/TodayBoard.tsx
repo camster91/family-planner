@@ -12,17 +12,68 @@ import {
   dinnerOn,
   eventsLeftToday,
   formatLongDate,
+  memberDisplayNames,
   formatTime,
   localDayKey,
+  memberColors,
+  weatherView,
+  itemsToUseSoon,
 } from './board-model'
-import { ChoresRegion, ComingUpRegion, DinnerRegion, GroceriesRegion, ScheduleRegion } from './regions'
+import {
+  ChoresRegion,
+  ComingUpRegion,
+  DinnerRegion,
+  GroceriesRegion,
+  ScheduleRegion,
+  areaClass,
+  type BoardPerson,
+} from './regions'
 import { actionLinkClass } from './styles'
+import { WeatherTile } from './weather-tile'
+import { UseSoonRegion } from './use-soon-region'
 
 /** Client refresh interval for an always-on board. Not a server job. */
 export const BOARD_REFRESH_MS = 5 * 60 * 1000
 /** After this long without fresh data the board says when it last updated. */
 const STALE_AFTER_MS = 15 * 60 * 1000
 const CLOCK_TICK_MS = 15 * 1000
+
+/**
+ * Board grid (#262). Portrait/phone widths stack; `lg` is the desktop/app
+ * layout; `lg:landscape` in fridge mode is the 16:10 touch hub (1280x800 and
+ * 1920x1200): four columns that fit the screen, each region scrolling inside
+ * itself. `usesoon` rows exist only when the #263 slot is filled.
+ */
+const GRID_BASE = 'grid gap-5 2xl:gap-6'
+const GRID_APP = [
+  'md:grid-cols-2 md:[grid-template-areas:"today_dinner"_"chores_groceries"_"coming_coming"]',
+  'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"coming_coming_coming"]',
+].join(' ')
+const GRID_APP_WITH_SLOT = [
+  'md:grid-cols-2 md:[grid-template-areas:"today_dinner"_"chores_groceries"_"usesoon_usesoon"_"coming_coming"]',
+  'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"today_usesoon_chores"_"coming_coming_coming"]',
+].join(' ')
+const GRID_FRIDGE =
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:overflow-y-auto'
+const GRID_FRIDGE_WITH_SLOT =
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_usesoon_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:overflow-y-auto'
+
+/**
+ * In the fridge hub the slot is a grid cell of fixed height; its tile fills it
+ * and scrolls inside itself like the other regions, instead of overflowing.
+ */
+const USE_SOON_SLOT_FIT =
+  'lg:landscape:flex lg:landscape:flex-col lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:flex-1 lg:landscape:[&>section]:overflow-y-auto'
+
+export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean): string {
+  return [
+    GRID_BASE,
+    hasUseSoon ? GRID_APP_WITH_SLOT : GRID_APP,
+    fridgeMode && (hasUseSoon ? GRID_FRIDGE_WITH_SLOT : GRID_FRIDGE),
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 
 /**
  * Hides the app chrome for a mounted tablet. Rendered only in fridge mode, so
@@ -140,6 +191,7 @@ export default function TodayBoard({
   onRefresh,
   actions,
   banner,
+  useSoon,
 }: {
   data: TodayBoardData
   fridgeMode: boolean
@@ -152,6 +204,13 @@ export default function TodayBoard({
   actions?: React.ReactNode
   /** Shown above the header, inside the board (the tablet's parent-mode banner). */
   banner?: React.ReactNode
+  /**
+   * Overrides the "Use soon" slot (`usesoon` grid area: under Groceries in the
+   * fridge landscape hub, a full-width row elsewhere). By default the board
+   * fills it from `data.useSoon` (#263) with UseSoonRegion, and leaves it out
+   * entirely when there is nothing to use soon or inventory is off.
+   */
+  useSoon?: React.ReactNode
 }) {
   // "Today" is the viewer's local day, which the server cannot know, so the
   // board renders after mount (a brief skeleton) instead of risking a
@@ -179,13 +238,30 @@ export default function TodayBoard({
   const view = React.useMemo(() => {
     if (!now) return null
     const today = localDayKey(now)
+    // Member colours (#262), resolved once so every region agrees.
+    const colors = memberColors(data.members)
+    const names = memberDisplayNames(data.members)
+    const withColors = data.members.map((m) => ({ ...m, color: colors.get(m.id) }))
+    const people = new Map<string, BoardPerson>(
+      data.members.map((m) => [m.id, { name: names.get(m.id) ?? m.name, color: colors.get(m.id)! }])
+    )
     return {
       today: eventsLeftToday(data.events, now),
       dinner: dinnerOn(data.dinners, today),
-      chores: choresDueTodayByPerson(data.chores, data.members, now),
+      chores: choresDueTodayByPerson(data.chores, withColors, now),
       comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS),
+      people,
+      weather: weatherView(data.weather, now),
+      useSoon: itemsToUseSoon(data.useSoon, now),
     }
   }, [data, now])
+
+  // "Use soon" tile (#263): only when there is something to use (null otherwise).
+  const useSoonSlot =
+    useSoon ??
+    (view && view.useSoon.length > 0 ? (
+      <UseSoonRegion items={view.useSoon} inventoryHref={data.links.inventory ?? null} />
+    ) : null)
 
   const stale = now && receivedAt ? now.getTime() - receivedAt.getTime() > STALE_AFTER_MS : false
 
@@ -198,29 +274,29 @@ export default function TodayBoard({
           ? // On a landscape fridge tablet the board fits the viewport: the grid
             // takes the height left under the header and each region scrolls
             // inside itself instead of pushing content below the fold.
-            'min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden'
+            'min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden'
           : 'bg-[var(--surface-grouped)]'
       }
     >
       {fridgeMode && <style>{FRIDGE_CHROME_CSS}</style>}
       {banner}
 
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 lg:mb-6">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 lg:mb-6 2xl:mb-8">
         <div className="min-w-0">
-          <p className="text-[17px] font-semibold uppercase tracking-wide text-label-secondary md:text-[19px]">
+          <p className="text-[17px] font-semibold uppercase tracking-wide text-label-secondary md:text-[19px] 2xl:text-[22px]">
             Today
           </p>
           <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
             <h1
               data-testid="board-date"
-              className="font-display text-[34px] font-bold leading-tight text-label-primary md:text-[44px] lg:text-[48px]"
+              className="font-display text-[34px] font-bold leading-tight text-label-primary md:text-[44px] lg:text-[48px] 2xl:text-[60px]"
             >
               {now ? formatLongDate(now) : 'Today'}
             </h1>
             {now && (
               <p
                 data-testid="board-clock"
-                className="text-[28px] font-semibold tabular-nums text-label-secondary md:text-[36px] lg:text-[40px]"
+                className="text-[28px] font-semibold tabular-nums text-label-secondary md:text-[36px] lg:text-[40px] 2xl:text-[52px]"
               >
                 <span className="sr-only">Time: </span>
                 {formatTime(now)}
@@ -229,25 +305,35 @@ export default function TodayBoard({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {receivedAt && (
-            <p data-testid="board-updated" className="text-[15px] text-label-secondary md:text-[17px]">
-              Updated {formatTime(receivedAt)}
-            </p>
+        {/* Right cluster: weather (#262, only when the household opted in and a
+            forecast is available) above the refresh time and the mode action. */}
+        <div className="flex w-full min-w-0 flex-col items-start gap-3 sm:w-auto sm:items-end">
+          {view?.weather && (
+            <div className="w-full min-w-0 sm:w-auto">
+              <WeatherTile view={view.weather} />
+            </div>
           )}
-          {actions ? (
-            actions
-          ) : fridgeMode ? (
-            <Link href="/dashboard/today" className={actionLinkClass}>
-              <Minimize2 className="h-5 w-5" aria-hidden="true" />
-              Exit fridge mode
-            </Link>
-          ) : (
-            <Link href="/dashboard/today?mode=fridge" className={actionLinkClass}>
-              <Maximize2 className="h-5 w-5" aria-hidden="true" />
-              Fridge mode
-            </Link>
-          )}
+
+          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            {receivedAt && (
+              <p data-testid="board-updated" className="text-[15px] text-label-secondary md:text-[17px] 2xl:text-[19px]">
+                Updated {formatTime(receivedAt)}
+              </p>
+            )}
+            {actions ? (
+              actions
+            ) : fridgeMode ? (
+              <Link href="/dashboard/today" className={actionLinkClass}>
+                <Minimize2 className="h-5 w-5" aria-hidden="true" />
+                Exit fridge mode
+              </Link>
+            ) : (
+              <Link href="/dashboard/today?mode=fridge" className={actionLinkClass}>
+                <Maximize2 className="h-5 w-5" aria-hidden="true" />
+                Fridge mode
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 
@@ -266,18 +352,8 @@ export default function TodayBoard({
       )}
 
       {view ? (
-        <div
-          className={[
-            'grid gap-5',
-            'md:grid-cols-2 md:[grid-template-areas:"today_dinner"_"chores_groceries"_"coming_coming"]',
-            'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"coming_coming_coming"]',
-            fridgeMode &&
-              'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:overflow-y-auto',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-        >
-          <ScheduleRegion events={view.today} calendarHref={data.links.calendar} />
+        <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot))}>
+          <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} />
           <DinnerRegion
             dinner={view.dinner}
             mealsEnabled={data.dinners !== null}
@@ -287,6 +363,11 @@ export default function TodayBoard({
           <ChoresRegion people={view.chores} choresHref={data.links.chores} />
           <GroceriesRegion shopping={data.shopping} listsHref={data.links.lists} />
           <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
+          {useSoonSlot && (
+            <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>
+              {useSoonSlot}
+            </div>
+          )}
         </div>
       ) : (
         <BoardSkeleton />

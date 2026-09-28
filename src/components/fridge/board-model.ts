@@ -7,8 +7,17 @@
  * due days, meal days) are compared by their `YYYY-MM-DD` string, never parsed
  * into a local Date (src/lib/dates.ts).
  */
-import { toDateOnlyLocal } from '@/lib/dates'
-import type { BoardChore, BoardDinner, BoardEvent, BoardMember } from '@/app/dashboard/today/today-board-data'
+import { parseDateOnly, toDateOnlyLocal } from '@/lib/dates'
+import type {
+  BoardChore,
+  BoardDinner,
+  BoardEvent,
+  BoardMember,
+  BoardUseSoonItem,
+} from '@/app/dashboard/today/today-board-data'
+import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus } from '@/lib/inventory'
+import type { BoardWeather } from '@/lib/weather/board-weather'
+import { MEMBER_COLOR_KEYS, type MemberColorKey } from '@/lib/member-colors'
 
 export const DONE_CHORE_STATUSES = ['completed', 'verified'] as const
 
@@ -64,7 +73,10 @@ export function dinnerOn(dinners: BoardDinner[] | null, dayKey: string): BoardDi
 export interface PersonChores {
   member: BoardMember
   open: BoardChore[]
+  /** Completed or checked today. */
   doneCount: number
+  /** Of those, marked done but not yet checked by a parent (status `completed`). */
+  awaitingCheckCount: number
 }
 
 /**
@@ -82,6 +94,7 @@ export function choresDueTodayByPerson(chores: BoardChore[], members: BoardMembe
         member,
         open: mine.filter((c) => !isChoreDone(c.status)),
         doneCount: mine.filter((c) => isChoreDone(c.status)).length,
+        awaitingCheckCount: mine.filter((c) => c.status === 'completed').length,
       }
     })
     .filter((p) => p.open.length > 0 || p.doneCount > 0)
@@ -133,4 +146,90 @@ export function formatLongDate(now: Date): string {
 /** First word of a display name, for compact labels ("Avery Fixture-A" -> "Avery"). */
 export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name
+}
+
+/**
+ * Member colour by id (#262). Members from a server built before #262 carry
+ * no colour; they get the palette in household order so the board still
+ * reads consistently.
+ */
+export function memberColors(members: BoardMember[]): Map<string, MemberColorKey> {
+  return new Map(members.map((m, i) => [m.id, m.color ?? MEMBER_COLOR_KEYS[i % MEMBER_COLOR_KEYS.length]]))
+}
+
+/** The weather place's current calendar date: now shifted by its UTC offset. */
+export function placeDayKey(now: Date, utcOffsetSeconds: number): string {
+  return new Date(now.getTime() + utcOffsetSeconds * 1000).toISOString().slice(0, 10)
+}
+
+export interface WeatherView {
+  weather: BoardWeather
+  /**
+   * The forecast day matching the PLACE's current date (its UTC offset from
+   * Open-Meteo), else the nearest earlier/first day. Falls back to the
+   * viewer's local day when the offset is missing (older server).
+   */
+  today: BoardWeather['days'][number] | null
+  /** Up to three days after `today`. */
+  next: BoardWeather['days']
+}
+
+/**
+ * Picks today's forecast and the next days by the weather place's calendar
+ * (forecast days are place-local dates), so a place across the date line or
+ * in another zone never shows yesterday's or tomorrow's row as "today".
+ */
+export function weatherView(weather: BoardWeather | null | undefined, now: Date): WeatherView | null {
+  if (!weather || weather.days.length === 0) return null
+  const key =
+    typeof weather.utcOffsetSeconds === 'number' ? placeDayKey(now, weather.utcOffsetSeconds) : localDayKey(now)
+  let index = weather.days.findIndex((d) => d.day === key)
+  if (index < 0) {
+    // Forecast from before local midnight: the last day not after today.
+    const later = weather.days.findIndex((d) => d.day > key)
+    index = later < 0 ? weather.days.length - 1 : Math.max(0, later - 1)
+  }
+  return {
+    weather,
+    today: weather.days[index] ?? null,
+    next: weather.days.slice(index + 1, index + 4),
+  }
+}
+
+/** "Tue" for a `YYYY-MM-DD` forecast day (a calendar date, not an instant). */
+export function shortWeekday(dayKey: string): string {
+  const [y, m, d] = dayKey.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
+}
+
+/** First names, unless two members share one (then full names). */
+export function memberDisplayNames(members: BoardMember[]): Map<string, string> {
+  const counts = new Map<string, number>()
+  for (const m of members) counts.set(firstName(m.name), (counts.get(firstName(m.name)) ?? 0) + 1)
+  return new Map(members.map((m) => [m.id, (counts.get(firstName(m.name)) ?? 0) > 1 ? m.name : firstName(m.name)]))
+}
+
+export interface UseSoonEntry extends BoardUseSoonItem {
+  status: 'expired' | 'today' | 'soon'
+  daysLeft: number
+  /** "Expired yesterday", "Use today", "Use in 2 days" (text carries the state). */
+  label: string
+}
+
+/**
+ * Items to use soon against the viewer's LOCAL today (#263 data, #262 tile):
+ * expired, due today, or due within DEFAULT_USE_SOON_DAYS. The server sends a
+ * window wide enough for any zone; rows not yet due are dropped here.
+ */
+export function itemsToUseSoon(items: BoardUseSoonItem[] | null | undefined, now: Date): UseSoonEntry[] {
+  if (!items || items.length === 0) return []
+  const today = parseDateOnly(localDayKey(now))
+  if (!today) return []
+  return items
+    .flatMap((item) => {
+      const { status, daysLeft } = expiryStatus(item.expiresOn, today, DEFAULT_USE_SOON_DAYS)
+      if (daysLeft === null || (status !== 'expired' && status !== 'today' && status !== 'soon')) return []
+      return [{ ...item, status, daysLeft, label: expiryLabel(status, daysLeft) }]
+    })
+    .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }

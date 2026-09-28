@@ -485,12 +485,14 @@ The device reads exactly the Today board DTO, built by `buildTodayBoard` with a 
 
 | DTO part | Fields | Source model |
 |---|---|---|
-| `members` | `id`, `name` | `User` (no email, age, avatar, role, XP, level, streak) |
-| `events` | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }` | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`) |
+| `members` | `id`, `name`, `color` (#262: palette key from `board_color` or the fallback) | `User` (no email, age, avatar, role, XP, level, streak) |
+| `events` | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }`, `addedById` (#262: household member who added a local event; `null` for subscribed or provider-synced imports) | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`) |
 | `chores` | `id`, `title`, `dueDay`, `status`, `assigneeId` | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`) |
 | `dinners` | `id`, `day`, `recipeName`, `cookName` | `FamilyMeal` (no `notes`); `null` when meals feature is off |
 | `shopping` | `items[] { id, content, quantity, listId, listName }`, `total` | `ListItem`/`List` of type `grocery`/`shopping` (no `price`, `notes`, `added_by`) |
-| `links` | all `null` for the device audience | — |
+| `links` | all `null` for the device audience (including `inventory`) | — |
+| `useSoon` (#262 tile, #263 data) | `id`, `name`, `location`, `expiresOn`; `null` when the `inventory` feature is off | `InventoryItem` of the device's household, expired or due within 3 days (no `amount`, `unit`, `ingredient_id`, `added_by`). Allowed on the device for the same reason as `shopping`: household food names every member may read; read-only |
+| `weather` (#262) | `label`, `unit`, `current { temperature, summary, icon, isDay }`, `days[] { day, high, low, summary, icon, precipitationChance }` (place-local dates), `utcOffsetSeconds` (the place's offset, so the client picks today by the place's date), `fetchedAt`; `null` unless the household opted in | `Family.weather_*` and `WeatherCache` of the device's household (no coordinates) |
 | `generatedAt` | server time | — |
 
 Plus `GET /api/device/me`: `device { id, label }`, `household { name }` (`Family.name`), `features` (booleans for

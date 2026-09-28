@@ -7,6 +7,7 @@ import {
   CalendarRange,
   CheckSquare,
   ChevronRight,
+  Hourglass,
   ShoppingCart,
   UtensilsCrossed,
   type LucideIcon,
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { formatMinutes } from '@/lib/meal-slots'
 import type { ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
+import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
 import { firstName, formatTime, type ComingUpDay, type PersonChores, type TodayEvent } from './board-model'
 import {
   actionLinkClass,
@@ -34,7 +36,29 @@ const MAX_COMING_UP_EVENTS = 3
 
 type GlyphColor = React.ComponentProps<typeof Glyph>['color']
 
-function Region({
+/**
+ * Board grid areas. `usesoon` is reserved for the inventory "Use soon" tile
+ * (#263), which mounts through TodayBoard's `useSoon` slot; see the layout
+ * notes there.
+ */
+export type BoardArea = 'today' | 'dinner' | 'chores' | 'groceries' | 'coming' | 'usesoon'
+
+export const areaClass: Record<BoardArea, string> = {
+  today: 'md:[grid-area:today]',
+  dinner: 'md:[grid-area:dinner]',
+  chores: 'md:[grid-area:chores]',
+  groceries: 'md:[grid-area:groceries]',
+  coming: 'md:[grid-area:coming]',
+  usesoon: 'md:[grid-area:usesoon]',
+}
+
+/** A household member as the board labels them: display name plus colour. */
+export interface BoardPerson {
+  name: string
+  color: MemberColorKey
+}
+
+export function Region({
   id,
   area,
   title,
@@ -45,20 +69,13 @@ function Region({
 }: {
   id: string
   /** CSS grid area name used by the board layout at md+ widths. */
-  area: 'today' | 'dinner' | 'chores' | 'groceries' | 'coming'
+  area: BoardArea
   title: string
   icon: LucideIcon
   glyph: GlyphColor
   action?: React.ReactNode
   children: React.ReactNode
 }) {
-  const areaClass = {
-    today: 'md:[grid-area:today]',
-    dinner: 'md:[grid-area:dinner]',
-    chores: 'md:[grid-area:chores]',
-    groceries: 'md:[grid-area:groceries]',
-    coming: 'md:[grid-area:coming]',
-  }[area]
   return (
     <section
       aria-labelledby={`${id}-title`}
@@ -66,7 +83,7 @@ function Region({
       // On a landscape fridge tablet each region scrolls inside itself, so it
       // must be reachable by keyboard to scroll (WCAG 2.1.1).
       tabIndex={0}
-      className={cn(regionClass, areaClass)}
+      className={cn(regionClass, areaClass[area])}
     >
       <div className="mb-4 flex items-center gap-3">
         <Glyph color={glyph} size="md">
@@ -113,7 +130,44 @@ function eventTimeLabel(e: TodayEvent): string {
   return formatTime(e.start)
 }
 
-export function ScheduleRegion({ events, calendarHref }: { events: TodayEvent[]; calendarHref: string | null }) {
+/** Colour swatch that always sits next to a visible name (never colour-only). */
+function MemberSwatch({ color, className }: { color: MemberColorKey; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-member-color={color}
+      className={cn('inline-block shrink-0 rounded-full', className)}
+      style={{ backgroundColor: MEMBER_COLOR_CSS[color] }}
+    />
+  )
+}
+
+/**
+ * "Added by Avery" with the member's colour (#262). Events have no attendee
+ * field, so the board says who added it rather than implying who attends.
+ */
+function AddedByLabel({ person }: { person: BoardPerson }) {
+  return (
+    <span
+      data-testid="event-member"
+      className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-medium text-label-primary md:text-[16px] 2xl:text-[18px]"
+    >
+      <MemberSwatch color={person.color} className="h-3 w-3 2xl:h-3.5 2xl:w-3.5" />
+      <span className="min-w-0 break-words">Added by {person.name}</span>
+    </span>
+  )
+}
+
+export function ScheduleRegion({
+  events,
+  calendarHref,
+  people,
+}: {
+  events: TodayEvent[]
+  calendarHref: string | null
+  /** Member display name and colour by id (#262). */
+  people?: Map<string, BoardPerson>
+}) {
   const shown = events.slice(0, MAX_TODAY_EVENTS)
   const more = events.length - shown.length
   return (
@@ -135,23 +189,35 @@ export function ScheduleRegion({ events, calendarHref }: { events: TodayEvent[];
         <p className={emptyTextClass}>Nothing else on the calendar today.</p>
       ) : (
         <ul className="divide-y divide-[var(--surface-separator)]">
-          {shown.map((e) => (
-            <li key={e.id} data-testid="today-event" className="flex gap-4 py-3 first:pt-0">
-              <p className="w-[96px] shrink-0 whitespace-nowrap pt-0.5 text-[19px] font-semibold tabular-nums text-label-primary md:w-[118px] md:text-[21px]">
-                {eventTimeLabel(e)}
-              </p>
-              <div className="min-w-0 flex-1">
-                <p className={cn(itemTextClass, 'break-words font-medium md:line-clamp-2')}>{e.title}</p>
-                {(e.happeningNow || e.isTask || e.source) && (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    {e.happeningNow && !e.startedEarlier && <Tag>Now</Tag>}
-                    {e.isTask && <Tag>Task</Tag>}
-                    {e.source && <SourceLabel source={e.source} />}
-                  </div>
+          {shown.map((e) => {
+            const person = e.addedById ? people?.get(e.addedById) : undefined
+            return (
+              <li key={e.id} data-testid="today-event" className="flex gap-4 py-3 first:pt-0 2xl:py-4">
+                <p className="w-[96px] shrink-0 whitespace-nowrap pt-0.5 text-[19px] font-semibold tabular-nums text-label-primary md:w-[118px] md:text-[21px] 2xl:w-[132px] 2xl:text-[24px]">
+                  {eventTimeLabel(e)}
+                </p>
+                {/* Member colour rail: decoration beside the name label below. */}
+                {person && (
+                  <span
+                    aria-hidden="true"
+                    className="w-1.5 shrink-0 self-stretch rounded-full"
+                    style={{ backgroundColor: MEMBER_COLOR_CSS[person.color] }}
+                  />
                 )}
-              </div>
-            </li>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <p className={cn(itemTextClass, 'break-words font-medium md:line-clamp-2')}>{e.title}</p>
+                  {(e.happeningNow || e.isTask || e.source || person) && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {e.happeningNow && !e.startedEarlier && <Tag>Now</Tag>}
+                      {e.isTask && <Tag>Task</Tag>}
+                      {person && <AddedByLabel person={person} />}
+                      {e.source && <SourceLabel source={e.source} />}
+                    </div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
       {more > 0 && <p className={cn(metaTextClass, 'mt-3')}>{more} more later today</p>}
@@ -210,7 +276,7 @@ export function DinnerRegion({
     const recipeLine = dinnerRecipeLine(dinner)
     body = (
       <div data-testid="dinner-tonight">
-        <p className="break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px]">
+        <p className="break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]">
           {dinner.recipeName ?? dinner.recipeTitle ?? 'Dinner is planned'}
         </p>
         {recipeLine && <p className={cn(metaTextClass, 'mt-2 break-words')}>{recipeLine}</p>}
@@ -302,15 +368,32 @@ function displayNames(people: PersonChores[]): Map<string, string> {
   )
 }
 
-function Monogram({ name }: { name: string }) {
+/**
+ * Initial on the member's colour (#262). White bold 20px+ is large text, and
+ * every palette fill is AA for it (src/lib/member-colors.ts). Decoration: the
+ * name is always printed next to it.
+ */
+function Monogram({ name, color }: { name: string; color?: MemberColorKey }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-fill)] text-[17px] font-bold text-label-primary"
+      data-member-color={color}
+      className={cn(
+        'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[20px] font-bold 2xl:h-14 2xl:w-14 2xl:text-[24px]',
+        color ? 'text-white' : 'bg-[var(--surface-fill)] text-label-primary'
+      )}
+      style={color ? { backgroundColor: MEMBER_COLOR_CSS[color] } : undefined}
     >
       {(name.trim()[0] ?? '?').toUpperCase()}
     </span>
   )
+}
+
+/** "2 done", "2 done · 1 waiting for a parent's check". Text carries the state. */
+function doneLine(p: PersonChores): string | null {
+  if (p.doneCount === 0) return null
+  const waiting = p.awaitingCheckCount ?? 0
+  return waiting > 0 ? `${p.doneCount} done · ${waiting} waiting for a parent's check` : `${p.doneCount} done`
 }
 
 export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; choresHref: string | null }) {
@@ -338,30 +421,40 @@ export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; c
             const name = names.get(p.member.id) ?? p.member.name
             const shown = p.open.slice(0, MAX_CHORES_PER_PERSON)
             const more = p.open.length - shown.length
+            const done = doneLine(p)
             return (
               <li key={p.member.id} data-testid="chore-person">
                 <div className="flex items-center gap-3">
-                  <Monogram name={name} />
-                  <h3 className="min-w-0 flex-1 break-words text-[20px] font-semibold leading-tight text-label-primary md:text-[22px]">
+                  <Monogram name={name} color={p.member.color} />
+                  <h3 className="min-w-0 flex-1 break-words text-[20px] font-semibold leading-tight text-label-primary md:text-[22px] 2xl:text-[26px]">
                     {name}
                   </h3>
                 </div>
-                {p.open.length === 0 ? (
-                  <p className={cn(metaTextClass, 'mt-1 pl-[52px]')}>All done for today</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 pl-[52px]">
-                    {shown.map((c) => (
-                      <li key={c.id} className={cn(itemTextClass, 'break-words')}>
-                        {c.title}
-                        {c.status === 'in_progress' && (
-                          <span className={cn(metaTextClass, 'block')}>In progress</span>
-                        )}
-                      </li>
-                    ))}
-                    {more > 0 && <li className={metaTextClass}>{more} more</li>}
-                    {p.doneCount > 0 && <li className={metaTextClass}>{p.doneCount} done</li>}
-                  </ul>
-                )}
+                <div className="pl-[56px] 2xl:pl-[68px]">
+                  {p.open.length === 0 ? (
+                    <p className={cn(metaTextClass, 'mt-1')}>All done for today</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {shown.map((c) => (
+                        <li key={c.id} className={cn(itemTextClass, 'break-words')}>
+                          {c.title}
+                          {c.status === 'in_progress' && (
+                            <span className={cn(metaTextClass, 'block')}>In progress</span>
+                          )}
+                        </li>
+                      ))}
+                      {more > 0 && <li className={metaTextClass}>{more} more</li>}
+                    </ul>
+                  )}
+                  {done && (
+                    <p data-testid="chore-done" className={cn(metaTextClass, 'mt-1 flex items-start gap-2')}>
+                      {(p.awaitingCheckCount ?? 0) > 0 && (
+                        <Hourglass className="mt-1 h-4 w-4 shrink-0 2xl:h-5 2xl:w-5" aria-hidden="true" />
+                      )}
+                      <span>{done}</span>
+                    </p>
+                  )}
+                </div>
               </li>
             )
           })}
@@ -389,7 +482,7 @@ export function ComingUpRegion({
           const more = day.events.length - shown.length
           return (
             <li key={day.dayKey} data-testid="coming-up-day" className="min-w-0">
-              <h3 className="text-[20px] font-semibold leading-tight text-label-primary md:text-[22px]">
+              <h3 className="text-[20px] font-semibold leading-tight text-label-primary md:text-[22px] 2xl:text-[26px]">
                 {day.label} <span className="font-normal text-label-secondary">{day.dateLabel}</span>
               </h3>
               {shown.length === 0 ? (

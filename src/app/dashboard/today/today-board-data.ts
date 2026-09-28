@@ -25,6 +25,9 @@ import { addUTCDays, startOfTodayUTC, toDateOnlyUTC } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
 import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { FamilyFeatures } from '@/lib/features'
+import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
+import { DEFAULT_USE_SOON_DAYS, getUseSoonItems, type InventoryLocation } from '@/lib/inventory'
+import type { BoardWeather } from '@/lib/weather/board-weather'
 
 /** Days after today covered by "Coming up". */
 export const COMING_UP_DAYS = 3
@@ -32,11 +35,19 @@ export const COMING_UP_DAYS = 3
 /** Upper bound on rows per domain; the board shows far fewer. */
 const MAX_EVENTS = 60
 const MAX_CHORES = 80
+/** "Use soon" rows read for the board (it shows at most 5, then "N more"). */
+export const MAX_USE_SOON = 50
 
 export interface BoardMember {
   id: string
   /** Display name only. No email, age, avatar, role or points. */
   name: string
+  /**
+   * Board colour (#262): a palette key from src/lib/member-colors.ts, the
+   * parent's choice or the deterministic fallback. Always shown next to the
+   * name, never alone. Optional for clients built before #262.
+   */
+  color?: MemberColorKey
 }
 
 export interface BoardEvent {
@@ -47,6 +58,14 @@ export interface BoardEvent {
   isTask: boolean
   /** Subscribed calendar the event was imported from (#232), for the "From …" label. */
   source: { name: string; color: string | null } | null
+  /**
+   * Household member who added the event (#262), for the member colour and
+   * name on the board. Null for imported events (subscribed calendars and
+   * provider-synced calendars) and for a creator who is no
+   * longer in the household. Events have no attendee field, so this is who
+   * added it, not who attends. Optional for clients built before #262.
+   */
+  addedById?: string | null
 }
 
 export interface BoardChore {
@@ -73,6 +92,21 @@ export interface BoardDinner {
   prepMinutes?: number | null
 }
 
+/**
+ * Inventory item to use soon (#263 data, #262 tile). Board-safe fields only
+ * (`getUseSoonItems`): no amount, author, ingredient link or notes. The
+ * client works out "expired / use today / use in N days" against the
+ * viewer's local day, as it does for chores and dinners.
+ */
+export interface BoardUseSoonItem {
+  id: string
+  /** Household food name, like a grocery item already on the board. */
+  name: string
+  location: InventoryLocation
+  /** `YYYY-MM-DD` expiry day. */
+  expiresOn: string
+}
+
 /** Where the board may link, already filtered by role and feature flags. */
 export interface BoardLinks {
   calendar: string | null
@@ -80,6 +114,8 @@ export interface BoardLinks {
   meals: string | null
   lists: string | null
   features: string | null
+  /** Food inventory page (#263); optional for boards built before it. */
+  inventory?: string | null
 }
 
 export interface TodayBoardData {
@@ -92,10 +128,26 @@ export interface TodayBoardData {
   dinners: BoardDinner[] | null
   /** null when the role may not open lists (never for the current roles), or for a device when lists are off. */
   shopping: ShoppingSnapshot | null
+  /**
+   * Items to use soon (#263), expired or expiring within a few days, soonest
+   * first. null when the household's `inventory` feature is off. Optional for
+   * clients built before the tile.
+   */
+  useSoon?: BoardUseSoonItem[] | null
   links: BoardLinks
+  /**
+   * Weather tile (#262): null when the household has not opted in, the server
+   * kill switch is off, or the forecast is unavailable (the tile is hidden).
+   * Filled by the caller from src/lib/weather/board-weather.ts, not by
+   * buildTodayBoard. Optional for clients built before #262.
+   */
+  weather?: BoardWeather | null
 }
 
-type Db = Pick<PrismaClient, 'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem'>
+type Db = Pick<
+  PrismaClient,
+  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'inventoryItem'
+>
 
 interface BuildTodayBoardBase {
   familyId: string
@@ -112,7 +164,7 @@ interface BuildTodayBoardBase {
 export type BuildTodayBoardOptions = BuildTodayBoardBase &
   ({ audience?: 'person'; role: string | null | undefined } | { audience: 'device'; role?: never })
 
-const NO_LINKS: BoardLinks = { calendar: null, chores: null, meals: null, lists: null, features: null }
+const NO_LINKS: BoardLinks = { calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null }
 
 /**
  * Link target if the role may open it and its feature is on, else null. The
@@ -135,10 +187,10 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const windowStart = addUTCDays(startOfTodayUTC(now), -1)
   const windowEnd = addUTCDays(startOfTodayUTC(now), COMING_UP_DAYS + 2)
 
-  const [members, events, chores, dinners, shopping] = await Promise.all([
+  const [members, events, chores, dinners, shopping, useSoon] = await Promise.all([
     db.user.findMany({
       where: { family_id: familyId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, board_color: true },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     }),
     db.event.findMany({
@@ -151,6 +203,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         end_time: true,
         is_task: true,
         source_subscription_id: true,
+        source_connection_id: true,
+        created_by: true,
       },
       orderBy: [{ start_time: 'asc' }, { id: 'asc' }],
       take: MAX_EVENTS,
@@ -175,6 +229,17 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : Promise.resolve(null),
     includeShopping ? getOpenShoppingItems(db, familyId) : Promise.resolve(null),
+    // "Use soon" (#263): only with the inventory feature on. Anchored one UTC
+    // day ahead so the window covers the viewer's local today in every zone
+    // (UTC-12..UTC+14); anything already expired is always included. The
+    // client drops rows that are not yet due for its own day.
+    features.inventory
+      ? getUseSoonItems(db, familyId, {
+          today: addUTCDays(startOfTodayUTC(now), 1),
+          days: DEFAULT_USE_SOON_DAYS,
+          limit: MAX_USE_SOON,
+        })
+      : Promise.resolve(null),
   ])
 
   // Subscription names for imported events, looked up in this family only so a
@@ -190,10 +255,11 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const subById = new Map(subs.map((s) => [s.id, s]))
 
   const memberIds = new Set(members.map((m) => m.id))
+  const colors = resolveMemberColors(members)
 
   return {
     generatedAt: now.toISOString(),
-    members: members.map((m) => ({ id: m.id, name: m.name })),
+    members: members.map((m) => ({ id: m.id, name: m.name, color: colors.get(m.id) })),
     events: events.map((e) => {
       const sub = e.source_subscription_id ? subById.get(e.source_subscription_id) : undefined
       return {
@@ -205,6 +271,10 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         source: e.source_subscription_id
           ? { name: sub?.name ?? 'Subscribed calendar', color: sub?.color ?? null }
           : null,
+        // Imported events (subscribed feeds #232, provider sync #264) belong to
+        // the feed or account, not to whoever connected it.
+        addedById:
+          !e.source_subscription_id && !e.source_connection_id && memberIds.has(e.created_by) ? e.created_by : null,
       }
     }),
     chores: chores
@@ -228,6 +298,9 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         }))
       : null,
     shopping,
+    useSoon: useSoon
+      ? useSoon.map((i) => ({ id: i.id, name: i.name, location: i.location, expiresOn: i.expiresOn }))
+      : null,
     links: isDevice
       ? { ...NO_LINKS }
       : {
@@ -236,6 +309,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           meals: allowedLink(role, '/dashboard/meals', features.meals),
           lists: allowedLink(role, '/dashboard/lists', features.lists),
           features: allowedLink(role, '/dashboard/features'),
+          inventory: allowedLink(role, '/dashboard/inventory', features.inventory),
         },
   }
 }
