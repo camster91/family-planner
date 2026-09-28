@@ -106,7 +106,7 @@ describe('inventory — two households, roles and gates', () => {
     expect(paged.items).toHaveLength(1)
     expect(paged.nextOffset).toBe(1)
 
-    for (const query of [
+    for (const query of <Array<Record<string, string>>>[
       { location: 'garage' },
       { expiringWithinDays: '-1' },
       { expiringWithinDays: 'soon' },
