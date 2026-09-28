@@ -48,12 +48,12 @@ Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" sr
 
 ### 2.3 Dead or unused code found
 
-- `src/components/lists/{ShoppingListView,ListItemRow,ListItems,DeleteListButton,ListsFilterTabs}.tsx` are imported by nothing in `src/app`. They are the only code that reads `ListItem.price`/`purchased` and `List.is_repeatable`/`last_purchased_at`, and no live API writes those columns (`updateListItemSchema` does not accept them).
-- The `meal_plan` list type (`createListSchema`, `lists/create` picker) is a third, free-text meal representation with no link to meals.
+- **Removed in #252.** `src/components/lists/{ShoppingListView,ListItemRow,ListItems,DeleteListButton,ListsFilterTabs}.tsx` were imported by nothing in `src/app` (confirmed by grep across `src/` and `e2e/`). They are the only code that reads `ListItem.price`/`purchased` and `List.is_repeatable`/`last_purchased_at`, and no live API writes those columns (`updateListItemSchema` does not accept them).
+- The `meal_plan` list type (`createListSchema`, `lists/create` picker) is a third, free-text meal representation with no link to meals. **#251/#252:** it is no longer offered in the create picker, the lists overview shows its card only while a household still has such lists, and the `meal_plan` type page offers no "create". Existing lists still open and stay editable.
 
 ### 2.4 Gaps found (fixed by child issues, not here)
 
-1. `/dashboard/meals` `buildDayPlans` keeps only the first meal per (day, type) (`dayMeals.find(...)`). The API allows several, so any extra rows are invisible and cannot be edited → child C.
+1. ~~`/dashboard/meals` `buildDayPlans` keeps only the first meal per (day, type) (`dayMeals.find(...)`). The API allows several, so any extra rows are invisible and cannot be edited → child C.~~ **Fixed in #252:** `src/lib/meal-slots.ts` `buildDayPlans` keeps every meal of a slot in API order; each has its own row, and the slot has an "Add another …" control.
 2. The user export omits `FamilyMeal` → child B.
 3. `/api/lists/**` has no server `featureGate('lists')`. Every other domain route uses `featureGate` (40 route files) → child B (O-11).
 4. `ShoppingItem.recipe_id` is a bare column with no FK or relation, so it can reference a missing or foreign recipe → handled in the backfill (§6).
@@ -183,7 +183,7 @@ SELECT count(*) FROM "ShoppingItem" i JOIN "ShoppingList" s ON s.id = i.shopping
 LEFT JOIN "Recipe" r ON r.id = i.recipe_id
 WHERE i.recipe_id IS NOT NULL AND (r.id IS NULL OR r.family_id <> s.family_id);
 
--- Live meals hidden today by the one-per-slot UI (gap 2.4.1)
+-- Slots holding more than one meal (hidden by the one-per-slot UI before #252, gap 2.4.1)
 SELECT count(*) FROM (SELECT family_id, date, meal_type FROM "FamilyMeal" GROUP BY 1,2,3 HAVING count(*) > 1) d;
 ```
 
@@ -284,6 +284,18 @@ Expected results:
 
 ### C. [UI] Move meals and grocery UI onto the canonical models (ADR-0007)
 
+**Status (2026-09-28):** implemented in #252 (PR #259), **pending a design reference**: AGENTS.md asks for a Figma/spec reference for significant new flows and none exists yet for the meal and recipe views (#150–#153), so #252 stays open until one is linked or Cameron accepts the current composition. What shipped:
+
+- `/dashboard/meals` renders every meal per slot (gap 2.4.1 closed). Each meal row opens the edit modal; a slot with meals has an "Add another <type>, <day>" button; an empty slot is one "Add <type>, <day>" row. The meal type is always written out (not icon-only), rows wrap long names, and every target is at least 44px.
+- The meal modal has a recipe picker (`GET /api/recipes`, following `nextOffset` so every recipe is listed) with "No recipe (just a name)" as the default and an inline "New recipe" panel (`POST /api/recipes`: title, prep/cook minutes, ingredient lines of amount, unit and name). Picking a recipe fills an empty name with its title. A free-text meal sends exactly the pre-#252 body; `recipe_id` is sent only when a recipe is picked (add) or the link changes (edit, `null` unlinks). A linked meal shows "View recipe" and its row says "<Type> · Recipe · N min prep".
+- Recipe detail is a route, `/dashboard/meals/recipes/[id]` (title, description, prep, cook, servings, ingredients with amounts, method; loading, not-found and error states). Its `actions` slot holds #253's `AddToGroceriesButton` (recipe-level add, source `recipe:<id>`) when the recipe has ingredients.
+- Grocery list rows show `amount unit` when `amount` is set, else "× n" for a quantity above one (O-6), plus "from <recipe title>" when the row has a `recipe_id`. Open rows sharing an `ingredient_id` are shown together as one labelled group ("Tomatoes · 2 entries") at the position of the first row, one row per source (O-3); checked rows are never grouped. Rules: `src/lib/grocery-display.ts`.
+- `meal_plan`: see §2.3. The unused `src/components/lists/*` are deleted.
+- Fridge/Today board: the dinner shows the linked recipe title when it differs from the meal name, and "Prep N min" when known (`dinnerRecipeLine` in `src/components/fridge/regions.tsx`); a free-text dinner looks as before.
+- Roles: `/dashboard/meals` and the recipe detail route stay parent-only in the UI (they are not on the kid allowlist, `src/lib/kid-access.ts`), so teen and child views are unchanged; the recipes API still gives every role read access and parent/teen write access (O-7), and the picker hides "New recipe" when told the role cannot create.
+- Tests: component tests (`src/app/dashboard/meals/__tests__`, `src/components/meals/__tests__`, `src/app/dashboard/lists/[listId]/__tests__`, `src/components/fridge/__tests__/dinner-region.test.tsx`) and `e2e/meals.spec.ts`. No visual baseline changed: the fixture meals are dated 8 weeks back and the grocery rows are spec-owned.
+- Not done here: a Figma/spec reference for the meal and recipe views (#150–#153) does not exist yet; the UI reuses the existing meals page composition and design tokens. Follow-up on #252: link the reference (or record Cameron's acceptance of this composition) and adjust the views to it.
+
 **Outcome:** People can see every planned meal, pick or create a recipe for a meal, and see amounts and provenance on grocery items. The informal `meal_plan` list type stops growing.
 
 **Scope**
@@ -305,7 +317,7 @@ Expected results:
 
 ### D. [Meals→Groceries] Add recipe ingredients to groceries idempotently (ADR-0007, #122)
 
-**Status (2026-09-28):** implemented in #253 (API, undo, default-list helper, meal-modal action; the recipe-detail mount waits for #252's recipe detail view, which can reuse `src/components/meals/AddToGroceriesButton.tsx`). Contracts: §7 and `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Tests: `src/app/api/lists/__tests__/from-recipe.test.ts` (fake DB), `from-recipe.integration.test.ts` (Postgres races, advisory lock, undo window; in the release workflow), `e2e/groceries.spec.ts` (add → replay → undo).
+**Status (2026-09-28):** implemented in #253 (API, undo, default-list helper, meal-modal action; with #252 the same `AddToGroceriesButton` is also mounted on the recipe detail route). Contracts: §7 and `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Tests: `src/app/api/lists/__tests__/from-recipe.test.ts` (fake DB), `from-recipe.integration.test.ts` (Postgres races, advisory lock, undo window; in the release workflow), `e2e/groceries.spec.ts` (add → replay → undo).
 
 **Outcome:** From a meal or recipe, a family member can add all or selected ingredients to the grocery list once, even with retries, double taps or two devices, and can undo it.
 

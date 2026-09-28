@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import type { ListType } from '@/types'
 import type { QueuedOperation } from '@/lib/offline-queue'
 import { useListItemSync, type SyncNotice } from './use-list-item-sync'
+import { buildGrocerySections, groceryDetailText } from '@/lib/grocery-display'
 
 // -----------------------------------------------------------------------
 // Types
@@ -26,6 +27,29 @@ interface Item {
   added_by: { name: string }
   checked_by?: { name: string }
   checked_at?: string
+  // Grocery fields (ADR-0007, #252); null on generic lists.
+  amount?: number | null
+  unit?: string | null
+  ingredient_id?: string | null
+  ingredient_name?: string | null
+  recipe_title?: string | null
+}
+
+/** A row returned by POST /api/lists/items/create, shaped like the page's items. */
+function toItem(raw: Record<string, unknown>): Item {
+  return {
+    id: String(raw.id),
+    content: String(raw.content ?? ''),
+    checked: raw.checked === true,
+    quantity: typeof raw.quantity === 'number' ? raw.quantity : 1,
+    category: typeof raw.category === 'string' ? raw.category : null,
+    added_by: { name: 'You' },
+    amount: typeof raw.amount === 'number' ? raw.amount : null,
+    unit: typeof raw.unit === 'string' ? raw.unit : null,
+    ingredient_id: typeof raw.ingredient_id === 'string' ? raw.ingredient_id : null,
+    ingredient_name: null,
+    recipe_title: null,
+  }
 }
 
 interface ListDetailClientProps {
@@ -86,16 +110,10 @@ export default function ListDetailClient({
   const done = listItems.filter(displayChecked).length
   const progress = total > 0 ? done / total : 0
 
-  // Group by category
-  const grouped = React.useMemo(() => {
-    const groups: Record<string, Item[]> = {}
-    for (const item of listItems) {
-      const cat = item.category || 'Other'
-      if (!groups[cat]) groups[cat] = []
-      groups[cat].push(item)
-    }
-    return groups
-  }, [listItems])
+  // Sections by category; open rows for the same ingredient are shown
+  // together (ADR-0007 O-3). Generic lists have no ingredient ids, so they
+  // keep plain category sections.
+  const sections = buildGrocerySections(listItems, displayChecked)
 
   const handleToggle = (itemId: string, checked: boolean) => {
     setRecentlySynced(prev => {
@@ -129,7 +147,7 @@ export default function ListDetailClient({
       })
       const data = await res.json()
       if (res.ok) {
-        setListItems(prev => [...prev, data.item])
+        setListItems(prev => [...prev, toItem(data.item)])
         setNewItemText('')
       }
     } catch (err) {
@@ -143,7 +161,56 @@ export default function ListDetailClient({
     if (e.key === 'Enter') handleAdd()
   }
 
-  const sortedCategories = Object.keys(grouped).sort()
+  const renderRow = (item: Item, isLast: boolean) => {
+    const op = sync.stateFor(item.id)
+    const checked = displayChecked(item)
+    const syncState = op?.state ?? (recentlySynced.has(item.id) ? 'synced' : undefined)
+    const status = syncStatusText(op, recentlySynced.has(item.id))
+    const detail = groceryDetailText(item)
+    const checkedBy = checked && item.checked_by ? `✓ ${item.checked_by.name}` : undefined
+    const subtitle = status ?? ([detail, checkedBy].filter(Boolean).join(' · ') || undefined)
+    return (
+      <SwipeRow
+        key={item.id}
+        onSwipeLeft={canDeleteItems ? () => handleDeleteItem(item.id) : undefined}
+      >
+        <div data-item-id={item.id} data-sync-state={syncState} data-testid="list-item">
+          <CheckboxRow
+            checked={checked}
+            onChange={() => handleToggle(item.id, !checked)}
+            title={item.content}
+            subtitle={subtitle}
+            wrap
+            className={cn(isLast && !needsAction(op) && 'border-b-0')}
+          />
+          {op && needsAction(op) && (
+            <div
+              role="group"
+              aria-label={`Sync options for ${item.content}`}
+              className={cn('flex flex-wrap gap-2 px-4 pb-3', isLast && 'border-b-0')}
+            >
+              <button
+                type="button"
+                onClick={() => void sync.retry(op.id)}
+                className="btn-tinted min-h-[44px] px-4"
+                aria-label={`Retry syncing ${item.content}`}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={() => void sync.discard(op.id)}
+                className="min-h-[44px] px-4 text-subhead text-label-secondary underline-offset-2 hover:underline"
+                aria-label={`Discard change to ${item.content}`}
+              >
+                Discard
+              </button>
+            </div>
+          )}
+        </div>
+      </SwipeRow>
+    )
+  }
 
   return (
     <div className="space-y-5 px-4 pb-20">
@@ -175,57 +242,27 @@ export default function ListDetailClient({
         onDismiss={sync.dismissNotice}
       />
 
-      {/* Items grouped by category */}
+      {/* Items grouped by category, then by ingredient */}
       {total > 0 ? (
-        sortedCategories.map((category) => (
-          <section key={category}>
-            <SectionHeader>{category}</SectionHeader>
+        sections.map((section) => (
+          <section key={section.category}>
+            <SectionHeader>{section.category}</SectionHeader>
             <InsetList>
-              {grouped[category].map((item, i) => {
-                const op = sync.stateFor(item.id)
-                const checked = displayChecked(item)
-                const syncState = op?.state ?? (recentlySynced.has(item.id) ? 'synced' : undefined)
-                const status = syncStatusText(op, recentlySynced.has(item.id))
-                const isLast = i === grouped[category].length - 1
+              {section.entries.map((entry, i) => {
+                const isLastEntry = i === section.entries.length - 1
+                if (entry.kind === 'item') return renderRow(entry.item, isLastEntry)
                 return (
-                  <SwipeRow
-                    key={item.id}
-                    onSwipeLeft={canDeleteItems ? () => handleDeleteItem(item.id) : undefined}
+                  <div
+                    key={`ingredient-${entry.ingredientId}`}
+                    role="group"
+                    aria-label={`${entry.name}, ${entry.items.length} entries`}
+                    data-testid="ingredient-group"
                   >
-                    <div data-item-id={item.id} data-sync-state={syncState}>
-                      <CheckboxRow
-                        checked={checked}
-                        onChange={() => handleToggle(item.id, !checked)}
-                        title={item.content}
-                        subtitle={status ?? (checked && item.checked_by ? `✓ ${item.checked_by.name}` : undefined)}
-                        className={cn(isLast && !needsAction(op) && 'border-b-0')}
-                      />
-                      {op && needsAction(op) && (
-                        <div
-                          role="group"
-                          aria-label={`Sync options for ${item.content}`}
-                          className={cn('flex flex-wrap gap-2 px-4 pb-3', isLast && 'border-b-0')}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => void sync.retry(op.id)}
-                            className="btn-tinted min-h-[44px] px-4"
-                            aria-label={`Retry syncing ${item.content}`}
-                          >
-                            Retry
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void sync.discard(op.id)}
-                            className="min-h-[44px] px-4 text-subhead text-label-secondary underline-offset-2 hover:underline"
-                            aria-label={`Discard change to ${item.content}`}
-                          >
-                            Discard
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </SwipeRow>
+                    <p className="px-4 pt-2.5 pb-1 text-footnote font-semibold text-label-secondary break-words">
+                      {entry.name} · {entry.items.length} entries
+                    </p>
+                    {entry.items.map((item, j) => renderRow(item, isLastEntry && j === entry.items.length - 1))}
+                  </div>
                 )
               })}
             </InsetList>

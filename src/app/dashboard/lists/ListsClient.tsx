@@ -65,8 +65,13 @@ interface ListsClientProps {
 export default function ListsClient({ lists, familyName, canCreate = true }: ListsClientProps) {
   const router = useRouter()
 
-  // 4 main type cards to show at the top
-  const mainTypes: ListTypeKey[] = ['grocery', 'todo', 'meal_plan', 'wishlist']
+  // Main type cards at the top. 'meal_plan' is no longer a list type people
+  // create (ADR-0007 O-8; meals live in /dashboard/meals), so its card shows
+  // only while the household still has such lists, which keep opening as before.
+  const hasMealPlanLists = lists.some(l => l.type === 'meal_plan')
+  const mainTypes: ListTypeKey[] = hasMealPlanLists
+    ? ['grocery', 'todo', 'meal_plan', 'wishlist']
+    : ['grocery', 'todo', 'wishlist']
 
   return (
     <div className="pb-20">
