@@ -60,7 +60,8 @@ export interface BoardEvent {
   source: { name: string; color: string | null } | null
   /**
    * Household member who added the event (#262), for the member colour and
-   * name on the board. Null for imported events and for a creator who is no
+   * name on the board. Null for imported events (subscribed calendars and
+   * provider-synced calendars) and for a creator who is no
    * longer in the household. Events have no attendee field, so this is who
    * added it, not who attends. Optional for clients built before #262.
    */
@@ -202,6 +203,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         end_time: true,
         is_task: true,
         source_subscription_id: true,
+        source_connection_id: true,
         created_by: true,
       },
       orderBy: [{ start_time: 'asc' }, { id: 'asc' }],
@@ -269,8 +271,10 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         source: e.source_subscription_id
           ? { name: sub?.name ?? 'Subscribed calendar', color: sub?.color ?? null }
           : null,
-        // Imported events belong to the feed, not to whoever subscribed it.
-        addedById: !e.source_subscription_id && memberIds.has(e.created_by) ? e.created_by : null,
+        // Imported events (subscribed feeds #232, provider sync #264) belong to
+        // the feed or account, not to whoever connected it.
+        addedById:
+          !e.source_subscription_id && !e.source_connection_id && memberIds.has(e.created_by) ? e.created_by : null,
       }
     }),
     chores: chores

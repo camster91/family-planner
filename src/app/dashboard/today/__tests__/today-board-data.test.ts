@@ -291,7 +291,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       for (const m of data.members) expect(Object.keys(m).sort()).toEqual(['color', 'id', 'name'])
     })
 
-    it('names the member who added a local event, never for imports or non-members', async () => {
+    it('names the member who added a local event, never for subscribed or provider-synced imports or non-members', async () => {
       const base = { end_time: new Date('2026-01-05T15:00:00Z'), start_time: new Date('2026-01-05T14:00:00Z'), is_task: false }
       const db = mockDb({
         event: {
@@ -299,15 +299,18 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
             { ...base, id: 'e_mine', title: 'Dentist', source_subscription_id: null, created_by: 'u_parent' },
             { ...base, id: 'e_import', title: 'Assembly', source_subscription_id: 'sub_a', created_by: 'u_parent' },
             { ...base, id: 'e_gone', title: 'Old', source_subscription_id: null, created_by: 'u_left_household' },
+            // Provider-synced (#264): created_by is the connection owner, not an author.
+            { ...base, id: 'e_synced', title: 'Work sync', source_subscription_id: null, source_connection_id: 'conn_a', created_by: 'u_parent' },
           ]),
         },
       })
       const data = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: defaultFeatures(), now: NOW })
-      expect(db.event.findMany.mock.calls[0][0].select.created_by).toBe(true)
+      expect(db.event.findMany.mock.calls[0][0].select).toMatchObject({ created_by: true, source_connection_id: true })
       expect(data.events.map((e) => [e.id, e.addedById])).toEqual([
         ['e_mine', 'u_parent'],
         ['e_import', null],
         ['e_gone', null],
+        ['e_synced', null],
       ])
     })
   })

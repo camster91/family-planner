@@ -486,7 +486,7 @@ The device reads exactly the Today board DTO, built by `buildTodayBoard` with a 
 | DTO part | Fields | Source model |
 |---|---|---|
 | `members` | `id`, `name`, `color` (#262: palette key from `board_color` or the fallback) | `User` (no email, age, avatar, role, XP, level, streak) |
-| `events` | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }`, `addedById` (#262: household member who added a local event, else `null`) | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`) |
+| `events` | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }`, `addedById` (#262: household member who added a local event; `null` for subscribed or provider-synced imports) | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`) |
 | `chores` | `id`, `title`, `dueDay`, `status`, `assigneeId` | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`) |
 | `dinners` | `id`, `day`, `recipeName`, `cookName` | `FamilyMeal` (no `notes`); `null` when meals feature is off |
 | `shopping` | `items[] { id, content, quantity, listId, listName }`, `total` | `ListItem`/`List` of type `grocery`/`shopping` (no `price`, `notes`, `added_by`) |
