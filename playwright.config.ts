@@ -149,6 +149,9 @@ export default defineConfig({
       // fresh WeatherCache row, so the server never calls Open-Meteo
       // (e2e/fridge.spec.ts).
       WEATHER_ENABLED: "1",
+      // Event import (#270) stays off in E2E: no provider is ever called.
+      // Blank overrides a key that might be set in the developer's shell.
+      EVENT_IMPORT_ANTHROPIC_API_KEY: "",
     },
   },
 });

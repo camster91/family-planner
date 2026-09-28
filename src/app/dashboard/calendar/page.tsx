@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { attachEventSources } from '@/lib/calendar-import/source'
 import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
 import { refreshStaleConnections } from '@/lib/calendar-sync/sync'
+import { canImportEvents, isEventImportConfigured } from '@/lib/event-import'
 import CalendarPageClient from './CalendarPageClient'
 
 interface CalendarPageProps {
@@ -20,7 +21,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { family_id: true },
+    select: { family_id: true, role: true },
   })
 
   const familyId = user?.family_id || undefined
@@ -75,6 +76,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       events={serializedEvents as any}
       currentMonth={month}
       currentYear={year}
+      // Review-first import (#270): hidden unless the provider key is set and the viewer may import.
+      importEnabled={isEventImportConfigured() && canImportEvents(user?.role)}
     />
   )
 }

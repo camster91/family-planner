@@ -39,6 +39,8 @@ A new third-party integration requires a data-flow/privacy/security review befor
 
 AI photo processing: the fridge photo scan (#265) is off unless the deployment sets `INVENTORY_SCAN_ANTHROPIC_API_KEY`. When it is on, a parent's photo is sent to Anthropic's API (fixed host, server-side key) for one request and is not stored by Family Planner (no disk, database or log copy; logs are metadata only). The dialog says so before a photo is chosen. Model output is untrusted text. Details: `docs/architecture/MEALS_AND_GROCERIES.md` §10 and `docs/runbooks/INVENTORY_SCAN.md`.
 
+AI event import: the review-first import from text, photo or PDF (#270) is off unless the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY` (its own key, separate from any other AI feature). When it is on, the pasted text or chosen photo/PDF is sent to Anthropic's API (fixed host, server-side key) for one request and is not stored by Family Planner (no disk, database or log copy; logs are metadata only). The dialog says so before anything is sent. Model output is untrusted text and nothing is written until a person reviews and adds the events. Details: `docs/architecture/CALENDAR_IMPORT.md` and `docs/runbooks/EVENT_IMPORT.md`.
+
 ## Calendar provider tokens (#264)
 Two-way Google/Outlook calendar sync stores OAuth refresh/access tokens. They are encrypted at rest with
 AES-256-GCM under a dedicated `CALENDAR_TOKEN_KEY` (versioned `ct1.` format, household-bound AAD), never returned by
