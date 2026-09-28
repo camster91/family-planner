@@ -42,7 +42,8 @@ Do not expose stack traces, database details, foreign record existence or secret
 Client-generated keys should be scoped to authenticated actor/device + operation. Replays should return the prior logical result or a deterministic conflict, never duplicate visible state.
 
 Implemented in #162 (`src/lib/idempotency.ts`, record `IdempotencyRecord`). Routes that accept it today:
-`PATCH /api/lists/items/update`. Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
+`PATCH /api/lists/items/update` (its 409 `DUPLICATE_OPEN_ITEM`, #251, is a route outcome, not an idempotency
+code: it is never stored, so a retry with the same key re-runs the check). Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
   UUID generated once per logical change and reused for every retry of it. Without the header the route
@@ -73,6 +74,30 @@ Implemented in #162 (`src/lib/idempotency.ts`, record `IdempotencyRecord`). Rout
   rows; there is no scheduled job. Rows cascade away with their household or user.
 - **Concurrency:** the in-progress row is inserted before the effect runs, so the unique index serialises
   concurrent duplicates (proved against Postgres in `src/lib/__tests__/idempotency.integration.test.ts`).
+
+## Meals, recipes and groceries (ADR-0007, #251)
+Canonical models and rules: [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) and
+[`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md). Every change below is additive for existing routes: old request
+bodies are still valid and old response fields keep their meaning (`src/app/api/{meals,lists}/__tests__` carry
+old-shape fixtures). Roles and isolation: `docs/ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes".
+
+| Route | Change | Errors |
+| --- | --- | --- |
+| `GET /api/recipes?limit=&offset=` (new) | `{ recipes: [{ id, title, description, prep_time, cook_time, servings, image_url, created_by, created_at, updated_at, _count: { ingredients } }], nextOffset }`, ordered by title; `limit` 1–200 (default 100). All roles. | 400 bad paging; 403 meals off |
+| `POST /api/recipes` (new) | Strict body `{ title, description?, instructions?, prep_time?, cook_time?, servings? (1–100, default 2), ingredients?: [{ ingredient_id \| name, amount, unit?, note? }] (≤ 100) }`. Named ingredients are upserted by (household, normalized name: NFC, trimmed, inner whitespace collapsed, case-insensitive). 201 `{ recipe }` with `ingredients: [{ id, amount, unit, note, ingredient: { id, name, unit } }]`. Parent and teen. `image_url` is not writable yet. | 400 validation / unknown key / `Ingredient not found` / duplicate ingredient; 403 child or meals off; 409 concurrent ingredient create (retry) |
+| `GET /api/recipes/[id]` (new) | `{ recipe }` (detail shape above plus `instructions`). All roles. | 404 missing or another household's (identical) |
+| `PATCH /api/recipes/[id]` (new) | Same fields as POST, all optional; `ingredients`, when present, replaces the whole set. Parent and teen. | as POST; 404 |
+| `DELETE /api/recipes/[id]` (new) | Parent only. Linked meals and list items keep their rows (`recipe_id` becomes null; the meal keeps `recipe_name`). | 404; 409 `{ error: { code: 'RECIPE_IN_ARCHIVED_PLAN', message, retryable: false } }` while a frozen legacy `MealPlanEntry` references it |
+| `GET /api/meals` | Each meal adds `recipe_id`, `servings`, `updated_at` and `recipe: { id, title, prep_time, cook_time, servings } \| null`. Ordered by date, then creation. Several meals may share a (date, meal_type) slot (O-1). | unchanged |
+| `POST /api/meals`, `PATCH /api/meals/[id]` | Optional `recipe_id` (same household; `null` unlinks on PATCH) and `servings` (1–100 or `null`). Linking without `recipe_name` sets the snapshot to the recipe title; unlinking keeps the snapshot. | 400 `Recipe not found` (foreign and missing alike), 400 bad `servings` |
+| `POST /api/lists/items/create` | Optional `amount` (0–100000), `unit` (1–32 chars), `ingredient_id` (same household). Responses include every `ListItem` column, including `amount`, `unit`, `ingredient_id`, `recipe_id`, `meal_id`, `source` (default `manual`). `source` is not client-writable. | 400 `Ingredient not found` (foreign and missing alike) |
+| `PATCH /api/lists/items/update` | Optional `amount`, `unit`, `ingredient_id`; `null` clears. The #162 idempotent, row-locked write is unchanged. | 400 `Ingredient not found`; 409 `{ error: { code: 'DUPLICATE_OPEN_ITEM', message, retryable: false } }` when unticking a recipe-added row whose (list, ingredient, source) already has an open row (partial unique index `ListItem_open_recipe_source_key`). Not stored for replay; the #247 queue shows it as a conflict. |
+| `POST /api/lists/create` | Type `meal_plan` is no longer accepted for a new list (O-8). Existing `meal_plan` lists are untouched and stay readable and editable. | 400 |
+| every `/api/lists/**` handler | `featureGate('lists')` after authentication (O-11). | 403 lists off |
+| `GET /api/users/export` | Adds `meals` (the household's `FamilyMeal` rows) and `mealBackfillJobs` (ADR-0007 backfill `ImportJob` summaries that archive skipped legacy rows). `mealPlans` and `shoppingLists` stay while the legacy tables exist. | unchanged |
+
+Old Android WebViews and queued #247 operations keep working: no route, request field or `ListItem.id` changed, and
+every new field is optional. Rollback of the app code is safe; the new columns stay unused.
 
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.

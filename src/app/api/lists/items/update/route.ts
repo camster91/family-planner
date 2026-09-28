@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { updateListItemSchema } from '@/lib/validations'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
@@ -28,6 +29,10 @@ export async function PATCH(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // O-11 (ADR-0007): lists are feature-gated server-side like every other domain.
+    const gate = await featureGate(auth.user.family_id, 'lists')
+    if (gate) return gate
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError

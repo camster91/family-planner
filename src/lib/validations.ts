@@ -134,10 +134,15 @@ export const deleteNotificationSchema = z.object({
 // Lists
 export const createListSchema = z.object({
   name: z.string().min(1).max(200).trim(),
-  type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping']),
+  // O-8 (ADR-0007): 'meal_plan' is no longer offered for NEW lists; meals live
+  // in FamilyMeal. Existing meal_plan lists stay readable and editable.
+  type: z.enum(['grocery', 'todo', 'wishlist', 'shopping']),
   // Accept null too (clients sometimes send null for optional fields); treat as undefined.
   description: z.union([z.string().max(500).trim(), z.null()]).optional().transform(v => v ?? undefined),
 })
+
+const listItemAmount = z.number().finite().min(0).max(100000)
+const listItemUnit = z.string().trim().min(1).max(32)
 
 export const createListItemSchema = z.object({
   listId: z.string().min(1),
@@ -145,6 +150,11 @@ export const createListItemSchema = z.object({
   quantity: z.number().int().min(1).max(9999).default(1),
   category: z.string().max(100).trim().optional(),
   notes: z.string().max(500).trim().optional(),
+  // Grocery provenance (ADR-0007, O-6). Optional; old clients never send them.
+  // `ingredient_id` must be an Ingredient of the list's household (checked in the route).
+  amount: listItemAmount.optional(),
+  unit: listItemUnit.optional(),
+  ingredient_id: z.string().min(1).max(128).optional(),
 })
 
 export const updateListItemSchema = z.object({
@@ -154,6 +164,10 @@ export const updateListItemSchema = z.object({
   quantity: z.number().int().min(1).max(9999).optional(),
   category: z.string().max(100).trim().optional(),
   notes: z.string().max(500).trim().optional(),
+  // null clears. `ingredient_id` is household-validated in src/lib/list-item-update.ts.
+  amount: listItemAmount.nullable().optional(),
+  unit: listItemUnit.nullable().optional(),
+  ingredient_id: z.string().min(1).max(128).nullable().optional(),
 })
 
 // Chores (update)

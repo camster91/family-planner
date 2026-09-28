@@ -11,7 +11,8 @@ import { Glyph } from '@/components/ui/glyph'
 // Type config
 // -----------------------------------------------------------------------
 
-type ListTypeKey = 'grocery' | 'todo' | 'meal_plan' | 'wishlist' | 'shopping'
+// 'meal_plan' is no longer offered for new lists (ADR-0007 O-8); meals live in /dashboard/meals.
+type ListTypeKey = 'grocery' | 'todo' | 'wishlist' | 'shopping'
 
 interface TypeConfig {
   name: string
@@ -22,7 +23,6 @@ interface TypeConfig {
 const TYPE_CONFIG: Record<string, TypeConfig> = {
   grocery: { name: 'Grocery', color: 'lists', icon: ShoppingCartIcon },
   todo: { name: 'To-dos', color: 'rewards', icon: CheckSquareIcon },
-  meal_plan: { name: 'Meal plan', color: 'meals', icon: UtensilsIcon },
   wishlist: { name: 'Wishlist', color: 'family', icon: HeartIcon },
   shopping: { name: 'Shopping', color: 'lists', icon: ShoppingBagIcon },
 }
@@ -30,7 +30,6 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   grocery: ShoppingCartIcon,
   todo: CheckSquareIcon,
-  meal_plan: UtensilsIcon,
   wishlist: HeartIcon,
   shopping: ShoppingBagIcon,
 }
@@ -52,15 +51,6 @@ function CheckSquareIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  )
-}
-
-function UtensilsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /><path d="M7 2v20" />
-      <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
     </svg>
   )
 }

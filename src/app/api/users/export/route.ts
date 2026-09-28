@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
+import { BACKFILL_SOURCE_APP } from '@/lib/backfill/meals-groceries'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,11 @@ export const dynamic = 'force-dynamic'
 // - All rewards they created or claimed
 // - All notifications addressed to them
 // - All activities they performed
+// - The household's meal plan (FamilyMeal, ADR-0007) and recipes
+// - The frozen legacy MealPlan/ShoppingList tables while they exist, plus the
+//   ADR-0007 backfill job summaries that archive legacy rows the backfill
+//   skipped (MEALS_AND_GROCERIES.md §6), so no archived row is lost when the
+//   legacy tables are later dropped
 export async function GET(request: NextRequest) {
   try {
     const [payload, error] = await authenticateRequest(request)
@@ -27,6 +33,7 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
+      meals, mealBackfillJobs,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -151,6 +158,27 @@ export async function GET(request: NextRequest) {
       prisma!.financialArchiveRecord.findMany({
         where: { family: { members: { some: { id: userId, role: 'parent' } } } },
       }),
+      prisma!.familyMeal.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        select: {
+          id: true, date: true, meal_type: true, recipe_name: true, notes: true,
+          cook_id: true, recipe_id: true, servings: true, created_by: true,
+          created_at: true, updated_at: true,
+        },
+        orderBy: [{ date: 'asc' }, { created_at: 'asc' }],
+      }),
+      // Every member's export carries the legacy MealPlan/ShoppingList rows,
+      // so every member's export also carries their archived copies.
+      prisma!.importJob.findMany({
+        where: {
+          source_app: BACKFILL_SOURCE_APP,
+          family: { members: { some: { id: userId } } },
+        },
+        select: {
+          id: true, source_app: true, source_version: true, status: true, dry_run: true,
+          started_at: true, completed_at: true, summary: true,
+        },
+      }),
     ])
 
     const exportData = {
@@ -166,6 +194,7 @@ export async function GET(request: NextRequest) {
       activities,
       transactions,
       projects,
+      meals,
       recipes,
       mealPlans,
       shoppingLists,
@@ -175,6 +204,7 @@ export async function GET(request: NextRequest) {
       rewardRedemptions,
       familyGoals,
       importJobs,
+      mealBackfillJobs,
       financeArchive,
     }
 
