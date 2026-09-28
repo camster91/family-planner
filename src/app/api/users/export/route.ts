@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic'
 // - All notifications addressed to them
 // - All activities they performed
 // - The household's meal plan (FamilyMeal, ADR-0007) and recipes
+// - The household's food inventory (InventoryItem, #263)
 // - The frozen legacy MealPlan/ShoppingList tables while they exist, plus the
 //   ADR-0007 backfill job summaries that archive legacy rows the backfill
 //   skipped (MEALS_AND_GROCERIES.md §6), so no archived row is lost when the
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
-      meals, mealBackfillJobs,
+      meals, mealBackfillJobs, inventory,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -179,6 +180,16 @@ export async function GET(request: NextRequest) {
           started_at: true, completed_at: true, summary: true,
         },
       }),
+      // Food inventory (#263): every member may read it, so every member's
+      // export carries it. No family_id (the export is already one household).
+      prisma!.inventoryItem.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        select: {
+          id: true, name: true, ingredient_id: true, amount: true, unit: true,
+          location: true, expires_on: true, added_by: true, created_at: true, updated_at: true,
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      }),
     ])
 
     const exportData = {
@@ -196,6 +207,7 @@ export async function GET(request: NextRequest) {
       projects,
       meals,
       recipes,
+      inventory,
       mealPlans,
       shoppingLists,
       habits,

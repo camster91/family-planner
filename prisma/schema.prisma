@@ -95,6 +95,8 @@ model User {
   device_audit_events           DeviceAuditEvent[] @relation("DeviceAuditActor")
   // Offline sync (#162). Relation field only; no new User columns.
   idempotency_records           IdempotencyRecord[] @relation("IdempotencyRecordUser")
+  // Food inventory (#263). Relation field only; no new User columns.
+  inventory_items_added         InventoryItem[]    @relation("InventoryItemAdder")
 
   @@index([family_id])
 }
@@ -104,7 +106,7 @@ model Family {
   name               String
   invite_code        String    @unique @default(cuid())
   subscription_tier  String    @default("free") // 'free', 'premium', 'family'
-  features           Json?     @default("{\"chores\":true,\"calendar\":true,\"lists\":true,\"family\":true,\"meals\":true,\"notes\":true,\"anniversaries\":true,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true,\"wishlist\":false,\"emergency\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"travel\":false,\"handoff\":false,\"sick-days\":false,\"gamification\":false}")
+  features           Json?     @default("{\"chores\":true,\"calendar\":true,\"lists\":true,\"family\":true,\"meals\":true,\"notes\":true,\"anniversaries\":true,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true,\"wishlist\":false,\"emergency\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"travel\":false,\"handoff\":false,\"sick-days\":false,\"gamification\":false,\"inventory\":false}")
   travel_mode_active Boolean   @default(false)
   travel_start_date  DateTime?
   travel_end_date    DateTime?
@@ -166,6 +168,8 @@ model Family {
   device_audit_events DeviceAuditEvent[]
   // Offline sync (#162)
   idempotency_records IdempotencyRecord[]
+  // Food inventory (#263)
+  inventory_items     InventoryItem[]
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -473,6 +477,7 @@ model Ingredient {
   family             Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
   recipe_ingredients RecipeIngredient[]
   list_items         ListItem[]
+  inventory_items    InventoryItem[]
 
   @@unique([family_id, name])
 }
@@ -1414,4 +1419,34 @@ model IdempotencyRecord {
   @@index([expires_at])
   @@index([family_id])
   @@index([user_id])
+}
+
+// Food inventory (#263): what the household has in the fridge, freezer and
+// pantry, with an optional expiry day. Household-scoped (`family_id`); the
+// optional `ingredient_id` links to the canonical `Ingredient` of the SAME
+// household (ADR-0007), proven server-side before every write. Additive only:
+// scripts/migrate.js creates the table idempotently. Contract and rules:
+// docs/architecture/MEALS_AND_GROCERIES.md "Food inventory".
+model InventoryItem {
+  id            String    @id @default(cuid())
+  family_id     String
+  name          String
+  ingredient_id String?
+  amount        Float?
+  unit          String?
+  location      String    @default("fridge") // 'fridge' | 'freezer' | 'pantry'
+  /// Date-only (UTC midnight of the calendar day), like FamilyMeal.date.
+  expires_on    DateTime? @db.Date
+  /// Nullable so deleting a member's account keeps the household's inventory.
+  added_by      String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  family     Family      @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  ingredient Ingredient? @relation(fields: [ingredient_id], references: [id], onDelete: SetNull)
+  adder      User?       @relation("InventoryItemAdder", fields: [added_by], references: [id], onDelete: SetNull)
+
+  @@index([family_id, location])
+  @@index([family_id, expires_on])
+  @@index([ingredient_id])
 }

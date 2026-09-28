@@ -40,6 +40,11 @@ export const KID_ALLOWED_PREFIXES = [
   // (schedule, chores, dinner, groceries); see
   // src/app/dashboard/today/today-board-data.ts.
   '/dashboard/today',
+  // Food inventory (#263): teens add, edit and remove items; children read
+  // (what's in the fridge, what to use soon, what we can cook). The API
+  // enforces the roles and the page hides the controls a child cannot use.
+  // Gated by the `inventory` feature like every other gated page.
+  '/dashboard/inventory',
 ] as const
 
 export function isKidAllowedPath(pathname: string): boolean {

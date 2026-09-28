@@ -74,6 +74,20 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(body.mealBackfillJobs[0].summary.skipped[0].row.meal_type).toBe('Home brunch')
   })
 
+  it.each(['parentA', 'childA'] as const)('%s export includes the household food inventory (#263)', async (who) => {
+    const { body } = await exportAs(who)
+    expect(body.inventory).toHaveLength(1)
+    expect(body.inventory[0]).toMatchObject({
+      id: 'inv-a',
+      name: 'Home Tomato',
+      ingredient_id: 'ingredient-a',
+      amount: 3,
+      location: 'fridge',
+      added_by: 'parent-a',
+    })
+    expect(body.inventory[0]).not.toHaveProperty('family_id')
+  })
+
   it('import job listings stay parent-only; backfill archives are the only job data a child gets', async () => {
     const child = await exportAs('childA')
     expect(child.body.importJobs).toEqual([])
@@ -86,5 +100,6 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(raw).not.toContain(FOREIGN)
     expect(raw).not.toContain('meal-b')
     expect(raw).not.toContain('backfill-b')
+    expect(raw).not.toContain('inv-b')
   })
 })

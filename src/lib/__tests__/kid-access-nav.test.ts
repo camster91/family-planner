@@ -41,6 +41,7 @@ describe('kid allowlist after the #102 decisions', () => {
     '/dashboard/emergency',
     '/dashboard/wishlist',
     '/dashboard/today',
+    '/dashboard/inventory',
   ])('lets a kid open %s', (path) => {
     expect(canRoleAccessPath('child', path)).toBe(true)
     expect(canRoleAccessPath('teen', path)).toBe(true)
@@ -56,6 +57,7 @@ describe('kid allowlist after the #102 decisions', () => {
     '/dashboard/family',
     '/dashboard/listsx',
     '/dashboard/todayx',
+    '/dashboard/inventoryx',
   ])('still sends a kid away from %s', (path) => {
     expect(canRoleAccessPath('child', path)).toBe(false)
   })

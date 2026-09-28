@@ -906,6 +906,39 @@ CREATE INDEX IF NOT EXISTS "ListItem_source_request_id_idx" ON "ListItem"("sourc
 CREATE UNIQUE INDEX IF NOT EXISTS "ListItem_open_recipe_source_key"
   ON "ListItem"("list_id", "ingredient_id", "source_key")
   WHERE "checked" = false AND "source_key" IS NOT NULL AND "ingredient_id" IS NOT NULL;
+
+-- ============ Food inventory (#263; additive) ============
+-- New table only, no backfill. It references "Ingredient", which
+-- migration-meal-planner-domains.sql creates, so it lives here. The
+-- "inventory" feature is off by default for new and existing households
+-- (src/lib/features.ts), so no Family.features stamp is needed: a blob
+-- without the key already reads as off. See
+-- docs/architecture/MEALS_AND_GROCERIES.md "Food inventory".
+CREATE TABLE IF NOT EXISTS "InventoryItem" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "ingredient_id" TEXT,
+  "amount" DOUBLE PRECISION,
+  "unit" TEXT,
+  "location" TEXT NOT NULL DEFAULT 'fridge',
+  "expires_on" DATE,
+  "added_by" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_ingredient_id_fkey" FOREIGN KEY ("ingredient_id") REFERENCES "Ingredient"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_added_by_fkey" FOREIGN KEY ("added_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_location_idx" ON "InventoryItem"("family_id", "location");
+CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_expires_on_idx" ON "InventoryItem"("family_id", "expires_on");
+CREATE INDEX IF NOT EXISTS "InventoryItem_ingredient_id_idx" ON "InventoryItem"("ingredient_id");
 `
 
 async function migrate() {

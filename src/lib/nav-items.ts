@@ -24,6 +24,7 @@ import {
   UserPlus,
   Plane,
   LayoutDashboard,
+  Refrigerator,
 } from 'lucide-react'
 import type { FeatureKey } from '@/lib/features'
 
@@ -48,6 +49,7 @@ export const navItems: NavItem[] = [
 
   // Planning — gated
   { name: 'Meals', href: '/dashboard/meals', icon: UtensilsCrossed, featureKey: 'meals' },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Refrigerator, featureKey: 'inventory' },
   { name: 'Notes', href: '/dashboard/notes', icon: StickyNote, featureKey: 'notes' },
   { name: 'Dates', href: '/dashboard/anniversaries', icon: Cake, featureKey: 'anniversaries' },
   { name: 'Rewards', href: '/dashboard/rewards', icon: Gift, featureKey: 'rewards' },
