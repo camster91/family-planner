@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { uncompleteChoreSchema } from '@/lib/validations'
+import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,30 +60,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const outcome = await prisma!.$transaction(async (tx) => {
-      // Read the recorded successor in the same transaction as the reopen.
-      const before = await tx.chore.findUnique({ where: { id: choreId }, select: { successor_id: true } })
-      const result = await tx.chore.updateMany({
-        where: { id: choreId, status: 'completed' },
-        data: { status: 'pending', completed_at: null, successor_id: null },
-      })
-      if (result.count === 0) {
-        // Lost the race (or nothing to undo): report what the row is now, so a
-        // parent's verify that landed in between is a 409, not a false success.
-        const current = await tx.chore.findUnique({ where: { id: choreId }, select: { status: true } })
-        return current?.status === 'verified' ? 'verified' : 'open'
-      }
-
-      // A legacy recurring one-off created its next occurrence on completion
-      // and recorded its id. Remove exactly that row while it is still an
-      // untouched pending one-off of this household; anything else stays.
-      if (before?.successor_id) {
-        await tx.chore.deleteMany({
-          where: { id: before.successor_id, family_id: chore.family_id, status: 'pending', recurrence_id: null },
-        })
-      }
-      return 'reopened'
-    })
+    const outcome = await prisma!.$transaction((tx) => reopenCompletedChoreInTx(tx, chore))
 
     if (outcome === 'verified') {
       return NextResponse.json(

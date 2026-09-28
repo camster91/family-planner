@@ -39,9 +39,13 @@ export const uncompleteChoreSchema = z.object({
   choreId: z.string().min(1),
 })
 
+// A parent checks a completed chore. `decision` defaults to 'approve' so older
+// clients that send only { choreId } keep working; 'reject' sends the chore
+// back to the child (status 'pending') with the optional note as the reason.
 export const verifyChoreSchema = z.object({
   choreId: z.string().min(1),
-  verificationNotes: z.string().max(500).optional(),
+  decision: z.enum(['approve', 'reject']).default('approve'),
+  verificationNotes: z.string().max(500).trim().optional(),
 })
 
 export const deleteChoreSchema = z.object({
@@ -178,7 +182,8 @@ export const updateListItemSchema = z.object({
 
 // Chores (update)
 // These fields are set only by dedicated endpoints:
-//   - status, photo_verified, verified_at, verified_notes → POST /api/chores/verify (parent)
+//   - status, photo_verified, verified_at, verified_notes → POST /api/chores/verify (parent;
+//     `decision: 'approve'` verifies, `decision: 'reject'` sends it back to pending)
 //   - status (completed), photo_url, photo_verified (false) → POST /api/chores/complete (any member)
 // Children/teens may NOT set them via PATCH.
 export const updateChoreSchema = z.object({

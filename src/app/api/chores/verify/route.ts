@@ -5,9 +5,37 @@ import { notificationServiceServer } from '@/lib/notifications-server'
 import { verifyChoreSchema } from '@/lib/validations'
 import { awardChoreXP } from '@/lib/gamification-server'
 import { isGamificationOn } from '@/lib/gamification-visibility'
+import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
 
 export const dynamic = 'force-dynamic'
 
+/** The fields a client needs to show the chore's real state after a check. */
+const CHORE_STATE_SELECT = {
+  id: true,
+  status: true,
+  photo_verified: true,
+  verified_at: true,
+  verified_notes: true,
+  completed_at: true,
+} as const
+
+async function choreState(choreId: string) {
+  return prisma!.chore.findUnique({ where: { id: choreId }, select: CHORE_STATE_SELECT })
+}
+
+/**
+ * POST /api/chores/verify — a parent checks a chore a child marked done.
+ *
+ * Body: `{ choreId, decision?: 'approve' | 'reject', verificationNotes? }`.
+ * - `approve` (the default, so older clients sending only `choreId` still work):
+ *   `completed` → `verified`, awards XP. Re-verifying is an idempotent success.
+ * - `reject`: `completed` → `pending` (the child can tick it again), the note is
+ *   stored in `verified_notes` and sent to the child. A chore that is already
+ *   verified is 409 `CHORE_ALREADY_VERIFIED`; an open chore is a no-op success.
+ *
+ * Every response carries `chore` (id, status, photo_verified, verified_at,
+ * verified_notes, completed_at) so the page can show the server's state.
+ */
 export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -28,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { choreId, verificationNotes } = parsed.data
+    const { choreId, decision, verificationNotes } = parsed.data
 
     // Get the chore and verify family ownership
     const chore = await prisma!.chore.findUnique({
@@ -45,6 +73,10 @@ export async function POST(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    if (decision === 'reject') {
+      return rejectChore(auth.user, chore, verificationNotes)
+    }
 
     // 'verified' is accepted so re-verifying is idempotent (the updateMany
     // below is a no-op and the alreadyVerified branch returns success).
@@ -65,6 +97,8 @@ export async function POST(request: NextRequest) {
           status: 'verified',
           verified_at: new Date(),
           verified_notes: verificationNotes || null,
+          // The parent looked at it; a completion photo counts as checked too.
+          ...(chore.photo_url ? { photo_verified: true } : {}),
         },
       })
 
@@ -91,7 +125,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!outcome.verified) {
-      return NextResponse.json({ success: true, alreadyVerified: true })
+      return NextResponse.json({ success: true, alreadyVerified: true, chore: await choreState(choreId) })
     }
 
     // Notifications are sent only after the transaction commits, so a rolled-back
@@ -121,9 +155,83 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, choreId, gamified: outcome.xp !== null })
+    return NextResponse.json({
+      success: true,
+      choreId,
+      gamified: outcome.xp !== null,
+      chore: await choreState(choreId),
+    })
   } catch (error) {
     console.error('Error verifying chore:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+type VerifyCaller = { id: string; name: string; family_id: string }
+type CheckedChore = {
+  id: string
+  family_id: string
+  title: string
+  status: string
+  assigned_to: string
+  due_date: Date
+  frequency: string | null
+  recurrence_id: string | null
+  completed_at: Date | null
+  assignee: { id: string; name: string } | null
+}
+
+/** Send a completed chore back to the child (decision 'reject'). No XP moves. */
+async function rejectChore(caller: VerifyCaller, chore: CheckedChore, notes: string | undefined) {
+  if (chore.status === 'verified') {
+    return NextResponse.json(
+      { error: 'This chore has already been checked, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
+      { status: 409 }
+    )
+  }
+
+  const reason = notes ? notes : null
+  const reopened = await prisma!.$transaction(async (tx) => {
+    const outcome = await reopenCompletedChoreInTx(tx, chore, {
+      photo_verified: false,
+      verified_at: null,
+      verified_notes: reason,
+    })
+    if (outcome !== 'reopened') return outcome
+    await tx.activity.create({
+      data: {
+        family_id: caller.family_id,
+        user_id: caller.id,
+        type: 'chore_rejected',
+        title: `${caller.name} sent back "${chore.title}"`,
+        metadata: JSON.stringify({ choreId: chore.id }),
+      },
+    })
+    return 'reopened' as const
+  })
+
+  if (reopened === 'verified') {
+    return NextResponse.json(
+      { error: 'This chore has already been checked, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
+      { status: 409 }
+    )
+  }
+  if (reopened === 'open') {
+    return NextResponse.json({ success: true, alreadyOpen: true, chore: await choreState(chore.id) })
+  }
+
+  if (chore.assignee) {
+    try {
+      await notificationServiceServer.sendNotification({
+        userId: chore.assignee.id,
+        title: 'Have another go',
+        message: reason ? `"${chore.title}": ${reason}` : `"${chore.title}" needs another go.`,
+        type: 'chore',
+      })
+    } catch (notifyErr) {
+      console.error('Reject notification failed:', notifyErr)
+    }
+  }
+
+  return NextResponse.json({ success: true, choreId: chore.id, rejected: true, chore: await choreState(chore.id) })
 }

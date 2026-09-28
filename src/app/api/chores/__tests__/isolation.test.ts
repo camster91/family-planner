@@ -97,6 +97,71 @@ describe("chores — two households", () => {
     expect(awardChoreXP).toHaveBeenCalledWith("child-a", "easy", 10, expect.anything());
   });
 
+  describe("verify: approve and reject (parent check)", () => {
+    it("approve moves a completed chore to verified and reports the server state", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const res = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "approve" } }));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.chore).toMatchObject({ id: "chore-a", status: "verified", photo_verified: true });
+      expect(db.find("chore", "chore-a")?.status).toBe("verified");
+      expect(awardChoreXP).toHaveBeenCalledTimes(1);
+    });
+
+    it("reject sends a completed chore back to pending with the reason and awards nothing", async () => {
+      const chore = db.find("chore", "chore-a")!;
+      chore.status = "completed";
+      chore.completed_at = new Date();
+      const res = await verify(
+        req({ as: "parentA", body: { choreId: "chore-a", decision: "reject", verificationNotes: "  Toys still on the floor " } })
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ success: true, rejected: true });
+      expect(body.chore).toMatchObject({
+        id: "chore-a",
+        status: "pending",
+        completed_at: null,
+        photo_verified: false,
+        verified_notes: "Toys still on the floor",
+      });
+      expect(db.find("chore", "chore-a")).toMatchObject({ status: "pending", completed_at: null });
+      expect(writesTo("activity")[0].args.data).toMatchObject({ type: "chore_rejected", family_id: "family-A" });
+      expect(awardChoreXP).not.toHaveBeenCalled();
+
+      // The child can tick it again.
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      expect(db.find("chore", "chore-a")?.status).toBe("completed");
+    });
+
+    it("reject of an open chore is a no-op success; of a verified chore is 409", async () => {
+      const open = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+      expect(open.status).toBe(200);
+      expect(await open.json()).toMatchObject({ alreadyOpen: true, chore: { status: "pending" } });
+
+      db.find("chore", "chore-a")!.status = "verified";
+      const done = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+      expect(done.status).toBe(409);
+      expect(await done.json()).toMatchObject({ code: "CHORE_ALREADY_VERIFIED" });
+      expect(db.find("chore", "chore-a")?.status).toBe("verified");
+      // The open-chore no-op matched no row; nothing else was written.
+      expect(writesTo("activity")).toHaveLength(0);
+      expect(db.writes.filter((w) => w.op !== "updateMany")).toHaveLength(0);
+    });
+
+    it("children, teens and other households cannot reject; an unknown decision is 400", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      db.find("chore", "chore-b")!.status = "completed";
+      expect((await verify(req({ as: "childA", body: { choreId: "chore-a", decision: "reject" } }))).status).toBe(403);
+      expect((await verify(req({ as: "teenA", body: { choreId: "chore-a", decision: "reject" } }))).status).toBe(403);
+      await expectDenied(await verify(req({ as: "parentA", body: { choreId: "chore-b", decision: "reject" } })));
+      expect((await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "maybe" } }))).status).toBe(400);
+      expect(db.find("chore", "chore-a")?.status).toBe("completed");
+      expect(db.find("chore", "chore-b")?.status).toBe("completed");
+      expect(db.writes).toHaveLength(0);
+    });
+  });
+
   describe("uncomplete (Undo for a tick, #268)", () => {
     it("the assignee reopens their own completed chore; repeating is a no-op", async () => {
       expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
