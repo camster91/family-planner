@@ -102,3 +102,110 @@ Limits: 10 subscriptions per household, and creation is rate-limited to 10 per h
 - `src/app/api/calendar/subscriptions/__tests__/isolation.test.ts` and `src/app/api/events/__tests__/imported.test.ts`: two-household CRUD/refresh isolation, role gates, URL never echoed, 409 on imported events, no cross-household source names.
 
 E2E is not included. The public-URL guard deliberately refuses a local fixture HTTP server, so UI behaviour is covered at route level instead.
+
+## Review-first import from text, photo or PDF (#270)
+
+A separate, optional feature next to the ICS subscriptions above: a parent or teen pastes the text of a school email or
+flyer, or chooses a photo or PDF of it; a model suggests events; the person reviews and edits them and only then adds
+them as ordinary events. **Off until configured**: without `EVENT_IMPORT_ANTHROPIC_API_KEY` the route is `404
+EVENT_IMPORT_DISABLED` and the calendar hides "Import from text or photo". Enabling it (key, spend cap, privacy):
+[`docs/runbooks/EVENT_IMPORT.md`](../runbooks/EVENT_IMPORT.md). Code: `src/lib/event-import.ts` (server),
+`src/lib/event-import-client.ts` (page helpers), `src/app/api/calendar/import-suggestions/**`,
+`src/app/dashboard/calendar/ImportEventsDialog.tsx`.
+
+### Flow
+
+1. **Suggest** — `POST /api/calendar/import-suggestions` (contract in `API_CONTRACTS.md`). JSON `{ text }` (≤ 20,000
+   characters) or `multipart/form-data` with one `file`: JPEG, PNG or WebP photo ≤ 8 MB, or PDF ≤ 10 MB (≤ 20 visible
+   pages), typed by magic bytes, never the declared MIME. The page downscales photos to 1568 px before upload. Returns
+   at most 30 suggestions `{ title, start, end, allDay, location, notes, confidence }` plus `unreadable`, `dropped`
+   and `timeZone`. **Writes nothing.**
+2. **Review** — editable cards (title, date, all day or start/end time, last day for multi-day all-day events,
+   location, notes), one checkbox each. Suggestions below 0.5 confidence start unticked; confidence is shown in words
+   ("Likely", "Check this", "Unsure"), never colour alone. A refusal, an "unreadable" answer or no usable date shows
+   "We couldn't find any dates in this. Try a clearer photo or paste the text."
+3. **Add** — "Add N events" validates every ticked card first, then creates them one at a time with the existing
+   `POST /api/events` (notes become the description). That route takes no `Idempotency-Key`, so a card that was added
+   leaves the list at once: retrying after a partial failure sends only the cards still there and cannot duplicate.
+   Adding needs no provider, so it works like any manual event (including two-way sync push, #264).
+4. **Undo** — the toast "Added N events" offers Undo for 10 minutes. `POST /api/calendar/import-suggestions/undo
+   { eventIds }` deletes only events of the caller's household, **created by the caller**, at most 10 minutes old,
+   and never subscription or provider-imported events (403 `UNDO_NOT_ALLOWED` for any other member's event, 409
+   `UNDO_WINDOW_EXPIRED` after the window, all or nothing). Unknown and other-household ids are skipped identically,
+   so a repeated undo answers `{ removedCount: 0 }`. This is the only way a teen can delete an event, and only their
+   own just-created ones (the same O-5 rule as the grocery undo). The activity entry "X added … to the calendar"
+   stays. Undo is not behind the provider kill switch (it never calls the provider).
+
+### Dates and time zones
+
+- Households have no stored time zone yet (`DEFAULT_FAMILY_TIMEZONE`, America/Toronto, is the product default used
+  by ICS imports), and the calendar shows and creates events in the viewer's device zone. The page therefore sends
+  its IANA zone (`timeZone`); the server uses it when it is a valid zone name and otherwise falls back to the
+  household default. When households gain a stored zone, `resolveImportTimeZone` switches to it.
+- The model returns wall-clock values (`date`, `start_time`, `end_date`, `end_time`, `all_day`). Relative dates ("next
+  Friday") are resolved by the model against the `today` the page sends (`YYYY-MM-DD`, bounded like the inventory's:
+  a real day within one day of the server's UTC date, else 400 `INVALID_TODAY`); the prompt carries today's weekday.
+- The server re-checks everything: real calendar dates only; within 366 days before and 3 × 366 days after today;
+  `HH:MM` 24-hour times; a missing start time makes the event all day; an end before the start is dropped; a
+  multi-day span is at most 31 days. Timed suggestions are returned as ISO 8601 with the zone's offset
+  (`2026-10-09T15:30:00-04:00`), resolved with the same DST rules as ICS imports (RFC 5545: gap → later offset,
+  overlap → first occurrence). All-day suggestions are `YYYY-MM-DD` (and the last day, inclusive).
+- Stored like the manual form: all day is 00:00 on the first day to 23:59 on the last day in that zone; a timed event
+  without an end has `end_time = start_time`; an end at or before the start on the card is read as the next day.
+
+### Provider, safety and privacy
+
+- Anthropic Messages API only, fixed host `https://api.anthropic.com/v1/messages`, raw `fetch` with `redirect:
+  'manual'` and a 45 s timeout. Model from `EVENT_IMPORT_MODEL` (default `claude-sonnet-5`, anything that is not a
+  model id falls back). Structured output (`output_config.format` JSON schema) with low effort; images are `image`
+  blocks and PDFs base64 `document` blocks (`media_type: application/pdf`), placed before the instruction text.
+  Pasted text is fenced between markers and the system prompt says source text is data, never instructions. Nothing
+  about the provider is configurable per household or per request; the per-family OpenAI-compatible capture settings
+  (`src/lib/capture.ts`) are **not** reused.
+- Its own key (`EVENT_IMPORT_ANTHROPIC_API_KEY`), deliberately not the fridge scan's
+  `INVENTORY_SCAN_ANTHROPIC_API_KEY` (#265): each feature can live in its own Anthropic workspace with its own spend
+  limit, and can be revoked or switched off without touching the other.
+- Output is untrusted: zod-validated, cleaned (NFC, control/bidi characters and angle brackets removed, whitespace
+  collapsed, title/location ≤ 200 and notes ≤ 1,000 characters, titles need a letter), de-duplicated by title and
+  start, sorted and capped at 30, and rendered only as React text or input values.
+- Nothing is stored: the text or file stays in memory for one request, is never written to disk, the database or
+  logs, and provider error bodies are discarded unread. Logs (`event.import`, `event.import.failed`,
+  `event.import.error`, `event.import.undo`) carry the user id, input kind and size, counts, duration and upstream
+  status only.
+- Limits: 10 per person and 20 per household per hour, plus `EVENT_IMPORT_DAILY_LIMIT` (default 30, `0` pauses)
+  per household per UTC day. Validation runs before the limits, so a wrong file does not use quota.
+
+### Roles
+
+| Action | Parent | Teen | Child | Shared device | Other household |
+| --- | --- | --- | --- | --- | --- |
+| Suggest | yes | yes | 403 `EVENT_IMPORT_FORBIDDEN` | 403 `DEVICE_WRITE_NOT_ALLOWED` | n/a (reads no rows) |
+| Add | `POST /api/events` rules (all roles may create) | same | same | same | session household only |
+| Undo | own events ≤ 10 min | own events ≤ 10 min | 403 | 403 | skipped like a missing id |
+
+The page `/dashboard/calendar` is parent-only in the UI today (kid allowlist), so only parents see the button; the
+API allows teens so a teen surface can be added later without an API change.
+
+### Email forwarding (dormant design, not implemented)
+
+Goal: a parent forwards a school email to a household address and finds pending suggestions to review, without
+copying and pasting. Nothing below exists in code; it needs Cameron's decisions on the mail provider, DNS and cost.
+
+1. **Address.** One inbound address per household, e.g. `h-<random 20+ chars>@in.<app domain>`, stored hashed on
+   `Family` (like the feed token) and rotatable by a parent. No address is guessable from the household id. The
+   domain's MX points at an inbound-mail provider (for example Postmark, SendGrid Inbound Parse, Mailgun Routes or
+   AWS SES receiving), chosen by Cameron.
+2. **Webhook.** The provider posts parsed mail to `POST /api/inbound/email/<provider>`; the route verifies the
+   provider's signature or basic-auth secret (server env), rejects anything over a size cap, resolves the household
+   from the recipient address, and accepts mail only from addresses of that household's parents (verified account
+   emails), else drops it silently (no bounce, to avoid address probing). It is rate-limited per household and
+   counted against `EVENT_IMPORT_DAILY_LIMIT`.
+3. **Same pipeline.** The text body (HTML stripped) and at most one PDF or image attachment go through
+   `suggestEvents` unchanged, with the household zone and the server's today.
+4. **Pending suggestions.** Unlike the interactive flow, suggestions must be kept until reviewed: a new
+   `PendingEventSuggestion` table (household, source "email", received at, sender user, the cleaned suggestion
+   fields, status pending/added/dismissed, expires after 14 days). The raw email and attachments are never stored.
+   Parents see "N suggested events from email" on the calendar and review them with the same cards; "Add" uses
+   `POST /api/events` and marks the rows added; expired rows are deleted when the list is next read (no cron).
+5. **Off until configured**, like the rest: without the inbound secret and domain the route is 404 and no address is
+   shown. Privacy page and runbook must describe the stored pending suggestions before it is enabled.

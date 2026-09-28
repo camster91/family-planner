@@ -208,5 +208,23 @@ Compatibility: additive only. `Event` gains `source_connection_id` and `updated_
 `/api/events` responses carry them as extra fields. Events imported from a connection are editable (unlike ICS
 imports, which stay `409 EVENT_READ_ONLY`). Installed Android builds need no update (web-served UI).
 
+## Review-first event import (#270)
+Two new routes; `POST /api/events` is unchanged and is what the page uses to add the reviewed events. The suggestion
+route is off (`404 EVENT_IMPORT_DISABLED`) until the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY`
+([`docs/runbooks/EVENT_IMPORT.md`](../runbooks/EVENT_IMPORT.md)). Rules, time zones and privacy:
+[`CALENDAR_IMPORT.md`](CALENDAR_IMPORT.md) "Review-first import from text, photo or PDF". Route-owned errors use the
+target envelope `{ error: { code, message, retryable } }` and every response carries `Cache-Control: private,
+no-store`; authentication (401) and the feature gate (403 `{ error: string }`) keep their shared shapes.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `POST /api/calendar/import-suggestions` | Either `application/json` strict `{ text (1–20,000 chars), today?: 'YYYY-MM-DD', timeZone?: IANA }` or `multipart/form-data` with `file` (JPEG/PNG/WebP ≤ 8 MB or PDF ≤ 10 MB and ≤ 20 visible pages, by magic bytes) and optional `today`, `timeZone` fields; `Content-Length` required. 200 `{ suggestions: [{ title, start, end: string \| null, allDay, location: string \| null, notes: string \| null, confidence: 0–1 }], unreadable: boolean, dropped, timeZone }`, at most 30, sorted by start. `start`/`end` are `YYYY-MM-DD` when `allDay` (end = last day, inclusive), else ISO 8601 with the zone offset. `unreadable: true` (no suggestions) covers a refusal, an "unreadable" answer or no usable date. Parent and teen. Writes nothing. | 401; 403 device (`DEVICE_WRITE_NOT_ALLOWED`), calendar off, child (`EVENT_IMPORT_FORBIDDEN`); 404 `EVENT_IMPORT_DISABLED`; 400 `INVALID_BODY` / `INVALID_TODAY`; 411 `LENGTH_REQUIRED`; 413 `TEXT_TOO_LONG` / `FILE_TOO_LARGE` / `PDF_TOO_MANY_PAGES`; 415 `UNSUPPORTED_FILE_TYPE`; 429 `RATE_LIMITED` / `IMPORT_DAILY_LIMIT` with `Retry-After`; 502 `IMPORT_PROVIDER_UNAVAILABLE` / `IMPORT_UNREADABLE` (`retryable: true`) |
+| `POST /api/calendar/import-suggestions/undo` | Strict `{ eventIds: string[] (1–30) }`. Deletes the listed events that belong to the caller's household, were created by the caller at most 10 minutes ago and are not subscription/provider imports. 200 `{ removedCount }`; unknown and other-household ids are skipped, so a repeat answers `{ removedCount: 0 }`. Parent and teen; not behind the provider kill switch. | 401; 403 device, calendar off, child, `UNDO_NOT_ALLOWED` (any id is another member's or an imported event; nothing deleted); 409 `UNDO_WINDOW_EXPIRED`; 400 `INVALID_BODY` |
+
+Rate limits: 10 per person and 20 per household per hour, plus `EVENT_IMPORT_DAILY_LIMIT` (default 30) per household
+per UTC day. Not idempotent and not offline-queued (suggestions are read-only; adding is sequential with added cards
+removed, see the design). Compatibility: additive routes; nothing existing changes. With the key removed the route is
+404 and the button disappears on the next page load, so rollback is an environment change, not a deploy.
+
 ## Testing
 Contract tests should cover validation, happy path, unauthorized/forbidden, foreign-family IDs, not-found semantics, duplicate retry, concurrency conflict, pagination and old-client fixtures when relevant.

@@ -80,6 +80,19 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Importing events from text, photos or PDFs</h2>
+            <p>
+              If event import is turned on, a parent can paste the text of a school email or
+              flyer, or choose a photo or PDF of it, to get suggested calendar events. That
+              text or file is sent to our AI provider, Anthropic, only to read it, and is not
+              saved by Family Planner. Nothing is added to your calendar until you review the
+              suggestions and choose what to add, and you can undo an import for a few minutes
+              afterwards. The feature is off unless it has been set up, and you can always add
+              events by hand instead.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Email</h2>
             <p>
               We send transactional emails only: email verification, password reset,

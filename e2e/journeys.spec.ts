@@ -198,6 +198,20 @@ test.describe("Family A parent", () => {
     await expect(main.getByText("January 2026")).toBeVisible();
     await expect(main.getByText("School drop-off")).toBeVisible();
     await expect(main.getByText(FIXTURE_LONG_TEXT.eventTitle)).toBeVisible();
+
+    // Review-first event import (#270) is off without a provider key (the E2E
+    // server never has one): no Import button, and the route answers 404.
+    await expect(
+      main.getByRole("button", { name: "Import from text or photo" }),
+    ).toHaveCount(0);
+    const res = await browserSend(
+      page,
+      "POST",
+      "/api/calendar/import-suggestions",
+      { text: "Picture day next Friday" },
+    );
+    expect(res.status).toBe(404);
+    expect(JSON.parse(res.body).error.code).toBe("EVENT_IMPORT_DISABLED");
   });
 
   test("parent-only budget page is reachable", async ({ page }) => {
