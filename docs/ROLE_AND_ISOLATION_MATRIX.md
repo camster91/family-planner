@@ -95,7 +95,7 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Domain | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|---|
 | Lists | R | yes | yes | yes | open grocery items only | |
-| Lists | C (new list) | yes | yes | no | no | Child: 403 "Ask a parent to create a new list." Type `meal_plan` is no longer accepted for a new list (ADR-0007 O-8, 400); existing `meal_plan` lists stay readable and editable. |
+| Lists | C (new list) | yes | yes | no | no | Child: 403 "Ask a parent to create a new list." The UI no longer offers type `meal_plan` for a new list (ADR-0007 O-8). The server still accepts it so installed Android bundles keep working; existing `meal_plan` lists stay readable and editable. |
 | Lists | D | yes | no | no | elevated only | |
 | List items | C (add) / U (tick) | yes | yes | yes | no (phase 2 candidate, O-5) | On an existing list of the household. Tick/untick may be queued offline and retried with an `Idempotency-Key` (#162, person sessions only; `docs/architecture/OFFLINE_SYNC.md`). Optional `amount`, `unit`, `ingredient_id` (ADR-0007, #251): `ingredient_id` must be an `Ingredient` of the household, else 400 "Ingredient not found" (same answer for a foreign and a missing id). Unticking a recipe row that already has an open twin: 409 `DUPLICATE_OPEN_ITEM`. `source` is not client-writable. |
 | List items | D | yes | no | no | elevated only | |

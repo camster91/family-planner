@@ -143,10 +143,10 @@ describe('lists — ADR-0007 API changes', () => {
     expect(db.rows('idempotencyRecord')).toHaveLength(0)
   })
 
-  it('O-8: a new list cannot be a meal_plan list, but an existing one keeps working', async () => {
+  it('O-8: old clients can still create a meal_plan list, and an existing one keeps working', async () => {
     const res = await createList(req({ as: 'parentA', body: { name: 'Week', type: 'meal_plan' } }))
-    expect(res.status).toBe(400)
-    expect(writesTo('list')).toHaveLength(0)
+    expect(res.status).toBeLessThan(300)
+    expect(writesTo('list')).toHaveLength(1)
 
     db.find('list', 'list-a')!.type = 'meal_plan'
     expect((await lists.GET(req({ as: 'childA', query: { type: 'meal_plan' } }))).status).toBe(200)

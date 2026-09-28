@@ -134,9 +134,10 @@ export const deleteNotificationSchema = z.object({
 // Lists
 export const createListSchema = z.object({
   name: z.string().min(1).max(200).trim(),
-  // O-8 (ADR-0007): 'meal_plan' is no longer offered for NEW lists; meals live
-  // in FamilyMeal. Existing meal_plan lists stay readable and editable.
-  type: z.enum(['grocery', 'todo', 'wishlist', 'shopping']),
+  // O-8 (ADR-0007): the UI no longer offers 'meal_plan' for new lists; meals
+  // live in FamilyMeal. The server still accepts it so installed Android
+  // bundles that show the old picker keep working until a version gate exists.
+  type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping']),
   // Accept null too (clients sometimes send null for optional fields); treat as undefined.
   description: z.union([z.string().max(500).trim(), z.null()]).optional().transform(v => v ?? undefined),
 })

@@ -133,6 +133,22 @@ describeWithDatabase('recipes API against Postgres', () => {
     expect(await prisma.recipeIngredient.count({ where: { recipe_id: r.id } })).toBe(0)
   })
 
+  it('concurrent writes of the same ingredient in different casing create one ingredient', async () => {
+    const variants = (w: string) => [w, w.toLowerCase(), ` ${w.toUpperCase()} `, w.replace(' ', '  '), w.toUpperCase()]
+    for (const word of ['Brown Sugar', 'Sea Salt', 'Olive Oil', 'Rolled Oats', 'Dark Chocolate']) {
+      const results = await Promise.all(
+        variants(word).map((name, i) =>
+          recipes.POST(request(PARENT, { title: `${word} ${i}`, ingredients: [{ name, amount: 1 }] }))
+        )
+      )
+      expect(results.map((r) => r.status)).toEqual(variants(word).map(() => 201))
+      const rows = await prisma.ingredient.findMany({
+        where: { family_id: FAM, name: { contains: word.split(' ')[1], mode: 'insensitive' } },
+      })
+      expect(rows).toHaveLength(1)
+    }
+  })
+
   it('the meals feature gate is enforced from the stored family flags', async () => {
     await prisma.family.update({ where: { id: FAM }, data: { features: { meals: false } } })
     try {

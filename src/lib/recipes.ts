@@ -117,7 +117,18 @@ export function cleanIngredientName(raw: string): string {
 
 export class RecipeInputError extends Error {}
 
-type Tx = Pick<PrismaClient, 'ingredient'> | Prisma.TransactionClient
+type Tx = Pick<PrismaClient, 'ingredient' | '$queryRaw'> | Prisma.TransactionClient
+
+/**
+ * Serialise ingredient creation by name within one household. The unique
+ * constraint is on the display name, so two concurrent writes of `Sugar` and
+ * `sugar` would otherwise both miss each other and create two ingredients.
+ * Held until the surrounding transaction ends.
+ */
+export async function lockFamilyIngredientNames(tx: Tx, familyId: string): Promise<void> {
+  const key = `ingredient-names:${familyId}`
+  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`
+}
 
 export interface ResolvedLine {
   ingredient_id: string
@@ -146,6 +157,9 @@ export async function resolveIngredientLines(
   const needsNames = lines.some((l) => l.name)
   const byName = new Map<string, string>()
   if (needsNames) {
+    // Take the lock before reading so a concurrent writer's new ingredient is
+    // visible here (READ COMMITTED re-reads after the lock is granted).
+    await lockFamilyIngredientNames(tx, familyId)
     const existing = await tx.ingredient.findMany({ where: { family_id: familyId }, select: { id: true, name: true } })
     for (const i of existing) {
       const key = normalizeName(i.name)
