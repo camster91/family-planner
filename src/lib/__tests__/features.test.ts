@@ -112,3 +112,25 @@ describe('stored defaults stay in sync with defaultFeatures()', () => {
     expect(js).toMatch(/NOT \("features" \? 'gamification'\)/)
   })
 })
+
+describe('inventory feature flag (#263)', () => {
+  it('is a toggleable planning feature that links to the inventory page', () => {
+    const meta = FEATURES.find((f) => f.key === 'inventory')
+    expect(meta).toMatchObject({ group: 'planning', href: '/dashboard/inventory', defaultEnabled: false })
+    expect(meta!.legacyDefault).toBeUndefined()
+    expect(meta!.requires).toBeUndefined()
+  })
+
+  it('is OFF for new households and for existing ones whose blob predates the key', () => {
+    expect(defaultFeatures().inventory).toBe(false)
+    expect(normalizeFeatures(null).inventory).toBe(false)
+    expect(normalizeFeatures({}).inventory).toBe(false)
+    expect(normalizeFeatures({ meals: true, gamification: true }).inventory).toBe(false)
+    expect(isFeatureEnabled(normalizeFeatures({ inventory: true }), 'inventory')).toBe(true)
+  })
+
+  it('scripts/migrate.js stamps nothing for it (a missing key already reads as off)', () => {
+    const js = fs.readFileSync(path.join(ROOT, 'scripts', 'migrate.js'), 'utf8')
+    expect(js).not.toMatch(/"inventory":/)
+  })
+})

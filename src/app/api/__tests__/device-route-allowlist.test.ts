@@ -81,6 +81,10 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
 const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'POST /api/lists/items/from-recipe': [403],
   'POST /api/lists/items/undo-add': [403],
+  // Food inventory writes (#263): read-only on a shared device like the above.
+  'POST /api/inventory': [403],
+  'PATCH /api/inventory/[id]': [403],
+  'DELETE /api/inventory/[id]': [403],
 }
 
 function routeFiles(dir: string): string[] {

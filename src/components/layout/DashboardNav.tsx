@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Heart,
   LayoutDashboard,
+  Refrigerator,
 } from 'lucide-react'
 import type { NavUser, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { TabBar } from '@/components/ui/tab-bar'
 import { canRoleAccessPath, filterNavForRole } from '@/lib/kid-access'
 import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 
 interface DashboardNavProps {
   user: NavUser | null
@@ -53,6 +55,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   // Hide links the role would only be redirected away from (src/lib/kid-access.ts).
   const canSee = (href: string) => canRoleAccessPath(user?.role, href)
   const primaryTabs = filterNavForRole(PRIMARY_TABS, user?.role)
+  // Food inventory (#263): feature-gated and on the kid allowlist, so every
+  // role reaches it by touch from this menu (the command palette is keyboard-only).
+  const inventoryOn = useFeatureEnabled('inventory')
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -224,6 +229,16 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       >
                         <LayoutDashboard className="w-4 h-4 text-label-secondary" />
                         Today board
+                      </Link>
+                    )}
+                    {inventoryOn && canSee('/dashboard/inventory') && (
+                      <Link
+                        href="/dashboard/inventory"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <Refrigerator className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        Food inventory
                       </Link>
                     )}
                     {canSee('/dashboard/profile') && (

@@ -46,6 +46,8 @@ export const USER_IDS: Record<UserKey, string> = {
 const T0 = new Date('2026-09-01T00:00:00Z')
 const SOON = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
 const LATER = new Date(Date.now() + 6 * 60 * 60 * 1000)
+// Date-only (UTC midnight), two days after today's UTC date.
+const SOON_DAY = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2))
 
 function user(id: string, name: string, role: string, family_id: string | null): Row {
   return {
@@ -145,6 +147,13 @@ function seed(): Tables {
       id: `ri-${f}`, recipe_id: `recipe-${f}`, ingredient_id: `ingredient-${f}`, amount: 400, unit: 'g', note: null,
     })),
     mealPlanEntry: [],
+    // Food inventory (#263). Family A's item links to its own ingredient and
+    // expires within the use-soon window; family B's carries FOREIGN.
+    inventoryItem: perFamily((f, family_id, tag) => ({
+      id: `inv-${f}`, family_id, name: `${tag} Tomato`, ingredient_id: `ingredient-${f}`, amount: 3,
+      unit: null, location: 'fridge', expires_on: SOON_DAY, added_by: `parent-${f}`,
+      created_at: T0, updated_at: T0,
+    })),
     pinnedNote: perFamily((f, family_id, tag) => ({
       id: `note-${f}`, family_id, title: `${tag} wifi`, body: `${tag} password`, color: 'yellow',
       created_by: `parent-${f}`, created_at: T0,
@@ -279,6 +288,11 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     ingredient: { model: 'ingredient', fk: 'ingredient_id' },
   },
   ingredient: { family: { model: 'family', fk: 'family_id' } },
+  inventoryItem: {
+    family: { model: 'family', fk: 'family_id' },
+    ingredient: { model: 'ingredient', fk: 'ingredient_id' },
+    adder: { model: 'user', fk: 'added_by' },
+  },
   importJob: { family: { model: 'family', fk: 'family_id' } },
   mealPlan: {
     family: { model: 'family', fk: 'family_id' },

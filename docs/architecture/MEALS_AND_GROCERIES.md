@@ -357,3 +357,62 @@ Expected results:
 **Tests:** migration rehearsal twice; importer re-run test against the post-contract schema.
 
 **Boundary:** destructive. Nothing in this issue runs in production without that exact approval.
+
+## 10. Food inventory (#263)
+
+**Status (2026-09-28): implemented in #263.** FridgeCal-style inventory without AI: what the household has in the fridge, freezer and pantry, what to use soon, and which saved recipes it covers. No photo recognition and no push notifications (both out of scope). No scheduled job: "use soon" is computed when a page or tile asks.
+
+### Model (additive)
+
+`InventoryItem` (`prisma/schema.prisma`; idempotent DDL in `scripts/migrate.js` `POST_FEATURE_SQL`, because it references `Ingredient`, which `database/migration-meal-planner-domains.sql` creates):
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text PK | cuid |
+| `family_id` | text, FK `Family` `ON DELETE CASCADE` | household ownership; every query filters on it |
+| `name` | text | display name, NFC-trimmed with inner whitespace collapsed |
+| `ingredient_id` | text null, FK `Ingredient` `ON DELETE SET NULL` | optional link to the household's canonical ingredient (ADR-0007); proven same-household before every write |
+| `amount`, `unit` | float null, text null | presence and display only; no unit arithmetic (O-3 spirit) |
+| `location` | text, default `fridge` | `fridge` \| `freezer` \| `pantry` (validated in the API) |
+| `expires_on` | `DATE` null | date-only, like `FamilyMeal.date` semantics |
+| `added_by` | text null, FK `User` `ON DELETE SET NULL` | nullable so deleting a member's account keeps the household's food |
+| `created_at`, `updated_at` | timestamp | |
+
+Indexes: `(family_id, location)`, `(family_id, expires_on)`, `(ingredient_id)`. Expand only; rolling back the app leaves an unused table. It is not a new recipe, meal or grocery generation (ADR-0005/0007): it is a new domain that references the canonical `Ingredient`.
+
+### Ingredient link: link to an existing ingredient, never create one
+
+On create (and on a rename), when the client does not send `ingredient_id`, the server links the item to an existing ingredient **of the same household** whose normalized name (`normalizeName`: NFC, trimmed, whitespace collapsed, case-insensitive) equals the item's. If none exists the item stays free text; `ingredient_id: null` forces free text, and an explicit id must belong to the household (400 `INGREDIENT_NOT_FOUND`, identical for a foreign and a missing id).
+
+Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not needed here): inventory names are often not recipe ingredients ("leftover lasagne", "ice pops", "kids' lunch yogurts"), and creating `Ingredient` rows for them would fill the recipe ingredient catalogue that `/api/recipes` reuses by name. It would also leave orphan ingredients when items are used up. Nothing is lost by not linking: "what can I cook" also matches an unlinked item by normalized name, so a recipe saved later matches existing stock without a relink. The per-household lock remains the only path that creates ingredients (recipes), so there is no new race. A concurrent recipe write that creates the matching ingredient just after an item is added leaves that item unlinked but still matched by name.
+
+### Use soon
+
+`getUseSoonItems(db, familyId, { today, days = 3, limit })` in `src/lib/inventory.ts` returns items whose `expires_on` is on or before `today + days`, expired included, soonest (most overdue) first, then by name. Each entry carries only board-safe fields (`id`, `name`, `location`, `expiresOn`, `daysLeft`, `status`, `label`), so the fridge board (#262) can add a tile by calling it from its own DTO builder with the household it has already proven (a person's `family_id` or a device's). It is exposed as `GET /api/inventory/use-soon`. Labels are words ("Expired yesterday", "Use today", "Use by tomorrow", "Use in 3 days"); colour only reinforces them.
+
+"Today" is the viewer's calendar day: the page sends `today=YYYY-MM-DD` (browser local date) and the server accepts it only within one day of its UTC date; without it the server's UTC day is used. A board tile should pass the household's local day the same way.
+
+### What can I cook
+
+`GET /api/inventory/cook` (`getCookSuggestions` → pure `rankCookableRecipes`) ranks the household's saved recipes against its non-expired inventory. Inputs are read up to 1000 recipes and 5000 non-expired items (expired rows are filtered in SQL, so they never use up the cap); one row past each cap is fetched, and when either cap is hit the response carries `inputsTruncated: true` and the page says the list may be incomplete instead of "no saved recipe uses what you have".
+
+- An ingredient is in stock when a **non-expired** item links to it by `ingredient_id`, or an **unlinked** non-expired item has the same normalized name as the ingredient. A linked item never matches another ingredient by name. Expired items never count (food safety beats optimism).
+- Presence only: amounts are not compared (no cross-unit arithmetic).
+- Recipes without ingredients or with nothing in stock are left out.
+- Order: coverage (in stock / total) descending, then in-stock count, then how many in-stock ingredients are in the use-soon window, then fewer missing, then title.
+- Each suggestion returns `have` and `missing` as `{ ingredientId, name }`. The page's "Add N missing to groceries" is `AddToGroceriesButton` with `recipeId` and `ingredientIds` = the missing ids, i.e. `POST /api/lists/items/from-recipe` (§7) with its idempotency, duplicate and undo rules unchanged. Needs `meals` (recipes) as well as `inventory`.
+
+### Roles, gate, device, export
+
+- Parent and teen create, edit and delete; child reads (403 `INVENTORY_WRITE_FORBIDDEN`). `/dashboard/inventory` is on the kid allowlist; the page hides write controls for a child.
+- Navigation: the user menu (top bar, every viewport and role) has a "Food inventory" link while the feature is on, so the page is reachable by touch; the command palette entry stays for keyboards, and `/dashboard/meals` links to it ("What's in the fridge"). The page follows the list's `nextOffset` (500 per request) for up to 20 pages and says "Showing the first 10,000 items" beyond that.
+- Feature `inventory` (`src/lib/features.ts`, group "planning", `defaultEnabled: false`, no `legacyDefault`): off for new and existing households, because the feature needs data entry to be useful and adds a nav entry. A stored blob without the key reads as off, so `scripts/migrate.js` stamps nothing (compare `gamification`, which needed a stamp). The column default in `database/migration-features.sql` and `schema.prisma` carries `"inventory":false`. A parent turns it on in Features.
+- Paired shared device: writes refused (403 `DEVICE_WRITE_NOT_ALLOWED`, `refusePairedDevice`, listed in the route-allowlist test); no device read route yet. The board tile (#262) is the intended device read path, through `getUseSoonItems` fields only.
+- Export: `GET /api/users/export` adds `inventory` (every member; no `family_id`).
+- Not offline-queued and not idempotency-keyed in v1 (plain online writes).
+
+### Follow-ups (not in #263)
+
+- Move ticked grocery items into the inventory (optional in the issue).
+- A "use soon" tile on the fridge board (#262), using `getUseSoonItems`.
+- Photo recognition (separate issue) and any reminder delivery (needs an approved scheduler or an event-driven design).

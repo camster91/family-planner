@@ -31,6 +31,7 @@ export const H1_CANARIES = [
   'Home syrup',
   'Home peanuts',
   'Home pineapple',
+  'Home Tomato',
   'Home shop',
   'Home hello',
   'Home bike',

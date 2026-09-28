@@ -103,6 +103,41 @@ old-shape fixtures). Roles and isolation: `docs/ROLE_AND_ISOLATION_MATRIX.md` "M
 Old Android WebViews and queued #247 operations keep working: no route, request field or `ListItem.id` changed, and
 every new field is optional. Rollback of the app code is safe; the new columns stay unused.
 
+## Food inventory (#263)
+New routes only; nothing existing changes shape except the additive `inventory` key in `GET /api/users/export`.
+Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. Roles and isolation:
+`docs/ROLE_AND_ISOLATION_MATRIX.md` "Food inventory".
+
+- **Gate:** every handler calls `featureGate('inventory')` after authentication (403 `{ error: string }` when off;
+  the feature is off by default). `GET /api/inventory/cook` also needs `meals`.
+- **Errors:** route-owned errors use the target envelope `{ error: { code, message, retryable } }` with
+  `Cache-Control: private, no-store`: 400 `VALIDATION_ERROR` / `INVALID_JSON` / `INGREDIENT_NOT_FOUND`, 403
+  `INVENTORY_WRITE_FORBIDDEN` (child), 404 `INVENTORY_ITEM_NOT_FOUND` (foreign and missing alike), 500
+  `INTERNAL_ERROR` (`retryable: true`). Authentication (401) and the feature gate keep their shared shapes. A paired
+  shared device gets 403 `DEVICE_WRITE_NOT_ALLOWED` on every write, before person auth.
+- **Dates:** `expires_on` is date-only (`YYYY-MM-DD`, Postgres `DATE`). Every handler takes an optional
+  `today=YYYY-MM-DD` (the viewer's calendar day) that must be within one day of the server's UTC date (every real
+  zone is), else 400; without it the server's UTC day is used. `expiry.status` is `expired` (before today), `today`,
+  `soon` (within 3 days), `later` or `none`, with `daysLeft`.
+- **Item DTO:** `{ id, name, ingredient_id, amount, unit, location: 'fridge'|'freezer'|'pantry', expires_on, added_by,
+  created_at, updated_at, expiry: { status, daysLeft } }`. Never `family_id`.
+- **Not idempotent / not offline-queued in v1:** inventory writes are plain online requests (no `Idempotency-Key`);
+  the #162 queue allowlist is unchanged.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `GET /api/inventory?location=&expiringWithinDays=&today=&limit=&offset=` | `{ items: [Item], nextOffset }`, by name. `expiringWithinDays=N` (0–365) keeps items whose expiry day is on or before today + N, expired included. `limit` 1–500 (default 200). All roles. | 400 bad filter/paging/today; 403 off |
+| `POST /api/inventory?today=` | Strict body `{ name (1–200), ingredient_id?: string \| null, amount?: number \| null (0–100000), unit?: string \| null (≤ 32), location? (default fridge), expires_on?: 'YYYY-MM-DD' \| null }`. Without `ingredient_id` the item links to a same-household ingredient with the same normalized name, if one exists (no ingredient is created); `null` keeps it free text. 201 `{ item }`. Parent and teen. | 400 validation / `INGREDIENT_NOT_FOUND`; 403 child, device or off |
+| `GET /api/inventory/[id]?today=` | `{ item }`. All roles. | 404 |
+| `PATCH /api/inventory/[id]?today=` | Same fields as POST, all optional (at least one). `null` clears `amount`, `unit`, `expires_on`, `ingredient_id`. A new `name` without `ingredient_id` re-links by name. 200 `{ item }`. Parent and teen. | as POST; 404 |
+| `DELETE /api/inventory/[id]` | 200 `{ success: true }`. Parent and teen. | 403; 404 |
+| `GET /api/inventory/use-soon?days=3&today=&limit=` | `{ days, items: [{ id, name, location, expiresOn, daysLeft, status: 'expired'\|'today'\|'soon', label }] }`: expired items and those expiring within `days` (0–365, default 3), soonest first. `limit` 1–100 (default 50). Board-safe fields only; the same data comes from `getUseSoonItems` in `src/lib/inventory.ts`. All roles. | 400; 403 off |
+| `GET /api/inventory/cook?today=&limit=` | `{ suggestions: [{ recipeId, title, prep_time, cook_time, servings, totalCount, haveCount, missingCount, coverage, useSoonCount, have: [{ ingredientId, name }], missing: [{ ingredientId, name }] }], recipesConsidered, truncated, inputsTruncated }`, ranked by coverage, then in-stock count, use-soon count, fewer missing, title. Recipes with nothing in stock are left out. Expired items are excluded in the query. Inputs are read up to 1000 recipes and 5000 non-expired items; `inputsTruncated: true` means a cap was hit and suggestions may be missing (the page says so). `truncated` means more suggestions than `limit`. `limit` 1–50 (default 20). All roles. The UI passes `missing[].ingredientId` to `POST /api/lists/items/from-recipe` as `ingredientIds`. | 400; 403 inventory or meals off |
+| `GET /api/users/export` | Adds `inventory`: the household's items (no `family_id`). | unchanged |
+
+Compatibility: additive table and routes; old WebView bundles never call them. Rolling back the app code is safe;
+the table stays unused.
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

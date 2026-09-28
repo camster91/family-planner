@@ -25,6 +25,7 @@ import {
   UserPlus,
   Thermometer,
   Sparkles,
+  Refrigerator,
 } from 'lucide-react'
 
 export type FeatureKey =
@@ -51,6 +52,7 @@ export type FeatureKey =
   | 'handoff'
   | 'sick-days'
   | 'gamification'
+  | 'inventory'
 
 export interface FeatureMeta {
   key: FeatureKey
@@ -88,6 +90,12 @@ export const FEATURES: FeatureMeta[] = [
 
   // Planning — on by default, easy to turn off
   { key: 'meals', title: 'Meal planning', description: 'Plan breakfast, lunch, and dinner for the week.', group: 'planning', icon: UtensilsCrossed, glyphColor: 'meals', href: '/dashboard/meals', defaultEnabled: true },
+  // Food inventory (#263): what is in the fridge, freezer and pantry, what to
+  // use soon, and which saved recipes it covers. Opt-in for new and existing
+  // households alike (it needs data entry to be useful and adds a nav entry),
+  // so a stored blob without the key reads as off and scripts/migrate.js
+  // stamps nothing. "What can I cook" also needs Meal planning (recipes).
+  { key: 'inventory', title: 'Food inventory', description: 'Track what is in the fridge, freezer and pantry, and what to use soon.', group: 'planning', icon: Refrigerator, glyphColor: 'meals', href: '/dashboard/inventory', defaultEnabled: false },
   { key: 'notes', title: 'Pinned notes', description: 'Sticky notes for the fridge, school pickup, weekend plans.', group: 'planning', icon: StickyNote, glyphColor: 'lists', href: '/dashboard/notes', defaultEnabled: true },
   { key: 'anniversaries', title: 'Birthdays & anniversaries', description: 'Reminders for upcoming family dates.', group: 'planning', icon: Cake, glyphColor: 'family', href: '/dashboard/anniversaries', defaultEnabled: true },
   // Points, XP, levels, streaks and the leaderboard (#248). Calm by default:

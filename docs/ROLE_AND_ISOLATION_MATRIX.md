@@ -127,6 +127,19 @@ authentication and answers 403 when the household has lists off, matching the UI
 | Undo recipe add (`POST /api/lists/items/undo-add`, #253) | D (own add only) | yes | yes | yes | no (403) | O-5: only the person who made that request, within 10 minutes, only its still-unticked rows (403 another member, 404 another household, 409 late). Every other item delete stays parent-only. |
 | Default grocery list (`POST /api/lists/default-grocery`, #253) | R / C | yes | yes | no (403) | no | Find-or-create under a per-household advisory lock; used by capture (parent/teen, like list creation). |
 
+### Food inventory (#263)
+
+| Domain | Action | Parent | Teen | Child | Shared device | Notes |
+|---|---|---|---|---|---|---|
+| Inventory items (`/api/inventory`, `/api/inventory/[id]`) | R | yes | yes | yes | no (no device read route yet; a later fridge-board tile may read `getUseSoonItems` fields only) | `featureGate('inventory')` (off by default for new and existing households). Every lookup is scoped by `family_id`; another household's item is a 404 identical to a missing id. |
+| Inventory items | C / U / D | yes | yes | no (403 `INVENTORY_WRITE_FORBIDDEN`) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | `ingredient_id` must be an `Ingredient` of the household (400 `INGREDIENT_NOT_FOUND`, same answer for a foreign and a missing id). Without it the item is linked to a same-household ingredient with the same normalized name, if any; no `Ingredient` is ever created from an item, and another household's ingredient is never matched. Bodies are strict: `family_id`, `added_by` or other unknown keys are a 400. Teens may delete (using up food is the main write). |
+| Use soon (`GET /api/inventory/use-soon`) | R | yes | yes | yes | no (same as above) | Board-safe fields only: item id, name, location, expiry day, days left, status and label. |
+| What can I cook (`GET /api/inventory/cook`) | R | yes | yes | yes | no | Needs `inventory` and `meals`. Reads only the household's recipes and items. "Add missing to groceries" is the existing `from-recipe` route (row above), so its rules apply. |
+
+Page: `/dashboard/inventory` is on the kid allowlist (teens edit; children read, with the add/edit controls
+hidden) and, when the feature is on, in the user menu (touch) and the command palette. Its "View recipe" link is shown only to roles that
+may open `/dashboard/meals/recipes/[id]` (parents).
+
 ### Other domains (unchanged by this round; recorded for completeness)
 
 | Domain | R | C | U | D | Shared device (proposed) | Notes |
@@ -143,7 +156,7 @@ authentication and answers 403 when the household has lists off, matching the UI
 | Locations | parent | parent | — | parent | no | Precise addresses. |
 | Travel mode | parent | — | parent | — | no | |
 | Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | Feature toggles, including Points & streaks (`gamification`, #248): PATCH is parent-only, teen/child 403. |
-| Account (`/api/users`, export) | own | — | own | own | no | Export includes travel fields for parents only. Export (ADR-0007, #251) adds the household's `FamilyMeal` rows (`meals`) and the ADR-0007 backfill `ImportJob` summaries (`mealBackfillJobs`, every member, because they archive legacy rows every member already exports); the legacy `mealPlans`/`shoppingLists` stay; other import jobs stay parent-only. |
+| Account (`/api/users`, export) | own | — | own | own | no | Export includes travel fields for parents only. Export (ADR-0007, #251) adds the household's `FamilyMeal` rows (`meals`) and the ADR-0007 backfill `ImportJob` summaries (`mealBackfillJobs`, every member, because they archive legacy rows every member already exports); the legacy `mealPlans`/`shoppingLists` stay; other import jobs stay parent-only. Export (#263) adds the household's `InventoryItem` rows (`inventory`, every member, without `family_id`). |
 | Connected calendars — two-way Google/Outlook sync (#264) | parent (teen/child 403 `PARENT_REQUIRED`) | parent (own account only) | own connection only: calendar choice, push mode; any parent: Sync now | any parent in the household (disconnect) | no (401: a device is not a person session) | Implemented, **dormant unless configured** (every route 404 until `CALENDAR_TOKEN_KEY`, `APP_URL` and a provider's client id/secret are set). Listing a member's provider calendars is that member only (403 for another parent). Tokens are never returned. Imported events are ordinary events (rules of the Events row). `docs/architecture/CALENDAR_SYNC.md`. |
 | Shared devices (list, rename, revoke, pairing codes, audit) | parent | parent | parent | parent (revoke) | this device only: rename/revoke elevated only | Implemented (behind SHARED_DEVICE_ENABLED), #240; teens and children get 403 `PARENT_REQUIRED`. |
 | Tablet elevation PIN | own (parent) | own (parent) | own (parent) | own (parent) | used, never read | Implemented (behind SHARED_DEVICE_ENABLED), #240 (O-1 confirmed). Set/change needs the current password; a password reset deletes it. |
