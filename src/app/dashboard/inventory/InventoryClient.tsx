@@ -552,7 +552,7 @@ function ItemModal({
                 <label
                   key={loc}
                   className={cn(
-                    'min-h-[44px] flex items-center justify-center rounded-xl border px-2 text-subhead cursor-pointer',
+                    'relative min-h-[44px] flex items-center justify-center rounded-xl border px-2 text-subhead cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent)] has-[:focus-visible]:ring-offset-2',
                     location === loc
                       ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent-text)] font-semibold'
                       : 'border-[var(--surface-separator)] text-label-primary'
@@ -564,7 +564,8 @@ function ItemModal({
                     value={loc}
                     checked={location === loc}
                     onChange={() => setLocation(loc)}
-                    className="sr-only"
+                    // Covers the whole label, so the hit target is the 44px tile.
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   />
                   {LOCATION_LABELS[loc]}
                 </label>
