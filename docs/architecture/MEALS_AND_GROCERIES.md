@@ -202,6 +202,15 @@ Expected results:
 
 ## 7. Recipe → grocery contract (child D)
 
+**Status (2026-09-28): implemented in #253** (`src/lib/grocery-from-recipe.ts`, `src/app/api/lists/items/{from-recipe,undo-add}/route.ts`, `src/app/api/lists/default-grocery/route.ts`). Implementation notes, where the code is more specific than the plan below:
+- A paired shared device is detected before person auth (`refusePairedDevice`, `src/lib/device-route.ts`) and gets 403 `DEVICE_WRITE_NOT_ALLOWED` from both routes, even with a stray `session_token` beside the device credential.
+- `withIdempotency` hands the effect its `IdempotencyRecord.id` (`EffectRun.recordId`); that id is the `requestId` in the response and each row's `source_request_id`. A missing key is 400 `IDEMPOTENCY_KEY_REQUIRED`. `ingredientIds` is de-duplicated and sorted before hashing, so order does not make the same request look different.
+- Errors use the target envelope `{ error: { code, message, retryable } }`: 404 `RECIPE_NOT_FOUND` / `MEAL_NOT_FOUND` / `LIST_NOT_FOUND` (foreign and missing alike), 400 `MEAL_RECIPE_MISMATCH` / `LIST_NOT_GROCERY` / `INGREDIENT_NOT_IN_RECIPE` / `RECIPE_HAS_NO_INGREDIENTS`. None is stored for replay.
+- `createdCount` is read back from the rows carrying the request id (not from `createMany`'s count), so a takeover after a crash reports the rows the first attempt wrote. The response also carries `listName` for the toast. `possibleDuplicates` compares the created ingredients' names with open free-text rows on that list (`normalizeName`: NFC, trimmed, whitespace collapsed, case-insensitive).
+- `resolveDefaultGroceryList` picks the most recently updated `grocery` list, else the most recently updated `shopping` list (both are grocery lists, ADR decision 3), else creates "Groceries", under `pg_advisory_xact_lock(hashtext('default-grocery-list:' || family_id))`. A child's first `from-recipe` may therefore create the list (ADR: every role may add from a recipe). `CaptureBox` calls it through `POST /api/lists/default-grocery` (parent and teen, like list creation); it previously fell back to the household's first list of any type and created a list named "Shopping".
+- Undo checks the `IdempotencyRecord` (same household and action → else 404; same user → else 403; finished → else 409 `UNDO_IN_PROGRESS`; `created_at` within 10 minutes → else 409 `UNDO_WINDOW_EXPIRED`), then deletes rows with that `source_request_id`, `added_by` the caller, unchecked, created within the window, on a list of the household. 200 `{ requestId, removedCount, keptCheckedCount }`; a repeated undo removes 0.
+- No schema change was needed.
+
 `POST /api/lists/items/from-recipe`
 - Auth: `authenticateWithFamily`; `featureGate('meals')` and `featureGate('lists')`; roles parent, teen and child; device sessions refused (403) until #157 device writes exist.
 - Header `Idempotency-Key` is **required** (400 `IDEMPOTENCY_KEY_REQUIRED` if missing). Wrapped in `withIdempotency` (PR #247) with action `grocery.add-from-recipe` and scope `user:<id>`.
@@ -295,6 +304,8 @@ Expected results:
 **Boundary:** no tablet write flows (device writes stay off), no inventory UI.
 
 ### D. [Meals→Groceries] Add recipe ingredients to groceries idempotently (ADR-0007, #122)
+
+**Status (2026-09-28):** implemented in #253 (API, undo, default-list helper, meal-modal action; the recipe-detail mount waits for #252's recipe detail view, which can reuse `src/components/meals/AddToGroceriesButton.tsx`). Contracts: §7 and `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Tests: `src/app/api/lists/__tests__/from-recipe.test.ts` (fake DB), `from-recipe.integration.test.ts` (Postgres races, advisory lock, undo window; in the release workflow), `e2e/groceries.spec.ts` (add → replay → undo).
 
 **Outcome:** From a meal or recipe, a family member can add all or selected ingredients to the grocery list once, even with retries, double taps or two devices, and can undo it.
 

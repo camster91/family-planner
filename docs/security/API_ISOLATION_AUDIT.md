@@ -45,6 +45,14 @@ ingredient). Every `/api/lists/**` handler now has `featureGate('lists')` (O-11)
 `src/lib/__tests__/list-item-provenance.integration.test.ts` and
 `src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts`.
 
+**Update 2026-09-28 (#253): recipe → grocery add (ADR-0007 child D).** `POST /api/lists/items/from-recipe`,
+`POST /api/lists/items/undo-add` and `POST /api/lists/default-grocery`. The recipe, meal and list are each looked up
+`where { id, family_id }`, so another household's id is a 404 identical to a missing one; ingredient rows come from the
+household's recipe, never from the body. A paired shared device is refused with 403 `DEVICE_WRITE_NOT_ALLOWED`
+before person auth (`refusePairedDevice`), and the route-allowlist test lists both routes. Undo is limited to the
+original caller's own request (idempotency record `user_id`), their own unticked rows and a 10-minute window. Tests:
+`src/app/api/lists/__tests__/from-recipe.test.ts` and the opt-in `from-recipe.integration.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -174,6 +182,9 @@ recorded in route comments, as the de facto matrix.
 | /api/lists/items/create | POST | family + `featureGate('lists')` (#251) | list match (403) | all | listId verified; `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/provenance | ok |
 | /api/lists/items/update | PATCH | family + `featureGate('lists')` (#251) | item's list match (403) | all | `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/idempotency, lists/provenance, list-item-provenance.integration | ok; optional `Idempotency-Key` (#162): records scoped to `user:<id>` + `family_id`, never replayed across users or households, 401 before any lookup; `P2002` on `ListItem_open_recipe_source_key` → 409 `DUPLICATE_OPEN_ITEM` (not stored) |
 | /api/lists/items/delete | DELETE | family + `featureGate('lists')` (#251) | item's list match (403) | P | none | lists/iso, lists/provenance | ok |
+| /api/lists/items/from-recipe | POST | shared device refused first (403); family + `featureGate('meals')` + `featureGate('lists')` (#253) | recipe, meal, list each `where { id, family_id }` (404, no existence leak) | all | `ingredientIds` must belong to the recipe (400); ingredient rows come from the recipe, never from the body; `mealId` must use the recipe (400) | lists/from-recipe, lists/from-recipe.integration, device-route-allowlist | ok; `Idempotency-Key` required, records scoped to `user:<id>` + `family_id`; refusals not stored |
+| /api/lists/items/undo-add | POST | shared device refused first (403); family + `featureGate('lists')` (#253) | `IdempotencyRecord` `where { id, family_id, action }` (404); same user (403); rows filtered by `source_request_id`, `added_by`, list `family_id` | all (own request) | none | lists/from-recipe, lists/from-recipe.integration, device-route-allowlist | ok; 10-minute window (409) |
+| /api/lists/default-grocery | POST | family + `featureGate('lists')` (#253) | session family | P+T | none | lists/from-recipe, lists/from-recipe.integration | ok; advisory lock per household |
 | /api/locations | GET | jwt | where | P (was all) | none | locations/iso | fixed |
 | /api/locations | POST | jwt | session family | P | none | locations/iso | ok |
 | /api/locations/[id] | DELETE | jwt | match (404) | P | none | locations/iso | ok |
