@@ -66,7 +66,7 @@ export interface SyncCounts {
 }
 
 export interface SyncSummary {
-  status: "ok" | "error" | "reauth_required" | "not_ready";
+  status: "ok" | "error" | "reauth_required" | "not_ready" | "superseded";
   pulled: SyncCounts;
   pushed: SyncCounts;
   conflicts: number;
@@ -87,6 +87,7 @@ const CONN_SELECT = {
   token_expires_at: true,
   sync_cursor: true,
   push_mode: true,
+  generation: true,
 } as const;
 
 const EVENT_SELECT = {
@@ -324,6 +325,38 @@ async function loadEvents(
   return out;
 }
 
+/**
+ * The connection was re-pointed (calendar change, reconnect) or removed while
+ * this run was in flight. The run stops without writing anything more.
+ */
+export class SupersededRunError extends Error {
+  constructor() {
+    super("Calendar connection changed during sync");
+    this.name = "SupersededRunError";
+  }
+}
+
+/**
+ * Run `fn` in a transaction that first locks the connection row, but only if
+ * it still has the generation this run started with. changeCalendar and a
+ * reconnect bump the generation under the same row lock, so a stale run can
+ * never insert events/links or save a cursor for the previous calendar: it
+ * either commits before the switch (whose cleanup then removes its rows) or
+ * sees the new generation and aborts.
+ */
+async function inGeneration<T>(ctx: Ctx, fn: (tx: any) => Promise<T>): Promise<T> {
+  const { conn } = ctx;
+  return ctx.db.$transaction(async (tx: any) => {
+    // A no-op UPDATE takes the row lock and tells us whether we still own it.
+    const held = await tx.calendarConnection.updateMany({
+      where: { id: conn.id, family_id: conn.family_id, generation: conn.generation },
+      data: { generation: conn.generation },
+    });
+    if (held.count !== 1) throw new SupersededRunError();
+    return fn(tx);
+  });
+}
+
 async function deleteLocal(ctx: Ctx, link: Link, eventId: string | null) {
   const { db, conn } = ctx;
   await db.$transaction(async (tx: any) => {
@@ -432,7 +465,8 @@ async function applyRemote(
       });
       if (own && !linkedEventIds.has(own.id)) {
         try {
-          await db.calendarEventLink.create({
+          await inGeneration(ctx, (tx) =>
+            tx.calendarEventLink.create({
             data: {
               family_id: conn.family_id,
               connection_id: conn.id,
@@ -444,7 +478,8 @@ async function applyRemote(
               all_day: r.allDay,
               synced_at: now,
             },
-          });
+            }),
+          );
           linkedEventIds.add(own.id);
         } catch (err) {
           if (!isUniqueViolation(err)) throw err;
@@ -456,7 +491,7 @@ async function applyRemote(
     if (r.end.getTime() < window.start.getTime()) continue; // history, not imported
     const incoming = remoteFields(r);
     try {
-      await db.$transaction(async (tx: any) => {
+      await inGeneration(ctx, async (tx: any) => {
         const created = await tx.event.create({
           data: {
             ...incoming,
@@ -574,7 +609,9 @@ async function pushLocal(
 
   // 3. New local family events, only when the owner opted in.
   if (conn.push_mode !== "all" || budget <= 0) return;
-  const linked = new Set(live.map((l) => l.event_id as string));
+  // Already-linked events are excluded in the query itself (not after a
+  // limit), so a household with more eligible events than one run's budget
+  // makes progress on every run instead of re-reading the same first page.
   const candidates: LocalEvent[] = await db.event.findMany({
     where: {
       family_id: conn.family_id,
@@ -582,19 +619,20 @@ async function pushLocal(
       source_connection_id: null,
       is_task: false,
       start_time: { gte: new Date(now.getTime() - DAY_MS), lt: window.end },
+      sync_links: { none: { connection_id: conn.id } },
     },
     select: EVENT_SELECT,
-    orderBy: { start_time: "asc" },
-    take: 500,
+    orderBy: [{ start_time: "asc" }, { id: "asc" }],
+    take: budget,
   });
   for (const ev of candidates) {
-    if (linked.has(ev.id)) continue;
     if (budget <= 0) break;
     budget--;
     const input = inputFor(ctx, ev, null);
     const res = await withAuth(ctx, (t) => adapter.create(t, calendarId, input));
     try {
-      await db.calendarEventLink.create({
+      await inGeneration(ctx, (tx) =>
+        tx.calendarEventLink.create({
         data: {
           family_id: conn.family_id,
           connection_id: conn.id,
@@ -606,7 +644,8 @@ async function pushLocal(
           all_day: false,
           synced_at: now,
         },
-      });
+        }),
+      );
       summary.pushed.created++;
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
@@ -653,8 +692,10 @@ export async function syncConnection(
       data.last_conflict_at = now;
     }
     if (status === "reauth_required") data.access_token_enc = null;
+    // Only the run's own generation: a stale run must not overwrite the status
+    // of the calendar the member switched to.
     await db.calendarConnection.updateMany({
-      where: { id: conn.id, family_id: familyId },
+      where: { id: conn.id, family_id: familyId, generation: conn.generation },
       data,
     });
     if (code) logFailure(conn.id, code);
@@ -695,13 +736,20 @@ export async function syncConnection(
       );
     }
     await applyRemote(ctx, pulled, window, summary);
-    // Save the cursor before pushing, so a push failure does not replay the pull.
-    await db.calendarConnection.updateMany({
-      where: { id: conn.id, family_id: familyId },
-      data: { sync_cursor: pulled.nextCursor },
-    });
+    // Save the cursor before pushing, so a push failure does not replay the
+    // pull. Conditional on the generation: never restore an old calendar's cursor.
+    await inGeneration(ctx, (tx) =>
+      tx.calendarConnection.updateMany({
+        where: { id: conn.id, family_id: familyId, generation: conn.generation },
+        data: { sync_cursor: pulled.nextCursor },
+      }),
+    );
     await pushLocal(ctx, window, summary);
   } catch (err) {
+    if (err instanceof SupersededRunError) {
+      console.warn("[calendar-sync] run superseded", { connectionId: conn.id });
+      return { ...summary, status: "superseded" };
+    }
     if (err instanceof OAuthGrantError) return finish("reauth_required", "reauth");
     if (err instanceof ProviderHttpError && err.code === "unauthorized")
       return finish("reauth_required", "reauth");
@@ -857,10 +905,14 @@ export async function changeCalendar(
   calendar: { id: string; name: string },
 ): Promise<number> {
   return db.$transaction(async (tx: any) => {
-    const removed = await clearConnectionData(tx, connectionId, familyId);
+    // Bump the generation first: this takes the connection row lock, so a
+    // concurrent sync's guarded writes (inGeneration) wait for this
+    // transaction and then abort, and anything they committed earlier is
+    // removed by the cleanup below.
     await tx.calendarConnection.updateMany({
       where: { id: connectionId, family_id: familyId },
       data: {
+        generation: { increment: 1 },
         calendar_id: calendar.id,
         calendar_name: calendar.name,
         sync_cursor: null,
@@ -868,7 +920,7 @@ export async function changeCalendar(
         last_error: null,
       },
     });
-    return removed;
+    return clearConnectionData(tx, connectionId, familyId);
   });
 }
 

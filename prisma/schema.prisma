@@ -234,6 +234,9 @@ model CalendarConnection {
   token_expires_at  DateTime?
   sync_cursor       String? // Google nextSyncToken / Graph @odata.deltaLink
   push_mode         String    @default("linked") // 'linked' | 'all'
+  // Bumped when the synced calendar changes or the account is re-connected.
+  // A sync run writes only while the generation it started with is current.
+  generation        Int       @default(0)
   status            String    @default("pending") // 'pending' | 'ok' | 'error' | 'reauth_required'
   last_synced_at    DateTime?
   last_error        String? // short fixed-vocabulary message; never event content

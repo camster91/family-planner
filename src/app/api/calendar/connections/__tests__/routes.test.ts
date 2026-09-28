@@ -231,6 +231,39 @@ describe("OAuth start + callback", () => {
     expect(rows[0]).toMatchObject({ id: "conn-a", sync_cursor: null, calendar_id: "primary" });
   });
 
+  it("the household limit is enforced when the callback commits, not only at start", async () => {
+    db.tables.calendarConnection = db.rows("calendarConnection").filter((c) => c.id !== "conn-a");
+    for (let i = 0; i < 5; i++) seedConnection(`other-${i}`, FAMILY_A, `member-${i}`, `Cal ${i}`);
+    // Start passes (5 of 6 used)...
+    const { res, state } = await startFlow("parentA");
+    expect(res.status).toBe(200);
+    // ...then a parallel flow commits the 6th connection first.
+    seedConnection("raced", FAMILY_A, "member-raced", "Raced");
+    const cb = await callbackReq("parentA", { code: "c", state: state! });
+    expect(cb.headers.get("location")).toContain("calendar_sync=limit");
+    expect(db.rows("calendarConnection").filter((c) => c.family_id === FAMILY_A)).toHaveLength(6);
+    expect(db.rows("calendarConnection").some((c) => c.user_id === "parent-a")).toBe(false);
+    // The unused grant is revoked (best effort).
+    expect(providerState.oauth.revoked).toEqual(["REFRESH-FROM-CODE"]);
+  });
+
+  it("re-connecting an existing member+provider is an update even at the limit, and bumps the generation", async () => {
+    for (let i = 0; i < 5; i++) seedConnection(`other-${i}`, FAMILY_A, `member-${i}`, `Cal ${i}`);
+    db.find("calendarConnection", "conn-a")!.generation = 3;
+    const { state } = await startFlow("parentA");
+    const cb = await callbackReq("parentA", { code: "c", state: state! });
+    expect(cb.headers.get("location")).toContain("calendar_sync=connected");
+    expect(db.rows("calendarConnection").filter((c) => c.family_id === FAMILY_A)).toHaveLength(6);
+    expect(db.find("calendarConnection", "conn-a")).toMatchObject({ generation: 4, sync_cursor: null });
+  });
+
+  it("the list never hides a live connection", async () => {
+    // e.g. rows created before the commit-time cap existed
+    for (let i = 0; i < 7; i++) seedConnection(`legacy-${i}`, FAMILY_A, `member-${i}`, `Cal ${i}`);
+    const body = await bodyOf(await list.GET(req({ as: "parentA" })));
+    expect(body.connections).toHaveLength(8);
+  });
+
   it("a teen reaching the callback is redirected without a connection", async () => {
     const res = await callbackReq("teenA", { code: "c", state: "s" });
     expect(res.headers.get("location")).toContain("calendar_sync=forbidden");

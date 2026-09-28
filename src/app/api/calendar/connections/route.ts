@@ -4,7 +4,6 @@ import { enabledProviders, PROVIDER_LABELS } from "@/lib/calendar-sync/config";
 import { authParentForSync, json } from "@/lib/calendar-sync/route-helpers";
 import {
   CONNECTION_DTO_SELECT,
-  MAX_CONNECTIONS_PER_FAMILY,
   toConnectionDto,
 } from "@/lib/calendar-sync/sync";
 
@@ -22,8 +21,9 @@ export async function GET(request: NextRequest) {
     const rows = await prisma!.calendarConnection.findMany({
       where: { family_id: auth.user.family_id },
       select: CONNECTION_DTO_SELECT,
+      // No `take`: the household cap is enforced at commit (callback), so the
+      // list is already bounded and must never hide a live connection.
       orderBy: [{ created_at: "asc" }, { id: "asc" }],
-      take: MAX_CONNECTIONS_PER_FAMILY,
     });
     return json({
       providers: enabledProviders().map((id) => ({

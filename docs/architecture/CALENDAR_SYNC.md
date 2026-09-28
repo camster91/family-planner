@@ -46,7 +46,7 @@ are `404`. Removing the variables later turns everything off again; stored rows 
   `calendar_id?, calendar_name?`, `access_token_enc?, refresh_token_enc?, token_expires_at?`, `sync_cursor?`
   (Google `nextSyncToken` / Graph `@odata.deltaLink`), `push_mode` (`linked` default | `all`), `status`
   (`pending`|`ok`|`error`|`reauth_required`), `last_synced_at?`, `last_error?` (fixed vocabulary),
-  `conflicts_count`, `last_conflict_at?`, timestamps. `UNIQUE (family_id, user_id, provider)`: one connection per
+  `conflicts_count`, `last_conflict_at?`, `generation` (bumped on calendar change and re-connect), timestamps. `UNIQUE (family_id, user_id, provider)`: one connection per
   member per provider. FKs cascade from `Family` and `User`.
 - `CalendarEventLink`: `id, family_id, connection_id, event_id?, external_id, external_etag?, external_updated_at?,
   synced_hash?, all_day, synced_at?`. `UNIQUE (connection_id, external_id)` makes imports idempotent;
@@ -100,8 +100,12 @@ never from request headers. Scopes are minimal:
   `access_type=offline`, `prompt=consent`.
 - Microsoft: `offline_access Calendars.ReadWrite` (delegated).
 
-Re-connecting the same provider updates the existing connection (new tokens, cursor reset; links keep it
-idempotent). A missing refresh token on first connect is treated as a failed exchange.
+Re-connecting the same provider updates the existing connection (new tokens, cursor reset, new generation; links
+keep it idempotent). A missing refresh token on first connect is treated as a failed exchange. The household limit
+(6) and one-connection-per-member-per-provider are enforced when the callback **commits**, inside a transaction
+under a per-household advisory lock (`src/lib/calendar-sync/connections.ts`); the check in `start` is only an early
+refusal. A callback over the limit revokes the fresh grant (best effort) and redirects with `calendar_sync=limit`.
+`GET /api/calendar/connections` is not truncated.
 
 ## Token encryption
 
@@ -180,6 +184,17 @@ per-connection opt-in by the connecting member ("Also add new family calendar ev
 
 **Conflict records** are content-minimal: `conflicts_count` and `last_conflict_at` on the connection, and a log line
 with ids and a fixed code only. No titles, times or provider bodies are stored or logged.
+
+**Stale runs.** A run records the connection's `generation` when it starts. Every write that creates rows or
+saves run state (imported event + link, re-linked marker, pushed link, cursor, final status) happens in a
+transaction that first locks the connection row with a no-op `UPDATE … WHERE generation = <start>`. `changeCalendar`
+(and a re-connect) bumps the generation under the same row lock before clearing the old calendar's events and links.
+So a run racing a calendar switch either committed before it (and its rows are then cleared) or finds the new
+generation and stops with `status: "superseded"` without writing the old calendar's cursor, rows or status.
+
+**Push candidates** exclude events already linked to the connection in the query itself
+(`sync_links: { none: { connection_id } }`), limited to the run's remaining budget, so households with more
+eligible events than one run can push make progress on every run.
 
 **Idempotency.** Unique link keys + etag comparison + deterministic provider creates mean re-running a sync (or two
 concurrent runs) creates no duplicate rows; a concurrent loser's transaction rolls back on `P2002`. One run per

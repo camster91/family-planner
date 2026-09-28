@@ -253,7 +253,10 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     creator: { model: 'user', fk: 'created_by' },
     family: { model: 'family', fk: 'family_id' },
   },
-  event: { creator: { model: 'user', fk: 'created_by' } },
+  event: {
+    creator: { model: 'user', fk: 'created_by' },
+    sync_links: { model: 'calendarEventLink', fk: 'event_id', many: true },
+  },
   list: {
     creator: { model: 'user', fk: 'created_by' },
     items: { model: 'listItem', fk: 'list_id', many: true },

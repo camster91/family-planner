@@ -165,6 +165,8 @@ CREATE TABLE IF NOT EXISTS "CalendarConnection" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Run generation: a sync writes only while the generation it started with is current (#264 review).
+ALTER TABLE "CalendarConnection" ADD COLUMN IF NOT EXISTS "generation" INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS "CalendarConnection_family_id_user_id_provider_key" ON "CalendarConnection"("family_id", "user_id", "provider");
 CREATE INDEX IF NOT EXISTS "CalendarConnection_family_id_idx" ON "CalendarConnection"("family_id");
 

@@ -73,6 +73,7 @@ function seedConnection(
     last_error: null,
     conflicts_count: 0,
     last_conflict_at: null,
+    generation: 0,
     created_at: NOW,
     updated_at: NOW,
     ...extra,
@@ -428,6 +429,81 @@ describe("disconnect and calendar change", () => {
     await changeCalendar(fakePrisma, "conn-a", FAMILY_A, { id: "work", name: "Work" });
     expect(imported()).toHaveLength(0);
     expect(conn()).toMatchObject({ calendar_id: "work", sync_cursor: null, status: "pending" });
+  });
+});
+
+describe("review fixes", () => {
+  it("push_mode all makes progress past the first page when more events are eligible than one query returns", async () => {
+    conn().push_mode = "all";
+    const TOTAL = 650; // > the old fixed 500-row candidate page
+    for (let i = 0; i < TOTAL; i++) {
+      db.rows("event").push({
+        id: `bulk-${String(i).padStart(4, "0")}`, family_id: FAMILY_A, title: `Bulk ${i}`, description: null,
+        location: null, start_time: new Date(inDays(1).getTime() + i * 60000),
+        end_time: new Date(inDays(1).getTime() + i * 60000 + 1800000), event_type: "other", created_by: "parent-a",
+        source_subscription_id: null, source_connection_id: null, is_task: false, created_at: NOW, updated_at: NOW,
+      });
+    }
+    const eligible = TOTAL + 1; // plus the seeded native "Home dentist"
+    let runs = 0;
+    let previous = -1;
+    while (links().length < eligible && runs < 20) {
+      await syncConnection("conn-a", FAMILY_A, deps);
+      runs++;
+      expect(links().length).toBeGreaterThan(previous); // progress on every run
+      previous = links().length;
+    }
+    expect(links()).toHaveLength(eligible);
+    expect(runs).toBe(Math.ceil(eligible / 100));
+    expect(provider.live()).toHaveLength(eligible);
+  });
+
+  it("a calendar change during a sync: the stale run imports nothing and never restores the old cursor", async () => {
+    provider.remoteUpsert("r1", { title: "Old calendar event", start: inDays(2) });
+    const realPull = provider.pull.bind(provider);
+    provider.pull = async (...args: Parameters<FakeProvider["pull"]>) => {
+      const res = await realPull(...args);
+      // The member switches calendars while this run is between pull and apply.
+      await changeCalendar(fakePrisma, "conn-a", FAMILY_A, { id: "work", name: "Work" });
+      return res;
+    };
+    const res = await syncConnection("conn-a", FAMILY_A, deps);
+    expect(res).toMatchObject({ status: "superseded", pulled: { created: 0 } });
+    expect(imported()).toHaveLength(0);
+    expect(links()).toHaveLength(0);
+    expect(conn()).toMatchObject({ calendar_id: "work", sync_cursor: null, status: "pending", generation: 1 });
+    expect(conn().last_synced_at).toBeNull();
+  });
+
+  it("a calendar change after the cursor was saved: pushed links and final status are not written for the old calendar", async () => {
+    conn().push_mode = "all";
+    const realCreate = provider.create.bind(provider);
+    let switched = false;
+    provider.create = async (...args: Parameters<FakeProvider["create"]>) => {
+      const res = await realCreate(...args);
+      if (!switched) {
+        switched = true;
+        await changeCalendar(fakePrisma, "conn-a", FAMILY_A, { id: "work", name: "Work" });
+      }
+      return res;
+    };
+    const res = await syncConnection("conn-a", FAMILY_A, deps);
+    expect(res!.status).toBe("superseded");
+    expect(links()).toHaveLength(0);
+    expect(conn()).toMatchObject({ calendar_id: "work", sync_cursor: null, status: "pending" });
+  });
+
+  it("a removed connection mid-run stops without recreating rows", async () => {
+    provider.remoteUpsert("r1", { title: "Swim", start: inDays(2) });
+    const realPull = provider.pull.bind(provider);
+    provider.pull = async (...args: Parameters<FakeProvider["pull"]>) => {
+      const res = await realPull(...args);
+      await removeConnection("conn-a", FAMILY_A, deps);
+      return res;
+    };
+    expect(await syncConnection("conn-a", FAMILY_A, deps)).toMatchObject({ status: "superseded" });
+    expect(imported()).toHaveLength(0);
+    expect(db.rows("calendarEventLink").filter((l) => l.connection_id === "conn-a")).toHaveLength(0);
   });
 });
 

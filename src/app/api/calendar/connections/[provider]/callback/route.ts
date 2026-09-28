@@ -7,6 +7,7 @@ import {
   isCalendarSyncEnabled,
   isProvider,
 } from "@/lib/calendar-sync/config";
+import { commitConnection } from "@/lib/calendar-sync/connections";
 import { consumeOAuthState } from "@/lib/calendar-sync/oauth";
 import { oauthFor } from "@/lib/calendar-sync/providers";
 import { notFound } from "@/lib/calendar-sync/route-helpers";
@@ -22,6 +23,7 @@ type Outcome =
   | "state"
   | "exchange"
   | "forbidden"
+  | "limit"
   | "error";
 
 function back(outcome: Outcome): NextResponse {
@@ -90,7 +92,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ),
       token_expires_at: tokens.expiresAt,
       // Re-connecting restarts incremental sync from a full listing; links
-      // keep it idempotent.
+      // keep it idempotent (the commit also bumps the generation).
       sync_cursor: null,
       status: "pending",
       last_error: null,
@@ -102,33 +104,27 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const where = {
-      family_id: familyId,
-      user_id: auth.user.id,
+    // Household limit + one-per-member-per-provider, enforced atomically here
+    // (the start route's check is only an early refusal).
+    const outcome = await commitConnection(prisma, {
+      familyId,
+      userId: auth.user.id,
       provider,
-    };
-    const existing = await prisma!.calendarConnection.findFirst({
-      where,
-      select: { id: true, refresh_token_enc: true },
+      data,
+      hasRefreshToken: Boolean(tokens.refreshToken),
     });
-    if (!tokens.refreshToken && !existing?.refresh_token_enc) {
-      // Without a refresh token the connection would die within the hour.
-      return back("exchange");
-    }
-    if (existing) {
-      await prisma!.calendarConnection.updateMany({
-        where: { id: existing.id, family_id: familyId },
-        data,
-      });
-    } else {
+    if (outcome === "no_refresh_token") return back("exchange");
+    if (outcome === "limit") {
+      // Best effort: do not leave an unused grant behind at the provider.
       try {
-        await prisma!.calendarConnection.create({
-          data: { ...where, ...data } as any,
-        });
-      } catch (err) {
-        if ((err as { code?: string } | null)?.code !== "P2002") throw err;
-        await prisma!.calendarConnection.updateMany({ where, data });
+        await oauthFor(provider).revoke(
+          config,
+          tokens.refreshToken ?? tokens.accessToken,
+        );
+      } catch {
+        // ignore
       }
+      return back("limit");
     }
     return back("connected");
   } catch {

@@ -39,6 +39,7 @@ const OUTCOMES: Record<string, { ok: boolean; text: string }> = {
   state: { ok: false, text: "That connection link expired or was already used. Try again." },
   exchange: { ok: false, text: "The provider did not complete the connection. Try again." },
   forbidden: { ok: false, text: "Only parents can connect calendars." },
+  limit: { ok: false, text: "This household already has the maximum number of connected calendars." },
   error: { ok: false, text: "Could not connect the calendar. Try again." },
 };
 

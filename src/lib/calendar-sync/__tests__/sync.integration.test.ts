@@ -189,6 +189,50 @@ describeWithDatabase("calendar sync persistence (Postgres)", () => {
     await prisma.user.update({ where: { id: otherParentId }, data: { family_id: otherFamilyId } });
   });
 
+  it("concurrent callback commits cannot exceed the household limit", async () => {
+    const { commitConnection } = await import("../connections");
+    const extra = Array.from({ length: 7 }, (_, i) => `calsync-extra-${i}`);
+    await prisma.user.deleteMany({ where: { id: { in: extra } } });
+    await prisma.user.createMany({
+      data: extra.map((id) => ({ id, email: `${id}@calsync.test`, name: id, role: "parent", family_id: familyId })),
+    });
+    try {
+      for (const id of extra.slice(0, 5)) await connect(familyId, id);
+      const data = { access_token_enc: "x", refresh_token_enc: "y", status: "pending" };
+      const outcomes = await Promise.all(
+        extra.slice(5).map((userId) =>
+          commitConnection(prisma, { familyId, userId, provider: "google", data, hasRefreshToken: true }),
+        ),
+      );
+      expect(outcomes.sort()).toEqual(["created", "limit"]);
+      expect(await prisma.calendarConnection.count({ where: { family_id: familyId } })).toBe(6);
+      // Re-connecting an existing member is still allowed at the limit.
+      expect(
+        await commitConnection(prisma, { familyId, userId: extra[0], provider: "google", data, hasRefreshToken: true }),
+      ).toBe("updated");
+    } finally {
+      await prisma.calendarConnection.deleteMany({ where: { family_id: familyId } });
+      await prisma.user.deleteMany({ where: { id: { in: extra } } });
+    }
+  });
+
+  it("a calendar change during a sync blocks the stale run's inserts and cursor", async () => {
+    const { syncConnection, changeCalendar } = await import("../sync");
+    const conn = await connect();
+    provider.remoteUpsert("r1", { title: "Old calendar", start: inDays(2) });
+    const realPull = provider.pull.bind(provider);
+    provider.pull = async (...args: Parameters<FakeProvider["pull"]>) => {
+      const res = await realPull(...args);
+      await changeCalendar(prisma, conn.id, familyId, { id: "work", name: "Work" });
+      return res;
+    };
+    expect(await syncConnection(conn.id, familyId, deps)).toMatchObject({ status: "superseded" });
+    const after = await prisma.calendarConnection.findUniqueOrThrow({ where: { id: conn.id } });
+    expect(after).toMatchObject({ calendar_id: "work", sync_cursor: null, generation: 1, status: "pending" });
+    expect(await prisma.event.count({ where: { source_connection_id: conn.id } })).toBe(0);
+    expect(await prisma.calendarEventLink.count({ where: { connection_id: conn.id } })).toBe(0);
+  });
+
   it("OAuth state is single use under concurrency", async () => {
     const { createOAuthState, consumeOAuthState } = await import("../oauth");
     const { state } = await createOAuthState(prisma, { familyId, userId: parentId, provider: "google" });
