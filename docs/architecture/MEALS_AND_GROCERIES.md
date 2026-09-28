@@ -83,11 +83,11 @@ Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" sr
 | `family_id` | `MealPlan.family_id` | always the plan's family |
 | `date` | `MealPlanEntry.date` (DATE) | UTC midnight timestamp, the same convention as `parseDateOnly` |
 | `meal_type` | `MealPlanEntry.meal_type` | `lower(trim())`. Values outside `breakfast\|lunch\|dinner\|snack` are **skipped and reported**, never coerced. |
-| `recipe_id` | `MealPlanEntry.recipe_id` | only if the recipe's `family_id` matches, otherwise null + reported |
+| `recipe_id` | `MealPlanEntry.recipe_id` | only if the recipe's `family_id` matches. Otherwise the entry is **skipped, archived and reported** (`foreign_recipe`): its only content is the recipe reference, so a copy would be an empty slot or would carry another household's title (implemented in #250). |
 | `recipe_name` | `Recipe.title` | snapshot for old clients and the board |
 | `servings` (new) | `MealPlanEntry.servings` | |
 | `notes`, `cook_id` | none | null |
-| `created_by` | `MealPlan.created_by` | |
+| `created_by` | `MealPlan.created_by` | kept only if that user is a member of the plan's family. Otherwise (a user in another household, or missing) it becomes the **in-family fallback actor** (`--started-by` if given, else the family's oldest parent), reported as a creator remap; with no such actor the entry is skipped and archived (`no_in_family_actor`). The foreign id is never copied (#256 review). |
 | provenance | `ImportedRecord(source_app='fp-canonical-149', source_model='MealPlanEntry', source_id, target_model='FamilyMeal', target_id)` | also stores `MealPlan.name` and range in the `ImportJob.summary` |
 
 **`MealPlan` itself has no canonical row** (O-2: archive only). Its canonical target is the backfill `ImportJob` that archives its name and range: the backfill records `ImportedRecord(source_model='MealPlan', source_id, target_model='ImportJob', target_id=<that job>)`. Existing importer mappings `ImportedRecord(target_model='MealPlan')` are rewritten to the same `ImportJob` target in child E step 1, never deleted, so re-importing the same meal-planner export still recognizes the plan and creates 0 rows. The retargeted importer (child B) treats any existing mapping for a source `MealPlan` id as "already imported", whatever its `target_model`.
@@ -100,12 +100,12 @@ Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" sr
 
 | Canonical | Source | Rule |
 | --- | --- | --- |
-| `List.family_id/name/created_by/created_at` | same fields | `type='grocery'`, `description='Imported from Meal Planner'`. One `List` per `ShoppingList`; not merged into an existing list. |
+| `List.family_id/name/created_by/created_at` | same fields | `type='grocery'`, `description='Imported from Meal Planner'`. One `List` per `ShoppingList`; not merged into an existing list. `created_by` follows the same membership rule as `FamilyMeal.created_by` (remap to the in-family fallback actor, or skip + archive the list and its items as `no_in_family_actor`). |
 | `ListItem.content` | `ingredient_name` | trimmed; empty → skip and report |
 | `ListItem.amount`, `unit`, `category` (new/existing) | same | |
 | `ListItem.quantity` | none | 1 |
 | `ListItem.checked` | `checked` | `checked_by`/`checked_at` null (unknown) |
-| `ListItem.added_by` | `ShoppingList.created_by` | |
+| `ListItem.added_by` | `ShoppingList.created_by` | same membership rule (remap or `no_in_family_actor`). `checked_by`/`checked_at` and `FamilyMeal.cook_id` stay null, so no other user id is copied. The inserts re-check membership in SQL. Archived rows in `ImportJob.summary` (`mealPlans[]`, `skipped[]`) have a foreign or missing `created_by` replaced by `null` with `created_by_redacted`, so no other household's user id lands in this family's exportable data; `summary.remapped[]` lists each remapped source row and column. |
 | `ListItem.recipe_id` | `recipe_id` | kept only if the recipe exists **and** is in the same family, otherwise null + reported |
 | `ListItem.ingredient_id` | none | set when an `Ingredient` in the same family has the normalized name, otherwise null |
 | `ListItem.source` / `source_key` | none | `'import'` / null (import rows never take part in the recipe dedupe index) |

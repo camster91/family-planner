@@ -29,7 +29,23 @@ describeWithDatabase('fixture seed/reset against a database', () => {
         `SELECT row_to_json(x)::text AS j FROM "${table}" x WHERE id LIKE 'fx\\_%' ORDER BY id`
       )
     const out: Record<string, string[]> = {}
-    for (const t of ['Family', 'User', 'Event', 'Chore', 'Reward', 'List', 'ListItem']) {
+    for (const t of [
+      'Family',
+      'User',
+      'Event',
+      'Chore',
+      'Reward',
+      'List',
+      'ListItem',
+      'Recipe',
+      'Ingredient',
+      'RecipeIngredient',
+      'FamilyMeal',
+      'MealPlan',
+      'MealPlanEntry',
+      'ShoppingList',
+      'ShoppingItem',
+    ]) {
       out[t] = (await q(t)).map((r) => r.j)
     }
     return out

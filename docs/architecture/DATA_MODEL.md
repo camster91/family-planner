@@ -19,9 +19,9 @@ The schema contains both generations. [ADR-0007](adr/0007-canonical-meal-recipe-
 
 | Domain | Live today (source-verified 2026-09-27) | Import-only today | Canonical role (ADR-0007) |
 | --- | --- | --- | --- |
-| Meal slots | `FamilyMeal` (`/api/meals`, `/dashboard/meals`, fridge Today board) | `MealPlan` + `MealPlanEntry` | **Canonical:** `FamilyMeal`, expanded with a nullable `recipe_id`/`servings`. `MealPlan*` is frozen: backfilled into `FamilyMeal`, then archived. |
+| Meal slots | `FamilyMeal` (`/api/meals`, `/dashboard/meals`, fridge Today board) | `MealPlan` + `MealPlanEntry` | **Canonical:** `FamilyMeal`, expanded with a nullable `recipe_id`/`servings` and `updated_at` (expand landed in #250). `MealPlan*` is frozen: backfilled into `FamilyMeal`, then archived. |
 | Recipes | none (`FamilyMeal.recipe_name` is free text) | `Recipe`, `Ingredient`, `RecipeIngredient` | **Canonical:** these three, with a new `/api/recipes`. |
-| Groceries | `List` (type `grocery`/`shopping`) + `ListItem` (lists UI, capture, fridge Shopping card, PR #247 offline tick) | `ShoppingList` + `ShoppingItem` | **Canonical:** `List`/`ListItem`, expanded with `ingredient_id`/`recipe_id`/`meal_id`/`amount`/`unit`/`source`/`source_key`. `Shopping*` is frozen: backfilled, then archived. |
+| Groceries | `List` (type `grocery`/`shopping`) + `ListItem` (lists UI, capture, fridge Shopping card, PR #247 offline tick) | `ShoppingList` + `ShoppingItem` | **Canonical:** `List`/`ListItem`, expanded with `ingredient_id`/`recipe_id`/`meal_id`/`amount`/`unit`/`source`/`source_key`/`source_request_id` (expand landed in #250). `Shopping*` is frozen: backfilled, then archived. |
 | General lists | `List` + `ListItem` | none | Unchanged. The `meal_plan` list type is no longer offered for new lists. |
 
 Until ADR-0007 is accepted, ADR-0005's constraint applies: no broad cross-domain inventory → meal → grocery writes, and no third model generation. After acceptance, new writes go only to the canonical models above. Legacy tables receive no new product writers and are dropped only through the gated contract step (child issue E). Do not mark canonicalization complete until ADR-0007 is accepted and its rehearsal evidence (backfill counts reconciled on synthetic fixtures, two-household negative tests, old-shape request fixtures) exists.

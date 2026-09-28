@@ -91,6 +91,7 @@ jobs:
           npm run fixtures:seed
           npm run fixtures:seed
           npx jest src/lib/fixtures/__tests__/fixtures.integration.test.ts --ci --runInBand --no-watchman --forceExit
+          npx jest src/lib/backfill/__tests__/meals-groceries.integration.test.ts --ci --runInBand --no-watchman --forceExit
           npm run fixtures:reset
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci

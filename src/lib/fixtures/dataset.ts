@@ -14,8 +14,14 @@
  * as created by the capture flow, and 'shopping'), which is what the dashboard
  * Shopping card reads (src/lib/shopping-snapshot.ts).
  *
+ * Meals/recipes (ADR-0007, #250): canonical `Recipe`/`Ingredient`/
+ * `RecipeIngredient` and two `FamilyMeal` rows, plus legacy `MealPlan`/
+ * `MealPlanEntry`/`ShoppingList`/`ShoppingItem` rows for the backfill
+ * rehearsal (docs/architecture/MEALS_AND_GROCERIES.md section 6). All of them
+ * sit eight weeks before the anchor so no week view, board or card that the
+ * E2E baselines cover shows them.
+ *
  * Deliberately NOT included yet (see docs/testing/TEST_DATA.md):
- * - meal / recipe fixtures: waiting on the canonical model in #149;
  * - shared-device (tablet) fixtures: schema not ready.
  *
  * This file must stay importable by plain Node type-stripping (used by
@@ -96,6 +102,58 @@ export const FIXTURE_EMAILS = {
 } as const
 
 /**
+ * Meal/recipe and legacy (import-generation) rows for the ADR-0007 backfill
+ * rehearsal (#250). Expected backfill result, per family:
+ * - A: FamilyMeal 3 created (`entryOtherName`, `entryLunch`,
+ *   `entryForeignCreator`), 1 linked (`entrySameName` -> `mealSameName`,
+ *   recipe link set), 1 skipped and archived (`entryBrunch`, meal_type
+ *   'Brunch'); MealPlan 2 archived; List 2 + ListItem 3 created. The
+ *   `*ForeignCreator` plan and list were created by a Family B user: their
+ *   meal, list and item get Family A's oldest parent as creator/adder
+ *   (3 creators remapped), never the Family B id.
+ * - B: `entryForeignRecipe` skipped and archived (it points at an A recipe);
+ *   MealPlan 1 archived; List 1 + ListItem 1 created with the foreign
+ *   `recipe_id` nulled (`itemForeignRecipe`); `itemEmptyName` skipped and archived.
+ * `itemForeignRecipe`, `entryForeignRecipe`, `mealPlanForeignCreator` and
+ * `shoppingListForeignCreator` are deliberate cross-household injections;
+ * nothing else in the dataset crosses families.
+ */
+export const FIXTURE_LEGACY_MEAL_IDS = {
+  familyA: {
+    recipeLasagna: 'fx_recipe_a_lasagna',
+    recipeSoup: 'fx_recipe_a_tomato_soup',
+    recipeStirFry: 'fx_recipe_a_stir_fry',
+    ingredientTomatoes: 'fx_ingredient_a_tomatoes',
+    ingredientLasagnaSheets: 'fx_ingredient_a_lasagna_sheets',
+    ingredientTofu: 'fx_ingredient_a_tofu',
+    /** Canonical meal whose name matches `entrySameName`'s recipe (link target). */
+    mealSameName: 'fx_meal_a_legacy_lasagna',
+    /** Canonical meal in `entryOtherName`'s slot with a different name. */
+    mealOtherName: 'fx_meal_a_legacy_pizza',
+    mealPlan: 'fx_mealplan_a_legacy',
+    entrySameName: 'fx_mpentry_a_1_lasagna',
+    entryOtherName: 'fx_mpentry_a_2_soup',
+    entryLunch: 'fx_mpentry_a_3_stir_fry',
+    entryBrunch: 'fx_mpentry_a_4_brunch',
+    shoppingList: 'fx_shoplist_a_legacy',
+    itemChecked: 'fx_shopitem_a_1_sheets',
+    itemWithRecipe: 'fx_shopitem_a_2_tomatoes',
+    /** Family A plan/list whose created_by is a Family B user (creator injection). */
+    mealPlanForeignCreator: 'fx_mealplan_a_foreign_creator',
+    entryForeignCreator: 'fx_mpentry_a_5_foreign_creator',
+    shoppingListForeignCreator: 'fx_shoplist_a_foreign_creator',
+    itemForeignCreator: 'fx_shopitem_a_3_foreign_creator',
+  },
+  familyB: {
+    mealPlan: 'fx_mealplan_b_legacy',
+    entryForeignRecipe: 'fx_mpentry_b_1_foreign',
+    shoppingList: 'fx_shoplist_b_legacy',
+    itemForeignRecipe: 'fx_shopitem_b_1_foreign',
+    itemEmptyName: 'fx_shopitem_b_2_empty',
+  },
+} as const
+
+/**
  * Cross-family ids for negative (isolation) tests: an actor in `actor`'s
  * family attempting to read/write the `foreign` family's resources must be
  * refused. Both directions are listed so tests can be symmetric.
@@ -125,6 +183,14 @@ export type FixtureChore = WithId<Prisma.ChoreUncheckedCreateInput>
 export type FixtureReward = WithId<Prisma.RewardUncheckedCreateInput>
 export type FixtureList = WithId<Prisma.ListUncheckedCreateInput>
 export type FixtureListItem = WithId<Prisma.ListItemUncheckedCreateInput>
+export type FixtureRecipe = WithId<Prisma.RecipeUncheckedCreateInput>
+export type FixtureIngredient = WithId<Prisma.IngredientUncheckedCreateInput>
+export type FixtureRecipeIngredient = WithId<Prisma.RecipeIngredientUncheckedCreateInput>
+export type FixtureFamilyMeal = WithId<Prisma.FamilyMealUncheckedCreateInput>
+export type FixtureMealPlan = WithId<Prisma.MealPlanUncheckedCreateInput>
+export type FixtureMealPlanEntry = WithId<Prisma.MealPlanEntryUncheckedCreateInput>
+export type FixtureShoppingList = WithId<Prisma.ShoppingListUncheckedCreateInput>
+export type FixtureShoppingItem = WithId<Prisma.ShoppingItemUncheckedCreateInput>
 
 export interface FixtureDataset {
   anchor: string
@@ -135,6 +201,14 @@ export interface FixtureDataset {
   rewards: FixtureReward[]
   lists: FixtureList[]
   listItems: FixtureListItem[]
+  recipes: FixtureRecipe[]
+  ingredients: FixtureIngredient[]
+  recipeIngredients: FixtureRecipeIngredient[]
+  familyMeals: FixtureFamilyMeal[]
+  mealPlans: FixtureMealPlan[]
+  mealPlanEntries: FixtureMealPlanEntry[]
+  shoppingLists: FixtureShoppingList[]
+  shoppingItems: FixtureShoppingItem[]
 }
 
 /** Parse an anchor string; throws on anything that is not a valid date. */
@@ -459,7 +533,122 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     }),
   ]
 
-  return { anchor: anchor.toISOString(), families, users, events, chores, rewards, lists, listItems }
+  // ---------- Meals/recipes + legacy rows for the ADR-0007 backfill rehearsal (#250) ----------
+  // Eight weeks before the anchor day: outside every week view and board window.
+  const L = FIXTURE_LEGACY_MEAL_IDS
+  const legacyDay = (n: number) => dueDay(-56 + n)
+  const recipe = (id: string, family_id: string, created_by: string, title: string, extra: Partial<FixtureRecipe>): FixtureRecipe => ({
+    id,
+    family_id,
+    created_by,
+    title,
+    created_at: created,
+    updated_at: created,
+    ...extra,
+  })
+  const recipes: FixtureRecipe[] = [
+    recipe(L.familyA.recipeLasagna, A.family, A.parent, 'Veggie lasagna', { servings: 6, prep_time: 25, cook_time: 45 }),
+    recipe(L.familyA.recipeSoup, A.family, A.parent, 'Tomato soup', { servings: 4, prep_time: 10, cook_time: 30 }),
+    recipe(L.familyA.recipeStirFry, A.family, A.teen, 'Tofu stir-fry', { servings: 4, prep_time: 15, cook_time: 10 }),
+  ]
+  const ingredients: FixtureIngredient[] = [
+    { id: L.familyA.ingredientTomatoes, family_id: A.family, name: 'Tomatoes', unit: 'pcs' },
+    { id: L.familyA.ingredientLasagnaSheets, family_id: A.family, name: 'Lasagna sheets', unit: 'box' },
+    { id: L.familyA.ingredientTofu, family_id: A.family, name: 'Tofu', unit: 'g' },
+  ]
+  const recipeIngredients: FixtureRecipeIngredient[] = [
+    { id: 'fx_recipeing_a_lasagna_sheets', recipe_id: L.familyA.recipeLasagna, ingredient_id: L.familyA.ingredientLasagnaSheets, amount: 1, unit: 'box' },
+    { id: 'fx_recipeing_a_lasagna_tomatoes', recipe_id: L.familyA.recipeLasagna, ingredient_id: L.familyA.ingredientTomatoes, amount: 6 },
+    { id: 'fx_recipeing_a_soup_tomatoes', recipe_id: L.familyA.recipeSoup, ingredient_id: L.familyA.ingredientTomatoes, amount: 8 },
+    { id: 'fx_recipeing_a_stir_fry_tofu', recipe_id: L.familyA.recipeStirFry, ingredient_id: L.familyA.ingredientTofu, amount: 400, unit: 'g' },
+  ]
+  const meal = (id: string, day: number, recipe_name: string): FixtureFamilyMeal => ({
+    id,
+    family_id: A.family,
+    date: legacyDay(day),
+    meal_type: 'dinner',
+    recipe_name,
+    // Explicit nulls so a re-seed undoes a backfill link or an edit.
+    recipe_id: null,
+    servings: null,
+    notes: null,
+    cook_id: null,
+    created_by: A.parent,
+    created_at: created,
+    updated_at: created,
+  })
+  const familyMeals: FixtureFamilyMeal[] = [
+    // Differs from the recipe title only by case/whitespace: the backfill links, not duplicates.
+    meal(L.familyA.mealSameName, 0, '  veggie Lasagna '),
+    meal(L.familyA.mealOtherName, 1, 'Takeout pizza'),
+  ]
+  const mealPlans: FixtureMealPlan[] = [
+    { id: L.familyA.mealPlan, family_id: A.family, name: 'Imported week (Family A)', start_date: legacyDay(0), end_date: legacyDay(6), created_by: A.parent, created_at: created },
+    // Cross-household injection: a Family A plan whose creator is a Family B user.
+    { id: L.familyA.mealPlanForeignCreator, family_id: A.family, name: 'Imported week (Family A, foreign creator)', start_date: legacyDay(0), end_date: legacyDay(6), created_by: B.parent, created_at: created },
+    { id: L.familyB.mealPlan, family_id: B.family, name: 'Imported week (Family B)', start_date: legacyDay(0), end_date: legacyDay(6), created_by: B.parent, created_at: created },
+  ]
+  const entry = (id: string, meal_plan_id: string, recipe_id: string, day: number, meal_type: string, servings: number): FixtureMealPlanEntry => ({
+    id,
+    meal_plan_id,
+    recipe_id,
+    date: legacyDay(day),
+    meal_type,
+    servings,
+  })
+  const mealPlanEntries: FixtureMealPlanEntry[] = [
+    entry(L.familyA.entrySameName, L.familyA.mealPlan, L.familyA.recipeLasagna, 0, 'dinner', 6),
+    entry(L.familyA.entryOtherName, L.familyA.mealPlan, L.familyA.recipeSoup, 1, 'Dinner', 4),
+    entry(L.familyA.entryLunch, L.familyA.mealPlan, L.familyA.recipeStirFry, 2, 'lunch', 3),
+    entry(L.familyA.entryBrunch, L.familyA.mealPlan, L.familyA.recipeSoup, 3, 'Brunch', 2),
+    entry(L.familyA.entryForeignCreator, L.familyA.mealPlanForeignCreator, L.familyA.recipeStirFry, 4, 'dinner', 4),
+    // Cross-household injection: a Family B plan slot pointing at a Family A recipe.
+    entry(L.familyB.entryForeignRecipe, L.familyB.mealPlan, L.familyA.recipeLasagna, 0, 'dinner', 2),
+  ]
+  const shoppingLists: FixtureShoppingList[] = [
+    { id: L.familyA.shoppingList, family_id: A.family, name: 'Imported shopping (Family A)', created_by: A.parent, created_at: legacyDay(0), updated_at: legacyDay(0) },
+    // Cross-household injection: a Family A list whose creator is a Family B user.
+    { id: L.familyA.shoppingListForeignCreator, family_id: A.family, name: 'Imported shopping (Family A, foreign creator)', created_by: B.parent, created_at: legacyDay(1), updated_at: legacyDay(1) },
+    { id: L.familyB.shoppingList, family_id: B.family, name: 'Imported shopping (Family B)', created_by: B.parent, created_at: legacyDay(0), updated_at: legacyDay(0) },
+  ]
+  const shopItem = (id: string, shopping_list_id: string, ingredient_name: string, extra: Partial<FixtureShoppingItem>): FixtureShoppingItem => ({
+    id,
+    shopping_list_id,
+    ingredient_name,
+    amount: null,
+    unit: null,
+    category: null,
+    checked: false,
+    recipe_id: null,
+    ...extra,
+  })
+  const shoppingItems: FixtureShoppingItem[] = [
+    shopItem(L.familyA.itemChecked, L.familyA.shoppingList, 'Lasagna sheets', { amount: 1, unit: 'box', category: 'Pantry', checked: true }),
+    shopItem(L.familyA.itemWithRecipe, L.familyA.shoppingList, ' tomatoes ', { amount: 8, category: 'Produce', recipe_id: L.familyA.recipeSoup }),
+    shopItem(L.familyA.itemForeignCreator, L.familyA.shoppingListForeignCreator, 'Rice', { amount: 1, unit: 'kg', category: 'Pantry' }),
+    // Cross-household injection: bare recipe_id (no FK) pointing at a Family A recipe.
+    shopItem(L.familyB.itemForeignRecipe, L.familyB.shoppingList, 'Paper towels (Family B)', { recipe_id: L.familyA.recipeSoup }),
+    shopItem(L.familyB.itemEmptyName, L.familyB.shoppingList, '   ', { amount: 2, unit: 'kg' }),
+  ]
+
+  return {
+    anchor: anchor.toISOString(),
+    families,
+    users,
+    events,
+    chores,
+    rewards,
+    lists,
+    listItems,
+    recipes,
+    ingredients,
+    recipeIngredients,
+    familyMeals,
+    mealPlans,
+    mealPlanEntries,
+    shoppingLists,
+    shoppingItems,
+  }
 }
 
 /** Every id in the dataset, grouped by table. Used by seed prune and reset. */
@@ -472,5 +661,13 @@ export function fixtureIdsByTable(ds: FixtureDataset) {
     rewards: ds.rewards.map((r) => r.id),
     lists: ds.lists.map((r) => r.id),
     listItems: ds.listItems.map((r) => r.id),
+    recipes: ds.recipes.map((r) => r.id),
+    ingredients: ds.ingredients.map((r) => r.id),
+    recipeIngredients: ds.recipeIngredients.map((r) => r.id),
+    familyMeals: ds.familyMeals.map((r) => r.id),
+    mealPlans: ds.mealPlans.map((r) => r.id),
+    mealPlanEntries: ds.mealPlanEntries.map((r) => r.id),
+    shoppingLists: ds.shoppingLists.map((r) => r.id),
+    shoppingItems: ds.shoppingItems.map((r) => r.id),
   }
 }
