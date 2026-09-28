@@ -43,7 +43,10 @@ Client-generated keys should be scoped to authenticated actor/device + operation
 
 Implemented in #162 (`src/lib/idempotency.ts`, record `IdempotencyRecord`). Routes that accept it today:
 `PATCH /api/lists/items/update` (its 409 `DUPLICATE_OPEN_ITEM`, #251, is a route outcome, not an idempotency
-code: it is never stored, so a retry with the same key re-runs the check). Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
+code: it is never stored, so a retry with the same key re-runs the check) and `POST /api/inventory` (#265, used by
+the fridge scan dialog; a create is not convergent, so a request that crashes after committing and before storing its
+response can, after the 30 s lock timeout, be re-run by a retry with the same key and add a second row; every other
+lost-response case replays). Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
   UUID generated once per logical change and reused for every retry of it. Without the header the route
@@ -121,13 +124,16 @@ Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. R
   `soon` (within 3 days), `later` or `none`, with `daysLeft`.
 - **Item DTO:** `{ id, name, ingredient_id, amount, unit, location: 'fridge'|'freezer'|'pantry', expires_on, added_by,
   created_at, updated_at, expiry: { status, daysLeft } }`. Never `family_id`.
-- **Not idempotent / not offline-queued in v1:** inventory writes are plain online requests (no `Idempotency-Key`);
-  the #162 queue allowlist is unchanged.
+- **Idempotency / offline:** `POST /api/inventory` accepts an optional `Idempotency-Key` (#265, see "Idempotency"
+  above): same key and body replays the stored 201 with `Idempotency-Replayed: true`, a different body is 422
+  `IDEMPOTENCY_KEY_REUSED`, a malformed key is 400 `IDEMPOTENCY_KEY_INVALID`; only 2xx outcomes are stored. Keys are
+  scoped per user. PATCH and DELETE take no key. Inventory writes are not offline-queued; the #162 queue allowlist is
+  unchanged.
 
 | Route | Contract | Errors |
 | --- | --- | --- |
 | `GET /api/inventory?location=&expiringWithinDays=&today=&limit=&offset=` | `{ items: [Item], nextOffset }`, by name. `expiringWithinDays=N` (0–365) keeps items whose expiry day is on or before today + N, expired included. `limit` 1–500 (default 200). All roles. | 400 bad filter/paging/today; 403 off |
-| `POST /api/inventory?today=` | Strict body `{ name (1–200), ingredient_id?: string \| null, amount?: number \| null (0–100000), unit?: string \| null (≤ 32), location? (default fridge), expires_on?: 'YYYY-MM-DD' \| null }`. Without `ingredient_id` the item links to a same-household ingredient with the same normalized name, if one exists (no ingredient is created); `null` keeps it free text. 201 `{ item }`. Parent and teen. | 400 validation / `INGREDIENT_NOT_FOUND`; 403 child, device or off |
+| `POST /api/inventory?today=` | Strict body `{ name (1–200), ingredient_id?: string \| null, amount?: number \| null (0–100000), unit?: string \| null (≤ 32), location? (default fridge), expires_on?: 'YYYY-MM-DD' \| null }`. Without `ingredient_id` the item links to a same-household ingredient with the same normalized name, if one exists (no ingredient is created); `null` keeps it free text. 201 `{ item }`. Optional header `Idempotency-Key` (#265): replays the stored 201. Parent and teen. | 400 validation / `INGREDIENT_NOT_FOUND` / `IDEMPOTENCY_KEY_INVALID`; 403 child, device or off; 409 `IDEMPOTENCY_IN_PROGRESS`; 422 `IDEMPOTENCY_KEY_REUSED` |
 | `GET /api/inventory/[id]?today=` | `{ item }`. All roles. | 404 |
 | `PATCH /api/inventory/[id]?today=` | Same fields as POST, all optional (at least one). `null` clears `amount`, `unit`, `expires_on`, `ingredient_id`. A new `name` without `ingredient_id` re-links by name. 200 `{ item }`. Parent and teen. | as POST; 404 |
 | `DELETE /api/inventory/[id]` | 200 `{ success: true }`. Parent and teen. | 403; 404 |
