@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { createListItemSchema } from '@/lib/validations'
+import { isGroceryListType } from '@/lib/grocery-display'
+import { loadSectionOverrides, sectionsFor } from '@/lib/grocery-section-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Verify list belongs to user's family
     const list = await prisma!.list.findUnique({
       where: { id: listId },
-      select: { family_id: true },
+      select: { family_id: true, type: true },
     })
 
     if (!list) {
@@ -78,7 +80,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ success: true, item })
+    if (!isGroceryListType(list.type)) return NextResponse.json({ success: true, item })
+
+    // Grocery/shopping lists (#273): the new row carries its resolved store section.
+    const ingredient = item.ingredient_id
+      ? await prisma!.ingredient.findFirst({
+          where: { id: item.ingredient_id, family_id: auth.user.family_id },
+          select: { name: true, section: true },
+        })
+      : null
+    const row = { content: item.content, ingredient }
+    const [section] = sectionsFor([row], await loadSectionOverrides(prisma!, auth.user.family_id, [row]))
+    return NextResponse.json({ success: true, item: { ...item, section } })
   } catch (error) {
     console.error('Error creating list item:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

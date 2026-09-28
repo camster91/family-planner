@@ -271,7 +271,14 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     items: { model: 'listItem', fk: 'list_id', many: true },
     family: { model: 'family', fk: 'family_id' },
   },
-  listItem: { list: { model: 'list', fk: 'list_id' } },
+  listItem: {
+    list: { model: 'list', fk: 'list_id' },
+    ingredient: { model: 'ingredient', fk: 'ingredient_id' },
+    recipe: { model: 'recipe', fk: 'recipe_id' },
+  },
+  // Grocery store sections (#273)
+  grocerySectionPreference: { family: { model: 'family', fk: 'family_id' }, updater: { model: 'user', fk: 'updated_by' } },
+  groceryShoppingSession: { family: { model: 'family', fk: 'family_id' }, list: { model: 'list', fk: 'list_id' } },
   familyMeal: {
     cook: { model: 'user', fk: 'cook_id' },
     creator: { model: 'user', fk: 'created_by' },
@@ -602,6 +609,7 @@ const UNIQUE: Record<string, string[][]> = {
   idempotencyRecord: [['scope', 'key']],
   ingredient: [['family_id', 'name']],
   recipeIngredient: [['recipe_id', 'ingredient_id']],
+  grocerySectionPreference: [['family_id', 'name_key']],
   // Calendar sync (#264)
   calendarConnection: [['family_id', 'user_id', 'provider']],
   calendarEventLink: [['connection_id', 'external_id']],
@@ -634,6 +642,7 @@ function violatesUnique(model: string, rows: Row[], row: Row): boolean {
 const COMPOUND_KEYS: Record<string, Record<string, string[]>> = {
   ingredient: { family_id_name: ['family_id', 'name'] },
   recipeIngredient: { recipe_id_ingredient_id: ['recipe_id', 'ingredient_id'] },
+  grocerySectionPreference: { family_id_name_key: ['family_id', 'name_key'] },
 }
 
 function uniqueViolation(model: string): Error {

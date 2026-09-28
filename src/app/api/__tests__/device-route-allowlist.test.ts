@@ -91,6 +91,9 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'POST /api/calendar/import-suggestions': [403],
   'POST /api/calendar/import-suggestions/commit': [403],
   'POST /api/calendar/import-suggestions/undo': [403],
+  // Grocery store sections (#273): "Move to…" and the per-list sorting switch.
+  'PATCH /api/lists/items/section': [403],
+  'PATCH /api/lists/section-sort': [403],
 }
 
 function routeFiles(dir: string): string[] {

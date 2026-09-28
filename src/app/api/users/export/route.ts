@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 // - All activities they performed
 // - The household's meal plan (FamilyMeal, ADR-0007) and recipes
 // - The household's food inventory (InventoryItem, #263)
+// - The household's grocery store-section choices and shopping trips (#273)
 // - The frozen legacy MealPlan/ShoppingList tables while they exist, plus the
 //   ADR-0007 backfill job summaries that archive legacy rows the backfill
 //   skipped (MEALS_AND_GROCERIES.md §6), so no archived row is lost when the
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
-      meals, mealBackfillJobs, inventory,
+      meals, mealBackfillJobs, inventory, grocerySectionPreferences, groceryShoppingSessions,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -190,6 +191,20 @@ export async function GET(request: NextRequest) {
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       }),
+      // Grocery store sections (#273): the household's "Move to…" choices and
+      // the shopping trips the walking order is learned from (section ids and
+      // times only). Every member may read and set them, so every member's
+      // export carries them. No family_id.
+      prisma!.grocerySectionPreference.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        select: { name_key: true, section: true, updated_by: true, created_at: true, updated_at: true },
+        orderBy: [{ name_key: 'asc' }],
+      }),
+      prisma!.groceryShoppingSession.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        select: { id: true, list_id: true, sections: true, started_at: true, last_tick_at: true },
+        orderBy: [{ started_at: 'asc' }, { id: 'asc' }],
+      }),
     ])
 
     const exportData = {
@@ -208,6 +223,8 @@ export async function GET(request: NextRequest) {
       meals,
       recipes,
       inventory,
+      grocerySectionPreferences,
+      groceryShoppingSessions,
       mealPlans,
       shoppingLists,
       habits,

@@ -30,6 +30,8 @@ describe('grocery list rows (ADR-0007, #252)', () => {
         listName="Groceries"
         listType="grocery"
         userId="u1"
+        // Store sections (#273) off: the list keeps its #252 category order.
+        sectionSort={{ enabled: false, order: [], learned: false, overrides: {}, canChange: true }}
         items={[
           { ...base, id: 'a', content: 'Tomatoes', checked: false, amount: 6, unit: null, ingredient_id: 'ing_tom', ingredient_name: 'Tomatoes', recipe_title: 'Veggie lasagna' },
           { ...base, id: 'b', content: 'Milk', checked: false, quantity: 2 },

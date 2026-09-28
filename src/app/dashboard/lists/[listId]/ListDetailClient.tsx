@@ -12,7 +12,15 @@ import { EmptyState } from '@/components/ui/empty-state'
 import type { ListType } from '@/types'
 import type { QueuedOperation } from '@/lib/offline-queue'
 import { useListItemSync, type SyncNotice } from './use-list-item-sync'
-import { buildGrocerySections, groceryDetailText } from '@/lib/grocery-display'
+import { buildGrocerySections, groceryDetailText, isGroceryListType, storeSectionOf } from '@/lib/grocery-display'
+import {
+  GROCERY_SECTIONS,
+  grocerySectionLabel,
+  isGrocerySection,
+  sectionNameKey,
+  type GrocerySectionId,
+} from '@/lib/grocery-sections'
+import { MoveToSectionDialog, type MoveTarget } from './MoveToSectionDialog'
 
 // -----------------------------------------------------------------------
 // Types
@@ -33,6 +41,30 @@ interface Item {
   ingredient_id?: string | null
   ingredient_name?: string | null
   recipe_title?: string | null
+  /** Resolved store section (#273); grocery/shopping lists only. */
+  section?: string | null
+}
+
+/** Store-section sorting for grocery/shopping lists (#273), delivered with the page. */
+export interface SectionSortProps {
+  /** `List.sort_by_section`. */
+  enabled: boolean
+  /** Section ids in display order (learned walking order or the fixed order). */
+  order: GrocerySectionId[]
+  /** True when `order` was learned from the household's shopping trips. */
+  learned: boolean
+  /** Household overrides for the names on this list: `{ name_key: section }`. */
+  overrides: Record<string, GrocerySectionId>
+  /** Parent and teen may switch sorting on or off. */
+  canChange: boolean
+}
+
+const DEFAULT_SECTION_SORT: SectionSortProps = {
+  enabled: true,
+  order: [...GROCERY_SECTIONS],
+  learned: false,
+  overrides: {},
+  canChange: false,
 }
 
 /** A row returned by POST /api/lists/items/create, shaped like the page's items. */
@@ -49,6 +81,7 @@ function toItem(raw: Record<string, unknown>): Item {
     ingredient_id: typeof raw.ingredient_id === 'string' ? raw.ingredient_id : null,
     ingredient_name: null,
     recipe_title: null,
+    section: typeof raw.section === 'string' ? raw.section : null,
   }
 }
 
@@ -60,6 +93,8 @@ interface ListDetailClientProps {
   userId: string
   /** D9 (#102): deleting an item is parent-only. */
   canDeleteItems?: boolean
+  /** Store sections (#273); only used on grocery/shopping lists. */
+  sectionSort?: SectionSortProps
 }
 
 // -----------------------------------------------------------------------
@@ -73,11 +108,24 @@ export default function ListDetailClient({
   items: initialItems,
   userId,
   canDeleteItems = true,
+  sectionSort = DEFAULT_SECTION_SORT,
 }: ListDetailClientProps) {
   const [listItems, setListItems] = React.useState<Item[]>(initialItems)
   const [newItemText, setNewItemText] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   const [recentlySynced, setRecentlySynced] = React.useState<Set<string>>(() => new Set())
+
+  // Store sections (#273). Grouping is computed here from row data and the
+  // overrides delivered with the page, so it needs no request (offline ticks).
+  const isGrocery = isGroceryListType(listType)
+  const [sortBySection, setSortBySection] = React.useState(sectionSort.enabled)
+  const [sortPending, setSortPending] = React.useState(false)
+  const [sortError, setSortError] = React.useState<string | null>(null)
+  const [overrides, setOverrides] = React.useState<Record<string, GrocerySectionId>>(sectionSort.overrides)
+  const [moveTarget, setMoveTarget] = React.useState<MoveTarget | null>(null)
+  const [movePending, setMovePending] = React.useState(false)
+  const [moveError, setMoveError] = React.useState<string | null>(null)
+  const storeSort = isGrocery && sortBySection
 
   // Tick/untick goes through the offline queue (#162, OFFLINE_SYNC.md): the
   // item shows the queued state with a visible sync status until the server
@@ -110,10 +158,80 @@ export default function ListDetailClient({
   const done = listItems.filter(displayChecked).length
   const progress = total > 0 ? done / total : 0
 
-  // Sections by category; open rows for the same ingredient are shown
-  // together (ADR-0007 O-3). Generic lists have no ingredient ids, so they
-  // keep plain category sections.
-  const sections = buildGrocerySections(listItems, displayChecked)
+  // Sections by store section in the household's order (#273), or by category
+  // when sorting is off or the list is not a grocery list. Open rows for the
+  // same ingredient are shown together within a section (ADR-0007 O-3).
+  // Checked rows stay in their section at their list position.
+  const sectionOf = (item: Item) => storeSectionOf(item, overrides)
+  const sections = storeSort
+    ? buildGrocerySections(listItems, displayChecked, {
+        sectionOf,
+        order: sectionSort.order,
+        label: (key) => (isGrocerySection(key) ? grocerySectionLabel(key) : key),
+      })
+    : buildGrocerySections(listItems, displayChecked)
+
+  const handleSortChange = async (next: boolean) => {
+    if (sortPending) return
+    setSortPending(true)
+    setSortError(null)
+    setSortBySection(next)
+    try {
+      const res = await fetch('/api/lists/section-sort', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listId, sortBySection: next }),
+      })
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      setSortBySection(!next)
+      setSortError('Couldn’t change the sorting. Check your connection and try again.')
+    } finally {
+      setSortPending(false)
+    }
+  }
+
+  const openMove = (item: Item) => {
+    const key = sectionNameKey(item.content)
+    setMoveError(null)
+    setMoveTarget({ itemId: item.id, content: item.content, current: sectionOf(item), chosen: key in overrides })
+  }
+
+  const handleMove = async (section: GrocerySectionId | null) => {
+    if (!moveTarget || movePending) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setMoveError('You’re offline. Moving an item needs a connection.')
+      return
+    }
+    setMovePending(true)
+    setMoveError(null)
+    try {
+      const res = await fetch('/api/lists/items/section', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: moveTarget.itemId, section }),
+      })
+      const body = (await res.json().catch(() => null)) as {
+        nameKey?: string
+        override?: string | null
+        sections?: Record<string, string>
+      } | null
+      if (!res.ok || !body?.nameKey) throw new Error(String(res.status))
+      const moved = body.sections ?? {}
+      setListItems((prev) => prev.map((i) => (typeof moved[i.id] === 'string' ? { ...i, section: moved[i.id] } : i)))
+      setOverrides((prev) => {
+        const next = { ...prev }
+        if (isGrocerySection(body.override)) next[body.nameKey!] = body.override
+        else delete next[body.nameKey!]
+        return next
+      })
+      setMoveTarget(null)
+    } catch {
+      setMoveError('Couldn’t move this item. Try again.')
+    } finally {
+      setMovePending(false)
+    }
+  }
 
   const handleToggle = (itemId: string, checked: boolean) => {
     setRecentlySynced(prev => {
@@ -174,15 +292,36 @@ export default function ListDetailClient({
         key={item.id}
         onSwipeLeft={canDeleteItems ? () => handleDeleteItem(item.id) : undefined}
       >
-        <div data-item-id={item.id} data-sync-state={syncState} data-testid="list-item">
-          <CheckboxRow
-            checked={checked}
-            onChange={() => handleToggle(item.id, !checked)}
-            title={item.content}
-            subtitle={subtitle}
-            wrap
-            className={cn(isLast && !needsAction(op) && 'border-b-0')}
-          />
+        <div
+          data-item-id={item.id}
+          data-sync-state={syncState}
+          data-section={storeSort ? sectionOf(item) : undefined}
+          data-testid="list-item"
+        >
+          <div className="flex items-stretch">
+            <div className="min-w-0 flex-1">
+              <CheckboxRow
+                checked={checked}
+                onChange={() => handleToggle(item.id, !checked)}
+                title={item.content}
+                subtitle={subtitle}
+                wrap
+                className={cn(isLast && !needsAction(op) && 'border-b-0')}
+              />
+            </div>
+            {storeSort && !checked && (
+              <button
+                type="button"
+                onClick={() => openMove(item)}
+                aria-label={`Move ${item.content} to another section`}
+                aria-haspopup="dialog"
+                data-testid="move-section"
+                className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+              >
+                Move
+              </button>
+            )}
+          </div>
           {op && needsAction(op) && (
             <div
               role="group"
@@ -242,10 +381,26 @@ export default function ListDetailClient({
         onDismiss={sync.dismissNotice}
       />
 
-      {/* Items grouped by category, then by ingredient */}
+      {isGrocery && (
+        <SectionSortControl
+          enabled={sortBySection}
+          learned={sectionSort.learned}
+          canChange={sectionSort.canChange}
+          pending={sortPending}
+          error={sortError}
+          onChange={handleSortChange}
+        />
+      )}
+
+      {/* Items grouped by store section or category, then by ingredient */}
       {total > 0 ? (
         sections.map((section) => (
-          <section key={section.category}>
+          <section
+            key={section.key}
+            aria-label={storeSort ? section.category : undefined}
+            data-testid={storeSort ? 'store-section' : undefined}
+            data-section={storeSort ? section.key : undefined}
+          >
             <SectionHeader>{section.category}</SectionHeader>
             <InsetList>
               {section.entries.map((entry, i) => {
@@ -277,6 +432,14 @@ export default function ListDetailClient({
         />
       )}
 
+      <MoveToSectionDialog
+        target={moveTarget}
+        pending={movePending}
+        error={moveError}
+        onPick={(section) => void handleMove(section)}
+        onClose={() => setMoveTarget(null)}
+      />
+
       {/* Add item field */}
       <div className="flex items-center gap-3 card-apple px-4 py-3">
         <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
@@ -299,6 +462,78 @@ export default function ListDetailClient({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+// -----------------------------------------------------------------------
+// Store-section sorting switch (#273). The state is written out ("On"/"Off"),
+// not shown by colour only; a child sees the current state without a switch.
+// -----------------------------------------------------------------------
+
+function SectionSortControl({
+  enabled,
+  learned,
+  canChange,
+  pending,
+  error,
+  onChange,
+}: {
+  enabled: boolean
+  learned: boolean
+  canChange: boolean
+  pending: boolean
+  error: string | null
+  onChange: (next: boolean) => void
+}) {
+  const hint = enabled
+    ? learned
+      ? 'Sections follow the order your household usually shops.'
+      : 'Items are grouped by store section.'
+    : 'Items stay in the order they were added.'
+  return (
+    <div className="card-apple px-4 py-2" data-testid="section-sort">
+      {canChange ? (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          disabled={pending}
+          onClick={() => onChange(!enabled)}
+          className="flex min-h-[44px] w-full items-center justify-between gap-3 text-left disabled:opacity-60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+        >
+          <span className="text-body text-label-primary">Sort by store section</span>
+          <span className="inline-flex shrink-0 items-center gap-2">
+            <span className="text-subhead text-label-secondary" aria-hidden="true">
+              {enabled ? 'On' : 'Off'}
+            </span>
+            <span
+              aria-hidden="true"
+              className={cn(
+                'relative inline-flex h-[31px] w-[51px] rounded-full transition-colors',
+                enabled ? 'bg-[var(--success)]' : 'bg-[var(--surface-fill-secondary)]'
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)] motion-safe:transition-transform',
+                  enabled ? 'translate-x-[22px]' : 'translate-x-[2px]'
+                )}
+              />
+            </span>
+          </span>
+        </button>
+      ) : (
+        <p className="flex min-h-[44px] items-center text-body text-label-primary">
+          Sort by store section: {enabled ? 'On' : 'Off'}
+        </p>
+      )}
+      <p className="pb-1 text-footnote text-label-secondary">{hint}</p>
+      {error && (
+        <p role="alert" className="pb-1 text-footnote text-label-primary">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

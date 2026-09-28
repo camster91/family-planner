@@ -5,6 +5,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { updateListItemSchema } from '@/lib/validations'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { updateListItem } from '@/lib/list-item-update'
+import { recordSectionTick } from '@/lib/grocery-section-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,10 +59,34 @@ export async function PATCH(request: NextRequest) {
         action: LIST_ITEM_UPDATE_ACTION,
       },
       parsed.data,
-      () => updateListItem(prisma!, parsed.data, auth.user)
+      async () => {
+        const startedAt = new Date()
+        const result = await updateListItem(prisma!, parsed.data, auth.user)
+        if (result.status === 200 && parsed.data.checked === true) {
+          await noteTick(auth.user.family_id, auth.user.id, parsed.data.itemId, result.body.item, startedAt)
+        }
+        return result
+      }
     )
   } catch (error) {
     console.error('Error updating list item:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * Walking order (#273): when this request is the one that ticked the row
+ * (open → ticked by this person now, not a no-op that kept an older tick),
+ * append the row's store section to the list's current shopping trip. Best
+ * effort: a failure is logged without content and never fails the tick. Runs
+ * inside the idempotency effect, so a replayed request records nothing again.
+ */
+async function noteTick(familyId: string, userId: string, itemId: string, item: Record<string, unknown>, startedAt: Date) {
+  const checkedAt = item.checked_at instanceof Date ? item.checked_at : null
+  if (item.checked !== true || item.checked_by !== userId || !checkedAt || checkedAt < startedAt) return
+  try {
+    await recordSectionTick(prisma!, { familyId, itemId, at: checkedAt })
+  } catch (err) {
+    console.error('Error recording grocery walking order:', err instanceof Error ? err.message : 'unknown error')
   }
 }

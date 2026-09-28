@@ -100,6 +100,8 @@ model User {
   idempotency_records           IdempotencyRecord[] @relation("IdempotencyRecordUser")
   // Food inventory (#263). Relation field only; no new User columns.
   inventory_items_added         InventoryItem[]    @relation("InventoryItemAdder")
+  // Grocery store sections (#273). Relation field only; no new User columns.
+  grocery_section_preferences_set GrocerySectionPreference[] @relation("GrocerySectionPreferenceSetter")
 
   @@index([family_id])
 }
@@ -183,6 +185,9 @@ model Family {
   inventory_items     InventoryItem[]
   // Today board weather cache (#262)
   weather_cache       WeatherCache?
+  // Grocery store sections (#273)
+  grocery_section_preferences GrocerySectionPreference[]
+  grocery_shopping_sessions   GroceryShoppingSession[]
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -486,6 +491,8 @@ model Ingredient {
   family_id String
   name      String
   unit      String?
+  /// Store section (#273, `src/lib/grocery-sections.ts` ids). Nullable, additive; set by "Move to…" on a linked grocery row.
+  section   String?
 
   family             Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
   recipe_ingredients RecipeIngredient[]
@@ -811,11 +818,14 @@ model List {
   created_by        String
   created_at        DateTime  @default(now())
   updated_at        DateTime  @updatedAt
+  /// Grocery/shopping lists group open rows by store section (#273) unless switched off. Additive, default on.
+  sort_by_section   Boolean   @default(true)
 
   // Relations
   family  Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator User       @relation("CreatedLists", fields: [created_by], references: [id])
   items   ListItem[]
+  shopping_sessions GroceryShoppingSession[]
 
   @@index([family_id])
   @@index([family_id, type])
@@ -1479,4 +1489,44 @@ model WeatherCache {
   updated_at DateTime @default(now()) @updatedAt
 
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+}
+
+/// Grocery store sections (#273): a household's choice of store section for an
+/// item name, set by "Move to…" on a grocery/shopping list row. `name_key` is
+/// the row's normalized name (`normalizeName`: NFC, trimmed, whitespace
+/// collapsed, lower-case); `section` is a `src/lib/grocery-sections.ts` id.
+/// Additive table; idempotent DDL in scripts/migrate.js POST_FEATURE_SQL.
+model GrocerySectionPreference {
+  id         String   @id @default(cuid())
+  family_id  String
+  name_key   String
+  section    String
+  /// Who last moved it. Nullable so deleting a member keeps the household's choice.
+  updated_by String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  updater User?  @relation("GrocerySectionPreferenceSetter", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  @@unique([family_id, name_key])
+}
+
+/// Walking order (#273): the store sections in the order they were first
+/// ticked during one shopping trip on a grocery/shopping list. A trip is the
+/// run of ticks on one list with no gap longer than the session gap
+/// (`src/lib/grocery-walking-order.ts`). Only section ids are stored.
+model GroceryShoppingSession {
+  id           String   @id @default(cuid())
+  family_id    String
+  list_id      String
+  sections     String[] @default([])
+  started_at   DateTime @default(now())
+  last_tick_at DateTime @default(now())
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  list   List   @relation(fields: [list_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id, last_tick_at])
+  @@index([list_id, last_tick_at])
 }
