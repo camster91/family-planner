@@ -167,7 +167,8 @@ export function ScheduleRegion({ events, calendarHref }: { events: TodayEvent[];
 export function dinnerRecipeLine(dinner: Pick<BoardDinner, 'recipeName' | 'recipeTitle' | 'prepMinutes'>): string | null {
   const parts: string[] = []
   const title = dinner.recipeTitle?.trim()
-  const name = (dinner.recipeName ?? '').trim()
+  // Compare with the headline actually shown, so the title never repeats.
+  const name = (dinner.recipeName ?? title ?? '').trim()
   if (title && title.toLowerCase() !== name.toLowerCase()) parts.push(`Recipe: ${title}`)
   const prep = formatMinutes(dinner.prepMinutes)
   if (prep) parts.push(`Prep ${prep}`)

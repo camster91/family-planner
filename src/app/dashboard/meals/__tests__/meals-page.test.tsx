@@ -1,0 +1,156 @@
+/**
+ * @jest-environment jsdom
+ */
+import * as React from 'react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n'
+import { toDateOnlyLocal } from '@/lib/dates'
+import MealsPage from '../page'
+
+jest.mock('@/components/providers/features-provider', () => ({
+  useFeatureEnabled: () => true,
+}))
+
+const today = toDateOnlyLocal(new Date())
+const todayIso = `${today}T00:00:00.000Z`
+
+const LASAGNA = { id: 'r_lasagna', title: 'Veggie lasagna', prep_time: 25, cook_time: 45, servings: 6 }
+
+type Call = { url: string; method: string; body: unknown }
+
+function setup({ meals, mealsStatus = 200 }: { meals: unknown[]; mealsStatus?: number }) {
+  const calls: Call[] = []
+  const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    const body = init?.body ? JSON.parse(String(init.body)) : undefined
+    calls.push({ url, method, body })
+    const json = (status: number, data: unknown) =>
+      ({ ok: status >= 200 && status < 300, status, json: async () => data }) as Response
+    if (url.startsWith('/api/meals?')) return json(mealsStatus, mealsStatus === 200 ? { meals } : { error: 'boom' })
+    if (url.startsWith('/api/recipes')) return json(200, { recipes: [LASAGNA], nextOffset: null })
+    if (url === '/api/meals' && method === 'POST') return json(201, { meal: { id: 'new' } })
+    if (url.startsWith('/api/meals/') && method === 'PATCH') return json(200, { meal: { id: 'x' } })
+    if (url.startsWith('/api/meals/') && method === 'DELETE') return json(200, { success: true })
+    return json(404, {})
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+  window.confirm = jest.fn(() => true)
+  window.alert = jest.fn()
+  render(
+    <I18nProvider>
+      <MealsPage />
+    </I18nProvider>
+  )
+  return { calls, fetchMock }
+}
+
+const dinnerA = { id: 'meal_a', meal_type: 'dinner', recipe_name: 'Tacos', notes: null, date: todayIso, recipe: null }
+const dinnerB = { id: 'meal_b', meal_type: 'dinner', recipe_name: 'Green salad', notes: null, date: todayIso, recipe: null }
+
+async function todayCard() {
+  const cards = await screen.findAllByTestId('meal-day')
+  return cards.find((c) => c.getAttribute('data-day') === today)!
+}
+
+describe('/dashboard/meals', () => {
+  it('shows every meal in a slot, each editable and deletable (gap 2.4.1)', async () => {
+    const user = userEvent.setup()
+    const { calls } = setup({ meals: [dinnerA, dinnerB] })
+    const card = await todayCard()
+    const rows = within(card).getAllByTestId('meal-row')
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining('Tacos'), expect.stringContaining('Green salad')])
+    // One "add another" control for the slot, named for the meal type and day.
+    expect(within(card).getAllByRole('button', { name: /^Add another dinner,/ })).toHaveLength(1)
+
+    await user.click(rows[1])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText('Recipe name')).toHaveProperty('value', 'Green salad')
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))
+    expect(calls.find((c) => c.method === 'DELETE')!.url).toBe('/api/meals/meal_b?id=meal_b')
+  })
+
+  it('edits the second meal of a slot with the old free-text body (no recipe_id)', async () => {
+    const user = userEvent.setup()
+    const { calls } = setup({ meals: [dinnerA, dinnerB] })
+    const card = await todayCard()
+    await user.click(within(card).getAllByTestId('meal-row')[1])
+    const dialog = await screen.findByRole('dialog')
+    const name = within(dialog).getByLabelText('Recipe name')
+    await user.clear(name)
+    await user.type(name, 'Caesar salad')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = calls.find((c) => c.method === 'PATCH')!
+    expect(patch.url).toBe('/api/meals/meal_b')
+    expect(patch.body).toEqual({ id: 'meal_b', date: today, meal_type: 'dinner', recipe_name: 'Caesar salad' })
+  })
+
+  it('adds a free-text meal from an empty slot exactly as before', async () => {
+    const user = userEvent.setup()
+    const { calls } = setup({ meals: [] })
+    const card = await todayCard()
+    await user.click(within(card).getByRole('button', { name: /^Add breakfast,/ }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Recipe name'), 'Porridge')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({ date: today, meal_type: 'breakfast', recipe_name: 'Porridge' })
+  })
+
+  it('adds a meal with a recipe: the name fills from the recipe and recipe_id is sent', async () => {
+    const user = userEvent.setup()
+    const { calls } = setup({ meals: [] })
+    const card = await todayCard()
+    await user.click(within(card).getByRole('button', { name: /^Add dinner,/ }))
+    const dialog = await screen.findByRole('dialog')
+    const picker = within(dialog).getByLabelText('Recipe (optional)')
+    await within(dialog).findByRole('option', { name: 'Veggie lasagna' })
+    await user.selectOptions(picker, 'r_lasagna')
+    expect(within(dialog).getByLabelText('Recipe name')).toHaveProperty('value', 'Veggie lasagna')
+    expect(within(dialog).getByRole('link', { name: 'View recipe' }).getAttribute('href')).toBe('/dashboard/meals/recipes/r_lasagna')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
+      date: today,
+      meal_type: 'dinner',
+      recipe_name: 'Veggie lasagna',
+      recipe_id: 'r_lasagna',
+    })
+  })
+
+  it('shows the linked recipe and prep time on the meal row, and can unlink it', async () => {
+    const user = userEvent.setup()
+    const linked = { ...dinnerA, recipe_name: 'Veggie lasagna', recipe_id: LASAGNA.id, recipe: LASAGNA }
+    const { calls } = setup({ meals: [linked] })
+    const card = await todayCard()
+    const row = within(card).getByTestId('meal-row')
+    expect(row.textContent).toContain('Dinner · Recipe · 25 min prep')
+    await user.click(row)
+    const dialog = await screen.findByRole('dialog')
+    await user.selectOptions(within(dialog).getByLabelText('Recipe (optional)'), '')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ recipe_id: null, recipe_name: 'Veggie lasagna' })
+  })
+
+  it('shows an error state with a working retry', async () => {
+    const user = userEvent.setup()
+    const { fetchMock } = setup({ meals: [], mealsStatus: 500 })
+    expect(await screen.findByText('Could not load meals')).toBeTruthy()
+    const before = fetchMock.mock.calls.length
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before))
+  })
+
+  it('writes the meal type in text on empty slots (not icon-only)', async () => {
+    setup({ meals: [] })
+    const card = await todayCard()
+    for (const label of ['Breakfast', 'Lunch', 'Dinner', 'Snack']) {
+      expect(within(card).getByText(label)).toBeTruthy()
+    }
+    expect(within(card).getAllByText('Nothing planned')).toHaveLength(4)
+  })
+})
