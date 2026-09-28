@@ -63,6 +63,16 @@ before person auth (`refusePairedDevice`), and the route-allowlist test lists bo
 original caller's own request (idempotency record `user_id`), their own unticked rows and a 10-minute window. Tests:
 `src/app/api/lists/__tests__/from-recipe.test.ts` and the opt-in `from-recipe.integration.test.ts`.
 
+**Update 2026-09-28 (#263): food inventory.** New family-owned `InventoryItem` with `/api/inventory`,
+`/api/inventory/[id]`, `/api/inventory/use-soon` and `/api/inventory/cook`, all behind `featureGate('inventory')`
+(cook also `meals`). Every lookup is `where { id, family_id }` (another household's item is a 404 identical to a
+missing one); the optional `ingredient_id` is verified in the caller's household (400, same answer for a foreign and
+a missing id), and the automatic link by name only considers the household's own ingredients. Writes are parent and
+teen; a paired shared device is refused with 403 `DEVICE_WRITE_NOT_ALLOWED` before person auth and the three write
+handlers are listed in the route-allowlist test. The export adds the household's items. Tests:
+`src/app/api/inventory/__tests__/isolation.test.ts` (two-household harness, which now seeds an `inventoryItem` per
+household) and the opt-in `inventory.integration.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -192,6 +202,13 @@ recorded in route comments, as the de facto matrix.
 | /api/handoff/share/[token] | GET | token (rate-limited, expiring) | token's handoff only; allowlisted fields | n/a | none | handoff/share/[token]/__tests__/route.test.ts | ok |
 | /api/health | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
 | /api/health/live | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
+| /api/inventory | GET | family + `featureGate('inventory')` | where family_id (+ location / expiry filters); paginated (limit ≤ 500) | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory | POST | device refused (403) + family + `featureGate('inventory')` | session family | P+T | `ingredient_id` verified in family (400, no existence leak); name link only to a same-family ingredient; strict body (no `family_id`/`added_by`) | inventory/iso, inventory.integration, device-route-allowlist | implemented (#263) |
+| /api/inventory/[id] | GET | family + `featureGate('inventory')` | where id + family (404, same as missing) | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory/[id] | PATCH | device refused (403) + family + `featureGate('inventory')` | where id + family (404); update also scoped by family | P+T | same as POST | inventory/iso, inventory.integration, device-route-allowlist | implemented (#263) |
+| /api/inventory/[id] | DELETE | device refused (403) + family + `featureGate('inventory')` | `deleteMany where id + family` (404 when 0) | P+T | none | inventory/iso, inventory.integration, device-route-allowlist | implemented (#263) |
+| /api/inventory/use-soon | GET | family + `featureGate('inventory')` | where family_id; board-safe fields only; limit ≤ 100 | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory/cook | GET | family + `featureGate('inventory')` + `featureGate('meals')` | recipes and items where family_id; ingredients owned through the recipe | all | none | inventory/iso, inventory.integration | implemented (#263) |
 | /api/lists | GET | family + `featureGate('lists')` (#251) | where | all | none | lists/iso, lists/provenance | ok |
 | /api/lists | DELETE | family + `featureGate('lists')` (#251) | match (403) | P | none | lists/iso, lists/provenance | ok |
 | /api/lists/create | POST | family + `featureGate('lists')` (#251) | session family | P+T | none; type `meal_plan` hidden in the UI, still accepted for old clients (O-8) | lists/iso, lists/provenance | implemented (D9) |
@@ -258,7 +275,7 @@ recorded in route comments, as the de facto matrix.
 | /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
 | /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
-| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
+| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) scoped by membership (#263) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
 | /api/wishlist | GET | family | where | all | none | wishlist/iso | ok |
 | /api/wishlist | POST | family | session family | all | none | wishlist/iso | ok |
 | /api/wishlist/[id] | PATCH | family | match (403) | requester or P | none | wishlist/iso | ok |

@@ -564,8 +564,8 @@ function ItemModal({
                     value={loc}
                     checked={location === loc}
                     onChange={() => setLocation(loc)}
-                    // Covers the whole label, so the hit target is the 44px tile.
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    // Covers the whole tile, border included, so the hit target is >= 44px.
+                    className="absolute -left-px -top-px h-[calc(100%+2px)] w-[calc(100%+2px)] cursor-pointer opacity-0"
                   />
                   {LOCATION_LABELS[loc]}
                 </label>
