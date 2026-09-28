@@ -49,16 +49,26 @@ export const idempotencyRuntime = {
   random: (): number => Math.random(),
 }
 
-export type IdempotencyErrorCode = 'IDEMPOTENCY_KEY_INVALID' | 'IDEMPOTENCY_KEY_REUSED' | 'IDEMPOTENCY_IN_PROGRESS'
+export type IdempotencyErrorCode =
+  | 'IDEMPOTENCY_KEY_REQUIRED'
+  | 'IDEMPOTENCY_KEY_INVALID'
+  | 'IDEMPOTENCY_KEY_REUSED'
+  | 'IDEMPOTENCY_IN_PROGRESS'
 
 const MESSAGES: Record<IdempotencyErrorCode, string> = {
+  IDEMPOTENCY_KEY_REQUIRED: 'This request needs an Idempotency-Key header.',
   IDEMPOTENCY_KEY_INVALID: 'The Idempotency-Key header is not valid.',
   IDEMPOTENCY_KEY_REUSED: 'This Idempotency-Key was already used for a different request.',
   IDEMPOTENCY_IN_PROGRESS: 'The original request with this Idempotency-Key is still being processed.',
 }
 
 export function idempotencyError(code: IdempotencyErrorCode): NextResponse {
-  const status = code === 'IDEMPOTENCY_KEY_INVALID' ? 400 : code === 'IDEMPOTENCY_KEY_REUSED' ? 422 : 409
+  const status =
+    code === 'IDEMPOTENCY_KEY_INVALID' || code === 'IDEMPOTENCY_KEY_REQUIRED'
+      ? 400
+      : code === 'IDEMPOTENCY_KEY_REUSED'
+        ? 422
+        : 409
   const retryable = code === 'IDEMPOTENCY_IN_PROGRESS'
   const headers: Record<string, string> = { 'Cache-Control': 'private, no-store' }
   if (retryable) headers['Retry-After'] = '1'
@@ -140,6 +150,16 @@ async function maybePrune(db: IdempotencyDb, now: Date): Promise<void> {
 }
 
 /**
+ * What the effect learns about its own run. `recordId` is the
+ * `IdempotencyRecord.id` holding the lock (null without a key). It is stable
+ * for the life of the key, including a takeover after a crash, so an effect
+ * can stamp it on the rows it writes (e.g. `ListItem.source_request_id`).
+ */
+export interface EffectRun {
+  recordId: string | null
+}
+
+/**
  * Run `effect` at most once per (scope, key) while the record lives.
  * `body` is the validated request body; it is hashed, never stored.
  */
@@ -148,9 +168,9 @@ export async function withIdempotency(
   key: string | null,
   ctx: IdempotencyContext,
   body: unknown,
-  effect: () => Promise<EffectResult>
+  effect: (run: EffectRun) => Promise<EffectResult>
 ): Promise<NextResponse> {
-  if (!key) return respond(await effect())
+  if (!key) return respond(await effect({ recordId: null }))
 
   const now = idempotencyRuntime.now()
   await maybePrune(db, now)
@@ -220,7 +240,7 @@ export async function withIdempotency(
 
   let result: EffectResult
   try {
-    result = await effect()
+    result = await effect({ recordId })
   } catch (error) {
     await release(db, recordId)
     throw error

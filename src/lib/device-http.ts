@@ -41,6 +41,7 @@ export type DeviceErrorCode =
   | 'DEVICE_REVOKED'
   | 'DEVICE_SESSION_INVALID'
   | 'DEVICE_MODE_LOGIN_BLOCKED'
+  | 'DEVICE_WRITE_NOT_ALLOWED'
   | 'PAIRING_CODE_INVALID'
   | 'PAIRING_DIGITS_MISMATCH'
   | 'PAIRING_EXPIRED'
@@ -67,6 +68,7 @@ const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
   DEVICE_REVOKED: 'This tablet was disconnected from its household.',
   DEVICE_SESSION_INVALID: 'This tablet is not connected to a household.',
   DEVICE_MODE_LOGIN_BLOCKED: 'This is a shared household tablet. Use the Parent button instead of signing in.',
+  DEVICE_WRITE_NOT_ALLOWED: 'The shared household tablet cannot do this yet. Use your own phone.',
   PAIRING_CODE_INVALID: 'That code did not work. Check it and try again, or ask for a new code.',
   PAIRING_DIGITS_MISMATCH: 'That number does not match the tablet.',
   PAIRING_EXPIRED: 'This pairing has expired.',

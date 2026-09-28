@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -18,6 +19,8 @@ interface MealSlot {
   recipe_name: string
   notes?: string | null
   cook_id?: string | null
+  // Linked canonical recipe (ADR-0007); enables "Add ingredients to groceries".
+  recipe_id?: string | null
   // ISO string of UTC midnight; the YYYY-MM-DD prefix is the meal's calendar day
   date: string
 }
@@ -188,6 +191,10 @@ function MealModal({
             </button>
           </div>
         </form>
+
+        {mode === 'edit' && initial?.id && initial.recipe_id && (
+          <AddToGroceriesButton recipeId={initial.recipe_id} mealId={initial.id} />
+        )}
       </div>
     </div>
   )
