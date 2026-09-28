@@ -379,6 +379,16 @@ model Chore {
   // instead of guessing it from title/date/timestamps. Cleared on Undo.
   successor_id   String?
 
+  // Picture routines for young kids (#272). All nullable/additive.
+  // `icon`: a key from the built-in set in src/lib/routine-icons.ts (validated
+  // by the API; unknown keys draw a neutral picture). `routine`: a short label
+  // ("Morning", ≤ 40 chars) grouping chores into one routine on the kid home;
+  // `routine_order`: the step number inside it (1–99). Recurring generation
+  // copies all three from the template.
+  icon           String?
+  routine        String?
+  routine_order  Int?
+
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id])

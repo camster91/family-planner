@@ -259,4 +259,80 @@ describe("chores — two households", () => {
       }
     });
   });
+
+  describe("picture routines (#272): icon, routine, routine_order", () => {
+    it("create stores the picture, the trimmed routine name and the step", async () => {
+      const res = await create(
+        req({ as: "parentA", body: { ...newChore, icon: "brush-teeth", routine: "  Morning  ", routine_order: 2 } })
+      );
+      expect(res.status).toBe(200);
+      expect(writesTo("chore")[0].args.data).toMatchObject({ icon: "brush-teeth", routine: "Morning", routine_order: 2 });
+      expect((await res.json()).chore).toMatchObject({ icon: "brush-teeth", routine: "Morning", routine_order: 2 });
+    });
+
+    it("create without them stores nulls (old clients unchanged)", async () => {
+      expect((await create(req({ as: "parentA", body: newChore }))).status).toBe(200);
+      expect(writesTo("chore")[0].args.data).toMatchObject({ icon: null, routine: null, routine_order: null });
+    });
+
+    it.each([
+      ["an unknown icon", { icon: "rocket-launch" }],
+      ["a routine over 40 characters", { routine: "x".repeat(41) }],
+      ["a step of 0", { routine: "Morning", routine_order: 0 }],
+      ["a fractional step", { routine: "Morning", routine_order: 1.5 }],
+    ])("create rejects %s with 400 and writes nothing", async (_label, extra) => {
+      const res = await create(req({ as: "parentA", body: { ...newChore, ...extra } }));
+      expect(res.status).toBe(400);
+      expect(writesTo("chore")).toHaveLength(0);
+    });
+
+    it("PATCH sets and clears them; an empty routine clears it", async () => {
+      const set = await chores.PATCH(
+        req({ as: "parentA", body: { choreId: "chore-a", icon: "shoes", routine: "After school", routine_order: 3 } })
+      );
+      expect(set.status).toBe(200);
+      expect(db.find("chore", "chore-a")).toMatchObject({ icon: "shoes", routine: "After school", routine_order: 3 });
+
+      const cleared = await chores.PATCH(
+        req({ as: "parentA", body: { choreId: "chore-a", icon: null, routine: "   ", routine_order: null } })
+      );
+      expect(cleared.status).toBe(200);
+      expect(db.find("chore", "chore-a")).toMatchObject({ icon: null, routine: null, routine_order: null });
+    });
+
+    it("PATCH of another household's chore is refused and changes nothing", async () => {
+      await expectDenied(
+        await chores.PATCH(req({ as: "parentA", body: { choreId: "chore-b", icon: "hug", routine: "Morning", routine_order: 1 } }))
+      );
+      expect(db.find("chore", "chore-b")?.icon).toBeUndefined();
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it("a sibling cannot set a routine on someone else's chore", async () => {
+      expect(
+        (await chores.PATCH(req({ as: "teenA", body: { choreId: "chore-a", routine: "Morning" } }))).status
+      ).toBe(403);
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it("GET returns the fields for the caller's household only", async () => {
+      Object.assign(db.find("chore", "chore-a")!, { icon: "hug", routine: "Bedtime", routine_order: 1 });
+      Object.assign(db.find("chore", "chore-b")!, { icon: "trash", routine: "Evening", routine_order: 4 });
+      const body = await expectNoForeignData(await chores.GET(req({ as: "childA" })));
+      expect(body.chores).toEqual([expect.objectContaining({ id: "chore-a", icon: "hug", routine: "Bedtime", routine_order: 1 })]);
+    });
+
+    it("completing a legacy recurring chore copies them to the next occurrence", async () => {
+      Object.assign(db.find("chore", "chore-a")!, {
+        frequency: "daily",
+        recurrence_id: null,
+        icon: "make-bed",
+        routine: "Morning",
+        routine_order: 1,
+      });
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      const successor = writesTo("chore").find((w) => w.op === "create");
+      expect(successor?.args.data).toMatchObject({ icon: "make-bed", routine: "Morning", routine_order: 1 });
+    });
+  });
 });

@@ -119,6 +119,9 @@ export async function POST(request: NextRequest) {
                 frequency: 'once',
                 difficulty: chore.difficulty,
                 created_by: chore.created_by,
+                icon: chore.icon,
+                routine: chore.routine,
+                routine_order: chore.routine_order,
               },
             })
             // Remember exactly which row this completion created, so Undo

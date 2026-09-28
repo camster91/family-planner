@@ -42,7 +42,9 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
     },
     chore: {
       findMany: jest.fn().mockResolvedValue([
-        { id: 'c1', title: 'Tidy room', due_date: new Date('2026-01-05T00:00:00Z'), status: 'pending', assigned_to: 'u_child' },
+        { id: 'c1', title: 'Tidy room', due_date: new Date('2026-01-05T00:00:00Z'), status: 'pending', assigned_to: 'u_child', icon: 'tidy-toys' },
+        // A stored key outside the catalogue (e.g. written by a newer build) is sent as no picture.
+        { id: 'c2', title: 'Odd', due_date: new Date('2026-01-05T00:00:00Z'), status: 'pending', assigned_to: 'u_child', icon: 'not-a-key' },
         { id: 'c_orphan', title: 'Ghost', due_date: new Date('2026-01-05T00:00:00Z'), status: 'pending', assigned_to: 'u_gone' },
       ]),
     },
@@ -108,6 +110,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     expect(selectedKeys(mealArgs.select)).not.toContain('description')
     expect(selectedKeys(choreArgs.select)).not.toContain('description')
     expect(selectedKeys(choreArgs.select)).not.toContain('points')
+    // #272: the picture key, but not the routine label (free text) or step.
+    expect(selectedKeys(choreArgs.select).sort()).toEqual(['assigned_to', 'due_date', 'icon', 'id', 'status', 'title'])
     expect(selectedKeys(subArgs.select).sort()).toEqual(['color', 'id', 'name'])
   })
 
@@ -152,7 +156,10 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       // The subscription lookup is family-scoped, so a foreign id gets a generic label.
       ['e_foreign_sub', { name: 'Subscribed calendar', color: null }],
     ])
-    expect(data.chores).toEqual([{ id: 'c1', title: 'Tidy room', dueDay: '2026-01-05', status: 'pending', assigneeId: 'u_child' }])
+    expect(data.chores).toEqual([
+      { id: 'c1', title: 'Tidy room', dueDay: '2026-01-05', status: 'pending', assigneeId: 'u_child', icon: 'tidy-toys' },
+      { id: 'c2', title: 'Odd', dueDay: '2026-01-05', status: 'pending', assigneeId: 'u_child', icon: null },
+    ])
     expect(data.dinners).toEqual([
       { id: 'm1', day: '2026-01-05', recipeName: 'Tacos', cookName: 'Avery Parent', recipeTitle: 'Street tacos', prepMinutes: 20 },
       { id: 'm2', day: '2026-01-06', recipeName: null, cookName: null, recipeTitle: null, prepMinutes: null },
@@ -194,7 +201,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       expect(data.links).toEqual({ calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null, inventory: null })
       // Shared household data every member may already read (ROLE_AND_ISOLATION_MATRIX.md).
       expect(data.shopping?.total).toBe(1)
-      expect(data.chores).toHaveLength(1)
+      expect(data.chores).toHaveLength(2)
     }
   })
 
@@ -254,6 +261,9 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       ])
       expect(data.shopping?.total).toBe(1)
       expect(data.dinners).toHaveLength(2)
+      // #272: the tablet gets the chore's catalogue picture key and nothing else new.
+      expect(Object.keys(data.chores[0]).sort()).toEqual(['assigneeId', 'dueDay', 'icon', 'id', 'status', 'title'])
+      expect(data.chores[0].icon).toBe('tidy-toys')
     })
 
     it('includes shopping only when the lists feature is on', async () => {

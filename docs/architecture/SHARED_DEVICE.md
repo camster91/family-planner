@@ -487,7 +487,7 @@ The device reads exactly the Today board DTO, built by `buildTodayBoard` with a 
 |---|---|---|
 | `members` | `id`, `name`, `color` (#262: palette key from `board_color` or the fallback) | `User` (no email, age, avatar, role, XP, level, streak) |
 | `events` | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }`, `addedById` (#262: household member who added a local event; `null` for subscribed or provider-synced imports) | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`) |
-| `chores` | `id`, `title`, `dueDay`, `status`, `assigneeId` | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`) |
+| `chores` | `id`, `title`, `dueDay`, `status`, `assigneeId`, `icon` | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`, `routine`, `routine_order`). `icon` (#272) is a key from the fixed picture catalogue or `null`, never user text, so it is safe on the shared surface. |
 | `dinners` | `id`, `day`, `recipeName`, `cookName` | `FamilyMeal` (no `notes`); `null` when meals feature is off |
 | `shopping` | `items[] { id, content, quantity, listId, listName }`, `total` | `ListItem`/`List` of type `grocery`/`shopping` (no `price`, `notes`, `added_by`) |
 | `links` | all `null` for the device audience (including `inventory`) | — |

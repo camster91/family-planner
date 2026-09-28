@@ -101,7 +101,10 @@ CREATE TABLE IF NOT EXISTS "Chore" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "created_by" TEXT NOT NULL,
   "recurrence_id" TEXT,
-  "is_template" BOOLEAN NOT NULL DEFAULT false
+  "is_template" BOOLEAN NOT NULL DEFAULT false,
+  "icon" TEXT,
+  "routine" TEXT,
+  "routine_order" INTEGER
 );
 
 -- Backfill the #184 recurrence columns for deployments whose Chore table predates them
@@ -109,6 +112,10 @@ ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "recurrence_id" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "is_template" BOOLEAN NOT NULL DEFAULT false;
 -- #268 Undo: exact successor created by completing a legacy recurring one-off
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "successor_id" TEXT;
+-- Picture routines (#272): additive, nullable. Existing chores have no icon or routine.
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "icon" TEXT;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine" TEXT;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_order" INTEGER;
 
 -- ============ Event ============
 CREATE TABLE IF NOT EXISTS "Event" (
