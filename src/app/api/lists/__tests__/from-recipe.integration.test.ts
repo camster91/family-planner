@@ -285,6 +285,33 @@ describeWithDatabase('recipe → grocery add against Postgres', () => {
     expect(await prisma.listItem.count({ where: { source_request_id: second.requestId } })).toBe(3)
   })
 
+  it('a failure after the insert rolls the rows back, so a same-key retry writes undoable rows', async () => {
+    await prisma.listItem.deleteMany({ where: { list_id: LIST } })
+    const backfill = require('@/lib/backfill/meals-groceries')
+    const spy = jest.spyOn(backfill, 'normalizeName').mockImplementationOnce(() => {
+      throw new Error('lookalike scan failed')
+    })
+    const key = newKey()
+    const body = { recipeId: RECIPE, mealId: MEAL1, listId: LIST }
+    try {
+      expect((await fromRecipe.POST(request(PARENT, body, key))).status).toBe(500)
+    } finally {
+      spy.mockRestore()
+    }
+    expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(0)
+
+    const retry = await fromRecipe.POST(request(PARENT, body, key))
+    expect(retry.status).toBe(201)
+    const added = await retry.json()
+    expect(added).toMatchObject({ createdCount: 3, alreadyOnListCount: 0 })
+    // The undo expiry is absolute: the request record's creation + 10 minutes.
+    const record = await prisma.idempotencyRecord.findUniqueOrThrow({ where: { id: added.requestId } })
+    expect(Date.parse(added.undoExpiresAt)).toBe(record.created_at.getTime() + 10 * 60 * 1000)
+    const undone = await (await undoAdd.POST(request(PARENT, { requestId: added.requestId }))).json()
+    expect(undone).toMatchObject({ removedCount: 3 })
+    expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(0)
+  })
+
   it('foreign recipe, meal and list ids are refused without writing', async () => {
     const before = await prisma.listItem.count()
     const foreignRecipe = await fromRecipe.POST(request(OTHER, { recipeId: RECIPE }, newKey()))

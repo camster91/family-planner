@@ -82,6 +82,7 @@ describe('POST /api/lists/items/from-recipe', () => {
       alreadyOnListCount: 0,
       possibleDuplicates: [],
       possibleDuplicatesTruncated: false,
+      undoExpiresAt: expect.any(String),
     })
     const [row] = recipeRows()
     expect(row).toMatchObject({

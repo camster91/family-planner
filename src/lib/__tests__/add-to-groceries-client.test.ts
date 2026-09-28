@@ -5,6 +5,7 @@ import {
   postUndoAdd,
   summarizeAdd,
   summarizeUndo,
+  undoRemainingMs,
   type AddFromRecipeResult,
 } from '@/lib/add-to-groceries-client'
 
@@ -82,7 +83,39 @@ describe('postUndoAdd', () => {
     expect(await postUndoAdd('r1', async () => response(200, ok))).toEqual({ ok: true, result: ok })
     expect(
       await postUndoAdd('r1', async () => response(409, { error: { code: 'UNDO_WINDOW_EXPIRED', message: 'Too late.' } }))
-    ).toEqual({ ok: false, message: 'Too late.' })
+    ).toEqual({ ok: false, message: 'Too late.', retryable: false })
+  })
+
+  it('marks network failures, 5xx and in-progress as retryable so Undo stays offered', async () => {
+    expect(
+      await postUndoAdd('r1', async () => {
+        throw new TypeError('offline')
+      })
+    ).toMatchObject({ ok: false, retryable: true })
+    expect(await postUndoAdd('r1', async () => response(503, null))).toMatchObject({ ok: false, retryable: true })
+    expect(
+      await postUndoAdd('r1', async () => response(409, { error: { code: 'UNDO_IN_PROGRESS', message: 'Busy.' } }))
+    ).toMatchObject({ ok: false, retryable: true })
+    expect(await postUndoAdd('r1', async () => response(403, { error: 'Forbidden' }))).toMatchObject({
+      ok: false,
+      retryable: false,
+    })
+  })
+})
+
+describe('undoRemainingMs', () => {
+  const WINDOW = 10 * 60 * 1000
+  const now = Date.parse('2026-09-28T12:00:00Z')
+  const base = { listId: 'l', listName: 'G', requestId: 'r', createdCount: 1, alreadyOnListCount: 0, possibleDuplicates: [], possibleDuplicatesTruncated: false }
+
+  it('counts down to the server expiry, so a late replay does not restart the window', () => {
+    expect(undoRemainingMs({ ...base, undoExpiresAt: '2026-09-28T12:02:00Z' }, WINDOW, now)).toBe(2 * 60 * 1000)
+    expect(undoRemainingMs({ ...base, undoExpiresAt: '2026-09-28T11:59:00Z' }, WINDOW, now)).toBe(0)
+  })
+
+  it('never exceeds the full window and falls back to it without an expiry', () => {
+    expect(undoRemainingMs({ ...base, undoExpiresAt: '2026-09-28T13:00:00Z' }, WINDOW, now)).toBe(WINDOW)
+    expect(undoRemainingMs(base, WINDOW, now)).toBe(WINDOW)
   })
 })
 

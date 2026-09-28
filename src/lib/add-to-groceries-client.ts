@@ -26,6 +26,8 @@ export interface AddFromRecipeResult {
   alreadyOnListCount: number
   possibleDuplicates: Array<{ ingredientId: string; matchedItemId: string }>
   possibleDuplicatesTruncated: boolean
+  /** ISO time after which the server refuses undo (absent from older servers). */
+  undoExpiresAt?: string
 }
 
 export interface UndoAddResult {
@@ -98,22 +100,39 @@ export async function postAddFromRecipe(
   }
 }
 
+export type UndoOutcome =
+  | { ok: true; result: UndoAddResult }
+  /** `retryable`: network failure, 5xx or still in progress; the same request can be sent again. */
+  | { ok: false; message: string; retryable: boolean }
+
 export async function postUndoAdd(
   requestId: string,
   fetchImpl: FetchLike = (input, init) => fetch(input, init)
-): Promise<{ ok: true; result: UndoAddResult } | { ok: false; message: string }> {
+): Promise<UndoOutcome> {
+  let res: Response
   try {
-    const res = await fetchImpl('/api/lists/items/undo-add', {
+    res = await fetchImpl('/api/lists/items/undo-add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId }),
     })
-    const body = await res.json().catch(() => null)
-    if (res.ok && body) return { ok: true, result: body as UndoAddResult }
-    return { ok: false, message: errorMessage(body, 'Could not undo.') }
   } catch {
-    return { ok: false, message: 'Could not reach the server. Try again.' }
+    return { ok: false, message: 'Could not reach the server. Try again.', retryable: true }
   }
+  const body = await res.json().catch(() => null)
+  if (res.ok && body) return { ok: true, result: body as UndoAddResult }
+  const retryable = res.status >= 500 || (res.status === 409 && errorCode(body) === 'UNDO_IN_PROGRESS')
+  return { ok: false, message: errorMessage(body, 'Could not undo.'), retryable }
+}
+
+/**
+ * Milliseconds Undo should stay offered: until the server's `undoExpiresAt`,
+ * never longer than the full window (guards against a skewed device clock).
+ */
+export function undoRemainingMs(result: AddFromRecipeResult, windowMs: number, now: number = Date.now()): number {
+  const expires = result.undoExpiresAt ? Date.parse(result.undoExpiresAt) : NaN
+  if (Number.isNaN(expires)) return windowMs
+  return Math.max(0, Math.min(windowMs, expires - now))
 }
 
 const items = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`

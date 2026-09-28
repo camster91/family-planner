@@ -26,7 +26,7 @@
  * client unchecked.
  */
 import { z } from 'zod'
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import { normalizeName } from '@/lib/backfill/meals-groceries'
 import type { EffectResult } from '@/lib/idempotency'
 
@@ -76,6 +76,12 @@ export interface AddFromRecipeResponse {
   alreadyOnListCount: number
   possibleDuplicates: PossibleDuplicate[]
   possibleDuplicatesTruncated: boolean
+  /**
+   * When undo stops being accepted (the request record's creation plus
+   * `UNDO_WINDOW_MS`). Absolute, so a replay received minutes later does not
+   * restart the window on the client.
+   */
+  undoExpiresAt: string
 }
 
 export interface UndoAddResponse {
@@ -149,28 +155,35 @@ export function defaultGroceryListLockKey(familyId: string): string {
  * adds from two devices create one list, not two.
  */
 export async function resolveDefaultGroceryList(db: TxDb, familyId: string, userId: string): Promise<ResolvedList> {
-  return db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${defaultGroceryListLockKey(familyId)}))`
-    for (const type of ['grocery', 'shopping']) {
-      const found = await tx.list.findFirst({
-        where: { family_id: familyId, type },
-        orderBy: [{ updated_at: 'desc' }, { id: 'asc' }],
-        select: listSelect,
-      })
-      if (found) return { ...found, created: false }
-    }
-    const created = await tx.list.create({
-      data: { family_id: familyId, name: DEFAULT_GROCERY_LIST_NAME, type: 'grocery', created_by: userId },
+  return db.$transaction((tx) => resolveDefaultGroceryListInTx(tx, familyId, userId))
+}
+
+/** Same as `resolveDefaultGroceryList`, inside a caller's transaction. */
+export async function resolveDefaultGroceryListInTx(
+  tx: Prisma.TransactionClient,
+  familyId: string,
+  userId: string
+): Promise<ResolvedList> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${defaultGroceryListLockKey(familyId)}))`
+  for (const type of ['grocery', 'shopping']) {
+    const found = await tx.list.findFirst({
+      where: { family_id: familyId, type },
+      orderBy: [{ updated_at: 'desc' }, { id: 'asc' }],
       select: listSelect,
     })
-    return { ...created, created: true }
+    if (found) return { ...found, created: false }
+  }
+  const created = await tx.list.create({
+    data: { family_id: familyId, name: DEFAULT_GROCERY_LIST_NAME, type: 'grocery', created_by: userId },
+    select: listSelect,
   })
+  return { ...created, created: true }
 }
 
 // ---------------------------------------------------------------------------
 // Add
 
-type AddDb = TxDb & Pick<PrismaClient, 'recipe' | 'familyMeal' | 'list' | 'listItem'>
+type AddDb = TxDb
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -183,6 +196,19 @@ function round2(n: number): number {
  */
 export async function addRecipeToGroceries(
   db: AddDb,
+  input: AddFromRecipeInput,
+  actor: Actor,
+  requestId: string
+): Promise<EffectResult> {
+  // One transaction: the rows, their read-back and the lookalike scan commit
+  // together. If anything after the insert throws, the rows roll back with
+  // it, so withIdempotency releasing the record never strands rows whose
+  // source_request_id points at a deleted request (they could not be undone).
+  return db.$transaction((tx) => addInTx(tx, input, actor, requestId))
+}
+
+async function addInTx(
+  db: Prisma.TransactionClient,
   input: AddFromRecipeInput,
   actor: Actor,
   requestId: string
@@ -235,7 +261,7 @@ export async function addRecipeToGroceries(
     if (found.type !== 'grocery' && found.type !== 'shopping') return fail(400, 'LIST_NOT_GROCERY')
     list = found
   } else {
-    list = await resolveDefaultGroceryList(db, actor.family_id, actor.id)
+    list = await resolveDefaultGroceryListInTx(db, actor.family_id, actor.id)
   }
 
   const baseServings = recipe.servings > 0 ? recipe.servings : 1
@@ -307,6 +333,9 @@ export async function addRecipeToGroceries(
     }
   }
 
+  const record = await db.idempotencyRecord.findUnique({ where: { id: requestId }, select: { created_at: true } })
+  const undoFrom = record?.created_at ?? new Date()
+
   const body: AddFromRecipeResponse = {
     listId: list.id,
     listName: list.name,
@@ -315,6 +344,7 @@ export async function addRecipeToGroceries(
     alreadyOnListCount: selected.length - created.length,
     possibleDuplicates,
     possibleDuplicatesTruncated,
+    undoExpiresAt: new Date(undoFrom.getTime() + UNDO_WINDOW_MS).toISOString(),
   }
   return { status: 201, body }
 }

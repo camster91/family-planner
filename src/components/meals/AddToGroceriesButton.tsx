@@ -9,6 +9,7 @@ import {
   postUndoAdd,
   summarizeAdd,
   summarizeUndo,
+  undoRemainingMs,
   type AddFromRecipeRequest,
   type AddFromRecipeResult,
 } from '@/lib/add-to-groceries-client'
@@ -19,7 +20,7 @@ const UNDO_WINDOW_MS = 10 * 60 * 1000
 type Status =
   | { kind: 'idle' }
   | { kind: 'adding' }
-  | { kind: 'added'; result: AddFromRecipeResult }
+  | { kind: 'added'; result: AddFromRecipeResult; notice?: string }
   | { kind: 'undoing'; result: AddFromRecipeResult }
   | { kind: 'undone'; message: string }
   | { kind: 'error'; message: string; retryable: boolean }
@@ -83,8 +84,11 @@ export function AddToGroceriesButton({
     }
     setStatus({ kind: 'added', result: outcome.result })
     if (undoTimer.current) clearTimeout(undoTimer.current)
-    setUndoOpen(outcome.result.createdCount > 0)
-    undoTimer.current = setTimeout(() => setUndoOpen(false), UNDO_WINDOW_MS)
+    // A replay can arrive minutes after the add: count down to the server's
+    // expiry rather than restarting the full window.
+    const remaining = undoRemainingMs(outcome.result, UNDO_WINDOW_MS)
+    setUndoOpen(outcome.result.createdCount > 0 && remaining > 0)
+    undoTimer.current = setTimeout(() => setUndoOpen(false), remaining)
     onAdded?.(outcome.result)
   }
 
@@ -94,6 +98,13 @@ export function AddToGroceriesButton({
     setStatus({ kind: 'undoing', result })
     const outcome = await postUndoAdd(result.requestId)
     if (!outcome.ok) {
+      if (outcome.retryable) {
+        // Undo is safe to repeat and the first attempt may even have landed:
+        // keep the result and the Undo control so it can be tried again.
+        setStatus({ kind: 'added', result, notice: outcome.message })
+        return
+      }
+      setUndoOpen(false)
       setStatus({ kind: 'error', message: outcome.message, retryable: false })
       return
     }
@@ -146,6 +157,9 @@ export function AddToGroceriesButton({
               </button>
             )}
           </div>
+        )}
+        {status.kind === 'added' && status.notice && (
+          <p className="text-subhead text-[var(--danger-text)]">{status.notice}</p>
         )}
         {status.kind === 'undone' && <p className="text-subhead text-label-secondary">{status.message}</p>}
         {status.kind === 'error' && <p className="text-subhead text-[var(--danger-text)]">{status.message}</p>}
