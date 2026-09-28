@@ -46,7 +46,9 @@ Implemented in #162 (`src/lib/idempotency.ts`, record `IdempotencyRecord`). Rout
 code: it is never stored, so a retry with the same key re-runs the check) and `POST /api/inventory` (#265, used by
 the fridge scan dialog; a create is not convergent, so a request that crashes after committing and before storing its
 response can, after the 30 s lock timeout, be re-run by a retry with the same key and add a second row; every other
-lost-response case replays). Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
+lost-response case replays) and `POST /api/calendar/import-suggestions/commit` (#270, key required, one per batch;
+the crash case converges: the takeover finds the batch's activity row by its record id and returns the same events).
+Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
   UUID generated once per logical change and reused for every retry of it. Without the header the route
@@ -67,7 +69,7 @@ lost-response case replays). Queue policy and client behaviour: [`OFFLINE_SYNC.m
 | Same key, same request, first one still running | `409` `IDEMPOTENCY_IN_PROGRESS`, `retryable: true`, `Retry-After: 1`. |
 | Same key, different body, action or household | `422` `IDEMPOTENCY_KEY_REUSED`, `retryable: false`. |
 | Malformed key | `400` `IDEMPOTENCY_KEY_INVALID`. |
-| No key on a route that requires one (`POST /api/lists/items/from-recipe`) | `400` `IDEMPOTENCY_KEY_REQUIRED`. |
+| No key on a route that requires one (`POST /api/lists/items/from-recipe`, `POST /api/calendar/import-suggestions/commit`) | `400` `IDEMPOTENCY_KEY_REQUIRED`. |
 | First request ended non-2xx or threw | Nothing is stored; the same key may be retried. |
 | First request died mid-flight (row in progress for more than 30 s) | The next request with the key takes over and runs the route again (allowlisted actions converge). |
 | Record older than 7 days | Treated as absent; the key starts over. |
@@ -209,7 +211,7 @@ Compatibility: additive only. `Event` gains `source_connection_id` and `updated_
 imports, which stay `409 EVENT_READ_ONLY`). Installed Android builds need no update (web-served UI).
 
 ## Review-first event import (#270)
-Two new routes; `POST /api/events` is unchanged and is what the page uses to add the reviewed events. The suggestion
+Three new routes; `POST /api/events` is unchanged (the commit route applies its field rules to each event). The suggestion
 route is off (`404 EVENT_IMPORT_DISABLED`) until the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY`
 ([`docs/runbooks/EVENT_IMPORT.md`](../runbooks/EVENT_IMPORT.md)). Rules, time zones and privacy:
 [`CALENDAR_IMPORT.md`](CALENDAR_IMPORT.md) "Review-first import from text, photo or PDF". Route-owned errors use the
@@ -219,11 +221,12 @@ no-store`; authentication (401) and the feature gate (403 `{ error: string }`) k
 | Route | Contract | Errors |
 | --- | --- | --- |
 | `POST /api/calendar/import-suggestions` | Either `application/json` strict `{ text (1–20,000 chars), today?: 'YYYY-MM-DD', timeZone?: IANA }` or `multipart/form-data` with `file` (JPEG/PNG/WebP ≤ 8 MB or PDF ≤ 10 MB and ≤ 20 visible pages, by magic bytes) and optional `today`, `timeZone` fields; `Content-Length` required. 200 `{ suggestions: [{ title, start, end: string \| null, allDay, location: string \| null, notes: string \| null, confidence: 0–1 }], unreadable: boolean, dropped, timeZone }`, at most 30, sorted by start. `start`/`end` are `YYYY-MM-DD` when `allDay` (end = last day, inclusive), else ISO 8601 with the zone offset. `unreadable: true` (no suggestions) covers a refusal, an "unreadable" answer or no usable date. Parent and teen. Writes nothing. | 401; 403 device (`DEVICE_WRITE_NOT_ALLOWED`), calendar off, child (`EVENT_IMPORT_FORBIDDEN`); 404 `EVENT_IMPORT_DISABLED`; 400 `INVALID_BODY` / `INVALID_TODAY`; 411 `LENGTH_REQUIRED`; 413 `TEXT_TOO_LONG` / `FILE_TOO_LARGE` / `PDF_TOO_MANY_PAGES`; 415 `UNSUPPORTED_FILE_TYPE`; 429 `RATE_LIMITED` / `IMPORT_DAILY_LIMIT` with `Retry-After`; 502 `IMPORT_PROVIDER_UNAVAILABLE` / `IMPORT_UNREADABLE` (`retryable: true`) |
-| `POST /api/calendar/import-suggestions/undo` | Strict `{ eventIds: string[] (1–30) }`. Deletes the listed events that belong to the caller's household, were created by the caller at most 10 minutes ago and are not subscription/provider imports. 200 `{ removedCount }`; unknown and other-household ids are skipped, so a repeat answers `{ removedCount: 0 }`. Parent and teen; not behind the provider kill switch. | 401; 403 device, calendar off, child, `UNDO_NOT_ALLOWED` (any id is another member's or an imported event; nothing deleted); 409 `UNDO_WINDOW_EXPIRED`; 400 `INVALID_BODY` |
+| `POST /api/calendar/import-suggestions/commit` | Header `Idempotency-Key` **required** (one per batch). Strict `{ events: [{ title (1–200), description?: string \| null (≤ 1000), start_time, end_time?, location?: string \| null (≤ 200) }] (1–30) }`, the `POST /api/events` field and range rules (end not before start; default end = start). Creates them in one transaction for the caller's household (`event_type` other, `created_by` the caller) plus one `events_imported` activity row. 201 `{ eventIds, count, undoToken, undoExpiresAt }`. Same key and body: the stored 201 is replayed with `Idempotency-Replayed: true` and nothing is created; same key, other body: 422. Parent and teen; not behind the provider kill switch. | 401; 403 device (`DEVICE_WRITE_NOT_ALLOWED`), calendar off, child (`EVENT_IMPORT_FORBIDDEN`); 400 `INVALID_BODY`, `IDEMPOTENCY_KEY_REQUIRED` / `IDEMPOTENCY_KEY_INVALID`; 409 `IDEMPOTENCY_IN_PROGRESS`; 422 `IDEMPOTENCY_KEY_REUSED` |
+| `POST /api/calendar/import-suggestions/undo` | Strict `{ token }`: the `undoToken` from the commit, `v1.<payload>.<mac>` (HMAC-SHA256 over user, household, event ids and commit time; key derived from `JWT_SECRET` with a purpose label). Deletes those events that are still in the caller's household, created by the caller and not subscription/provider imports. 200 `{ removedCount }`; a repeat answers `{ removedCount: 0 }`. Event ids are never accepted directly. Parent and teen; not behind the provider kill switch. | 401; 403 device, calendar off, child, `UNDO_TOKEN_INVALID` (tampered, malformed, another person's or another household's token); 409 `UNDO_WINDOW_EXPIRED` (over 10 minutes); 400 `INVALID_BODY` |
 
 Rate limits: 10 per person and 20 per household per hour, plus `EVENT_IMPORT_DAILY_LIMIT` (default 30) per household
-per UTC day. Not idempotent and not offline-queued (suggestions are read-only; adding is sequential with added cards
-removed, see the design). Compatibility: additive routes; nothing existing changes. With the key removed the route is
+per UTC day (suggestions only). Suggestions are read-only; the commit is idempotent per batch key (action
+`calendar.import-commit`, records scoped to `user:<id>`), and none of these routes is offline-queued. Compatibility: additive routes; nothing existing changes. With the key removed the route is
 404 and the button disappears on the next page load, so rollback is an environment change, not a deploy.
 
 ## Testing

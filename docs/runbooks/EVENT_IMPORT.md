@@ -73,7 +73,9 @@ in the same place as `JWT_SECRET` and the other runtime secrets:
 ## 4. Watch
 
 - Logs: `event.import` (success), `event.import.failed` (`code`, `upstreamStatus`), `event.import.error`,
-  `event.import.undo` (`requested`, `removed`).
+  `event.import.commit` (`events`, `status`), `event.import.undo` (`requested`, `removed`). A run of 403
+  `UNDO_TOKEN_INVALID` on undo after a `JWT_SECRET` rotation is expected for imports made before it (tokens are
+  keyed from that secret); it only affects the 10-minute undo window.
 - A run of `IMPORT_PROVIDER_UNAVAILABLE` with `upstreamStatus` 401/403: the key was revoked or is wrong. 429/529:
   provider rate limit or overload; people see a retry message and the calendar keeps working. 400: the configured
   model may not accept the request shape (check `EVENT_IMPORT_MODEL`).

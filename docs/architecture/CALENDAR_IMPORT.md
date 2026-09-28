@@ -110,7 +110,7 @@ flyer, or chooses a photo or PDF of it; a model suggests events; the person revi
 them as ordinary events. **Off until configured**: without `EVENT_IMPORT_ANTHROPIC_API_KEY` the route is `404
 EVENT_IMPORT_DISABLED` and the calendar hides "Import from text or photo". Enabling it (key, spend cap, privacy):
 [`docs/runbooks/EVENT_IMPORT.md`](../runbooks/EVENT_IMPORT.md). Code: `src/lib/event-import.ts` (server),
-`src/lib/event-import-client.ts` (page helpers), `src/app/api/calendar/import-suggestions/**`,
+`src/lib/event-import-commit.ts` (commit, undo token), `src/lib/event-import-client.ts` (page helpers), `src/app/api/calendar/import-suggestions/**`,
 `src/app/dashboard/calendar/ImportEventsDialog.tsx`.
 
 ### Flow
@@ -120,21 +120,29 @@ EVENT_IMPORT_DISABLED` and the calendar hides "Import from text or photo". Enabl
    pages), typed by magic bytes, never the declared MIME. The page downscales photos to 1568 px before upload. Returns
    at most 30 suggestions `{ title, start, end, allDay, location, notes, confidence }` plus `unreadable`, `dropped`
    and `timeZone`. **Writes nothing.**
-2. **Review** — editable cards (title, date, all day or start/end time, last day for multi-day all-day events,
-   location, notes), one checkbox each. Suggestions below 0.5 confidence start unticked; confidence is shown in words
+2. **Review** — editable cards (title, date, all day or start/end time, an optional last day for events that span
+   several days, all day or timed, location, notes), one checkbox each. Suggestions below 0.5 confidence start unticked; confidence is shown in words
    ("Likely", "Check this", "Unsure"), never colour alone. A refusal, an "unreadable" answer or no usable date shows
    "We couldn't find any dates in this. Try a clearer photo or paste the text."
-3. **Add** — "Add N events" validates every ticked card first, then creates them one at a time with the existing
-   `POST /api/events` (notes become the description). That route takes no `Idempotency-Key`, so a card that was added
-   leaves the list at once: retrying after a partial failure sends only the cards still there and cannot duplicate.
-   Adding needs no provider, so it works like any manual event (including two-way sync push, #264).
+3. **Add** — "Add N events" validates every ticked card first, then sends them in **one** request to
+   `POST /api/calendar/import-suggestions/commit` (each event follows the `POST /api/events` field rules; notes become
+   the description). The server creates them in one transaction, with one activity row "X imported N events to the
+   calendar", and returns `{ eventIds, count, undoToken, undoExpiresAt }`. `Idempotency-Key` is required, one per
+   batch: the page keeps the key while it retries the same batch after a lost response, a 5xx, 409 or 429, so the
+   server replays the stored result (`Idempotency-Replayed: true`) and never adds the events twice; a changed batch
+   or a definite answer gets a new key. If a run committed but its response was never stored (a crash between the
+   two), the takeover finds the activity row by its idempotency record id and returns the same result. Adding needs
+   no provider, so it works like any manual event (including two-way sync push, #264).
 4. **Undo** — the toast "Added N events" offers Undo for 10 minutes. `POST /api/calendar/import-suggestions/undo
-   { eventIds }` deletes only events of the caller's household, **created by the caller**, at most 10 minutes old,
-   and never subscription or provider-imported events (403 `UNDO_NOT_ALLOWED` for any other member's event, 409
-   `UNDO_WINDOW_EXPIRED` after the window, all or nothing). Unknown and other-household ids are skipped identically,
-   so a repeated undo answers `{ removedCount: 0 }`. This is the only way a teen can delete an event, and only their
-   own just-created ones (the same O-5 rule as the grocery undo). The activity entry "X added … to the calendar"
-   stays. Undo is not behind the provider kill switch (it never calls the provider).
+   { token }` takes only the commit's undo token: `v1.<payload>.<mac>`, where the payload holds the user, household,
+   event ids and commit time and the MAC is HMAC-SHA256 under a key derived from `JWT_SECRET` with the purpose label
+   `family-planner:event-import-undo:v1`. The server checks the MAC in constant time, that the token was issued to
+   this user in this household (else 403 `UNDO_TOKEN_INVALID`) and the window (409 `UNDO_WINDOW_EXPIRED`), then deletes
+   only those ids that are still in the household, created by the caller and not subscription or provider imports.
+   A repeated undo answers `{ removedCount: 0 }`. Because ids come only from a signed commit, undo can never reach an
+   event made by hand with `POST /api/events` (whose delete stays parent-only): it lets a teen take back their own
+   import and nothing else (the same O-5 idea as the grocery undo). The activity row stays. Undo and commit are not
+   behind the provider kill switch (neither calls the provider).
 
 ### Dates and time zones
 
@@ -151,7 +159,9 @@ EVENT_IMPORT_DISABLED` and the calendar hides "Import from text or photo". Enabl
   (`2026-10-09T15:30:00-04:00`), resolved with the same DST rules as ICS imports (RFC 5545: gap → later offset,
   overlap → first occurrence). All-day suggestions are `YYYY-MM-DD` (and the last day, inclusive).
 - Stored like the manual form: all day is 00:00 on the first day to 23:59 on the last day in that zone; a timed event
-  without an end has `end_time = start_time`; an end at or before the start on the card is read as the next day.
+  without an end has `end_time = start_time`. A timed card with a last day ends at that day's end time. Without a last
+  day, an end at or before the start is read as the next **local calendar day** and converted through the zone again
+  (not +24 h), so 22:00–03:00 across a DST change still ends at 03:00 local.
 
 ### Provider, safety and privacy
 
@@ -170,7 +180,7 @@ EVENT_IMPORT_DISABLED` and the calendar hides "Import from text or photo". Enabl
   start, sorted and capped at 30, and rendered only as React text or input values.
 - Nothing is stored: the text or file stays in memory for one request, is never written to disk, the database or
   logs, and provider error bodies are discarded unread. Logs (`event.import`, `event.import.failed`,
-  `event.import.error`, `event.import.undo`) carry the user id, input kind and size, counts, duration and upstream
+  `event.import.error`, `event.import.commit`, `event.import.undo`) carry the user id, input kind and size, counts, duration and upstream
   status only.
 - Limits: 10 per person and 20 per household per hour, plus `EVENT_IMPORT_DAILY_LIMIT` (default 30, `0` pauses)
   per household per UTC day. Validation runs before the limits, so a wrong file does not use quota.
@@ -180,8 +190,8 @@ EVENT_IMPORT_DISABLED` and the calendar hides "Import from text or photo". Enabl
 | Action | Parent | Teen | Child | Shared device | Other household |
 | --- | --- | --- | --- | --- | --- |
 | Suggest | yes | yes | 403 `EVENT_IMPORT_FORBIDDEN` | 403 `DEVICE_WRITE_NOT_ALLOWED` | n/a (reads no rows) |
-| Add | `POST /api/events` rules (all roles may create) | same | same | same | session household only |
-| Undo | own events ≤ 10 min | own events ≤ 10 min | 403 | 403 | skipped like a missing id |
+| Commit (add the reviewed events) | yes | yes | 403 `EVENT_IMPORT_FORBIDDEN` | 403 `DEVICE_WRITE_NOT_ALLOWED` | session household only |
+| Undo | own import (signed token) ≤ 10 min | own import (signed token) ≤ 10 min | 403 | 403 | token bound to the household: 403 |
 
 The page `/dashboard/calendar` is parent-only in the UI today (kid allowlist), so only parents see the button; the
 API allows teens so a teen surface can be added later without an API change.

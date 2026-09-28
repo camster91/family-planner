@@ -84,17 +84,21 @@ never stored; logs are metadata only. Tests: `src/app/api/inventory/__tests__/sc
 teen, child, device, two households, limits, sizes, types, malformed output) and `src/lib/__tests__/inventory-scan.test.ts`.
 
 **Update 2026-09-28 (#270): review-first event import.** `POST /api/calendar/import-suggestions` reads and writes no
-household rows: it returns model suggestions for pasted text or one photo/PDF, and the page adds reviewed events
-through the unchanged `POST /api/events`. A paired device is refused (403, listed in the route-allowlist test) before
+household rows: it returns model suggestions for pasted text or one photo/PDF; the page adds the reviewed events
+through the commit route below. A paired device is refused (403, listed in the route-allowlist test) before
 person auth; then a session, the kill switch (404 without `EVENT_IMPORT_ANTHROPIC_API_KEY`),
 `featureGate('calendar')` and parent/teen role. Rate-limit keys are `event-import:user:<userId>`,
 `event-import:family:<familyId>` and `event-import:day:<familyId>:<UTC day>`, all from the session. The provider host
 is a constant and the key is server env only (no user-supplied URL, key or model; not the per-family capture
-config). Input is never stored; logs are metadata only. `POST /api/calendar/import-suggestions/undo` deletes with
-`where { id in ids, family_id: session, created_by: session user, created_at >= now - 10 min, source_* null }` after
-refusing (403) any listed id of the household that another member created or that came from a subscription/provider;
-other-household and missing ids are skipped alike. Tests: `src/app/api/calendar/import-suggestions/__tests__/route.test.ts`
-(mocked provider; parent, teen, child, device, two households, limits, sizes, types, malformed output, undo) and
+config). Input is never stored; logs are metadata only. The reviewed events are created by `POST /api/calendar/import-suggestions/commit` in one transaction with the
+session `family_id` and `created_by` (strict body, `POST /api/events` field rules), under a required `Idempotency-Key`
+(records scoped to `user:<id>`, replay checked against the household). `POST /api/calendar/import-suggestions/undo`
+accepts only the commit's HMAC undo token (user, household, ids, time; key derived from `JWT_SECRET` with a purpose
+label), so a caller cannot name arbitrary event ids: a teen cannot use it to delete an event made by hand (#277 review
+P1). It then deletes with `where { id in token ids, family_id: session, created_by: session user, source_* null }`.
+Tests: `src/app/api/calendar/import-suggestions/__tests__/route.test.ts` (mocked provider; parent, teen, child, device,
+two households, limits, sizes, types, malformed output), `…/commit.test.ts` (commit and undo: roles, device, two
+households, replay, forged/edited/foreign/expired tokens, the hand-made event case) and
 `src/lib/__tests__/event-import.test.ts`.
 
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
@@ -164,7 +168,8 @@ recorded in route comments, as the de facto matrix.
 | /api/calendar/sync-connections/[id]/calendars | GET | family (404 while off) | where (404) | P, connecting member only (403) | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
 | /api/calendar/sync-connections/[id]/sync | POST | family (404 while off) | where (404); engine scopes by family + connection | P | none | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/sync.test.ts | implemented (dormant, #264) |
 | /api/calendar/import-suggestions | POST | device refused (403) + family + kill switch (404) + `featureGate('calendar')` | none read or written; rate-limit keys from session user/family | P+T | JSON text ≤ 20k chars or multipart file: Content-Length bound, 8 MB photo / 10 MB PDF, magic-byte type (JPEG/PNG/WebP/PDF); model output zod-validated and cleaned; fixed provider host, server-only key | calendar/import-suggestions/__tests__/route.test.ts, lib/event-import, device-route-allowlist | implemented (#270) |
-| /api/calendar/import-suggestions/undo | POST | device refused (403) + family + `featureGate('calendar')` | deleteMany where id in ids + family + created_by self + ≤ 10 min + not imported; any other member's/imported id 403 first | P+T (own events only) | strict body, ≤ 30 ids | calendar/import-suggestions/__tests__/route.test.ts, device-route-allowlist | implemented (#270) |
+| /api/calendar/import-suggestions/commit | POST | device refused (403) + family + `featureGate('calendar')` + `Idempotency-Key` required | creates events + one activity with session `family_id` and `created_by`; idempotency records scoped `user:<id>` and checked against the household | P+T | strict body, 1–30 events, `POST /api/events` field and range rules; unknown keys (e.g. `family_id`) 400 | calendar/import-suggestions/__tests__/commit.test.ts, device-route-allowlist | implemented (#270, #277 review) |
+| /api/calendar/import-suggestions/undo | POST | device refused (403) + family + `featureGate('calendar')` | HMAC undo token must name the session user and household (403) and be ≤ 10 min old (409); then deleteMany where id in token ids + family + created_by self + not imported | P+T (own import only) | strict `{ token }`; ids never accepted directly; constant-time MAC compare; key derived from JWT_SECRET with a purpose label | calendar/import-suggestions/__tests__/commit.test.ts, device-route-allowlist | implemented (#270, #277 review) |
 | /api/capture | GET | family | caller family's config | all; returns `allowed` (false for child) | none | capture/iso | implemented (D4) |
 | /api/capture | POST | family | caller family's config | P+T (child 403 "Ask a parent to add this.") | none | capture/iso, capture/route.test.ts | implemented (D4) |
 | /api/chores | GET | family | where | all | assigned_to filter cannot widen | chores/iso | ok |
