@@ -1,14 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, Calendar as CalendarIcon } from 'lucide-react'
+import { Plus, Calendar as CalendarIcon, Sparkles, Undo2, X } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ListRow, InsetList } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
+import { IMPORT_UNDO_WINDOW_MS } from '@/lib/event-import-client'
+import { ImportEventsDialog } from './ImportEventsDialog'
 
 type ViewMode = 'day' | 'week' | 'month'
 
@@ -29,6 +32,11 @@ interface CalendarPageClientProps {
   events: EventData[]
   currentMonth: number
   currentYear: number
+  /**
+   * Show "Import from text or photo" (#270). True only when the deployment has
+   * the event import provider configured and the viewer may import.
+   */
+  importEnabled?: boolean
 }
 
 function formatDate(dateStr: string): string {
@@ -109,8 +117,18 @@ export default function CalendarPageClient({
   events,
   currentMonth,
   currentYear,
+  importEnabled = false,
 }: CalendarPageClientProps) {
   const [view, setView] = React.useState<ViewMode>('day')
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [imported, setImported] = React.useState<{ ids: string[]; at: number } | null>(null)
+  const router = useRouter()
+
+  const onImported = (ids: string[]) => {
+    setImportOpen(false)
+    setImported({ ids, at: Date.now() })
+    router.refresh()
+  }
 
   const SegmentedControl = ({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) => (
     <div className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
@@ -157,6 +175,25 @@ export default function CalendarPageClient({
       <div className="px-4 mb-5">
         <CaptureBox />
       </div>
+
+      {importEnabled && (
+        <div className="px-4 mb-5">
+          <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={() => setImportOpen(true)}>
+            <Sparkles className="w-4 h-4" aria-hidden="true" />
+            <span>Import from text or photo</span>
+          </button>
+        </div>
+      )}
+      {importOpen && <ImportEventsDialog onClose={() => setImportOpen(false)} onDone={onImported} />}
+      {imported && (
+        <ImportUndoToast
+          key={imported.at}
+          ids={imported.ids}
+          addedAt={imported.at}
+          onDismiss={() => setImported(null)}
+          onUndone={() => router.refresh()}
+        />
+      )}
 
       <div className="space-y-5 px-4">
         {sortedDays.length === 0 ? (
@@ -224,6 +261,101 @@ export default function CalendarPageClient({
             )
           })
         )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * "Added N events" with Undo (#270). Undo removes exactly the events this
+ * import created (POST /api/calendar/import-suggestions/undo checks they are
+ * the caller's own and at most 10 minutes old), so it is offered only while
+ * that window is open.
+ */
+export function ImportUndoToast({
+  ids,
+  addedAt,
+  onDismiss,
+  onUndone,
+}: {
+  ids: string[]
+  addedAt: number
+  onDismiss: () => void
+  onUndone: () => void
+}) {
+  const [state, setState] = React.useState<
+    { kind: 'added' } | { kind: 'undoing' } | { kind: 'undone'; count: number } | { kind: 'error'; message: string }
+  >({ kind: 'added' })
+  const [undoOpen, setUndoOpen] = React.useState(() => Date.now() - addedAt < IMPORT_UNDO_WINDOW_MS)
+
+  React.useEffect(() => {
+    const remaining = IMPORT_UNDO_WINDOW_MS - (Date.now() - addedAt)
+    if (remaining <= 0) return
+    const t = setTimeout(() => setUndoOpen(false), remaining)
+    return () => clearTimeout(t)
+  }, [addedAt])
+
+  const undo = async () => {
+    setState({ kind: 'undoing' })
+    try {
+      const res = await fetch('/api/calendar/import-suggestions/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventIds: ids }),
+      })
+      const body = await res.json().catch(() => null)
+      if (res.ok) {
+        setState({ kind: 'undone', count: typeof body?.removedCount === 'number' ? body.removedCount : 0 })
+        setUndoOpen(false)
+        onUndone()
+        return
+      }
+      if (res.status === 409 || res.status === 403) setUndoOpen(false)
+      setState({
+        kind: 'error',
+        message: typeof body?.error?.message === 'string' ? body.error.message : 'Could not undo. Try again.',
+      })
+    } catch {
+      setState({ kind: 'error', message: 'Could not undo. Check your connection and try again.' })
+    }
+  }
+
+  const n = ids.length
+  const title =
+    state.kind === 'undone'
+      ? `Removed ${state.count} event${state.count === 1 ? '' : 's'}`
+      : `Added ${n} event${n === 1 ? '' : 's'}`
+
+  return (
+    <div className="fixed inset-x-4 bottom-24 z-40 mx-auto max-w-md sm:bottom-6" data-testid="import-toast">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-3 rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-3 shadow-lg"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-subhead font-semibold text-label-primary break-words">{title}</p>
+          {state.kind === 'error' && <p className="text-footnote text-[var(--danger-text)] break-words">{state.message}</p>}
+        </div>
+        {undoOpen && (state.kind === 'added' || state.kind === 'undoing' || state.kind === 'error') && (
+          <button
+            type="button"
+            onClick={undo}
+            disabled={state.kind === 'undoing'}
+            className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 rounded-lg text-subhead font-semibold text-[var(--accent)] active:bg-[var(--surface-fill)]"
+          >
+            <Undo2 className="w-4 h-4" aria-hidden="true" />
+            Undo
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
+        >
+          <X className="w-4 h-4 text-label-tertiary" aria-hidden="true" />
+        </button>
       </div>
     </div>
   )
