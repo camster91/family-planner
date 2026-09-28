@@ -43,6 +43,9 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
         include: {
           adder: { select: { name: true, avatar_url: true } },
           checker: { select: { name: true } },
+          // Grocery provenance (ADR-0007): names only, household-owned through the list.
+          recipe: { select: { title: true } },
+          ingredient: { select: { name: true } },
         },
         orderBy: { position: 'asc' },
       })
@@ -74,6 +77,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     added_by: item.adder ?? { name: 'Unknown' },
     checked_by: item.checker ?? undefined,
     checked_at: item.checked_at ?? undefined,
+    amount: item.amount ?? null,
+    unit: item.unit ?? null,
+    ingredient_id: item.ingredient_id ?? null,
+    ingredient_name: item.ingredient?.name ?? null,
+    recipe_title: item.recipe?.title ?? null,
   }))
 
   return (

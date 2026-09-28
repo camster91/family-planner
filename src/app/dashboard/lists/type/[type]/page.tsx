@@ -56,7 +56,8 @@ export default async function ListsByTypePage({ params }: { params: Promise<{ ty
   })
   if (!user) return null
   // D9 (#102): parents and teens may create lists; a child may not.
-  const canCreate = canCreateList(sessionUser.role)
+  // ADR-0007 O-8: no new 'meal_plan' lists (existing ones stay readable).
+  const canCreate = canCreateList(sessionUser.role) && type !== 'meal_plan'
 
   const typeConfig = TYPE_CONFIG[type]
   if (!typeConfig) {
@@ -158,9 +159,11 @@ export default async function ListsByTypePage({ params }: { params: Promise<{ ty
             glyphColor={typeConfig.color}
             title={`No ${typeConfig.name} lists`}
             description={
-              canCreate
-                ? `Create your first ${typeConfig.name.toLowerCase()} list.`
-                : 'Ask a parent to create a new list.'
+              type === 'meal_plan'
+                ? 'Meals are planned in Meals now.'
+                : canCreate
+                  ? `Create your first ${typeConfig.name.toLowerCase()} list.`
+                  : 'Ask a parent to create a new list.'
             }
             action={
               canCreate ? (

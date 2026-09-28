@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
+import { formatMinutes } from '@/lib/meal-slots'
 import type { ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
 import { firstName, formatTime, type ComingUpDay, type PersonChores, type TodayEvent } from './board-model'
@@ -158,6 +159,21 @@ export function ScheduleRegion({ events, calendarHref }: { events: TodayEvent[];
   )
 }
 
+/**
+ * Linked-recipe line for a dinner (ADR-0007, #252): the recipe title when it
+ * differs from the meal's own name, and the prep time when known. Null when
+ * the meal has no recipe (free-text dinners look exactly as before).
+ */
+export function dinnerRecipeLine(dinner: Pick<BoardDinner, 'recipeName' | 'recipeTitle' | 'prepMinutes'>): string | null {
+  const parts: string[] = []
+  const title = dinner.recipeTitle?.trim()
+  const name = (dinner.recipeName ?? '').trim()
+  if (title && title.toLowerCase() !== name.toLowerCase()) parts.push(`Recipe: ${title}`)
+  const prep = formatMinutes(dinner.prepMinutes)
+  if (prep) parts.push(`Prep ${prep}`)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 export function DinnerRegion({
   dinner,
   mealsEnabled,
@@ -190,11 +206,13 @@ export function DinnerRegion({
       )
     }
   } else {
+    const recipeLine = dinnerRecipeLine(dinner)
     body = (
       <div data-testid="dinner-tonight">
         <p className="break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px]">
-          {dinner.recipeName ?? 'Dinner is planned'}
+          {dinner.recipeName ?? dinner.recipeTitle ?? 'Dinner is planned'}
         </p>
+        {recipeLine && <p className={cn(metaTextClass, 'mt-2 break-words')}>{recipeLine}</p>}
         {dinner.cookName && <p className={cn(metaTextClass, 'mt-2')}>Cooking: {dinner.cookName}</p>}
       </div>
     )
@@ -393,7 +411,7 @@ export function ComingUpRegion({
                 </ul>
               )}
               {mealsEnabled && day.dinner && (
-                <p className={cn(metaTextClass, 'mt-2 break-words')}>Dinner: {day.dinner.recipeName ?? 'planned'}</p>
+                <p className={cn(metaTextClass, 'mt-2 break-words')}>Dinner: {day.dinner.recipeName ?? day.dinner.recipeTitle ?? 'planned'}</p>
               )}
             </li>
           )
