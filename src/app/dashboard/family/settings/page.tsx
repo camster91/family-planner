@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
+import BoardSettings from '@/components/fridge/BoardSettings'
 
 export default function FamilySettingsPage() {
   const [familyName, setFamilyName] = useState('')
@@ -254,6 +255,9 @@ export default function FamilySettingsPage() {
             </div>
           </div>
         </form>
+
+        {/* Today board: member colours and opt-in weather (#262). Parents only; the API enforces it too. */}
+        {userRole === 'parent' && <BoardSettings />}
 
         {/* Danger zone */}
         <div className="card-apple overflow-hidden border border-red-500/20">

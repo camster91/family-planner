@@ -99,7 +99,7 @@ describe('choresDueTodayByPerson', () => {
 
   it('reports a person with everything done', () => {
     const out = choresDueTodayByPerson([chore('d', 'p', '2026-01-05', 'completed')], members, NOW)
-    expect(out).toEqual([{ member: members[0], open: [], doneCount: 1 }])
+    expect(out).toEqual([{ member: members[0], open: [], doneCount: 1, awaitingCheckCount: 1 }])
   })
 
   it('is empty when nothing is due today', () => {

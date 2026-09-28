@@ -8,8 +8,8 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
   const db = {
     user: {
       findMany: jest.fn().mockResolvedValue([
-        { id: 'u_parent', name: 'Avery Parent' },
-        { id: 'u_child', name: 'Casey Child' },
+        { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
+        { id: 'u_child', name: 'Casey Child', color: 'sky' },
       ]),
     },
     event: {
@@ -97,7 +97,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     }
     expect(db.listItem.findMany.mock.calls[0][0].where.list.family_id).toBe(FAMILY)
 
-    expect(selectedKeys(userArgs.select).sort()).toEqual(['id', 'name'])
+    expect(selectedKeys(userArgs.select).sort()).toEqual(['board_color', 'id', 'name'])
     // Free-text fields that can carry addresses or private notes are never read.
     expect(selectedKeys(eventArgs.select)).not.toContain('description')
     expect(selectedKeys(eventArgs.select)).not.toContain('location')
@@ -143,8 +143,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     })
     expect(data.generatedAt).toBe(NOW.toISOString())
     expect(data.members).toEqual([
-      { id: 'u_parent', name: 'Avery Parent' },
-      { id: 'u_child', name: 'Casey Child' },
+      { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
+      { id: 'u_child', name: 'Casey Child', color: 'sky' },
     ])
     expect(data.events.map((e) => [e.id, e.source])).toEqual([
       ['e_local', null],
@@ -247,8 +247,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         select: { id: true, name: true },
       })
       expect(data.members).toEqual([
-        { id: 'u_parent', name: 'Avery Parent' },
-        { id: 'u_child', name: 'Casey Child' },
+        { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
+        { id: 'u_child', name: 'Casey Child', color: 'sky' },
       ])
       expect(data.shopping?.total).toBe(1)
       expect(data.dinners).toHaveLength(2)
@@ -264,6 +264,49 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       })
       expect(data.shopping).toBeNull()
       expect(db.listItem.findMany).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('member colours and who added an event (#262)', () => {
+    it('uses a parent-chosen colour, falls back by household order, and ignores unknown keys', async () => {
+      const db = mockDb({
+        user: {
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'u_parent', name: 'Avery Parent', board_color: null },
+            { id: 'u_teen', name: 'Blake Teen', board_color: 'indigo' },
+            { id: 'u_child', name: 'Casey Child', board_color: 'not-a-colour' },
+          ]),
+        },
+      })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+      // Blake chose indigo, so the fallbacks skip it.
+      expect(data.members.map((m) => [m.id, m.color])).toEqual([
+        ['u_parent', 'sky'],
+        ['u_teen', 'indigo'],
+        ['u_child', 'green'],
+      ])
+      // Only the colour key leaves the server, never the raw column.
+      for (const m of data.members) expect(Object.keys(m).sort()).toEqual(['color', 'id', 'name'])
+    })
+
+    it('names the member who added a local event, never for imports or non-members', async () => {
+      const base = { end_time: new Date('2026-01-05T15:00:00Z'), start_time: new Date('2026-01-05T14:00:00Z'), is_task: false }
+      const db = mockDb({
+        event: {
+          findMany: jest.fn().mockResolvedValue([
+            { ...base, id: 'e_mine', title: 'Dentist', source_subscription_id: null, created_by: 'u_parent' },
+            { ...base, id: 'e_import', title: 'Assembly', source_subscription_id: 'sub_a', created_by: 'u_parent' },
+            { ...base, id: 'e_gone', title: 'Old', source_subscription_id: null, created_by: 'u_left_household' },
+          ]),
+        },
+      })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: defaultFeatures(), now: NOW })
+      expect(db.event.findMany.mock.calls[0][0].select.created_by).toBe(true)
+      expect(data.events.map((e) => [e.id, e.addedById])).toEqual([
+        ['e_mine', 'u_parent'],
+        ['e_import', null],
+        ['e_gone', null],
+      ])
     })
   })
 })

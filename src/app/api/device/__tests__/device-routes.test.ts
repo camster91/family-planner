@@ -90,7 +90,7 @@ describe('device routes', () => {
       expect(text).not.toContain(FOREIGN)
       expect(body.links).toEqual({ calendar: null, chores: null, meals: null, lists: null, features: null })
       expect(body.members.map((m: any) => m.id).sort()).toEqual(['child-a', 'parent-a', 'teen-a'])
-      for (const m of body.members) expect(Object.keys(m).sort()).toEqual(['id', 'name'])
+      for (const m of body.members) expect(Object.keys(m).sort()).toEqual(['color', 'id', 'name'])
       for (const banned of ['@example.test', 'Home clinic', 'xp', 'streak', 'avatar_url', 'password', 'price', 'notes']) {
         expect(text).not.toContain(banned)
       }
@@ -101,6 +101,53 @@ describe('device routes', () => {
       const text = JSON.stringify(await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json())
       for (const canary of H1_CANARIES) expect(text).not.toContain(canary)
       expect(text).toContain(FOREIGN)
+    })
+
+    // #262: weather is per household, read from that household's cache only.
+    it("weather: each tablet gets only its own household's opt-in forecast, and none when off", async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(new Error('no network in tests'))
+      try {
+        const snapshot = (temp: number) => ({
+          current: { temperatureC: temp, code: 3, isDay: true },
+          daily: [{ day: '2026-09-26', highC: temp + 2, lowC: temp - 5, code: 3, precipitationChance: 10 }],
+        })
+        for (const [familyId, label, lat, temp] of [
+          [FAMILY_A, 'Home town', 43.65, 12],
+          ['family-B', `${FOREIGN} town`, 51.5, 25],
+        ] as const) {
+          Object.assign(db.find('family', familyId)!, {
+            weather_enabled: true,
+            weather_latitude: lat,
+            weather_longitude: -1.25,
+            weather_label: label,
+            weather_unit: 'celsius',
+          })
+          db.rows('weatherCache').push({
+            family_id: familyId,
+            latitude: lat,
+            longitude: -1.25,
+            status: 'ok',
+            payload: snapshot(temp),
+            fetched_at: new Date(T0.getTime() - 60_000),
+          })
+        }
+
+        const d1 = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+        expect(d1.weather).toMatchObject({ label: 'Home town', unit: 'C', current: { temperature: 12, summary: 'Cloudy' } })
+        expect(JSON.stringify(d1)).not.toContain(FOREIGN)
+        // Coordinates are never part of the board DTO.
+        expect(JSON.stringify(d1.weather)).not.toContain('43.65')
+
+        const d2 = await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json()
+        expect(d2.weather).toMatchObject({ label: `${FOREIGN} town`, current: { temperature: 25 } })
+
+        db.find('family', FAMILY_A)!.weather_enabled = false
+        const off = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+        expect(off.weather).toBeNull()
+        expect(fetchSpy).not.toHaveBeenCalled()
+      } finally {
+        fetchSpy.mockRestore()
+      }
     })
 
     it('shopping follows only the lists feature for a device', async () => {
