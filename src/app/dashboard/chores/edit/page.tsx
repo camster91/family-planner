@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
+import { RoutineFields, RoutineIconPicker, routineRequestFields } from '@/components/chores/RoutineIconPicker'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -46,6 +47,10 @@ function EditChoreForm() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  // Picture routines (#272).
+  const [icon, setIcon] = useState<string | null>(null)
+  const [routine, setRoutine] = useState('')
+  const [routineOrder, setRoutineOrder] = useState('')
 
   useEffect(() => {
     if (!choreId) {
@@ -73,6 +78,9 @@ function EditChoreForm() {
             setDueDate(d.toISOString().split('T')[0])
             setDifficulty(chore.difficulty || 'medium')
             setFrequency(chore.frequency || 'once')
+            setIcon(typeof chore.icon === 'string' ? chore.icon : null)
+            setRoutine(chore.routine ?? '')
+            setRoutineOrder(typeof chore.routine_order === 'number' ? String(chore.routine_order) : '')
             if (chore.photo_url) {
               setPhotoUrl(chore.photo_url)
               setPhotoPreview(chore.photo_url)
@@ -120,6 +128,8 @@ function EditChoreForm() {
           difficulty,
           frequency,
           photo_url: photoUrl,
+          icon,
+          ...routineRequestFields(routine, routineOrder),
         }),
       })
 
@@ -300,6 +310,15 @@ function EditChoreForm() {
             ))}
           </div>
         </div>
+
+        {/* Picture routines (#272): picture, routine and step */}
+        <RoutineIconPicker value={icon} onChange={setIcon} />
+        <RoutineFields
+          routine={routine}
+          onRoutineChange={setRoutine}
+          order={routineOrder}
+          onOrderChange={setRoutineOrder}
+        />
 
         {/* Photo attach */}
         <div>

@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
+import { RoutineFields, RoutineIconPicker, routineRequestFields } from '@/components/chores/RoutineIconPicker'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -42,6 +43,10 @@ export default function CreateChorePage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  // Picture routines (#272).
+  const [icon, setIcon] = useState<string | null>(null)
+  const [routine, setRoutine] = useState('')
+  const [routineOrder, setRoutineOrder] = useState('')
 
   useEffect(() => {
     const loadFamilyMembers = async () => {
@@ -79,6 +84,8 @@ export default function CreateChorePage() {
           difficulty,
           frequency,
           photo_url: photoUrl,
+          icon,
+          ...routineRequestFields(routine, routineOrder),
         }),
       })
       const data = await res.json()
@@ -245,6 +252,15 @@ export default function CreateChorePage() {
             </p>
           )}
         </div>
+
+        {/* Picture routines (#272): picture, routine and step */}
+        <RoutineIconPicker value={icon} onChange={setIcon} />
+        <RoutineFields
+          routine={routine}
+          onRoutineChange={setRoutine}
+          order={routineOrder}
+          onOrderChange={setRoutineOrder}
+        />
 
         {/* Photo attach */}
         <div>

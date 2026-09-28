@@ -3,6 +3,8 @@
 import * as React from 'react'
 import { Plus, CheckSquare, Flame } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { RoutineIcon } from '@/components/chores/RoutineIcon'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -23,6 +25,12 @@ interface ChoresContentProps {
   familyMembers: { id: string; name: string; role: string; age?: number }[]
   currentUserId: string
   userRole: string
+}
+
+/** "Morning, step 2" for a chore in a picture routine (#272), else null. */
+function routineLabel(chore: { routine?: string | null; routine_order?: number | null }): string | null {
+  if (!chore.routine) return null
+  return chore.routine_order ? `${chore.routine}, step ${chore.routine_order}` : chore.routine
 }
 
 // Reassign modal
@@ -102,6 +110,7 @@ export default function ChoresContent({
   // omits each chore's points and streak; this only decides what to draw.
   const gamification = useFeatureEnabled('gamification')
   const [reassignTarget, setReassignTarget] = React.useState<string | null>(null)
+  const router = useRouter()
 
   React.useEffect(() => {
     setLocalChores(chores)
@@ -334,6 +343,10 @@ export default function ChoresContent({
                       onClick: () => handleSnoozeChore(chore.id, chore.due_date),
                     },
                     {
+                      label: 'Edit',
+                      onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
+                    },
+                    {
                       label: 'Reassign',
                       onClick: () => setReassignTarget(chore.id),
                     },
@@ -352,14 +365,18 @@ export default function ChoresContent({
                     checked={false}
                     onChange={() => handleCompleteChore(chore.id)}
                     title={chore.title}
-                    subtitle={
-                      chore.assignee
-                        ? `${chore.assignee.name} · ${formatRelativeDueDate(chore.due_date)}`
-                        : formatRelativeDueDate(chore.due_date)
-                    }
+                    subtitle={[
+                      chore.assignee?.name,
+                      formatRelativeDueDate(chore.due_date),
+                      routineLabel(chore),
+                    ].filter(Boolean).join(' · ')}
                     glyph={
                       <Glyph color="chore" size="sm">
-                        <CheckSquare className="w-4 h-4 text-white" />
+                        {chore.icon ? (
+                          <RoutineIcon icon={chore.icon} className="w-4 h-4 text-white" />
+                        ) : (
+                          <CheckSquare className="w-4 h-4 text-white" />
+                        )}
                       </Glyph>
                     }
                     meta={
