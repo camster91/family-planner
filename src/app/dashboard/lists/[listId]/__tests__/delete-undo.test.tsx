@@ -83,7 +83,7 @@ function renderList() {
 it('deletes without confirm and Undo re-creates the item (ticked again)', async () => {
   const user = userEvent.setup()
   renderList()
-  const row = screen.getByRole('checkbox', { name: /Tofu/ }).closest('div')!.parentElement!
+  const row = screen.getByRole('checkbox', { name: /Tofu/ }).closest('[data-testid="list-item"]')!.parentElement!
   await user.click(within(row).getByRole('button', { name: 'Swipe to delete' }))
 
   expect(window.confirm).not.toHaveBeenCalled()
@@ -107,7 +107,7 @@ it('puts the row back and says so when the delete fails', async () => {
   const user = userEvent.setup()
   deleteStatus = 403
   renderList()
-  const row = screen.getByRole('checkbox', { name: /Milk/ }).closest('div')!.parentElement!
+  const row = screen.getByRole('checkbox', { name: /Milk/ }).closest('[data-testid="list-item"]')!.parentElement!
   await user.click(within(row).getByRole('button', { name: 'Swipe to delete' }))
   const alert = await screen.findByRole('alert')
   expect(alert.textContent).toContain('Couldn\'t delete “Milk”')
