@@ -3,6 +3,7 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { isParentRole } from '@/lib/role-capabilities'
 import { isSharedDeviceEnabled } from '@/lib/device-http'
+import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
 import SettingsClient from './SettingsClient'
 
 export const metadata: Metadata = { title: 'Settings' }
@@ -28,5 +29,7 @@ export default async function SettingsPage() {
       sharedDevice = { hasPin: Boolean(pin) }
     }
   }
-  return <SettingsClient sharedDevice={sharedDevice} />
+  // Two-way calendar sync (#264) is dormant unless configured; the section
+  // is not even mounted while it is off (its API would answer 404).
+  return <SettingsClient sharedDevice={sharedDevice} calendarSync={isCalendarSyncEnabled()} />
 }

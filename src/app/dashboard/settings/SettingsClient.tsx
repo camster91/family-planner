@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import CalendarSubscriptionsSection from './CalendarSubscriptionsSection'
+import CalendarSyncSection from './CalendarSyncSection'
 import SharedDeviceSettings from './SharedDeviceSettings'
 import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles } from 'lucide-react'
 
@@ -10,7 +11,13 @@ import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, 
  * `sharedDevice` is decided on the server (./page.tsx): null unless the
  * shared-device kill switch is on AND the viewer is a parent.
  */
-export default function SettingsClient({ sharedDevice }: { sharedDevice: { hasPin: boolean } | null }) {
+export default function SettingsClient({
+  sharedDevice,
+  calendarSync = false,
+}: {
+  sharedDevice: { hasPin: boolean } | null
+  calendarSync?: boolean
+}) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('')
@@ -650,6 +657,9 @@ export default function SettingsClient({ sharedDevice }: { sharedDevice: { hasPi
 
           {/* Subscribed (read-only ICS) calendars, #232. Parents only; the API enforces it too. */}
           {role === 'parent' && <CalendarSubscriptionsSection />}
+
+          {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured; parents only (API-enforced). */}
+          {role === 'parent' && calendarSync && <CalendarSyncSection />}
 
           {/* Language Settings */}
           <div className="card">
