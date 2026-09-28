@@ -54,6 +54,9 @@ export const COOK_MAX_LIMIT = 50
 export const COOK_RECIPE_SCAN_LIMIT = 1000
 export const COOK_INVENTORY_SCAN_LIMIT = 5000
 
+/** Idempotency action for `POST /api/inventory` (#265); part of the request hash. */
+export const INVENTORY_CREATE_ACTION = 'inventory-item.create'
+
 export function canWriteInventory(role: string | undefined | null): boolean {
   return role === 'parent' || role === 'teen'
 }
