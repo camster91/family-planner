@@ -103,7 +103,10 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
     page,
   }) => {
     await page.goto("/dashboard/meals");
-    await page.getByRole("checkbox", { name: /Tomato soup/ }).click();
+    // #252: each planned meal is a button row that opens the edit dialog.
+    await page
+      .locator(`[data-testid="meal-row"][data-meal-id="${MEAL_ID}"]`)
+      .click();
     const dialogButton = page.getByRole("button", {
       name: "Add ingredients to groceries",
     });
