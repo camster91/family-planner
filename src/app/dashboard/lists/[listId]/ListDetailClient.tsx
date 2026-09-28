@@ -21,6 +21,7 @@ import {
   type GrocerySectionId,
 } from '@/lib/grocery-sections'
 import { MoveToSectionDialog, type MoveTarget } from './MoveToSectionDialog'
+import { useToast, useUndoToast } from '@/components/ui/toast'
 
 // -----------------------------------------------------------------------
 // Types
@@ -114,6 +115,8 @@ export default function ListDetailClient({
   const [newItemText, setNewItemText] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   const [recentlySynced, setRecentlySynced] = React.useState<Set<string>>(() => new Set())
+  const { addToast } = useToast()
+  const showUndo = useUndoToast()
 
   // Store sections (#273). Grouping is computed here from row data and the
   // overrides delivered with the page, so it needs no request (offline ticks).
@@ -243,14 +246,56 @@ export default function ListDetailClient({
     void sync.setChecked(itemId, checked)
   }
 
-  const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Delete this item?')) return
+  // Undo over confirm (#269): the item goes at once and Undo puts it back by
+  // re-creating it (same text, quantity, category, amount, unit and
+  // ingredient; ticked again if it was ticked). The restored row is a new row
+  // at the end of the list and no longer shows which recipe added it.
+  const restoreItem = async (item: Item) => {
     try {
-      await fetch(`/api/lists/items/delete?itemId=${itemId}`, { method: 'DELETE' })
-      setListItems(prev => prev.filter(i => i.id !== itemId))
+      const res = await fetch('/api/lists/items/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listId,
+          content: item.content,
+          quantity: item.quantity || 1,
+          ...(item.category ? { category: item.category } : {}),
+          ...(typeof item.amount === 'number' ? { amount: item.amount } : {}),
+          ...(item.unit ? { unit: item.unit } : {}),
+          ...(item.ingredient_id ? { ingredient_id: item.ingredient_id } : {}),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.item) throw new Error(typeof data.error === 'string' ? data.error : 'Please try again.')
+      const restored: Item = { ...toItem(data.item), ingredient_name: item.ingredient_name ?? null, added_by: item.added_by }
+      setListItems(prev => [...prev, restored])
+      if (item.checked) void sync.setChecked(restored.id, true)
     } catch (err) {
-      console.error('Failed to delete item:', err)
+      addToast({
+        type: 'error',
+        title: `Couldn't put back “${item.content}”`,
+        message: err instanceof Error ? err.message : 'Please try again.',
+      })
     }
+  }
+
+  const handleDeleteItem = async (itemId: string) => {
+    const item = listItems.find(i => i.id === itemId)
+    if (!item) return
+    setListItems(prev => prev.filter(i => i.id !== itemId))
+    let ok = false
+    try {
+      const res = await fetch(`/api/lists/items/delete?itemId=${itemId}`, { method: 'DELETE' })
+      ok = res.ok
+    } catch {
+      ok = false
+    }
+    if (!ok) {
+      setListItems(prev => (prev.some(i => i.id === itemId) ? prev : [...prev, item]))
+      addToast({ type: 'error', title: `Couldn't delete “${item.content}”`, message: 'Check your connection and try again.' })
+      return
+    }
+    showUndo({ title: `Deleted “${item.content}”`, onUndo: () => void restoreItem(item) })
   }
 
   const handleAdd = async () => {

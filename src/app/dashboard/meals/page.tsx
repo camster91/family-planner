@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
+import { useToast, useUndoToast } from '@/components/ui/toast'
 import {
   MEAL_LABELS as mealLabels,
   MEAL_TYPES,
@@ -226,6 +227,8 @@ function MealsPageInner() {
     defaultMealType?: MealType
   } | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const { addToast } = useToast()
+  const showUndo = useUndoToast()
 
   const fetchMeals = React.useCallback(async () => {
     setLoading(true)
@@ -291,18 +294,44 @@ function MealsPageInner() {
     }
   }
 
+  // Undo over confirm (#269): delete at once, then offer Undo, which
+  // re-creates the meal with the same day, slot, name, notes, cook, recipe and
+  // servings (as a new row).
+  const restoreMeal = async (meal: MealSlot) => {
+    try {
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: toDateOnlyUTC(meal.date),
+          meal_type: meal.meal_type,
+          recipe_name: meal.recipe_name ?? '',
+          ...(meal.notes ? { notes: meal.notes } : {}),
+          ...(meal.cook_id ? { cook_id: meal.cook_id } : {}),
+          ...(meal.recipe_id ?? meal.recipe?.id ? { recipe_id: meal.recipe_id ?? meal.recipe?.id } : {}),
+          ...(typeof meal.servings === 'number' ? { servings: meal.servings } : {}),
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to restore')
+      await fetchMeals()
+    } catch {
+      addToast({ type: 'error', title: `Couldn't put back ${mealTitle(meal)}`, message: 'Check your connection and try again.' })
+    }
+  }
+
   const handleDelete = async () => {
     if (!modal?.meal) return
-    if (!confirm(t('common.confirm'))) return
+    const meal = modal.meal
     setSaving(true)
     try {
-      const res = await fetch(`/api/meals/${modal.meal.id}?id=${modal.meal.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/meals/${meal.id}?id=${meal.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setModal(null)
       await fetchMeals()
+      showUndo({ title: `Deleted ${mealTitle(meal)}`, onUndo: () => void restoreMeal(meal) })
     } catch (err) {
       console.error(err)
-      alert(t('common.error'))
+      addToast({ type: 'error', title: t('common.error'), message: 'The meal was not deleted. Try again.' })
     } finally {
       setSaving(false)
     }

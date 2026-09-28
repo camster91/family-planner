@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n'
 import { toDateOnlyLocal } from '@/lib/dates'
 import MealsPage from '../page'
+import { ToastProvider } from '@/components/ui/toast'
 
 jest.mock('@/components/providers/features-provider', () => ({
   useFeatureEnabled: () => true,
@@ -36,11 +37,13 @@ function setup({ meals, mealsStatus = 200 }: { meals: unknown[]; mealsStatus?: n
     return json(404, {})
   })
   global.fetch = fetchMock as unknown as typeof fetch
-  window.confirm = jest.fn(() => true)
+  window.confirm = jest.fn(() => false)
   window.alert = jest.fn()
   render(
     <I18nProvider>
-      <MealsPage />
+      <ToastProvider>
+        <MealsPage />
+      </ToastProvider>
     </I18nProvider>
   )
   return { calls, fetchMock }
@@ -76,6 +79,17 @@ describe('/dashboard/meals', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))
     expect(calls.find((c) => c.method === 'DELETE')!.url).toBe('/api/meals/meal_b?id=meal_b')
+    // Undo over confirm (#269): no confirm dialog; Undo re-creates the meal.
+    expect(window.confirm).not.toHaveBeenCalled()
+    const toast = await screen.findByTestId('undo-toast')
+    expect(toast.textContent).toContain('Deleted Green salad')
+    await user.click(within(toast).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/meals' && c.method === 'POST')).toBe(true))
+    expect(calls.find((c) => c.url === '/api/meals' && c.method === 'POST')!.body).toEqual({
+      date: today,
+      meal_type: 'dinner',
+      recipe_name: 'Green salad',
+    })
   })
 
   it('edits the second meal of a slot with the old free-text body (no recipe_id)', async () => {
