@@ -2,8 +2,8 @@
  * Today board weather (#262): household opt-in, per-household cache, fail closed.
  *
  * - Off unless the household turned it on (`Family.weather_enabled`, default
- *   false) AND the server kill switch allows it (`WEATHER_ENABLED`, on unless
- *   set to false/0/off/no). With either off nothing is read or fetched.
+ *   false) AND the server kill switch allows it (`WEATHER_ENABLED`, off unless
+ *   explicitly set to `1` or `true`). With either off nothing is read or fetched.
  * - Only the stored coarse place (2-decimal coordinates) is sent, and only to
  *   Open-Meteo (src/lib/weather/open-meteo.ts).
  * - One `WeatherCache` row per household. A fresh 'ok' row (< 30 min) is served
@@ -40,11 +40,14 @@ export function isWeatherUnit(value: unknown): value is WeatherUnit {
   return value === 'celsius' || value === 'fahrenheit'
 }
 
-/** Server kill switch. Default on: households still have to opt in. */
+/**
+ * Server kill switch. Default OFF: only an explicit `WEATHER_ENABLED=1` or
+ * `true` (any case) enables it, so a deployment that never set it sends
+ * nothing to Open-Meteo. Households still have to opt in on top.
+ */
 export function isWeatherEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = (env.WEATHER_ENABLED ?? '').trim().toLowerCase()
-  if (!raw) return true
-  return !['0', 'false', 'off', 'no'].includes(raw)
+  return raw === '1' || raw === 'true'
 }
 
 /** Board DTO part. Temperatures are whole degrees in `unit`. */

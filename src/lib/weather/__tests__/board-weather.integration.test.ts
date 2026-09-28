@@ -60,7 +60,7 @@ describeWithDatabase('board weather against Postgres', () => {
   })
 
   beforeEach(() => {
-    delete process.env.WEATHER_ENABLED
+    process.env.WEATHER_ENABLED = '1'
     lib.__resetWeatherInflight()
   })
 

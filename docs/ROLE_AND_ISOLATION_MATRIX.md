@@ -193,7 +193,7 @@ or streaks on the board (see "Points & streaks setting" below).
 
 Weather is off per household by default (`Family.weather_enabled = false`); with it on, only the coarse place
 (coordinates rounded to 2 decimals) is sent to Open-Meteo, server-side, and the server kill switch
-`WEATHER_ENABLED` can turn it off everywhere.
+`WEATHER_ENABLED` is off unless explicitly set to `1`/`true`, so weather is unavailable everywhere until it is set.
 
 Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audience: 'device'` (all links
 `null`, shopping only when the lists feature is on), is the entire shared-device read surface, served by

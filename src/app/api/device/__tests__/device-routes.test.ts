@@ -106,6 +106,9 @@ describe('device routes', () => {
     // #262: weather is per household, read from that household's cache only.
     it("weather: each tablet gets only its own household's opt-in forecast, and none when off", async () => {
       const fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(new Error('no network in tests'))
+      // The kill switch is off unless explicitly set.
+      const previousWeather = process.env.WEATHER_ENABLED
+      process.env.WEATHER_ENABLED = '1'
       try {
         const snapshot = (temp: number) => ({
           current: { temperatureC: temp, code: 3, isDay: true },
@@ -147,6 +150,8 @@ describe('device routes', () => {
         expect(fetchSpy).not.toHaveBeenCalled()
       } finally {
         fetchSpy.mockRestore()
+        if (previousWeather === undefined) delete process.env.WEATHER_ENABLED
+        else process.env.WEATHER_ENABLED = previousWeather
       }
     })
 

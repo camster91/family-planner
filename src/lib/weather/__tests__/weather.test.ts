@@ -121,12 +121,17 @@ describe('weather codes', () => {
 })
 
 describe('kill switch', () => {
-  it('is on unless explicitly turned off', () => {
-    expect(isWeatherEnabled({} as unknown as NodeJS.ProcessEnv)).toBe(true)
-    expect(isWeatherEnabled({ WEATHER_ENABLED: 'true' } as unknown as NodeJS.ProcessEnv)).toBe(true)
-    for (const off of ['false', '0', 'off', 'NO', ' False ']) {
-      expect(isWeatherEnabled({ WEATHER_ENABLED: off } as unknown as NodeJS.ProcessEnv)).toBe(false)
+  const env = (value?: string) => (value === undefined ? {} : { WEATHER_ENABLED: value }) as unknown as NodeJS.ProcessEnv
+
+  it('is off when unset, empty or anything but an explicit 1/true', () => {
+    expect(isWeatherEnabled(env())).toBe(false)
+    for (const off of ['', ' ', 'false', '0', 'off', 'NO', ' False ', 'yes', 'on', '2']) {
+      expect(isWeatherEnabled(env(off))).toBe(false)
     }
+  })
+
+  it('is on only for 1 or true', () => {
+    for (const on of ['1', 'true', 'TRUE', ' True ']) expect(isWeatherEnabled(env(on))).toBe(true)
   })
 })
 
@@ -151,7 +156,7 @@ describe('getBoardWeather (cache, backoff, fail closed)', () => {
     jest.spyOn(console, 'log').mockImplementation(() => undefined)
   })
   beforeEach(() => {
-    delete process.env.WEATHER_ENABLED
+    process.env.WEATHER_ENABLED = '1'
     __resetWeatherInflight()
   })
   afterAll(() => {
@@ -195,12 +200,16 @@ describe('getBoardWeather (cache, backoff, fail closed)', () => {
     ...extra,
   })
 
-  it('is null without any read when the kill switch is off', async () => {
-    process.env.WEATHER_ENABLED = 'false'
-    const db = makeDb()
-    expect(await getBoardWeather(db as any, { familyId: 'fam', now: NOW })).toBeNull()
-    expect(db.family.findUnique).not.toHaveBeenCalled()
-  })
+  it.each([['unset', undefined], ['false', 'false'], ['0', '0']])(
+    'is null without any read when the kill switch is %s',
+    async (_label, value) => {
+      if (value === undefined) delete process.env.WEATHER_ENABLED
+      else process.env.WEATHER_ENABLED = value
+      const db = makeDb()
+      expect(await getBoardWeather(db as any, { familyId: 'fam', now: NOW })).toBeNull()
+      expect(db.family.findUnique).not.toHaveBeenCalled()
+    }
+  )
 
   it('is null without a request when the household has not opted in (the default)', async () => {
     const fetchImpl = jest.fn()

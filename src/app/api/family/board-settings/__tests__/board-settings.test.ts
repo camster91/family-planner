@@ -46,7 +46,8 @@ describe('board settings (#262)', () => {
   })
   beforeEach(() => {
     db.reset()
-    delete process.env.WEATHER_ENABLED
+    // The kill switch is off unless set; these tests run with it on.
+    process.env.WEATHER_ENABLED = '1'
     fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(new Error('unexpected network call'))
   })
   afterEach(() => fetchSpy.mockRestore())
@@ -96,8 +97,9 @@ describe('board settings (#262)', () => {
       ])
     })
 
-    it('reports the server kill switch', async () => {
-      process.env.WEATHER_ENABLED = 'false'
+    it.each([['unset', undefined], ['false', 'false']])('reports the server kill switch as off when %s', async (_l, value) => {
+      if (value === undefined) delete process.env.WEATHER_ENABLED
+      else process.env.WEATHER_ENABLED = value
       const body = await bodyOf(await settings.GET(req({ as: 'parentA' })))
       expect(body.weather.available).toBe(false)
     })

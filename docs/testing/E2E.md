@@ -74,7 +74,7 @@ npx playwright show-report                                   # HTML report (play
 | `E2E_REUSE_SERVER` | unset | `1` = use a server already on the port. It must have been started by `serve.mjs`, or the dashboard data is wrong. |
 | `E2E_TIMEZONE` | `America/Toronto` | Zone for the server `TZ` and the browser. Changing it invalidates the baselines. |
 | `JWT_SECRET` | fake test-only value | Only for the E2E server. |
-| `WEATHER_ENABLED` | `1` (set by `playwright.config.ts` for the E2E server only) | Board weather kill switch (#262). No household has weather on unless `e2e/fridge.spec.ts` turns it on with a fresh `WeatherCache` row, so the server never calls Open-Meteo. |
+| `WEATHER_ENABLED` | `1` (set by `playwright.config.ts` for the E2E server only) | Board weather kill switch (#262); off unless set to `1`/`true`, so the E2E server sets it. No household has weather on unless `e2e/fridge.spec.ts` turns it on with a fresh `WeatherCache` row, so the server never calls Open-Meteo. |
 | `SHARED_DEVICE_ENABLED` | `1` (set by `playwright.config.ts` for the E2E server only) | Shared-device kill switch, on so `e2e/device.spec.ts` can run. It changes behaviour only for requests carrying device cookies, which no other spec sends. |
 | `E2E_REPORT_DIR` / `E2E_OUTPUT_DIR` | `playwright-report` / `test-results/e2e` | Report and artifact folders (CI keeps one per step). |
 
