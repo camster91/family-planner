@@ -4,17 +4,27 @@
  * "Scan fridge" (#265): take or choose a photo, let the vision model suggest
  * items (POST /api/inventory/scan, which writes nothing), review and edit the
  * suggestions, then add the ticked ones through the ordinary
- * POST /api/inventory, one at a time. Rows that were added leave the list, so
- * "Add" after a partial failure only sends what is still there (the create
- * route has no idempotency key; this is what prevents duplicates on retry).
+ * POST /api/inventory, one at a time.
+ *
+ * Retries never duplicate: each row carries one `Idempotency-Key` for its
+ * whole life, so a create that committed but lost its response is replayed on
+ * retry instead of adding a second row, and rows that were added leave the
+ * list, so "Add" after a partial failure only sends what is left.
+ *
+ * Built on the shared `Dialog` (aria-modal, focus moved in, Tab kept inside,
+ * focus restored to the Scan button on close). Focus also moves to the new
+ * content whenever the step changes. Escape, the Close button and "done" all
+ * go through `close()`, which reports items already added (reload + notice).
  *
  * Suggestions are untrusted model text: they are only ever rendered as React
  * text and input values. Confidence is shown in words, never colour alone.
  */
 import * as React from 'react'
-import { Camera, Loader2, X } from 'lucide-react'
+import { Camera, Loader2 } from 'lucide-react'
+import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { toDateOnlyLocal } from '@/lib/dates'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { INVENTORY_LOCATIONS, LOCATION_LABELS, type InventoryLocation } from '@/lib/inventory'
 import type { ScanSuggestion } from '@/lib/inventory-scan'
 
@@ -33,6 +43,8 @@ interface Row {
   expiresOn: string
   confidence: number
   error: string | null
+  /** Sent with every create attempt of this row, so an in-doubt create is replayed, not repeated. */
+  idempotencyKey: string
 }
 
 type Phase =
@@ -58,6 +70,7 @@ function toRows(items: ScanSuggestion[]): Row[] {
     expiresOn: '',
     confidence: item.confidence,
     error: null,
+    idempotencyKey: newIdempotencyKey(),
   }))
 }
 
@@ -101,6 +114,9 @@ async function scanError(res: Response): Promise<string> {
   return 'Something went wrong while scanning. Try again, or add items by hand.'
 }
 
+const PROBABLY_ADDED =
+  'This item was probably added on an earlier try. Check your inventory before adding it again.'
+
 export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
   const [phase, setPhase] = React.useState<Phase>({ step: 'pick' })
   const [rows, setRows] = React.useState<Row[]>([])
@@ -109,14 +125,21 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
   const [addedCount, setAddedCount] = React.useState(0)
   const titleId = React.useId()
   const inputRef = React.useRef<HTMLInputElement>(null)
-
+  const pickButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  // Focus target of the current step. Dialog focuses the first one on open;
+  // after that, focus follows every step change so it never falls to <body>.
+  const stepFocusRef = React.useRef<HTMLElement | null>(null)
+  const setStepFocus = React.useCallback((el: HTMLElement | null) => {
+    if (el) stepFocusRef.current = el
+  }, [])
+  const opened = React.useRef(false)
   React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !adding) onClose()
+    if (!opened.current) {
+      opened.current = true
+      return
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, adding])
+    stepFocusRef.current?.focus()
+  }, [phase])
 
   const pickAgain = () => {
     setPhase({ step: 'pick' })
@@ -189,7 +212,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
       try {
         const res = await fetch(`/api/inventory?today=${today}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: row.idempotencyKey },
           body: JSON.stringify({
             name: row.name.trim(),
             location: row.location,
@@ -201,19 +224,33 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
         if (res.ok) {
           added++
           setRows((prev) => prev.filter((r) => r.key !== row.key))
+          continue
+        }
+        failed++
+        let message = 'Could not add this item.'
+        let code: string | null = null
+        try {
+          const body = await res.json()
+          if (body?.error && typeof body.error.message === 'string') message = body.error.message
+          else if (typeof body?.error === 'string') message = body.error
+          if (body?.error && typeof body.error.code === 'string') code = body.error.code
+        } catch {
+          // keep the default
+        }
+        if (code === 'IDEMPOTENCY_KEY_REUSED') {
+          // An earlier, in-doubt try of this row reached the server and the row
+          // was edited since, so it was probably added. Untick it and give it a
+          // fresh key: adding it again is then a deliberate choice.
+          setRows((prev) =>
+            prev.map((r) =>
+              r.key === row.key ? { ...r, include: false, idempotencyKey: newIdempotencyKey(), error: PROBABLY_ADDED } : r
+            )
+          )
         } else {
-          failed++
-          let message = 'Could not add this item.'
-          try {
-            const body = await res.json()
-            if (body?.error && typeof body.error.message === 'string') message = body.error.message
-            else if (typeof body?.error === 'string') message = body.error
-          } catch {
-            // keep the default
-          }
           setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, error: message } : r)))
         }
       } catch {
+        // Unknown outcome: the row keeps its key, so a retry replays a create that did land.
         failed++
         setRows((prev) =>
           prev.map((r) => (r.key === row.key ? { ...r, error: 'Could not add this item. Check your connection.' } : r))
@@ -232,6 +269,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
     }
   }
 
+  /** The only way out (Escape or Close): report anything already added so the page reloads. */
   const close = () => {
     if (adding) return
     if (addedCount > 0) onDone(`Added ${addedCount} item${addedCount === 1 ? '' : 's'} from your photo.`)
@@ -239,141 +277,140 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={close} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-busy={phase.step === 'scanning' || adding}
-        data-testid="scan-dialog"
-        className="relative bg-[var(--surface-elevated)] rounded-2xl shadow-xl w-full max-w-xl max-h-[calc(100dvh-2rem)] flex flex-col"
-      >
-        <div className="flex items-center justify-between gap-2 p-5 pb-3">
-          <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
-            Scan the fridge
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            disabled={adding}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
-          >
-            <X className="w-5 h-5 text-label-tertiary" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onClose={close}
+      title="Scan the fridge"
+      testId="scan-dialog"
+      className="sm:max-w-xl"
+      initialFocusRef={pickButtonRef}
+    >
+      <div aria-busy={phase.step === 'scanning' || adding} className="space-y-4">
+        {/* The file input stays mounted (visually hidden) so "Take or choose a photo" works from every step. */}
+        <input
+          ref={inputRef}
+          id={`${titleId}-photo`}
+          data-testid="scan-file-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={onFile}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5 space-y-4">
-          {/* The file input stays mounted (visually hidden) so "Take or choose a photo" works from every step. */}
-          <input
-            ref={inputRef}
-            id={`${titleId}-photo`}
-            data-testid="scan-file-input"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={onFile}
-            className="sr-only"
+        {phase.step === 'pick' && (
+          <div className="space-y-4">
+            <p className="text-body text-label-primary">
+              Take a photo of your open fridge, freezer or pantry. We&apos;ll suggest what&apos;s in it, and you choose what to
+              add.
+            </p>
+            <p className="text-footnote text-label-secondary" data-testid="scan-privacy-note">
+              The photo is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by Family Planner.
+            </p>
+            <button
+              ref={(el) => {
+                pickButtonRef.current = el
+                setStepFocus(el)
+              }}
+              type="button"
+              className="btn-tinted w-full min-h-[44px]"
+              onClick={() => inputRef.current?.click()}
+            >
+              <Camera className="w-4 h-4" aria-hidden="true" />
+              <span>Take or choose a photo</span>
+            </button>
+          </div>
+        )}
+
+        {phase.step === 'scanning' && (
+          <div
+            ref={setStepFocus}
             tabIndex={-1}
-            aria-hidden="true"
-          />
+            role="status"
+            data-testid="scan-loading"
+            className="flex items-center gap-3 py-6 justify-center text-body text-label-primary outline-none"
+          >
+            <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            <span>Looking for food in your photo…</span>
+          </div>
+        )}
 
-          {phase.step === 'pick' && (
+        {phase.step === 'error' && (
+          <div className="space-y-4">
+            <p role="alert" className="text-body text-[var(--danger-text)]" data-testid="scan-error">
+              {phase.message}
+            </p>
+            <button
+              ref={setStepFocus}
+              type="button"
+              className="btn-tinted w-full min-h-[44px]"
+              onClick={() => inputRef.current?.click()}
+            >
+              <Camera className="w-4 h-4" aria-hidden="true" />
+              <span>Try another photo</span>
+            </button>
+          </div>
+        )}
+
+        {phase.step === 'review' &&
+          (rows.length === 0 ? (
             <div className="space-y-4">
-              <p className="text-body text-label-primary">
-                Take a photo of your open fridge, freezer or pantry. We&apos;ll suggest what&apos;s in it, and you choose what to
-                add.
-              </p>
-              <p className="text-footnote text-label-secondary" data-testid="scan-privacy-note">
-                The photo is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by Family Planner.
-              </p>
-              <button
-                type="button"
-                autoFocus
-                className="btn-tinted w-full min-h-[44px]"
-                onClick={() => inputRef.current?.click()}
-              >
-                <Camera className="w-4 h-4" aria-hidden="true" />
-                <span>Take or choose a photo</span>
-              </button>
-            </div>
-          )}
-
-          {phase.step === 'scanning' && (
-            <div role="status" className="flex items-center gap-3 py-6 justify-center text-body text-label-primary">
-              <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-              <span>Looking for food in your photo…</span>
-            </div>
-          )}
-
-          {phase.step === 'error' && (
-            <div className="space-y-4">
-              <p role="alert" className="text-body text-[var(--danger-text)]" data-testid="scan-error">
-                {phase.message}
+              <p ref={setStepFocus} tabIndex={-1} className="text-body text-label-primary outline-none" role="status">
+                {addedCount > 0 ? 'Everything from this photo was added.' : 'No food found in that photo.'}
               </p>
               <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={() => inputRef.current?.click()}>
                 <Camera className="w-4 h-4" aria-hidden="true" />
-                <span>Try another photo</span>
+                <span>{addedCount > 0 ? 'Scan another photo' : 'Try another photo'}</span>
               </button>
             </div>
-          )}
-
-          {phase.step === 'review' &&
-            (rows.length === 0 ? (
-              <div className="space-y-4">
-                <p className="text-body text-label-primary" role="status">
-                  {addedCount > 0 ? 'Everything from this photo was added.' : 'No food found in that photo.'}
-                </p>
-                <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={() => inputRef.current?.click()}>
-                  <Camera className="w-4 h-4" aria-hidden="true" />
-                  <span>{addedCount > 0 ? 'Scan another photo' : 'Try another photo'}</span>
-                </button>
-              </div>
-            ) : (
-              <>
-                <p className="text-subhead text-label-secondary" role="status">
-                  Found {rows.length} item{rows.length === 1 ? '' : 's'}. Check them, untick anything that&apos;s wrong, then add.
-                </p>
-                <ul className="space-y-3" aria-label="Suggested items">
-                  {rows.map((row, i) => (
-                    <SuggestionRow key={row.key} row={row} index={i} idBase={titleId} disabled={adding} onChange={update} />
-                  ))}
-                </ul>
-              </>
-            ))}
-        </div>
-
-        {phase.step === 'review' && rows.length > 0 && (
-          <div className="border-t border-[var(--surface-separator)] p-4 space-y-2">
-            {addError && (
-              <p role="alert" className="text-subhead text-[var(--danger-text)]">
-                {addError}
+          ) : (
+            <>
+              <p
+                ref={setStepFocus}
+                tabIndex={-1}
+                role="status"
+                data-testid="scan-found"
+                className="text-subhead text-label-secondary outline-none"
+              >
+                Found {rows.length} item{rows.length === 1 ? '' : 's'}. Check them, untick anything that&apos;s wrong, then add.
               </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn-plain min-h-[44px] flex-1 min-w-[10rem]"
-                onClick={pickAgain}
-                disabled={adding}
-              >
-                Scan another photo
-              </button>
-              <button
-                type="button"
-                className="btn-filled min-h-[44px] flex-1 min-w-[10rem]"
-                onClick={addSelected}
-                disabled={adding || selected.length === 0}
-                data-testid="scan-add"
-              >
-                {adding ? 'Adding…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'}`}
-              </button>
-            </div>
-          </div>
-        )}
+              <ul className="space-y-3" aria-label="Suggested items">
+                {rows.map((row, i) => (
+                  <SuggestionRow key={row.key} row={row} index={i} idBase={titleId} disabled={adding} onChange={update} />
+                ))}
+              </ul>
+              <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-6 py-4 space-y-2">
+                {addError && (
+                  <p role="alert" className="text-subhead text-[var(--danger-text)]">
+                    {addError}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-plain min-h-[44px] flex-1 min-w-[10rem]"
+                    onClick={pickAgain}
+                    disabled={adding}
+                  >
+                    Scan another photo
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-filled min-h-[44px] flex-1 min-w-[10rem]"
+                    onClick={addSelected}
+                    disabled={adding || selected.length === 0}
+                    data-testid="scan-add"
+                  >
+                    {adding ? 'Adding…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              </div>
+            </>
+          ))}
       </div>
-    </div>
+    </Dialog>
   )
 }
 
