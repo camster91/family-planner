@@ -73,6 +73,16 @@ handlers are listed in the route-allowlist test. The export adds the household's
 `src/app/api/inventory/__tests__/isolation.test.ts` (two-household harness, which now seeds an `inventoryItem` per
 household) and the opt-in `inventory.integration.test.ts`.
 
+**Update 2026-09-28 (#265): fridge photo scan.** `POST /api/inventory/scan` reads and writes no household rows: it
+returns model suggestions for one uploaded photo, and the page adds reviewed items through `POST /api/inventory`
+(above). A paired device is refused (403, listed in the route-allowlist test) before person auth; then a session, the
+kill switch (404 without `INVENTORY_SCAN_ANTHROPIC_API_KEY`), `featureGate('inventory')` and parent role. Rate-limit
+keys are `inventory-scan:user:<userId>`, `inventory-scan:family:<familyId>` and
+`inventory-scan:day:<familyId>:<UTC day>`, all from the session, so one household's use never counts against another's.
+The provider host is a constant and the key is server env only (no user-supplied URL, key or model). The image is
+never stored; logs are metadata only. Tests: `src/app/api/inventory/__tests__/scan.test.ts` (mocked provider; parent,
+teen, child, device, two households, limits, sizes, types, malformed output) and `src/lib/__tests__/inventory-scan.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -209,6 +219,7 @@ recorded in route comments, as the de facto matrix.
 | /api/inventory/[id] | DELETE | device refused (403) + family + `featureGate('inventory')` | `deleteMany where id + family` (404 when 0) | P+T | none | inventory/iso, inventory.integration, device-route-allowlist | implemented (#263) |
 | /api/inventory/use-soon | GET | family + `featureGate('inventory')` | where family_id; board-safe fields only; limit ≤ 100 | all | none | inventory/iso, inventory.integration | implemented (#263) |
 | /api/inventory/cook | GET | family + `featureGate('inventory')` + `featureGate('meals')` | recipes and items where family_id; ingredients owned through the recipe | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory/scan | POST | device refused (403) + family + kill switch (404) + `featureGate('inventory')` | none read or written; rate-limit keys from session user/family | P | multipart image: Content-Length bound, 8 MB, magic-byte type (JPEG/PNG/WebP); model output zod-validated and cleaned; fixed provider host, server-only key | inventory/scan, lib/inventory-scan, device-route-allowlist | implemented (#265) |
 | /api/lists | GET | family + `featureGate('lists')` (#251) | where | all | none | lists/iso, lists/provenance | ok |
 | /api/lists | DELETE | family + `featureGate('lists')` (#251) | match (403) | P | none | lists/iso, lists/provenance | ok |
 | /api/lists/create | POST | family + `featureGate('lists')` (#251) | session family | P+T | none; type `meal_plan` hidden in the UI, still accepted for old clients (O-8) | lists/iso, lists/provenance | implemented (D9) |

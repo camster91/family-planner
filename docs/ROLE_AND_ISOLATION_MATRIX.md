@@ -135,10 +135,11 @@ authentication and answers 403 when the household has lists off, matching the UI
 | Inventory items | C / U / D | yes | yes | no (403 `INVENTORY_WRITE_FORBIDDEN`) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | `ingredient_id` must be an `Ingredient` of the household (400 `INGREDIENT_NOT_FOUND`, same answer for a foreign and a missing id). Without it the item is linked to a same-household ingredient with the same normalized name, if any; no `Ingredient` is ever created from an item, and another household's ingredient is never matched. Bodies are strict: `family_id`, `added_by` or other unknown keys are a 400. Teens may delete (using up food is the main write). |
 | Use soon (`GET /api/inventory/use-soon`) | R | yes | yes | yes | no (same as above) | Board-safe fields only: item id, name, location, expiry day, days left, status and label. |
 | What can I cook (`GET /api/inventory/cook`) | R | yes | yes | yes | no | Needs `inventory` and `meals`. Reads only the household's recipes and items. "Add missing to groceries" is the existing `from-recipe` route (row above), so its rules apply. |
+| Fridge photo scan (`POST /api/inventory/scan`, #265) | Suggest (no write) | yes | no (403 `INVENTORY_SCAN_FORBIDDEN`) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | Off (404 `INVENTORY_SCAN_DISABLED`) until the deployment sets a provider key; then `featureGate('inventory')`. Parent only by decision: the scan spends the deployment's paid provider quota under one household daily cap, while teens keep adding items by hand. Returns suggestions only; adding them is the item create row above, so its rules apply. Rate limits per user and household; the photo is sent to the provider and never stored. |
 
 Page: `/dashboard/inventory` is on the kid allowlist (teens edit; children read, with the add/edit controls
 hidden) and, when the feature is on, in the user menu (touch) and the command palette. Its "View recipe" link is shown only to roles that
-may open `/dashboard/meals/recipes/[id]` (parents).
+may open `/dashboard/meals/recipes/[id]` (parents). "Scan fridge" is shown only to parents when the scan is configured.
 
 ### Other domains (unchanged by this round; recorded for completeness)
 

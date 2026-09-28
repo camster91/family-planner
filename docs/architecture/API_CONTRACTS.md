@@ -138,6 +138,19 @@ Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. R
 Compatibility: additive table and routes; old WebView bundles never call them. Rolling back the app code is safe;
 the table stays unused.
 
+### Fridge photo scan (#265)
+One new route, off until the deployment sets `INVENTORY_SCAN_ANTHROPIC_API_KEY`. Rules, privacy and limits:
+[`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10 "Fridge photo scan". It returns suggestions only; the page adds
+the reviewed items with `POST /api/inventory` (unchanged).
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `POST /api/inventory/scan` | `multipart/form-data` with one `image` file (JPEG, PNG or WebP by magic bytes, ≤ 8 MB; `Content-Length` required). 200 `{ items: [{ name, amount: number \| null, unit: string \| null, location: 'fridge'\|'freezer'\|'pantry' \| null, confidence: 0–1 }], dropped }`, at most 50 items, `Cache-Control: private, no-store`. Parent only. Writes nothing. | 401; 403 device (`DEVICE_WRITE_NOT_ALLOWED`), feature off, teen/child (`INVENTORY_SCAN_FORBIDDEN`); 404 `INVENTORY_SCAN_DISABLED` (no key); 400 `INVALID_FORM`; 411 `LENGTH_REQUIRED`; 413 `IMAGE_TOO_LARGE`; 415 `UNSUPPORTED_IMAGE_TYPE`; 429 `RATE_LIMITED` / `SCAN_DAILY_LIMIT` with `Retry-After`; 502 `SCAN_PROVIDER_UNAVAILABLE` / `SCAN_UNREADABLE` (`retryable: true`) |
+
+Rate limits: 5 per user and 10 per household per hour, plus `INVENTORY_SCAN_DAILY_LIMIT` (default 20) per household per
+UTC day. Compatibility: additive route; nothing existing changes. With the key removed the route is 404 and the button
+disappears on the next page load, so rollback is an environment change, not a deploy.
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

@@ -141,6 +141,9 @@ export default defineConfig({
       // Shared-device mode (#241, e2e/device.spec.ts). Only requests that
       // carry device cookies behave differently, and no other spec sends one.
       SHARED_DEVICE_ENABLED: "1",
+      // Fridge photo scan (#265) stays off in E2E: no provider is ever called.
+      // Blank overrides a key that might be set in the developer's shell.
+      INVENTORY_SCAN_ANTHROPIC_API_KEY: "",
     },
   },
 });
