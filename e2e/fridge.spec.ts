@@ -516,10 +516,10 @@ test.describe("Today board: Family A parent", () => {
     await expect(board(page)).toHaveAttribute("data-mode", "app");
   });
 
-  test("is reachable from the user menu", async ({ page }) => {
+  // One home (#269): the board is the parent's home and Today tab; the
+  // user-menu link is for children and teens, whose Today tab is the kid home.
+  test("is the parent's home", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.getByRole("button", { name: "User menu" }).click();
-    await page.getByRole("link", { name: "Today board" }).click();
     await expect(page).toHaveURL(/\/dashboard\/today$/);
     await expect(region(page, "today")).toBeVisible();
   });

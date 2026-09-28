@@ -151,7 +151,7 @@ may open `/dashboard/meals/recipes/[id]` (parents). "Scan fridge" is shown only 
 |---|---|---|---|---|---|---|
 | Events (calendar) | all | all | parent | parent | R: `id`, title, start/end, is-task, imported-calendar name/colour only; C/U/D: elevated only (when tablet flows exist) | Page `/dashboard/calendar` is parent-only in the UI (kid allowlist). Device never reads `location` or `description`. |
 | Event import (`POST /api/calendar/import-suggestions`, `…/commit`, `…/undo`, #270) | — | parent, teen: suggest (child 403 `EVENT_IMPORT_FORBIDDEN`); commit the reviewed events in one transaction (child 403) | — | own import only: `…/undo` takes the commit's signed undo token (HMAC over user, household, event ids and time), ≤ 10 min; 403 `UNDO_TOKEN_INVALID` for a forged, edited, another person's or another household's token, 409 late; never accepts event ids, so it cannot reach events made by hand; child 403 | no (403 `DEVICE_WRITE_NOT_ALLOWED` on all three, before person auth) | Suggestions are off (404 `EVENT_IMPORT_DISABLED`) until the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY`; all three need `featureGate('calendar')`. Suggestions write nothing and read no household rows. Commit applies the `POST /api/events` field rules, writes only to the session household with `created_by` = caller, and is idempotent per batch key. Rate limits on suggestions per user and household; the text/photo/PDF is sent to the provider and never stored. Undo is the only event delete open to teens, and only for their own import of the last 10 minutes (same idea as the grocery undo, O-5); `DELETE /api/events` stays parent-only. The button is on `/dashboard/calendar`, which is parent-only in the UI today. `docs/architecture/CALENDAR_IMPORT.md`. |
-| Chores | all | parent | parent, or assignee for status | parent, or assignee | R: title, due day, status, assignee name; complete: phase 2 candidate (O-4); verify: elevated only | Completion open to any member for any household chore. Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. |
+| Chores | all | parent | parent, or assignee for status | parent, or assignee | R: title, due day, status, assignee name; complete: phase 2 candidate (O-4); verify: elevated only | Completion open to any member for any household chore. Undo (`POST /api/chores/uncomplete`, #268): parent, or the assignee (a sibling 403); only from `completed` (a parent-verified chore is 409 `CHORE_ALREADY_VERIFIED`), an open chore is a no-op success, a foreign chore 403. Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. |
 | Rewards | all | parent | parent | — | no | Claim: all. Approve: parent. Every handler 403s unless Rewards AND Points & streaks are on (#248). |
 | Wishlist | all | all | requester or parent | requester or parent | no | Status changes: parent. |
 | Meals | all | all | all | all | see "Meals and recipes" above | `cook_id` and `recipe_id` verified in household. Device never reads `notes`. |
@@ -205,6 +205,24 @@ Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audi
 person profile, so the page's HTML and RSC payload carry no household data. The earlier `?mode=fridge` gap is
 closed by #241 too: the dashboard layout now passes only `{ id, name, role, avatar_url }` to the nav, so no
 dashboard page serialises the signed-in person's email, age, XP, level or streak.
+
+### Home and navigation (#268, #269)
+
+Navigation is a view of the kid allowlist, never a second gate (`src/lib/nav-items.ts`,
+`docs/product/NAVIGATION.md`). The allowlist in `src/lib/kid-access.ts` is unchanged.
+
+| | Parent | Teen | Child |
+|---|---|---|---|
+| Home (`/dashboard`) | redirects to `/dashboard/today` | kid home (own missions; level/rewards with Points & streaks on) | kid home |
+| Tabs (phone tab bar and top bar) | Today · Calendar · Meals · Lists · Family (Meals hidden while meal planning is off) | Today (kid home) · Lists · Emergency | same as teen |
+| Emergency | Family → Emergency | own tab | own tab |
+| Family → More (`/dashboard/family/more`) | Chores plus every enabled feature that is not a tab | not reachable (`/dashboard/family` is parent-only) | not reachable |
+| Today board | Today tab | user menu → Today board | user menu → Today board |
+
+The summary above the board on `/dashboard/today` (not in fridge mode) reads only chore title, due day, status,
+assignee and member names for the caller's household (`src/app/dashboard/today/home-summary-data.ts`), the same
+fields the board shows; parents also get the count of chores waiting for a check. A teen or child sees their own
+chores there and no link to `/dashboard/chores`.
 
 ### Points & streaks setting (#248)
 

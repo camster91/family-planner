@@ -155,14 +155,18 @@ test.describe("Points & streaks setting (#248)", () => {
     expect(await storedFlag()).toBe(true);
     const { ctx, page } = await openAs(browser, "parentA");
     try {
-      await page.goto("/dashboard");
+      // The parent's home is the Today board (#269), which never shows
+      // points; the chores page carries them while the setting is on.
+      await page.goto("/dashboard/chores");
       await expect(
         page
           .locator("#main-content")
-          .getByText(/\d+ XP/)
+          .getByText(/^\+\d+$/)
           .first(),
       ).toBeVisible();
-      expect(await rawHtml(page, "/dashboard")).toMatch(GAMIFICATION_KEY);
+      expect(await rawHtml(page, "/dashboard/chores")).toMatch(
+        GAMIFICATION_KEY,
+      );
     } finally {
       await ctx.close();
     }
@@ -321,14 +325,14 @@ test.describe("Points & streaks setting (#248)", () => {
     const parent = await openAs(browser, "parentA");
     try {
       await setFlagViaSettings(parent.page, true);
-      await parent.page.goto("/dashboard");
+      await parent.page.goto("/dashboard/chores");
       await expect(
         parent.page
           .locator("#main-content")
-          .getByText(/\d+ XP/)
+          .getByText(/^\+\d+$/)
           .first(),
       ).toBeVisible();
-      expect(await rawHtml(parent.page, "/dashboard")).toMatch(
+      expect(await rawHtml(parent.page, "/dashboard/chores")).toMatch(
         GAMIFICATION_KEY,
       );
       expect((await browserFetch(parent.page, "/api/analytics")).status).toBe(

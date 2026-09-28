@@ -189,6 +189,7 @@ recorded in route comments, as the de facto matrix.
 | /api/chores | DELETE | family | match (403) | P or assignee | none | chores/iso | ok |
 | /api/chores/complete | POST | family | match (403) | all (any family chore, by design) | photoUrl must be an `Upload` of the caller's family (400), or the chore's unchanged current value | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/chores/create | POST | family | session family | P | assigned_to verified; photo_url must be an `Upload` of the caller's family (400) | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
+| /api/chores/uncomplete | POST | family | match (403) | P or assignee (403); only from `completed` (verified: 409 `CHORE_ALREADY_VERIFIED`) | none; removes only the pending one-off successor a legacy recurring completion created | chores/iso | implemented (#268) |
 | /api/chores/verify | POST | family | match (403) | P | none | chores/iso | ok |
 | /api/cron/recurring-chores | POST | cron | per-family expansion | n/a | none | src/__tests__/recurring-chores.test.ts | ok |
 | /api/device/elevation | POST | device | device's family | target must be a `parent` of the device's family (DB); PIN or password; every failure the same 401 | `userId` verified in device family; foreign/teen/child ids = uniform 401 and never touch that account's lockout | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
