@@ -584,6 +584,26 @@ const UNIQUE: Record<string, string[][]> = {
   recipeIngredient: [['recipe_id', 'ingredient_id']],
 }
 
+// Partial unique indexes Prisma cannot express, enforced by the fake like
+// Postgres does (create throws P2002; createMany skipDuplicates skips).
+// "ListItem_open_recipe_source_key" (ADR-0007, scripts/migrate.js).
+const PARTIAL_UNIQUE: Record<string, Array<{ cols: string[]; where: (r: Row) => boolean }>> = {
+  listItem: [
+    {
+      cols: ['list_id', 'ingredient_id', 'source_key'],
+      where: (r) => r.checked !== true && r.source_key != null && r.ingredient_id != null,
+    },
+  ],
+}
+
+function violatesUnique(model: string, rows: Row[], row: Row): boolean {
+  const full = (UNIQUE[model] ?? []).some((cols) => rows.some((r) => cols.every((c) => cmp(r[c], row[c]) === 0)))
+  if (full) return true
+  return (PARTIAL_UNIQUE[model] ?? []).some(
+    (idx) => idx.where(row) && rows.some((r) => idx.where(r) && idx.cols.every((c) => cmp(r[c], row[c]) === 0))
+  )
+}
+
 // Prisma compound-unique selector names -> their columns.
 const COMPOUND_KEYS: Record<string, Record<string, string[]>> = {
   ingredient: { family_id_name: ['family_id', 'name'] },
@@ -614,9 +634,7 @@ function delegate(model: string) {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
       applyData(model, row, args.data)
-      for (const cols of UNIQUE[model] ?? []) {
-        if (all().some((r) => cols.every((c) => cmp(r[c], row[c]) === 0))) throw uniqueViolation(model)
-      }
+      if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
       return project(model, row, args)
     },
@@ -627,8 +645,7 @@ function delegate(model: string) {
       for (const d of data) {
         const row: Row = { id: db.nextId(model), created_at: new Date() }
         applyData(model, row, d)
-        const dup = (UNIQUE[model] ?? []).some((cols) => all().some((r) => cols.every((c) => cmp(r[c], row[c]) === 0)))
-        if (dup) {
+        if (violatesUnique(model, all(), row)) {
           if (args.skipDuplicates) continue
           throw uniqueViolation(model)
         }

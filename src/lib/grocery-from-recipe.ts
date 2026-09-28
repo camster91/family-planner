@@ -256,6 +256,7 @@ export async function addRecipeToGroceries(
     data: selected.map((line, i) => ({
       list_id: list.id,
       content: line.ingredient.name,
+      checked: false,
       quantity: 1,
       amount: round2(line.amount * factor),
       unit: line.unit ?? line.ingredient.unit ?? null,
