@@ -1,5 +1,5 @@
 // Two-household isolation for the chores API (#102): list, update, delete,
-// create, complete and verify.
+// create, complete, uncomplete (Undo, #268) and verify.
 
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);
@@ -14,6 +14,7 @@ import * as chores from "../route";
 import { POST as create } from "../create/route";
 import { POST as complete } from "../complete/route";
 import { POST as verify } from "../verify/route";
+import { POST as uncomplete } from "../uncomplete/route";
 import { awardChoreXP } from "@/lib/gamification-server";
 import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
@@ -40,6 +41,7 @@ describe("chores — two households", () => {
       (await create(req({ body: newChore }))).status,
       (await complete(req({ body: { choreId: "chore-a" } }))).status,
       (await verify(req({ body: { choreId: "chore-a" } }))).status,
+      (await uncomplete(req({ body: { choreId: "chore-a" } }))).status,
     ];
     expect(new Set(statuses)).toEqual(new Set([401]));
     expect(db.writes).toHaveLength(0);
@@ -58,6 +60,8 @@ describe("chores — two households", () => {
     await expectDenied(await complete(req({ as: "childA", body: { choreId: "chore-b" } })));
     db.find("chore", "chore-b")!.status = "completed";
     await expectDenied(await verify(req({ as: "parentA", body: { choreId: "chore-b" } })));
+    await expectDenied(await uncomplete(req({ as: "parentA", body: { choreId: "chore-b" } })));
+    expect(db.find("chore", "chore-b")?.status).toBe("completed");
     expect(db.writes).toHaveLength(0);
     expect(awardChoreXP).not.toHaveBeenCalled();
   });
@@ -91,5 +95,46 @@ describe("chores — two households", () => {
     expect((await verify(req({ as: "parentA", body: { choreId: "chore-a" } }))).status).toBe(200);
     expect(db.find("chore", "chore-a")?.status).toBe("verified");
     expect(awardChoreXP).toHaveBeenCalledWith("child-a", "easy", 10, expect.anything());
+  });
+
+  describe("uncomplete (Undo for a tick, #268)", () => {
+    it("the assignee reopens their own completed chore; repeating is a no-op", async () => {
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      const res = await uncomplete(req({ as: "childA", body: { choreId: "chore-a" } }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ success: true, status: "pending" });
+      expect(db.find("chore", "chore-a")?.status).toBe("pending");
+      expect(db.find("chore", "chore-a")?.completed_at).toBeNull();
+
+      const again = await uncomplete(req({ as: "childA", body: { choreId: "chore-a" } }));
+      expect(again.status).toBe(200);
+      expect(await again.json()).toMatchObject({ alreadyOpen: true });
+    });
+
+    it("a parent may reopen any household chore", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      expect((await uncomplete(req({ as: "parentA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      expect(db.find("chore", "chore-a")?.status).toBe("pending");
+    });
+
+    it("a teen who is not the assignee cannot reopen it", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      expect((await uncomplete(req({ as: "teenA", body: { choreId: "chore-a" } }))).status).toBe(403);
+      expect(db.find("chore", "chore-a")?.status).toBe("completed");
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it("refuses a chore a parent has already verified (409) and changes nothing", async () => {
+      db.find("chore", "chore-a")!.status = "verified";
+      const res = await uncomplete(req({ as: "childA", body: { choreId: "chore-a" } }));
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "CHORE_ALREADY_VERIFIED" });
+      expect(db.find("chore", "chore-a")?.status).toBe("verified");
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it("rejects a missing choreId with 400", async () => {
+      expect((await uncomplete(req({ as: "childA", body: {} }))).status).toBe(400);
+    });
   });
 });

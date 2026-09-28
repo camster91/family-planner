@@ -34,6 +34,11 @@ export const completeChoreSchema = z.object({
   photoUrl: z.string().max(500).nullable().optional(),
 })
 
+// Undo a completion (#268/#269): the chore goes back to pending.
+export const uncompleteChoreSchema = z.object({
+  choreId: z.string().min(1),
+})
+
 export const verifyChoreSchema = z.object({
   choreId: z.string().min(1),
   verificationNotes: z.string().max(500).optional(),

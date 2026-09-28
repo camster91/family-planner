@@ -16,6 +16,7 @@ export function CheckboxRow({
   meta,                          // right-side secondary text (e.g. "Today")
   glyph,                          // optional left glyph
   wrap = false,                   // wrap long text instead of truncating
+  disabled = false,
   className,
 }: {
   checked: boolean
@@ -25,6 +26,8 @@ export function CheckboxRow({
   meta?: React.ReactNode
   glyph?: React.ReactNode
   wrap?: boolean
+  /** Shown but not toggleable (e.g. a chore a parent already checked). */
+  disabled?: boolean
   className?: string
 }) {
   return (
@@ -32,7 +35,10 @@ export function CheckboxRow({
       type="button"
       role="checkbox"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
+      aria-disabled={disabled || undefined}
+      onClick={() => {
+        if (!disabled) onChange(!checked)
+      }}
       className={cn(
         'w-full flex items-center gap-3 px-4 py-3 min-h-[52px] text-left',
         'active:bg-[var(--surface-fill-secondary)]',
