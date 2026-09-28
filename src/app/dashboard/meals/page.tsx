@@ -96,7 +96,7 @@ function MealModal({
         aria-modal="true"
         aria-labelledby={titleId}
         data-testid="meal-modal"
-        className="relative bg-[var(--surface-primary)] rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 space-y-4"
+        className="relative bg-[var(--surface-elevated)] rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 space-y-4"
       >
         <div className="flex items-center justify-between gap-2">
           <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
@@ -179,13 +179,13 @@ function MealModal({
               <button
                 type="button"
                 onClick={onDelete}
-                className="btn-destructive flex-1"
+                className="btn-destructive flex-1 min-h-[44px]"
                 disabled={saving}
               >
                 {t('meals.deleteMeal')}
               </button>
             )}
-            <button type="submit" className="btn-tinted flex-1" disabled={saving}>
+            <button type="submit" className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
               {saving ? t('common.saving') : t('meals.save')}
             </button>
           </div>
