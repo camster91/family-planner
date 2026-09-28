@@ -327,6 +327,15 @@ test.describe("inventory (Family A parent)", () => {
     await expect(itemRow(page, IDS.long)).toContainText("Use in 30 days");
     await expect(page.getByText(CANARY_B)).toHaveCount(0);
 
+    // Fridge photo scan (#265) is off without a provider key (the E2E server
+    // never has one): no Scan button, and the route answers 404.
+    await expect(page.getByRole("button", { name: "Scan fridge" })).toHaveCount(
+      0,
+    );
+    const scan = await browserSend(page, "POST", "/api/inventory/scan");
+    expect(scan.status).toBe(404);
+    expect(JSON.parse(scan.body).error.code).toBe("INVENTORY_SCAN_DISABLED");
+
     const soon = page.getByTestId("use-soon");
     await expect(soon.getByTestId("use-soon-item")).toHaveCount(2);
     await expect(soon.getByTestId("use-soon-item").nth(0)).toContainText(

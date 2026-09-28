@@ -14,11 +14,35 @@ export type InventoryErrorCode =
   | 'INVENTORY_ITEM_NOT_FOUND'
   | 'INVENTORY_WRITE_FORBIDDEN'
   | 'INTERNAL_ERROR'
+  // Fridge photo scan (#265)
+  | 'INVENTORY_SCAN_DISABLED'
+  | 'INVENTORY_SCAN_FORBIDDEN'
+  | 'INVALID_FORM'
+  | 'LENGTH_REQUIRED'
+  | 'IMAGE_TOO_LARGE'
+  | 'UNSUPPORTED_IMAGE_TYPE'
+  | 'RATE_LIMITED'
+  | 'SCAN_DAILY_LIMIT'
+  | 'SCAN_PROVIDER_UNAVAILABLE'
+  | 'SCAN_UNREADABLE'
 
-export function inventoryError(status: number, code: InventoryErrorCode, message: string): NextResponse {
+const RETRYABLE: ReadonlySet<InventoryErrorCode> = new Set([
+  'INTERNAL_ERROR',
+  'RATE_LIMITED',
+  'SCAN_DAILY_LIMIT',
+  'SCAN_PROVIDER_UNAVAILABLE',
+  'SCAN_UNREADABLE',
+])
+
+export function inventoryError(
+  status: number,
+  code: InventoryErrorCode,
+  message: string,
+  extraHeaders: Record<string, string> = {}
+): NextResponse {
   return NextResponse.json(
-    { error: { code, message, retryable: code === 'INTERNAL_ERROR' } },
-    { status, headers: { 'Cache-Control': 'private, no-store' } }
+    { error: { code, message, retryable: RETRYABLE.has(code) } },
+    { status, headers: { 'Cache-Control': 'private, no-store', ...extraHeaders } }
   )
 }
 

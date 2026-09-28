@@ -7,6 +7,7 @@ import { addUTCDays, parseDateOnly } from '@/lib/dates'
 import {
   DEFAULT_USE_SOON_DAYS,
   INVENTORY_DEFAULT_LIMIT,
+  INVENTORY_CREATE_ACTION,
   INVENTORY_ITEM_SELECT,
   INVENTORY_LOCATIONS,
   INVENTORY_MAX_LIMIT,
@@ -19,6 +20,7 @@ import {
   toInventoryDto,
 } from '@/lib/inventory'
 import { inventoryError, inventoryJson, readJson, todayFrom, writeForbidden } from '@/lib/inventory-http'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +83,11 @@ export async function GET(request: NextRequest) {
  * POST /api/inventory (#263). Parent or teen; a paired shared device is
  * refused before person auth. Without `ingredient_id` the item is linked to a
  * same-household ingredient with the same normalized name, if one exists.
+ *
+ * Optional `Idempotency-Key` (#265, `withIdempotency`): the same key with the
+ * same body replays the stored 201 (`Idempotency-Replayed: true`) without a
+ * second row; the same key with a different body is 422
+ * `IDEMPOTENCY_KEY_REUSED`. Without the header the create simply runs.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -98,6 +105,9 @@ export async function POST(request: NextRequest) {
     const today = todayFrom(new URL(request.url).searchParams)
     if (today instanceof NextResponse) return today
 
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
+
     const json = await readJson(request)
     if (!json.ok) return json.response
     const parsed = createInventorySchema.safeParse(json.body)
@@ -106,21 +116,31 @@ export async function POST(request: NextRequest) {
     const familyId = auth.user.family_id
     const name = cleanItemName(data.name)
 
-    const ingredientId = await resolveInventoryIngredient(prisma!, familyId, name, data.ingredient_id)
-    const created = await prisma!.inventoryItem.create({
-      data: {
-        family_id: familyId,
-        name,
-        ingredient_id: ingredientId,
-        amount: data.amount ?? null,
-        unit: data.unit ?? null,
-        location: data.location ?? 'fridge',
-        expires_on: data.expires_on ? parseDateOnly(data.expires_on) : null,
-        added_by: auth.user.id,
-      },
-      select: INVENTORY_ITEM_SELECT,
-    })
-    return inventoryJson({ item: toInventoryDto(created, today) }, 201)
+    const res = await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${auth.user.id}`, familyId, userId: auth.user.id, action: INVENTORY_CREATE_ACTION },
+      data,
+      async () => {
+        const ingredientId = await resolveInventoryIngredient(prisma!, familyId, name, data.ingredient_id)
+        const created = await prisma!.inventoryItem.create({
+          data: {
+            family_id: familyId,
+            name,
+            ingredient_id: ingredientId,
+            amount: data.amount ?? null,
+            unit: data.unit ?? null,
+            location: data.location ?? 'fridge',
+            expires_on: data.expires_on ? parseDateOnly(data.expires_on) : null,
+            added_by: auth.user.id,
+          },
+          select: INVENTORY_ITEM_SELECT,
+        })
+        return { status: 201, body: { item: toInventoryDto(created, today) } }
+      }
+    )
+    res.headers.set('Cache-Control', 'private, no-store')
+    return res
   } catch (err) {
     if (err instanceof InventoryInputError) return inventoryError(400, 'INGREDIENT_NOT_FOUND', err.message)
     console.error('Error creating inventory item:', err instanceof Error ? err.message : 'unknown error')

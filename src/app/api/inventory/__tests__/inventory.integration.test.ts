@@ -45,13 +45,13 @@ describeWithDatabase('inventory API against Postgres', () => {
     return d.toISOString().slice(0, 10)
   }
 
-  function request(as: string, body?: unknown, query: Record<string, string> = {}): any {
+  function request(as: string, body?: unknown, query: Record<string, string> = {}, headers: Record<string, string> = {}): any {
     const url = new URL('http://localhost/api/inventory')
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v)
     return {
       url: url.toString(),
       nextUrl: url,
-      headers: new Headers(),
+      headers: new Headers(headers),
       cookies: { get: (n: string) => (n === 'session_token' ? { value: `session:${as}` } : undefined) },
       json: async () => body,
     }
@@ -232,6 +232,27 @@ describeWithDatabase('inventory API against Postgres', () => {
     } finally {
       await prisma.family.update({ where: { id: FAM }, data: { features: ON } })
     }
+  })
+
+  it('create with an Idempotency-Key (#265) replays the stored 201 and writes one row; a different body is 422', async () => {
+    const key = 'invint-scan-row-0000000001'
+    const body = { name: 'Invint scan yogurt', amount: 4, unit: 'pots', location: 'fridge' }
+    const first = await collection.POST(request(PARENT, body, {}, { 'Idempotency-Key': key }))
+    expect(first.status).toBe(201)
+    const { item: created } = await first.json()
+    const replay = await collection.POST(request(PARENT, { ...body }, {}, { 'Idempotency-Key': key }))
+    expect(replay.status).toBe(201)
+    expect(replay.headers.get('Idempotency-Replayed')).toBe('true')
+    expect((await replay.json()).item.id).toBe(created.id)
+    expect(await prisma.inventoryItem.count({ where: { family_id: FAM, name: 'Invint scan yogurt' } })).toBe(1)
+
+    const reused = await collection.POST(request(PARENT, { ...body, amount: 5 }, {}, { 'Idempotency-Key': key }))
+    expect(reused.status).toBe(422)
+    expect((await reused.json()).error.code).toBe('IDEMPOTENCY_KEY_REUSED')
+    const record = await prisma.idempotencyRecord.findFirst({ where: { scope: `user:${PARENT}`, key } })
+    expect(record).toMatchObject({ family_id: FAM, action: 'inventory-item.create', response_status: 201 })
+    expect(await prisma.inventoryItem.count({ where: { family_id: FAM, name: 'Invint scan yogurt' } })).toBe(1)
+    await prisma.idempotencyRecord.deleteMany({ where: { scope: `user:${PARENT}`, key } })
   })
 
   it('deleting the household removes its inventory (cascade)', async () => {

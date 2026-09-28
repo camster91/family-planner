@@ -85,6 +85,8 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'POST /api/inventory': [403],
   'PATCH /api/inventory/[id]': [403],
   'DELETE /api/inventory/[id]': [403],
+  // Fridge photo scan (#265): spends the provider quota and is parent-only.
+  'POST /api/inventory/scan': [403],
 }
 
 function routeFiles(dir: string): string[] {
