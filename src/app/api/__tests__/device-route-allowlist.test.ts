@@ -2,7 +2,8 @@
 //
 // Walks EVERY src/app/api/**/route.ts, calls every exported handler with only
 // a valid device cookie of tablet D1 (household H1) plus CSRF, and asserts:
-//   * routes outside DEVICE_ALLOWED_ROUTES refuse it (401/404) — except the
+//   * routes outside DEVICE_ALLOWED_ROUTES refuse it (401/404, or 403 for the
+//     routes in DEVICE_REFUSED_ROUTES that name the device) — except the
 //     public, non-cookie routes listed in PUBLIC_ROUTES, which do not
 //     authenticate anyone by cookie;
 //   * no response carries an H1 canary.
@@ -70,6 +71,16 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
   'GET /api/handoff/share/[token]': [404],
   'GET /api/calendar/feed': [400, 401, 404],
   'POST /api/cron/recurring-chores': [401, 500],
+}
+
+/**
+ * Person write routes that recognise a paired tablet and refuse it explicitly
+ * with 403 DEVICE_WRITE_NOT_ALLOWED before person auth (ADR-0007 child D,
+ * #253: shared devices stay read-only until #157 device writes exist).
+ */
+const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
+  'POST /api/lists/items/from-recipe': [403],
+  'POST /api/lists/items/undo-add': [403],
 }
 
 function routeFiles(dir: string): string[] {
@@ -153,14 +164,20 @@ describe('device cookie route allowlist', () => {
         }
         const leaked = H1_CANARIES.filter((c) => text.includes(c))
         if (leaked.length) failures.push(`${route}: leaked ${leaked.join(', ')}`)
-        const expected = PUBLIC_ROUTES[route] ?? [401, 404]
+        const expected = PUBLIC_ROUTES[route] ?? DEVICE_REFUSED_ROUTES[route] ?? [401, 404]
         if (!expected.includes(res?.status)) failures.push(`${route}: status ${res?.status}, expected ${expected.join('/')}`)
       }
     }
 
     expect(failures).toEqual([])
     // Every allowlisted and public route exists, so the lists cannot go stale.
-    for (const route of [...DEVICE_ALLOWED_ROUTES, ...Object.keys(PUBLIC_ROUTES)]) expect(seen).toContain(route)
+    for (const route of [
+      ...DEVICE_ALLOWED_ROUTES,
+      ...Object.keys(PUBLIC_ROUTES),
+      ...Object.keys(DEVICE_REFUSED_ROUTES),
+    ]) {
+      expect(seen).toContain(route)
+    }
   })
 
   it('the allowlisted read routes do accept the device cookie', async () => {
