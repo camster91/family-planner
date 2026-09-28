@@ -33,6 +33,16 @@ and household, and only 2xx outcomes are stored, so a denied or foreign-item req
 `src/app/api/lists/__tests__/idempotency.test.ts`, `src/lib/__tests__/idempotency.test.ts` and the opt-in
 `src/lib/__tests__/idempotency.integration.test.ts`. Contract: `docs/architecture/OFFLINE_SYNC.md`.
 
+**Update 2026-09-28 (#264): calendar sync routes.** 7 handlers in 6 new route files (`/api/calendar/connections`,
+`/api/calendar/connections/[provider]/start|callback`, `/api/calendar/sync-connections/[id]`, `…/calendars`,
+`…/sync`), **dormant**: all 404 until calendar sync is configured (`src/lib/calendar-sync/config.ts`). Person
+session only (a device cookie gets 401; asserted with sync configured in the route-allowlist test), parent only.
+Every connection lookup is `where { id, family_id }` (another household's id = 404, identical to missing); the
+engine scopes every event and link statement by `family_id` and connection id. OAuth `state` is single use,
+10-minute, and bound to member + household + provider. Tokens are AES-256-GCM encrypted with household-bound AAD
+and never returned. Tests: `src/app/api/calendar/connections/__tests__/routes.test.ts`,
+`src/lib/calendar-sync/__tests__/*.test.ts`, opt-in `sync.integration.test.ts`.
+
 **Update 2026-09-28 (#251): canonical meal, recipe and grocery APIs (ADR-0007).** New family-scoped
 `/api/recipes` and `/api/recipes/[id]` (every lookup `where { id, family_id }`, so another household's recipe is a
 404 identical to a missing one); `recipe_id` on `/api/meals` and `ingredient_id` on `/api/lists/items/create|update`
@@ -112,6 +122,13 @@ recorded in route comments, as the de facto matrix.
 | /api/budget/transactions/[id] | PATCH | family | match (403) | P | category_id verified | budget/iso | ok |
 | /api/budget/transactions/[id] | DELETE | family | match (403) | P | none | budget/iso | ok |
 | /api/calendar/feed | GET | token (feed_token) | where family = token's family | n/a | none | calendar/feed/__tests__/route.test.ts | ok |
+| /api/calendar/connections | GET | family (404 while sync off) | where | P | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/connections/[provider]/start | POST | family (404 while off / provider unconfigured) | session family + user bound into OAuth state | P | provider allowlisted | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/connections/[provider]/callback | GET | family (404 while off) | state must match session user, family and provider (single use, 10 min) | P | state hash lookup only | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/oauth-state.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id] | PATCH | family (404 while off) | where (404) | P, connecting member only (403) | calendar_id must be one of the member's writable provider calendars | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id] | DELETE | family (404 while off) | where (404) | P | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id]/calendars | GET | family (404 while off) | where (404) | P, connecting member only (403) | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id]/sync | POST | family (404 while off) | where (404); engine scopes by family + connection | P | none | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/sync.test.ts | implemented (dormant, #264) |
 | /api/capture | GET | family | caller family's config | all; returns `allowed` (false for child) | none | capture/iso | implemented (D4) |
 | /api/capture | POST | family | caller family's config | P+T (child 403 "Ask a parent to add this.") | none | capture/iso, capture/route.test.ts | implemented (D4) |
 | /api/chores | GET | family | where | all | assigned_to filter cannot widen | chores/iso | ok |

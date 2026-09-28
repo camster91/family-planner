@@ -121,6 +121,9 @@ ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "project_id" TEXT;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_subscription_id" TEXT;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_uid" TEXT;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_occurrence_start" TIMESTAMP(3);
+-- #264 two-way provider sync (additive): origin connection + last local change
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_connection_id" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- ============ CalendarSubscription (#232; feed URL stored encrypted) ============
 CREATE TABLE IF NOT EXISTS "CalendarSubscription" (
@@ -139,6 +142,69 @@ CREATE TABLE IF NOT EXISTS "CalendarSubscription" (
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS "CalendarSubscription_family_id_idx" ON "CalendarSubscription"("family_id");
+
+-- ============ Two-way Google/Microsoft calendar sync (#264; additive, dormant unless configured) ============
+-- docs/architecture/CALENDAR_SYNC.md. OAuth tokens are encrypted with CALENDAR_TOKEN_KEY.
+CREATE TABLE IF NOT EXISTS "CalendarConnection" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "user_id" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "calendar_id" TEXT,
+  "calendar_name" TEXT,
+  "access_token_enc" TEXT,
+  "refresh_token_enc" TEXT,
+  "token_expires_at" TIMESTAMP(3),
+  "sync_cursor" TEXT,
+  "push_mode" TEXT NOT NULL DEFAULT 'linked',
+  "status" TEXT NOT NULL DEFAULT 'pending',
+  "last_synced_at" TIMESTAMP(3),
+  "last_error" TEXT,
+  "conflicts_count" INTEGER NOT NULL DEFAULT 0,
+  "last_conflict_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- Run generation: a sync writes only while the generation it started with is current (#264 review).
+ALTER TABLE "CalendarConnection" ADD COLUMN IF NOT EXISTS "generation" INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarConnection_family_id_user_id_provider_key" ON "CalendarConnection"("family_id", "user_id", "provider");
+CREATE INDEX IF NOT EXISTS "CalendarConnection_family_id_idx" ON "CalendarConnection"("family_id");
+
+CREATE TABLE IF NOT EXISTS "CalendarEventLink" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "connection_id" TEXT NOT NULL,
+  "event_id" TEXT,
+  "external_id" TEXT NOT NULL,
+  "external_etag" TEXT,
+  "external_updated_at" TIMESTAMP(3),
+  "synced_hash" TEXT,
+  "all_day" BOOLEAN NOT NULL DEFAULT false,
+  "synced_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- Idempotent import key: one local row per provider event per connection.
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarEventLink_connection_id_external_id_key" ON "CalendarEventLink"("connection_id", "external_id");
+-- One link per local event per connection. NULL event_id rows are delete tombstones (NULLs are distinct).
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarEventLink_connection_id_event_id_key" ON "CalendarEventLink"("connection_id", "event_id");
+CREATE INDEX IF NOT EXISTS "CalendarEventLink_family_id_idx" ON "CalendarEventLink"("family_id");
+CREATE INDEX IF NOT EXISTS "CalendarEventLink_event_id_idx" ON "CalendarEventLink"("event_id");
+
+CREATE TABLE IF NOT EXISTS "CalendarOAuthState" (
+  "id" TEXT PRIMARY KEY,
+  "state_hash" TEXT NOT NULL,
+  "family_id" TEXT NOT NULL,
+  "user_id" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "code_verifier_enc" TEXT NOT NULL,
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "used_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarOAuthState_state_hash_key" ON "CalendarOAuthState"("state_hash");
+CREATE INDEX IF NOT EXISTS "CalendarOAuthState_user_id_idx" ON "CalendarOAuthState"("user_id");
+CREATE INDEX IF NOT EXISTS "CalendarOAuthState_expires_at_idx" ON "CalendarOAuthState"("expires_at");
 
 -- ============ Message ============
 CREATE TABLE IF NOT EXISTS "Message" (
@@ -598,6 +664,32 @@ DO $$ BEGIN
   ALTER TABLE "CalendarSubscription" ADD CONSTRAINT "CalendarSubscription_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- #264 calendar sync
+DO $$ BEGIN
+  ALTER TABLE "Event" ADD CONSTRAINT "Event_source_connection_id_fkey" FOREIGN KEY ("source_connection_id") REFERENCES "CalendarConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarConnection" ADD CONSTRAINT "CalendarConnection_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarConnection" ADD CONSTRAINT "CalendarConnection_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarEventLink" ADD CONSTRAINT "CalendarEventLink_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarEventLink" ADD CONSTRAINT "CalendarEventLink_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "CalendarConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarEventLink" ADD CONSTRAINT "CalendarEventLink_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarOAuthState" ADD CONSTRAINT "CalendarOAuthState_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarOAuthState" ADD CONSTRAINT "CalendarOAuthState_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 DO $$ BEGIN
   ALTER TABLE "Message" ADD CONSTRAINT "Message_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -705,6 +797,7 @@ CREATE INDEX IF NOT EXISTS "Event_start_time_idx" ON "Event"("start_time");
 CREATE INDEX IF NOT EXISTS "Event_family_id_start_time_idx" ON "Event"("family_id", "start_time");
 CREATE INDEX IF NOT EXISTS "Event_project_id_idx" ON "Event"("project_id");
 CREATE INDEX IF NOT EXISTS "Event_source_subscription_id_start_time_idx" ON "Event"("source_subscription_id", "start_time");
+CREATE INDEX IF NOT EXISTS "Event_source_connection_id_idx" ON "Event"("source_connection_id");
 -- Idempotent import upsert key (#232). NULLs are distinct, so local events never collide.
 CREATE UNIQUE INDEX IF NOT EXISTS "Event_source_subscription_id_source_uid_source_occurrence_s_key" ON "Event"("source_subscription_id", "source_uid", "source_occurrence_start");
 

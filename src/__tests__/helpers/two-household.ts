@@ -253,7 +253,10 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     creator: { model: 'user', fk: 'created_by' },
     family: { model: 'family', fk: 'family_id' },
   },
-  event: { creator: { model: 'user', fk: 'created_by' } },
+  event: {
+    creator: { model: 'user', fk: 'created_by' },
+    sync_links: { model: 'calendarEventLink', fk: 'event_id', many: true },
+  },
   list: {
     creator: { model: 'user', fk: 'created_by' },
     items: { model: 'listItem', fk: 'list_id', many: true },
@@ -317,6 +320,9 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
   message: { sender: { model: 'user', fk: 'sender_id' } },
   activity: { user: { model: 'user', fk: 'user_id' }, family: { model: 'family', fk: 'family_id' } },
   familyInvite: { family: { model: 'family', fk: 'family_id' } },
+  // Calendar sync (#264)
+  calendarConnection: { family: { model: 'family', fk: 'family_id' }, user: { model: 'user', fk: 'user_id' } },
+  calendarEventLink: { connection: { model: 'calendarConnection', fk: 'connection_id' }, event: { model: 'event', fk: 'event_id' } },
   // Shared device (#240)
   householdDevice: {
     family: { model: 'family', fk: 'family_id' },
@@ -582,6 +588,10 @@ const UNIQUE: Record<string, string[][]> = {
   idempotencyRecord: [['scope', 'key']],
   ingredient: [['family_id', 'name']],
   recipeIngredient: [['recipe_id', 'ingredient_id']],
+  // Calendar sync (#264)
+  calendarConnection: [['family_id', 'user_id', 'provider']],
+  calendarEventLink: [['connection_id', 'external_id']],
+  calendarOAuthState: [['state_hash']],
 }
 
 // Partial unique indexes Prisma cannot express, enforced by the fake like
@@ -594,6 +604,8 @@ const PARTIAL_UNIQUE: Record<string, Array<{ cols: string[]; where: (r: Row) => 
       where: (r) => r.checked !== true && r.source_key != null && r.ingredient_id != null,
     },
   ],
+  // NULL event_id rows are delete tombstones; NULLs are distinct in Postgres.
+  calendarEventLink: [{ cols: ['connection_id', 'event_id'], where: (r) => r.event_id != null }],
 }
 
 function violatesUnique(model: string, rows: Row[], row: Row): boolean {

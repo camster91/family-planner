@@ -318,6 +318,8 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     event_type: 'other',
     is_task: false,
     created_at: created,
+    // Explicit so re-seeding is byte-identical (Event.updated_at is @updatedAt, #264).
+    updated_at: created,
     ...extra,
   })
 

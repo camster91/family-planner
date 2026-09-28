@@ -1,6 +1,6 @@
 # Calendar import (read-only ICS subscriptions)
 
-Status: implemented for #232 (scope approved from the #124 calendar-sync contract). Covers **read-only** import of public/private ICS feed links. Two-way sync, CalDAV and OAuth calendar providers are out of scope.
+Status: implemented for #232 (scope approved from the #124 calendar-sync contract). Covers **read-only** import of public/private ICS feed links. CalDAV is out of scope. Two-way Google/Outlook sync over OAuth is a separate feature (#264): [`CALENDAR_SYNC.md`](CALENDAR_SYNC.md).
 
 ## Summary
 

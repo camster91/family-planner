@@ -180,6 +180,38 @@ describe('device cookie route allowlist', () => {
     }
   })
 
+  it('calendar sync routes (#264) refuse a device cookie with 401 even when sync is configured', async () => {
+    const { setSyncEnv, clearSyncEnv } = require('@/lib/calendar-sync/__tests__/fakes')
+    setSyncEnv()
+    try {
+      const syncFiles = files.filter((f) => /\/api\/calendar\/(connections|sync-connections)(\/|$)/.test(urlPath(f)))
+      expect(syncFiles.length).toBe(6)
+      for (const file of syncFiles) {
+        const mod = require(file)
+        for (const method of METHODS) {
+          if (typeof mod[method] !== 'function') continue
+          db.reset()
+          const fx = seedDevices()
+          const csrf = 'c'.repeat(64)
+          const res = await mod[method](
+            deviceReq({
+              method,
+              path: urlPath(file).replace(/\[(\w+)\]/g, 'google'),
+              cookies: { ...fx.d1.cookies, csrf_token: csrf },
+              headers: { 'x-csrf-token': csrf },
+              body: { push_mode: 'all' },
+            }),
+            { params: Promise.resolve({ provider: 'google', id: 'google' }) }
+          )
+          expect([`${method} ${urlPath(file)}`, res.status]).toEqual([`${method} ${urlPath(file)}`, 401])
+          expect(db.writes).toEqual([])
+        }
+      }
+    } finally {
+      clearSyncEnv()
+    }
+  })
+
   it('the allowlisted read routes do accept the device cookie', async () => {
     const fx = seedDevices()
     for (const p of ['me', 'today']) {
