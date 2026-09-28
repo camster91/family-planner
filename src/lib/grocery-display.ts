@@ -148,6 +148,9 @@ export function storeSectionOf(
   overrides: Readonly<Record<string, string>> = {}
 ): GrocerySectionId {
   if (isGrocerySection(item.section)) return item.section
+  // A section id from a newer server that this client does not know is
+  // `other` (API_CONTRACTS "Grocery store sections"), never re-guessed here.
+  if (typeof item.section === 'string' && item.section !== '') return 'other'
   return resolveGrocerySection({
     override: overrides[sectionNameKey(item.content)],
     name: item.content,

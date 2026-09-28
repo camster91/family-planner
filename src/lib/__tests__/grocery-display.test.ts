@@ -119,7 +119,11 @@ describe('buildGrocerySections by store section (#273)', () => {
 
   it('storeSectionOf uses the server section, else overrides and keywords', () => {
     expect(storeSectionOf({ content: 'Milk', section: 'frozen' })).toBe('frozen')
-    expect(storeSectionOf({ content: 'Milk', section: 'aisle-9' })).toBe('dairy_eggs')
+    // An id from a newer server is `other`, never re-guessed from the name.
+    expect(storeSectionOf({ content: 'Milk', section: 'aisle-9' })).toBe('other')
+    expect(storeSectionOf({ content: 'Rice', section: 'future_section' }, { rice: 'produce' })).toBe('other')
+    expect(storeSectionOf({ content: 'Milk', section: '' })).toBe('dairy_eggs')
+    expect(storeSectionOf({ content: 'Milk', section: undefined })).toBe('dairy_eggs')
     expect(storeSectionOf({ content: '  MILK ', section: null }, { milk: 'household' })).toBe('household')
     expect(storeSectionOf({ content: 'Nana’s', ingredient_name: 'Bread' })).toBe('bakery')
     expect(storeSectionOf({ content: 'Zzyzx' })).toBe('other')
