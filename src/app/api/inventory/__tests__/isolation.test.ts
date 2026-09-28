@@ -16,6 +16,7 @@ import * as collection from '../route'
 import * as item from '../[id]/route'
 import * as useSoon from '../use-soon/route'
 import * as cook from '../cook/route'
+import { getCookSuggestions } from '@/lib/inventory'
 import {
   db,
   req,
@@ -25,6 +26,7 @@ import {
   expectNoForeignData,
   nextServerMock,
   FOREIGN,
+  fakePrisma,
   type UserKey,
 } from '@/__tests__/helpers/two-household'
 
@@ -274,6 +276,40 @@ describe('inventory — two households, roles and gates', () => {
     const narrow = await (await useSoon.GET(req({ as: 'childA', query: { days: '1' } }))).json()
     expect(narrow.items.map((i: any) => i.id)).toEqual(['inv-a-old'])
     expect((await useSoon.GET(req({ as: 'childA', query: { days: '400' } }))).status).toBe(400)
+  })
+
+  it('what can I cook reports inputsTruncated when a recipe or item cap is hit, and never ranks expired items', async () => {
+    const today = new Date(`${utcToday()}T00:00:00Z`)
+    const row = (id: string, expires: string | null) => ({
+      id, family_id: 'family-A', name: 'Home Tomato', ingredient_id: 'ingredient-a', amount: null, unit: null,
+      location: 'fridge', expires_on: expires ? new Date(`${expires}T00:00:00Z`) : null, added_by: 'parent-a',
+      created_at: new Date(), updated_at: new Date(),
+    })
+    // Uncapped: one recipe, one non-expired item.
+    const full = await getCookSuggestions(fakePrisma, 'family-A', { today })
+    expect(full).toMatchObject({ recipesConsidered: 1, truncated: false, inputsTruncated: false })
+    expect(full.suggestions.map((s) => s.recipeId)).toEqual(['recipe-a'])
+
+    // Recipe cap hit: a second recipe (no ingredients) exists past the cap.
+    db.rows('recipe').push({ ...db.find('recipe', 'recipe-a')!, id: 'recipe-a2', title: 'Zucchini bake' })
+    const recipesCut = await getCookSuggestions(fakePrisma, 'family-A', { today, recipeCap: 1 })
+    expect(recipesCut).toMatchObject({ recipesConsidered: 1, inputsTruncated: true })
+
+    // Item cap hit.
+    db.rows('inventoryItem').push(row('inv-a-extra', null))
+    const itemsCut = await getCookSuggestions(fakePrisma, 'family-A', { today, inventoryCap: 1 })
+    expect(itemsCut.inputsTruncated).toBe(true)
+
+    // Expired items are filtered in the query, so they never use up the cap.
+    db.tables.inventoryItem = db.rows('inventoryItem').filter((r) => r.family_id !== 'family-A')
+    db.rows('inventoryItem').push(row('inv-a-old1', utcPlus(-2)), row('inv-a-old2', utcPlus(-1)), row('inv-a-ok', utcPlus(1)))
+    const expiredSkipped = await getCookSuggestions(fakePrisma, 'family-A', { today, inventoryCap: 1 })
+    expect(expiredSkipped.inputsTruncated).toBe(false)
+    expect(expiredSkipped.suggestions.map((s) => s.recipeId)).toEqual(['recipe-a'])
+
+    // The route exposes the flag.
+    const body = await (await cook.GET(req({ as: 'parentA' }))).json()
+    expect(body.inputsTruncated).toBe(false)
   })
 
   it('what can I cook ranks the household recipes by in-stock ingredients, never another household', async () => {

@@ -199,11 +199,21 @@ describeWithDatabase('inventory API against Postgres', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.suggestions.map((s: any) => s.title)).toEqual(['Omelette', 'Tomato soup'])
+    expect(body).toMatchObject({ recipesConsidered: 3, truncated: false, inputsTruncated: false })
     expect(body.suggestions[0]).toMatchObject({ recipeId: omeletteRecipe.id, coverage: 1, missing: [] })
     const stockId = soupRecipe.ingredients.find((i: any) => i.ingredient.name === 'Stock').ingredient.id
     expect(body.suggestions[1]).toMatchObject({ haveCount: 1, missingCount: 1, useSoonCount: 1 })
     expect(body.suggestions[1].missing).toEqual([{ ingredientId: stockId, name: 'Stock' }])
     expect(JSON.stringify(body)).not.toContain('Other soup')
+
+    // Input caps: hitting one is reported; the expired row is filtered in SQL,
+    // so the two live items fit a cap of 2.
+    const { getCookSuggestions } = await import('@/lib/inventory')
+    expect((await getCookSuggestions(prisma, FAM, { recipeCap: 1 })).inputsTruncated).toBe(true)
+    expect((await getCookSuggestions(prisma, FAM, { inventoryCap: 1 })).inputsTruncated).toBe(true)
+    const fits = await getCookSuggestions(prisma, FAM, { inventoryCap: 2 })
+    expect(fits.inputsTruncated).toBe(false)
+    expect(fits.suggestions.map((s) => s.title)).toEqual(['Omelette', 'Tomato soup'])
   })
 
   it('the inventory gate (and meals for cook) is enforced from the stored family flags', async () => {

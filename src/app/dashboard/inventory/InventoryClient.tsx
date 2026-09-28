@@ -35,7 +35,13 @@ interface CookData {
   suggestions: CookSuggestion[]
   recipesConsidered: number
   truncated: boolean
+  /** Some recipes or items were past the server's scan caps (older servers omit it). */
+  inputsTruncated?: boolean
 }
+
+/** Items per request (the API maximum) and the most pages the page follows. */
+const ITEM_PAGE_SIZE = 500
+const ITEM_MAX_PAGES = 20
 
 /** API error envelope `{ error: { message } }` or legacy `{ error: string }`. */
 async function errorMessage(res: Response, fallback: string): Promise<string> {
@@ -87,6 +93,7 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
   const [cook, setCook] = React.useState<Load<CookData>>({ state: 'loading' })
   const [editing, setEditing] = React.useState<{ mode: 'add' } | { mode: 'edit'; item: InventoryItemDto } | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
+  const [itemsCapped, setItemsCapped] = React.useState(false)
 
   const load = React.useCallback(async () => {
     const today = toDateOnlyLocal(new Date())
@@ -103,11 +110,32 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
         return { state: 'error' }
       }
     }
+    // Follow `nextOffset` so a large household sees every item, up to a
+    // bounded number of pages; past that the page says the list is cut short.
+    const getAllItems = async (): Promise<Load<InventoryItemDto[]>> => {
+      const all: InventoryItemDto[] = []
+      let offset: number | null = 0
+      for (let page = 0; offset !== null && page < ITEM_MAX_PAGES; page++) {
+        const res: Load<{ items: InventoryItemDto[]; nextOffset: number | null }> = await get(
+          `/api/inventory?${q}&limit=${ITEM_PAGE_SIZE}&offset=${offset}`,
+          (b) => ({ items: b.items as InventoryItemDto[], nextOffset: (b.nextOffset ?? null) as number | null })
+        )
+        if (res.state !== 'ready') return { state: 'error' }
+        all.push(...res.data.items)
+        offset = res.data.nextOffset
+      }
+      setItemsCapped(offset !== null)
+      return { state: 'ready', data: all }
+    }
     const [list, soon, cooked] = await Promise.all([
-      // One page of up to 500 items is plenty for a household; the API pages beyond that.
-      get(`/api/inventory?${q}&limit=500`, (b) => b.items as InventoryItemDto[]),
+      getAllItems(),
       get(`/api/inventory/use-soon?${q}&days=3`, (b) => b.items as UseSoonItem[]),
-      mealsOn ? get(`/api/inventory/cook?${q}`, (b) => b as CookData) : Promise.resolve<Load<CookData>>({ state: 'ready', data: { suggestions: [], recipesConsidered: 0, truncated: false } }),
+      mealsOn
+        ? get(`/api/inventory/cook?${q}`, (b) => b as CookData)
+        : Promise.resolve<Load<CookData>>({
+            state: 'ready',
+            data: { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false },
+          }),
     ])
     setItems(list)
     setUseSoon(soon)
@@ -203,15 +231,22 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
               }
             />
           ) : (
-            INVENTORY_LOCATIONS.map((loc) => (
-              <LocationSection
-                key={loc}
-                location={loc}
-                items={grouped[loc]}
-                canWrite={canWrite}
-                onEdit={(item) => setEditing({ mode: 'edit', item })}
-              />
-            ))
+            <>
+              {itemsCapped && (
+                <p className="text-footnote text-label-secondary" data-testid="items-capped">
+                  Showing the first {(ITEM_PAGE_SIZE * ITEM_MAX_PAGES).toLocaleString('en-US')} items.
+                </p>
+              )}
+              {INVENTORY_LOCATIONS.map((loc) => (
+                <LocationSection
+                  key={loc}
+                  location={loc}
+                  items={grouped[loc]}
+                  canWrite={canWrite}
+                  onEdit={(item) => setEditing({ mode: 'edit', item })}
+                />
+              ))}
+            </>
           )}
         </>
       )}
@@ -288,10 +323,18 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
           </button>
         </div>
       ) : load.data.suggestions.length === 0 ? (
-        <p className="card-apple p-4 text-subhead text-label-secondary">
-          No saved recipe uses what you have yet. Add items, or save recipes in Meals, to see ideas here.
+        <p className="card-apple p-4 text-subhead text-label-secondary" data-testid="cook-empty">
+          {load.data.inputsTruncated
+            ? 'No match among the recipes and items checked. You have more recipes or items than we can compare at once, so this may be incomplete.'
+            : 'No saved recipe uses what you have yet. Add items, or save recipes in Meals, to see ideas here.'}
         </p>
       ) : (
+        <>
+        {load.data.inputsTruncated && (
+          <p className="mb-3 text-footnote text-label-secondary" data-testid="cook-incomplete">
+            You have more recipes or items than we can compare at once, so this list may be incomplete.
+          </p>
+        )}
         <ul className="space-y-3">
           {load.data.suggestions.map((s) => (
             <li key={s.recipeId} data-testid="cook-suggestion" data-recipe-id={s.recipeId} className="card-apple p-4 space-y-2">
@@ -343,6 +386,7 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
             </li>
           ))}
         </ul>
+        </>
       )}
     </section>
   )

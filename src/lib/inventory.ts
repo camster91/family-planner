@@ -45,10 +45,14 @@ export const INVENTORY_MAX_LIMIT = 500
 export const USE_SOON_MAX_LIMIT = 100
 export const COOK_DEFAULT_LIMIT = 20
 export const COOK_MAX_LIMIT = 50
-/** Upper bound on recipes scanned for "what can I cook". */
-export const COOK_RECIPE_SCAN_LIMIT = 500
-/** Upper bound on inventory rows read for "what can I cook". */
-export const COOK_INVENTORY_SCAN_LIMIT = 2000
+/**
+ * Upper bounds on the inputs of "what can I cook". They are read in full up to
+ * these caps (one row past the cap is fetched to detect the cut); when either
+ * is hit the response says `inputsTruncated: true` and the UI says the list
+ * may be incomplete instead of claiming nothing matches.
+ */
+export const COOK_RECIPE_SCAN_LIMIT = 1000
+export const COOK_INVENTORY_SCAN_LIMIT = 5000
 
 export function canWriteInventory(role: string | undefined | null): boolean {
   return role === 'parent' || role === 'teen'
@@ -452,22 +456,48 @@ export function rankCookableRecipes(
 
 type CookReader = Pick<PrismaClient, 'inventoryItem' | 'recipe'> | Prisma.TransactionClient
 
-/** Load one household's recipes and inventory and rank them (see `rankCookableRecipes`). */
+export interface CookSuggestionsResult {
+  suggestions: CookSuggestion[]
+  /** Recipes read and ranked (at most the recipe cap). */
+  recipesConsidered: number
+  /** More ranked suggestions exist than `limit` returned. */
+  truncated: boolean
+  /**
+   * The household has more recipes or non-expired items than the scan caps,
+   * so some inputs were not considered and suggestions may be missing.
+   */
+  inputsTruncated: boolean
+}
+
+/**
+ * Load one household's recipes and non-expired inventory and rank them (see
+ * `rankCookableRecipes`). Expired items are filtered in the query, since they
+ * never count. Inputs are capped (`COOK_*_SCAN_LIMIT`, overridable for tests);
+ * hitting either cap sets `inputsTruncated`.
+ */
 export async function getCookSuggestions(
   db: CookReader,
   familyId: string,
-  opts: { today?: Date; limit?: number } = {}
-): Promise<{ suggestions: CookSuggestion[]; recipesConsidered: number; truncated: boolean }> {
+  opts: { today?: Date; limit?: number; recipeCap?: number; inventoryCap?: number } = {}
+): Promise<CookSuggestionsResult> {
   const today = opts.today ?? startOfTodayUTC()
   const limit = Math.min(Math.max(opts.limit ?? COOK_DEFAULT_LIMIT, 1), COOK_MAX_LIMIT)
-  const inventory = await db.inventoryItem.findMany({
-    where: { family_id: familyId },
+  const recipeCap = Math.max(opts.recipeCap ?? COOK_RECIPE_SCAN_LIMIT, 1)
+  const inventoryCap = Math.max(opts.inventoryCap ?? COOK_INVENTORY_SCAN_LIMIT, 1)
+
+  const inventoryRows = await db.inventoryItem.findMany({
+    where: { family_id: familyId, OR: [{ expires_on: null }, { expires_on: { gte: today } }] },
     select: { ingredient_id: true, name: true, expires_on: true },
     orderBy: [{ id: 'asc' }],
-    take: COOK_INVENTORY_SCAN_LIMIT,
+    take: inventoryCap + 1,
   })
-  if (inventory.length === 0) return { suggestions: [], recipesConsidered: 0, truncated: false }
-  const recipes = await db.recipe.findMany({
+  const inventoryCut = inventoryRows.length > inventoryCap
+  const inventory = inventoryCut ? inventoryRows.slice(0, inventoryCap) : inventoryRows
+  if (inventory.length === 0) {
+    return { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false }
+  }
+
+  const recipeRows = await db.recipe.findMany({
     where: { family_id: familyId },
     select: {
       id: true,
@@ -479,12 +509,16 @@ export async function getCookSuggestions(
       ingredients: { select: { ingredient: { select: { id: true, name: true } } } },
     },
     orderBy: [{ title: 'asc' }, { id: 'asc' }],
-    take: COOK_RECIPE_SCAN_LIMIT,
+    take: recipeCap + 1,
   })
+  const recipesCut = recipeRows.length > recipeCap
+  const recipes = recipesCut ? recipeRows.slice(0, recipeCap) : recipeRows
+
   const ranked = rankCookableRecipes(recipes, inventory, today)
   return {
     suggestions: ranked.slice(0, limit),
     recipesConsidered: recipes.length,
     truncated: ranked.length > limit,
+    inputsTruncated: inventoryCut || recipesCut,
   }
 }

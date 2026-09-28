@@ -51,7 +51,16 @@ function setup({
   canWrite = true,
   items = ITEMS,
   listStatus = 200,
-}: { canWrite?: boolean; items?: unknown[]; listStatus?: number } = {}) {
+  page,
+  cook = COOK,
+}: {
+  canWrite?: boolean
+  items?: unknown[]
+  listStatus?: number
+  /** Paged list mock: the items and nextOffset for a given offset. */
+  page?: (offset: number) => { items: unknown[]; nextOffset: number | null }
+  cook?: unknown
+} = {}) {
   const calls: Call[] = []
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -61,7 +70,10 @@ function setup({
     const json = (status: number, data: unknown) =>
       ({ ok: status >= 200 && status < 300, status, json: async () => data, headers: { get: () => null } }) as unknown as Response
     if (url.startsWith('/api/inventory/use-soon')) return json(200, { days: 3, items: USE_SOON })
-    if (url.startsWith('/api/inventory/cook')) return json(200, COOK)
+    if (url.startsWith('/api/inventory/cook')) return json(200, cook)
+    if (url.startsWith('/api/inventory?') && method === 'GET' && page) {
+      return json(200, page(Number(new URL(url, 'http://x').searchParams.get('offset') ?? '0')))
+    }
     if (url.startsWith('/api/inventory?') && method === 'GET') {
       return json(listStatus, listStatus === 200 ? { items, nextOffset: null } : { error: { code: 'INTERNAL_ERROR', message: 'x' } })
     }
@@ -166,6 +178,37 @@ describe('/dashboard/inventory', () => {
     const before = calls.length
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(calls.length).toBeGreaterThan(before))
+  })
+
+  it('follows the list cursor until nextOffset is null', async () => {
+    const { calls } = setup({
+      page: (offset) => (offset === 0 ? { items: [ITEMS[0]], nextOffset: 500 } : { items: [ITEMS[2]], nextOffset: null }),
+    })
+    expect(await screen.findByText('Peas')).toBeTruthy()
+    const listCalls = calls.filter((c) => c.url.startsWith('/api/inventory?'))
+    expect(listCalls.map((c) => new URL(c.url, 'http://x').searchParams.get('offset'))).toEqual(['0', '500'])
+    expect(listCalls.every((c) => c.url.includes('limit=500'))).toBe(true)
+    expect(screen.getAllByTestId('inventory-item')).toHaveLength(2)
+    expect(screen.queryByTestId('items-capped')).toBeNull()
+  })
+
+  it('stops after 20 pages and says the list is cut short', async () => {
+    const { calls } = setup({
+      page: (offset) => ({ items: [{ ...ITEMS[2], id: `i-${offset}` }], nextOffset: offset + 500 }),
+    })
+    expect((await screen.findByTestId('items-capped')).textContent).toBe('Showing the first 10,000 items.')
+    expect(calls.filter((c) => c.url.startsWith('/api/inventory?'))).toHaveLength(20)
+    expect(screen.getAllByTestId('inventory-item')).toHaveLength(20)
+  })
+
+  it('says cook suggestions may be incomplete when the server capped its inputs', async () => {
+    setup({ cook: { ...COOK, inputsTruncated: true } })
+    expect((await screen.findByTestId('cook-incomplete')).textContent).toContain('may be incomplete')
+    document.body.innerHTML = ''
+    setup({ cook: { suggestions: [], recipesConsidered: 1000, truncated: false, inputsTruncated: true } })
+    const empty = await screen.findByTestId('cook-empty')
+    expect(empty.textContent).toContain('may be incomplete')
+    expect(empty.textContent).not.toContain('No saved recipe uses')
   })
 
   it('leaves out "What can I cook" when meal planning is off', async () => {

@@ -394,7 +394,7 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 
 ### What can I cook
 
-`GET /api/inventory/cook` (`getCookSuggestions` → pure `rankCookableRecipes`) ranks the household's saved recipes (up to 500 scanned) against its inventory (up to 2000 items):
+`GET /api/inventory/cook` (`getCookSuggestions` → pure `rankCookableRecipes`) ranks the household's saved recipes against its non-expired inventory. Inputs are read up to 1000 recipes and 5000 non-expired items (expired rows are filtered in SQL, so they never use up the cap); one row past each cap is fetched, and when either cap is hit the response carries `inputsTruncated: true` and the page says the list may be incomplete instead of "no saved recipe uses what you have".
 
 - An ingredient is in stock when a **non-expired** item links to it by `ingredient_id`, or an **unlinked** non-expired item has the same normalized name as the ingredient. A linked item never matches another ingredient by name. Expired items never count (food safety beats optimism).
 - Presence only: amounts are not compared (no cross-unit arithmetic).
@@ -405,6 +405,7 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 ### Roles, gate, device, export
 
 - Parent and teen create, edit and delete; child reads (403 `INVENTORY_WRITE_FORBIDDEN`). `/dashboard/inventory` is on the kid allowlist; the page hides write controls for a child.
+- Navigation: the user menu (top bar, every viewport and role) has a "Food inventory" link while the feature is on, so the page is reachable by touch; the command palette entry stays for keyboards, and `/dashboard/meals` links to it ("What's in the fridge"). The page follows the list's `nextOffset` (500 per request) for up to 20 pages and says "Showing the first 10,000 items" beyond that.
 - Feature `inventory` (`src/lib/features.ts`, group "planning", `defaultEnabled: false`, no `legacyDefault`): off for new and existing households, because the feature needs data entry to be useful and adds a nav entry. A stored blob without the key reads as off, so `scripts/migrate.js` stamps nothing (compare `gamification`, which needed a stamp). The column default in `database/migration-features.sql` and `schema.prisma` carries `"inventory":false`. A parent turns it on in Features.
 - Paired shared device: writes refused (403 `DEVICE_WRITE_NOT_ALLOWED`, `refusePairedDevice`, listed in the route-allowlist test); no device read route yet. The board tile (#262) is the intended device read path, through `getUseSoonItems` fields only.
 - Export: `GET /api/users/export` adds `inventory` (every member; no `family_id`).
