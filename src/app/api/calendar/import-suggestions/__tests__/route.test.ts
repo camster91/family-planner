@@ -525,7 +525,7 @@ describe('POST /api/calendar/import-suggestions/undo', () => {
   }
   const undoReq = (as: UserKey | null, body: unknown) =>
     req({ as, method: 'POST', path: '/api/calendar/import-suggestions/undo', body })
-  const ids = () => db.rows('event').map((r: { id: string }) => r.id)
+  const ids = () => db.rows('event').map((r) => r.id as string)
 
   it('deletes exactly the caller’s just-added events and is safe to repeat', async () => {
     seedEvent('imp-1', 'A', USER_IDS.parentA)
