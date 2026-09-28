@@ -95,9 +95,9 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Domain | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|---|
 | Lists | R | yes | yes | yes | open grocery items only | |
-| Lists | C (new list) | yes | yes | no | no | Child: 403 "Ask a parent to create a new list." |
+| Lists | C (new list) | yes | yes | no | no | Child: 403 "Ask a parent to create a new list." The UI no longer offers type `meal_plan` for a new list (ADR-0007 O-8). The server still accepts it so installed Android bundles keep working; existing `meal_plan` lists stay readable and editable. |
 | Lists | D | yes | no | no | elevated only | |
-| List items | C (add) / U (tick) | yes | yes | yes | no (phase 2 candidate, O-5) | On an existing list of the household. Tick/untick may be queued offline and retried with an `Idempotency-Key` (#162, person sessions only; `docs/architecture/OFFLINE_SYNC.md`). |
+| List items | C (add) / U (tick) | yes | yes | yes | no (phase 2 candidate, O-5) | On an existing list of the household. Tick/untick may be queued offline and retried with an `Idempotency-Key` (#162, person sessions only; `docs/architecture/OFFLINE_SYNC.md`). Optional `amount`, `unit`, `ingredient_id` (ADR-0007, #251): `ingredient_id` must be an `Ingredient` of the household, else 400 "Ingredient not found" (same answer for a foreign and a missing id). Unticking a recipe row that already has an open twin: 409 `DUPLICATE_OPEN_ITEM`. `source` is not client-writable. |
 | List items | D | yes | no | no | elevated only | |
 | Pinned notes | R / C | yes | yes | yes | no (O-11) | |
 | Pinned notes | U | yes | own | own | no | `created_by = self`, else 403. |
@@ -111,6 +111,19 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 Page: `/dashboard/lists` (and its sub-pages) is on the kid allowlist and in the kid nav. Create-list links are
 hidden for a child; delete-list and swipe-to-delete-item are hidden for teens and children.
 
+Feature gate (ADR-0007 O-11, #251): every `/api/lists/**` handler now calls `featureGate('lists')` after
+authentication and answers 403 when the household has lists off, matching the UI gate. Lists is a core feature
+(the features API refuses to turn it off), so this only affects a stored flag blob that already has `lists: false`.
+
+### Meals and recipes (ADR-0007, #251)
+
+| Domain | Action | Parent | Teen | Child | Shared device | Notes |
+|---|---|---|---|---|---|---|
+| Meals | R / C / U / D | yes | yes | yes | R: dinners only, recipe name, cook name, linked recipe title and prep time; C/U: elevated only (when tablet flows exist); D: no | `featureGate('meals')`. `cook_id` and the optional `recipe_id` are verified in the household (400, same answer for a foreign and a missing id). Several meals may share a (date, meal type) slot (O-1). Device never reads `notes` or recipe instructions/description. |
+| Recipes (`/api/recipes`, `/api/recipes/[id]`) | R | yes | yes | yes | tonight's recipe title and prep time only (via the board DTO) | `featureGate('meals')`. Every lookup is scoped by `family_id`; another household's recipe is a 404 identical to a missing id. |
+| Recipes | C / U | yes | yes | no (403) | no | O-7. Nested ingredients: `ingredient_id` must be in the household (400 "Ingredient not found"); `name` is upserted by (household, normalized name) and never matches another household's ingredient. Bodies are strict: `family_id`, `created_by` or other unknown keys are a 400. |
+| Recipes | D | yes | no (403) | no (403) | no | O-7. Meals and grocery items keep their rows (FK `SET NULL`; the meal keeps its `recipe_name` snapshot). A recipe still referenced by a frozen legacy `MealPlanEntry` is refused with 409 `RECIPE_IN_ARCHIVED_PLAN` (that FK cascades and legacy rows are never modified). |
+
 ### Other domains (unchanged by this round; recorded for completeness)
 
 | Domain | R | C | U | D | Shared device (proposed) | Notes |
@@ -119,7 +132,7 @@ hidden for a child; delete-list and swipe-to-delete-item are hidden for teens an
 | Chores | all | parent | parent, or assignee for status | parent, or assignee | R: title, due day, status, assignee name; complete: phase 2 candidate (O-4); verify: elevated only | Completion open to any member for any household chore. Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. |
 | Rewards | all | parent | parent | — | no | Claim: all. Approve: parent. Every handler 403s unless Rewards AND Points & streaks are on (#248). |
 | Wishlist | all | all | requester or parent | requester or parent | no | Status changes: parent. |
-| Meals | all | all | all | all | R: dinners only, recipe name and cook name; C/U: elevated only (when tablet flows exist); D: no | `cook_id` verified in household. Device never reads `notes`. |
+| Meals | all | all | all | all | see "Meals and recipes" above | `cook_id` and `recipe_id` verified in household. Device never reads `notes`. |
 | Projects and tasks | all | all | parent | parent | no | |
 | Messages | all | all | all (mark read) | — | no | |
 | Activity, analytics | all | — | — | — | no | `/api/analytics` (the leaderboard) 403s unless Analytics AND Points & streaks are on (#248). |
@@ -127,7 +140,7 @@ hidden for a child; delete-list and swipe-to-delete-item are hidden for teens an
 | Locations | parent | parent | — | parent | no | Precise addresses. |
 | Travel mode | parent | — | parent | — | no | |
 | Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | Feature toggles, including Points & streaks (`gamification`, #248): PATCH is parent-only, teen/child 403. |
-| Account (`/api/users`, export) | own | — | own | own | no | Export includes travel fields for parents only. |
+| Account (`/api/users`, export) | own | — | own | own | no | Export includes travel fields for parents only. Export (ADR-0007, #251) adds the household's `FamilyMeal` rows (`meals`) and the ADR-0007 backfill `ImportJob` summaries (`mealBackfillJobs`, every member, because they archive legacy rows every member already exports); the legacy `mealPlans`/`shoppingLists` stay; other import jobs stay parent-only. |
 | Shared devices (list, rename, revoke, pairing codes, audit) | parent | parent | parent | parent (revoke) | this device only: rename/revoke elevated only | Implemented (behind SHARED_DEVICE_ENABLED), #240; teens and children get 403 `PARENT_REQUIRED`. |
 | Tablet elevation PIN | own (parent) | own (parent) | own (parent) | own (parent) | used, never read | Implemented (behind SHARED_DEVICE_ENABLED), #240 (O-1 confirmed). Set/change needs the current password; a password reset deletes it. |
 
@@ -138,7 +151,8 @@ domains.
 
 `/dashboard/today` (the fridge/wall tablet view) is on the kid allowlist for parent, teen and child. It is read-only
 and shows only data every member may already read above: events (without location or description), chores
-(title, due day, status, assignee name), dinners (recipe and cook name, without notes) and open grocery items. It
+(title, due day, status, assignee name), dinners (recipe and cook name, plus the linked recipe's title and prep
+time, without notes) and open grocery items. It
 reads no finance, allowance, messages, medical, location, handoff or account data. The page offers links to
 calendar, chores, meals and features only to roles that may open them. DTO:
 `src/app/dashboard/today/today-board-data.ts`.

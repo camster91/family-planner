@@ -9,6 +9,13 @@
  * against the state its predecessor committed, and its response is the row as
  * it left it. Setting the state the item already has writes nothing, which
  * keeps the original `checked_by` / `checked_at` attribution.
+ *
+ * ADR-0007 (#251): optional `amount`, `unit` and `ingredient_id` (null clears).
+ * An `ingredient_id` must belong to the item's household (a foreign or missing
+ * id is the same 400). Unticking a recipe-added row whose (list, ingredient,
+ * source) already has another open row violates the partial unique index
+ * `ListItem_open_recipe_source_key`; that `P2002` is answered as 409
+ * `DUPLICATE_OPEN_ITEM`, which the #247 offline queue treats as a conflict.
  */
 import type { PrismaClient } from '@prisma/client'
 
@@ -19,13 +26,23 @@ export interface ListItemUpdate {
   quantity?: number
   category?: string
   notes?: string
+  amount?: number | null
+  unit?: string | null
+  ingredient_id?: string | null
 }
+
+export const DUPLICATE_OPEN_ITEM = 'DUPLICATE_OPEN_ITEM'
 
 export type ListItemUpdateResult =
   | { status: 200; body: { success: true; item: Record<string, unknown> } }
-  | { status: 403 | 404; body: { error: string } }
+  | { status: 400 | 403 | 404; body: { error: string } }
+  | { status: 409; body: { error: { code: typeof DUPLICATE_OPEN_ITEM; message: string; retryable: false } } }
 
 type Db = Pick<PrismaClient, '$transaction'>
+
+function isUniqueViolation(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002')
+}
 
 export async function updateListItem(
   db: Db,
@@ -33,7 +50,34 @@ export async function updateListItem(
   user: { id: string; family_id: string },
   now: () => Date = () => new Date()
 ): Promise<ListItemUpdateResult> {
-  const { itemId, checked, content, quantity, category, notes } = data
+  try {
+    return await applyListItemUpdate(db, data, user, now)
+  } catch (error) {
+    // ListItem's only unique constraint besides its id is the partial index
+    // "ListItem_open_recipe_source_key" (MEALS_AND_GROCERIES.md §5).
+    if (isUniqueViolation(error)) {
+      return {
+        status: 409,
+        body: {
+          error: {
+            code: DUPLICATE_OPEN_ITEM,
+            message: 'This item is already on the list and not yet ticked.',
+            retryable: false,
+          },
+        },
+      }
+    }
+    throw error
+  }
+}
+
+async function applyListItemUpdate(
+  db: Db,
+  data: ListItemUpdate,
+  user: { id: string; family_id: string },
+  now: () => Date
+): Promise<ListItemUpdateResult> {
+  const { itemId, checked, content, quantity, category, notes, amount, unit, ingredient_id } = data
   return db.$transaction(async (tx) => {
     // Serialise writers of this item; a missing row locks nothing and is a 404 below.
     await tx.$queryRaw`SELECT "id" FROM "ListItem" WHERE "id" = ${itemId} FOR UPDATE`
@@ -43,6 +87,14 @@ export async function updateListItem(
     })
     if (!item) return { status: 404, body: { error: 'Item not found' } }
     if (item.list.family_id !== user.family_id) return { status: 403, body: { error: 'Forbidden' } }
+
+    if (ingredient_id) {
+      const ingredient = await tx.ingredient.findFirst({
+        where: { id: ingredient_id, family_id: user.family_id },
+        select: { id: true },
+      })
+      if (!ingredient) return { status: 400, body: { error: 'Ingredient not found' } }
+    }
 
     const updateData: Record<string, unknown> = {}
     // Explicit state, not a toggle. Attribution changes only when the state does.
@@ -55,6 +107,9 @@ export async function updateListItem(
     if (quantity !== undefined) updateData.quantity = quantity
     if (category !== undefined) updateData.category = category
     if (notes !== undefined) updateData.notes = notes
+    if (amount !== undefined) updateData.amount = amount
+    if (unit !== undefined) updateData.unit = unit
+    if (ingredient_id !== undefined) updateData.ingredient_id = ingredient_id
 
     const { list: _list, ...unchanged } = item
     const updated =

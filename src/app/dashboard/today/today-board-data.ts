@@ -64,6 +64,13 @@ export interface BoardDinner {
   day: string
   recipeName: string | null
   cookName: string | null
+  /**
+   * Linked recipe (ADR-0007): title and prep time only, never the recipe's
+   * description, instructions or the meal's `notes`. Null when unlinked.
+   */
+  recipeTitle?: string | null
+  /** Recipe prep time in minutes, when linked and known. */
+  prepMinutes?: number | null
 }
 
 /** Where the board may link, already filtered by role and feature flags. */
@@ -157,7 +164,13 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     features.meals
       ? db.familyMeal.findMany({
           where: { family_id: familyId, meal_type: 'dinner', date: { gte: windowStart, lt: windowEnd } },
-          select: { id: true, date: true, recipe_name: true, cook: { select: { name: true } } },
+          select: {
+            id: true,
+            date: true,
+            recipe_name: true,
+            cook: { select: { name: true } },
+            recipe: { select: { title: true, prep_time: true } },
+          },
           orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         })
       : Promise.resolve(null),
@@ -210,6 +223,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           day: toDateOnlyUTC(d.date),
           recipeName: d.recipe_name?.trim() || null,
           cookName: d.cook?.name ?? null,
+          recipeTitle: d.recipe?.title?.trim() || null,
+          prepMinutes: d.recipe?.prep_time ?? null,
         }))
       : null,
     shopping,

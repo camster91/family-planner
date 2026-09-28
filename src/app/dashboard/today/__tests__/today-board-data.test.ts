@@ -48,8 +48,14 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
     },
     familyMeal: {
       findMany: jest.fn().mockResolvedValue([
-        { id: 'm1', date: new Date('2026-01-05T00:00:00Z'), recipe_name: '  Tacos ', cook: { name: 'Avery Parent' } },
-        { id: 'm2', date: new Date('2026-01-06T00:00:00Z'), recipe_name: '', cook: null },
+        {
+          id: 'm1',
+          date: new Date('2026-01-05T00:00:00Z'),
+          recipe_name: '  Tacos ',
+          cook: { name: 'Avery Parent' },
+          recipe: { title: 'Street tacos', prep_time: 20 },
+        },
+        { id: 'm2', date: new Date('2026-01-06T00:00:00Z'), recipe_name: '', cook: null, recipe: null },
       ]),
     },
     calendarSubscription: {
@@ -96,6 +102,10 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     expect(selectedKeys(eventArgs.select)).not.toContain('description')
     expect(selectedKeys(eventArgs.select)).not.toContain('location')
     expect(selectedKeys(mealArgs.select)).not.toContain('notes')
+    // ADR-0007: only the linked recipe's title and prep time reach the board.
+    expect(mealArgs.select.recipe).toEqual({ select: { title: true, prep_time: true } })
+    expect(selectedKeys(mealArgs.select)).not.toContain('instructions')
+    expect(selectedKeys(mealArgs.select)).not.toContain('description')
     expect(selectedKeys(choreArgs.select)).not.toContain('description')
     expect(selectedKeys(choreArgs.select)).not.toContain('points')
     expect(selectedKeys(subArgs.select).sort()).toEqual(['color', 'id', 'name'])
@@ -144,8 +154,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     ])
     expect(data.chores).toEqual([{ id: 'c1', title: 'Tidy room', dueDay: '2026-01-05', status: 'pending', assigneeId: 'u_child' }])
     expect(data.dinners).toEqual([
-      { id: 'm1', day: '2026-01-05', recipeName: 'Tacos', cookName: 'Avery Parent' },
-      { id: 'm2', day: '2026-01-06', recipeName: null, cookName: null },
+      { id: 'm1', day: '2026-01-05', recipeName: 'Tacos', cookName: 'Avery Parent', recipeTitle: 'Street tacos', prepMinutes: 20 },
+      { id: 'm2', day: '2026-01-06', recipeName: null, cookName: null, recipeTitle: null, prepMinutes: null },
     ])
     expect(data.shopping).toEqual({
       items: [{ id: 'i1', content: 'Milk', quantity: 2, listId: 'l1', listName: 'Groceries' }],

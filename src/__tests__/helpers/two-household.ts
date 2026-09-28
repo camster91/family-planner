@@ -130,7 +130,21 @@ function seed(): Tables {
     familyMeal: perFamily((f, family_id, tag) => ({
       id: `meal-${f}`, family_id, date: SOON, meal_type: 'dinner', recipe_name: `${tag} pasta`,
       notes: null, cook_id: `parent-${f}`, created_by: `parent-${f}`, created_at: T0,
+      recipe_id: null, servings: null, updated_at: T0,
     })),
+    // Canonical recipes (ADR-0007, #251).
+    recipe: perFamily((f, family_id, tag) => ({
+      id: `recipe-${f}`, family_id, title: `${tag} lasagne`, description: `${tag} family favourite`,
+      instructions: `${tag} bake it`, prep_time: 20, cook_time: 45, servings: 4, image_url: null,
+      created_by: `parent-${f}`, created_at: T0, updated_at: T0,
+    })),
+    ingredient: perFamily((f, family_id, tag) => ({
+      id: `ingredient-${f}`, family_id, name: `${tag} Tomato`, unit: 'g',
+    })),
+    recipeIngredient: perFamily((f) => ({
+      id: `ri-${f}`, recipe_id: `recipe-${f}`, ingredient_id: `ingredient-${f}`, amount: 400, unit: 'g', note: null,
+    })),
+    mealPlanEntry: [],
     pinnedNote: perFamily((f, family_id, tag) => ({
       id: `note-${f}`, family_id, title: `${tag} wifi`, body: `${tag} password`, color: 'yellow',
       created_by: `parent-${f}`, created_at: T0,
@@ -246,7 +260,31 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     family: { model: 'family', fk: 'family_id' },
   },
   listItem: { list: { model: 'list', fk: 'list_id' } },
-  familyMeal: { cook: { model: 'user', fk: 'cook_id' }, creator: { model: 'user', fk: 'created_by' } },
+  familyMeal: {
+    cook: { model: 'user', fk: 'cook_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    recipe: { model: 'recipe', fk: 'recipe_id' },
+    family: { model: 'family', fk: 'family_id' },
+  },
+  recipe: {
+    family: { model: 'family', fk: 'family_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    ingredients: { model: 'recipeIngredient', fk: 'recipe_id', many: true },
+  },
+  recipeIngredient: {
+    recipe: { model: 'recipe', fk: 'recipe_id' },
+    ingredient: { model: 'ingredient', fk: 'ingredient_id' },
+  },
+  ingredient: { family: { model: 'family', fk: 'family_id' } },
+  importJob: { family: { model: 'family', fk: 'family_id' } },
+  mealPlan: {
+    family: { model: 'family', fk: 'family_id' },
+    entries: { model: 'mealPlanEntry', fk: 'meal_plan_id', many: true },
+  },
+  shoppingList: {
+    family: { model: 'family', fk: 'family_id' },
+    items: { model: 'shoppingItem', fk: 'shopping_list_id', many: true },
+  },
   pickup: { assignee: { model: 'user', fk: 'assigned_to' } },
   allowance: { from_user: { model: 'user', fk: 'from_user_id' }, to_user: { model: 'user', fk: 'to_user_id' } },
   familyLocation: { user: { model: 'user', fk: 'user_id' } },
@@ -267,7 +305,11 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     family: { model: 'family', fk: 'family_id' },
   },
   projectTask: { assignee: { model: 'user', fk: 'assigned_to' }, project: { model: 'project', fk: 'project_id' } },
-  reward: { creator: { model: 'user', fk: 'created_by' }, claimer: { model: 'user', fk: 'claimed_by' } },
+  reward: {
+    creator: { model: 'user', fk: 'created_by' },
+    claimer: { model: 'user', fk: 'claimed_by' },
+    family: { model: 'family', fk: 'family_id' },
+  },
   wishlistItem: {
     requester: { model: 'user', fk: 'requested_by' },
     status_changer: { model: 'user', fk: 'status_changed_by' },
@@ -414,6 +456,12 @@ export function matches(model: string, row: Row, where: any): boolean {
       if ((Array.isArray(cond) ? cond : [cond]).some((w) => matches(model, row, w))) return false
       continue
     }
+    // Compound unique selector, e.g. `family_id_name: { family_id, name }`.
+    const compound = COMPOUND_KEYS[model]?.[key]
+    if (compound) {
+      if (!compound.every((col) => cmp(row[col], (cond as any)[col]) === 0)) return false
+      continue
+    }
     const relation = db.related(model, row, key)
     if (relation) {
       const { rel, value } = relation
@@ -532,6 +580,14 @@ function notFound(model: string): Error {
 // Composite unique indexes the fake enforces (create throws P2002 like Prisma).
 const UNIQUE: Record<string, string[][]> = {
   idempotencyRecord: [['scope', 'key']],
+  ingredient: [['family_id', 'name']],
+  recipeIngredient: [['recipe_id', 'ingredient_id']],
+}
+
+// Prisma compound-unique selector names -> their columns.
+const COMPOUND_KEYS: Record<string, Record<string, string[]>> = {
+  ingredient: { family_id_name: ['family_id', 'name'] },
+  recipeIngredient: { recipe_id_ingredient_id: ['recipe_id', 'ingredient_id'] },
 }
 
 function uniqueViolation(model: string): Error {
@@ -563,6 +619,23 @@ function delegate(model: string) {
       }
       all().push(row)
       return project(model, row, args)
+    },
+    createMany: async (args: any) => {
+      log('createMany', args)
+      const data: Row[] = Array.isArray(args.data) ? args.data : [args.data]
+      let count = 0
+      for (const d of data) {
+        const row: Row = { id: db.nextId(model), created_at: new Date() }
+        applyData(model, row, d)
+        const dup = (UNIQUE[model] ?? []).some((cols) => all().some((r) => cols.every((c) => cmp(r[c], row[c]) === 0)))
+        if (dup) {
+          if (args.skipDuplicates) continue
+          throw uniqueViolation(model)
+        }
+        all().push(row)
+        count += 1
+      }
+      return { count }
     },
     update: async (args: any) => {
       log('update', args)

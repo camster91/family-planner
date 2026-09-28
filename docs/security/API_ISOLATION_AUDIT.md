@@ -33,6 +33,18 @@ and household, and only 2xx outcomes are stored, so a denied or foreign-item req
 `src/app/api/lists/__tests__/idempotency.test.ts`, `src/lib/__tests__/idempotency.test.ts` and the opt-in
 `src/lib/__tests__/idempotency.integration.test.ts`. Contract: `docs/architecture/OFFLINE_SYNC.md`.
 
+**Update 2026-09-28 (#251): canonical meal, recipe and grocery APIs (ADR-0007).** New family-scoped
+`/api/recipes` and `/api/recipes/[id]` (every lookup `where { id, family_id }`, so another household's recipe is a
+404 identical to a missing one); `recipe_id` on `/api/meals` and `ingredient_id` on `/api/lists/items/create|update`
+are verified in the caller's household (400, the same answer for a foreign and a missing id, so existence is not
+revealed); nested recipe ingredients are resolved in the household only (a name never matches another household's
+ingredient). Every `/api/lists/**` handler now has `featureGate('lists')` (O-11). The meal-planner importer writes
+`FamilyMeal`/`List`/`ListItem` and resolves every reference inside the importing household. Tests:
+`recipes/__tests__/isolation.test.ts`, `meals/__tests__/recipe-link.test.ts`, `lists/__tests__/provenance.test.ts`,
+`users/export/__tests__/canonical.test.ts`, and the opt-in `recipes/__tests__/recipes.integration.test.ts`,
+`src/lib/__tests__/list-item-provenance.integration.test.ts` and
+`src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -63,7 +75,7 @@ recorded in route comments, as the de facto matrix.
 |---|---|---|---|---|---|---|---|
 | /api/activity | GET | family | where | all | none | activity/iso | ok |
 | /api/admin/imports | GET | family | where | P | none | admin/imports/iso | ok |
-| /api/admin/imports/[source] | POST | family | familyId from session | P | identityMap user ids verified in family | admin/imports/iso | ok |
+| /api/admin/imports/[source] | POST | family | familyId from session | P | identityMap user ids verified in family | admin/imports/iso, imports/meal-planner-canonical.integration | ok; meal-planner (#251) writes only canonical `FamilyMeal`/`List`/`ListItem` (+ `Recipe*`); recipe links and ingredient matches resolved in the importing family; existing mappings honoured whatever their `target_model` |
 | /api/allowance | GET | jwt | where | P; teen/child own (`to_user_id = self`) | none | allowance/iso | implemented (D5) |
 | /api/allowance | POST | jwt | session family | P | to_user_id verified in family | allowance/iso | ok |
 | /api/allowance/[id] | PATCH | jwt | match (404) | P | none | allowance/[id]/route.test.ts | ok |
@@ -155,19 +167,19 @@ recorded in route comments, as the de facto matrix.
 | /api/handoff/share/[token] | GET | token (rate-limited, expiring) | token's handoff only; allowlisted fields | n/a | none | handoff/share/[token]/__tests__/route.test.ts | ok |
 | /api/health | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
 | /api/health/live | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
-| /api/lists | GET | family | where | all | none | lists/iso | ok |
-| /api/lists | DELETE | family | match (403) | P | none | lists/iso | ok |
-| /api/lists/create | POST | family | session family | P+T | none | lists/iso | implemented (D9) |
-| /api/lists/items | GET | family | list match (403) | all | none | lists/iso | ok |
-| /api/lists/items/create | POST | family | list match (403) | all | listId verified | lists/iso | ok |
-| /api/lists/items/update | PATCH | family | item's list match (403) | all | none | lists/iso, lists/idempotency | ok; optional `Idempotency-Key` (#162): records scoped to `user:<id>` + `family_id`, never replayed across users or households, 401 before any lookup |
-| /api/lists/items/delete | DELETE | family | item's list match (403) | P | none | lists/iso | ok |
+| /api/lists | GET | family + `featureGate('lists')` (#251) | where | all | none | lists/iso, lists/provenance | ok |
+| /api/lists | DELETE | family + `featureGate('lists')` (#251) | match (403) | P | none | lists/iso, lists/provenance | ok |
+| /api/lists/create | POST | family + `featureGate('lists')` (#251) | session family | P+T | none; type `meal_plan` hidden in the UI, still accepted for old clients (O-8) | lists/iso, lists/provenance | implemented (D9) |
+| /api/lists/items | GET | family + `featureGate('lists')` (#251) | list match (403) | all | none | lists/iso, lists/provenance | ok |
+| /api/lists/items/create | POST | family + `featureGate('lists')` (#251) | list match (403) | all | listId verified; `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/provenance | ok |
+| /api/lists/items/update | PATCH | family + `featureGate('lists')` (#251) | item's list match (403) | all | `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/idempotency, lists/provenance, list-item-provenance.integration | ok; optional `Idempotency-Key` (#162): records scoped to `user:<id>` + `family_id`, never replayed across users or households, 401 before any lookup; `P2002` on `ListItem_open_recipe_source_key` → 409 `DUPLICATE_OPEN_ITEM` (not stored) |
+| /api/lists/items/delete | DELETE | family + `featureGate('lists')` (#251) | item's list match (403) | P | none | lists/iso, lists/provenance | ok |
 | /api/locations | GET | jwt | where | P (was all) | none | locations/iso | fixed |
 | /api/locations | POST | jwt | session family | P | none | locations/iso | ok |
 | /api/locations/[id] | DELETE | jwt | match (404) | P | none | locations/iso | ok |
-| /api/meals | GET | family | where | all | none | meals/iso | ok |
-| /api/meals | POST | family | session family | all | cook_id **now** verified | meals/iso | fixed |
-| /api/meals/[id] | PATCH | family | match (403) | all | cook_id **now** verified | meals/iso | fixed |
+| /api/meals | GET | family | where; `recipe` summary via the meal's own FK (id, title, prep/cook time, servings) | all | none | meals/iso, meals/recipe-link | ok |
+| /api/meals | POST | family | session family | all | cook_id **now** verified; `recipe_id` verified in family (400, no existence leak, #251) | meals/iso, meals/recipe-link | fixed |
+| /api/meals/[id] | PATCH | family | match (403) | all | cook_id **now** verified; `recipe_id` verified in family (400, no existence leak, #251) | meals/iso, meals/recipe-link | fixed |
 | /api/meals/[id] | DELETE | family | match (403) | all | none | meals/iso | ok |
 | /api/medications | GET | jwt | where | P; teen/child own (`person_id = self`) | none | medications/iso | implemented (D1) |
 | /api/medications | POST | jwt | session family | P | person_id + sick_day_id verified | medications/route.test.ts | ok |
@@ -203,6 +215,11 @@ recorded in route comments, as the de facto matrix.
 | /api/rewards | PATCH | family | match (403) | P | none | rewards/iso | ok |
 | /api/rewards/claim | POST | family | match (403) + conditional write on family | all | none | rewards/iso | ok |
 | /api/rewards/approve | POST | family | match (403) | P | none | rewards/iso | ok |
+| /api/recipes | GET | family + `featureGate('meals')` | where family_id; paginated (limit ≤ 200) | all | none | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes | POST | family + `featureGate('meals')` | session family | P+T (O-7) | nested `ingredient_id`s verified in family (400, no existence leak); names upserted in family only; strict body (no `family_id`/`created_by`) | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes/[id] | GET | family + `featureGate('meals')` | where id + family (404, same as missing) | all | none | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes/[id] | PATCH | family + `featureGate('meals')` | where id + family (404) | P+T (O-7) | same as POST; `ingredients` replaces the set | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes/[id] | DELETE | family + `featureGate('meals')` | where id + family (404) | P (O-7) | 409 `RECIPE_IN_ARCHIVED_PLAN` while a legacy `MealPlanEntry` references it | recipes/iso, recipes.integration | implemented (#251) |
 | /api/sick-days | GET | jwt | where | P; teen/child own (`person_id = self`) | none | sick-days/iso | implemented (D1) |
 | /api/sick-days | POST | jwt | session family | P; teen/child own (report self only) | person_id verified | sick-days/route.test.ts, sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | PATCH | jwt | match (404); raw SQL also filters family_id | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
@@ -213,7 +230,7 @@ recorded in route comments, as the de facto matrix.
 | /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
 | /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
-| /api/users/export | GET | session | self + own family; travel fields **now** parent-only | all | none | users/export/__tests__/route.test.ts | fixed |
+| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
 | /api/wishlist | GET | family | where | all | none | wishlist/iso | ok |
 | /api/wishlist | POST | family | session family | all | none | wishlist/iso | ok |
 | /api/wishlist/[id] | PATCH | family | match (403) | requester or P | none | wishlist/iso | ok |

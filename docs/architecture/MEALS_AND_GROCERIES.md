@@ -250,6 +250,8 @@ Expected results:
 
 ### B. [API] Unify meal, recipe and grocery APIs on the canonical models (ADR-0007)
 
+**Status (2026-09-28):** implemented in #251. Contracts: `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Gaps 2.4.2 (export) and 2.4.3 (lists gate) are closed. Implementation notes: `DELETE /api/recipes/[id]` refuses (409 `RECIPE_IN_ARCHIVED_PLAN`) while a legacy `MealPlanEntry` references the recipe, because that FK cascades; the importer reports (does not write) a new item for a list that an earlier import put in the legacy `ShoppingList` table; `ImportJob` rows are still created per apply run (as for every importer) even when the run creates 0 domain rows.
+
 **Outcome:** Recipes have a live family-scoped API, meals can link to recipes, list items carry provenance, and the importer writes canonical rows.
 
 **Scope**

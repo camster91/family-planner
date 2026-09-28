@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { deleteListSchema } from '@/lib/validations'
 
@@ -9,6 +10,10 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // O-11 (ADR-0007): lists are feature-gated server-side like every other domain.
+    const gate = await featureGate(auth.user.family_id, 'lists')
+    if (gate) return gate
 
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
@@ -39,6 +44,10 @@ export async function DELETE(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // O-11 (ADR-0007): lists are feature-gated server-side like every other domain.
+    const gate = await featureGate(auth.user.family_id, 'lists')
+    if (gate) return gate
 
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError

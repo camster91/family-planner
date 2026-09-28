@@ -1,3 +1,5 @@
+export {};
+
 const describeWithDatabase =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
 
@@ -89,80 +91,8 @@ describeWithDatabase("family import persistence", () => {
     });
   });
 
-  it("persists and reuses Meal Planner relationships", async () => {
-    const { importMealPlanner } = await import("../persist-meal-planner");
-    const data = {
-      version: "1",
-      users: [{ id: "owner-1", email: "source@example.com", name: "Source" }],
-      recipes: [
-        {
-          id: "recipe-1",
-          userId: "owner-1",
-          title: "Pasta",
-          servings: 2,
-          createdAt: "2026-08-01",
-        },
-      ],
-      ingredients: [{ id: "ingredient-1", name: "Tomato", unit: "g" }],
-      recipeIngredients: [
-        {
-          id: "link-1",
-          recipeId: "recipe-1",
-          ingredientId: "ingredient-1",
-          amount: 250,
-        },
-      ],
-      mealPlans: [
-        {
-          id: "plan-1",
-          userId: "owner-1",
-          name: "Week",
-          startDate: "2026-08-24",
-          endDate: "2026-08-30",
-          createdAt: "2026-08-20",
-        },
-      ],
-      mealPlanEntries: [
-        {
-          id: "entry-1",
-          mealPlanId: "plan-1",
-          recipeId: "recipe-1",
-          date: "2026-08-28",
-          mealType: "dinner",
-          servings: 2,
-        },
-      ],
-      shoppingLists: [
-        {
-          id: "list-1",
-          userId: "owner-1",
-          name: "Groceries",
-          createdAt: "2026-08-20",
-        },
-      ],
-      shoppingItems: [
-        {
-          id: "item-1",
-          shoppingListId: "list-1",
-          ingredientName: "Tomato",
-          checked: false,
-          recipeId: "recipe-1",
-        },
-      ],
-    };
-    const options = {
-      familyId,
-      startedBy: parentId,
-      sourceUserToTargetUser: { "owner-1": parentId },
-      dryRun: false,
-    };
-    const first = await importMealPlanner(data, options);
-    const second = await importMealPlanner(data, options);
-    expect(first.summary.created.Recipe).toBe(1);
-    expect(first.summary.created.MealPlanEntry).toBe(1);
-    expect(second.summary.reused.Recipe).toBe(1);
-    expect(second.summary.reused.MealPlanEntry).toBe(1);
-  });
+  // Meal Planner persistence (retargeted onto the canonical models by ADR-0007,
+  // #251) is covered in meal-planner-canonical.integration.test.ts.
 
   it("persists native Budget App records and lossless archives", async () => {
     const { importBudgetApp } = await import("../persist-budget-app");

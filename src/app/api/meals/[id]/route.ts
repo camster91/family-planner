@@ -3,12 +3,15 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { parseDateOnly } from '@/lib/dates'
+import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
 
 export const dynamic = 'force-dynamic'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
 
-// PATCH - Update a meal slot
+// PATCH - Update a meal slot. Optional `recipe_id` (same household; null
+// unlinks) and `servings` (null clears). Linking without `recipe_name` sets the
+// snapshot to the recipe title; unlinking keeps the existing snapshot.
 export async function PATCH(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -23,7 +26,7 @@ export async function PATCH(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { id, recipe_name, notes, cook_id, date, meal_type } = body
+    const { id, recipe_name, notes, cook_id, date, meal_type, recipe_id, servings } = body
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -65,8 +68,16 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    const link = await resolveMealLink(prisma!, auth.user.family_id, { recipe_id, servings })
+    if (!link.ok) {
+      return NextResponse.json({ error: link.error }, { status: 400 })
+    }
+
     const data: Record<string, unknown> = {}
     if (recipe_name !== undefined) data.recipe_name = recipe_name
+    else if (link.recipeTitle !== null) data.recipe_name = link.recipeTitle
+    if (link.recipeId !== undefined) data.recipe_id = link.recipeId
+    if (link.servings !== undefined) data.servings = link.servings
     if (notes !== undefined) data.notes = notes
     if (cook_id !== undefined) data.cook_id = cook_id
     if (mealDate !== undefined) data.date = mealDate
@@ -75,10 +86,7 @@ export async function PATCH(request: NextRequest) {
     const updated = await prisma!.familyMeal.update({
       where: { id },
       data,
-      include: {
-        cook: { select: { id: true, name: true } },
-        creator: { select: { id: true, name: true } },
-      },
+      include: MEAL_INCLUDE,
     })
 
     return NextResponse.json({ meal: updated })
