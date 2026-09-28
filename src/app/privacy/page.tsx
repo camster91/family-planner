@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-12 px-4">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm p-8 md:p-12">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-500 mb-8">Last updated: June 2026</p>
+        <p className="text-sm text-gray-500 mb-8">Last updated: September 2026</p>
 
         <div className="prose prose-gray max-w-none space-y-6 text-gray-700">
           <section>
@@ -33,6 +33,17 @@ export default function PrivacyPage() {
               httpOnly, signed JWTs with 7-day expiry. Email verification is required
               before login. Rate limiting and CSRF protection are in place on all
               state-changing endpoints.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Fridge photo scan</h2>
+            <p>
+              If the fridge photo scan is turned on, a parent can photograph the fridge,
+              freezer or pantry to get suggested food items. That photo is sent to our AI
+              provider, Anthropic, only to read it, and is not saved by Family Planner. You
+              review the suggestions and choose what to add. The feature is off unless it
+              has been set up, and you can always add items by hand instead.
             </p>
           </section>
 
