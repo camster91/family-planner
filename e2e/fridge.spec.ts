@@ -161,8 +161,76 @@ async function disableWeather(db: pg.Client) {
   ]);
 }
 
+/**
+ * "Use soon" tile (#263 data in the #262 slot). Spec-owned rows
+ * `fx_e2e_board_inventory_*`; the inventory feature (off in the fixtures) is
+ * turned on for Family A only during the test and removed again afterwards.
+ */
+const INVENTORY_PREFIX = "fx_e2e_board_inventory_";
+const USE_SOON_ROWS: Array<[string, string, string, number]> = [
+  // [id suffix, name, location, expiry day offset from the anchor day]
+  ["a_spinach", "Baby spinach", "fridge", -2],
+  ["a_milk", "Oat milk", "fridge", 0],
+  ["a_bread", "Sourdough loaf", "pantry", 1],
+  ["a_lasagna", "Leftover lasagna", "fridge", 1],
+  ["a_yogurt", "Greek yogurt", "fridge", 2],
+  ["a_chicken", "Chicken thighs", "freezer", 3],
+  ["a_berries", "Strawberries", "fridge", 3],
+  ["a_jam", "Apricot jam", "pantry", 30],
+];
+const INVENTORY_CANARY_B = "FRIDGE-CANARY-B-INVENTORY";
+
+const dayKey = (days: number) => dateOnly(days).toISOString().slice(0, 10);
+
+async function removeBoardInventory(db: pg.Client) {
+  await db.query(`DELETE FROM "InventoryItem" WHERE id LIKE $1`, [
+    `${INVENTORY_PREFIX}%`,
+  ]);
+  await db.query(
+    `UPDATE "Family" SET features = features - 'inventory' WHERE id = $1 AND features IS NOT NULL`,
+    [A.family],
+  );
+}
+
+async function addBoardInventory(db: pg.Client) {
+  await removeBoardInventory(db);
+  for (const [suffix, name, location, days] of USE_SOON_ROWS) {
+    await db.query(
+      `INSERT INTO "InventoryItem" (id, family_id, name, location, expires_on, amount, added_by)
+       VALUES ($1, $2, $3, $4, $5, 2, $6)`,
+      [
+        INVENTORY_PREFIX + suffix,
+        A.family,
+        name,
+        location,
+        dayKey(days),
+        A.parent,
+      ],
+    );
+  }
+  // Another household's item, due today: must never reach Family A's board.
+  await db.query(
+    `INSERT INTO "InventoryItem" (id, family_id, name, location, expires_on)
+     VALUES ($1, $2, $3, 'fridge', $4)`,
+    [
+      INVENTORY_PREFIX + "b_canary",
+      FIXTURE_IDS.familyB.family,
+      INVENTORY_CANARY_B,
+      dayKey(0),
+    ],
+  );
+}
+
+async function setBoardInventoryFeature(db: pg.Client) {
+  await db.query(
+    `UPDATE "Family" SET features = COALESCE(features, '{}'::jsonb) || '{"inventory":true}'::jsonb WHERE id = $1`,
+    [A.family],
+  );
+}
+
 async function removeSpecRows(db: pg.Client) {
   await disableWeather(db);
+  await removeBoardInventory(db);
   // Children before parents; every id is spec-owned.
   await db.query(`DELETE FROM "Event" WHERE id = $1`, [IDS.importedEvent]);
   await db.query(`DELETE FROM "CalendarSubscription" WHERE id = $1`, [
@@ -585,6 +653,58 @@ test.describe("Today board: Family A parent", () => {
     await expect(events.nth(0).getByTestId("event-member")).toContainText(
       "Added by",
     );
+  });
+
+  test("shows a read-only Use soon tile only with inventory on and something due", async ({
+    page,
+  }, testInfo) => {
+    // Rows exist, but the feature is off: no tile, and the hub keeps its layout.
+    await withDb(addBoardInventory);
+    try {
+      await openBoard(page, "/dashboard/today?mode=fridge");
+      await expect(page.getByTestId("board-slot-use-soon")).toHaveCount(0);
+
+      await withDb(setBoardInventoryFeature);
+      await openBoard(page, "/dashboard/today?mode=fridge");
+      const tile = page.getByRole("region", { name: "Use soon" });
+      await expect(tile).toBeVisible();
+      const rows = tile.getByTestId("use-soon-item");
+      await expect(rows).toHaveCount(5);
+      await expect(rows.nth(0)).toHaveText(
+        /Baby spinach\s*Expired 2 days ago\s*·\s*Fridge/,
+      );
+      await expect(rows.nth(0)).toHaveAttribute("data-status", "expired");
+      await expect(rows.nth(1)).toHaveText(/Oat milk\s*Use today\s*·\s*Fridge/);
+      await expect(rows.nth(2)).toContainText("Use by tomorrow");
+      await expect(tile.getByTestId("use-soon-more")).toHaveText(
+        "2 more to use soon",
+      );
+      // Not due yet, and another household's item, are never shown.
+      await expect(tile).not.toContainText("Apricot jam");
+      expect(await page.content()).not.toContain(INVENTORY_CANARY_B);
+      await expect(
+        tile.getByRole("link", { name: "Open inventory" }),
+      ).toHaveAttribute("href", "/dashboard/inventory");
+
+      if (LANDSCAPE_HUBS.includes(testInfo.project.name)) {
+        // The hub still fits the screen with the extra row.
+        const viewport = page.viewportSize()!;
+        const box = await tile.boundingBox();
+        expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+        const pageHeight = await page.evaluate(
+          () => document.documentElement.scrollHeight,
+        );
+        expect(pageHeight).toBeLessThanOrEqual(viewport.height);
+      }
+      const minHeight =
+        testInfo.project.name === "tablet-large-1920x1200" ? 56 : 44;
+      const link = await tile.getByRole("link").boundingBox();
+      expect(link!.height).toBeGreaterThanOrEqual(minHeight);
+      await expectNoHorizontalOverflow(page);
+      await axeScan(page, testInfo, "/dashboard/today?mode=fridge (use soon)");
+    } finally {
+      await withDb(removeBoardInventory);
+    }
   });
 
   test("parent sets a member colour and a weather place in family settings", async ({

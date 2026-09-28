@@ -58,6 +58,13 @@ const GRID_FRIDGE =
 const GRID_FRIDGE_WITH_SLOT =
   'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_usesoon_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:overflow-y-auto'
 
+/**
+ * In the fridge hub the slot is a grid cell of fixed height; its tile fills it
+ * and scrolls inside itself like the other regions, instead of overflowing.
+ */
+const USE_SOON_SLOT_FIT =
+  'lg:landscape:flex lg:landscape:flex-col lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:flex-1 lg:landscape:[&>section]:overflow-y-auto'
+
 export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean): string {
   return [
     GRID_BASE,
@@ -357,7 +364,7 @@ export default function TodayBoard({
           <GroceriesRegion shopping={data.shopping} listsHref={data.links.lists} />
           <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
           {useSoonSlot && (
-            <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon}`}>
+            <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>
               {useSoonSlot}
             </div>
           )}
