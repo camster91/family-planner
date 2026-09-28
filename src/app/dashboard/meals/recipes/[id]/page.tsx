@@ -14,6 +14,7 @@ import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RecipeDetail, type RecipeDetailData } from '@/components/meals/RecipeDetail'
+import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 
 type Load = { state: 'loading' } | { state: 'ready'; recipe: RecipeDetailData } | { state: 'not-found' } | { state: 'error' }
 
@@ -107,9 +108,8 @@ function RecipePageInner() {
         <RecipeDetail
           recipe={load.recipe}
           actions={
-            // #253 mounts its "Add to groceries" control here (AddToGroceriesButton,
-            // POST /api/lists/items/from-recipe). Deliberately empty in #252.
-            null
+            // Recipe-level add (#253): source `recipe:<id>`, servings from the recipe.
+            load.recipe.ingredients.length > 0 ? <AddToGroceriesButton recipeId={load.recipe.id} /> : null
           }
         />
       )}

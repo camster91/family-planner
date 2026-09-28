@@ -288,7 +288,7 @@ Expected results:
 
 - `/dashboard/meals` renders every meal per slot (gap 2.4.1 closed). Each meal row opens the edit modal; a slot with meals has an "Add another <type>, <day>" button; an empty slot is one "Add <type>, <day>" row. The meal type is always written out (not icon-only), rows wrap long names, and every target is at least 44px.
 - The meal modal has a recipe picker (`GET /api/recipes`) with "No recipe (just a name)" as the default and an inline "New recipe" panel (`POST /api/recipes`: title, prep/cook minutes, ingredient lines of amount, unit and name). Picking a recipe fills an empty name with its title. A free-text meal sends exactly the pre-#252 body; `recipe_id` is sent only when a recipe is picked (add) or the link changes (edit, `null` unlinks). A linked meal shows "View recipe" and its row says "<Type> · Recipe · N min prep".
-- Recipe detail is a route, `/dashboard/meals/recipes/[id]` (title, description, prep, cook, servings, ingredients with amounts, method; loading, not-found and error states). Its `actions` slot is left empty for #253's add-to-groceries control.
+- Recipe detail is a route, `/dashboard/meals/recipes/[id]` (title, description, prep, cook, servings, ingredients with amounts, method; loading, not-found and error states). Its `actions` slot holds #253's `AddToGroceriesButton` (recipe-level add, source `recipe:<id>`) when the recipe has ingredients.
 - Grocery list rows show `amount unit` when `amount` is set, else "× n" for a quantity above one (O-6), plus "from <recipe title>" when the row has a `recipe_id`. Open rows sharing an `ingredient_id` are shown together as one labelled group ("Tomatoes · 2 entries") at the position of the first row, one row per source (O-3); checked rows are never grouped. Rules: `src/lib/grocery-display.ts`.
 - `meal_plan`: see §2.3. The unused `src/components/lists/*` are deleted.
 - Fridge/Today board: the dinner shows the linked recipe title when it differs from the meal name, and "Prep N min" when known (`dinnerRecipeLine` in `src/components/fridge/regions.tsx`); a free-text dinner looks as before.
@@ -317,7 +317,7 @@ Expected results:
 
 ### D. [Meals→Groceries] Add recipe ingredients to groceries idempotently (ADR-0007, #122)
 
-**Status (2026-09-28):** implemented in #253 (API, undo, default-list helper, meal-modal action; the recipe-detail mount waits for #252's recipe detail view, which can reuse `src/components/meals/AddToGroceriesButton.tsx`). Contracts: §7 and `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Tests: `src/app/api/lists/__tests__/from-recipe.test.ts` (fake DB), `from-recipe.integration.test.ts` (Postgres races, advisory lock, undo window; in the release workflow), `e2e/groceries.spec.ts` (add → replay → undo).
+**Status (2026-09-28):** implemented in #253 (API, undo, default-list helper, meal-modal action; with #252 the same `AddToGroceriesButton` is also mounted on the recipe detail route). Contracts: §7 and `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Tests: `src/app/api/lists/__tests__/from-recipe.test.ts` (fake DB), `from-recipe.integration.test.ts` (Postgres races, advisory lock, undo window; in the release workflow), `e2e/groceries.spec.ts` (add → replay → undo).
 
 **Outcome:** From a meal or recipe, a family member can add all or selected ingredients to the grocery list once, even with retries, double taps or two devices, and can undo it.
 
