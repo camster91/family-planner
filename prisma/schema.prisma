@@ -81,6 +81,8 @@ model User {
   push_subscriptions            PushSubscription[]
   created_recipes               Recipe[]           @relation("RecipeCreator")
   created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
+  calendar_connections          CalendarConnection[] @relation("CalendarConnectionOwner")
+  calendar_oauth_states         CalendarOAuthState[] @relation("CalendarOAuthStateUser")
   created_shopping_lists        ShoppingList[]     @relation("ShoppingListCreator")
   family_invites_created        FamilyInvite[]     @relation("FamilyInviteCreator")
   calendar_subscriptions        CalendarSubscription[] @relation("CalendarSubscriptionCreator")
@@ -153,6 +155,9 @@ model Family {
   finance_records    FinancialArchiveRecord[]
   invites            FamilyInvite[]
   calendar_subscriptions CalendarSubscription[]
+  calendar_connections   CalendarConnection[]
+  calendar_event_links   CalendarEventLink[]
+  calendar_oauth_states  CalendarOAuthState[]
   uploads            Upload[]
   // Shared device (#157, #240)
   devices             HouseholdDevice[]
@@ -211,6 +216,86 @@ model CalendarSubscription {
   events  Event[]
 
   @@index([family_id])
+}
+
+// Two-way Google / Microsoft calendar sync (#264), dormant unless configured
+// (docs/architecture/CALENDAR_SYNC.md). One connection per member per
+// provider. OAuth tokens are encrypted with CALENDAR_TOKEN_KEY
+// (src/lib/calendar-sync/token-crypto.ts) and never leave the server.
+model CalendarConnection {
+  id                String    @id @default(cuid())
+  family_id         String
+  user_id           String // the member who connected their account
+  provider          String // 'google' | 'microsoft'
+  calendar_id       String? // provider calendar id; null until chosen
+  calendar_name     String?
+  access_token_enc  String?
+  refresh_token_enc String?
+  token_expires_at  DateTime?
+  sync_cursor       String? // Google nextSyncToken / Graph @odata.deltaLink
+  push_mode         String    @default("linked") // 'linked' | 'all'
+  status            String    @default("pending") // 'pending' | 'ok' | 'error' | 'reauth_required'
+  last_synced_at    DateTime?
+  last_error        String? // short fixed-vocabulary message; never event content
+  conflicts_count   Int       @default(0)
+  last_conflict_at  DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  family Family              @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User                @relation("CalendarConnectionOwner", fields: [user_id], references: [id], onDelete: Cascade)
+  events Event[]             @relation("CalendarConnectionEvents")
+  links  CalendarEventLink[]
+
+  @@unique([family_id, user_id, provider])
+  @@index([family_id])
+}
+
+// Link between a local Event and one provider event (#264). event_id becomes
+// NULL when the local event is deleted (ON DELETE SET NULL): that row is the
+// tombstone the next sync pushes as a provider delete.
+model CalendarEventLink {
+  id                  String    @id @default(cuid())
+  family_id           String
+  connection_id       String
+  event_id            String?
+  external_id         String
+  external_etag       String?
+  external_updated_at DateTime?
+  synced_hash         String? // hash of the synced fields at the last sync
+  all_day             Boolean   @default(false)
+  synced_at           DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  family     Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  connection CalendarConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade)
+  event      Event?             @relation(fields: [event_id], references: [id], onDelete: SetNull)
+
+  @@unique([connection_id, external_id])
+  @@unique([connection_id, event_id])
+  @@index([family_id])
+  @@index([event_id])
+}
+
+// Single-use OAuth `state` for connecting a calendar (#264). Only a SHA-256
+// hash of the state is stored; the PKCE verifier is encrypted.
+model CalendarOAuthState {
+  id                String    @id @default(cuid())
+  state_hash        String    @unique
+  family_id         String
+  user_id           String
+  provider          String
+  code_verifier_enc String
+  expires_at        DateTime
+  used_at           DateTime?
+  created_at        DateTime  @default(now())
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user   User   @relation("CalendarOAuthStateUser", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
 }
 
 model FamilyInvite {
@@ -630,11 +715,21 @@ model Event {
   source_uid              String?
   source_occurrence_start DateTime?
 
+  // Two-way provider sync (#264). Set only on events first imported from a
+  // CalendarConnection (Google/Microsoft); null for local and ICS events.
+  // The per-connection link (external id, etag, last-synced hash) lives in
+  // CalendarEventLink so one event can be linked to several connections.
+  source_connection_id String?
+  // Last local change; last-writer-wins input for provider sync (#264).
+  updated_at           DateTime @default(now()) @updatedAt
+
   // Relations
   family              Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator             User                  @relation("CreatedEvents", fields: [created_by], references: [id])
   project             Project?              @relation(fields: [project_id], references: [id], onDelete: SetNull)
   source_subscription CalendarSubscription? @relation(fields: [source_subscription_id], references: [id], onDelete: Cascade)
+  source_connection   CalendarConnection?   @relation("CalendarConnectionEvents", fields: [source_connection_id], references: [id], onDelete: Cascade)
+  sync_links          CalendarEventLink[]
 
   @@unique([source_subscription_id, source_uid, source_occurrence_start])
   @@index([family_id])
@@ -642,6 +737,7 @@ model Event {
   @@index([family_id, start_time])
   @@index([project_id])
   @@index([source_subscription_id, start_time])
+  @@index([source_connection_id])
 }
 
 model Message {
