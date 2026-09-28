@@ -122,10 +122,10 @@ describe('weather codes', () => {
 
 describe('kill switch', () => {
   it('is on unless explicitly turned off', () => {
-    expect(isWeatherEnabled({} as NodeJS.ProcessEnv)).toBe(true)
-    expect(isWeatherEnabled({ WEATHER_ENABLED: 'true' } as NodeJS.ProcessEnv)).toBe(true)
+    expect(isWeatherEnabled({} as unknown as NodeJS.ProcessEnv)).toBe(true)
+    expect(isWeatherEnabled({ WEATHER_ENABLED: 'true' } as unknown as NodeJS.ProcessEnv)).toBe(true)
     for (const off of ['false', '0', 'off', 'NO', ' False ']) {
-      expect(isWeatherEnabled({ WEATHER_ENABLED: off } as NodeJS.ProcessEnv)).toBe(false)
+      expect(isWeatherEnabled({ WEATHER_ENABLED: off } as unknown as NodeJS.ProcessEnv)).toBe(false)
     }
   })
 })
@@ -174,7 +174,7 @@ describe('getBoardWeather (cache, backoff, fail closed)', () => {
     return {
       family: { findUnique: jest.fn().mockResolvedValue(family) },
       weatherCache: {
-        findUnique: jest.fn(async () => row),
+        findUnique: jest.fn(async (_args: any) => row),
         upsert: jest.fn(async (args: any) => {
           row = { ...args.create }
           return row

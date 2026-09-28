@@ -12,6 +12,12 @@
  * deletes them afterwards. It also inserts parent-only "canary" rows (budget,
  * medical, address, private message) whose text must never reach the board.
  * The same guard as global-setup refuses production-like databases.
+ *
+ * Weather (#262) never touches the network here: households default to off,
+ * and the weather tests turn Family A on together with a fresh, spec-owned
+ * `WeatherCache` row (stamped a few hours after the anchor so the server's
+ * 30-minute freshness check always serves it), then turn it off again. Place
+ * search in the settings test is answered by `page.route`, in the browser.
  */
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
@@ -86,7 +92,77 @@ async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
   }
 }
 
+/** Coarse place and cached forecast for the weather tests (#262). */
+const WEATHER_PLACE = {
+  label: "Toronto, Ontario, Canada",
+  latitude: 43.65,
+  longitude: -79.38,
+};
+const WEATHER_SNAPSHOT = {
+  current: { temperatureC: -3.4, code: 71, isDay: true },
+  daily: [
+    {
+      day: "2026-01-05",
+      highC: -1.2,
+      lowC: -8.5,
+      code: 71,
+      precipitationChance: 80,
+    },
+    {
+      day: "2026-01-06",
+      highC: 2.6,
+      lowC: -4,
+      code: 3,
+      precipitationChance: 10,
+    },
+    { day: "2026-01-07", highC: 4, lowC: -2, code: 0, precipitationChance: 0 },
+    { day: "2026-01-08", highC: 5, lowC: 1, code: 61, precipitationChance: 70 },
+  ],
+};
+
+async function enableWeather(db: pg.Client) {
+  await db.query(
+    `UPDATE "Family" SET weather_enabled = true, weather_latitude = $2, weather_longitude = $3,
+       weather_label = $4, weather_unit = 'celsius' WHERE id = $1`,
+    [
+      A.family,
+      WEATHER_PLACE.latitude,
+      WEATHER_PLACE.longitude,
+      WEATHER_PLACE.label,
+    ],
+  );
+  await seedWeatherCache(db);
+}
+
+async function seedWeatherCache(db: pg.Client) {
+  await db.query(
+    `INSERT INTO "WeatherCache" (family_id, latitude, longitude, status, payload, fetched_at, updated_at)
+     VALUES ($1, $2, $3, 'ok', $4, $5, now())
+     ON CONFLICT (family_id) DO UPDATE SET latitude = $2, longitude = $3, status = 'ok', payload = $4, fetched_at = $5`,
+    [
+      A.family,
+      WEATHER_PLACE.latitude,
+      WEATHER_PLACE.longitude,
+      JSON.stringify(WEATHER_SNAPSHOT),
+      at(6 * HOUR),
+    ],
+  );
+}
+
+async function disableWeather(db: pg.Client) {
+  await db.query(
+    `UPDATE "Family" SET weather_enabled = false, weather_latitude = NULL, weather_longitude = NULL,
+       weather_label = NULL, weather_unit = 'celsius' WHERE id = $1`,
+    [A.family],
+  );
+  await db.query(`DELETE FROM "WeatherCache" WHERE family_id = $1`, [A.family]);
+  await db.query(`UPDATE "User" SET board_color = NULL WHERE family_id = $1`, [
+    A.family,
+  ]);
+}
+
 async function removeSpecRows(db: pg.Client) {
+  await disableWeather(db);
   // Children before parents; every id is spec-owned.
   await db.query(`DELETE FROM "Event" WHERE id = $1`, [IDS.importedEvent]);
   await db.query(`DELETE FROM "CalendarSubscription" WHERE id = $1`, [
@@ -173,6 +249,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await withDb(removeSpecRows);
 });
+
+/** 16:10 landscape fridge hubs (#262): 1280x800 and the 13" 1920x1200. */
+const LANDSCAPE_HUBS = ["fridge-landscape-1280x800", "tablet-large-1920x1200"];
 
 const board = (page: Page) => page.getByTestId("today-board");
 const region = (
@@ -344,7 +423,10 @@ test.describe("Today board: Family A parent", () => {
     const exit = page.getByRole("link", { name: "Exit fridge mode" });
     await expect(exit).toBeVisible();
 
-    // Every interactive element on the board is at least 44x44 CSS px.
+    // Every interactive element on the board is at least 44x44 CSS px, and
+    // at least 56 px tall on the 1920x1200 hub (#262: larger on the board).
+    const minHeight =
+      test.info().project.name === "tablet-large-1920x1200" ? 56 : 44;
     const targets = board(page).locator("a, button");
     const count = await targets.count();
     expect(count).toBeGreaterThan(0);
@@ -353,7 +435,7 @@ test.describe("Today board: Family A parent", () => {
       const label = await targets.nth(i).innerText();
       expect(box, `target "${label}" is rendered`).not.toBeNull();
       expect(box!.height, `target "${label}" height`).toBeGreaterThanOrEqual(
-        44,
+        minHeight,
       );
       expect(box!.width, `target "${label}" width`).toBeGreaterThanOrEqual(44);
     }
@@ -403,33 +485,191 @@ test.describe("Today board: Family A parent", () => {
     await axeScan(page, testInfo, "/dashboard/today?mode=fridge");
   });
 
-  test("fridge mode fits every region in a landscape tablet viewport", async ({
+  test("fridge hub fits every region and the weather tile in a 16:10 landscape viewport", async ({
     page,
   }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "fridge-landscape-1280x800",
-      "The fit-to-screen layout is for landscape fridge tablets.",
+      !LANDSCAPE_HUBS.includes(testInfo.project.name),
+      "The fit-to-screen hub is for 16:10 landscape fridge tablets (#262).",
     );
+    await withDb(enableWeather);
+    try {
+      await openBoard(page, "/dashboard/today?mode=fridge");
+      await expect(page.getByTestId("board-weather")).toBeVisible();
+      const viewport = page.viewportSize();
+      if (!viewport) throw new Error("No viewport");
+      const pageHeight = await page.evaluate(
+        () => document.documentElement.scrollHeight,
+      );
+      expect(pageHeight).toBeLessThanOrEqual(viewport.height);
+      for (const testId of [
+        "region-today",
+        "region-dinner",
+        "region-chores",
+        "region-groceries",
+        "region-coming",
+        "board-weather",
+      ]) {
+        const box = await page.getByTestId(testId).boundingBox();
+        expect(box, testId).not.toBeNull();
+        expect(box!.y + box!.height, testId).toBeLessThanOrEqual(
+          viewport.height,
+        );
+      }
+      // Four columns side by side: schedule, kitchen, chores, coming up.
+      const xs: number[] = [];
+      for (const area of ["today", "dinner", "chores", "coming"] as const) {
+        xs.push(Math.round((await region(page, area).boundingBox())!.x));
+      }
+      expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+      expect(new Set(xs).size).toBe(4);
+      await expectNoHorizontalOverflow(page);
+    } finally {
+      await withDb(disableWeather);
+    }
+  });
+
+  test("shows the household's opt-in weather with text, and no coordinates", async ({
+    page,
+  }, testInfo) => {
+    // Off by default: no tile.
     await openBoard(page, "/dashboard/today?mode=fridge");
-    const viewport = page.viewportSize();
-    if (!viewport) throw new Error("No viewport");
-    const pageHeight = await page.evaluate(
-      () => document.documentElement.scrollHeight,
+    await expect(page.getByTestId("board-weather")).toHaveCount(0);
+
+    await withDb(enableWeather);
+    try {
+      await openBoard(page, "/dashboard/today?mode=fridge");
+      const tile = page.getByRole("region", {
+        name: `Weather in ${WEATHER_PLACE.label}`,
+      });
+      await expect(tile).toBeVisible();
+      await expect(tile.getByTestId("weather-now")).toHaveText("-3°C");
+      await expect(tile).toContainText("Light snow");
+      await expect(tile).toContainText("80% chance of rain or snow");
+      await expect(tile).toContainText(WEATHER_PLACE.label);
+      // The next days show on the wide hub only.
+      await expect(tile.getByTestId("weather-day").first()).toBeVisible({
+        visible: testInfo.project.name === "tablet-large-1920x1200",
+      });
+      const html = await page.content();
+      expect(html).not.toContain(String(WEATHER_PLACE.latitude));
+      expect(html).not.toContain(String(WEATHER_PLACE.longitude));
+      await expectNoHorizontalOverflow(page);
+      await axeScan(page, testInfo, "/dashboard/today?mode=fridge (weather)");
+    } finally {
+      await withDb(disableWeather);
+    }
+  });
+
+  test("marks each member with a colour next to their name", async ({
+    page,
+  }) => {
+    await openBoard(page, "/dashboard/today?mode=fridge");
+    const people = region(page, "chores").getByTestId("chore-person");
+    const colors = await people.evaluateAll((items) =>
+      items.map(
+        (li) =>
+          li
+            .querySelector("[data-member-color]")
+            ?.getAttribute("data-member-color") ?? null,
+      ),
     );
-    expect(pageHeight).toBeLessThanOrEqual(viewport.height);
-    for (const area of ["today", "dinner", "chores", "groceries", "coming"]) {
-      const box = await page.getByTestId(`region-${area}`).boundingBox();
-      expect(box, area).not.toBeNull();
-      expect(box!.y + box!.height, area).toBeLessThanOrEqual(viewport.height);
+    expect(colors.length).toBeGreaterThan(0);
+    expect(colors.every(Boolean)).toBe(true);
+    expect(new Set(colors).size).toBe(colors.length);
+    // The name is always printed beside the colour.
+    await expect(people.nth(0).getByRole("heading")).toHaveText("Casey");
+    // Events a member added carry their name; the imported one does not.
+    const events = region(page, "today").getByTestId("today-event");
+    await expect(events.nth(1).getByTestId("event-member")).toHaveCount(0);
+    await expect(events.nth(0).getByTestId("event-member")).toContainText(
+      "Added by",
+    );
+  });
+
+  test("parent sets a member colour and a weather place in family settings", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      !["desktop-1366x768", "phone-390x844"].includes(testInfo.project.name),
+      "Settings flow: one wide and one phone layout.",
+    );
+    let searched = "";
+    // Answered in the browser: the server never calls Open-Meteo in E2E.
+    await page.route("**/api/family/board-settings/places**", async (route) => {
+      searched = new URL(route.request().url()).searchParams.get("q") ?? "";
+      await route.fulfill({ json: { places: [WEATHER_PLACE] } });
+    });
+    try {
+      await page.goto("/dashboard/family/settings");
+      const section = page.getByTestId("board-settings");
+      await expect(
+        section.getByRole("heading", { name: "Today board" }),
+      ).toBeVisible();
+      await expect(section.getByTestId("weather-privacy-note")).toContainText(
+        "Open-Meteo",
+      );
+      const toggle = section.getByLabel("Show weather on the Today board");
+      await expect(toggle).not.toBeChecked();
+      await expect(toggle).toBeDisabled();
+
+      // Member colour (the picker lists colour names, not colour alone).
+      await section.getByLabel("Casey Fixture-A").selectOption({
+        label: "Orange",
+      });
+      await expect(section.getByRole("status")).toContainText(
+        "Casey Fixture-A's colour saved.",
+      );
+
+      await section.getByLabel("Find a town or city").fill("Toronto");
+      await section.getByRole("button", { name: "Search" }).click();
+      await section.getByRole("button", { name: WEATHER_PLACE.label }).click();
+      expect(searched).toBe("Toronto");
+      await expect(section.getByRole("status")).toContainText(
+        `Place set to ${WEATHER_PLACE.label}.`,
+      );
+      // Serve the forecast from the cache so the board never fetches.
+      await withDb(seedWeatherCache);
+      await toggle.check();
+      await expect(section.getByRole("status")).toContainText(
+        "Weather is on for the board.",
+      );
+
+      const stored = await withDb(
+        async (db) =>
+          (
+            await db.query(
+              `SELECT weather_enabled, weather_latitude, weather_longitude, weather_label FROM "Family" WHERE id = $1`,
+              [A.family],
+            )
+          ).rows[0],
+      );
+      expect(stored).toEqual({
+        weather_enabled: true,
+        weather_latitude: WEATHER_PLACE.latitude,
+        weather_longitude: WEATHER_PLACE.longitude,
+        weather_label: WEATHER_PLACE.label,
+      });
+
+      await openBoard(page, "/dashboard/today");
+      await expect(page.getByTestId("board-weather")).toContainText("-3°C");
+      await expect(
+        region(page, "chores")
+          .getByTestId("chore-person")
+          .nth(0)
+          .locator('[data-member-color="orange"]'),
+      ).toHaveCount(1);
+    } finally {
+      await withDb(disableWeather);
     }
   });
 
   test("@visual fridge view baseline", async ({ page }, testInfo) => {
     test.skip(
-      !["fridge-landscape-1280x800", "tablet-portrait-800x1280"].includes(
+      ![...LANDSCAPE_HUBS, "tablet-portrait-800x1280"].includes(
         testInfo.project.name,
       ),
-      "Fridge baselines are kept for the two primary tablet sizes only.",
+      "Fridge baselines are kept for the tablet sizes only.",
     );
     await openBoard(page, "/dashboard/today?mode=fridge");
     await page.mouse.move(0, 0);
@@ -441,6 +681,30 @@ test.describe("Today board: Family A parent", () => {
         page.getByTestId("board-updated"),
       ],
     });
+  });
+
+  test("@visual fridge hub with weather baseline", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      !LANDSCAPE_HUBS.includes(testInfo.project.name),
+      "The weather hub baseline is kept for the two 16:10 landscape sizes.",
+    );
+    await withDb(enableWeather);
+    try {
+      await openBoard(page, "/dashboard/today?mode=fridge");
+      await expect(page.getByTestId("board-weather")).toBeVisible();
+      await page.mouse.move(0, 0);
+      await expect(page).toHaveScreenshot("fridge-hub-weather.png", {
+        fullPage: true,
+        mask: [
+          page.getByTestId("board-clock"),
+          page.getByTestId("board-updated"),
+        ],
+      });
+    } finally {
+      await withDb(disableWeather);
+    }
   });
 });
 
@@ -472,6 +736,14 @@ test.describe("Today board: Family A child", () => {
       expect(hrefs).not.toContain(blocked);
     }
     expect(hrefs).toContain("/dashboard/lists");
+
+    // Board settings are parent-only (#262).
+    const settingsRes = await page.request.get("/api/family/board-settings");
+    expect(settingsRes.status()).toBe(403);
+    const placesRes = await page.request.get(
+      "/api/family/board-settings/places?q=Toronto",
+    );
+    expect(placesRes.status()).toBe(403);
 
     await expectNoCanaries(page);
     await axeScan(page, testInfo, "/dashboard/today (child)");
