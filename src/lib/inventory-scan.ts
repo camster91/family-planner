@@ -60,7 +60,7 @@ export interface InventoryScanConfig {
 const MODEL_ID_RE = /^[a-z0-9][a-z0-9.-]{0,63}$/
 
 /** Effective configuration, or null when the feature is off (no key). */
-export function resolveInventoryScanConfig(env: NodeJS.ProcessEnv = process.env): InventoryScanConfig | null {
+export function resolveInventoryScanConfig(env: Record<string, string | undefined> = process.env): InventoryScanConfig | null {
   const apiKey = env.INVENTORY_SCAN_ANTHROPIC_API_KEY?.trim()
   if (!apiKey) return null
   const rawModel = env.INVENTORY_SCAN_MODEL?.trim()
@@ -72,7 +72,7 @@ export function resolveInventoryScanConfig(env: NodeJS.ProcessEnv = process.env)
   return { apiKey, model, dailyLimit }
 }
 
-export function isInventoryScanConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isInventoryScanConfigured(env: Record<string, string | undefined> = process.env): boolean {
   return resolveInventoryScanConfig(env) !== null
 }
 

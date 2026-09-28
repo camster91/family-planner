@@ -11,10 +11,11 @@
  */
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, BookOpen, ChefHat, ChevronRight, Clock, Plus, Refrigerator, X } from 'lucide-react'
+import { AlertTriangle, BookOpen, Camera, ChefHat, ChevronRight, Clock, Plus, Refrigerator, X } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
+import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
@@ -86,7 +87,16 @@ function ExpiryBadge({ status, daysLeft }: { status: ExpiryStatus; daysLeft: num
   )
 }
 
-export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite: boolean; canOpenRecipes: boolean }) {
+export default function InventoryClient({
+  canWrite,
+  canOpenRecipes,
+  canScan = false,
+}: {
+  canWrite: boolean
+  canOpenRecipes: boolean
+  /** Parent, and the deployment has a fridge-scan provider key (#265). */
+  canScan?: boolean
+}) {
   const mealsOn = useFeatureEnabled('meals')
   const [items, setItems] = React.useState<Load<InventoryItemDto[]>>({ state: 'loading' })
   const [useSoon, setUseSoon] = React.useState<Load<UseSoonItem[]>>({ state: 'loading' })
@@ -94,6 +104,7 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
   const [editing, setEditing] = React.useState<{ mode: 'add' } | { mode: 'edit'; item: InventoryItemDto } | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [itemsCapped, setItemsCapped] = React.useState(false)
+  const [scanning, setScanning] = React.useState(false)
 
   const load = React.useCallback(async () => {
     const today = toDateOnlyLocal(new Date())
@@ -148,6 +159,7 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
 
   const afterChange = async (message: string) => {
     setEditing(null)
+    setScanning(false)
     setNotice(message)
     await load()
   }
@@ -173,11 +185,21 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
           <h1 className="text-large-title font-display">Food inventory</h1>
           <p className="text-subhead text-label-secondary mt-0.5">What&apos;s in the fridge, freezer and pantry.</p>
         </div>
-        {canWrite && (
-          <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setEditing({ mode: 'add' })}>
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>Add item</span>
-          </button>
+        {(canWrite || canScan) && (
+          <div className="flex flex-wrap gap-2">
+            {canScan && (
+              <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setScanning(true)}>
+                <Camera className="w-4 h-4" aria-hidden="true" />
+                <span>Scan fridge</span>
+              </button>
+            )}
+            {canWrite && (
+              <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setEditing({ mode: 'add' })}>
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span>Add item</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -250,6 +272,8 @@ export default function InventoryClient({ canWrite, canOpenRecipes }: { canWrite
           )}
         </>
       )}
+
+      {scanning && <ScanFridgeDialog onClose={() => setScanning(false)} onDone={afterChange} />}
 
       {editing && (
         <ItemModal

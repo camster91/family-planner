@@ -41,7 +41,7 @@ type Upload = { bytes?: Uint8Array; type?: string; field?: string; contentLength
 function scanReq(as: UserKey | null, upload: Upload = {}) {
   const bytes = upload.bytes ?? JPEG
   const form = new FormData()
-  form.append(upload.field ?? 'image', new Blob([bytes], { type: upload.type ?? 'image/jpeg' }), 'fridge.jpg')
+  form.append(upload.field ?? 'image', new Blob([bytes as BlobPart], { type: upload.type ?? 'image/jpeg' }), 'fridge.jpg')
   const headers: Record<string, string> = {
     'content-type': upload.contentType ?? 'multipart/form-data; boundary=----test',
   }
@@ -259,10 +259,10 @@ describe('POST /api/inventory/scan', () => {
     })
 
     it('limits a household to 10 scans an hour across parents', async () => {
-      db.find('user', 'teen-a').role = 'parent'
+      db.find('user', 'teen-a')!.role = 'parent'
       for (let i = 0; i < 5; i++) expect((await POST(scanReq('parentA'))).status).toBe(200)
       for (let i = 0; i < 5; i++) expect((await POST(scanReq('teenA'))).status).toBe(200)
-      db.find('user', 'child-a').role = 'parent'
+      db.find('user', 'child-a')!.role = 'parent'
       const res = await POST(scanReq('childA'))
       expect(res.status).toBe(429)
       expect(await errorCode(res)).toBe('RATE_LIMITED')
