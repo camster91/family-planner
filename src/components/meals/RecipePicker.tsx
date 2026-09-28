@@ -18,6 +18,8 @@ import type { MealRecipeSummary } from '@/lib/meal-slots'
 export type RecipeOption = MealRecipeSummary
 
 const RECIPE_LIST_LIMIT = 200
+/** 50 pages of 200: far beyond any household, still finite. */
+const RECIPE_MAX_PAGES = 50
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -44,10 +46,17 @@ export function RecipePicker({
   const load = React.useCallback(async () => {
     setState('loading')
     try {
-      const res = await fetch(`/api/recipes?limit=${RECIPE_LIST_LIMIT}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = (await res.json()) as { recipes?: RecipeOption[] }
-      const list = Array.isArray(data.recipes) ? data.recipes : []
+      // Follow `nextOffset` so every recipe is pickable, bounded so a runaway
+      // server cannot loop forever.
+      const list: RecipeOption[] = []
+      let offset: number | null = 0
+      for (let page = 0; offset !== null && page < RECIPE_MAX_PAGES; page++) {
+        const res = await fetch(`/api/recipes?limit=${RECIPE_LIST_LIMIT}&offset=${offset}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = (await res.json()) as { recipes?: RecipeOption[]; nextOffset?: number | null }
+        if (Array.isArray(data.recipes)) list.push(...data.recipes)
+        offset = typeof data.nextOffset === 'number' && data.nextOffset > offset ? data.nextOffset : null
+      }
       setRecipes((prev) => {
         // Keep a selected recipe visible even if it falls outside the first page.
         const extra = prev.filter((r) => r.id === value && !list.some((l) => l.id === r.id))

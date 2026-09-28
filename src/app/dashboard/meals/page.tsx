@@ -191,7 +191,9 @@ function MealModal({
           </div>
         </form>
 
-        {mode === 'edit' && initial?.id && initial.recipe_id && (
+        {/* Only for the saved link: after the picker changes, the add would use
+            the old recipe, so the action waits until the new choice is saved. */}
+        {mode === 'edit' && initial?.id && initial.recipe_id && (recipe?.id ?? null) === initial.recipe_id && (
           <AddToGroceriesButton recipeId={initial.recipe_id} mealId={initial.id} />
         )}
       </div>

@@ -46,6 +46,18 @@ describe('RecipePicker', () => {
     expect(screen.getByTestId('selected').textContent).toBe('Tomato soup')
   })
 
+  it('follows nextOffset so recipes beyond the first page are pickable', async () => {
+    const calls = mockFetch((url) =>
+      url.includes('offset=0')
+        ? { status: 200, body: { recipes: [SOUP], nextOffset: 200 } }
+        : { status: 200, body: { recipes: [{ ...SOUP, id: 'r_late', title: 'Zucchini bake' }], nextOffset: null } }
+    )
+    render(<Harness />)
+    await screen.findByRole('option', { name: 'Zucchini bake' })
+    expect(screen.getByRole('option', { name: 'Tomato soup' })).toBeTruthy()
+    expect(calls.map((c) => c.url)).toEqual(['/api/recipes?limit=200&offset=0', '/api/recipes?limit=200&offset=200'])
+  })
+
   it('shows an empty state and hides "New recipe" when the role cannot create (child, O-7)', async () => {
     mockFetch(() => ({ status: 200, body: { recipes: [], nextOffset: null } }))
     render(<Harness canCreate={false} />)

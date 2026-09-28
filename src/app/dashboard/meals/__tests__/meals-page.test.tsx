@@ -136,6 +136,18 @@ describe('/dashboard/meals', () => {
     expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ recipe_id: null, recipe_name: 'Veggie lasagna' })
   })
 
+  it('offers "Add to groceries" only for the saved recipe link, not an unsaved picker change', async () => {
+    const user = userEvent.setup()
+    const linked = { ...dinnerA, recipe_name: 'Veggie lasagna', recipe_id: LASAGNA.id, recipe: LASAGNA }
+    setup({ meals: [linked] })
+    const card = await todayCard()
+    await user.click(within(card).getByTestId('meal-row'))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Add ingredients to groceries' })).toBeTruthy()
+    await user.selectOptions(within(dialog).getByLabelText('Recipe (optional)'), '')
+    expect(within(dialog).queryByRole('button', { name: 'Add ingredients to groceries' })).toBeNull()
+  })
+
   it('shows an error state with a working retry', async () => {
     const user = userEvent.setup()
     const { fetchMock } = setup({ meals: [], mealsStatus: 500 })
