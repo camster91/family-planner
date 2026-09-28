@@ -88,6 +88,29 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(body.inventory[0]).not.toHaveProperty('family_id')
   })
 
+  it.each(['parentA', 'childA'] as const)('%s export includes the household grocery sections and trips (#273)', async (who) => {
+    for (const [f, family_id, tag] of [
+      ['a', FAMILY_A, 'home'],
+      ['b', FAMILY_B, FOREIGN.toLowerCase()],
+    ] as const) {
+      db.rows('grocerySectionPreference').push({
+        id: `gsp-${f}`, family_id, name_key: `${tag} milk`, section: 'household', updated_by: `parent-${f}`, created_at: T, updated_at: T,
+      })
+      db.rows('groceryShoppingSession').push({
+        id: `trip-${f}`, family_id, list_id: `list-${f}`, sections: ['produce', 'dairy_eggs'], started_at: T, last_tick_at: T,
+      })
+    }
+    const { body, raw } = await exportAs(who)
+    expect(body.grocerySectionPreferences).toEqual([
+      { name_key: 'home milk', section: 'household', updated_by: 'parent-a', created_at: T.toISOString(), updated_at: T.toISOString() },
+    ])
+    expect(body.groceryShoppingSessions).toEqual([
+      { id: 'trip-a', list_id: 'list-a', sections: ['produce', 'dairy_eggs'], started_at: T.toISOString(), last_tick_at: T.toISOString() },
+    ])
+    expect(raw.toLowerCase()).not.toContain('foreign milk')
+    expect(raw).not.toContain('trip-b')
+  })
+
   it('import job listings stay parent-only; backfill archives are the only job data a child gets', async () => {
     const child = await exportAs('childA')
     expect(child.body.importJobs).toEqual([])
