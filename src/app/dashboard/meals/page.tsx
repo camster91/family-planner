@@ -2,8 +2,9 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { Plus, UtensilsCrossed, Coffee, Sun, Moon, X, ChevronRight, BookOpen } from 'lucide-react'
+import { Plus, UtensilsCrossed, Coffee, Sun, Moon, X, ChevronRight, BookOpen, Refrigerator } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RecipePicker, type RecipeOption } from '@/components/meals/RecipePicker'
@@ -211,6 +212,8 @@ export default function MealsPage() {
 
 function MealsPageInner() {
   const { t } = useTranslation()
+  // Food inventory (#263) is a separate, opt-in feature; link to it when on.
+  const inventoryOn = useFeatureEnabled('inventory')
   const [week, setWeek] = React.useState<DayPlan[]>(() => buildDayPlans([]))
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -312,6 +315,15 @@ function MealsPageInner() {
         <div className="min-w-0">
           <h1 className="text-large-title font-display">{t('meals.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('meals.subtitle')}</p>
+          {inventoryOn && (
+            <Link
+              href="/dashboard/inventory"
+              className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-[var(--accent-text)]"
+            >
+              <Refrigerator className="w-4 h-4" aria-hidden="true" />
+              <span>What&apos;s in the fridge</span>
+            </Link>
+          )}
         </div>
         <button
           type="button"

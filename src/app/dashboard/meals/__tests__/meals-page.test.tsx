@@ -55,6 +55,12 @@ async function todayCard() {
 }
 
 describe('/dashboard/meals', () => {
+  it("links to the food inventory when it is on (#263)", async () => {
+    setup({ meals: [] })
+    const link = await screen.findByRole('link', { name: "What's in the fridge" })
+    expect(link.getAttribute('href')).toBe('/dashboard/inventory')
+  })
+
   it('shows every meal in a slot, each editable and deletable (gap 2.4.1)', async () => {
     const user = userEvent.setup()
     const { calls } = setup({ meals: [dinnerA, dinnerB] })

@@ -137,7 +137,7 @@ authentication and answers 403 when the household has lists off, matching the UI
 | What can I cook (`GET /api/inventory/cook`) | R | yes | yes | yes | no | Needs `inventory` and `meals`. Reads only the household's recipes and items. "Add missing to groceries" is the existing `from-recipe` route (row above), so its rules apply. |
 
 Page: `/dashboard/inventory` is on the kid allowlist (teens edit; children read, with the add/edit controls
-hidden) and in the command palette when the feature is on. Its "View recipe" link is shown only to roles that
+hidden) and, when the feature is on, in the user menu (touch) and the command palette. Its "View recipe" link is shown only to roles that
 may open `/dashboard/meals/recipes/[id]` (parents).
 
 ### Other domains (unchanged by this round; recorded for completeness)

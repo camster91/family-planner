@@ -264,6 +264,24 @@ async function expectNoSeriousAxe(
   expect(blocking, `serious/critical axe violations on ${label}`).toEqual([]);
 }
 
+/** Touch path (#263 review): the user menu links to the inventory for every role. */
+async function tapToInventory(page: Page, testInfo: TestInfo) {
+  test.skip(
+    testInfo.project.name !== "phone-390x844",
+    "touch navigation is checked on the phone project",
+  );
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "User menu" }).tap();
+  const link = page.getByRole("link", { name: "Food inventory" });
+  const box = await link.boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await link.tap();
+  await expect(page).toHaveURL(/\/dashboard\/inventory$/);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Food inventory" }),
+  ).toBeVisible();
+}
+
 // ---------------------------------------------------------------------------
 // Parent
 // ---------------------------------------------------------------------------
@@ -279,6 +297,12 @@ test.describe("inventory (Family A parent)", () => {
       );
       await removeGroceryAdds(db);
     });
+  });
+
+  test("reaches the inventory by tapping through the user menu", async ({
+    page,
+  }, testInfo) => {
+    await tapToInventory(page, testInfo);
   });
 
   test("groups items, labels expiry in words, and passes layout and axe checks", async ({
@@ -443,6 +467,12 @@ test.describe("inventory (Family A parent)", () => {
 
 test.describe("inventory (Family A child)", () => {
   test.use({ storageState: authFile("childA") });
+
+  test("reaches the inventory by tapping through the user menu", async ({
+    page,
+  }, testInfo) => {
+    await tapToInventory(page, testInfo);
+  });
 
   test("reads the inventory without write controls; the API refuses writes", async ({
     page,
