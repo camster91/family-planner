@@ -19,8 +19,8 @@
  *   and accepted within one day of the server's UTC date (every real time
  *   zone is within that); without it the server's UTC day is used.
  * - Roles: parent and teen write; child reads. Paired shared devices are
- *   refused on writes and have no read route yet (a fridge-board tile can call
- *   `getUseSoonItems`, which returns only board-safe fields).
+ *   refused on writes and have no inventory route; the Today board DTO (person
+ *   and device) carries `getUseSoonItems` fields only for its "Use soon" tile.
  */
 import { z } from 'zod'
 import type { Prisma, PrismaClient } from '@prisma/client'
@@ -300,7 +300,7 @@ type InventoryReader = Pick<PrismaClient, 'inventoryItem'> | Prisma.TransactionC
 /**
  * Items of one household that are expired or expire within `days` of
  * `today`, soonest (most overdue) first, then by name. The data helper for
- * the inventory page and, later, a fridge-board tile (#262): it returns only
+ * the inventory page and the Today board "Use soon" tile (#262): it returns only
  * the fields a shared surface may show. The caller must already have proven
  * the household (a session's family_id or an authenticated device's).
  */

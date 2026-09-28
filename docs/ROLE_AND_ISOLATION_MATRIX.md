@@ -131,9 +131,10 @@ authentication and answers 403 when the household has lists off, matching the UI
 
 | Domain | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|---|
-| Inventory items (`/api/inventory`, `/api/inventory/[id]`) | R | yes | yes | yes | no (no device read route yet; a later fridge-board tile may read `getUseSoonItems` fields only) | `featureGate('inventory')` (off by default for new and existing households). Every lookup is scoped by `family_id`; another household's item is a 404 identical to a missing id. |
+| Inventory items (`/api/inventory`, `/api/inventory/[id]`) | R | yes | yes | yes | no (no device inventory route; only the Today board "Use soon" tile, row below) | `featureGate('inventory')` (off by default for new and existing households). Every lookup is scoped by `family_id`; another household's item is a 404 identical to a missing id. |
 | Inventory items | C / U / D | yes | yes | no (403 `INVENTORY_WRITE_FORBIDDEN`) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | `ingredient_id` must be an `Ingredient` of the household (400 `INGREDIENT_NOT_FOUND`, same answer for a foreign and a missing id). Without it the item is linked to a same-household ingredient with the same normalized name, if any; no `Ingredient` is ever created from an item, and another household's ingredient is never matched. Bodies are strict: `family_id`, `added_by` or other unknown keys are a 400. Teens may delete (using up food is the main write). |
 | Use soon (`GET /api/inventory/use-soon`) | R | yes | yes | yes | no (same as above) | Board-safe fields only: item id, name, location, expiry day, days left, status and label. |
+| Use soon on the Today board (#262 tile) | R | yes | yes | yes | item id, name, location and expiry day only, via the board DTO (`GET /api/device/today`), when `inventory` is on | Same household food names as the grocery items the board already shows. Read-only for every audience. Person boards link to `/dashboard/inventory` (on the kid allowlist); the device gets no link. No amount, author, ingredient link or notes. |
 | What can I cook (`GET /api/inventory/cook`) | R | yes | yes | yes | no | Needs `inventory` and `meals`. Reads only the household's recipes and items. "Add missing to groceries" is the existing `from-recipe` route (row above), so its rules apply. |
 | Fridge photo scan (`POST /api/inventory/scan`, #265) | Suggest (no write) | yes | no (403 `INVENTORY_SCAN_FORBIDDEN`) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | Off (404 `INVENTORY_SCAN_DISABLED`) until the deployment sets a provider key; then `featureGate('inventory')`. Parent only by decision: the scan spends the deployment's paid provider quota under one household daily cap, while teens keep adding items by hand. Returns suggestions only; adding them is the item create row above, so its rules apply. Rate limits per user and household; the photo is sent to the provider and never stored. |
 
@@ -178,8 +179,10 @@ calendar, chores, meals and features only to roles that may open them. DTO:
 #262 (FridgeCal-style 16:10 hub) adds, for every audience: each member's board colour (a palette key; always
 shown next to the name), which member added a local event (`addedById`; not attendance, events have no attendee
 field), the chore approval state as text ("waiting for a parent's check" for `completed`) and, when the household
-opted in, a weather tile (place label, temperatures, summary; never coordinates). Still no points, XP or streaks on
-the board (see "Points & streaks setting" below).
+opted in, a weather tile (place label, temperatures, summary; never coordinates). With the household's `inventory`
+feature on, a read-only "Use soon" tile (#263 data): up to 5 items expired or due within 3 days of the viewer's day
+(name, place, expiry in words), then "N more to use soon"; it is left out when nothing is due. Still no points, XP
+or streaks on the board (see "Points & streaks setting" below).
 
 | Board settings (#262) | Parent | Teen | Child | Shared device |
 |---|---|---|---|---|

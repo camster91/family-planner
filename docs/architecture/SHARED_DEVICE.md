@@ -490,7 +490,8 @@ The device reads exactly the Today board DTO, built by `buildTodayBoard` with a 
 | `chores` | `id`, `title`, `dueDay`, `status`, `assigneeId` | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`) |
 | `dinners` | `id`, `day`, `recipeName`, `cookName` | `FamilyMeal` (no `notes`); `null` when meals feature is off |
 | `shopping` | `items[] { id, content, quantity, listId, listName }`, `total` | `ListItem`/`List` of type `grocery`/`shopping` (no `price`, `notes`, `added_by`) |
-| `links` | all `null` for the device audience | — |
+| `links` | all `null` for the device audience (including `inventory`) | — |
+| `useSoon` (#262 tile, #263 data) | `id`, `name`, `location`, `expiresOn`; `null` when the `inventory` feature is off | `InventoryItem` of the device's household, expired or due within 3 days (no `amount`, `unit`, `ingredient_id`, `added_by`). Allowed on the device for the same reason as `shopping`: household food names every member may read; read-only |
 | `weather` (#262) | `label`, `unit`, `current { temperature, summary, icon, isDay }`, `days[] { day, high, low, summary, icon, precipitationChance }`, `fetchedAt`; `null` unless the household opted in | `Family.weather_*` and `WeatherCache` of the device's household (no coordinates) |
 | `generatedAt` | server time | — |
 

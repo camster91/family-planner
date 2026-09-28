@@ -429,6 +429,6 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 ### Follow-ups (not in #263 or #265)
 
 - Move ticked grocery items into the inventory (optional in the issue).
-- A "use soon" tile on the fridge board (#262), using `getUseSoonItems`.
+- ~~A "use soon" tile on the fridge board (#262), using `getUseSoonItems`.~~ **Done in #262:** the Today board DTO carries `useSoon` (id, name, location, expiry day) when `inventory` is on, for person boards and the paired tablet; tile in `src/components/fridge/use-soon-region.tsx` (`docs/FRIDGE_TABLET_PROGRAM.md` §31).
 - Any reminder delivery (needs an approved scheduler or an event-driven design).
 - A batch inventory create if scans commonly add many items at once.
