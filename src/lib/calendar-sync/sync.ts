@@ -25,7 +25,12 @@ import {
   type SyncedFields,
 } from "./mapping";
 import { adapterFor, oauthFor } from "./providers";
-import { decryptToken, encryptToken, tokenAad } from "./token-crypto";
+import {
+  decryptToken,
+  encryptToken,
+  needsReencrypt,
+  tokenAad,
+} from "./token-crypto";
 import {
   CursorExpiredError,
   OAuthGrantError,
@@ -246,9 +251,10 @@ async function accessToken(ctx: Ctx, force = false): Promise<string> {
     token_expires_at: set.expiresAt,
   };
   // Microsoft rotates refresh tokens; Google usually does not return one.
-  if (set.refreshToken)
+  // Key rotation: an unchanged refresh token is re-encrypted with the current key.
+  if (set.refreshToken || needsReencrypt(conn.refresh_token_enc))
     data.refresh_token_enc = encryptToken(
-      set.refreshToken,
+      set.refreshToken ?? refresh,
       tokenAad.refresh(conn.family_id),
     );
   await db.calendarConnection.updateMany({

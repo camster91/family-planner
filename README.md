@@ -88,6 +88,7 @@ Templates: [`.env.example`](.env.example) (local) and [`.env.production.example`
 | `UPLOAD_DIR`                                              | Upload storage path (default `/data/family-planner-uploads`)                                | No                            |
 | `CAPTURE_AI_KEY`, `CAPTURE_AI_BASE_URL`, `CAPTURE_AI_MODEL` | Server-level fallback for AI capture; families normally configure this in Settings        | No                            |
 | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`     | Client analytics; disabled when unset                                                       | No                            |
+| `CALENDAR_TOKEN_KEY`, `APP_URL`, `GOOGLE_CLIENT_ID`/`_SECRET`, `MICROSOFT_CLIENT_ID`/`_SECRET`/`_TENANT` | Two-way calendar sync (#264); dormant unless set. See `docs/runbooks/CALENDAR_SYNC.md` | No |
 | `MIGRATE_FALLBACK_DB`                                     | Maintenance database `scripts/migrate.js` uses when `postgres` is unavailable               | No                            |
 
 ## User Roles

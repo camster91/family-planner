@@ -332,6 +332,24 @@ describe("errors, tokens and rate limits", () => {
     expect(decryptToken(conn().access_token_enc, tokenAad.access(FAMILY_A))).toBe("ACCESS-REFRESHED-1");
   });
 
+  it("re-encrypts an unchanged refresh token with the new key during a key rotation", async () => {
+    const oldKey = process.env.CALENDAR_TOKEN_KEY!;
+    const newKey = require("crypto").randomBytes(32).toString("base64");
+    process.env.CALENDAR_TOKEN_KEY = newKey;
+    process.env.CALENDAR_TOKEN_KEY_PREVIOUS = oldKey;
+    try {
+      const before = conn().refresh_token_enc;
+      conn().token_expires_at = new Date(NOW.getTime() - 1000);
+      expect(await syncConnection("conn-a", FAMILY_A, deps)).toMatchObject({ status: "ok" });
+      expect(conn().refresh_token_enc).not.toBe(before);
+      delete process.env.CALENDAR_TOKEN_KEY_PREVIOUS;
+      expect(decryptToken(conn().refresh_token_enc, tokenAad.refresh(FAMILY_A))).toBe("REFRESH-OK");
+    } finally {
+      process.env.CALENDAR_TOKEN_KEY = oldKey;
+      delete process.env.CALENDAR_TOKEN_KEY_PREVIOUS;
+    }
+  });
+
   it("marks reauth_required when the refresh token is revoked", async () => {
     conn().token_expires_at = new Date(NOW.getTime() - 1000);
     oauth.grantRevoked = true;

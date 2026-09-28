@@ -112,5 +112,29 @@ Implemented (behind `SHARED_DEVICE_ENABLED`, default off; every route is `404` w
 ## Provider adapters
 Calendar, weather, AI, notification and food/recipe providers must sit behind application interfaces. Provider-specific errors map into stable product states.
 
+## Calendar sync routes (#264)
+Two-way Google / Outlook sync, **dormant**: every route below is `404` (whoever calls) until the environment in
+`docs/runbooks/CALENDAR_SYNC.md` is set. All JSON responses carry `Cache-Control: private, no-store` and never
+include tokens, sync cursors or provider error bodies. Parents only (teen/child `403 PARENT_REQUIRED`; no session or
+a device cookie `401`). Design: [`CALENDAR_SYNC.md`](CALENDAR_SYNC.md).
+
+| Method + path | Who | Request | Response |
+| --- | --- | --- | --- |
+| `GET /api/calendar/connections` | parent | — | `{ providers: [{ id, label }], connections: ConnectionDto[] }` for the caller's household |
+| `POST /api/calendar/connections/[provider]/start` | parent | — (CSRF header) | `{ authorize_url }`; `404` unknown/unconfigured provider; `409` household limit (6); `429` over 10 starts / 10 min |
+| `GET /api/calendar/connections/[provider]/callback` | the parent who started | `?code&state` (or `?error`) from the provider | `303` to `/dashboard/settings?calendar_sync=<outcome>#calendar-sync`, outcome one of `connected`, `denied`, `state`, `exchange`, `forbidden`, `error` |
+| `PATCH /api/calendar/sync-connections/[id]` | connecting parent | `{ calendar_id?, push_mode?: "linked" or "all" }` | `{ connection }`; `403` another parent; `400` not a writable calendar; `409` reconnect needed; `404` foreign/missing |
+| `DELETE /api/calendar/sync-connections/[id]` | any parent | — | `{ success, removed_events }`; revokes (best effort), deletes tokens, links and imported events |
+| `GET /api/calendar/sync-connections/[id]/calendars` | connecting parent | — | `{ calendars: [{ id, name, primary }] }` (writable only); `403` another parent |
+| `POST /api/calendar/sync-connections/[id]/sync` | any parent | — | `{ result: { status, pulled, pushed, conflicts, resynced, error? }, connection }`; `429` over 6 / 10 min |
+
+`ConnectionDto`: `id, provider, provider_label, calendar_id, calendar_name, push_mode, status
+('pending'|'ok'|'error'|'reauth_required'), last_synced_at, last_error (fixed vocabulary), conflicts_count,
+last_conflict_at, owner { id, name }, is_mine`.
+
+Compatibility: additive only. `Event` gains `source_connection_id` and `updated_at` (both optional for clients);
+`/api/events` responses carry them as extra fields. Events imported from a connection are editable (unlike ICS
+imports, which stay `409 EVENT_READ_ONLY`). Installed Android builds need no update (web-served UI).
+
 ## Testing
 Contract tests should cover validation, happy path, unauthorized/forbidden, foreign-family IDs, not-found semantics, duplicate retry, concurrency conflict, pagination and old-client fixtures when relevant.

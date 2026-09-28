@@ -44,6 +44,9 @@ The matrix records the per-domain parent/teen/child capability decided on issue 
 ## Current role and household
 Step 2 above is implemented in `resolveSession` (`src/lib/session.ts`): one query per request reads `token_version`, `role` and `family_id`. `verifySessionToken`, and therefore `authenticateRequest`, `getServerUser()` and the middleware kid gate, return the database role and family, never the JWT claims.
 
+## Personal-account integrations (calendar sync, #264)
+A connection to a member's own Google/Outlook account belongs to the household (`family_id`) **and** the connecting member (`user_id`). Parents only. Decisions that act on the member's personal account (listing their calendars, choosing the calendar, pushing family events into it) are limited to that member; household-level controls (see status, Sync now, disconnect) are open to any parent of the household. The OAuth `state` binds the flow to the signed-in member, household and provider. Dormant until configured; details in [`CALENDAR_SYNC.md`](CALENDAR_SYNC.md).
+
 ## Device lifecycle
 Shared device authorization needs pairing, revocation, token rotation, last-seen/health visibility and cache-clearing behaviour after revoke. Offline access never grants future refresh after revocation. The pairing, rotation, revocation, purge, audit and rate-limit contract (server side implemented in #240; the client purge ships with the UI) is in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §4–§11.
 

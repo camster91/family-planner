@@ -10,7 +10,7 @@ Every private household-domain record must be traceable to exactly one household
 
 - `User` and `Family` remain the identity/household foundation.
 - Existing auth/family systems must be extended, not duplicated for the fridge tablet.
-- `Event` remains the existing calendar foundation until an accepted versioned migration changes it.
+- `Event` remains the existing calendar foundation until an accepted versioned migration changes it. Additive columns so far: `source_subscription_id`/`source_uid`/`source_occurrence_start` (ICS import, #232) and `source_connection_id`/`updated_at` (provider sync, #264). Provider sync adds `CalendarConnection`, `CalendarEventLink` and `CalendarOAuthState` ([`CALENDAR_SYNC.md`](CALENDAR_SYNC.md)).
 - Existing chore/task/reward models remain during vertical migration.
 
 ## Overlapping meal/list generations (#149)
