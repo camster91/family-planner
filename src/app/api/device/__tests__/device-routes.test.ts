@@ -111,6 +111,8 @@ describe('device routes', () => {
       process.env.WEATHER_ENABLED = '1'
       try {
         const snapshot = (temp: number) => ({
+          utcOffsetSeconds: 0,
+          timezone: null,
           current: { temperatureC: temp, code: 3, isDay: true },
           daily: [{ day: '2026-09-26', highC: temp + 2, lowC: temp - 5, code: 3, precipitationChance: 10 }],
         })

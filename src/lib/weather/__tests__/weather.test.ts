@@ -19,6 +19,8 @@ import { describeWeatherCode } from '../codes'
 const NOW = new Date('2026-01-05T12:00:00Z')
 
 const FORECAST_BODY = {
+  utc_offset_seconds: -18000,
+  timezone: 'America/Toronto',
   current: { temperature_2m: -3.4, weather_code: 71, is_day: 1 },
   daily: {
     time: ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08'],
@@ -82,8 +84,20 @@ describe('open-meteo client', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
+  it("keeps the place's UTC offset and zone, and rejects a missing or impossible offset", () => {
+    const snap = parseForecast(FORECAST_BODY)
+    expect(snap.utcOffsetSeconds).toBe(-18000)
+    expect(snap.timezone).toBe('America/Toronto')
+    const { utc_offset_seconds: _omit, ...noOffset } = FORECAST_BODY
+    expect(() => parseForecast(noOffset)).toThrow(WeatherFetchError)
+    expect(() => parseForecast({ ...FORECAST_BODY, utc_offset_seconds: 20 * 3600 })).toThrow(WeatherFetchError)
+    expect(parseForecast({ ...FORECAST_BODY, timezone: 42 }).timezone).toBeNull()
+    expect(toBoardWeather(snap, 'Toronto', 'celsius', NOW).utcOffsetSeconds).toBe(-18000)
+  })
+
   it('parses daily rows defensively (skips malformed days)', () => {
     const snap = parseForecast({
+      utc_offset_seconds: 0,
       current: { temperature_2m: 1, weather_code: 0, is_day: 0 },
       daily: { time: ['2026-01-05', 'bad'], weather_code: [0, 0], temperature_2m_max: [3, 3], temperature_2m_min: [1, 1] },
     })
@@ -239,6 +253,15 @@ describe('getBoardWeather (cache, backoff, fail closed)', () => {
       where: { family_id: 'fam' },
       update: { status: 'ok', latitude: 43.65, longitude: -79.38 },
     })
+  })
+
+  it("refetches a fresh row cached before the place's offset was stored", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse(FORECAST_BODY))
+    const { utcOffsetSeconds: _o, timezone: _t, ...legacy } = parseForecast(FORECAST_BODY)
+    const db = makeDb(undefined, okCache(1000, { payload: legacy }))
+    const w = await getBoardWeather(db as any, { familyId: 'fam', now: NOW, fetchImpl })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(w?.utcOffsetSeconds).toBe(-18000)
   })
 
   it('refetches when the place changed', async () => {

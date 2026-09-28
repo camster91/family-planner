@@ -6,7 +6,7 @@
 import * as React from 'react'
 import { act, render, screen, within } from '@testing-library/react'
 import TodayBoard, { boardGridClass } from '../TodayBoard'
-import { memberColors, memberDisplayNames, shortWeekday, weatherView } from '../board-model'
+import { memberColors, memberDisplayNames, placeDayKey, shortWeekday, weatherView } from '../board-model'
 import { resolveMemberColors, MEMBER_COLOR_KEYS } from '@/lib/member-colors'
 import type { TodayBoardData } from '@/app/dashboard/today/today-board-data'
 import type { BoardWeather } from '@/lib/weather/board-weather'
@@ -149,7 +149,24 @@ describe('weather tile (#262)', () => {
     ])
   })
 
-  it('picks the viewer-local day, whatever the first forecast day is', () => {
+  it("picks today by the weather place's date across the date line, not the viewer's", () => {
+    const days = ['2026-01-04', '2026-01-05', '2026-01-06', '2026-01-07'].map((day) => ({
+      ...WEATHER.days[0],
+      day,
+    }))
+    // 17:00 UTC on 5 Jan: noon in Toronto, already 06:00 on 6 Jan in Auckland (UTC+13).
+    const instant = new Date('2026-01-05T17:00:00Z')
+    const auckland = weatherView({ ...WEATHER, days, utcOffsetSeconds: 13 * 3600 }, instant)
+    expect(auckland?.today?.day).toBe('2026-01-06')
+    expect(auckland?.next.map((d) => d.day)).toEqual(['2026-01-07'])
+    // 05:00 UTC on 6 Jan: Auckland's 18:00 on 6 Jan, still 19:00 on 5 Jan in Honolulu (UTC-10).
+    const honolulu = weatherView({ ...WEATHER, days, utcOffsetSeconds: -10 * 3600 }, new Date('2026-01-06T05:00:00Z'))
+    expect(honolulu?.today?.day).toBe('2026-01-05')
+    expect(placeDayKey(new Date('2026-01-05T23:30:00Z'), 3600)).toBe('2026-01-06')
+    expect(placeDayKey(new Date('2026-01-05T00:30:00Z'), -3600)).toBe('2026-01-04')
+  })
+
+  it('falls back to the viewer-local day when the offset is missing (older server)', () => {
     const v = weatherView({ ...WEATHER, days: WEATHER.days.slice(0) }, new Date(2026, 0, 6, 9))
     expect(v?.today?.day).toBe('2026-01-06')
     expect(v?.next.map((d) => d.day)).toEqual(['2026-01-07', '2026-01-08'])

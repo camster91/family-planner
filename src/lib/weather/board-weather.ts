@@ -66,6 +66,12 @@ export interface BoardWeather {
     /** Highest chance of precipitation that day, 0–100, when known. */
     precipitationChance: number | null
   }>
+  /**
+   * The place's UTC offset in seconds. The client picks "today" among `days`
+   * by the place's current date (now + offset), not the viewer's zone.
+   * Optional for boards built before this field.
+   */
+  utcOffsetSeconds?: number
   /** When the forecast was fetched from Open-Meteo (server clock, ISO). */
   fetchedAt: string
 }
@@ -78,6 +84,9 @@ function isSnapshot(value: unknown): value is WeatherSnapshot {
     !!v &&
     typeof v.current?.temperatureC === 'number' &&
     typeof v.current?.code === 'number' &&
+    // Rows cached before the place's offset was stored are treated as stale
+    // and refetched, so day selection always uses the place's date.
+    typeof v.utcOffsetSeconds === 'number' &&
     Array.isArray(v.daily) &&
     v.daily.length > 0 &&
     v.daily.every((d) => typeof d?.day === 'string' && typeof d.highC === 'number' && typeof d.lowC === 'number')
@@ -110,6 +119,7 @@ export function toBoardWeather(snapshot: WeatherSnapshot, label: string, unit: W
         precipitationChance: typeof d.precipitationChance === 'number' ? Math.round(d.precipitationChance) : null,
       }
     }),
+    utcOffsetSeconds: snapshot.utcOffsetSeconds,
     fetchedAt: fetchedAt.toISOString(),
   }
 }

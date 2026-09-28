@@ -37,7 +37,17 @@ export interface WeatherSnapshot {
   current: { temperatureC: number; code: number; isDay: boolean }
   /** Location-local calendar days (`YYYY-MM-DD`), soonest first. */
   daily: Array<{ day: string; highC: number; lowC: number; code: number; precipitationChance: number | null }>
+  /**
+   * The place's UTC offset when fetched (`timezone=auto`), so "today" in the
+   * daily rows is the PLACE's date, not the viewer's or the server's.
+   */
+  utcOffsetSeconds: number
+  /** IANA zone Open-Meteo resolved for the place, when given (informational). */
+  timezone: string | null
 }
+
+/** Real UTC offsets are within -12h..+14h; allow a margin. */
+const MAX_OFFSET_SECONDS = 15 * 60 * 60
 
 export interface PlaceResult {
   /** "Toronto, Ontario, Canada" (no street-level detail exists in this API). */
@@ -101,6 +111,8 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 /** Validates and normalizes an Open-Meteo forecast body. Throws `bad_response`. */
 export function parseForecast(body: unknown): WeatherSnapshot {
   const b = body as {
+    utc_offset_seconds?: unknown
+    timezone?: unknown
     current?: { temperature_2m?: unknown; weather_code?: unknown; is_day?: unknown }
     daily?: {
       time?: unknown
@@ -113,6 +125,9 @@ export function parseForecast(body: unknown): WeatherSnapshot {
   const temp = num(b?.current?.temperature_2m)
   const code = num(b?.current?.weather_code)
   if (temp === null || code === null) throw new WeatherFetchError('bad_response')
+  const offset = num(b?.utc_offset_seconds)
+  if (offset === null || Math.abs(offset) > MAX_OFFSET_SECONDS) throw new WeatherFetchError('bad_response')
+  const timezone = typeof b.timezone === 'string' && b.timezone.length <= 64 ? b.timezone : null
   const d = b.daily
   const times = Array.isArray(d?.time) ? d!.time : []
   const codes = Array.isArray(d?.weather_code) ? d!.weather_code : []
@@ -132,7 +147,12 @@ export function parseForecast(body: unknown): WeatherSnapshot {
     daily.push({ day, highC: high, lowC: low, code: dayCode, precipitationChance: p === null ? null : Math.max(0, Math.min(100, p)) })
   }
   if (daily.length === 0) throw new WeatherFetchError('bad_response')
-  return { current: { temperatureC: temp, code, isDay: b.current?.is_day !== 0 }, daily }
+  return {
+    current: { temperatureC: temp, code, isDay: b.current?.is_day !== 0 },
+    daily,
+    utcOffsetSeconds: offset,
+    timezone,
+  }
 }
 
 export async function fetchForecast(

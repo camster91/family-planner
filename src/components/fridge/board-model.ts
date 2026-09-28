@@ -157,18 +157,32 @@ export function memberColors(members: BoardMember[]): Map<string, MemberColorKey
   return new Map(members.map((m, i) => [m.id, m.color ?? MEMBER_COLOR_KEYS[i % MEMBER_COLOR_KEYS.length]]))
 }
 
+/** The weather place's current calendar date: now shifted by its UTC offset. */
+export function placeDayKey(now: Date, utcOffsetSeconds: number): string {
+  return new Date(now.getTime() + utcOffsetSeconds * 1000).toISOString().slice(0, 10)
+}
+
 export interface WeatherView {
   weather: BoardWeather
-  /** The forecast day matching the viewer's local today, else the nearest earlier/first day. */
+  /**
+   * The forecast day matching the PLACE's current date (its UTC offset from
+   * Open-Meteo), else the nearest earlier/first day. Falls back to the
+   * viewer's local day when the offset is missing (older server).
+   */
   today: BoardWeather['days'][number] | null
   /** Up to three days after `today`. */
   next: BoardWeather['days']
 }
 
-/** Picks today's forecast and the next days against the viewer's local calendar. */
+/**
+ * Picks today's forecast and the next days by the weather place's calendar
+ * (forecast days are place-local dates), so a place across the date line or
+ * in another zone never shows yesterday's or tomorrow's row as "today".
+ */
 export function weatherView(weather: BoardWeather | null | undefined, now: Date): WeatherView | null {
   if (!weather || weather.days.length === 0) return null
-  const key = localDayKey(now)
+  const key =
+    typeof weather.utcOffsetSeconds === 'number' ? placeDayKey(now, weather.utcOffsetSeconds) : localDayKey(now)
   let index = weather.days.findIndex((d) => d.day === key)
   if (index < 0) {
     // Forecast from before local midnight: the last day not after today.

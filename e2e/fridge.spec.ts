@@ -99,6 +99,8 @@ const WEATHER_PLACE = {
   longitude: -79.38,
 };
 const WEATHER_SNAPSHOT = {
+  utcOffsetSeconds: -18000,
+  timezone: "America/Toronto",
   current: { temperatureC: -3.4, code: 71, isDay: true },
   daily: [
     {

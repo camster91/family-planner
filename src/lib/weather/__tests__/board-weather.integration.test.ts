@@ -13,6 +13,8 @@ const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe :
 jest.setTimeout(60_000)
 
 const FORECAST = {
+  utc_offset_seconds: -14400,
+  timezone: 'America/Toronto',
   current: { temperature_2m: 21.4, weather_code: 2, is_day: 1 },
   daily: {
     time: ['2026-06-01', '2026-06-02'],
@@ -93,6 +95,9 @@ describeWithDatabase('board weather against Postgres', () => {
     const row = await prisma.weatherCache.findUniqueOrThrow({ where: { family_id: FAM } })
     expect(row).toMatchObject({ status: 'ok', latitude: 43.65, longitude: -79.38 })
     expect((row.payload as any).current.temperatureC).toBe(21.4)
+    // The place's offset is cached so "today" is chosen by the place's date.
+    expect((row.payload as any).utcOffsetSeconds).toBe(-14400)
+    expect(first?.utcOffsetSeconds).toBe(-14400)
 
     // Served from the row; no request.
     const cached = await lib.getBoardWeather(prisma, { familyId: FAM, now: new Date(NOW.getTime() + 60_000), fetchImpl: ok })
