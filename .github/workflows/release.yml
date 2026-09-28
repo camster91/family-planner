@@ -114,6 +114,7 @@ jobs:
           src/lib/__tests__/list-item-provenance.integration.test.ts
           src/lib/__tests__/list-item-update.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts
+          src/lib/calendar-sync/__tests__/sync.integration.test.ts
           src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
