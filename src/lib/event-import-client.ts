@@ -1,7 +1,8 @@
 /**
  * Browser-side helpers for the review-first event import (#270): turn a
- * server suggestion into an editable draft, and a reviewed draft into the
- * body of the ordinary `POST /api/events`. No server-only imports: the time
+ * server suggestion into an editable draft, and a reviewed draft into an
+ * event body (the `POST /api/events` field rules) for the import commit
+ * route. No server-only imports: the time
  * zone maths is the same pure Intl code the ICS import uses.
  */
 import { zonedWallTimeToUtc } from '@/lib/calendar-import/timezone'
@@ -26,9 +27,9 @@ export interface ImportDraft {
   allDay: boolean
   /** HH:MM, timed events only. */
   startTime: string
-  /** HH:MM, optional; an end at or before the start is read as the next day. */
+  /** HH:MM, optional; without an end date, an end at or before the start is read as the next day. */
   endTime: string
-  /** YYYY-MM-DD, optional; all-day events that span several days. */
+  /** YYYY-MM-DD, optional; the last day when the event spans several days (all day or timed). */
   endDate: string
   location: string
   notes: string
@@ -48,6 +49,14 @@ export interface EventCreateBody {
 export const IMPORT_TICK_THRESHOLD = 0.5
 /** Matches EVENT_IMPORT_UNDO_WINDOW_MS on the server. */
 export const IMPORT_UNDO_WINDOW_MS = 10 * 60 * 1000
+
+/** What the commit route returns (201, or replayed with the same body). */
+export interface ImportCommitResult {
+  eventIds: string[]
+  count: number
+  undoToken: string
+  undoExpiresAt: string
+}
 export const IMPORT_TEXT_MAX_CHARS = 20_000
 export const IMPORT_IMAGE_MAX_BYTES = 8 * 1024 * 1024
 export const IMPORT_PDF_MAX_BYTES = 10 * 1024 * 1024
@@ -69,7 +78,9 @@ export function toDrafts(suggestions: ImportSuggestion[]): ImportDraft[] {
       allDay: !timed,
       startTime: timed ? s.start.slice(11, 16) : '',
       endTime: timed && s.end && s.end.length >= 16 ? s.end.slice(11, 16) : '',
-      endDate: !timed && s.end ? s.end.slice(0, 10) : '',
+      // The last day: kept for multi-day all-day events and for timed events
+      // that end on a later day (Fri 09:00 to Sun 17:00). Same day: blank.
+      endDate: s.end && s.end.slice(0, 10) !== s.start.slice(0, 10) ? s.end.slice(0, 10) : '',
       location: s.location ?? '',
       notes: s.notes ?? '',
       confidence: s.confidence,
@@ -91,8 +102,16 @@ function wall(date: string, time: string, timeZone: string): Date | null {
   return zonedWallTimeToUtc({ year, month, day, hour: Number(t[1]), minute: Number(t[2]), second: 0 }, timeZone)
 }
 
+/** The calendar day after `date` (YYYY-MM-DD), without touching time zones. */
+export function nextDay(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 /**
- * The `POST /api/events` body for a reviewed draft, or an error message to
+ * The event body (the `POST /api/events` field rules, sent in a batch to the
+ * import commit route) for a reviewed draft, or an error message to
  * show on the card. All-day events follow the manual form's convention
  * (00:00 on the first day to 23:59 on the last, in `timeZone`).
  */
@@ -121,11 +140,20 @@ export function draftToEventBody(
     if (!DATE_RE.test(draft.date)) return { ok: false, error: 'Choose a date.' }
     start = wall(draft.date, draft.startTime, timeZone)
     if (!start) return { ok: false, error: 'Enter a start time, or tick All day.' }
+    if (draft.endDate && !draft.endTime) return { ok: false, error: 'Enter an end time for the last day.' }
     if (draft.endTime) {
-      end = wall(draft.date, draft.endTime, timeZone)
-      if (!end) return { ok: false, error: 'Enter a valid end time.' }
-      // An end at or before the start is the next morning (e.g. 22:00–01:00).
-      if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000)
+      if (draft.endDate) {
+        end = wall(draft.endDate, draft.endTime, timeZone)
+        if (!end) return { ok: false, error: 'Choose a valid end date.' }
+        if (end <= start) return { ok: false, error: 'The end is before the start.' }
+      } else {
+        end = wall(draft.date, draft.endTime, timeZone)
+        if (!end) return { ok: false, error: 'Enter a valid end time.' }
+        // An end at or before the start is the next morning (e.g. 22:00–01:00).
+        // Move the local calendar day, not 24 hours, so a DST change overnight
+        // still ends at the written local time.
+        if (end <= start) end = wall(nextDay(draft.date), draft.endTime, timeZone)
+      }
     }
   }
 

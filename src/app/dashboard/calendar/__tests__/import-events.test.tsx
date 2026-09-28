@@ -2,9 +2,11 @@
  * @jest-environment jsdom
  */
 // Review-first import UI (#270): the calendar button is hidden unless enabled;
-// paste → suggestions → edit → add through POST /api/events (low-confidence
-// cards start unticked, added cards leave the list so a retry cannot
-// duplicate) → "Added N events" with Undo that removes exactly those ids.
+// paste → suggestions → edit → one commit request with an Idempotency-Key per
+// batch (low-confidence cards start unticked; a retry after a lost response
+// reuses the key so the server replays instead of adding twice) → "Added N
+// events" with Undo that sends the signed undo token. The dialog traps focus,
+// moves it in on open and returns it to the opener on close.
 import * as React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -15,7 +17,7 @@ const mockRefresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mockRefresh, push: jest.fn() }) }))
 jest.mock('@/components/capture/CaptureBox', () => ({ CaptureBox: () => null }))
 
-type Call = { url: string; method: string; body: unknown; isForm: boolean }
+type Call = { url: string; method: string; body: unknown; isForm: boolean; headers: Record<string, string> }
 
 const SUGGESTIONS = [
   { title: 'Picture day', start: '2026-10-02', end: null, allDay: true, location: null, notes: null, confidence: 0.9 },
@@ -26,32 +28,42 @@ const SUGGESTIONS = [
   { title: 'Maybe a meeting', start: '2026-10-20', end: null, allDay: true, location: null, notes: null, confidence: 0.3 },
 ]
 
+function commitResult(count: number) {
+  return {
+    eventIds: Array.from({ length: count }, (_, i) => `ev-${i + 1}`),
+    count,
+    undoToken: 'v1.signed.token',
+    undoExpiresAt: new Date(Date.now() + 600_000).toISOString(),
+  }
+}
+
 function mockFetch({
   suggestStatus = 200,
   suggestBody = { suggestions: SUGGESTIONS, unreadable: false, dropped: 0, timeZone: 'America/Toronto' } as unknown,
-  failTitles = [] as string[],
+  /** Commit outcomes in order: a status, or 'network' for a lost response. Then 201. */
+  commitOutcomes = [] as Array<number | 'network'>,
   undoStatus = 200,
 } = {}) {
   const calls: Call[] = []
-  let n = 0
+  const outcomes = [...commitOutcomes]
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
     const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData
     const body = init?.body && !isForm ? JSON.parse(String(init.body)) : undefined
-    calls.push({ url, method, body, isForm })
+    calls.push({ url, method, body, isForm, headers: (init?.headers ?? {}) as Record<string, string> })
     const json = (status: number, data: unknown) =>
       ({ ok: status >= 200 && status < 300, status, json: async () => data }) as unknown as Response
     if (url === '/api/calendar/import-suggestions') return json(suggestStatus, suggestBody)
-    if (url === '/api/events' && method === 'POST') {
-      const title = (body as { title: string }).title
-      if (failTitles.includes(title)) return json(500, { error: 'Internal server error' })
-      n += 1
-      return json(200, { event: { id: `ev-${n}`, title } })
+    if (url === '/api/calendar/import-suggestions/commit') {
+      const next = outcomes.shift()
+      if (next === 'network') throw new TypeError('Failed to fetch')
+      if (typeof next === 'number') return json(next, { error: { code: 'X', message: `Server said ${next}` } })
+      return json(201, commitResult((body as { events: unknown[] }).events.length))
     }
     if (url === '/api/calendar/import-suggestions/undo') {
       return undoStatus === 200
-        ? json(200, { removedCount: (body as { eventIds: string[] }).eventIds.length })
+        ? json(200, { removedCount: 2 })
         : json(undoStatus, { error: { code: 'UNDO_WINDOW_EXPIRED', message: 'It is too late to undo this import.' } })
     }
     return json(404, {})
@@ -65,6 +77,8 @@ async function pasteAndFind(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Find events' }))
 }
 
+const commits = (calls: Call[]) => calls.filter((c) => c.url === '/api/calendar/import-suggestions/commit')
+
 beforeEach(() => mockRefresh.mockReset())
 
 describe('calendar page', () => {
@@ -76,7 +90,7 @@ describe('calendar page', () => {
     expect(screen.getByRole('button', { name: 'Import from text or photo' })).toBeTruthy()
   })
 
-  it('imports, shows "Added N events" and undoes exactly those events', async () => {
+  it('imports, shows "Added N events" and undoes with the signed token', async () => {
     const user = userEvent.setup()
     const calls = mockFetch()
     render(<CalendarPageClient events={[]} currentMonth={10} currentYear={2026} importEnabled />)
@@ -91,8 +105,27 @@ describe('calendar page', () => {
     await user.click(within(toast).getByRole('button', { name: /Undo/ }))
     expect(await within(toast).findByText('Removed 2 events')).toBeTruthy()
     const undo = calls.find((c) => c.url === '/api/calendar/import-suggestions/undo')!
-    expect(undo.body).toEqual({ eventIds: ['ev-1', 'ev-2'] })
+    expect(undo.body).toEqual({ token: 'v1.signed.token' })
     expect(within(toast).queryByRole('button', { name: /Undo/ })).toBeNull()
+  })
+
+  it('moves focus into the dialog, keeps Tab inside and returns focus to the opener on close', async () => {
+    const user = userEvent.setup()
+    mockFetch()
+    render(<CalendarPageClient events={[]} currentMonth={10} currentYear={2026} importEnabled />)
+    const opener = screen.getByRole('button', { name: 'Import from text or photo' })
+    await user.click(opener)
+    const dialog = screen.getByRole('dialog', { name: 'Import events' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByLabelText('Text of the email or flyer'))
+    // Tab from the last control wraps to the first, never leaving the dialog.
+    for (let i = 0; i < 8; i++) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(opener)
   })
 })
 
@@ -117,9 +150,11 @@ describe('ImportEventsDialog', () => {
     expect((within(cards[1]).getByLabelText('Starts') as HTMLInputElement).value).toBe('15:30')
     expect((within(cards[1]).getByLabelText('Location') as HTMLInputElement).value).toBe('Gym')
     expect(screen.getByTestId('import-add').textContent).toBe('Add 2 events')
+    // Focus followed the step change to the results.
+    expect(document.activeElement?.textContent).toMatch(/^Found 3 events/)
   })
 
-  it('adds the edited, ticked events through POST /api/events and reports the created ids', async () => {
+  it('commits the edited, ticked events in one request with an Idempotency-Key', async () => {
     const user = userEvent.setup()
     const calls = mockFetch()
     const onDone = jest.fn()
@@ -130,36 +165,70 @@ describe('ImportEventsDialog', () => {
     await user.clear(title)
     await user.type(title, 'School bake sale')
     await user.click(screen.getByTestId('import-add'))
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith(['ev-1', 'ev-2']))
-    const posts = calls.filter((c) => c.url === '/api/events')
-    expect(posts.map((p) => p.body)).toEqual([
-      { title: 'Picture day', description: null, start_time: '2026-10-02T04:00:00.000Z', end_time: '2026-10-03T03:59:00.000Z', location: null },
-      {
-        title: 'School bake sale', description: 'Bring $2', start_time: '2026-10-09T19:30:00.000Z',
-        end_time: '2026-10-09T21:00:00.000Z', location: 'Gym',
-      },
-    ])
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ eventIds: ['ev-1', 'ev-2'], count: 2, undoToken: 'v1.signed.token' }))
+    )
+    const [commit] = commits(calls)
+    expect(commit.headers['Idempotency-Key']).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
+    expect(commit.body).toEqual({
+      events: [
+        { title: 'Picture day', description: null, start_time: '2026-10-02T04:00:00.000Z', end_time: '2026-10-03T03:59:00.000Z', location: null },
+        {
+          title: 'School bake sale', description: 'Bring $2', start_time: '2026-10-09T19:30:00.000Z',
+          end_time: '2026-10-09T21:00:00.000Z', location: 'Gym',
+        },
+      ],
+    })
+    expect(calls.some((c) => c.url === '/api/events')).toBe(false)
   })
 
-  it('keeps a failed card, removes added ones, and a retry sends only what is left', async () => {
+  it('retries a lost or failed commit with the same key, and a changed batch with a new one', async () => {
     const user = userEvent.setup()
-    const calls = mockFetch({ failTitles: ['Bake sale'] })
+    const calls = mockFetch({ commitOutcomes: ['network', 503, 400] })
     const onDone = jest.fn()
     render(<ImportEventsDialog onClose={jest.fn()} onDone={onDone} />)
     await pasteAndFind(user)
     await user.click(await screen.findByTestId('import-add'))
-    expect(await screen.findByText(/Added 1 event\. 1 couldn't be added/)).toBeTruthy()
-    const left = screen.getAllByTestId('import-suggestion')
-    expect(left).toHaveLength(2)
-    expect(within(left[0]).getByTestId('import-card-error').textContent).toBe('Internal server error')
-    expect(onDone).not.toHaveBeenCalled()
-
-    // Retry: the picture day is not sent again.
-    mockFetchKeepCalls(calls)
+    expect(await screen.findByText(/nothing will be added twice/)).toBeTruthy()
     await user.click(screen.getByTestId('import-add'))
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith(['ev-1', 'ev-1b']))
-    const titles = calls.filter((c) => c.url === '/api/events').map((c) => (c.body as { title: string }).title)
-    expect(titles).toEqual(['Picture day', 'Bake sale', 'Bake sale'])
+    await waitFor(() => expect(commits(calls)).toHaveLength(2))
+    // A 400 is definite: its message shows and the key is dropped.
+    await user.click(screen.getByTestId('import-add'))
+    expect(await screen.findByText('Server said 400')).toBeTruthy()
+    const cards = screen.getAllByTestId('import-suggestion')
+    await user.type(within(cards[0]).getByLabelText('Title'), '!')
+    await user.click(screen.getByTestId('import-add'))
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1))
+    const keys = commits(calls).map((c) => c.headers['Idempotency-Key'])
+    expect(keys).toHaveLength(4)
+    expect(keys[1]).toBe(keys[0])
+    expect(keys[2]).toBe(keys[0])
+    expect(keys[3]).not.toBe(keys[0])
+  })
+
+  it('keeps a timed multi-day end date editable and sends it', async () => {
+    const user = userEvent.setup()
+    const calls = mockFetch({
+      suggestBody: {
+        suggestions: [
+          {
+            title: 'Camp', start: '2026-10-09T09:00:00-04:00', end: '2026-10-11T17:00:00-04:00', allDay: false,
+            location: null, notes: null, confidence: 0.9,
+          },
+        ],
+        unreadable: false, dropped: 0, timeZone: 'America/Toronto',
+      },
+    })
+    render(<ImportEventsDialog onClose={jest.fn()} onDone={jest.fn()} />)
+    await pasteAndFind(user)
+    const [card] = await screen.findAllByTestId('import-suggestion')
+    const last = within(card).getByLabelText('Last day (optional)') as HTMLInputElement
+    expect(last.value).toBe('2026-10-11')
+    await user.clear(last)
+    await user.type(last, '2026-10-10')
+    await user.click(screen.getByTestId('import-add'))
+    await waitFor(() => expect(commits(calls)).toHaveLength(1))
+    expect((commits(calls)[0].body as { events: Array<{ end_time: string }> }).events[0].end_time).toBe('2026-10-10T21:00:00.000Z')
   })
 
   it('validates edits before sending anything', async () => {
@@ -172,7 +241,7 @@ describe('ImportEventsDialog', () => {
     await user.click(screen.getByTestId('import-add'))
     expect(await screen.findByText('Fix the highlighted events, then add again.')).toBeTruthy()
     expect(within(cards[1]).getByTestId('import-card-error').textContent).toBe('Enter a start time, or tick All day.')
-    expect(calls.filter((c) => c.url === '/api/events')).toHaveLength(0)
+    expect(commits(calls)).toHaveLength(0)
   })
 
   it('shows a clear message when nothing readable was found', async () => {
@@ -182,6 +251,7 @@ describe('ImportEventsDialog', () => {
     await pasteAndFind(user)
     expect((await screen.findByTestId('import-empty')).textContent).toBe(UNREADABLE_MESSAGE)
     expect(UNREADABLE_MESSAGE).toBe("We couldn't find any dates in this. Try a clearer photo or paste the text.")
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Try again' }))
   })
 
   it('shows the server message for limits and a friendly one when the feature is off', async () => {
@@ -215,26 +285,23 @@ describe('ImportUndoToast', () => {
   it('stops offering Undo when the server says it is too late', async () => {
     const user = userEvent.setup()
     mockFetch({ undoStatus: 409 })
-    render(<ImportUndoToast ids={['ev-1']} addedAt={Date.now()} onDismiss={jest.fn()} onUndone={jest.fn()} />)
+    render(<ImportUndoToast result={commitResult(1)} addedAt={Date.now()} onDismiss={jest.fn()} onUndone={jest.fn()} />)
     await user.click(screen.getByRole('button', { name: /Undo/ }))
     expect(await screen.findByText('It is too late to undo this import.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull()
   })
 
-  it('does not offer Undo after the 10-minute window', () => {
+  it('does not offer Undo after the window', () => {
     mockFetch()
-    render(<ImportUndoToast ids={['ev-1']} addedAt={Date.now() - 11 * 60_000} onDismiss={jest.fn()} onUndone={jest.fn()} />)
+    render(
+      <ImportUndoToast
+        result={{ ...commitResult(1), undoExpiresAt: new Date(Date.now() - 1000).toISOString() }}
+        addedAt={Date.now() - 11 * 60_000}
+        onDismiss={jest.fn()}
+        onUndone={jest.fn()}
+      />
+    )
     expect(screen.getByText('Added 1 event')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull()
   })
 })
-
-/** Second round of the retry test: every create succeeds, with distinct ids. */
-function mockFetchKeepCalls(calls: Call[]) {
-  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined
-    calls.push({ url, method: (init?.method ?? 'GET').toUpperCase(), body, isForm: false })
-    return { ok: true, status: 200, json: async () => ({ event: { id: 'ev-1b', title: body?.title } }) } as unknown as Response
-  }) as unknown as typeof fetch
-}

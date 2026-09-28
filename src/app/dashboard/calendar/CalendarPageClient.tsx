@@ -10,7 +10,7 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
-import { IMPORT_UNDO_WINDOW_MS } from '@/lib/event-import-client'
+import { IMPORT_UNDO_WINDOW_MS, type ImportCommitResult } from '@/lib/event-import-client'
 import { ImportEventsDialog } from './ImportEventsDialog'
 
 type ViewMode = 'day' | 'week' | 'month'
@@ -121,12 +121,12 @@ export default function CalendarPageClient({
 }: CalendarPageClientProps) {
   const [view, setView] = React.useState<ViewMode>('day')
   const [importOpen, setImportOpen] = React.useState(false)
-  const [imported, setImported] = React.useState<{ ids: string[]; at: number } | null>(null)
+  const [imported, setImported] = React.useState<{ result: ImportCommitResult; at: number } | null>(null)
   const router = useRouter()
 
-  const onImported = (ids: string[]) => {
+  const onImported = (result: ImportCommitResult) => {
     setImportOpen(false)
-    setImported({ ids, at: Date.now() })
+    setImported({ result, at: Date.now() })
     router.refresh()
   }
 
@@ -188,7 +188,7 @@ export default function CalendarPageClient({
       {imported && (
         <ImportUndoToast
           key={imported.at}
-          ids={imported.ids}
+          result={imported.result}
           addedAt={imported.at}
           onDismiss={() => setImported(null)}
           onUndone={() => router.refresh()}
@@ -267,18 +267,19 @@ export default function CalendarPageClient({
 }
 
 /**
- * "Added N events" with Undo (#270). Undo removes exactly the events this
- * import created (POST /api/calendar/import-suggestions/undo checks they are
- * the caller's own and at most 10 minutes old), so it is offered only while
- * that window is open.
+ * "Added N events" with Undo (#270). Undo sends the import's signed undo token
+ * (POST /api/calendar/import-suggestions/undo verifies it is this person's
+ * import and at most 10 minutes old, then removes exactly those events), so it
+ * is offered only while that window is open.
  */
 export function ImportUndoToast({
-  ids,
+  result,
   addedAt,
   onDismiss,
   onUndone,
 }: {
-  ids: string[]
+  result: ImportCommitResult
+  /** When the page received the result; Undo closes at the earlier of this + 10 min and the server's expiry. */
   addedAt: number
   onDismiss: () => void
   onUndone: () => void
@@ -286,14 +287,15 @@ export function ImportUndoToast({
   const [state, setState] = React.useState<
     { kind: 'added' } | { kind: 'undoing' } | { kind: 'undone'; count: number } | { kind: 'error'; message: string }
   >({ kind: 'added' })
-  const [undoOpen, setUndoOpen] = React.useState(() => Date.now() - addedAt < IMPORT_UNDO_WINDOW_MS)
+  const closesAt = Math.min(addedAt + IMPORT_UNDO_WINDOW_MS, Date.parse(result.undoExpiresAt) || addedAt + IMPORT_UNDO_WINDOW_MS)
+  const [undoOpen, setUndoOpen] = React.useState(() => Date.now() < closesAt)
 
   React.useEffect(() => {
-    const remaining = IMPORT_UNDO_WINDOW_MS - (Date.now() - addedAt)
+    const remaining = closesAt - Date.now()
     if (remaining <= 0) return
     const t = setTimeout(() => setUndoOpen(false), remaining)
     return () => clearTimeout(t)
-  }, [addedAt])
+  }, [closesAt])
 
   const undo = async () => {
     setState({ kind: 'undoing' })
@@ -301,7 +303,7 @@ export function ImportUndoToast({
       const res = await fetch('/api/calendar/import-suggestions/undo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventIds: ids }),
+        body: JSON.stringify({ token: result.undoToken }),
       })
       const body = await res.json().catch(() => null)
       if (res.ok) {
@@ -320,7 +322,7 @@ export function ImportUndoToast({
     }
   }
 
-  const n = ids.length
+  const n = result.count
   const title =
     state.kind === 'undone'
       ? `Removed ${state.count} event${state.count === 1 ? '' : 's'}`

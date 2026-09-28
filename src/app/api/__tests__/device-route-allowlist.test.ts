@@ -89,6 +89,7 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'POST /api/inventory/scan': [403],
   // Review-first event import (#270): spends the provider quota; its undo deletes events.
   'POST /api/calendar/import-suggestions': [403],
+  'POST /api/calendar/import-suggestions/commit': [403],
   'POST /api/calendar/import-suggestions/undo': [403],
 }
 

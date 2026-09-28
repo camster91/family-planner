@@ -1,40 +1,27 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { refusePairedDevice } from '@/lib/device-route'
 import { log } from '@/lib/logger'
 import { importError, importJson } from '@/lib/event-import-http'
-import {
-  EVENT_IMPORT_FORBIDDEN_MESSAGE,
-  EVENT_IMPORT_MAX_SUGGESTIONS,
-  EVENT_IMPORT_UNDO_WINDOW_MS,
-  canImportEvents,
-} from '@/lib/event-import'
+import { EVENT_IMPORT_FORBIDDEN_MESSAGE, canImportEvents } from '@/lib/event-import'
+import { undoSchema, verifyUndoToken } from '@/lib/event-import-commit'
 
 export const dynamic = 'force-dynamic'
 
-const undoSchema = z
-  .object({
-    eventIds: z.array(z.string().trim().min(1).max(128)).min(1).max(EVENT_IMPORT_MAX_SUGGESTIONS),
-  })
-  .strict()
-
 /**
- * POST /api/calendar/import-suggestions/undo `{ eventIds }` (#270).
+ * POST /api/calendar/import-suggestions/undo `{ token }` (#270).
  *
- * Deletes events the caller just added from an import: only events of the
- * caller's household, created by the caller, within the last 10 minutes, and
- * never imported (subscription/provider) events. Any other delete stays
- * parent-only (`DELETE /api/events`); this lets a teen take back their own
- * import like the grocery undo (O-5).
- *
- * All-or-nothing on permission: 403 `UNDO_NOT_ALLOWED` when any id is another
- * member's event (or an imported one), 409 `UNDO_WINDOW_EXPIRED` when any is
- * older than the window. Ids that do not exist or belong to another household
- * are skipped identically, so a retry after a successful undo answers 200
- * `{ removedCount: 0 }` and nothing reveals another household's ids.
+ * Deletes the events of one import. The token comes from the commit route
+ * and is an HMAC over the caller, household, event ids and commit time, so it
+ * cannot be forged or pointed at other events (such as one made by hand with
+ * `POST /api/events`, whose delete stays parent-only). 403
+ * `UNDO_TOKEN_INVALID` for a tampered, malformed or another person's token;
+ * 409 `UNDO_WINDOW_EXPIRED` after 10 minutes. The delete is still scoped to
+ * the caller's household and events the caller created, never subscription
+ * or provider imports. Safe to repeat: a second undo answers
+ * `{ removedCount: 0 }`.
  *
  * Deliberately not behind the provider kill switch: undoing what was just
  * added never calls the provider.
@@ -58,47 +45,30 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return importError(400, 'INVALID_BODY', 'Send JSON with "eventIds".')
+      return importError(400, 'INVALID_BODY', 'Send JSON with "token".')
     }
     const parsed = undoSchema.safeParse(body)
-    if (!parsed.success) return importError(400, 'INVALID_BODY', 'Send the ids of the events to remove.')
-    const ids = [...new Set(parsed.data.eventIds)]
+    if (!parsed.success) return importError(400, 'INVALID_BODY', 'Send the undo token from the import.')
 
     const familyId = auth.user.family_id
     const userId = auth.user.id
-    const rows: Array<{
-      id: string
-      created_by: string
-      created_at: Date
-      source_subscription_id: string | null
-      source_connection_id: string | null
-    }> = await prisma!.event.findMany({
-      where: { id: { in: ids }, family_id: familyId },
-      select: { id: true, created_by: true, created_at: true, source_subscription_id: true, source_connection_id: true },
+    const check = verifyUndoToken(parsed.data.token, { userId, familyId })
+    if (!check.ok) {
+      return check.reason === 'expired'
+        ? importError(409, 'UNDO_WINDOW_EXPIRED', 'It is too late to undo this import. Delete the events one by one instead.')
+        : importError(403, 'UNDO_TOKEN_INVALID', 'This undo is not valid.')
+    }
+
+    const removed = await prisma!.event.deleteMany({
+      where: {
+        id: { in: check.eventIds },
+        family_id: familyId,
+        created_by: userId,
+        source_subscription_id: null,
+        source_connection_id: null,
+      },
     })
-
-    if (rows.some((r) => r.created_by !== userId || r.source_subscription_id || r.source_connection_id)) {
-      return importError(403, 'UNDO_NOT_ALLOWED', 'You can only undo events you just added.')
-    }
-    const cutoff = new Date(Date.now() - EVENT_IMPORT_UNDO_WINDOW_MS)
-    if (rows.some((r) => r.created_at.getTime() < cutoff.getTime())) {
-      return importError(409, 'UNDO_WINDOW_EXPIRED', 'It is too late to undo this import. Delete the events one by one instead.')
-    }
-
-    const removed =
-      rows.length === 0
-        ? { count: 0 }
-        : await prisma!.event.deleteMany({
-            where: {
-              id: { in: rows.map((r) => r.id) },
-              family_id: familyId,
-              created_by: userId,
-              created_at: { gte: cutoff },
-              source_subscription_id: null,
-              source_connection_id: null,
-            },
-          })
-    log.info('event.import.undo', { userId, requested: ids.length, removed: removed.count })
+    log.info('event.import.undo', { userId, requested: check.eventIds.length, removed: removed.count })
     return importJson({ removedCount: removed.count })
   } catch (err) {
     log.warn('event.import.undo.error', { name: err instanceof Error ? err.name : 'unknown' })

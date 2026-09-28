@@ -1,4 +1,4 @@
-// POST /api/calendar/import-suggestions and its undo (#270): kill switch,
+// POST /api/calendar/import-suggestions (#270): kill switch,
 // feature gate, roles (parent and teen; child 403), paired-device refusal,
 // text/image/PDF inputs, size/type checks, rate limits and the daily spend cap,
 // provider failures, malformed output and refusals, two households, and that
@@ -26,8 +26,7 @@ jest.mock('@/lib/rate-limit-db', () => ({
 }))
 
 import { POST } from '../route'
-import { POST as UNDO } from '../undo/route'
-import { db, req, FOREIGN, USER_IDS, type UserKey } from '@/__tests__/helpers/two-household'
+import { db, req, FOREIGN, type UserKey } from '@/__tests__/helpers/two-household'
 import { deviceReq, enableSharedDevice, disableSharedDevice, seedDevices } from '@/__tests__/helpers/device'
 import {
   EVENT_IMPORT_ENDPOINT,
@@ -499,110 +498,5 @@ describe('POST /api/calendar/import-suggestions', () => {
     const keys = mockRateCalls.map((c) => c.key)
     expect(keys.every((k) => !k.includes('family-A') && !k.includes('parent-a'))).toBe(true)
     expect(db.writes).toHaveLength(0)
-  })
-})
-
-describe('POST /api/calendar/import-suggestions/undo', () => {
-  function seedEvent(id: string, family: 'A' | 'B', createdBy: string, ageMs = 60_000, extra: Record<string, unknown> = {}) {
-    db.rows('event').push({
-      id,
-      family_id: `family-${family}`,
-      title: `Imported ${id}`,
-      description: null,
-      start_time: new Date(),
-      end_time: new Date(),
-      location: null,
-      event_type: 'other',
-      recurrence: null,
-      created_by: createdBy,
-      project_id: null,
-      is_task: false,
-      created_at: new Date(Date.now() - ageMs),
-      source_subscription_id: null,
-      source_connection_id: null,
-      ...extra,
-    })
-  }
-  const undoReq = (as: UserKey | null, body: unknown) =>
-    req({ as, method: 'POST', path: '/api/calendar/import-suggestions/undo', body })
-  const ids = () => db.rows('event').map((r) => r.id as string)
-
-  it('deletes exactly the caller’s just-added events and is safe to repeat', async () => {
-    seedEvent('imp-1', 'A', USER_IDS.parentA)
-    seedEvent('imp-2', 'A', USER_IDS.parentA)
-    seedEvent('keep', 'A', USER_IDS.parentA)
-    const res = await UNDO(undoReq('parentA', { eventIds: ['imp-1', 'imp-2', 'imp-1'] }))
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ removedCount: 2 })
-    expect(ids()).toEqual(expect.arrayContaining(['keep', 'event-a', 'event-b']))
-    expect(ids()).not.toEqual(expect.arrayContaining(['imp-1']))
-    const again = await UNDO(undoReq('parentA', { eventIds: ['imp-1', 'imp-2'] }))
-    expect(again.status).toBe(200)
-    expect(await again.json()).toEqual({ removedCount: 0 })
-  })
-
-  it('works without the provider key (undo never calls the provider)', async () => {
-    delete process.env.EVENT_IMPORT_ANTHROPIC_API_KEY
-    seedEvent('imp-1', 'A', USER_IDS.teenA)
-    const res = await UNDO(undoReq('teenA', { eventIds: ['imp-1'] }))
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ removedCount: 1 })
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('refuses another member’s event (403) and deletes nothing', async () => {
-    seedEvent('mine', 'A', USER_IDS.teenA)
-    seedEvent('theirs', 'A', USER_IDS.parentA)
-    const res = await UNDO(undoReq('teenA', { eventIds: ['mine', 'theirs'] }))
-    expect(res.status).toBe(403)
-    expect(await errorCode(res)).toBe('UNDO_NOT_ALLOWED')
-    expect(ids()).toEqual(expect.arrayContaining(['mine', 'theirs']))
-  })
-
-  it('refuses events from a subscribed or connected calendar', async () => {
-    seedEvent('ics', 'A', USER_IDS.parentA, 60_000, { source_subscription_id: 'sub-1' })
-    expect((await UNDO(undoReq('parentA', { eventIds: ['ics'] }))).status).toBe(403)
-  })
-
-  it('refuses after 10 minutes (409)', async () => {
-    seedEvent('old', 'A', USER_IDS.parentA, 11 * 60_000)
-    const res = await UNDO(undoReq('parentA', { eventIds: ['old'] }))
-    expect(res.status).toBe(409)
-    expect(await errorCode(res)).toBe('UNDO_WINDOW_EXPIRED')
-    expect(ids()).toContain('old')
-  })
-
-  it('two households: another household’s id is skipped like a missing one', async () => {
-    seedEvent('foreign', 'B', USER_IDS.parentB)
-    const res = await UNDO(undoReq('parentA', { eventIds: ['foreign', 'event-b', 'missing'] }))
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ removedCount: 0 })
-    expect(ids()).toEqual(expect.arrayContaining(['foreign', 'event-b']))
-  })
-
-  it('refuses a child, a bad body and a paired device', async () => {
-    seedEvent('c', 'A', USER_IDS.childA)
-    expect((await UNDO(undoReq('childA', { eventIds: ['c'] }))).status).toBe(403)
-    expect((await UNDO(undoReq('parentA', { eventIds: [] }))).status).toBe(400)
-    expect((await UNDO(undoReq('parentA', { eventIds: ['x'], family_id: 'family-B' }))).status).toBe(400)
-    expect((await UNDO(undoReq(null, { eventIds: ['c'] }))).status).toBe(401)
-    enableSharedDevice()
-    try {
-      const fx = seedDevices()
-      const csrf = 'c'.repeat(64)
-      const res = await UNDO(
-        deviceReq({
-          method: 'POST',
-          path: '/api/calendar/import-suggestions/undo',
-          cookies: { ...fx.d1.cookies, csrf_token: csrf },
-          headers: { 'x-csrf-token': csrf },
-          body: { eventIds: ['c'] },
-        })
-      )
-      expect(res.status).toBe(403)
-    } finally {
-      disableSharedDevice()
-    }
-    expect(ids()).toContain('c')
   })
 })

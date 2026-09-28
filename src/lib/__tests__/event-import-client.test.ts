@@ -19,8 +19,36 @@ describe('toDrafts', () => {
     ])
     expect(timed).toMatchObject({ include: true, date: '2026-10-09', allDay: false, startTime: '15:30', endTime: '17:00', location: 'Gym', notes: '' })
     expect(allDay).toMatchObject({ include: true, allDay: true, date: '2026-10-12', endDate: '2026-10-16', startTime: '' })
+    // Same-day timed events have no separate last day.
+    expect(timed.endDate).toBe('')
     expect(low.include).toBe(false)
     expect([confidenceLabel(0.9), confidenceLabel(0.6), confidenceLabel(0.3)]).toEqual(['Likely', 'Check this', 'Unsure'])
+  })
+})
+
+describe('multi-day timed events', () => {
+  const [weekend] = toDrafts([
+    {
+      title: 'Camp', start: '2026-10-09T09:00:00-04:00', end: '2026-10-11T17:00:00-04:00', allDay: false,
+      location: null, notes: null, confidence: 0.9,
+    },
+  ])
+
+  it('keeps the last day of a timed suggestion', () => {
+    expect(weekend).toMatchObject({ date: '2026-10-09', startTime: '09:00', endDate: '2026-10-11', endTime: '17:00', allDay: false })
+  })
+
+  it('saves Fri 09:00 to Sun 17:00, not Fri 17:00', () => {
+    const r = draftToEventBody(weekend, ZONE)
+    expect(r.ok && [r.body.start_time, r.body.end_time]).toEqual(['2026-10-09T13:00:00.000Z', '2026-10-11T21:00:00.000Z'])
+  })
+
+  it('refuses a last day without an end time, or an end before the start', () => {
+    expect(draftToEventBody({ ...weekend, endTime: '' }, ZONE)).toEqual({ ok: false, error: 'Enter an end time for the last day.' })
+    expect(draftToEventBody({ ...weekend, endDate: '2026-10-09', endTime: '08:00' }, ZONE)).toEqual({
+      ok: false,
+      error: 'The end is before the start.',
+    })
   })
 })
 
@@ -36,6 +64,15 @@ describe('draftToEventBody', () => {
         location: 'Gym',
       },
     })
+  })
+
+  it('moves an overnight end to the next local day across DST, not by 24 hours', () => {
+    // Toronto falls back on 2026-11-01 at 02:00: 22:00 EDT to 03:00 EST.
+    const fall = draftToEventBody(draft({ date: '2026-10-31', startTime: '22:00', endTime: '03:00' }), ZONE)
+    expect(fall.ok && [fall.body.start_time, fall.body.end_time]).toEqual(['2026-11-01T02:00:00.000Z', '2026-11-01T08:00:00.000Z'])
+    // Springs forward on 2027-03-14 at 02:00: 22:00 EST to 03:00 EDT.
+    const spring = draftToEventBody(draft({ date: '2027-03-13', startTime: '22:00', endTime: '03:00' }), ZONE)
+    expect(spring.ok && [spring.body.start_time, spring.body.end_time]).toEqual(['2027-03-14T03:00:00.000Z', '2027-03-14T07:00:00.000Z'])
   })
 
   it('reads an end at or before the start as the next day, and omits a missing end', () => {

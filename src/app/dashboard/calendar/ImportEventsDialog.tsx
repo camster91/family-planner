@@ -4,17 +4,25 @@
  * "Import from text or photo" (#270): paste the text of a flyer or email, or
  * choose a photo or PDF of it; the event reader suggests events
  * (POST /api/calendar/import-suggestions, which writes nothing); the person
- * reviews and edits them, then adds the ticked ones through the ordinary
- * POST /api/events, one at a time. That route has no idempotency key, so
- * cards that were added leave the list: "Add" after a partial failure only
- * sends what is still there, and a retry cannot add an event twice.
+ * reviews and edits them, then adds the ticked ones in one request to
+ * POST /api/calendar/import-suggestions/commit. That route creates them in
+ * one transaction under an `Idempotency-Key` kept for this exact batch until
+ * it has a definite answer, so a retry after a lost response replays the
+ * original result instead of adding the events twice. Its undo token is
+ * handed to the page for the "Added N events" Undo.
+ *
+ * Built on the shared `Dialog` (aria-modal, focus moved in, Tab kept inside,
+ * Escape closes, focus restored to the opener on close). Focus follows each
+ * step so it never falls back to <body>.
  *
  * Suggestions are untrusted model text: they are only ever rendered as React
  * text and input values. Confidence is shown in words, never colour alone.
  */
 import * as React from 'react'
-import { FileText, Loader2, Sparkles, X } from 'lucide-react'
+import { FileText, Loader2, Sparkles } from 'lucide-react'
+import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import {
   IMPORT_IMAGE_MAX_BYTES,
   IMPORT_PDF_MAX_BYTES,
@@ -24,6 +32,8 @@ import {
   deviceToday,
   draftToEventBody,
   toDrafts,
+  type EventCreateBody,
+  type ImportCommitResult,
   type ImportDraft,
   type ImportSuggestion,
 } from '@/lib/event-import-client'
@@ -60,16 +70,20 @@ async function prepareImage(file: Blob): Promise<Blob> {
   }
 }
 
-async function readError(res: Response): Promise<string> {
-  let message: string | null = null
+async function errorMessage(res: Response): Promise<string | null> {
   try {
     const body = await res.json()
     const err = body?.error
-    if (typeof err === 'string') message = err
-    else if (err && typeof err.message === 'string') message = err.message
+    if (typeof err === 'string') return err
+    if (err && typeof err.message === 'string') return err.message
   } catch {
     // fall through
   }
+  return null
+}
+
+async function readError(res: Response): Promise<string> {
+  const message = await errorMessage(res)
   if (res.status === 404) return "Importing events isn't available right now. You can still add events by hand."
   if (res.status === 403) return message ?? "You can't import events. Ask a parent."
   if ([400, 411, 413, 415, 429, 502].includes(res.status) && message) return message
@@ -78,8 +92,8 @@ async function readError(res: Response): Promise<string> {
 
 export interface ImportEventsDialogProps {
   onClose: () => void
-  /** Called with the ids of every event created in this dialog (at least one). */
-  onDone: (createdIds: string[]) => void
+  /** Called once the reviewed events were added (201 or a replay of it). */
+  onDone: (result: ImportCommitResult) => void
 }
 
 export function ImportEventsDialog({ onClose, onDone }: ImportEventsDialogProps) {
@@ -90,29 +104,37 @@ export function ImportEventsDialog({ onClose, onDone }: ImportEventsDialogProps)
   const [timeZone, setTimeZone] = React.useState<string>('America/Toronto')
   const [adding, setAdding] = React.useState(false)
   const [addError, setAddError] = React.useState<string | null>(null)
-  const created = React.useRef<string[]>([])
-  const [createdCount, setCreatedCount] = React.useState(0)
   const titleId = React.useId()
   const fileRef = React.useRef<HTMLInputElement>(null)
+  // One Idempotency-Key per batch: kept while the same bodies are retried,
+  // replaced as soon as the batch changes or gets a definite answer.
+  const pending = React.useRef<{ key: string; batch: string } | null>(null)
 
-  const close = React.useCallback(() => {
-    if (adding) return
-    if (created.current.length > 0) onDone([...created.current])
-    else onClose()
-  }, [adding, onClose, onDone])
-
+  // Focus target of the current step. Dialog focuses the first one on open;
+  // after that, focus follows every step change so it never falls to <body>.
+  const stepFocusRef = React.useRef<HTMLElement | null>(null)
+  const setStepFocus = React.useCallback((el: HTMLElement | null) => {
+    if (el) stepFocusRef.current = el
+  }, [])
+  const opened = React.useRef(false)
   React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+    if (!opened.current) {
+      opened.current = true
+      return
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [close])
+    stepFocusRef.current?.focus()
+  }, [phase.step])
+
+  const close = () => {
+    if (adding) return
+    onClose()
+  }
 
   const startOver = () => {
     setPhase({ step: 'input' })
     setDrafts([])
     setAddError(null)
+    pending.current = null
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -130,6 +152,7 @@ export function ImportEventsDialog({ onClose, onDone }: ImportEventsDialogProps)
       if (typeof body?.timeZone === 'string') setTimeZone(body.timeZone)
       // `unreadable: true` always comes with no suggestions; both show UNREADABLE_MESSAGE.
       setDrafts(toDrafts(suggestions))
+      pending.current = null
       setPhase({ step: 'review' })
     } catch {
       setPhase({ step: 'error', message: "Couldn't reach the event reader. Check your connection and try again." })
@@ -178,68 +201,56 @@ export function ImportEventsDialog({ onClose, onDone }: ImportEventsDialogProps)
   const selected = drafts.filter((d) => d.include)
 
   const addSelected = async () => {
+    if (adding) return
     setAddError(null)
-    // Validate first so nothing is half-sent because of a typo further down.
-    const bodies = new Map<string, ReturnType<typeof draftToEventBody>>()
+    // Validate every ticked card first; nothing is sent while one is wrong.
+    const events: EventCreateBody[] = []
     let invalid = false
     const checked = drafts.map((d) => {
       if (!d.include) return d
       const result = draftToEventBody(d, timeZone)
-      bodies.set(d.key, result)
       if (!result.ok) {
         invalid = true
         return { ...d, error: result.error }
       }
+      events.push(result.body)
       return d
     })
-    if (invalid) {
+    if (invalid || events.length === 0) {
       setDrafts(checked)
       setAddError('Fix the highlighted events, then add again.')
       return
     }
 
+    const batch = JSON.stringify(events)
+    if (!pending.current || pending.current.batch !== batch) pending.current = { key: newIdempotencyKey(), batch }
     setAdding(true)
-    let failed = 0
-    for (const draft of selected) {
-      const result = bodies.get(draft.key)
-      if (!result || !result.ok) continue
-      try {
-        const res = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(result.body),
-        })
-        const body = await res.json().catch(() => null)
-        if (res.ok && body?.event?.id) {
-          created.current.push(String(body.event.id))
-          setCreatedCount(created.current.length)
-          setDrafts((prev) => prev.filter((d) => d.key !== draft.key))
-        } else {
-          failed++
-          const message =
-            typeof body?.error === 'string'
-              ? body.error
-              : typeof body?.error?.message === 'string'
-                ? body.error.message
-                : 'Could not add this event.'
-          setDrafts((prev) => prev.map((d) => (d.key === draft.key ? { ...d, error: message } : d)))
-        }
-      } catch {
-        failed++
-        setDrafts((prev) =>
-          prev.map((d) => (d.key === draft.key ? { ...d, error: 'Could not add this event. Check your connection.' } : d))
-        )
+    try {
+      const res = await fetch('/api/calendar/import-suggestions/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: pending.current.key },
+        body: JSON.stringify({ events }),
+      })
+      if (res.ok) {
+        const body = (await res.json()) as ImportCommitResult
+        pending.current = null
+        setAdding(false)
+        onDone(body)
+        return
       }
+      const message = await errorMessage(res)
+      // Retryable: keep the key so the retry replays instead of adding twice.
+      const retryable = res.status >= 500 || res.status === 409 || res.status === 429
+      if (!retryable) pending.current = null
+      setAddError(
+        retryable
+          ? "Couldn't add the events. Try again; nothing will be added twice."
+          : (message ?? "Couldn't add the events. Check them and try again.")
+      )
+    } catch {
+      setAddError("Couldn't reach the calendar. Check your connection and try again; nothing will be added twice.")
     }
     setAdding(false)
-    const total = created.current.length
-    if (failed === 0 && total > 0) {
-      onDone([...created.current])
-    } else if (failed > 0) {
-      setAddError(
-        `Added ${total} event${total === 1 ? '' : 's'}. ${failed} couldn't be added; check ${failed === 1 ? 'it' : 'them'} and try again.`
-      )
-    }
   }
 
   const tab = (value: Mode, label: string) => (
@@ -258,171 +269,166 @@ export function ImportEventsDialog({ onClose, onDone }: ImportEventsDialogProps)
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={close} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-busy={phase.step === 'reading' || adding}
-        data-testid="import-dialog"
-        className="relative bg-[var(--surface-elevated)] rounded-2xl shadow-xl w-full max-w-xl max-h-[calc(100dvh-2rem)] flex flex-col"
-      >
-        <div className="flex items-center justify-between gap-2 p-5 pb-3">
-          <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
-            Import events
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            disabled={adding}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
-          >
-            <X className="w-5 h-5 text-label-tertiary" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onClose={close}
+      title="Import events"
+      testId="import-dialog"
+      className="sm:max-w-xl"
+      initialFocusRef={stepFocusRef}
+    >
+      <div aria-busy={phase.step === 'reading' || adding} className="space-y-4">
+        {/* Stays mounted (visually hidden) so "Choose a photo or PDF" works from every step. */}
+        <input
+          ref={fileRef}
+          data-testid="import-file-input"
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={onFile}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5 space-y-4">
-          {/* Stays mounted (visually hidden) so "Choose a photo or PDF" works from every step. */}
-          <input
-            ref={fileRef}
-            data-testid="import-file-input"
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={onFile}
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden="true"
-          />
-
-          {phase.step === 'input' && (
-            <div className="space-y-4">
-              <p className="text-body text-label-primary">
-                Paste a school email or flyer, or choose a photo or PDF of it. We&apos;ll suggest the events in it, and you
-                choose what to add.
-              </p>
-              <div role="tablist" aria-label="Import from" className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
-                {tab('text', 'Paste text')}
-                {tab('file', 'Photo or PDF')}
-              </div>
-              {mode === 'text' ? (
-                <div className="space-y-3">
-                  <label htmlFor={`${titleId}-text`} className="label-apple">
-                    Text of the email or flyer
-                  </label>
-                  <textarea
-                    id={`${titleId}-text`}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    maxLength={IMPORT_TEXT_MAX_CHARS}
-                    rows={8}
-                    className="input-apple w-full min-h-[160px]"
-                    placeholder="e.g. Picture day is next Friday. Bake sale Oct 9, 3:30–5pm in the gym."
-                  />
-                  <button
-                    type="button"
-                    className="btn-filled w-full min-h-[44px]"
-                    onClick={submitText}
-                    disabled={!text.trim()}
-                  >
-                    <Sparkles className="w-4 h-4" aria-hidden="true" />
-                    <span>Find events</span>
-                  </button>
-                </div>
-              ) : (
-                <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={() => fileRef.current?.click()}>
-                  <FileText className="w-4 h-4" aria-hidden="true" />
-                  <span>Choose a photo or PDF</span>
-                </button>
-              )}
-              <p className="text-footnote text-label-secondary" data-testid="import-privacy-note">
-                What you paste or choose is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by Family
-                Planner.
-              </p>
+        {phase.step === 'input' && (
+          <div className="space-y-4">
+            <p className="text-body text-label-primary">
+              Paste a school email or flyer, or choose a photo or PDF of it. We&apos;ll suggest the events in it, and you
+              choose what to add.
+            </p>
+            <div role="tablist" aria-label="Import from" className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
+              {tab('text', 'Paste text')}
+              {tab('file', 'Photo or PDF')}
             </div>
-          )}
-
-          {phase.step === 'reading' && (
-            <div role="status" className="flex items-center gap-3 py-6 justify-center text-body text-label-primary">
-              <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-              <span>Looking for events…</span>
-            </div>
-          )}
-
-          {phase.step === 'error' && (
-            <div className="space-y-4">
-              <p role="alert" className="text-body text-[var(--danger-text)]" data-testid="import-error">
-                {phase.message}
-              </p>
-              <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={startOver}>
-                Try again
-              </button>
-            </div>
-          )}
-
-          {phase.step === 'review' &&
-            (drafts.length === 0 ? (
-              <div className="space-y-4">
-                <p className="text-body text-label-primary" role="status" data-testid="import-empty">
-                  {createdCount > 0 ? 'Everything was added.' : UNREADABLE_MESSAGE}
-                </p>
-                <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={startOver}>
-                  {createdCount > 0 ? 'Import something else' : 'Try again'}
+            {mode === 'text' ? (
+              <div className="space-y-3">
+                <label htmlFor={`${titleId}-text`} className="label-apple">
+                  Text of the email or flyer
+                </label>
+                <textarea
+                  ref={setStepFocus}
+                  id={`${titleId}-text`}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  maxLength={IMPORT_TEXT_MAX_CHARS}
+                  rows={8}
+                  className="input-apple w-full min-h-[160px]"
+                  placeholder="e.g. Picture day is next Friday. Bake sale Oct 9, 3:30–5pm in the gym."
+                />
+                <button
+                  type="button"
+                  className="btn-filled w-full min-h-[44px]"
+                  onClick={submitText}
+                  disabled={!text.trim()}
+                >
+                  <Sparkles className="w-4 h-4" aria-hidden="true" />
+                  <span>Find events</span>
                 </button>
               </div>
             ) : (
-              <>
-                <p className="text-subhead text-label-secondary" role="status">
-                  Found {drafts.length} event{drafts.length === 1 ? '' : 's'}. Check them, untick anything that&apos;s wrong,
-                  then add.
-                </p>
-                <ul className="space-y-3" aria-label="Suggested events">
-                  {drafts.map((draft, i) => (
-                    <SuggestionCard
-                      key={draft.key}
-                      draft={draft}
-                      index={i}
-                      idBase={titleId}
-                      disabled={adding}
-                      onChange={update}
-                    />
-                  ))}
-                </ul>
-              </>
-            ))}
-        </div>
-
-        {phase.step === 'review' && drafts.length > 0 && (
-          <div className="border-t border-[var(--surface-separator)] p-4 space-y-2">
-            {addError && (
-              <p role="alert" className="text-subhead text-[var(--danger-text)]">
-                {addError}
-              </p>
+              <button
+                ref={setStepFocus}
+                type="button"
+                className="btn-tinted w-full min-h-[44px]"
+                onClick={() => fileRef.current?.click()}
+              >
+                <FileText className="w-4 h-4" aria-hidden="true" />
+                <span>Choose a photo or PDF</span>
+              </button>
             )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn-plain min-h-[44px] flex-1 min-w-[10rem]"
-                onClick={startOver}
-                disabled={adding}
-              >
-                Start over
-              </button>
-              <button
-                type="button"
-                className="btn-filled min-h-[44px] flex-1 min-w-[10rem]"
-                onClick={addSelected}
-                disabled={adding || selected.length === 0}
-                data-testid="import-add"
-              >
-                {adding ? 'Adding…' : `Add ${selected.length} event${selected.length === 1 ? '' : 's'}`}
-              </button>
-            </div>
+            <p className="text-footnote text-label-secondary" data-testid="import-privacy-note">
+              What you paste or choose is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by Family
+              Planner.
+            </p>
           </div>
         )}
+
+        {phase.step === 'reading' && (
+          <div
+            ref={setStepFocus}
+            tabIndex={-1}
+            role="status"
+            className="flex items-center gap-3 py-6 justify-center text-body text-label-primary outline-none"
+          >
+            <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            <span>Looking for events…</span>
+          </div>
+        )}
+
+        {phase.step === 'error' && (
+          <div className="space-y-4">
+            <p role="alert" className="text-body text-[var(--danger-text)]" data-testid="import-error">
+              {phase.message}
+            </p>
+            <button ref={setStepFocus} type="button" className="btn-tinted w-full min-h-[44px]" onClick={startOver}>
+              Try again
+            </button>
+          </div>
+        )}
+
+        {phase.step === 'review' &&
+          (drafts.length === 0 ? (
+            <div className="space-y-4">
+              <p className="text-body text-label-primary" role="status" data-testid="import-empty">
+                {UNREADABLE_MESSAGE}
+              </p>
+              <button ref={setStepFocus} type="button" className="btn-tinted w-full min-h-[44px]" onClick={startOver}>
+                Try again
+              </button>
+            </div>
+          ) : (
+            <>
+              <p
+                ref={setStepFocus}
+                tabIndex={-1}
+                className="text-subhead text-label-secondary outline-none"
+                role="status"
+              >
+                Found {drafts.length} event{drafts.length === 1 ? '' : 's'}. Check them, untick anything that&apos;s wrong,
+                then add.
+              </p>
+              <ul className="space-y-3" aria-label="Suggested events">
+                {drafts.map((draft, i) => (
+                  <SuggestionCard
+                    key={draft.key}
+                    draft={draft}
+                    index={i}
+                    idBase={titleId}
+                    disabled={adding}
+                    onChange={update}
+                  />
+                ))}
+              </ul>
+              <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-6 py-4 space-y-2">
+                {addError && (
+                  <p role="alert" className="text-subhead text-[var(--danger-text)]">
+                    {addError}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-plain min-h-[44px] flex-1 min-w-[10rem]"
+                    onClick={startOver}
+                    disabled={adding}
+                  >
+                    Start over
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-filled min-h-[44px] flex-1 min-w-[10rem]"
+                    onClick={addSelected}
+                    disabled={adding || selected.length === 0}
+                    data-testid="import-add"
+                  >
+                    {adding ? 'Adding…' : `Add ${selected.length} event${selected.length === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              </div>
+            </>
+          ))}
       </div>
-    </div>
+    </Dialog>
   )
 }
 
@@ -506,22 +512,7 @@ function SuggestionCard({
           />
           All day
         </label>
-        {draft.allDay ? (
-          <div className="col-span-2 sm:col-span-1">
-            <label htmlFor={`${id}-end-date`} className="text-footnote text-label-secondary block mb-1">
-              Last day (optional)
-            </label>
-            <input
-              id={`${id}-end-date`}
-              type="date"
-              value={draft.endDate}
-              min={draft.date || undefined}
-              onChange={(e) => onChange(draft.key, { endDate: e.target.value })}
-              disabled={disabled}
-              className="w-full input-apple min-h-[44px]"
-            />
-          </div>
-        ) : (
+        {!draft.allDay && (
           <>
             <div>
               <label htmlFor={`${id}-start`} className="text-footnote text-label-secondary block mb-1">
@@ -551,6 +542,20 @@ function SuggestionCard({
             </div>
           </>
         )}
+        <div className="col-span-2 sm:col-span-1">
+          <label htmlFor={`${id}-end-date`} className="text-footnote text-label-secondary block mb-1">
+            Last day (optional)
+          </label>
+          <input
+            id={`${id}-end-date`}
+            type="date"
+            value={draft.endDate}
+            min={draft.date || undefined}
+            onChange={(e) => onChange(draft.key, { endDate: e.target.value })}
+            disabled={disabled}
+            className="w-full input-apple min-h-[44px]"
+          />
+        </div>
       </div>
 
       <div>

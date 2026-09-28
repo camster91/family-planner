@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 
 let _jwtSecret: string | null = null
 
-function getJwtSecret(): string {
+export function getJwtSecret(): string {
   if (_jwtSecret) return _jwtSecret
 
   const secret = process.env.JWT_SECRET
