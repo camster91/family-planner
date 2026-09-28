@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
+import { getBoardWeather } from '@/lib/weather/board-weather'
 import { buildTodayBoard } from './today-board-data'
 
 export const metadata: Metadata = { title: 'Today' }
@@ -51,11 +52,17 @@ export default async function TodayBoardPage({
   // exactly as the main dashboard does. Viewing drives it; there is no cron.
   after(() => refreshStaleSubscriptions(familyId))
 
-  const data = await buildTodayBoard(prisma!, {
-    familyId,
-    role: user.role,
-    features: normalizeFeatures(user.family?.features),
-  })
+  const now = new Date()
+  // Weather (#262) is opt-in per household and never fails the page: null hides the tile.
+  const [board, weather] = await Promise.all([
+    buildTodayBoard(prisma!, {
+      familyId,
+      role: user.role,
+      features: normalizeFeatures(user.family?.features),
+      now,
+    }),
+    getBoardWeather(prisma!, { familyId, now }),
+  ])
 
-  return <TodayBoard data={data} fridgeMode={fridgeMode} />
+  return <TodayBoard data={{ ...board, weather }} fridgeMode={fridgeMode} />
 }
