@@ -630,7 +630,9 @@ test.describe("Today board: Family A parent", () => {
       );
       // Serve the forecast from the cache so the board never fetches.
       await withDb(seedWeatherCache);
-      await toggle.check();
+      // Saved on the server first, then shown checked (not optimistic).
+      await toggle.click();
+      await expect(toggle).toBeChecked();
       await expect(section.getByRole("status")).toContainText(
         "Weather is on for the board.",
       );

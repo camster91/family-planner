@@ -289,32 +289,35 @@ export default function TodayBoard({
           </div>
         </div>
 
-        {/* Weather (#262): only when the household opted in and a forecast is available. */}
-        {view?.weather && (
-          <div className="w-full min-w-0 sm:w-auto">
-            <WeatherTile view={view.weather} />
-          </div>
-        )}
+        {/* Right cluster: weather (#262, only when the household opted in and a
+            forecast is available) above the refresh time and the mode action. */}
+        <div className="flex w-full min-w-0 flex-col items-start gap-3 sm:w-auto sm:items-end">
+          {view?.weather && (
+            <div className="w-full min-w-0 sm:w-auto">
+              <WeatherTile view={view.weather} />
+            </div>
+          )}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {receivedAt && (
-            <p data-testid="board-updated" className="text-[15px] text-label-secondary md:text-[17px] 2xl:text-[19px]">
-              Updated {formatTime(receivedAt)}
-            </p>
-          )}
-          {actions ? (
-            actions
-          ) : fridgeMode ? (
-            <Link href="/dashboard/today" className={actionLinkClass}>
-              <Minimize2 className="h-5 w-5" aria-hidden="true" />
-              Exit fridge mode
-            </Link>
-          ) : (
-            <Link href="/dashboard/today?mode=fridge" className={actionLinkClass}>
-              <Maximize2 className="h-5 w-5" aria-hidden="true" />
-              Fridge mode
-            </Link>
-          )}
+          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            {receivedAt && (
+              <p data-testid="board-updated" className="text-[15px] text-label-secondary md:text-[17px] 2xl:text-[19px]">
+                Updated {formatTime(receivedAt)}
+              </p>
+            )}
+            {actions ? (
+              actions
+            ) : fridgeMode ? (
+              <Link href="/dashboard/today" className={actionLinkClass}>
+                <Minimize2 className="h-5 w-5" aria-hidden="true" />
+                Exit fridge mode
+              </Link>
+            ) : (
+              <Link href="/dashboard/today?mode=fridge" className={actionLinkClass}>
+                <Maximize2 className="h-5 w-5" aria-hidden="true" />
+                Fridge mode
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 

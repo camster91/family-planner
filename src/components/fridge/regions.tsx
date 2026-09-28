@@ -142,16 +142,18 @@ function MemberSwatch({ color, className }: { color: MemberColorKey; className?:
   )
 }
 
-/** "Avery" with the member's colour: who added an event (#262). */
+/**
+ * "Added by Avery" with the member's colour (#262). Events have no attendee
+ * field, so the board says who added it rather than implying who attends.
+ */
 function AddedByLabel({ person }: { person: BoardPerson }) {
   return (
     <span
       data-testid="event-member"
-      className="inline-flex max-w-full items-center gap-2 rounded-full bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-semibold text-label-primary md:text-[16px] 2xl:text-[18px]"
+      className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-medium text-label-primary md:text-[16px] 2xl:text-[18px]"
     >
       <MemberSwatch color={person.color} className="h-3 w-3 2xl:h-3.5 2xl:w-3.5" />
-      <span className="sr-only">Added by </span>
-      <span className="min-w-0 break-words">{person.name}</span>
+      <span className="min-w-0 break-words">Added by {person.name}</span>
     </span>
   )
 }
