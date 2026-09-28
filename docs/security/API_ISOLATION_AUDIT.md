@@ -166,7 +166,7 @@ recorded in route comments, as the de facto matrix.
 | /api/device/pair/status | POST | token (claim token, body) | the claimed pairing's family | n/a | none | family/devices/__tests__/devices.test.ts, src/lib/__tests__/device.integration.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/device/revoke-self | POST | device + elevation | this device only | elevated parent | elevation token bound to this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/device/session/refresh | POST | device (refresh cookie) | session's device/family | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts, src/lib/__tests__/device-session.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
-| /api/device/today | GET | device | where (device's family); device-audience DTO | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/today | GET | device | where (device's family); device-audience DTO; weather (#262) from the device household's own settings and `WeatherCache` row only | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/emergency-contacts | GET | family | where | all (kid-readable by design, kid-access.ts) | none | emergency-contacts/iso | ok |
 | /api/emergency-contacts | POST | family | session family | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
 | /api/emergency-contacts/[id] | PATCH | family | match (403) | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
@@ -181,6 +181,9 @@ recorded in route comments, as the de facto matrix.
 | /api/family | DELETE | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
 | /api/family/ai-settings | GET | family | own family | P | none | family/iso | ok |
 | /api/family/ai-settings | POST | family | own family | P | none | family/iso | ok |
+| /api/family/board-settings | GET | family | where (own family; members `family_id`) | P | none | family/board-settings/__tests__/board-settings.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#262) |
+| /api/family/board-settings | PATCH | family | own family; `WeatherCache` delete where `family_id` | P | `memberColors` ids verified in the household (400, same answer for foreign and missing); updates `where id + family_id` | family/board-settings/__tests__/board-settings.test.ts | implemented (#262) |
+| /api/family/board-settings/places | GET | family | n/a (no household data read or stored; outbound to a fixed Open-Meteo host only) | P | none | family/board-settings/__tests__/board-settings.test.ts | implemented (#262) |
 | /api/family/devices | GET | session (person only) | where | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/family/devices/[id] | PATCH | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/family/devices/[id]/events | GET | session (person only) | where id + family (404); actor names only for current members | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |

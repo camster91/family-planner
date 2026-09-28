@@ -156,6 +156,23 @@ the reviewed items with `POST /api/inventory` (unchanged).
 Rate limits: 5 per user and 10 per household per hour, plus `INVENTORY_SCAN_DAILY_LIMIT` (default 20) per household per
 UTC day. Compatibility: additive route; nothing existing changes. With the key removed the route is 404 and the button
 disappears on the next page load, so rollback is an environment change, not a deploy.
+## Today board: member colours and weather (#262)
+Additive. Old Android WebViews render the board from the web layer, and every new DTO field is optional (a board
+built before #262 ignores it; the #262 client falls back when it is missing). Roles and isolation:
+`docs/ROLE_AND_ISOLATION_MATRIX.md` "Today board page"; device read surface: `SHARED_DEVICE.md` §9.1.
+
+| Route | Change | Errors |
+| --- | --- | --- |
+| Today board DTO (`/dashboard/today` props, `GET /api/device/today`) | `members[].color` (palette key: `indigo`, `sky`, `green`, `orange`, `purple`, `pink`, `yellow`, `red`; the parent's choice or the deterministic fallback, `src/lib/member-colors.ts`); `events[].addedById` (the household member who added a local event, `null` for imported events or a creator no longer in the household); `weather: { label, unit: 'C' \| 'F', current: { temperature, summary, icon, isDay }, days: [{ day, high, low, summary, icon, precipitationChance }] (≤ 4), fetchedAt } \| null`. No coordinates are ever in the DTO. `weather` is `null` when the household has not opted in, the kill switch is off, or the forecast is unavailable. | unchanged |
+| `GET /api/family/board-settings` (new) | Parent only. `{ weather: { available, enabled, place: { label, latitude, longitude } \| null, unit: 'celsius' \| 'fahrenheit' }, members: [{ id, name, color, custom }] }`. `available` is the `WEATHER_ENABLED` kill switch. | 401; 400 no household; 403 teen/child |
+| `PATCH /api/family/board-settings` (new) | Parent only. Strict body `{ weather?: { enabled?, place?: { label (1–80), latitude (−90..90), longitude (−180..180) } \| null, unit? }, memberColors?: { [memberId]: key \| null } }`. Coordinates are stored rounded to 2 decimals. A new place, removing the place (which also turns weather off) or turning weather off deletes the household's `WeatherCache` row. Returns the GET shape. | 400 validation / unknown key / `Choose a place before turning on weather` / `Unknown household member` (another household's id and a missing id alike); 403 teen/child; 409 enabling while `WEATHER_ENABLED` is off |
+| `GET /api/family/board-settings/places?q=` (new) | Parent only. Place search through the fixed Open-Meteo geocoding host; nothing is stored. `{ places: [{ label, latitude, longitude }] }` (≤ 6, coordinates rounded to 2 decimals). 30 searches per parent per 10 minutes. | 400 `q` not 2–80 chars; 403; 409 kill switch off; 429 with `Retry-After`; 502 provider error or timeout |
+
+Weather is fetched server-side only (`src/lib/weather/open-meteo.ts`): fixed hosts `api.open-meteo.com` and
+`geocoding-api.open-meteo.com`, no user-supplied URL, `redirect: 'error'`, 3 s timeout, 128 KB cap, no retries.
+`getBoardWeather` (`src/lib/weather/board-weather.ts`) caches one row per household for 30 minutes and records a
+failure for 10 minutes so an outage hides the tile without retrying on every board refresh. It never throws; the
+board renders without the tile.
 
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
@@ -164,7 +181,7 @@ Apply based on abuse/cost/risk rather than one global number. Authentication, in
 Implemented (behind `SHARED_DEVICE_ENABLED`, default off; every route is `404` while it is off); UI and device writes are not. The endpoint table, error codes (`DEVICE_ACCESS_EXPIRED`, `DEVICE_REVOKED`, `DEVICE_SESSION_INVALID`, `ELEVATION_REQUIRED`, `ELEVATION_EXPIRED`, `PAIRING_CODE_INVALID`, …) and compatibility plan are in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §12–§13. New device routes use the target error envelope above and `Cache-Control: private, no-store`; they live under `/api/device/*` and `/api/family/devices/*` so existing routes keep their current responses and remain person-only. Installed Android builds need no update because the device UI is served by the web layer.
 
 ## Provider adapters
-Calendar, weather, AI, notification and food/recipe providers must sit behind application interfaces. Provider-specific errors map into stable product states.
+Calendar, weather, AI, notification and food/recipe providers must sit behind application interfaces. Provider-specific errors map into stable product states. Weather (#262) follows this: Open-Meteo errors become a fixed code (`timeout`, `network`, `http_error`, `too_large`, `bad_response`) and the board state "no weather tile".
 
 ## Calendar sync routes (#264)
 Two-way Google / Outlook sync, **dormant**: every route below is `404` (whoever calls) until the environment in

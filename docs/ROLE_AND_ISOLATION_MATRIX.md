@@ -175,6 +175,23 @@ reads no finance, allowance, messages, medical, location, handoff or account dat
 calendar, chores, meals and features only to roles that may open them. DTO:
 `src/app/dashboard/today/today-board-data.ts`.
 
+#262 (FridgeCal-style 16:10 hub) adds, for every audience: each member's board colour (a palette key; always
+shown next to the name), which member added a local event (`addedById`; not attendance, events have no attendee
+field), the chore approval state as text ("waiting for a parent's check" for `completed`) and, when the household
+opted in, a weather tile (place label, temperatures, summary; never coordinates). Still no points, XP or streaks on
+the board (see "Points & streaks setting" below).
+
+| Board settings (#262) | Parent | Teen | Child | Shared device |
+|---|---|---|---|---|
+| `GET` / `PATCH /api/family/board-settings` (member colours, weather opt-in, place, unit) | yes | 403 | 403 | no (401, route allowlist) |
+| `GET /api/family/board-settings/places` (place search) | yes | 403 | 403 | no (401, route allowlist) |
+| Settings UI (`/dashboard/family/settings` "Today board") | shown | not rendered | not rendered | n/a |
+| Weather tile on the board | read | read | read | read (same DTO) |
+
+Weather is off per household by default (`Family.weather_enabled = false`); with it on, only the coarse place
+(coordinates rounded to 2 decimals) is sent to Open-Meteo, server-side, and the server kill switch
+`WEATHER_ENABLED` can turn it off everywhere.
+
 Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audience: 'device'` (all links
 `null`, shopping only when the lists feature is on), is the entire shared-device read surface, served by
 `GET /api/device/today`. The `/device/today` page (#241) fetches it on the client under a layout that loads no
