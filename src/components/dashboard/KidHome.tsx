@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import { xpForNextLevel } from '@/lib/gamification'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
+import { useToast, useUndoToast } from '@/components/ui/toast'
+import { setChoreDone } from '@/lib/chore-tick-client'
 
 interface Chore {
   id: string
@@ -84,6 +86,8 @@ export default function KidHome({
   // chores' points, so this only decides what to draw.
   const gamification = useFeatureEnabled('gamification')
   const [completedChores, setCompletedChores] = useState<Set<string>>(new Set())
+  const { addToast } = useToast()
+  const showUndo = useUndoToast()
 
   const userXp = user.xp ?? 0
   const userLevel = user.level ?? 1
@@ -141,10 +145,25 @@ export default function KidHome({
       })
       // fetch only rejects on network failure; a 4xx/5xx must also undo the
       // optimistic tick, or the chore looks done while the server disagrees.
-      if (!res.ok) rollback()
+      if (!res.ok) {
+        rollback()
+        return
+      }
     } catch {
       rollback()
+      return
     }
+    // Undo over confirm (#269): a mis-tap is one tap to reverse.
+    const title = (chores ?? []).find((c) => c.id === choreId)?.title
+    showUndo({
+      title: title ? `“${title}” done` : 'Done',
+      message: 'A parent will check it.',
+      onUndo: async () => {
+        const result = await setChoreDone(choreId, false)
+        if (result.ok) rollback()
+        else addToast({ type: 'error', title: "Couldn't undo", message: result.message })
+      },
+    })
   }
 
   return (
