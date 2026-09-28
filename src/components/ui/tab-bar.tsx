@@ -4,53 +4,36 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Home, Calendar, ListChecks, Heart, Users, LucideIcon } from 'lucide-react'
 import type { NavUser } from '@/types'
-import { filterNavForRole } from '@/lib/kid-access'
+import { isTabActive, tabsFor } from '@/lib/nav-items'
+import { useFeatures } from '@/components/providers/features-provider'
 
 /**
- * TabBar — iOS-style bottom tab bar.
- * The home surface for the app: 4 destinations, more inside Family.
+ * TabBar — bottom tab bar on phones (below `md`).
+ * Parents: Today · Calendar · Meals · Lists · Family (#269). Children and teens:
+ * the tabs they may open (src/lib/nav-items.ts). Feature-gated tabs hide while
+ * their feature is off. The top bar carries the same tabs from `md` up.
  */
-type TabItem = {
-  href: string
-  label: string
-  icon: LucideIcon
-  matchPrefix?: boolean
-}
-
-const TABS: TabItem[] = [
-  { href: '/dashboard', label: 'Today', icon: Home },
-  { href: '/dashboard/calendar', label: 'Calendar', icon: Calendar, matchPrefix: true },
-  { href: '/dashboard/lists', label: 'Lists', icon: ListChecks, matchPrefix: true },
-  // Emergency is in the desktop tabs, so it belongs here too — a parent on a
-  // phone previously had no way to reach it from the nav.
-  { href: '/dashboard/emergency', label: 'Emergency', icon: Heart, matchPrefix: true },
-  { href: '/dashboard/family', label: 'Family', icon: Users, matchPrefix: true },
-]
-
 export function TabBar({ user }: { user: NavUser | null }) {
   const pathname = usePathname()
-  // Kids only see tabs they can reach (same allowlist as the middleware redirect).
-  const tabs = filterNavForRole(TABS, user?.role)
+  const { features } = useFeatures()
+  const tabs = tabsFor(user?.role, features)
 
   return (
-    <nav className="tab-bar md:hidden">
+    <nav className="tab-bar md:hidden" aria-label="Tabs">
       <ul className="flex items-stretch justify-around px-2 pt-1.5 pb-1.5">
         {tabs.map((tab) => {
-          const isActive = tab.matchPrefix
-            ? pathname.startsWith(tab.href)
-            : pathname === tab.href
+          const isActive = isTabActive(tab, pathname)
           const Icon = tab.icon
           return (
             <li key={tab.href} className="flex-1">
               <Link
                 href={tab.href}
                 className={cn(
-                  'flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-colors duration-200',
+                  'flex min-h-[44px] flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-colors duration-200',
                   isActive
                     ? 'text-accent'
-                    : 'text-label-tertiary active:text-label-secondary'
+                    : 'text-label-secondary active:text-label-primary'
                 )}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -60,6 +43,7 @@ export function TabBar({ user }: { user: NavUser | null }) {
                     isActive && 'scale-105'
                   )}
                   strokeWidth={isActive ? 2.4 : 1.8}
+                  aria-hidden="true"
                 />
                 <span className={cn(
                   'text-[10px] leading-tight',

@@ -4,9 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Home,
-  Calendar,
-  ListChecks,
   Users,
   Search,
   Bell,
@@ -16,7 +13,6 @@ import {
   Settings,
   LogOut,
   MessageCircle,
-  Heart,
   LayoutDashboard,
   Refrigerator,
 } from 'lucide-react'
@@ -24,21 +20,15 @@ import type { NavUser, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { TabBar } from '@/components/ui/tab-bar'
-import { canRoleAccessPath, filterNavForRole } from '@/lib/kid-access'
+import { canRoleAccessPath, isKidRole } from '@/lib/kid-access'
 import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
-import { useFeatureEnabled } from '@/components/providers/features-provider'
+import { useFeatures } from '@/components/providers/features-provider'
+import { homeHrefFor, isTabActive, tabsFor } from '@/lib/nav-items'
+import { isFeatureEnabled } from '@/lib/features'
 
 interface DashboardNavProps {
   user: NavUser | null
 }
-
-const PRIMARY_TABS = [
-  { href: '/dashboard', label: 'Today', icon: Home, matchPrefix: false },
-  { href: '/dashboard/calendar', label: 'Calendar', icon: Calendar, matchPrefix: true },
-  { href: '/dashboard/lists', label: 'Lists', icon: ListChecks, matchPrefix: true },
-  { href: '/dashboard/emergency', label: 'Emergency', icon: Heart, matchPrefix: true },
-  { href: '/dashboard/family', label: 'Family', icon: Users, matchPrefix: true },
-] as const
 
 const ROLE_LABELS: Record<UserRole, string> = {
   parent: 'Parent',
@@ -54,10 +44,16 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const avatarRef = useRef<HTMLDivElement>(null)
   // Hide links the role would only be redirected away from (src/lib/kid-access.ts).
   const canSee = (href: string) => canRoleAccessPath(user?.role, href)
-  const primaryTabs = filterNavForRole(PRIMARY_TABS, user?.role)
+  const { features } = useFeatures()
+  // Same tabs as the phone tab bar (#269): Today · Calendar · Meals · Lists · Family.
+  const primaryTabs = tabsFor(user?.role, features)
+  const homeHref = homeHrefFor(user?.role)
+  const isKid = isKidRole(user?.role)
   // Food inventory (#263): feature-gated and on the kid allowlist, so every
-  // role reaches it by touch from this menu (the command palette is keyboard-only).
-  const inventoryOn = useFeatureEnabled('inventory')
+  // role reaches it by touch from this menu (the command palette is
+  // keyboard-only). Parents also find it under Family → More.
+  const inventoryOn = isFeatureEnabled(features, 'inventory')
+  const messagesOn = isFeatureEnabled(features, 'messages')
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -95,34 +91,34 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-6">
           {/* Logo + name */}
           {/* aria-label: below `sm` the wordmark is hidden and the link would have no name (axe link-name, #155). */}
-          <Link href="/dashboard" aria-label="Family Planner home" className="flex items-center gap-2.5 shrink-0">
+          <Link href={homeHref} aria-label="Family Planner home" className="flex items-center gap-2.5 shrink-0">
             <div className="w-9 h-9 bg-accent-fill rounded-[22px] flex items-center justify-center shadow-sm">
-              <Users className="w-5 h-5 text-white" />
+              <Users className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
-            <span className="text-[17px] font-semibold text-label-primary hidden sm:block">
+            <span className="text-[17px] font-semibold text-label-primary hidden lg:block">
               Family Planner
             </span>
           </Link>
 
-          {/* Primary tabs — lg+ only */}
-          <div className="hidden lg:flex items-center gap-1">
+          {/* Primary tabs — md+ (the phone tab bar covers smaller widths).
+              Icons from lg, where there is room for them. */}
+          <div className="hidden md:flex items-center gap-1" data-testid="top-tabs">
             {primaryTabs.map((tab) => {
-              const isActive = tab.matchPrefix
-                ? pathname.startsWith(tab.href)
-                : pathname === tab.href
+              const isActive = isTabActive(tab, pathname)
               const Icon = tab.icon
               return (
                 <Link
                   key={tab.href}
                   href={tab.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] transition-colors duration-200',
+                    'flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-[15px] transition-colors duration-200',
                     isActive
                       ? 'font-semibold text-accent bg-accent-fill/10'
                       : 'font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-secondary)]'
                   )}
                 >
-                  <Icon className="w-4 h-4" strokeWidth={isActive ? 2.2 : 1.8} />
+                  <Icon className="hidden lg:block w-4 h-4" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
                   {tab.label}
                 </Link>
               )
@@ -186,12 +182,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     <p className="text-[15px] font-semibold text-label-primary truncate">
                       {user?.name}
                     </p>
-                    <span className={cn(
-                      'inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide',
-                      user?.role === 'parent' && 'bg-blue-100 text-blue-700',
-                      user?.role === 'teen' && 'bg-purple-100 text-purple-700',
-                      user?.role === 'child' && 'bg-green-100 text-green-700',
-                    )}>
+                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-[var(--surface-secondary)] text-label-secondary">
                       {ROLE_LABELS[user?.role ?? 'child']}
                     </span>
                   </div>
@@ -221,7 +212,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
                   {/* Menu items */}
                   <div className="py-1.5">
-                    {canSee('/dashboard/today') && (
+                    {isKid && canSee('/dashboard/today') && (
                       <Link
                         href="/dashboard/today"
                         className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
@@ -251,7 +242,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         Profile
                       </Link>
                     )}
-                    {canSee('/dashboard/messages') && (
+                    {messagesOn && canSee('/dashboard/messages') && (
                       <Link
                         href="/dashboard/messages"
                         className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
