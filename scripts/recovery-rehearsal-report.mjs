@@ -101,7 +101,7 @@ const lines = [
   '',
   `- Commit: \`${report.gitSha}\``,
   `- Finished: ${report.finishedAt} (${report.durationSeconds}s)`,
-  `- Databases: \`${env.SOURCE_DB}\` -> \`${env.RESTORE_DB}\` (both dropped on exit)`,
+  `- Databases: \`${env.SOURCE_DB}\` -> \`${env.RESTORE_DB}\` (${report.databases.droppedOnExit ? 'both dropped on exit' : 'NOT all dropped on exit: remove them by hand'})`,
   `- Dump: ${report.dump.bytes ?? 'n/a'} bytes, sha256 \`${report.dump.sha256 ?? 'n/a'}\` (deleted on exit)`,
   `- Backup transport: ${report.backupTransport}`,
   `- Tables: ${report.totals.tablesMatching}/${report.totals.tables} identical (counts and md5), ${report.totals.tablesWithRows} with rows, ${report.totals.sourceRows} source rows / ${report.totals.restoredRows} restored rows`,
