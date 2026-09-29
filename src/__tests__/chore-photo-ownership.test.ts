@@ -140,6 +140,43 @@ describe("D3 chore photo ownership — two households", () => {
     }
   });
 
+  it("never removes a file another request put in place, even when its own insert fails", async () => {
+    // A concurrent upload of the same bytes already moved the file into place
+    // and is about to commit its row; this request's insert then fails.
+    const { filename } = await uploadAs("parentA");
+    db.tables.upload = [];
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.create;
+    fakePrisma.upload.create = async () => {
+      throw new Error("db down");
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(500);
+      expect(mockFiles.has(path.join(UPLOAD_DIR, "chores", filename))).toBe(true);
+      expect([...mockFiles.keys()].filter((k) => k.endsWith(".tmp"))).toEqual([]);
+    } finally {
+      fakePrisma.upload.create = original;
+    }
+  });
+
+  it("removes its temporary file when moving it into place fails", async () => {
+    const fsp = jest.requireMock("fs/promises");
+    const original = fsp.rename;
+    fsp.rename = async () => {
+      throw Object.assign(new Error("EIO"), { code: "EIO" });
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const before = new Set(mockFiles.keys());
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(500);
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+      expect(db.rows("upload")).toHaveLength(0);
+    } finally {
+      fsp.rename = original;
+    }
+  });
+
   it("does not remove an existing file when a re-upload is refused", async () => {
     const { filename } = await uploadAs("parentA");
     db.tables.family = db.rows("family").filter((f) => f.id !== "family-A");

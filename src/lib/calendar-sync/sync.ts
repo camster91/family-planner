@@ -258,10 +258,25 @@ async function accessToken(ctx: Ctx, force = false): Promise<string> {
       set.refreshToken ?? refresh,
       tokenAad.refresh(conn.family_id),
     );
-  await db.calendarConnection.updateMany({
+  const written = await db.calendarConnection.updateMany({
     where: { id: conn.id, family_id: conn.family_id },
     data,
   });
+  if (written.count === 0) {
+    // The connection was removed while the refresh ran (disconnect, or account
+    // or household deletion, which row-locks connections before reading their
+    // tokens, so this write waits for it and then matches nothing). The
+    // provider has just issued a token no row holds: revoke it, best effort,
+    // so the grant does not outlive its record, then stop this run.
+    try {
+      await ctx.oauth.revoke(ctx.config, set.refreshToken ?? set.accessToken);
+    } catch {
+      console.warn("[calendar-sync] revoke of orphaned token failed", {
+        connectionId: conn.id,
+      });
+    }
+    throw new OAuthGrantError();
+  }
   Object.assign(conn, data);
   return set.accessToken;
 }

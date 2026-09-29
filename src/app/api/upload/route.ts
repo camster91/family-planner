@@ -81,64 +81,58 @@ export async function POST(request: NextRequest) {
     const filepath = path.join(choreUploadDir, filename)
 
     // Order against household deletion (D-3, src/lib/household-lock.ts):
-    // 1. the file is written to its final name first (temp name + rename, so
-    //    a reader never sees a partial file);
+    // 1. the bytes are written to a private temp file first;
     // 2. then, in one transaction under the household lock, the household is
-    //    re-checked and the ownership row is written;
-    // 3. if the household is gone or the transaction fails, the file this
-    //    request wrote is removed again.
-    // A deletion that ran first makes this upload refuse (and unlink); one that
-    // runs after sees the Upload row with its file already on disk and removes
-    // both. Row and file can no longer straddle a deletion.
-    let wroteFile = false
-    if (!existsSync(filepath)) {
-      const tmp = `${filepath}.${crypto.randomUUID()}.tmp`
-      await writeFile(tmp, buf)
-      await rename(tmp, filepath)
-      wroteFile = true
-    }
-    const discard = async () => {
-      if (!wroteFile) return
-      try {
-        await unlink(filepath)
-      } catch {
-        // Already gone.
-      }
-    }
+    //    re-checked, the temp file is moved to its final name only if no file
+    //    is there yet, and the ownership row is written. The lock also
+    //    serialises same-household uploads of the same image, so only the
+    //    request that moved the file into place may remove it again, and it
+    //    does so while still holding the lock if the row insert fails;
+    // 3. the temp file is always removed (finally), so no unowned copy is left.
+    // A deletion that ran first makes this upload refuse; one that runs after
+    // sees the Upload row with its file already on disk and removes both.
+    const tmp = `${filepath}.${crypto.randomUUID()}.tmp`
+    await writeFile(tmp, buf)
 
     // A re-upload in the same family reuses the existing row. A row owned by
     // another family would mean a 64-bit hash collision across households:
-    // refuse rather than hand over or share the file. Same-family concurrent
-    // uploads of one image are serialised by the household lock.
+    // refuse rather than hand over or share the file.
     let outcome: 'ok' | 'gone' | 'collision'
     try {
       outcome = await prisma!.$transaction(async (tx) => {
         if (!(await lockHouseholdForJoin(tx, familyId))) return 'gone' as const
         const existing = await tx.upload.findUnique({ where: { filename }, select: { family_id: true } })
         if (existing && existing.family_id !== familyId) return 'collision' as const
+        let placed = false
+        if (!existsSync(filepath)) {
+          await rename(tmp, filepath)
+          placed = true
+        }
         if (!existing) {
-          await tx.upload.create({
-            data: {
-              family_id: familyId,
-              uploaded_by: auth.user.id,
-              filename,
-              content_type: sniffed.mime,
-              size_bytes: buf.length,
-            },
-          })
+          try {
+            await tx.upload.create({
+              data: {
+                family_id: familyId,
+                uploaded_by: auth.user.id,
+                filename,
+                content_type: sniffed.mime,
+                size_bytes: buf.length,
+              },
+            })
+          } catch (err) {
+            if (placed) await unlink(filepath).catch(() => {})
+            throw err
+          }
         }
         return 'ok' as const
       })
-    } catch (err) {
-      await discard()
-      throw err
+    } finally {
+      await unlink(tmp).catch(() => {})
     }
     if (outcome === 'gone') {
-      await discard()
       return NextResponse.json({ error: 'Household not found' }, { status: 404 })
     }
     if (outcome === 'collision') {
-      await discard()
       log.warn('upload.photo.collision', { userId: auth.user.id, filename })
       return NextResponse.json({ error: 'Upload failed, please try again' }, { status: 409 })
     }

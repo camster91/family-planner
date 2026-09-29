@@ -322,8 +322,18 @@ export interface CalendarGrant {
  * Nothing about a connection changes unless the whole deletion commits.
  */
 async function takeCalendarConnections(tx: any, where: Record<string, unknown>): Promise<CalendarGrant[]> {
+  // Row-lock the connections before reading their tokens. A sync that is
+  // refreshing a token at the same moment then waits to write the rotated
+  // token until this transaction commits, finds no row, and revokes the new
+  // token itself (src/lib/calendar-sync/sync.ts accessToken). Reading after
+  // the lock also picks up any token written just before it.
+  const ids: string[] = (await tx.calendarConnection.findMany({ where, select: { id: true } })).map(
+    (c: { id: string }) => c.id
+  )
+  if (ids.length === 0) return []
+  await tx.$queryRaw`SELECT id FROM "CalendarConnection" WHERE id = ANY(${ids}::text[]) FOR UPDATE`
   const grants: CalendarGrant[] = await tx.calendarConnection.findMany({
-    where,
+    where: { id: { in: ids } },
     select: { id: true, family_id: true, provider: true, access_token_enc: true, refresh_token_enc: true },
   })
   for (const grant of grants) {
