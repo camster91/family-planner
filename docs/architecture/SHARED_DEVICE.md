@@ -3,8 +3,9 @@
 **Status:** Contract from #157. The schema, device auth and API (§3–§6, §8–§12; child issue §17.1, #240) are
 **implemented (behind `SHARED_DEVICE_ENABLED`, default off)**; see §18 for exactly what shipped and how the
 implementation resolved details this contract left open. The web UI (§7, §17.2, #241) is implemented behind the
-same switch; see §19. Device writes (§9.2), the offline snapshot cache (§8 cache rules, #162) and Android work
-(§17.3) are not implemented. Decision record: ADR-0006
+same switch; see §19. The §9.2 device writes and board setup under elevation (#274) are implemented behind the
+kill switch **and** a per-household opt-in that defaults off; see §20. The offline snapshot cache (§8 cache rules,
+#162) and Android work (§17.3) are not implemented. Decision record: ADR-0006
 (`adr/0006-shared-device-session-contract.md`), which implements ADR-0002.
 **Last grounded against source:** 2026-09-26.
 **Parent:** #127. **Related:** #120 (Android appliance), #131 (Figma), #136 (security), #159 (Today board),
@@ -522,7 +523,8 @@ change the hardware backlight.
 > Until Cameron decides, the device read surface stays as in this table.
 
 Plus `GET /api/device/me`: `device { id, label }`, `household { name }` (`Family.name`), `features` (booleans for
-calendar, chores, meals, lists only), `parents [{ id, name, hasPin }]`, `elevation { active, memberId, expiresAt }`.
+calendar, chores, meals, lists only), `parents [{ id, name, hasPin }]`, `elevation { active, memberId, expiresAt }`,
+`deviceWrites` (#274: the household's §9.2 opt-in, a boolean).
 
 **Required code change:** `buildTodayBoard` must not receive `role: null` for a device. `allowedLink` treats a
 null role as non-kid and would return every link. The device audience sets all links to `null`; shopping is
@@ -530,19 +532,38 @@ included only when the `lists` feature is on.
 
 ### 9.2 Device writes
 
-v1 ships **read-only**. The first write candidates, each behind #162 (idempotency key, device context in the
-envelope) and a per-household flag:
+**Implemented behind a per-household flag (#274), default off.** A tablet is read-only unless the household's
+`Family.device_writes_enabled` is true. A parent turns it on in the board settings, from a person session
+(`/api/family/board-settings`) or elevated on the tablet (`/api/device/elevated/board-settings`); turning it on is
+the owner's per-household choice (§16 O-16). These are the only non-elevated writes, each behind #162 (a
+required `Idempotency-Key`, scope `device:<deviceId>`) and the flag:
 
-| Action | Rule |
-|---|---|
-| Grocery item tick/untick | Existing list item of the household; attribution per **O-5**. |
-| Grocery quick add | Existing grocery list of the household; `content` 1–200 chars; attribution per **O-5**. |
-| Chore complete (**O-4**) | Chores due today of the household; status to `completed` (existing verify flow unchanged); no photo from the device; no XP shown on the device. |
+| Action | Route | Rule |
+|---|---|---|
+| Grocery item tick/untick | `PATCH /api/device/lists/items/:id` | An item of a grocery/shopping list of the household (the lists the board shows); explicit desired state, last write wins (`updateListItemAndNoteTick`, shared with the person route); `checked_by` = the picked member. |
+| Grocery quick add | `POST /api/device/lists/:id/items` | An existing grocery/shopping list of the household; `content` 1–200 chars, quantity 1, no notes/price/ingredient (`createListItem`, shared); `added_by` = the picked member. The tablet board has no quick-add control yet (route only). |
+| Chore complete (**O-4**) | `POST /api/device/chores/:id/complete` | A chore of the household due today (its date is "today" in some zone from UTC−12 to UTC+14, since the server cannot know the tablet's zone), else `409 CHORE_NOT_DUE_TODAY`; status to `completed` through `completeChore` (shared with `POST /api/chores/complete`; the verify flow is unchanged, so it waits for a parent's check); no photo; no XP in the response or on the device. The activity row names the picked member. |
+| Chore Undo (own write) | `POST /api/device/chores/:id/uncomplete` | Only **this tablet's own** completion of that chore from the last **2 minutes**, proven by its own `device.member_action`/`chore_complete` audit row; anything else is `403 UNDO_NOT_ALLOWED`; a chore a parent verified meanwhile is `409 CHORE_ALREADY_VERIFIED`. Reopens through `reopenCompletedChoreInTx` (shared). Grocery Undo is simply the opposite tick. Quick add has no Undo (a delete is prohibited, §9.3). |
 
-Attribution (**O-5**): the tablet asks "Who's this?" and the chosen member id is written where a `User` FK is
-required (`ListItem.added_by`, `checked_by`, `ChoreAssignment.completed_by`). The server verifies the member
-belongs to the device's household. It records the device id in `DeviceAuditEvent`. The choice is unverified
-attribution only: it never grants the member's capabilities.
+Gate, in this order (`src/lib/device-writes.ts`): kill switch (404) → device cookie → household flag
+(`403 DEVICE_WRITES_OFF`) → domain feature (`403 FEATURE_DISABLED`) → `device-write:<deviceId>` rate limit (§11)
+→ `Idempotency-Key` required (`400 IDEMPOTENCY_KEY_REQUIRED` / `IDEMPOTENCY_KEY_INVALID`) → `actingMemberId` a
+member of the device's household (a foreign and an unknown id are the same `400 ACTING_MEMBER_INVALID`). A foreign
+and a missing list, item or chore id are the same `404`. Responses are minimal (`{ item: { id, checked } }`,
+`{ item: { id, content, quantity, listId } }`, `{ chore: { id, status } }`) with `Cache-Control: private,
+no-store`, including replays.
+
+Attribution (**O-5**): the tablet asks "Who's this?" (member names and board colours from the §9.1 DTO) and the
+chosen member id is written where a `User` FK is required (`ListItem.added_by`, `checked_by`, the chore's
+`Activity.user_id`). The server verifies the member belongs to the device's household. It records the device id in
+`DeviceAuditEvent` (`device.member_action`, §10) for every write that changed a row; a replay or a no-op (already
+ticked, already done) changes nothing and is not audited again. The choice is unverified attribution only: it
+never grants the member's capabilities. The tablet remembers the choice in memory for 2 minutes after the last
+tap, shows "Ticking off as …" with a "Not …?" button, and forgets it on reload.
+
+Offline: grocery ticks go through the device variant of the #162 queue (`device.list-item.set-checked`, stored
+under the reserved `fp-device:v1:queue` key and deleted by the §8 purge; OFFLINE_SYNC.md). Chore completes are
+sent once with a fresh key and roll back with a message when the tablet is offline.
 
 ### 9.3 Prohibited on a device (not elevated), with the models and routes that hold them
 
@@ -593,8 +614,8 @@ user agents.
 | `device.elevation_started` | parent | `{ method: 'pin' \| 'password' }` |
 | `device.elevation_ended` | parent | `{ reason: 'exit' \| 'idle' \| 'max' \| 'revoked' \| 'credential_changed' }` (server-observed only) |
 | `device.elevation_locked` | parent | `{ scope: 'device' \| 'account' }` |
-| `device.elevated_action` | parent | `{ action, targetType, targetId }` (action from a fixed list) |
-| `device.member_action` | member | `{ action, targetType, targetId }` |
+| `device.elevated_action` | parent | `{ action, targetType, targetId }` (action from a fixed list: `rename_device`, `revoke_device`; #274 `update_board_settings` with `targetType: 'family'` and `sections` — the names of the settings groups changed, `weather` \| `memberColors` \| `display` \| `deviceWrites`, never values) |
+| `device.member_action` | member | `{ action, targetType, targetId }`; #274: `action` is `list_item_check` \| `list_item_uncheck` \| `list_item_add` \| `chore_complete` \| `chore_undo`, `targetType` is `list_item` \| `chore` |
 | `parent_pin.set` / `parent_pin.removed` / `parent_pin.cleared_by_reset` | parent | `{}` |
 
 Per-request activity (access, refresh, reads) is **not** audited; it only moves `last_seen_at`. Failed pairing
@@ -620,6 +641,8 @@ after a failure). All return `429 RATE_LIMITED` with `Retry-After`.
 | `device-refresh:<deviceId>` | 30 | 1 h | refresh per device |
 | `device-refresh-ip:<ip>` | 60 | 15 min | refresh per IP (unknown tokens) |
 | `device-board-version:<deviceId>` | 1200 | 1 h | board change check (#271), ≈ one per 3 s against a 25 s poll |
+| `device-write:<deviceId>` | 300 | 1 h | §9.2 writes per tablet (#274) |
+| `weather-places:device:<deviceId>` | 30 | 10 min | elevated place search on the tablet (#274), same limit as a parent's |
 | `device-elev-fail:<deviceId>:<userId>` | 5 *failure-only* | 15 min | wrong PIN/password for one parent on one tablet |
 | `device-elev-fail:<deviceId>` | 10 *failure-only* | 15 min | any parent on one tablet |
 | `device-elev-fail-acct:<userId>` | 10 *failure-only* | 1 h | one parent across all tablets; on trip set `ParentElevationPin.locked_until = now + 1 h` and audit `device.elevation_locked` |
@@ -689,13 +712,18 @@ Teen and child sessions get `403 PARENT_REQUIRED` on every row. Foreign ids get 
 | DELETE | `/api/device/elevation` | `X-Device-Elevation` | `204` (idempotent) | 401 |
 | POST | `/api/device/revoke-self` | `X-Device-Elevation` | `200` + cookies cleared | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
 | PATCH | `/api/device/label` | `{ label }`, `X-Device-Elevation` | `200 { device }` | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
+| PATCH | `/api/device/lists/items/:id` (#274) | `{ checked, actingMemberId }`, `Idempotency-Key` | `200 { item: { id, checked } }` | 400 `ACTING_MEMBER_INVALID` / `VALIDATION_ERROR` / `IDEMPOTENCY_KEY_*`, 401, 403 `DEVICE_WRITES_OFF` / `FEATURE_DISABLED`, 404, 409 `DUPLICATE_OPEN_ITEM`, 422 `IDEMPOTENCY_KEY_REUSED`, 429 |
+| POST | `/api/device/lists/:id/items` (#274) | `{ content, actingMemberId }`, `Idempotency-Key` | `201 { item: { id, content, quantity, listId } }` | as above (no 409) |
+| POST | `/api/device/chores/:id/complete` (#274) | `{ actingMemberId }`, `Idempotency-Key` | `200 { chore: { id, status }, alreadyCompleted }` | as above, 409 `CHORE_NOT_DUE_TODAY` |
+| POST | `/api/device/chores/:id/uncomplete` (#274) | `{ actingMemberId }`, `Idempotency-Key` | `200 { chore: { id, status }, alreadyOpen }` | as above, 403 `UNDO_NOT_ALLOWED`, 409 `CHORE_ALREADY_VERIFIED` |
+| GET | `/api/device/elevated/board-settings` (#274) | `X-Device-Elevation` | `200 { weather: { available, enabled, place: { label } \| null, unit }, members, display: { idleMinutes, idleChoices, night }, deviceWrites: { available, enabled } }` (no photos, no coordinates) | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
+| PATCH | `/api/device/elevated/board-settings` (#274) | `{ weather?, memberColors?, display?: { idleMinutes?, night? }, deviceWrites? }`, `X-Device-Elevation` | `200` (as GET) | 400 (incl. any `photoIds`), 403 as above, 409 (weather off on the server) |
+| GET | `/api/device/elevated/board-settings/places?q=` (#274) | `X-Device-Elevation` | `200 { places: [{ label, latitude, longitude }] }` | 400, 403 as above, 409 `FEATURE_DISABLED`, 429, 502 |
 
-Phase 2 (after #162, flagged, **O-4/O-5**), shape only:
-`PATCH /api/device/lists/items/:id { checked, actingMemberId, idempotencyKey }`,
-`POST /api/device/lists/:id/items { content, actingMemberId, idempotencyKey }`,
-`POST /api/device/chores/:id/complete { actingMemberId, idempotencyKey }`, and elevated
-`POST /api/device/elevated/chores/:id/verify`. Each calls a domain function shared with the existing person
-route; route handlers stay thin so business rules are not forked.
+The #274 routes call the domain functions the person routes use (`updateListItemAndNoteTick`, `createListItem`,
+`completeChore`, `reopenCompletedChoreInTx`, `readBoardSettings`/`applyBoardSettingsPatch`, `runPlaceSearch`);
+route handlers stay thin so business rules are not forked. Still not built: elevated
+`POST /api/device/elevated/chores/:id/verify` (§6.4).
 
 Pages: `/device/pair` (public), `/device/today`, `/device/removed`. Middleware: `/device/*` except
 `/device/pair` and `/device/removed` requires a resolvable device cookie, else redirect to `/device/pair`; `/`
@@ -753,6 +781,10 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 5. D1 `GET /api/device/today` returns only H1 data; no H2 canary.
 6. D1 phase-2 writes against an H2 list item, list or chore → `404`, identical to a random id; nothing changes.
 7. D1 with `actingMemberId` of an H2 member → `404`/`400`; nothing changes.
+   (#274: items 6–7 are in `src/app/api/device/__tests__/device-writes.test.ts` with the flag-off, kill-switch,
+   revoked-device, not-due-today, idempotent-replay, rate-limit, audit-row and Undo-window cases, and against
+   Postgres in `device-writes.integration.test.ts`; elevation missing/expired, D1's token on D1b, H2 isolation and
+   the no-photos rule for `/api/device/elevated/board-settings` are in the same file.)
 8. P2 `GET /api/family/devices` does not list D1; P2 revoke/rename/events on D1's id → `404`; D1 keeps working.
 9. P2 confirm/cancel/poll on an H1 pairing id → `404`.
 10. A code created by P2, claimed by a tablet whose body claims `family_id = H1` → device belongs to H2 only.
@@ -844,7 +876,8 @@ which the child issues assume unless Cameron decides otherwise on #157.
 | O-12 | Audit retention | 180 days, pruned on parent read | 90 or 365 days | Recommended default applied |
 | O-13 | Block person login while a device cookie is present | Yes (409) | Allow, and warn | Recommended default applied |
 | O-14 | "Turn this tablet into the family tablet" from a signed-in parent session | Defer; code flow only | Offer it, with password re-entry | Recommended default applied |
-| O-15 | Family photos in the calm display on a paired tablet (#271, §9.1 open question) | No photos on paired tablets | Per-household opt-in with a device photo route limited to the chosen ids | **Open**: waiting for Cameron; paired tablets show no photos |
+| O-15 | Family photos in the calm display on a paired tablet (#271, §9.1 open question) | No photos on paired tablets | Per-household opt-in with a device photo route limited to the chosen ids | **Open**: waiting for Cameron; paired tablets show no photos (the #274 tablet settings cannot choose photos either) |
+| O-16 | Turning on §9.2 tablet writes for a household (#274) | Off by default (`Family.device_writes_enabled = false`); a parent opts in per household in the board settings, knowing "Who's this?" is unverified | On by default for households with a paired tablet | Implemented with the default **off**; turning it on is the owner's per-household choice. Enabling the server kill switch in production still needs Cameron's approval |
 
 ## 17. Child issues (ready to file)
 
@@ -1094,3 +1127,31 @@ As implemented:
   is a plain failure, while the enveloped kill-switch 404 still purges. After the household's idle time the board
   fades to the calm display (§9.1 fields only, no photos: O-15), night hours dim it, and a tap or key only returns
   to the board.
+
+## 20. Tablet writes and setup status (#274)
+
+Shipped behind `SHARED_DEVICE_ENABLED` **and** the per-household `Family.device_writes_enabled` (default off,
+`prisma/schema.prisma` and the idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS` in `scripts/migrate.js`).
+
+| Area | Source |
+|---|---|
+| Write gate (kill switch, cookie, flag, feature, rate limit, required key, household member) and the `device:<deviceId>` idempotency scope | `src/lib/device-writes.ts` |
+| Routes (§9.2, §12.3) | `src/app/api/device/lists/items/[id]`, `src/app/api/device/lists/[id]/items`, `src/app/api/device/chores/[id]/complete`, `…/uncomplete` |
+| Shared domain functions | `src/lib/list-item-update.ts` `updateListItemAndNoteTick`, `src/lib/list-item-create.ts`, `src/lib/chore-complete.ts`, `src/lib/chore-reopen.ts` |
+| Board setup under elevation (§6.4) | `src/app/api/device/elevated/board-settings/**`, `src/lib/board-settings.ts` (shared with `/api/family/board-settings`), `src/lib/weather/place-search.ts` |
+| Device queue variant | `src/lib/offline-queue.ts` `device.list-item.set-checked`, `src/lib/offline-queue-browser.ts` `getDeviceQueue` |
+| Tablet UI: tiles, "Who's this?", "Ticking off as …", Undo toasts, "Board settings" in parent mode | `src/components/device/use-device-board-actions.tsx`, `DeviceTodayScreen.tsx`, `ElevatedBanner.tsx`, `src/components/fridge/board-actions.ts`, `BoardSettings.tsx` |
+
+Person boards (`/dashboard/today`, fridge mode or not) use the same tiles with the person routes
+(`src/components/fridge/use-person-board-actions.ts`): a chore row is a button for its assignee and for parents
+(the rules of `POST /api/chores/uncomplete`), a grocery row ticks through the person's #162 queue, and each tile
+heading links to its section (the "Open calendar / meals / chores / lists" buttons are gone).
+
+Tests: `src/app/api/device/__tests__/device-writes.test.ts`, `device-writes.integration.test.ts`
+(`RUN_DB_INTEGRATION=1`), the allowlist entries in `src/app/api/__tests__/device-route-allowlist.test.ts`,
+`src/components/fridge/__tests__/tiles.test.tsx`, the device-queue cases in `src/lib/__tests__/offline-queue.test.ts`
+and `device-queue-send.test.ts`, and `e2e/tiles.spec.ts`.
+
+Not built: a quick-add control on the tablet board (the route exists; the board DTO has no list id when the list is
+empty), calendar subscription/connection toggles on the tablet (no on/off toggle exists for either; §9.3 keeps
+`/api/calendar/subscriptions/**` off the device), and elevated chore verify.
