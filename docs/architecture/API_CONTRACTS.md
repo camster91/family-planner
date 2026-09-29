@@ -177,6 +177,39 @@ Weather is fetched server-side only (`src/lib/weather/open-meteo.ts`): fixed hos
 failure for 10 minutes so an outage hides the tile without retrying on every board refresh. It never throws; the
 board renders without the tile.
 
+## Grocery store sections (#273)
+Additive fields on existing list routes plus two new routes. Rules and data model:
+[`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §11. Roles and isolation: `docs/ROLE_AND_ISOLATION_MATRIX.md`
+"Lists, notes, dates, pickups".
+
+- **Section ids** (stable, stored and returned; labels are display-only): `produce`, `bakery`, `dairy_eggs`,
+  `meat_fish`, `frozen`, `pantry`, `snacks_drinks`, `household`, `personal_care`, `other`
+  (`GROCERY_SECTIONS` in `src/lib/grocery-sections.ts`). A client must treat an unknown id as `other`.
+- **Resolution** (server and client use the same pure function): the household's override for the row's normalized
+  `content` (NFC, trimmed, whitespace collapsed, lower-case), else the linked `Ingredient.section`, else the built-in
+  English keyword map (row text, then the ingredient name), else `other`. Every row of a `grocery`/`shopping` list
+  gets a section, ticked rows included, so ticking never moves a row.
+- **Errors (new routes):** target envelope `{ error: { code, message, retryable } }` with
+  `Cache-Control: private, no-store`: 400 `VALIDATION_ERROR` / `INVALID_JSON` / `LIST_NOT_GROCERY`, 403
+  `SECTION_SORT_FORBIDDEN` (child, sort switch only), 404 `ITEM_NOT_FOUND` / `LIST_NOT_FOUND` (foreign and missing
+  alike), 500 `INTERNAL_ERROR` (`retryable: true`). Authentication (401), the `lists` feature gate (403) and the
+  paired-device refusal (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) keep their shared shapes.
+- **Not idempotency-keyed / not offline-queued:** both writes set an explicit value, so a repeat is harmless. The #162
+  queue allowlist is unchanged; the page refuses "Move to…" while offline and says so.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `GET /api/lists/items?listId=` | Unchanged for other list types. For `grocery`/`shopping` lists each item adds `section` (resolved id), and the body adds `sectionSort: { enabled, order: [id × 10], learned }` (`enabled` = `List.sort_by_section`; `order` is the household's learned walking order when `learned`, else the fixed order; `other` is always last). | unchanged |
+| `POST /api/lists/items/create` | On a `grocery`/`shopping` list the returned `item` adds `section`. | unchanged |
+| `PATCH /api/lists/items/update` | Response unchanged (the replay body stays as stored). A request that ticks a grocery row (open → ticked by the caller now) also appends the row's section to the list's current shopping trip (walking order, best effort: a failure never fails the tick; a replay records nothing). | unchanged |
+| `PATCH /api/lists/items/section` (new) | "Move to…". Strict body `{ itemId, section: id \| null }`; `null` clears the household's choice (back to automatic). Upserts the household's `GrocerySectionPreference` for the item's normalized `content`; when the item is linked to an ingredient, sets (or clears) that `Ingredient.section` too. 200 `{ nameKey, override: id \| null, sections: { [itemId]: id } }` for every row on the same list sharing the name or the ingredient. Parent, teen, child. | 400 validation / `LIST_NOT_GROCERY`; 403 device or lists off; 404 `ITEM_NOT_FOUND` |
+| `PATCH /api/lists/section-sort` (new) | Strict body `{ listId, sortBySection: boolean }`. Sets `List.sort_by_section` (default `true`) for a `grocery`/`shopping` list of the household. 200 `{ listId, sortBySection }`. Parent and teen. | 400 validation / `LIST_NOT_GROCERY`; 403 `SECTION_SORT_FORBIDDEN`, device or lists off; 404 `LIST_NOT_FOUND` |
+| `GET /api/users/export` | Adds `grocerySectionPreferences` (`name_key`, `section`, `updated_by`, timestamps) and `groceryShoppingSessions` (`id`, `list_id`, `sections`, `started_at`, `last_tick_at`), both for the household, without `family_id`. | unchanged |
+
+Compatibility: additive columns (`Ingredient.section`, `List.sort_by_section` default `true`), two new tables and two
+new routes; no existing field changes meaning. Old WebView bundles ignore `section`/`sectionSort` and keep the
+category grouping they shipped with. Rolling back the app code is safe: the columns and tables stay unused.
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

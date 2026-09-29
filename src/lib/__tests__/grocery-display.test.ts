@@ -5,6 +5,7 @@ import {
   isGroceryListType,
   provenanceText,
   rowAmountText,
+  storeSectionOf,
   type GroceryRowFields,
 } from '@/lib/grocery-display'
 
@@ -81,5 +82,50 @@ describe('buildGrocerySections (O-3: group open rows by ingredient)', () => {
     ]
     const sections = buildGrocerySections(rows, isChecked)
     expect(sections.map((s) => s.category)).toEqual(['Produce'])
+  })
+})
+
+describe('buildGrocerySections by store section (#273)', () => {
+  const ORDER = ['produce', 'bakery', 'dairy_eggs', 'household', 'other']
+  const bySection = (r: Row) => storeSectionOf(r)
+
+  it('orders sections by the given order, not by name, and labels them', () => {
+    const rows = [row('Dish soap', { section: 'household' }), row('Milk', { section: 'dairy_eggs' }), row('Apples')]
+    const sections = buildGrocerySections(rows, isChecked, {
+      sectionOf: bySection,
+      order: ORDER,
+      label: (k) => k.toUpperCase(),
+    })
+    expect(sections.map((s) => s.key)).toEqual(['produce', 'dairy_eggs', 'household'])
+    expect(sections.map((s) => s.category)).toEqual(['PRODUCE', 'DAIRY_EGGS', 'HOUSEHOLD'])
+  })
+
+  it('puts keys missing from the order last, by name', () => {
+    const rows = [row('a', { section: 'zeta' }), row('b', { section: 'alpha' }), row('c', { section: 'produce' })]
+    const sections = buildGrocerySections(rows, isChecked, { sectionOf: (r) => r.section!, order: ORDER })
+    expect(sections.map((s) => s.key)).toEqual(['produce', 'alpha', 'zeta'])
+  })
+
+  it('groups an ingredient inside its first open row’s section and keeps checked rows in their own section', () => {
+    const rows = [
+      row('tom1', { ingredient_id: 'ing_tom', section: 'produce' }),
+      row('tom2', { ingredient_id: 'ing_tom', section: 'pantry' }),
+      row('tom3', { ingredient_id: 'ing_tom', section: 'produce', checked: true }),
+    ]
+    const sections = buildGrocerySections(rows, isChecked, { sectionOf: (r) => r.section!, order: ['produce', 'pantry'] })
+    expect(sections).toHaveLength(1)
+    expect(sections[0].entries.map((e) => e.kind)).toEqual(['group', 'item'])
+  })
+
+  it('storeSectionOf uses the server section, else overrides and keywords', () => {
+    expect(storeSectionOf({ content: 'Milk', section: 'frozen' })).toBe('frozen')
+    // An id from a newer server is `other`, never re-guessed from the name.
+    expect(storeSectionOf({ content: 'Milk', section: 'aisle-9' })).toBe('other')
+    expect(storeSectionOf({ content: 'Rice', section: 'future_section' }, { rice: 'produce' })).toBe('other')
+    expect(storeSectionOf({ content: 'Milk', section: '' })).toBe('dairy_eggs')
+    expect(storeSectionOf({ content: 'Milk', section: undefined })).toBe('dairy_eggs')
+    expect(storeSectionOf({ content: '  MILK ', section: null }, { milk: 'household' })).toBe('household')
+    expect(storeSectionOf({ content: 'Nana’s', ingredient_name: 'Bread' })).toBe('bakery')
+    expect(storeSectionOf({ content: 'Zzyzx' })).toBe('other')
   })
 })

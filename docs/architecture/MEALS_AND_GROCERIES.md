@@ -432,3 +432,66 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 - ~~A "use soon" tile on the fridge board (#262), using `getUseSoonItems`.~~ **Done in #262:** the Today board DTO carries `useSoon` (id, name, location, expiry day) when `inventory` is on, for person boards and the paired tablet; tile in `src/components/fridge/use-soon-region.tsx` (`docs/FRIDGE_TABLET_PROGRAM.md` §31).
 - Any reminder delivery (needs an approved scheduler or an event-driven design).
 - A batch inventory create if scans commonly add many items at once.
+
+## 11. Store sections (#273)
+
+**Status (2026-09-28): implemented in #273.** On a `grocery` or `shopping` list, rows are grouped under store-section headers in a fixed store order, so a shopper walks the store once. A household can move an item to another section, switch sorting off per list, and, after a few trips, sections follow the order the household actually shops in. No scheduled job and no provider.
+
+### Sections and resolution
+
+Fixed ids, in store order (`GROCERY_SECTIONS`, `src/lib/grocery-sections.ts`): `produce` Produce, `bakery` Bakery, `dairy_eggs` Dairy & eggs, `meat_fish` Meat & fish, `frozen` Frozen, `pantry` Pantry, `snacks_drinks` Snacks & drinks, `household` Household, `personal_care` Personal care, `other` Other. The ids are what the API stores and returns; the labels live in the same module (`GROCERY_SECTION_LABELS`) because the list pages do not use `src/i18n` yet, so a locale table can replace them without touching data.
+
+A row's section, first match wins (`resolveGrocerySection`, pure, used by the server and the page):
+
+1. the household's override for the row's normalized `content` (`GrocerySectionPreference`; key = `normalizeName`: NFC, trimmed, whitespace collapsed, lower-case; `sectionNameKey` repeats that rule so the module stays import-free for the client bundle, and a test keeps the two equal);
+2. the linked `Ingredient.section`;
+3. the built-in English keyword map (`sectionForName`) on the row text, then on the linked ingredient's name;
+4. `other`.
+
+The keyword map holds several hundred common grocery words and phrases (the test requires at least 300). Matching folds case and accents, ignores digits and punctuation ("2 lb chicken thighs"), tries the singular forms of the last word of a phrase ("berries", "tomatoes", "loaves", "knives", "peaches"), prefers the longest phrase ("ice cream" over "cream", "peanut butter" over "butter"), and among equally long matches takes the rightmost, the English head noun ("chocolate milk" is dairy, "chicken broth" is pantry, "banana bread" is bakery). "frozen", "canned", "tinned" and "dried" decide first. Unknown names are `other`; "Move to…" fixes them for the household.
+
+Every row of a grocery/shopping list gets a section, ticked rows included, so ticking a row never moves it (ticked rows stay where they were, as before #273, and are never grouped by ingredient).
+
+### Model (additive)
+
+`scripts/migrate.js` `POST_FEATURE_SQL` (idempotent; `Ingredient` comes from `database/migration-meal-planner-domains.sql`) and `prisma/schema.prisma`:
+
+| Change | Notes |
+| --- | --- |
+| `GrocerySectionPreference` (`id`, `family_id` FK `Family` cascade, `name_key`, `section`, `updated_by` FK `User` SET NULL, `created_at`, `updated_at`), unique `(family_id, name_key)` | One household choice per normalized name. Upserted, so concurrent moves leave one row (last write wins). |
+| `Ingredient.section` text null | Set with the override when the moved row is linked to an ingredient, so a later recipe row whose text differs (for example "Roma" linked to Tomatoes) lands in the same section; cleared with it. Only "Move to…" writes it. |
+| `List.sort_by_section` boolean not null default `true` | Per list, so a family can keep its own order on one list and sort another. |
+| `GroceryShoppingSession` (`id`, `family_id` FK cascade, `list_id` FK `List` cascade, `sections text[]`, `started_at`, `last_tick_at`); indexes `(family_id, last_tick_at)`, `(list_id, last_tick_at)` | Walking order (below). Section ids and times only. |
+
+Expand only; rolling the app back leaves unused columns and tables.
+
+### API
+
+`GET /api/lists/items` and `POST /api/lists/items/create` add `section` to grocery/shopping rows; `GET` also returns `sectionSort: { enabled, order, learned }`. `PATCH /api/lists/items/section` ("Move to…", `{ itemId, section | null }`) and `PATCH /api/lists/section-sort` (`{ listId, sortBySection }`) are new. Full contract: `API_CONTRACTS.md` "Grocery store sections".
+
+- **Roles:** "Move to…" is every member (it is item editing, D9). The sorting switch is parent and teen (it changes the list for the whole household, like creating a list); a child sees the setting as text.
+- **Paired shared device:** both writes answer 403 `DEVICE_WRITE_NOT_ALLOWED` before person auth (`refusePairedDevice`; listed in the route-allowlist test). `SHARED_DEVICE.md` has no device write routes before #157, so none is opened here; the board keeps reading open grocery items through its own DTO.
+- **Isolation:** the item and list are looked up with the caller's household (404 for a foreign or missing id), the override is keyed by the caller's household, never the body, and `Ingredient.section` is updated `where { id, family_id }`. Overrides are read only for the names on the list being shown.
+
+### Page and offline
+
+The list page resolves sections on the server and passes them with the rows, together with the overrides for the names on the list, the section order and the switch state. Grouping (`buildGrocerySections` with a `sectionOf`/`order`) runs on the client from that data, so a tick queued offline (#162) re-renders in place with no request. A row added on the page gets its section from the create response, or from `storeSectionOf` (overrides + keyword map) if it has none. Section headers are text (`SectionHeader`, and each section is a labelled region), not colour. Within a section, #252's ingredient groups ("Tomatoes · 2 entries") and "from <recipe>" provenance are unchanged.
+
+"Move" (a 44px text button on each open row, only while sorting is on) opens a bottom sheet (the shared `Dialog`) with one 48px button per section, the current one marked "Current" in text, and "Use the automatic section" when the household chose it. Moving needs a connection: offline, the sheet says so and sends nothing (the #162 queue allowlist is unchanged). The switch ("Sort by store section", `role="switch"`, state written as "On"/"Off") saves immediately and reverts with a message on failure. With sorting off the page shows the pre-#273 category grouping in list order.
+
+### Walking order
+
+When a person's `PATCH /api/lists/items/update` changes a grocery/shopping row from open to ticked (not a no-op re-tick that keeps an older attribution), the row's section is appended to the list's current trip: the most recent `GroceryShoppingSession` of that list whose last tick is within 2 hours, else a new one. The write runs inside the idempotency effect (a replay records nothing), under `pg_advisory_xact_lock(hashtext('grocery-walk:' || list_id))` so parallel ticks cannot start two trips, and is best effort: a failure is logged without content and never fails the tick. Trips older than 180 days are deleted when a new trip starts (no scheduler). A queued offline tick is recorded when it reaches the server, in queue order, so the order is kept even though the time is the sync time.
+
+`loadSectionOrder` reads the household's 20 most recent trips. With at least 3 trips of two or more sections (`WALKING_ORDER_MIN_SESSIONS`), each section scores its mean relative position in the trips it appears in (0 first, 1 last); sections never ticked keep their fixed relative position; ties fall back to the fixed order; `other` is always last (`sectionOrder`). Otherwise the fixed order is used. The page says "Sections follow the order your household usually shops." when the learned order is in use.
+
+### Export and tests
+
+`GET /api/users/export` adds `grocerySectionPreferences` and `groceryShoppingSessions` (household, every member, no `family_id`). Tests: `src/lib/__tests__/grocery-sections.test.ts` (keyword map incl. plurals, case, multi-word, modifiers; resolution order; walking order), `src/lib/__tests__/grocery-display.test.ts`, `src/app/api/lists/__tests__/sections.test.ts` (two-household fake: DTOs, roles, isolation, device refusal, trips), `sections.integration.test.ts` (Postgres: concurrent upsert, unique index, isolation, advisory lock, cascades; in the release workflow), `src/app/dashboard/lists/[listId]/__tests__/store-sections.test.tsx` (grouping, Move to…, switch, child view, offline tick) and `e2e/aisles.spec.ts`.
+
+### Follow-ups (not in #273)
+
+- Localised section labels once the list pages adopt `src/i18n`, and keyword maps for other languages.
+- Per-store layouts (a household that shops at two stores with different walking orders); today there is one learned order per household.
+- Editing `Ingredient.section` from the recipe screen, and a way to review or reset all of a household's section choices at once.
+- A design reference for the section headers, the "Move" sheet and the switch (#150–#153), as for #252.

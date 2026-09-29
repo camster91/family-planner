@@ -963,6 +963,47 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_location_idx" ON "InventoryItem"("family_id", "location");
 CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_expires_on_idx" ON "InventoryItem"("family_id", "expires_on");
 CREATE INDEX IF NOT EXISTS "InventoryItem_ingredient_id_idx" ON "InventoryItem"("ingredient_id");
+
+-- ============ Grocery store sections (#273; additive) ============
+-- Nullable/defaulted columns and two new tables, no backfill. "Ingredient"
+-- comes from migration-meal-planner-domains.sql, so this lives here. A list
+-- without the column value sorts by section (default true); an ingredient
+-- without a section falls through to the keyword map. See
+-- docs/architecture/MEALS_AND_GROCERIES.md "Store sections".
+ALTER TABLE "Ingredient" ADD COLUMN IF NOT EXISTS "section" TEXT;
+ALTER TABLE "List" ADD COLUMN IF NOT EXISTS "sort_by_section" BOOLEAN NOT NULL DEFAULT true;
+CREATE TABLE IF NOT EXISTS "GrocerySectionPreference" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "name_key" TEXT NOT NULL,
+  "section" TEXT NOT NULL,
+  "updated_by" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "GrocerySectionPreference" ADD CONSTRAINT "GrocerySectionPreference_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "GrocerySectionPreference" ADD CONSTRAINT "GrocerySectionPreference_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "GrocerySectionPreference_family_id_name_key_key" ON "GrocerySectionPreference"("family_id", "name_key");
+CREATE TABLE IF NOT EXISTS "GroceryShoppingSession" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "list_id" TEXT NOT NULL,
+  "sections" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "last_tick_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "GroceryShoppingSession" ADD CONSTRAINT "GroceryShoppingSession_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "GroceryShoppingSession" ADD CONSTRAINT "GroceryShoppingSession_list_id_fkey" FOREIGN KEY ("list_id") REFERENCES "List"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "GroceryShoppingSession_family_id_last_tick_at_idx" ON "GroceryShoppingSession"("family_id", "last_tick_at");
+CREATE INDEX IF NOT EXISTS "GroceryShoppingSession_list_id_last_tick_at_idx" ON "GroceryShoppingSession"("list_id", "last_tick_at");
 `
 
 async function migrate() {

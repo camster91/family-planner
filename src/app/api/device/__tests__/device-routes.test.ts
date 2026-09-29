@@ -5,6 +5,13 @@ jest.mock('next/server', () => require('@/__tests__/helpers/two-household').next
 jest.mock('next/headers', () => require('@/__tests__/helpers/two-household').nextHeadersMock)
 jest.mock('@/lib/session', () => require('@/__tests__/helpers/two-household').sessionMock)
 jest.mock('@/lib/prisma', () => ({ prisma: require('@/__tests__/helpers/two-household').fakePrisma }))
+// The route compares an unknown user's PIN against DUMMY_HASH (production cost 12)
+// to keep timing uniform. Ten of those at cost 12 can pass jest's 5 s timeout on
+// a loaded machine, so this suite swaps in a cost-4 dummy; the logic is unchanged.
+jest.mock('@/lib/auth', () => ({
+  ...jest.requireActual('@/lib/auth'),
+  DUMMY_HASH: require('bcryptjs').hashSync('dummy-password-not-used', 4),
+}))
 
 import { FOREIGN, params } from '@/__tests__/helpers/two-household'
 import {

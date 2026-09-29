@@ -21,6 +21,10 @@ never replay an arbitrary request. Never queueable, whatever a future issue asks
 (budget, transactions, allowance), chore verification and reward approval, account/auth/password/PIN,
 device pairing/elevation, invites, exports and medical records.
 
+Store sections (#273) do not change the allowlist: grouping by section runs on the client from the rows and
+overrides delivered with the list page, so a queued tick re-renders in its section offline. "Move to…" and the
+per-list sorting switch are online writes; the page says a move needs a connection instead of queueing it.
+
 ## Mutation envelope
 Queued operations should include:
 - locally generated idempotency key;
