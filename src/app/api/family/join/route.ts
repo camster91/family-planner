@@ -10,7 +10,7 @@ import {
   normalizeInviteCode,
   normalizeInviteToken,
 } from '@/lib/family-invite'
-import { lockHouseholdForJoin } from '@/lib/household-lock'
+import { lockHouseholdForJoin, lockUser } from '@/lib/household-lock'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,6 +113,8 @@ async function acceptEmailInvite(userId: string, userEmail: string, token: strin
  */
 async function finishJoin(userId: string, familyId: string, familyName: string, role: string, inviteId?: string) {
   const outcome = await prisma!.$transaction(async (tx) => {
+    // Order: user lock, then household lock (src/lib/household-lock.ts).
+    await lockUser(tx, userId)
     if (!(await lockHouseholdForJoin(tx, familyId))) return { error: 'Family not found' as const }
     const current = await tx.user.findUnique({ where: { id: userId }, select: { family_id: true } })
     if (!current) return { error: 'User not found' as const }

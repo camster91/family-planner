@@ -7,6 +7,7 @@ import { refusePairedDevice } from '@/lib/device-route'
 import { readIdempotencyKey } from '@/lib/idempotency'
 import { deleteHousehold } from '@/lib/account-deletion'
 import { checkFreshAuthorization, runDeletion } from '@/lib/account-deletion-http'
+import { lockUser } from '@/lib/household-lock'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +38,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You already belong to a family' }, { status: 400 })
     }
 
+    // Under the caller's user lock (src/lib/household-lock.ts): an account
+    // deletion holds it from before it reads family_id, so a household is never
+    // created for an account that is being deleted (which would leave a Family
+    // with no members). Re-checked here under the lock.
     const family = await prisma!.$transaction(async (tx) => {
+      await lockUser(tx, payload.userId)
+      const current = await tx.user.findUnique({ where: { id: payload.userId }, select: { family_id: true } })
+      if (!current) return 'gone' as const
+      if (current.family_id) return 'already' as const
       // Explicit new-household flags (#248): Points & streaks start OFF. A blob
       // without the `gamification` key would read as an existing household.
       const newFamily = await tx.family.create({
@@ -49,6 +58,10 @@ export async function POST(request: NextRequest) {
       })
       return newFamily
     })
+    if (family === 'gone') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (family === 'already') {
+      return NextResponse.json({ error: 'You already belong to a family' }, { status: 400 })
+    }
 
     const user = await prisma!.user.findUnique({
       where: { id: payload.userId },

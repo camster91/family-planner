@@ -5,9 +5,23 @@
 // check in the start route is only an early, friendly refusal: two flows
 // started in parallel both pass it, and only this commit decides.
 
+//
+// Account deletion (D-3): the commit first takes the household membership
+// lock (src/lib/household-lock.ts) and re-checks that the member still
+// belongs to this household. A deletion holds that lock while it reads and
+// deletes the household's (or member's) connections, so a commit either lands
+// before the deletion's snapshot (and is deleted and revoked with it) or waits
+// and is refused with "gone". The callback then revokes the just-issued grant.
+
+import { lockHouseholdForJoin } from "@/lib/household-lock";
 import { MAX_CONNECTIONS_PER_FAMILY } from "./sync";
 
-export type CommitOutcome = "created" | "updated" | "no_refresh_token" | "limit";
+export type CommitOutcome =
+  | "created"
+  | "updated"
+  | "no_refresh_token"
+  | "limit"
+  | "gone";
 
 export async function commitConnection(
   db: any,
@@ -23,6 +37,14 @@ export async function commitConnection(
   const { familyId, userId, provider, data } = args;
   const lockKey = `calsync-connections:${familyId}`;
   return db.$transaction(async (tx: any) => {
+    // Household deletion and account deletion hold this lock; the household
+    // and the member must still exist once we have it.
+    if (!(await lockHouseholdForJoin(tx, familyId))) return "gone";
+    const member = await tx.user.findUnique({
+      where: { id: userId },
+      select: { family_id: true },
+    });
+    if (!member || member.family_id !== familyId) return "gone";
     // Serialises every commit for this household (released at commit).
     await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${lockKey}))`;
     const existing = await tx.calendarConnection.findFirst({

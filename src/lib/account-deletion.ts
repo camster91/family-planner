@@ -34,7 +34,7 @@ import { prisma } from '@/lib/prisma'
 import { log } from '@/lib/logger'
 import { chorePhotoFilename, CHORE_PHOTO_FILENAME_RE } from '@/lib/chore-photos'
 import { clearConnectionData, revokeProviderGrant } from '@/lib/calendar-sync/sync'
-import { lockHousehold } from '@/lib/household-lock'
+import { lockHousehold, lockUser } from '@/lib/household-lock'
 import type { AccountDeletionCode, DeletionOptions } from '@/lib/account-deletion-shared'
 
 export class AccountDeletionError extends Error {
@@ -237,8 +237,12 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
 
   const outcome = await db.$transaction(
     async (tx: any) => {
+      const none = { deleted: false, successorId: null, files: [] as FileTarget[], grants: [] as CalendarGrant[] }
+      // User lock first (order: user, then household; src/lib/household-lock.ts).
+      // Under it no create/join can attach this account to a household.
+      await lockUser(tx, userId)
       const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, role: true, family_id: true } })
-      if (!user) return { deleted: false, successorId: null, files: [] as FileTarget[], grants: [] as CalendarGrant[] }
+      if (!user) return none
 
       if (!user.family_id) {
         const grants = await takeCalendarConnections(tx, { user_id: user.id })
@@ -249,6 +253,10 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
 
       const familyId: string = user.family_id
       await lockHousehold(tx, familyId)
+      // A household deletion (household lock only) may have removed this
+      // account while we waited: read it again under both locks.
+      const still = await tx.user.findUnique({ where: { id: userId }, select: { family_id: true } })
+      if (!still || still.family_id !== familyId) return none
       const successorId = await assertMemberMayLeave(tx, user)
       // Their calendar connections: encrypted grants kept for the revoke
       // after commit; links, imported events and rows deleted here.

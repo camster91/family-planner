@@ -16,6 +16,15 @@ jest.mock("fs/promises", () => ({
     mockFiles.set(p, Buffer.from(buf));
   },
   mkdir: async () => undefined,
+  rename: async (from: string, to: string) => {
+    const buf = mockFiles.get(from);
+    if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    mockFiles.delete(from);
+    mockFiles.set(to, buf);
+  },
+  unlink: async (p: string) => {
+    if (!mockFiles.delete(p)) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  },
   readFile: async (p: string) => {
     const buf = mockFiles.get(p);
     if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
@@ -101,6 +110,42 @@ describe("D3 chore photo ownership — two households", () => {
     const again = await uploadAs("parentA");
     expect(again.filename).toBe(filename);
     expect(db.rows("upload")).toHaveLength(1);
+  });
+
+  // D-3: an upload must not straddle a household deletion.
+  it("an upload into a household deleted meanwhile is refused and leaves no file and no row", async () => {
+    // The session still names family A (read before), but the household row is gone.
+    db.tables.family = db.rows("family").filter((f) => f.id !== "family-A");
+    const before = new Set(mockFiles.keys());
+    const res = await upload(uploadReq("parentA") as never);
+    expect(res.status).toBe(404);
+    expect(db.rows("upload")).toHaveLength(0);
+    expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+  });
+
+  it("a failed ownership insert removes the file it wrote", async () => {
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.create;
+    fakePrisma.upload.create = async () => {
+      throw new Error("db down");
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const before = new Set(mockFiles.keys());
+      const res = await upload(uploadReq("parentA") as never);
+      expect(res.status).toBe(500);
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+    } finally {
+      fakePrisma.upload.create = original;
+    }
+  });
+
+  it("does not remove an existing file when a re-upload is refused", async () => {
+    const { filename } = await uploadAs("parentA");
+    db.tables.family = db.rows("family").filter((f) => f.id !== "family-A");
+    expect((await upload(uploadReq("parentA") as never)).status).toBe(404);
+    // The earlier file is not this request's; a household deletion removes it.
+    expect(mockFiles.has(path.join(UPLOAD_DIR, "chores", filename))).toBe(true);
   });
 
   it("namespaces filenames per family, so identical images never share an owner row", async () => {
