@@ -177,6 +177,30 @@ may open `/dashboard/meals/recipes/[id]` (parents). "Scan fridge" is shown only 
 Teen and child: identical in this table unless a column names them, which is the D8 audit result for these
 domains.
 
+### Household search (route inventory F-3)
+
+`GET /api/search?q=` (2–100 characters, case-insensitive "contains", at most 5 per type and 30 in all, fixed
+order) and the `/dashboard/search` page. It only finds records the caller may already read through the domain APIs
+above, and each result links to a page the caller's role may open (`src/lib/search-result-href.ts`, which uses the
+kid allowlist), so search never widens what a teen or child can reach. A type is left out while the household has
+its feature off.
+
+| Searched | Feature | Parent | Teen | Child | Shared device | Notes |
+|---|---|---|---|---|---|---|
+| Members (name) | `family` | yes | no | no | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Name and role word only; never email, age or points. |
+| Events (title, description, location) | `calendar` | yes | no | no | no | Links to the month on `/dashboard/calendar` (parent-only page). |
+| Chores (title, description) | `chores` | yes | no | no | no | Assignee name and status in words. |
+| Lists (name, description) | `lists` | yes | yes | yes | no | |
+| List items (text) | `lists` | yes | yes | yes | no | Looked up through the list's household; links to the list. |
+| Recipes (title, description) | `meals` | yes | no | no | no | Links to `/dashboard/meals/recipes/[id]` (parent-only page). |
+| Pinned notes (title, body) | `notes` | yes | no | no | no | The body is matched but never returned. |
+| Food inventory (name) | `inventory` | yes | yes | yes | no | Active items only; used-up and thrown-away items are left out. |
+| Budget, transactions, allowance, messages, medical, sick days, locations, handoff, projects, rewards, wishlist, anniversaries | — | no | no | no | no | Not searched for anyone. |
+
+Teen and child columns follow the kid allowlist: events, chores, recipes and notes are readable to them through their
+APIs, but their pages are parent-only, so search does not surface them. Page: `/dashboard/search` is parent-only (not
+on the kid allowlist); the command palette offers "Search the household" only to roles that may open it.
+
 ### Today board page (#119 / #159)
 
 `/dashboard/today` (the fridge/wall tablet view) is on the kid allowlist for parent, teen and child. It is read-only
