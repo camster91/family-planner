@@ -243,6 +243,29 @@ describe('household audit writes', () => {
       expectSafeSummaries()
     })
 
+    it('resending records the pending invite it replaces as cancelled; an expired one is just cleared (#285 review)', async () => {
+      const send = (role: string) =>
+        invites.POST(req({ as: 'parentA', method: 'POST', body: { email: 'new.person@invitee.test', role } }))
+      expect((await send('teen')).status).toBe(200)
+      const first = db.rows('familyInvite').find((i) => i.email === 'new.person@invitee.test')!
+      expect((await send('child')).status).toBe(200)
+      expect(db.find('familyInvite', first.id)).toBeUndefined()
+      expect(auditRows().map((r) => [r.action, r.target_id === first.id, r.summary])).toEqual([
+        ['invite.created', true, 'Sent an invite to join as a teen'],
+        ['invite.revoked', true, 'Cancelled an invite to join as a teen'],
+        ['invite.created', false, 'Sent an invite to join as a child'],
+      ])
+
+      // An invite that had already expired stopped working on its own.
+      const second = db.rows('familyInvite').find((i) => i.email === 'new.person@invitee.test')!
+      second.expires_at = new Date(Date.now() - 1000)
+      expect((await send('teen')).status).toBe(200)
+      expect(db.find('familyInvite', second.id)).toBeUndefined()
+      expect(auditRows().filter((r) => r.action === 'invite.revoked')).toHaveLength(1)
+      expect(JSON.stringify(auditRows())).not.toContain('invitee.test')
+      expectSafeSummaries()
+    })
+
     it('a failed email removes the invite and its history row together', async () => {
       ;(sendMail as jest.Mock).mockRejectedValueOnce(new Error('mail down'))
       const res = await invites.POST(req({ as: 'parentA', method: 'POST', body: { email: 'new.person@invitee.test', role: 'child' } }))

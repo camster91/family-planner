@@ -93,6 +93,26 @@ export async function POST(request: NextRequest) {
     const expires_at = new Date(Date.now() + INVITE_TTL_MS)
 
     const inviteId = await prisma!.$transaction(async (tx) => {
+      // A new invite replaces any pending one to the same address. Each one
+      // whose link still worked is recorded as cancelled (#285 review); an
+      // expired one had already stopped working and is just cleared.
+      const superseded = await tx.familyInvite.findMany({
+        where: { family_id: auth.user.family_id, email, accepted_at: null, expires_at: { gt: new Date() } },
+        select: { id: true, role: true },
+      })
+      for (const old of superseded) {
+        const { count } = await tx.familyInvite.deleteMany({ where: { id: old.id, accepted_at: null } })
+        if (count !== 1) continue
+        await writeAuditLog(tx, {
+          familyId: auth.user.family_id,
+          actorUserId: auth.user.id,
+          actorKind: 'person',
+          action: 'invite.revoked',
+          targetType: 'invite',
+          targetId: old.id,
+          summary: auditSummary.inviteRevoked(old.role),
+        })
+      }
       await tx.familyInvite.deleteMany({
         where: {
           family_id: auth.user.family_id,

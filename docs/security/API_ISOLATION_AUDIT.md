@@ -354,7 +354,7 @@ recorded in route comments, as the de facto matrix.
 | /api/family/feed-token | GET | family | own family | P | none | family/iso | ok |
 | /api/family/feed-token | POST | family | own family | P | none | family/iso | ok |
 | /api/family/invites | GET | family | where | P | none | family/iso | ok |
-| /api/family/invites | POST | family | session family | P | none | family/iso, audit-writes.test.ts | ok; #285 `invite.created` row (role only, no email) in the invite's transaction, removed with the invite if the email fails |
+| /api/family/invites | POST | family | session family | P | none | family/iso, audit-writes.test.ts | ok; #285 `invite.created` row (role only, no email) in the invite's transaction, removed with the invite if the email fails; a still-valid pending invite to the same address that it replaces gets an `invite.revoked` row |
 | /api/family/invites/[id] | DELETE | family | where id + family (404) | P | none | family/iso, audit-writes.test.ts | ok; #285 `invite.revoked` row in the same transaction |
 | /api/family/invites/preview | GET | token | token's family only | n/a | none | family/membership.test.ts | ok |
 | /api/family/join | POST | session | token/code's family; refuses if already in a family; joins in one transaction under the household membership lock, 404 if the household was deleted meanwhile (D-3) | n/a | invite email must match | family/membership.test.ts, family/__tests__/join-vs-deletion.integration.test.ts, audit/__tests__/audit-writes.test.ts | ok; #285 `member.joined` row (name and role) inside the locked join transaction |
