@@ -153,9 +153,19 @@ they become queueable.
 - Sign-out (`DashboardNav`) and every visit to `/login` delete the whole `fp-sync:v1:` localStorage namespace and
   the `fp-sync` database, bounded to 1 s so sign-out never hangs. A 401 while draining drops the queue. A
   logged-out or revoked session cannot replay: the server authenticates before it reads any idempotency record.
-- Shared device: the queue's device namespace is the reserved `fp-device:v1:queue` key in the `fp-device`
-  database, which the §8 purge in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) already deletes. Device writes remain
-  disabled; the Lists page queue is person-only.
+- Shared device (#274): the queue's device namespace is the reserved `fp-device:v1:queue` key in the `fp-device`
+  database, which the §8 purge in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) already deletes. It holds one action
+  only, `device.list-item.set-checked` v1 (`{ itemId, checked, actingMemberId }`, sent as
+  `PATCH /api/device/lists/items/:id` with the operation id as `Idempotency-Key`, server scope
+  `device:<deviceId>`). Each action belongs to one namespace: a person queue refuses and drops device actions, and
+  the device queue refuses and drops person actions. The device queue sends through the device client
+  (`getDeviceQueue`, `deviceQueueSend`), so an expired access token is refreshed and retried once, and a revoked
+  tablet or the kill switch runs the purge (the queue is abandoned: dropped from memory and never written again, even by an operation still in flight, so the deleted `fp-device` storage is not recreated). It is used only when the
+  household turned tablet writes on (§9.2). Chore completes from the tablet are not queued: they are sent once
+  with a fresh key and rolled back with a message when offline.
+- Board tiles (#274): a person's grocery tick on the Today board uses the same person queue as the Lists page. A
+  tick the board queued that ends `failed` or `conflict` is discarded and the item is shown again with an error
+  toast; failed ticks queued from the Lists page keep their Retry there.
 - One tab is assumed to drain at a time. Two tabs of the same person may both send an operation; the shared key
   makes the server apply it once.
 - Full offline reload is not supported yet: the app has no service worker, so a page cannot load without the
@@ -167,7 +177,8 @@ they become queueable.
   `online`, durability reporting and store fallback with failing stores, allowlist rejection, payload minimisation, state transitions,
   backoff caps and jitter, max attempts, single flight, per-item ordering, bounds, age expiry and retention,
   versioning and corruption, 401 drop, restart persistence (fake-indexeddb and the localStorage fallback),
-  logout clearing and the device purge.
+  logout clearing and the device purge; the device variant's path, body, namespaces and 401 drop (#274).
+- `src/lib/__tests__/device-queue-send.test.ts`: the device sender maps device-client outcomes (#274).
 - `src/lib/__tests__/idempotency.test.ts`: replay, 422 key reuse, cross-user and cross-household isolation,
   in-progress 409, lock takeover, error release, expiry, pruning and the body cap.
 - `src/app/api/lists/__tests__/idempotency.test.ts`: the route on the two-household harness.

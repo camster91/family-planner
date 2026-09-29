@@ -241,4 +241,40 @@ describe('board settings (#262)', () => {
       expect(fetchSpy).not.toHaveBeenCalled()
     })
   })
+
+  // #274: the per-household switch for shared-tablet writes (SHARED_DEVICE.md §9.2), default off.
+  describe('tablet writes switch', () => {
+    const ORIGINAL_DEVICE = process.env.SHARED_DEVICE_ENABLED
+    afterEach(() => {
+      if (ORIGINAL_DEVICE === undefined) delete process.env.SHARED_DEVICE_ENABLED
+      else process.env.SHARED_DEVICE_ENABLED = ORIGINAL_DEVICE
+    })
+
+    it('is off by default and reports the server kill switch', async () => {
+      delete process.env.SHARED_DEVICE_ENABLED
+      expect((await bodyOf(await settings.GET(req({ as: 'parentA' })))).deviceWrites).toEqual({
+        available: false,
+        enabled: false,
+      })
+      process.env.SHARED_DEVICE_ENABLED = '1'
+      expect((await bodyOf(await settings.GET(req({ as: 'parentA' })))).deviceWrites).toEqual({
+        available: true,
+        enabled: false,
+      })
+    })
+
+    it("a parent turns it on for their own household only; a child cannot", async () => {
+      const res = await settings.PATCH(req({ as: 'parentA', method: 'PATCH', body: { deviceWrites: { enabled: true } } }))
+      expect(res.status).toBe(200)
+      expect((await bodyOf(res)).deviceWrites.enabled).toBe(true)
+      expect(db.find('family', FAMILY_A)!.device_writes_enabled).toBe(true)
+      expect(db.find('family', FAMILY_B)!.device_writes_enabled).toBeUndefined()
+
+      const child = await settings.PATCH(req({ as: 'childA', method: 'PATCH', body: { deviceWrites: { enabled: false } } }))
+      expect(child.status).toBe(403)
+      expect(db.find('family', FAMILY_A)!.device_writes_enabled).toBe(true)
+      const bad = await settings.PATCH(req({ as: 'parentA', method: 'PATCH', body: { deviceWrites: { enabled: 'yes' } } }))
+      expect(bad.status).toBe(400)
+    })
+  })
 })

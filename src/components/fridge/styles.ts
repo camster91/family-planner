@@ -25,6 +25,23 @@ export const rowLinkClass = [
   focusRing,
 ].join(' ')
 
+/**
+ * Full-width tappable row that acts in place (#274: tick a grocery item or
+ * mark a chore done). Same size as a row link, a pressed state, never hover-only.
+ */
+export const rowButtonClass = [
+  'flex min-h-[52px] w-full items-center gap-3 rounded-[var(--radius-md)] px-3 -mx-3 text-left 2xl:min-h-[60px]',
+  'active:bg-[var(--surface-fill)]',
+  focusRing,
+].join(' ')
+
+/** A tile heading that opens its section (#274), at least 44px (56px on the hub). */
+export const headerLinkClass = [
+  'inline-flex min-h-[48px] max-w-full items-center gap-2 rounded-[var(--radius-md)] 2xl:min-h-[56px]',
+  'active:text-accent',
+  focusRing,
+].join(' ')
+
 export const regionClass = [
   'min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]',
   'bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-sm)] lg:p-6 2xl:p-7',

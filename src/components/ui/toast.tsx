@@ -39,6 +39,13 @@ export function useToast() {
   return context
 }
 
+const NO_TOASTS: ToastContextType = { addToast: () => undefined, removeToast: () => undefined }
+
+/** Like `useToast`, but a no-op outside a ToastProvider (components rendered alone, e.g. in tests). */
+export function useMaybeToast(): ToastContextType {
+  return useContext(ToastContext) ?? NO_TOASTS
+}
+
 /**
  * Undo over confirm (#269): a reversible action runs straight away and offers
  * Undo here instead of asking first with window.confirm. `onUndo` must reverse

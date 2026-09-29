@@ -69,12 +69,15 @@ export default async function TodayBoardPage({
     fridgeMode ? Promise.resolve(null) : loadHomeSummary(prisma!, { familyId, role: user.role }),
   ])
 
-  if (!home) return <TodayBoard data={data} fridgeMode={fridgeMode} />
+  // Tiles act directly for the signed-in person (#274): their chores (any for
+  // a parent) and the groceries, with Undo. Only id and role reach the client.
+  const viewer = { id: sessionUser.id, role: user.role }
+  if (!home) return <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />
 
   return (
     <>
-      <HomeSummary viewer={{ id: sessionUser.id, role: user.role }} {...home} />
-      <TodayBoard data={data} fridgeMode={fridgeMode} />
+      <HomeSummary viewer={viewer} {...home} />
+      <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />
     </>
   )
 }

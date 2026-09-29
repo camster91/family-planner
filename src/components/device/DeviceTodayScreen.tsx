@@ -1,14 +1,16 @@
 'use client'
 
 import * as React from 'react'
-import { Loader2, Lock } from 'lucide-react'
+import { Loader2, Lock, UserRound } from 'lucide-react'
 import TodayBoard from '@/components/fridge/TodayBoard'
+import BoardSettings, { type BoardSettingsData, type BoardSettingsTransport, type Place } from '@/components/fridge/BoardSettings'
 import { Dialog } from '@/components/ui/dialog'
 import type { TodayBoardData } from '@/app/dashboard/today/today-board-data'
-import { DeviceApiError, type ElevationSession } from '@/lib/device-client'
+import { DeviceApiError, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import ElevatedBanner from './ElevatedBanner'
 import ElevationSheet from './ElevationSheet'
 import { genericErrorText, useDeviceClient, type DeviceMe } from './use-device-client'
+import { useDeviceBoardActions } from './use-device-board-actions'
 import {
   dangerButtonClass,
   errorTextClass,
@@ -28,6 +30,10 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * existing TodayBoard in fridge mode. No person profile is loaded anywhere on
  * this page. Parent mode (elevation) is memory-only and ends on idle, max,
  * hide, page hide, reload and "Done".
+ *
+ * #274: when the household turned tablet writes on, chore and grocery tiles
+ * act directly after "Who's this?" (SHARED_DEVICE.md §9.2), and parent mode
+ * offers the board settings on the tablet itself (no photos, O-15).
  */
 export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie: boolean }) {
   const client = useDeviceClient()
@@ -38,6 +44,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [renameOpen, setRenameOpen] = React.useState(false)
   const [removeOpen, setRemoveOpen] = React.useState(false)
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
 
   const loadBoard = React.useCallback(async () => {
@@ -72,6 +79,16 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
       // Terminal errors already purged; anything else leaves the Parent button disabled until the next try.
     }
   }, [client])
+
+  const refreshBoard = React.useCallback(() => void loadBoard(), [loadBoard])
+  const { actions, actor, forgetActor, picker } = useDeviceBoardActions({
+    client,
+    enabled: Boolean(me?.deviceWrites),
+    features: me ? { chores: me.features.chores, lists: me.features.lists } : null,
+    members: data?.members ?? [],
+    afterChange: refreshBoard,
+  })
+  const settingsTransport = React.useMemo(() => (client ? deviceSettingsTransport(client) : null), [client])
 
   // Cold launch: refresh first when the access cookie is gone (§4), then load.
   React.useEffect(() => {
@@ -134,6 +151,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     if (!elevated) {
       setRenameOpen(false)
       setRemoveOpen(false)
+      setSettingsOpen(false)
     }
   }, [elevated])
 
@@ -208,7 +226,20 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
           onDone={() => exitParentMode('Parent mode ended.')}
           onRename={() => setRenameOpen(true)}
           onRemove={() => setRemoveOpen(true)}
+          onSettings={() => setSettingsOpen(true)}
         />
+      )}
+      {actor && (
+        <div
+          data-testid="device-actor"
+          className="mb-5 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-2 text-[17px] text-label-primary"
+        >
+          <UserRound className="h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Ticking off as {actor.name}</span>
+          <button type="button" onClick={forgetActor} className={neutralButtonClass}>
+            Not {actor.name.trim().split(/\s+/)[0]}?
+          </button>
+        </div>
       )}
     </>
   )
@@ -222,7 +253,26 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
         checkVersion={checkVersion}
         actions={parentButton ?? <span />}
         banner={banner}
+        tileActions={actions}
       />
+      {picker}
+
+      {client && elevation && settingsTransport && (
+        <Dialog
+          open={settingsOpen}
+          onClose={() => {
+            setSettingsOpen(false)
+            // The household may have changed colours, weather or tablet writes.
+            void loadBoard()
+            void loadMe()
+          }}
+          title="Board settings"
+          testId="device-board-settings"
+          className="sm:max-w-2xl"
+        >
+          <BoardSettings transport={settingsTransport} headingLevel={3} />
+        </Dialog>
+      )}
 
       <ElevationSheet
         open={sheetOpen}
@@ -269,11 +319,35 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
   )
 }
 
+/**
+ * Board settings through the elevated device routes (#274). Every call sends
+ * the memory-only elevation token; an expired elevation drops parent mode.
+ */
+function deviceSettingsTransport(client: DeviceClient): BoardSettingsTransport {
+  const call = async <T,>(path: string, init: { method?: 'GET' | 'PATCH'; body?: unknown } = {}): Promise<T> => {
+    try {
+      return await client.request<T>(path, { ...init, elevated: true })
+    } catch (err) {
+      throw new Error(elevatedErrorText(err))
+    }
+  }
+  return {
+    load: () => call<BoardSettingsData>('/api/device/elevated/board-settings'),
+    save: (patch) => call<BoardSettingsData>('/api/device/elevated/board-settings', { method: 'PATCH', body: patch }),
+    searchPlaces: async (q) =>
+      (await call<{ places: Place[] }>(`/api/device/elevated/board-settings/places?q=${encodeURIComponent(q)}`))
+        .places,
+  }
+}
+
 function elevatedErrorText(err: unknown): string {
   if (err instanceof DeviceApiError && (err.code === 'ELEVATION_EXPIRED' || err.code === 'ELEVATION_REQUIRED')) {
     return 'Parent mode ended. Tap Parent to unlock again.'
   }
-  if (err instanceof DeviceApiError && err.code === 'VALIDATION_ERROR') return 'Use 1 to 40 characters.'
+  if (err instanceof DeviceApiError && err.code === 'VALIDATION_ERROR') return err.message || 'Use 1 to 40 characters.'
+  if (err instanceof DeviceApiError && err.status > 0 && err.status < 500 && err.status !== 429 && err.message) {
+    return err.message
+  }
   return genericErrorText(err)
 }
 

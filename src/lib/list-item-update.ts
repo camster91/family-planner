@@ -18,6 +18,7 @@
  * `DUPLICATE_OPEN_ITEM`, which the #247 offline queue treats as a conflict.
  */
 import type { PrismaClient } from '@prisma/client'
+import { recordSectionTick } from '@/lib/grocery-section-store'
 
 export interface ListItemUpdate {
   itemId: string
@@ -118,4 +119,35 @@ async function applyListItemUpdate(
         : await tx.listItem.update({ where: { id: itemId }, data: updateData })
     return { status: 200, body: { success: true, item: updated } }
   })
+}
+
+/**
+ * `updateListItem` plus the grocery walking order (#273): when this request is
+ * the one that ticked the row (open → ticked by `user` now, not a no-op that
+ * kept an older tick), the row's store section is appended to the list's
+ * current shopping trip. Best effort: a failure is logged without content and
+ * never fails the tick. Shared by PATCH /api/lists/items/update (person) and
+ * PATCH /api/device/lists/items/:id (paired tablet, #274, where `user` is the
+ * member picked with "Who's this?"). Callers run it inside their idempotency
+ * effect, so a replayed request records nothing again.
+ */
+export async function updateListItemAndNoteTick(
+  db: PrismaClient,
+  data: ListItemUpdate,
+  user: { id: string; family_id: string }
+): Promise<ListItemUpdateResult> {
+  const startedAt = new Date()
+  const result = await updateListItem(db, data, user)
+  if (result.status === 200 && data.checked === true) {
+    const item = result.body.item
+    const checkedAt = item.checked_at instanceof Date ? item.checked_at : null
+    if (item.checked === true && item.checked_by === user.id && checkedAt && checkedAt >= startedAt) {
+      try {
+        await recordSectionTick(db, { familyId: user.family_id, itemId: data.itemId, at: checkedAt })
+      } catch (err) {
+        console.error('Error recording grocery walking order:', err instanceof Error ? err.message : 'unknown error')
+      }
+    }
+  }
+  return result
 }

@@ -7,6 +7,7 @@ import {
   CalendarRange,
   CheckSquare,
   ChevronRight,
+  Circle,
   Hourglass,
   ShoppingCart,
   UtensilsCrossed,
@@ -16,18 +17,19 @@ import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
 import { RoutineIcon } from '@/components/chores/RoutineIcon'
 import { formatMinutes } from '@/lib/meal-slots'
-import type { ShoppingSnapshot } from '@/lib/shopping-snapshot'
-import type { BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
+import type { ShoppingSnapshot, ShoppingSnapshotItem } from '@/lib/shopping-snapshot'
+import type { BoardChore, BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
 import { firstName, formatTime, type ComingUpDay, type PersonChores, type TodayEvent } from './board-model'
 import {
   actionLinkClass,
   emptyTextClass,
+  headerLinkClass,
   itemTextClass,
   metaTextClass,
   regionClass,
   regionTitleClass,
-  rowLinkClass,
+  rowButtonClass,
 } from './styles'
 
 /** Rows per region before an "N more" line; keeps each region glanceable. */
@@ -65,6 +67,8 @@ export function Region({
   title,
   icon: Icon,
   glyph,
+  href,
+  hrefLabel,
   action,
   children,
 }: {
@@ -74,6 +78,13 @@ export function Region({
   title: string
   icon: LucideIcon
   glyph: GlyphColor
+  /**
+   * #274: the tile's own heading opens its section (person sessions; every
+   * link is null on a paired tablet), replacing the old "Open …" buttons.
+   */
+  href?: string | null
+  /** Screen-reader words after the title, e.g. "open calendar". */
+  hrefLabel?: string
   action?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -91,7 +102,15 @@ export function Region({
           <Icon className="h-5 w-5" aria-hidden="true" />
         </Glyph>
         <h2 id={`${id}-title`} className={cn(regionTitleClass, 'min-w-0 flex-1')}>
-          {title}
+          {href ? (
+            <Link href={href} className={headerLinkClass} data-testid={`region-link-${area}`}>
+              <span className="min-w-0 break-words">{title}</span>
+              {hrefLabel && <span className="sr-only">, {hrefLabel}</span>}
+              <ChevronRight className="h-6 w-6 shrink-0 text-label-secondary" aria-hidden="true" />
+            </Link>
+          ) : (
+            title
+          )}
         </h2>
       </div>
       {children}
@@ -178,13 +197,8 @@ export function ScheduleRegion({
       title="Today"
       icon={CalendarDays}
       glyph="calendar"
-      action={
-        calendarHref ? (
-          <Link href={calendarHref} className={actionLinkClass}>
-            Open calendar
-          </Link>
-        ) : undefined
-      }
+      href={calendarHref}
+      hrefLabel="open calendar"
     >
       {shown.length === 0 ? (
         <p className={emptyTextClass}>Nothing else on the calendar today.</p>
@@ -275,6 +289,7 @@ export function DinnerRegion({
     }
   } else {
     const recipeLine = dinnerRecipeLine(dinner)
+    // #274: the tile heading opens meals; no separate "Open meals" button.
     body = (
       <div data-testid="dinner-tonight">
         <p className="break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]">
@@ -284,26 +299,45 @@ export function DinnerRegion({
         {dinner.cookName && <p className={cn(metaTextClass, 'mt-2')}>Cooking: {dinner.cookName}</p>}
       </div>
     )
-    if (mealsHref) {
-      action = (
-        <Link href={mealsHref} className={actionLinkClass}>
-          Open meals
-        </Link>
-      )
-    }
   }
   return (
-    <Region id="board-dinner" area="dinner" title="Dinner tonight" icon={UtensilsCrossed} glyph="meals" action={action}>
+    <Region
+      id="board-dinner"
+      area="dinner"
+      title="Dinner tonight"
+      icon={UtensilsCrossed}
+      glyph="meals"
+      href={mealsEnabled ? mealsHref : null}
+      hrefLabel="open meals"
+      action={action}
+    >
       {body}
     </Region>
   )
 }
 
-export function GroceriesRegion({ shopping, listsHref }: { shopping: ShoppingSnapshot | null; listsHref: string | null }) {
+export function GroceriesRegion({
+  shopping,
+  listsHref,
+  onTick,
+}: {
+  shopping: ShoppingSnapshot | null
+  listsHref: string | null
+  /** #274: tapping an item ticks it off (with Undo). Null: rows are plain text. */
+  onTick?: ((item: ShoppingSnapshotItem) => void) | null
+}) {
   if (!shopping) return null
   const more = shopping.total - shopping.items.length
   return (
-    <Region id="board-groceries" area="groceries" title="Groceries" icon={ShoppingCart} glyph="lists">
+    <Region
+      id="board-groceries"
+      area="groceries"
+      title="Groceries"
+      icon={ShoppingCart}
+      glyph="lists"
+      href={listsHref}
+      hrefLabel="open lists"
+    >
       {shopping.items.length === 0 ? (
         <p className={emptyTextClass}>The grocery list is clear.</p>
       ) : (
@@ -323,11 +357,16 @@ export function GroceriesRegion({ shopping, listsHref }: { shopping: ShoppingSna
               )
               return (
                 <li key={item.id} data-testid="grocery-item">
-                  {listsHref ? (
-                    <Link href={`${listsHref}/${item.listId}`} className={rowLinkClass}>
+                  {onTick ? (
+                    <button
+                      type="button"
+                      onClick={() => onTick(item)}
+                      aria-label={`Tick off ${item.content}${item.quantity > 1 ? `, ${item.quantity}` : ''}`}
+                      className={rowButtonClass}
+                    >
+                      <Circle className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7" aria-hidden="true" />
                       {content}
-                      <ChevronRight className="h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
-                    </Link>
+                    </button>
                   ) : (
                     <div className="flex min-h-[52px] items-center gap-3">{content}</div>
                   )}
@@ -337,19 +376,16 @@ export function GroceriesRegion({ shopping, listsHref }: { shopping: ShoppingSna
           </ul>
         </>
       )}
-      {listsHref && (
-        <div className="mt-3">
-          {more > 0 ? (
+      {more > 0 &&
+        (listsHref ? (
+          <div className="mt-3">
             <Link href={listsHref} className={actionLinkClass}>
               {more} more to buy
             </Link>
-          ) : (
-            <Link href={listsHref} className={actionLinkClass}>
-              Open lists
-            </Link>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <p className={cn(metaTextClass, 'mt-3')}>{more} more to buy</p>
+        ))}
     </Region>
   )
 }
@@ -397,7 +433,19 @@ function doneLine(p: PersonChores): string | null {
   return waiting > 0 ? `${p.doneCount} done · ${waiting} waiting for a parent's check` : `${p.doneCount} done`
 }
 
-export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; choresHref: string | null }) {
+export function ChoresRegion({
+  people,
+  choresHref,
+  onTick,
+  canTick,
+}: {
+  people: PersonChores[]
+  choresHref: string | null
+  /** #274: tapping a chore marks it done (with Undo). Null: rows are plain text. */
+  onTick?: ((chore: BoardChore) => void) | null
+  /** Which chores this viewer may tick (own chores, or any for a parent). */
+  canTick?: (chore: BoardChore) => boolean
+}) {
   const names = displayNames(people)
   return (
     <Region
@@ -406,13 +454,8 @@ export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; c
       title="Chores today"
       icon={CheckSquare}
       glyph="chore"
-      action={
-        choresHref ? (
-          <Link href={choresHref} className={actionLinkClass}>
-            Open chores
-          </Link>
-        ) : undefined
-      }
+      href={choresHref}
+      hrefLabel="open chores"
     >
       {people.length === 0 ? (
         <p className={emptyTextClass}>No chores due today.</p>
@@ -436,21 +479,43 @@ export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; c
                     <p className={cn(metaTextClass, 'mt-1')}>All done for today</p>
                   ) : (
                     <ul className="mt-1 space-y-1">
-                      {shown.map((c) => (
-                        <li key={c.id} className={cn(itemTextClass, 'break-words')}>
-                          {/* Picture routines (#272): the chore's picture, when it has one. */}
-                          {c.icon && (
-                            <RoutineIcon
-                              icon={c.icon}
-                              className="mr-2 inline-block h-6 w-6 align-[-4px] text-label-secondary"
-                            />
-                          )}
-                          {c.title}
-                          {c.status === 'in_progress' && (
-                            <span className={cn(metaTextClass, 'block')}>In progress</span>
-                          )}
-                        </li>
-                      ))}
+                      {shown.map((c) => {
+                        const label = (
+                          <span className="min-w-0 flex-1">
+                            {/* Picture routines (#272): the chore's picture, when it has one. */}
+                            {c.icon && (
+                              <RoutineIcon
+                                icon={c.icon}
+                                className="mr-2 inline-block h-6 w-6 align-[-4px] text-label-secondary"
+                              />
+                            )}
+                            {c.title}
+                            {c.status === 'in_progress' && (
+                              <span className={cn(metaTextClass, 'block')}>In progress</span>
+                            )}
+                          </span>
+                        )
+                        return (
+                          <li key={c.id} data-testid="board-chore" className={cn(itemTextClass, 'break-words')}>
+                            {onTick && (canTick?.(c) ?? true) ? (
+                              <button
+                                type="button"
+                                onClick={() => onTick(c)}
+                                aria-label={`Mark ${c.title} done, ${name}`}
+                                className={cn(rowButtonClass, 'text-left')}
+                              >
+                                <Circle
+                                  className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7"
+                                  aria-hidden="true"
+                                />
+                                {label}
+                              </button>
+                            ) : (
+                              label
+                            )}
+                          </li>
+                        )
+                      })}
                       {more > 0 && <li className={metaTextClass}>{more} more</li>}
                     </ul>
                   )}

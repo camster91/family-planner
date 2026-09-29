@@ -48,6 +48,17 @@ const DEVICE_ALLOWED_ROUTES = new Set([
   'DELETE /api/device/elevation',
   'POST /api/device/revoke-self', // requires elevation on top
   'PATCH /api/device/label', // requires elevation on top
+  // #274 tablet writes (§9.2): each also needs the household opt-in
+  // (Family.device_writes_enabled, default off), an Idempotency-Key and a
+  // household actingMemberId. Tested in src/app/api/device/__tests__/device-writes.test.ts.
+  'PATCH /api/device/lists/items/[id]',
+  'POST /api/device/lists/[id]/items',
+  'POST /api/device/chores/[id]/complete',
+  'POST /api/device/chores/[id]/uncomplete', // the tablet's own completion, 2-minute window
+  // #274 board setup on the tablet: requires elevation on top (no photos, O-15).
+  'GET /api/device/elevated/board-settings',
+  'PATCH /api/device/elevated/board-settings',
+  'GET /api/device/elevated/board-settings/places',
   'POST /api/device/pair/claim', // public: needs a pairing code, not a cookie
   'POST /api/device/pair/status', // public: needs a claim token, not a cookie
 ])
@@ -240,7 +251,7 @@ describe('device cookie route allowlist', () => {
     const deviceFiles = files.filter((f) =>
       /\/api\/(device|family\/devices)\//.test(urlPath(f) + '/') || urlPath(f) === '/api/users/elevation-pin'
     )
-    expect(deviceFiles.length).toBe(17)
+    expect(deviceFiles.length).toBe(23)
     for (const file of deviceFiles) {
       const mod = require(file)
       for (const method of METHODS) {

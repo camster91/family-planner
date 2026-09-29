@@ -53,6 +53,13 @@ export type DeviceErrorCode =
   | 'ELEVATION_EXPIRED'
   | 'PIN_TOO_WEAK'
   | 'INVALID_PASSWORD'
+  | 'DEVICE_WRITES_OFF'
+  | 'FEATURE_DISABLED'
+  | 'ACTING_MEMBER_INVALID'
+  | 'CHORE_NOT_DUE_TODAY'
+  | 'CHORE_ALREADY_VERIFIED'
+  | 'UNDO_NOT_ALLOWED'
+  | 'DUPLICATE_OPEN_ITEM'
 
 const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
   NOT_FOUND: 'Not found.',
@@ -80,6 +87,13 @@ const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
   ELEVATION_EXPIRED: 'Parent mode ended.',
   PIN_TOO_WEAK: 'Choose a 6-digit PIN that is harder to guess.',
   INVALID_PASSWORD: 'Current password is incorrect.',
+  DEVICE_WRITES_OFF: 'Ticking things off on this tablet is turned off. A parent can turn it on in the board settings.',
+  FEATURE_DISABLED: 'This part of the app is turned off for your household.',
+  ACTING_MEMBER_INVALID: "Choose who's using the tablet.",
+  CHORE_NOT_DUE_TODAY: 'Only chores due today can be ticked off on the tablet.',
+  CHORE_ALREADY_VERIFIED: 'A parent has already checked this chore, so it stays done.',
+  UNDO_NOT_ALLOWED: 'This can only be undone on the tablet that did it, right after.',
+  DUPLICATE_OPEN_ITEM: 'This item is already on the list and not yet ticked.',
 }
 
 const RETRYABLE = new Set<DeviceErrorCode>(['RATE_LIMITED', 'SERVICE_UNAVAILABLE', 'INTERNAL_ERROR', 'DEVICE_ACCESS_EXPIRED'])
@@ -90,6 +104,14 @@ export function deviceJson(body: unknown, status = 200, headers: Record<string, 
 
 export function deviceEmpty(status = 204): NextResponse {
   return new NextResponse(null, { status, headers: { 'Cache-Control': NO_STORE } })
+}
+
+/** The error envelope as a plain body (for idempotent effects that return `{ status, body }`). */
+export function deviceErrorBody(
+  code: DeviceErrorCode,
+  message?: string
+): { error: { code: DeviceErrorCode; message: string; retryable: boolean } } {
+  return { error: { code, message: message ?? DEFAULT_MESSAGES[code], retryable: RETRYABLE.has(code) } }
 }
 
 export function deviceError(

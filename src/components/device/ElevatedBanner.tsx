@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Pencil, ShieldCheck, Trash2 } from 'lucide-react'
+import { Pencil, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
 import { elevationDeadline, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import { formatCountdown } from './use-device-client'
 import { dangerButtonClass, neutralButtonClass, primaryButtonClass } from './styles'
@@ -22,6 +22,7 @@ export default function ElevatedBanner({
   onDone,
   onRename,
   onRemove,
+  onSettings,
 }: {
   client: DeviceClient
   session: ElevationSession
@@ -29,6 +30,8 @@ export default function ElevatedBanner({
   onDone: () => void
   onRename: () => void
   onRemove: () => void
+  /** Board setup on the tablet (#274): weather, colours, calm display, tablet writes. */
+  onSettings?: () => void
 }) {
   const [remaining, setRemaining] = React.useState(() => elevationDeadline(session) - Date.now())
   const onExpireRef = React.useRef(onExpire)
@@ -76,6 +79,12 @@ export default function ElevatedBanner({
         </div>
       </div>
       <div className="flex flex-wrap gap-3">
+        {onSettings && (
+          <button type="button" onClick={onSettings} className={neutralButtonClass}>
+            <Settings2 className="h-5 w-5" aria-hidden="true" />
+            Board settings
+          </button>
+        )}
         <button type="button" onClick={onRename} className={neutralButtonClass}>
           <Pencil className="h-5 w-5" aria-hidden="true" />
           Rename tablet

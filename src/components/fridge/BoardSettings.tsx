@@ -14,9 +14,13 @@ import {
  * Parent settings for the Today board (#262): member colours and the opt-in
  * weather tile. Rendered on /dashboard/family/settings for parents only; the
  * API (/api/family/board-settings) enforces parent-only on its own.
+ *
+ * #274: the same component runs on a paired tablet under a parent's
+ * elevation, with a transport that calls /api/device/elevated/board-settings.
+ * The device audience has no photos (O-15) and no stored coordinates.
  */
 
-interface Place {
+export interface Place {
   label: string
   latitude: number
   longitude: number
@@ -26,15 +30,33 @@ interface DisplaySettings {
   idleMinutes: number
   idleChoices: number[]
   night: { start: string; end: string } | null
-  photoIds: string[]
-  uploads: Array<{ id: string; url: string; createdAt: string }>
+  /** Person audience only: a paired tablet never lists or picks photos. */
+  photoIds?: string[]
+  uploads?: Array<{ id: string; url: string; createdAt: string }>
 }
 
-interface BoardSettingsData {
-  weather: { available: boolean; enabled: boolean; place: Place | null; unit: 'celsius' | 'fahrenheit' }
+export interface BoardSettingsData {
+  weather: {
+    available: boolean
+    enabled: boolean
+    /** The tablet gets the label only. */
+    place: { label: string; latitude?: number; longitude?: number } | null
+    unit: 'celsius' | 'fahrenheit'
+  }
   members: Array<{ id: string; name: string; color: MemberColorKey; custom: boolean }>
   /** Calm display, night hours and photos (#271). Optional for older servers. */
   display?: DisplaySettings
+  /** Shared-tablet writes (#274). Optional for older servers. */
+  deviceWrites?: { available: boolean; enabled: boolean }
+}
+
+/** Where the settings are read and saved. Methods throw an Error whose message is shown. */
+export interface BoardSettingsTransport {
+  load(): Promise<BoardSettingsData>
+  save(patch: object): Promise<BoardSettingsData>
+  searchPlaces(query: string): Promise<Place[]>
+  /** Photo upload for the calm screen; absent on a paired tablet. */
+  uploadPhoto?: (file: File) => Promise<{ filename?: string }>
 }
 
 const DEFAULT_NIGHT = { start: '21:30', end: '06:30' }
@@ -57,7 +79,59 @@ async function readError(res: Response): Promise<string> {
   return 'Something went wrong. Try again.'
 }
 
-export default function BoardSettings() {
+async function personRequest<T>(input: string, init: RequestInit | undefined, offline: string): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(input, init)
+  } catch {
+    throw new Error(offline)
+  }
+  if (!res.ok) throw new Error(await readError(res))
+  return (await res.json()) as T
+}
+
+/** The signed-in parent's routes (person session). */
+export const personBoardSettingsTransport: BoardSettingsTransport = {
+  load: () =>
+    personRequest<BoardSettingsData>('/api/family/board-settings', undefined, 'Could not load board settings.'),
+  save: (patch) =>
+    personRequest<BoardSettingsData>(
+      '/api/family/board-settings',
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      'Could not save. Check your connection and try again.'
+    ),
+  searchPlaces: async (q) =>
+    (
+      await personRequest<{ places: Place[] }>(
+        `/api/family/board-settings/places?q=${encodeURIComponent(q)}`,
+        undefined,
+        'Place search is not reachable right now.'
+      )
+    ).places,
+  uploadPhoto: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return personRequest<{ filename?: string }>(
+      '/api/upload',
+      { method: 'POST', body: fd },
+      'Could not upload the photo. Check your connection and try again.'
+    )
+  },
+}
+
+function messageOf(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback
+}
+
+export default function BoardSettings({
+  transport = personBoardSettingsTransport,
+  headingLevel = 2,
+}: {
+  transport?: BoardSettingsTransport
+  /** 2 on the settings page; the tablet's dialog already has its own title. */
+  headingLevel?: 2 | 3
+} = {}) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3'
   const [data, setData] = React.useState<BoardSettingsData | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<string | null>(null)
@@ -75,6 +149,8 @@ export default function BoardSettings() {
     if (savedNight) setNight(savedNight)
   }, [savedNight])
 
+  const photosEnabled = Boolean(transport.uploadPhoto) && data?.display?.uploads !== undefined
+
   const togglePhoto = (id: string, on: boolean) => {
     const current = data?.display?.photoIds ?? []
     const next = on ? [...current.filter((x) => x !== id), id] : current.filter((x) => x !== id)
@@ -82,27 +158,16 @@ export default function BoardSettings() {
   }
 
   const uploadPhoto = async (file: File) => {
+    if (!transport.uploadPhoto) return
     setUploading(true)
     setError(null)
     setStatus(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
-      const { filename } = (await res.json()) as { filename?: string }
+      const { filename } = await transport.uploadPhoto(file)
       // Re-read the household's uploads, then choose the new one.
-      const listRes = await fetch('/api/family/board-settings')
-      if (!listRes.ok) {
-        setError(await readError(listRes))
-        return
-      }
-      const fresh = (await listRes.json()) as BoardSettingsData
+      const fresh = await transport.load()
       setData(fresh)
-      const added = fresh.display?.uploads.find((u) => filename && u.url.endsWith(`/${filename}`))
+      const added = fresh.display?.uploads?.find((u) => filename && u.url.endsWith(`/${filename}`))
       if (!added) {
         setError('That photo cannot be shown on the calm screen. Use a JPEG, PNG or WebP photo.')
         return
@@ -113,8 +178,8 @@ export default function BoardSettings() {
       } else {
         setStatus('That photo is already on the calm screen.')
       }
-    } catch {
-      setError('Could not upload the photo. Check your connection and try again.')
+    } catch (err) {
+      setError(messageOf(err, 'Could not upload the photo. Check your connection and try again.'))
     } finally {
       setUploading(false)
     }
@@ -122,46 +187,34 @@ export default function BoardSettings() {
 
   React.useEffect(() => {
     let cancelled = false
-    fetch('/api/family/board-settings')
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await readError(res))
-        return res.json()
-      })
-      .then((body: BoardSettingsData) => {
+    transport
+      .load()
+      .then((body) => {
         if (!cancelled) setData(body)
       })
-      .catch((err: Error) => {
-        if (!cancelled) setLoadError(err.message)
+      .catch((err: unknown) => {
+        if (!cancelled) setLoadError(messageOf(err, 'Could not load board settings.'))
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [transport])
 
   const save = React.useCallback(async (patch: object, done: string) => {
     setBusy(true)
     setError(null)
     setStatus(null)
     try {
-      const res = await fetch('/api/family/board-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      })
-      if (!res.ok) {
-        setError(await readError(res))
-        return false
-      }
-      setData(await res.json())
+      setData(await transport.save(patch))
       setStatus(done)
       return true
-    } catch {
-      setError('Could not save. Check your connection and try again.')
+    } catch (err) {
+      setError(messageOf(err, 'Could not save. Check your connection and try again.'))
       return false
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [transport])
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -174,15 +227,9 @@ export default function BoardSettings() {
     setError(null)
     setResults(null)
     try {
-      const res = await fetch(`/api/family/board-settings/places?q=${encodeURIComponent(q)}`)
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
-      const body = (await res.json()) as { places: Place[] }
-      setResults(body.places)
-    } catch {
-      setError('Place search is not reachable right now.')
+      setResults(await transport.searchPlaces(q))
+    } catch (err) {
+      setError(messageOf(err, 'Place search is not reachable right now.'))
     } finally {
       setSearching(false)
     }
@@ -195,9 +242,9 @@ export default function BoardSettings() {
           <Glyph color="calendar" size="md">
             <CloudSun className="h-4 w-4" aria-hidden="true" />
           </Glyph>
-          <h2 id="board-settings-title" className="text-title-3 font-semibold text-label-primary">
+          <Heading id="board-settings-title" className="text-title-3 font-semibold text-label-primary">
             Today board
-          </h2>
+          </Heading>
         </div>
 
         {loadError && (
@@ -475,6 +522,7 @@ export default function BoardSettings() {
                   )}
                 </fieldset>
 
+                {photosEnabled && (
                 <fieldset className="space-y-3" data-testid="calm-photos-settings">
                   <legend className="text-headline font-semibold text-label-primary">Family photos</legend>
                   <p className="text-subhead text-label-secondary">
@@ -496,12 +544,12 @@ export default function BoardSettings() {
                     />
                     {uploading ? 'Uploading…' : 'Upload a photo'}
                   </label>
-                  {data.display.uploads.length === 0 ? (
+                  {(data.display.uploads ?? []).length === 0 ? (
                     <p className="text-subhead text-label-secondary">No household photos uploaded yet.</p>
                   ) : (
                     <ul aria-label="Household photos" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                      {data.display.uploads.map((u, i) => {
-                        const chosen = data.display!.photoIds.includes(u.id)
+                      {(data.display.uploads ?? []).map((u, i) => {
+                        const chosen = (data.display!.photoIds ?? []).includes(u.id)
                         return (
                           <li key={u.id}>
                             <label className="flex min-h-[44px] cursor-pointer flex-col gap-2 text-subhead text-label-primary">
@@ -517,7 +565,7 @@ export default function BoardSettings() {
                                   type="checkbox"
                                   className="h-6 w-6"
                                   checked={chosen}
-                                  disabled={busy || (!chosen && data.display!.photoIds.length >= 20)}
+                                  disabled={busy || (!chosen && (data.display!.photoIds ?? []).length >= 20)}
                                   onChange={(e) => togglePhoto(u.id, e.target.checked)}
                                 />
                                 Photo {i + 1}, uploaded {new Date(u.createdAt).toLocaleDateString()}
@@ -529,12 +577,42 @@ export default function BoardSettings() {
                     </ul>
                   )}
                   <p className="text-subhead text-label-secondary">
-                    {data.display.photoIds.length === 0
+                    {(data.display.photoIds ?? []).length === 0
                       ? 'No photos chosen: the calm screen is plain.'
-                      : `${data.display.photoIds.length} of up to 20 photos chosen.`}
+                      : `${(data.display.photoIds ?? []).length} of up to 20 photos chosen.`}
                   </p>
                 </fieldset>
+                )}
               </>
+            )}
+
+            {data.deviceWrites?.available && (
+              <fieldset className="space-y-3" data-testid="device-writes-settings">
+                <legend className="text-headline font-semibold text-label-primary">Family tablet</legend>
+                <p className="text-subhead text-label-secondary">
+                  Off unless you turn it on. When it is on, a paired family tablet can tick off groceries, add to the
+                  grocery list and mark today&apos;s chores done. It asks &ldquo;Who&apos;s this?&rdquo; and records the
+                  name picked, but anyone at the tablet can pick any name. Chores ticked there still wait for a
+                  parent&apos;s check, and the tablet never shows points.
+                </p>
+                <label className="flex min-h-[44px] items-center gap-3 text-body text-label-primary">
+                  <input
+                    type="checkbox"
+                    className="h-6 w-6"
+                    checked={data.deviceWrites.enabled}
+                    disabled={busy}
+                    onChange={(e) =>
+                      void save(
+                        { deviceWrites: { enabled: e.target.checked } },
+                        e.target.checked
+                          ? 'The family tablet can tick things off.'
+                          : 'The family tablet is read-only again.'
+                      )
+                    }
+                  />
+                  Let the family tablet tick things off
+                </label>
+              </fieldset>
             )}
           </>
         )}

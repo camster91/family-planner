@@ -72,7 +72,16 @@ function memoryStore(initial: string | null = null): QueueStore & { value: strin
 
 type Reply = { status: number; body?: unknown } | 'network'
 
-function setup(opts: { store?: QueueStore; replies?: Reply[]; online?: boolean; now?: number; random?: number } = {}) {
+function setup(
+  opts: {
+    store?: QueueStore
+    replies?: Reply[]
+    online?: boolean
+    now?: number
+    random?: number
+    namespace?: 'person' | 'device'
+  } = {}
+) {
   let now = opts.now ?? 1_000_000
   let online = opts.online ?? true
   let keySeq = 0
@@ -82,6 +91,7 @@ function setup(opts: { store?: QueueStore; replies?: Reply[]; online?: boolean; 
   let timerSeq = 0
   const store = opts.store ?? memoryStore()
   const deps: OfflineQueueDeps = {
+    namespace: opts.namespace,
     store,
     send: async (r) => {
       sent.push(r)
@@ -148,8 +158,18 @@ describe('allowlist', () => {
   it('allowlisted routes are non-destructive, non-finance, non-auth', () => {
     for (const [name, spec] of Object.entries(QUEUEABLE_ACTIONS)) {
       expect(spec.method).not.toBe('DELETE')
-      expect(`${name} ${spec.path}`).not.toMatch(/delete|budget|transaction|allowance|verify|approve|auth|password|pin|elevation|device|invite|export|medic/i)
+      const path =
+        typeof spec.path === 'function' ? spec.path({ itemId: 'x', checked: true, actingMemberId: 'm' }) : spec.path
+      // The shared tablet's own variant (#274) lives under /api/device/ by design (SHARED_DEVICE.md §12.3).
+      const words =
+        spec.namespace === 'device'
+          ? `${name.replace(/^device\./, '')} ${path.replace(/^\/api\/device\//, '/api/')}`
+          : `${name} ${path}`
+      expect(words).not.toMatch(/delete|budget|transaction|allowance|verify|approve|auth|password|pin|elevation|device|invite|export|medic/i)
     }
+    expect(QUEUEABLE_ACTIONS['device.list-item.set-checked'].path({ itemId: 'item-1', checked: true })).toBe(
+      '/api/device/lists/items/item-1'
+    )
   })
 
   it('keeps the minimum payload (ids and desired state only) and validates it', async () => {
@@ -686,5 +706,130 @@ describe('durability (Codex P2 on #247)', () => {
     await expect(store.write('x')).rejects.toBeInstanceOf(QueueStorageError)
     const none = preferredQueueStore(queueLocation({ kind: 'person', userId: 'u1' }), {})
     await expect(none.write('x')).rejects.toBeInstanceOf(QueueStorageError)
+  })
+})
+
+// #274: the shared tablet's queue variant (SHARED_DEVICE.md §9.2).
+describe('device queue variant', () => {
+  const deviceTick = (itemId: string, checked = true) => ({ itemId, checked, actingMemberId: 'member-1' })
+
+  it('sends a tick to the device route with the picked member and the key as Idempotency-Key', async () => {
+    const t = setup({ namespace: 'device' })
+    const op = await t.queue.enqueue('device.list-item.set-checked', { ...deviceTick('item-1'), content: 'Secret milk' })
+    await flush()
+    expect(t.sent).toEqual([
+      {
+        method: 'PATCH',
+        path: '/api/device/lists/items/item-1',
+        body: { checked: true, actingMemberId: 'member-1' },
+        idempotencyKey: op.id,
+      },
+    ])
+    expect(t.queue.list()).toEqual([])
+    expect((t.store as any).value).toBeNull()
+  })
+
+  it('a device queue refuses person actions and a person queue refuses device actions', async () => {
+    const device = setup({ namespace: 'device', online: false })
+    await expect(device.queue.enqueue('list-item.set-checked', { itemId: 'x', checked: true })).rejects.toMatchObject({
+      code: 'NOT_QUEUEABLE',
+    })
+    const person = setup({ online: false })
+    await expect(person.queue.enqueue('device.list-item.set-checked', deviceTick('x'))).rejects.toMatchObject({
+      code: 'NOT_QUEUEABLE',
+    })
+  })
+
+  it('requires a well-formed actingMemberId', async () => {
+    const t = setup({ namespace: 'device', online: false })
+    for (const bad of [{ itemId: 'x', checked: true }, { itemId: 'x', checked: true, actingMemberId: 'a b' }]) {
+      await expect(t.queue.enqueue('device.list-item.set-checked', bad)).rejects.toMatchObject({ code: 'INVALID_PAYLOAD' })
+    }
+  })
+
+  it('drops stored operations of the other namespace on load', () => {
+    const stored = serializeQueue([
+      {
+        id: 'key-0001-abcdefghijkl',
+        action: 'list-item.set-checked',
+        v: 1,
+        target: 'list-item:a',
+        payload: { itemId: 'a', checked: true },
+        createdAt: 1,
+        state: 'pending',
+        attempts: 0,
+        nextAttemptAt: 0,
+      },
+      {
+        id: 'key-0002-abcdefghijkl',
+        action: 'device.list-item.set-checked',
+        v: 1,
+        target: 'list-item:b',
+        payload: { itemId: 'b', checked: true, actingMemberId: 'm' },
+        createdAt: 1,
+        state: 'pending',
+        attempts: 0,
+        nextAttemptAt: 0,
+      },
+    ])
+    expect(parseStoredQueue(stored, 'device').ops.map((o) => o.payload.itemId)).toEqual(['b'])
+    expect(parseStoredQueue(stored, 'device').dropped).toBe(1)
+    expect(parseStoredQueue(stored).ops.map((o) => o.payload.itemId)).toEqual(['a'])
+  })
+
+  it('a terminal device answer (401) drops the whole queue, a conflict stays visible', async () => {
+    const t = setup({
+      namespace: 'device',
+      replies: [{ status: 404, body: { error: { code: 'NOT_FOUND' } } }],
+    })
+    await t.queue.enqueue('device.list-item.set-checked', deviceTick('gone'))
+    await flush()
+    expect(t.queue.list()[0]).toMatchObject({ state: 'conflict', lastError: 'NOT_FOUND' })
+
+    const revoked = setup({ namespace: 'device', replies: [{ status: 401, body: { error: { code: 'DEVICE_REVOKED' } } }] })
+    await revoked.queue.enqueue('device.list-item.set-checked', deviceTick('a'))
+    await flush()
+    expect(revoked.queue.list()).toEqual([])
+    expect(revoked.events.some((e) => e.type === 'auth-lost')).toBe(true)
+  })
+})
+
+// #274: a device purge while a send is in flight must not write the queue back.
+describe('abandon (device purge)', () => {
+  it('drops the in-flight operation and never persists again', async () => {
+    const store = memoryStore()
+    const writes: string[] = []
+    const write = store.write
+    store.write = async (v: string) => {
+      writes.push(v)
+      await write(v)
+    }
+    let release!: (r: { status: number; body: unknown }) => void
+    const queue = createOfflineQueue({
+      namespace: 'device',
+      store,
+      send: () => new Promise((resolve) => (release = resolve)),
+      now: () => 1_000_000,
+      random: () => 0.5,
+      newKey: () => 'key-0001-abcdefghijkl',
+      isOnline: () => true,
+      setTimer: () => 0,
+      clearTimer: () => undefined,
+    })
+    await queue.enqueue('device.list-item.set-checked', { itemId: 'item-1', checked: true, actingMemberId: 'm' })
+    await flush()
+    expect(queue.list()[0].state).toBe('syncing')
+
+    // The purge deletes the stored queue, then the queue is abandoned...
+    store.value = null
+    const before = writes.length
+    queue.abandon()
+    expect(queue.list()).toEqual([])
+    // ...and the answer that arrives afterwards (the kill-switch 404) changes nothing.
+    release({ status: 404, body: { error: { code: 'NOT_FOUND' } } })
+    await flush()
+    expect(writes.length).toBe(before)
+    expect(store.value).toBeNull()
+    expect(queue.list()).toEqual([])
   })
 })

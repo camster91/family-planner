@@ -7,6 +7,7 @@
  * Policy and states: docs/architecture/OFFLINE_SYNC.md.
  */
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
+import { DeviceApiError, type DeviceClient } from '@/lib/device-client'
 import {
   clearPersonQueues,
   createOfflineQueue,
@@ -93,6 +94,83 @@ export function getPersonQueue(userId: string): OfflineQueue {
   return queue
 }
 
+// Contains ':', which no user id can (queueLocation's id pattern), so it never collides with a person queue.
+const DEVICE_QUEUE = 'device:tablet'
+let deviceQueueClient: DeviceClient | null = null
+
+/**
+ * Sends a shared tablet's queued write through its device client (#274), so
+ * a `401 DEVICE_ACCESS_EXPIRED` is refreshed and retried once, and a terminal
+ * answer (revoked, kill switch) runs the §8 purge, which also deletes this
+ * queue's storage. A network failure rejects, like the person sender.
+ */
+export function deviceQueueSend(client: DeviceClient): SendFn {
+  return async ({ method, path, body, idempotencyKey }) => {
+    try {
+      const res = await client.request(path, {
+        method: method as 'PATCH' | 'POST',
+        body,
+        headers: { 'Idempotency-Key': idempotencyKey },
+      })
+      return { status: 200, body: res }
+    } catch (error) {
+      if (error instanceof DeviceApiError && error.status > 0) {
+        return { status: error.status, body: { error: { code: error.code } } }
+      }
+      throw error
+    }
+  }
+}
+
+/**
+ * The shared tablet's queue (#274): grocery ticks only, stored under the
+ * reserved `fp-device:v1:queue` key of the `fp-device` database, which the
+ * device purge deletes (SHARED_DEVICE.md §8). One per page.
+ */
+export function getDeviceQueue(client: DeviceClient): OfflineQueue {
+  const existing = queues.get(DEVICE_QUEUE)
+  if (existing && deviceQueueClient === client) return existing
+  if (existing) {
+    existing.dispose()
+    queues.delete(DEVICE_QUEUE)
+  }
+  const queue = createOfflineQueue({
+    namespace: 'device',
+    store: preferredQueueStore(queueLocation({ kind: 'device' }), {
+      indexedDB: safeIndexedDb(),
+      localStorage: safeLocalStorage(),
+    }),
+    send: deviceQueueSend(client),
+    now: () => Date.now(),
+    random: () => Math.random(),
+    newKey: () => newIdempotencyKey(),
+    isOnline: () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
+    setTimer: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimer: (handle) => window.clearTimeout(handle as number),
+  })
+  queues.set(DEVICE_QUEUE, queue)
+  deviceQueueClient = client
+  const forget = () => {
+    // Abandon, not dispose: an operation in flight when the purge ran (e.g. the
+    // enveloped kill-switch 404) must not persist itself afterwards, which would
+    // recreate the just-deleted `fp-device` database with the old household's ids.
+    queue.abandon()
+    if (queues.get(DEVICE_QUEUE) !== queue) return
+    queues.delete(DEVICE_QUEUE)
+    deviceQueueClient = null
+  }
+  queue.subscribe((event) => {
+    if (event.type === 'auth-lost') forget()
+  })
+  // The purge wipes the stored queue; drop the in-memory one with it, never replaying anything.
+  client.subscribe((event) => {
+    if (event === 'purge') forget()
+  })
+  attachListeners()
+  void queue.drain()
+  return queue
+}
+
 function deleteIndexedDb(name: string): Promise<void> {
   const idb = safeIndexedDb()
   if (!idb) return Promise.resolve()
@@ -117,11 +195,12 @@ export function clearAllPersonQueues(): Promise<void> {
 }
 
 async function clearAll(): Promise<void> {
-  for (const queue of Array.from(queues.values())) {
+  for (const [name, queue] of Array.from(queues.entries())) {
+    if (name === DEVICE_QUEUE) continue // A tablet's queue belongs to the device, not a person.
     await queue.clear().catch(() => {})
     queue.dispose()
+    queues.delete(name)
   }
-  queues.clear()
   const storage = safeLocalStorage()
   await clearPersonQueues({ storages: storage ? [storage] : [], deleteIndexedDb })
 }

@@ -37,6 +37,8 @@ import {
 import { actionLinkClass } from './styles'
 import { WeatherTile } from './weather-tile'
 import { UseSoonRegion } from './use-soon-region'
+import { useBoardTiles, type BoardActions } from './board-actions'
+import { usePersonBoardActions } from './use-person-board-actions'
 
 /**
  * Clock, relative "Updated" time and idle tick. Change polling and the slow
@@ -162,9 +164,18 @@ export default function TodayBoard({
   actions,
   banner,
   useSoon,
+  viewer,
+  tileActions,
 }: {
   data: TodayBoardData
   fridgeMode: boolean
+  /**
+   * The signed-in person (#274): their chores (any chore for a parent) and
+   * the groceries become tappable, with Undo. Omitted: the board is read-only.
+   */
+  viewer?: { id: string; role: string } | null
+  /** Replaces the person actions (the paired tablet's §9.2 writes, #274). */
+  tileActions?: BoardActions
   /**
    * Shared tablet (/device/today, #241): re-fetch the device DTO instead of
    * re-requesting a person server component.
@@ -194,12 +205,16 @@ export default function TodayBoard({
   const router = useRouter()
   // Visible sync (#271): version polling, re-fetch on change, words for
   // "Updated …", offline and stale. Times are on the viewer's own clock.
+  const refresh = React.useCallback(() => (onRefresh ? onRefresh() : router.refresh()), [onRefresh, router])
   const { lastSyncAt, online, failing, announcement } = useBoardSync({
     version: data.version,
     generatedAt: data.generatedAt,
     checkVersion: checkVersion ?? fetchPersonBoardVersion,
-    refresh: onRefresh ?? (() => router.refresh()),
+    refresh,
   })
+  // Tiles act directly (#274): optimistic chore/grocery state, Undo toasts, rollback.
+  const personActions = usePersonBoardActions(tileActions ? null : viewer, refresh)
+  const tiles = useBoardTiles(data.chores, data.shopping, tileActions ?? personActions)
   useWakeLock(fridgeMode)
 
   // Calm display and night hours (#271): fridge mode only.
@@ -242,14 +257,14 @@ export default function TodayBoard({
     return {
       today: eventsLeftToday(data.events, now),
       dinner: dinnerOn(data.dinners, today),
-      chores: choresDueTodayByPerson(data.chores, withColors, now),
+      chores: choresDueTodayByPerson(tiles.chores, withColors, now),
       comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS),
       people,
       weather: weatherView(data.weather, now),
       useSoon: itemsToUseSoon(data.useSoon, now),
       next: nextEvent(data.events, now),
     }
-  }, [data, now])
+  }, [data, now, tiles.chores])
 
   // "Use soon" tile (#263): only when there is something to use (null otherwise).
   const useSoonSlot =
@@ -355,8 +370,13 @@ export default function TodayBoard({
               mealsHref={data.links.meals}
               featuresHref={data.links.features}
             />
-            <ChoresRegion people={view.chores} choresHref={data.links.chores} />
-            <GroceriesRegion shopping={data.shopping} listsHref={data.links.lists} />
+            <ChoresRegion
+              people={view.chores}
+              choresHref={data.links.chores}
+              onTick={tiles.tickChore}
+              canTick={tiles.canTickChore}
+            />
+            <GroceriesRegion shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} />
             <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
             {useSoonSlot && (
               <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>

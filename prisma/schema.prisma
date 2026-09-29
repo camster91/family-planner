@@ -139,6 +139,10 @@ model Family {
   night_start        String?
   night_end          String?
   ambient_photo_ids  String[]  @default([])
+  // Shared-device writes (#274, SHARED_DEVICE.md §9.2). Per-household opt-in,
+  // default off: while false a paired tablet stays read-only. A parent turns it
+  // on in the board settings (person session or elevated on the tablet).
+  device_writes_enabled Boolean @default(false)
   created_at         DateTime  @default(now())
 
   // Relations

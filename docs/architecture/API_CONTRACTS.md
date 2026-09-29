@@ -56,7 +56,7 @@ Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 - **Order of checks:** authentication (401) → key format (400) → body validation (400) → idempotency → the
   route's own household/role checks. A signed-out or revoked session therefore never reaches a stored response.
 - **Scope:** records are unique per `(scope, key)`, where `scope` is `user:<userId>` for a person session
-  (`device:<deviceId>` is reserved; device writes are not enabled). The same key from another user is a
+  and `device:<deviceId>` for a paired tablet's §9.2 writes (#274, where the header is **required**). The same key from another user is a
   different record. A record is only replayed to the household it was written in.
 - **Request identity:** a SHA-256 of the action name and the validated body in canonical (key-sorted) JSON.
   The body itself is not stored.
@@ -258,7 +258,22 @@ Every change here is additive: old request bodies stay valid and old response fi
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 
 ## Shared-device routes (#157 contract, #240)
-Implemented (behind `SHARED_DEVICE_ENABLED`, default off; every route is `404` while it is off); UI and device writes are not. The endpoint table, error codes (`DEVICE_ACCESS_EXPIRED`, `DEVICE_REVOKED`, `DEVICE_SESSION_INVALID`, `ELEVATION_REQUIRED`, `ELEVATION_EXPIRED`, `PAIRING_CODE_INVALID`, …) and compatibility plan are in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §12–§13. New device routes use the target error envelope above and `Cache-Control: private, no-store`; they live under `/api/device/*` and `/api/family/devices/*` so existing routes keep their current responses and remain person-only. Installed Android builds need no update because the device UI is served by the web layer.
+Implemented (behind `SHARED_DEVICE_ENABLED`, default off; every route is `404` while it is off), with the web UI (#241).
+
+**Tablet writes and setup (#274).** Additive routes, all `Cache-Control: private, no-store`, target error envelope:
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `PATCH /api/device/lists/items/:id` | Device cookie. Header `Idempotency-Key` **required** (scope `device:<deviceId>`). Strict body `{ checked: boolean, actingMemberId }`. Ticks/unticks an item of a household grocery/shopping list as the picked member. 200 `{ item: { id, checked } }`; replays carry `Idempotency-Replayed: true`. | 400 `IDEMPOTENCY_KEY_REQUIRED` / `IDEMPOTENCY_KEY_INVALID` / `ACTING_MEMBER_INVALID` / `VALIDATION_ERROR`; 401 device codes; 403 `DEVICE_WRITES_OFF` (household opt-in off, the default) / `FEATURE_DISABLED`; 404 (kill switch, or a foreign/missing/non-grocery item); 409 `DUPLICATE_OPEN_ITEM` / `IDEMPOTENCY_IN_PROGRESS`; 422 `IDEMPOTENCY_KEY_REUSED`; 429 |
+| `POST /api/device/lists/:id/items` | Same gate. `{ content (1–200), actingMemberId }`. 201 `{ item: { id, content, quantity: 1, listId } }`. | as above |
+| `POST /api/device/chores/:id/complete` | Same gate. `{ actingMemberId }`. A household chore due today; status `completed`. 200 `{ chore: { id, status }, alreadyCompleted }` (never points or XP). | as above; 409 `CHORE_NOT_DUE_TODAY` |
+| `POST /api/device/chores/:id/uncomplete` | Same gate. `{ actingMemberId }`. Only this tablet's own completion of the chore from the last 2 minutes. 200 `{ chore: { id, status }, alreadyOpen }`. | as above; 403 `UNDO_NOT_ALLOWED`; 409 `CHORE_ALREADY_VERIFIED` |
+| `GET` / `PATCH /api/device/elevated/board-settings` | Device cookie + `X-Device-Elevation`. The `/api/family/board-settings` body without photos (`display.photoIds` is 400) and with the place label only. | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED`; 400 `VALIDATION_ERROR`; 409 |
+| `GET /api/device/elevated/board-settings/places?q=` | Device cookie + elevation. Same as the parent place search. | 400, 403, 409, 429, 502 |
+| `GET /api/device/me` | Adds `deviceWrites: boolean` (the household opt-in). | unchanged |
+| `GET` / `PATCH /api/family/board-settings` | GET adds `deviceWrites: { available, enabled }`; PATCH accepts `deviceWrites: { enabled: boolean }` (parent only). | unchanged |
+
+Existing clients are unaffected: every change is additive, and the household opt-in defaults off. The endpoint table, error codes (`DEVICE_ACCESS_EXPIRED`, `DEVICE_REVOKED`, `DEVICE_SESSION_INVALID`, `ELEVATION_REQUIRED`, `ELEVATION_EXPIRED`, `PAIRING_CODE_INVALID`, …) and compatibility plan are in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §12–§13. New device routes use the target error envelope above and `Cache-Control: private, no-store`; they live under `/api/device/*` and `/api/family/devices/*` so existing routes keep their current responses and remain person-only. Installed Android builds need no update because the device UI is served by the web layer.
 
 ## Provider adapters
 Calendar, weather, AI, notification and food/recipe providers must sit behind application interfaces. Provider-specific errors map into stable product states. Weather (#262) follows this: Open-Meteo errors become a fixed code (`timeout`, `network`, `http_error`, `too_large`, `bad_response`) and the board state "no weather tile".

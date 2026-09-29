@@ -49,13 +49,21 @@ export const RETRY_MAX_ATTEMPTS = 8
 export interface SetCheckedPayload {
   itemId: string
   checked: boolean
+  /**
+   * Device variant only (#274): the household member picked with "Who's this?"
+   * on a shared tablet (SHARED_DEVICE.md O-5). Person operations never carry it.
+   */
+  actingMemberId?: string
 }
 
 interface ActionSpec<P> {
   /** Operation schema version for this action. Stored operations of another version are dropped. */
   version: number
+  /** Which queue may hold it: a person's queue or the shared tablet's (#274). */
+  namespace: QueueNamespace['kind']
   method: 'PATCH' | 'POST'
-  path: string
+  /** Fixed path, or a fixed pattern filled with the payload's validated id. */
+  path: string | ((payload: P) => string)
   /** Returns the minimal payload (ids and desired state only), or null when invalid. */
   parse(payload: unknown): P | null
   body(payload: P): Record<string, unknown>
@@ -79,6 +87,7 @@ export const QUEUEABLE_ACTIONS = {
   /** Tick or untick a list item (grocery list proof action). Explicit state, not a toggle. */
   'list-item.set-checked': {
     version: 1,
+    namespace: 'person',
     method: 'PATCH',
     path: '/api/lists/items/update',
     parse(payload: unknown): SetCheckedPayload | null {
@@ -88,6 +97,27 @@ export const QUEUEABLE_ACTIONS = {
       return { itemId, checked }
     },
     body: (p: SetCheckedPayload) => ({ itemId: p.itemId, checked: p.checked }),
+    target: (p: SetCheckedPayload) => `list-item:${p.itemId}`,
+  } satisfies ActionSpec<SetCheckedPayload>,
+  /**
+   * Shared tablet grocery tick/untick (#274, SHARED_DEVICE.md §9.2): the same
+   * explicit desired state, sent to the device route with the member picked
+   * with "Who's this?". Only the device queue (`fp-device:v1:queue`, purged
+   * with the rest of the tablet's storage) may hold it.
+   */
+  'device.list-item.set-checked': {
+    version: 1,
+    namespace: 'device',
+    method: 'PATCH',
+    path: (p: SetCheckedPayload) => `/api/device/lists/items/${encodeURIComponent(p.itemId)}`,
+    parse(payload: unknown): SetCheckedPayload | null {
+      if (!isRecord(payload)) return null
+      const { itemId, checked, actingMemberId } = payload
+      if (typeof itemId !== 'string' || !ID_PATTERN.test(itemId) || typeof checked !== 'boolean') return null
+      if (typeof actingMemberId !== 'string' || !ID_PATTERN.test(actingMemberId)) return null
+      return { itemId, checked, actingMemberId }
+    },
+    body: (p: SetCheckedPayload) => ({ checked: p.checked, actingMemberId: p.actingMemberId }),
     target: (p: SetCheckedPayload) => `list-item:${p.itemId}`,
   } satisfies ActionSpec<SetCheckedPayload>,
 } as const
@@ -153,6 +183,11 @@ export interface SendRequest {
 export type SendFn = (request: SendRequest) => Promise<{ status: number; body: unknown }>
 
 export interface OfflineQueueDeps {
+  /**
+   * Which actions this queue accepts (default `person`). A stored operation of
+   * the other namespace is dropped on load and enqueueing one is refused.
+   */
+  namespace?: QueueNamespace['kind']
   store: QueueStore
   send: SendFn
   now: () => number
@@ -215,12 +250,13 @@ export function classifyResponse(status: number, body: unknown): Outcome {
 const STATES = new Set<QueueState>(['pending', 'syncing', 'synced', 'failed', 'conflict'])
 const KEY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/
 
-function reviveOperation(raw: unknown): QueuedOperation | null {
+function reviveOperation(raw: unknown, namespace: QueueNamespace['kind']): QueuedOperation | null {
   if (!isRecord(raw)) return null
   const { id, action, v, payload, createdAt, state, attempts, nextAttemptAt, lastError } = raw
   if (typeof id !== 'string' || !KEY_PATTERN.test(id)) return null
   if (!isQueueableAction(action)) return null
   const spec = specOf(action)
+  if (spec.namespace !== namespace) return null
   if (v !== spec.version) return null
   const parsed = spec.parse(payload)
   if (!parsed) return null
@@ -242,7 +278,10 @@ function reviveOperation(raw: unknown): QueuedOperation | null {
 }
 
 /** Parse a stored container. Anything unreadable counts as dropped. */
-export function parseStoredQueue(text: string | null): { ops: QueuedOperation[]; dropped: number } {
+export function parseStoredQueue(
+  text: string | null,
+  namespace: QueueNamespace['kind'] = 'person'
+): { ops: QueuedOperation[]; dropped: number } {
   if (text === null) return { ops: [], dropped: 0 }
   let data: unknown
   try {
@@ -256,7 +295,7 @@ export function parseStoredQueue(text: string | null): { ops: QueuedOperation[];
   let dropped = 0
   const seen = new Set<string>()
   for (const raw of data.ops) {
-    const op = reviveOperation(raw)
+    const op = reviveOperation(raw, namespace)
     if (!op || seen.has(op.id) || ops.length >= QUEUE_MAX_OPS) {
       dropped++
       continue
@@ -277,6 +316,7 @@ export function serializeQueue(ops: QueuedOperation[]): string {
 export type OfflineQueue = ReturnType<typeof createOfflineQueue>
 
 export function createOfflineQueue(deps: OfflineQueueDeps) {
+  const namespace = deps.namespace ?? 'person'
   let ops: QueuedOperation[] = []
   let draining: Promise<void> | null = null
   let timer: unknown = null
@@ -303,6 +343,9 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
    * the UI say so. The next successful write makes it durable again.
    */
   async function persist(): Promise<boolean> {
+    // A disposed queue never writes again: after a device purge its storage was
+    // deleted on purpose, and writing would recreate it with the old ids (#274).
+    if (disposed) return durable
     let ok = true
     try {
       if (ops.length === 0) await deps.store.remove()
@@ -347,7 +390,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     } catch {
       text = null
     }
-    const parsed = parseStoredQueue(text)
+    const parsed = parseStoredQueue(text, namespace)
     ops = parsed.ops
     const aged = applyAgeRules(deps.now())
     loadReport = { dropped: parsed.dropped + aged.dropped }
@@ -400,6 +443,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     await ready
     if (!isQueueableAction(action)) throw new QueueError('NOT_QUEUEABLE')
     const spec = specOf(action)
+    if (spec.namespace !== namespace) throw new QueueError('NOT_QUEUEABLE')
     const parsed = spec.parse(payload)
     if (!parsed) throw new QueueError('INVALID_PAYLOAD')
     const target = spec.target(parsed)
@@ -426,6 +470,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   }
 
   async function finish(op: QueuedOperation, outcome: Outcome, body: unknown): Promise<'continue' | 'stop'> {
+    if (disposed) return 'stop' // abandoned (device purge) while this send was in flight
     if (!ops.includes(op)) return outcome.kind === 'auth' ? 'stop' : 'continue' // discarded or cleared meanwhile
     if (outcome.kind === 'synced') {
       ops = ops.filter((o) => o !== op)
@@ -506,7 +551,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
           try {
             const res = await deps.send({
               method: spec.method,
-              path: spec.path,
+              path: typeof spec.path === 'function' ? spec.path(op.payload) : spec.path,
               body: spec.body(op.payload),
               idempotencyKey: op.id,
             })
@@ -591,6 +636,18 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    /**
+     * Drop everything in memory and stop for good, WITHOUT touching storage
+     * (#274). For the shared-tablet purge: the purge has already deleted the
+     * stored queue, and an operation still in flight must not write it back.
+     */
+    abandon() {
+      disposed = true
+      ops = []
+      if (timer !== null) deps.clearTimer(timer)
+      timer = null
+      listeners.clear()
+    },
     dispose() {
       disposed = true
       if (timer !== null) deps.clearTimer(timer)
@@ -613,7 +670,7 @@ export type QueueNamespace = { kind: 'person'; userId: string } | { kind: 'devic
 /**
  * Where a queue lives. The device namespace is the reserved `fp-device:v1:queue`
  * key in the `fp-device` database, so the shared-device purge (SHARED_DEVICE.md
- * §8) deletes it. Device writes are not enabled (#162 keeps them out of scope).
+ * §8) deletes it. It holds only the shared tablet's grocery ticks (#274).
  */
 export function queueLocation(ns: QueueNamespace): { dbName: string; key: string } {
   if (ns.kind === 'device') return { dbName: DEVICE_IDB_NAME, key: DEVICE_QUEUE_KEY }
