@@ -5,6 +5,8 @@ import Link from 'next/link'
 import CalendarSubscriptionsSection from './CalendarSubscriptionsSection'
 import CalendarSyncSection from './CalendarSyncSection'
 import SharedDeviceSettings from './SharedDeviceSettings'
+import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
+import { downloadMyData } from '@/lib/data-export-client'
 import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles } from 'lucide-react'
 
 /**
@@ -85,6 +87,19 @@ export default function SettingsClient({
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+
+  // Data export and account deletion (docs/product/ACCOUNT_DELETION.md).
+  const [exportState, setExportState] = useState<'idle' | 'working' | 'error'>('idle')
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const handleExport = async () => {
+    setExportState('working')
+    try {
+      await downloadMyData()
+      setExportState('idle')
+    } catch {
+      setExportState('error')
+    }
+  }
 
   // Load user data
   useEffect(() => {
@@ -728,13 +743,25 @@ export default function SettingsClient({
                 Change Password
               </button>
               {sharedDevice && <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />}
-              <button className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg">
-                Two-Factor Authentication
+              <button
+                type="button"
+                onClick={() => void handleExport()}
+                disabled={exportState === 'working'}
+                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"
+              >
+                <div className="font-medium">{exportState === 'working' ? 'Preparing your data…' : 'Data Export'}</div>
+                <div className="text-xs text-gray-500">Download everything the app holds about you as a JSON file</div>
               </button>
-              <button className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg">
-                Data Export
-              </button>
-              <button className="w-full p-3 text-left text-red-600 hover:bg-red-50 rounded-lg">
+              {exportState === 'error' && (
+                <p role="alert" className="px-3 text-sm text-red-600">
+                  The download did not work. Try again.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowDeleteDialog(true)}
+                className="w-full p-3 text-left text-red-600 hover:bg-red-50 rounded-lg"
+              >
                 Delete Account
               </button>
             </div>
@@ -754,6 +781,8 @@ export default function SettingsClient({
           </div>
         </div>
       </div>
+
+      <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} />
 
       {/* Change Password Modal */}
       {showPasswordModal && (

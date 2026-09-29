@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest, authenticateWithFamily, attachSessionCookie, requireParent } from '@/lib/api-auth'
 import { createFamilySchema, updateFamilySchema, deleteFamilySchema } from '@/lib/validations'
 import { defaultFeatures } from '@/lib/features'
+import { refusePairedDevice } from '@/lib/device-route'
+import { readIdempotencyKey } from '@/lib/idempotency'
+import { deleteHousehold } from '@/lib/account-deletion'
+import { checkFreshAuthorization, runDeletion } from '@/lib/account-deletion-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,9 +154,26 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE - Delete a family (parents only)
+// DELETE - Delete the whole household and every member account in it
+// (docs/product/ACCOUNT_DELETION.md). Body: { familyId, password, confirmation }
+// where `confirmation` is the household name typed out.
+//
+// Only the household's only parent may do this (another parent: 409
+// OTHER_PARENTS_EXIST; each parent deletes their own account with
+// DELETE /api/users and the last one deletes the household). Teens and
+// children get 403. Fresh authorization every time: the current password and
+// the typed household name. The deletion is an explicit ordered sequence
+// (src/lib/account-deletion.ts `deleteHousehold`): sessions, shared devices,
+// invitations and other tokens, calendar connections, uploaded files, stored
+// idempotency records, then every household row and the member accounts.
+// A paired shared device gets 403 before person auth. Optional
+// Idempotency-Key: a duplicate while the first runs is 409; once it finished
+// the caller no longer exists, so a retry is 401.
 export async function DELETE(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -174,13 +195,43 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await prisma!.family.delete({
-      where: { id: parsed.data.familyId },
-    })
+    const idem = readIdempotencyKey(request)
+    if (idem.error) return idem.error
 
-    return NextResponse.json({ success: true })
+    const family = await prisma!.family.findUnique({
+      where: { id: auth.user.family_id },
+      select: { name: true },
+    })
+    if (!family) return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+
+    const refused = await checkFreshAuthorization(auth.user.id, body, family.name)
+    if (refused) return refused
+
+    const familyId = auth.user.family_id
+    return await runDeletion(
+      {
+        key: idem.key,
+        userId: auth.user.id,
+        familyId,
+        action: 'household.delete',
+        hashBody: { mode: 'household', familyId },
+      },
+      async () => {
+        const result = await deleteHousehold(familyId, auth.user.id)
+        return {
+          status: 200,
+          body: {
+            success: true,
+            mode: result.mode,
+            membersRemoved: result.membersRemoved,
+            filesRemoved: result.filesRemoved,
+            filesNotRemoved: result.filesNotRemoved,
+          },
+        }
+      }
+    )
   } catch (error) {
-    console.error('Error deleting family:', error)
+    console.error('Error deleting family:', error instanceof Error ? error.message : 'unknown error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
