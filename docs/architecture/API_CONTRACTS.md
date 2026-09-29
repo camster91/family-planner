@@ -278,6 +278,22 @@ Every change here is additive: old request bodies stay valid and old response fi
 | `GET /api/chores`, create/PATCH responses, `GET /api/users/export` (#272) | Chore rows add `icon`, `routine`, `routine_order` (nullable). Recurring generation copies them. | unchanged |
 | `GET /api/device/today`, the Today board DTO (#272) | Each `chores[]` item adds `icon`: a catalogue key or `null` (a stored key the build does not know is sent as `null`). Not the routine name or step. | unchanged |
 
+## Account and household deletion (D-3)
+Behaviour and retention: `docs/product/ACCOUNT_DELETION.md`. Every route here refuses a paired shared device with
+403 `DEVICE_WRITE_NOT_ALLOWED` before person auth. Deletion errors are `{ error, code }` with
+`Cache-Control: private, no-store`.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `GET /api/users/deletion` | Session. `{ role, household: { id, name, memberCount, parentCount } \| null, isOnlyParent, canDeleteAccount, canDeleteHousehold }` for the caller's own household only. Read-only. | 401 |
+| `DELETE /api/users` | Session, any role. Body `{ password, confirmation }`; `confirmation` is `DELETE` (case, surrounding and repeated spaces ignored). Optional `Idempotency-Key` (action `account.delete`; the password is never part of the request hash). Deletes the caller's account (`deleteMemberAccount`). 200 `{ success, mode: 'account', filesRemoved, filesNotRemoved }` and a cleared `session_token` cookie. **Changed in D-3:** the body used to be ignored; the only parent used to get 400. | 400 `PASSWORD_REQUIRED` / `CONFIRMATION_MISMATCH` / `INVALID_PASSWORD` / `IDEMPOTENCY_KEY_INVALID`; 401; 403 device; 409 `LAST_PARENT` (use `DELETE /api/family`), `NO_SUCCESSOR`, `IDEMPOTENCY_IN_PROGRESS`; 422 `IDEMPOTENCY_KEY_REUSED`; 429 `RATE_LIMITED` (5 attempts per 15 minutes per member, shared with the household route) |
+| `DELETE /api/family` | Session, parent, the household's only parent. Body `{ familyId, password, confirmation }`; `familyId` must be the caller's household, `confirmation` is the household name. Optional `Idempotency-Key` (action `household.delete`). Deletes the household and every member (`deleteHousehold`). 200 `{ success, mode: 'household', membersRemoved, filesRemoved, filesNotRemoved }` and a cleared cookie. **Changed in D-3:** it used to need only `{ familyId }`, allowed any parent, and deleted the family row by cascade, leaving member accounts behind without a household. | 400 as above; 401; 403 teen/child, another household, device; 404; 409 `OTHER_PARENTS_EXIST`, `IDEMPOTENCY_IN_PROGRESS`; 422; 429 |
+
+Retries: the in-progress idempotency record makes a concurrent duplicate 409. The deletion removes the caller's
+records (and, for a household, all of them) with everything else, so a retry after success is answered by
+authentication with 401: the account no longer exists. The Settings dialog retries once with the same key after a
+network error and treats that 401 as "already deleted".
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

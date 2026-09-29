@@ -7,7 +7,11 @@ import {
   isCalendarSyncEnabled,
   isProvider,
 } from "@/lib/calendar-sync/config";
-import { commitConnection } from "@/lib/calendar-sync/connections";
+import {
+  commitConnection,
+  type CommitOutcome,
+} from "@/lib/calendar-sync/connections";
+import { revokeProviderGrant } from "@/lib/calendar-sync/sync";
 import { consumeOAuthState } from "@/lib/calendar-sync/oauth";
 import { oauthFor } from "@/lib/calendar-sync/providers";
 import { notFound } from "@/lib/calendar-sync/route-helpers";
@@ -105,28 +109,38 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Household limit + one-per-member-per-provider, enforced atomically here
-    // (the start route's check is only an early refusal).
-    const outcome = await commitConnection(prisma, {
-      familyId,
-      userId: auth.user.id,
-      provider,
-      data,
-      hasRefreshToken: Boolean(tokens.refreshToken),
-    });
-    if (outcome === "no_refresh_token") return back("exchange");
-    if (outcome === "limit") {
-      // Best effort: do not leave an unused grant behind at the provider.
-      try {
-        await oauthFor(provider).revoke(
-          config,
-          tokens.refreshToken ?? tokens.accessToken,
-        );
-      } catch {
-        // ignore
-      }
-      return back("limit");
+    // (the start route's check is only an early refusal). The commit also
+    // refuses ("gone") when the household or member was deleted meanwhile.
+    let outcome: CommitOutcome | "failed";
+    try {
+      outcome = await commitConnection(prisma, {
+        familyId,
+        userId: auth.user.id,
+        provider,
+        data,
+        hasRefreshToken: Boolean(tokens.refreshToken),
+      });
+    } catch {
+      outcome = "failed";
     }
-    return back("connected");
+    if (outcome === "created" || outcome === "updated") return back("connected");
+
+    // Not stored, for any reason: the provider already issued this grant and
+    // nothing local will ever revoke it, so revoke it now (best effort, no
+    // database writes).
+    await revokeProviderGrant(
+      {
+        id: "unsaved",
+        provider,
+        access_token_enc: data.access_token_enc as string,
+        refresh_token_enc: (data.refresh_token_enc as string | undefined) ?? null,
+      },
+      familyId,
+    );
+    if (outcome === "no_refresh_token") return back("exchange");
+    if (outcome === "limit") return back("limit");
+    if (outcome === "gone") return back("forbidden");
+    return back("error");
   } catch {
     console.error("Error completing calendar connection");
     return back("error");

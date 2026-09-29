@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, rename, unlink } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -7,6 +7,7 @@ import { log } from '@/lib/logger'
 import { sniffImageType } from '@/lib/image-sniff'
 import { prisma } from '@/lib/prisma'
 import { chorePhotoPath } from '@/lib/chore-photos'
+import { lockHouseholdForJoin } from '@/lib/household-lock'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -67,7 +68,8 @@ export async function POST(request: NextRequest) {
     // same image get different files and different Upload rows (filename is
     // unique), and a filename reveals nothing about another family's files.
     // Re-uploading the same image in the same family still dedups.
-    const { createHash } = await import('crypto')
+    const crypto = await import('crypto')
+    const { createHash } = crypto
     const familyId = auth.user.family_id
     const hash = createHash('sha256')
       .update(`family:${familyId}\n`)
@@ -78,40 +80,70 @@ export async function POST(request: NextRequest) {
     const filename = `${hash}.${ext}`
     const filepath = path.join(choreUploadDir, filename)
 
-    // Ownership row first, so a stored file is never left without an owner.
-    // A re-upload in the same family reuses the existing row. A row owned by
-    // another family would mean a 64-bit hash collision across households:
-    // refuse rather than hand over or share the file.
-    const existing = await prisma!.upload.findUnique({
-      where: { filename },
-      select: { family_id: true },
-    })
-    if (existing && existing.family_id !== familyId) {
+    // Order against household deletion (D-3, src/lib/household-lock.ts):
+    // 1. the bytes are written to a private temp file;
+    // 2. one transaction under the household lock re-checks the household and
+    //    writes the ownership row (a same-household re-upload reuses its row);
+    // 3. only after that commits is the temp file moved to its final name, so
+    //    a failed transaction or commit never leaves a final file behind;
+    // 4. the row is read again: if a household deletion removed it in the
+    //    meantime (it deletes files after its own commit, so it may have run
+    //    before the move), this request removes the file it just placed;
+    // 5. the temp file is always removed (finally).
+    // Identical bytes map to the same name, so a concurrent same-household
+    // upload moving the same content into place is harmless.
+    const tmp = `${filepath}.${crypto.randomUUID()}.tmp`
+    await writeFile(tmp, buf)
+
+    // A row owned by another family would mean a 64-bit hash collision across
+    // households: refuse rather than hand over or share the file.
+    let outcome: 'ok' | 'gone' | 'collision'
+    let created = false
+    try {
+      outcome = await prisma!.$transaction(async (tx) => {
+        if (!(await lockHouseholdForJoin(tx, familyId))) return 'gone' as const
+        const existing = await tx.upload.findUnique({ where: { filename }, select: { family_id: true } })
+        if (existing && existing.family_id !== familyId) return 'collision' as const
+        if (!existing) {
+          await tx.upload.create({
+            data: {
+              family_id: familyId,
+              uploaded_by: auth.user.id,
+              filename,
+              content_type: sniffed.mime,
+              size_bytes: buf.length,
+            },
+          })
+          created = true
+        }
+        return 'ok' as const
+      })
+      if (outcome === 'ok') {
+        const placed = !existsSync(filepath)
+        if (placed) {
+          try {
+            await rename(tmp, filepath)
+          } catch (err) {
+            // No file behind the row: take back the row this request created.
+            if (created) await prisma!.upload.deleteMany({ where: { filename, family_id: familyId } }).catch(() => {})
+            throw err
+          }
+        }
+        const still = await prisma!.upload.findUnique({ where: { filename }, select: { family_id: true } })
+        if (!still || still.family_id !== familyId) {
+          if (placed) await unlink(filepath).catch(() => {})
+          outcome = 'gone'
+        }
+      }
+    } finally {
+      await unlink(tmp).catch(() => {})
+    }
+    if (outcome === 'gone') {
+      return NextResponse.json({ error: 'Household not found' }, { status: 404 })
+    }
+    if (outcome === 'collision') {
       log.warn('upload.photo.collision', { userId: auth.user.id, filename })
       return NextResponse.json({ error: 'Upload failed, please try again' }, { status: 409 })
-    }
-    if (!existing) {
-      try {
-        await prisma!.upload.create({
-          data: {
-            family_id: familyId,
-            uploaded_by: auth.user.id,
-            filename,
-            content_type: sniffed.mime,
-            size_bytes: buf.length,
-          },
-        })
-      } catch (err) {
-        // A concurrent upload of the same image in the same family won the
-        // unique(filename) race; that row is just as good. Anything else fails.
-        const raced = await prisma!.upload.findUnique({ where: { filename }, select: { family_id: true } })
-        if (!raced || raced.family_id !== familyId) throw err
-      }
-    }
-
-    // Only write if not already there (dedup)
-    if (!existsSync(filepath)) {
-      await writeFile(filepath, buf)
     }
 
     log.info('upload.photo', { userId: auth.user.id, filename, size: buf.length, type: sniffed.mime })

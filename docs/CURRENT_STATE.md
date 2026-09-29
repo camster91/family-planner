@@ -115,7 +115,8 @@ Per-household feature flags (`src/lib/features.ts`): `inventory`, `gamification`
 - This docs PR also fixes two bugs the inventory and #101 disposition found: reset/verify tokens accepting the stored hash (D-1, security) and notes edit/delete calling the wrong route (F-1).
 - #121/#158 inventory completion merged as #284; #274 merged as #283.
 - Household search (D-2, the search half of F-3): `GET /api/search` and a working `/dashboard/search` page, plus "Search the household" in the command palette. Household-scoped, canonical tables only, per-feature and per-role (matrix "Household search"), refused on a paired tablet.
-- In progress: account and household deletion (D-3, the Settings half of F-3) and the F-2/F-4/F-8/F-9 fixes.
+- D-3 account and household deletion, with the Settings part of F-3: Settings → Data Export downloads `GET /api/users/export`, the unimplemented Two-Factor Authentication entry is removed, and Delete Account opens an in-page dialog (export first, current password, typed `DELETE` or household name). `DELETE /api/users` deletes one account with hand-over of household content; `DELETE /api/family` deletes the whole household for its only parent (`src/lib/account-deletion.ts`). Both routes changed their request contract (password and confirmation now required); see `architecture/API_CONTRACTS.md` and [`product/ACCOUNT_DELETION.md`](product/ACCOUNT_DELETION.md). Before this, `DELETE /api/users` failed with 500 for a parent who had created meals, notes, recipes and similar (RESTRICT keys) and otherwise cascaded away chores/events/lists they created; `DELETE /api/family` needed no re-authentication and left member accounts behind without a household.
+- In progress: the F-2/F-4/F-8/F-9 fixes.
 - Other open PRs: #260 and #261 (Dependabot), #238 (draft docs).
 
 ## Approval state

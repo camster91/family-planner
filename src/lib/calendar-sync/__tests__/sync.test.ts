@@ -351,6 +351,23 @@ describe("errors, tokens and rate limits", () => {
     }
   });
 
+  it("revokes a token refreshed while the connection was deleted (account or household deletion)", async () => {
+    conn().token_expires_at = new Date(NOW.getTime() - 1000);
+    const realRefresh = oauth.refresh.bind(oauth);
+    jest.spyOn(oauth, "refresh").mockImplementation(async () => {
+      const set = await realRefresh();
+      // The deletion commits while the provider call is in flight.
+      const rows = db.rows("calendarConnection");
+      rows.splice(rows.findIndex((c) => c.id === "conn-a"), 1);
+      return set;
+    });
+    const res = await syncConnection("conn-a", FAMILY_A, deps);
+    expect(res?.status).not.toBe("ok");
+    // The just-issued token has no row to live in, so it is revoked.
+    expect(oauth.revoked).toEqual(["ACCESS-REFRESHED-1"]);
+    expect(db.find("calendarConnection", "conn-a")).toBeUndefined();
+  });
+
   it("marks reauth_required when the refresh token is revoked", async () => {
     conn().token_expires_at = new Date(NOW.getTime() - 1000);
     oauth.grantRevoked = true;

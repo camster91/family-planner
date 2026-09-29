@@ -30,6 +30,10 @@ Store sections (#273) do not change the allowlist: grouping by section runs on t
 overrides delivered with the list page, so a queued tick re-renders in its section offline. "Move to…" and the
 per-list sorting switch are online writes; the page says a move needs a connection instead of queueing it.
 
+Account and household deletion (D-3, `product/ACCOUNT_DELETION.md`) is never queued: it needs the current password
+at the moment it runs. The dialog sends an `Idempotency-Key` and retries once with the same key after a network
+error; nothing is stored for later.
+
 ## Mutation envelope
 Queued operations should include:
 - locally generated idempotency key;

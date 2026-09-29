@@ -109,6 +109,7 @@ jobs:
           npx jest --ci --runInBand --no-watchman --forceExit
           src/app/api/calendar/import-suggestions/__tests__/commit.integration.test.ts
           src/app/api/device/__tests__/device-writes.integration.test.ts
+          src/app/api/family/__tests__/join-vs-deletion.integration.test.ts
           src/app/api/inventory/__tests__/adjustments.integration.test.ts
           src/app/api/inventory/__tests__/inventory.integration.test.ts
           src/app/api/lists/__tests__/from-recipe.integration.test.ts
@@ -116,10 +117,12 @@ jobs:
           src/app/api/recipes/__tests__/recipes.integration.test.ts
           src/app/api/search/__tests__/search.integration.test.ts
           src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts
+          src/lib/__tests__/account-deletion.integration.test.ts
           src/lib/__tests__/device.integration.test.ts
           src/lib/__tests__/idempotency.integration.test.ts
           src/lib/__tests__/list-item-provenance.integration.test.ts
           src/lib/__tests__/list-item-update.integration.test.ts
+          src/lib/__tests__/membership-locks.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts
           src/lib/calendar-sync/__tests__/sync.integration.test.ts
           src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts

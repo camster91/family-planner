@@ -85,8 +85,19 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>
-              <li><strong>Export</strong>: GET <code>/api/users/export</code> returns a JSON file with all your data.</li>
-              <li><strong>Delete</strong>: DELETE <code>/api/users</code> removes your account and all associated data (GDPR Article 17).</li>
+              <li><strong>Export</strong>: Settings → Data Export (GET <code>/api/users/export</code>) downloads a JSON file with all your data.</li>
+              <li>
+                <strong>Delete your account</strong>: Settings → Delete Account. You confirm with your password. Your
+                account, sign-ins, messages, notifications and your own chores are deleted; things you added for the
+                household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.
+              </li>
+              <li>
+                <strong>Delete the household</strong>: the only parent can delete the whole household from the same
+                place. Every member account, all household data, uploaded photos, paired tablets, invitations and
+                calendar connections are deleted, and old links (calendar feed, sitter share link) stop working.
+                Short-lived security counters (rate limits) expire on their own. Database backups, where kept,
+                still hold deleted data until they are rotated out (up to about five weeks).
+              </li>
               <li><strong>Rectify</strong>: PATCH <code>/api/users</code> to update your name/age.</li>
             </ul>
           </section>

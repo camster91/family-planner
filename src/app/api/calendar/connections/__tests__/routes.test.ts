@@ -247,6 +247,49 @@ describe("OAuth start + callback", () => {
     expect(providerState.oauth.revoked).toEqual(["REFRESH-FROM-CODE"]);
   });
 
+  // D-3: a deletion that commits between the token exchange and the commit.
+  it("a callback whose household was deleted after the code exchange stores nothing and revokes the new grant", async () => {
+    db.tables.calendarConnection = db.rows("calendarConnection").filter((c) => c.id !== "conn-a");
+    const { state } = await startFlow("parentA");
+    const exchange = providerState.oauth.exchangeCode.bind(providerState.oauth);
+    providerState.oauth.exchangeCode = async (...args: Parameters<FakeOAuth["exchangeCode"]>) => {
+      const tokens = await exchange(...args);
+      // The household is deleted while the provider round trip was in flight.
+      db.tables.family = db.rows("family").filter((f) => f.id !== FAMILY_A);
+      return tokens;
+    };
+    const cb = await callbackReq("parentA", { code: "c", state: state! });
+    expect(cb.headers.get("location")).toContain("calendar_sync=forbidden");
+    expect(db.rows("calendarConnection").filter((c) => c.family_id === FAMILY_A)).toHaveLength(0);
+    expect(providerState.oauth.revoked).toEqual(["REFRESH-FROM-CODE"]);
+  });
+
+  it("a callback whose member left or was deleted after the exchange is refused and revoked", async () => {
+    db.tables.calendarConnection = db.rows("calendarConnection").filter((c) => c.id !== "conn-a");
+    const { state } = await startFlow("parentA");
+    const exchange = providerState.oauth.exchangeCode.bind(providerState.oauth);
+    providerState.oauth.exchangeCode = async (...args: Parameters<FakeOAuth["exchangeCode"]>) => {
+      const tokens = await exchange(...args);
+      db.find("user", "parent-a")!.family_id = null;
+      return tokens;
+    };
+    const cb = await callbackReq("parentA", { code: "c", state: state! });
+    expect(cb.headers.get("location")).toContain("calendar_sync=forbidden");
+    expect(db.rows("calendarConnection").some((c) => c.user_id === "parent-a")).toBe(false);
+    expect(providerState.oauth.revoked).toEqual(["REFRESH-FROM-CODE"]);
+  });
+
+  it("a commit that throws after the exchange still revokes the new grant", async () => {
+    const connections = require("@/lib/calendar-sync/connections");
+    const spy = jest.spyOn(connections, "commitConnection").mockRejectedValueOnce(new Error("db down"));
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const { state } = await startFlow("parentA");
+    const cb = await callbackReq("parentA", { code: "c", state: state! });
+    expect(cb.headers.get("location")).toContain("calendar_sync=error");
+    expect(providerState.oauth.revoked).toEqual(["REFRESH-FROM-CODE"]);
+    spy.mockRestore();
+  });
+
   it("re-connecting an existing member+provider is an update even at the limit, and bumps the generation", async () => {
     for (let i = 0; i < 5; i++) seedConnection(`other-${i}`, FAMILY_A, `member-${i}`, `Cal ${i}`);
     db.find("calendarConnection", "conn-a")!.generation = 3;

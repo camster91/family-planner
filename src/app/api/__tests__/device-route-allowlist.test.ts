@@ -112,6 +112,10 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'PATCH /api/lists/section-sort': [403],
   // Household search (route inventory F-3): a person read, never the tablet's.
   'GET /api/search': [403],
+  // Account and household deletion (D-3, ACCOUNT_DELETION.md): never from a shared tablet.
+  'DELETE /api/users': [403],
+  'DELETE /api/family': [403],
+  'GET /api/users/deletion': [403],
 }
 
 function routeFiles(dir: string): string[] {

@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [registerHref, setRegisterHref] = useState('/register')
+  const [deletedNotice, setDeletedNotice] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -23,8 +24,13 @@ export default function LoginPage() {
     // away), so offline changes left by an ended session are dropped, never
     // replayed (#162, OFFLINE_SYNC.md "Security").
     void clearAllPersonQueues()
-    const token = new URLSearchParams(window.location.search).get('token')
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
     if (token) setRegisterHref(`/register?token=${encodeURIComponent(token)}`)
+    // After Settings → Delete (docs/product/ACCOUNT_DELETION.md).
+    const deleted = params.get('deleted')
+    if (deleted === 'household') setDeletedNotice('Your household and its accounts have been deleted.')
+    else if (deleted === 'account') setDeletedNotice('Your account has been deleted.')
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -95,6 +101,15 @@ export default function LoginPage() {
               {t('auth.signInSubtitle')}
             </p>
           </div>
+
+          {deletedNotice && (
+            <p
+              role="status"
+              className="mb-4 rounded-[var(--radius-md)] bg-[var(--surface-fill)] px-4 py-3 text-[15px] text-[var(--label-primary)]"
+            >
+              {deletedNotice}
+            </p>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (

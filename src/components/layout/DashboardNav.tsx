@@ -15,12 +15,14 @@ import {
   MessageCircle,
   LayoutDashboard,
   Refrigerator,
+  Trash2,
 } from 'lucide-react'
 import type { NavUser, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { TabBar } from '@/components/ui/tab-bar'
 import { canRoleAccessPath, isKidRole } from '@/lib/kid-access'
+import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
 import { useFeatures } from '@/components/providers/features-provider'
 import { homeHrefFor, isTabActive, tabsFor } from '@/lib/nav-items'
@@ -41,6 +43,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const router = useRouter()
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false)
+  // Teens and children cannot open Settings (kid-access.ts), so their
+  // "Delete my account" lives here (D-3, ACCOUNT_DELETION.md). Own account only.
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const avatarRef = useRef<HTMLDivElement>(null)
   // Hide links the role would only be redirected away from (src/lib/kid-access.ts).
   const canSee = (href: string) => canRoleAccessPath(user?.role, href)
@@ -276,6 +281,19 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
                   {/* Sign out */}
                   <div className="py-1.5 border-t border-[var(--surface-separator)]">
+                    {isKid && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAvatarOpen(false)
+                          setDeleteOpen(true)
+                        }}
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 w-full text-[15px] text-label-secondary hover:bg-[var(--surface-secondary)] transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        Delete my account
+                      </button>
+                    )}
                     <button
                       onClick={handleSignOut}
                       className="flex items-center gap-3 px-4 py-2.5 w-full text-[15px] text-red-600 hover:bg-red-50 transition-colors"
@@ -290,6 +308,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           </div>
         </div>
       </nav>
+
+      {isKid && (
+        <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} allowHousehold={false} />
+      )}
 
       {/* ─── Mobile bottom TabBar (handled inside layout, but exported here for reuse) ─── */}
       {/* The TabBar is rendered in layout.tsx, not here, to avoid double-rendering */}

@@ -258,10 +258,25 @@ async function accessToken(ctx: Ctx, force = false): Promise<string> {
       set.refreshToken ?? refresh,
       tokenAad.refresh(conn.family_id),
     );
-  await db.calendarConnection.updateMany({
+  const written = await db.calendarConnection.updateMany({
     where: { id: conn.id, family_id: conn.family_id },
     data,
   });
+  if (written.count === 0) {
+    // The connection was removed while the refresh ran (disconnect, or account
+    // or household deletion, which row-locks connections before reading their
+    // tokens, so this write waits for it and then matches nothing). The
+    // provider has just issued a token no row holds: revoke it, best effort,
+    // so the grant does not outlive its record, then stop this run.
+    try {
+      await ctx.oauth.revoke(ctx.config, set.refreshToken ?? set.accessToken);
+    } catch {
+      console.warn("[calendar-sync] revoke of orphaned token failed", {
+        connectionId: conn.id,
+      });
+    }
+    throw new OAuthGrantError();
+  }
   Object.assign(conn, data);
   return set.accessToken;
 }
@@ -884,7 +899,12 @@ export async function listConnectionCalendars(
 }
 
 /** Remove events imported from this connection and all its links. */
-async function clearConnectionData(tx: any, connectionId: string, familyId: string) {
+/**
+ * Delete a connection's links and the events imported through it (not the
+ * connection row). Exported for account deletion, which runs it inside its
+ * own transaction (src/lib/account-deletion.ts).
+ */
+export async function clearConnectionData(tx: any, connectionId: string, familyId: string) {
   await tx.calendarEventLink.deleteMany({
     where: { connection_id: connectionId, family_id: familyId },
   });
@@ -925,6 +945,33 @@ export async function changeCalendar(
 }
 
 /**
+ * Revoke a connection's grant at the provider, best effort, with no database
+ * writes. Returns true when a revoke call was made and did not throw. Used by
+ * `removeConnection` (before it deletes the rows) and by account deletion
+ * (after its transaction committed, so a failed deletion never leaves a
+ * connection whose grant is already gone).
+ */
+export async function revokeProviderGrant(
+  conn: { id: string; provider: string; access_token_enc: string | null; refresh_token_enc: string | null },
+  familyId: string,
+  deps: Pick<EngineDeps, "configFor" | "oauthFor"> = {},
+): Promise<boolean> {
+  if (!isProvider(conn.provider)) return false;
+  const config = (deps.configFor ?? getProviderConfig)(conn.provider);
+  const token =
+    decryptToken(conn.refresh_token_enc, tokenAad.refresh(familyId)) ??
+    decryptToken(conn.access_token_enc, tokenAad.access(familyId));
+  if (!config || !token) return false;
+  try {
+    await (deps.oauthFor ?? ((p) => oauthFor(p)))(conn.provider).revoke(config, token);
+    return true;
+  } catch {
+    console.warn("[calendar-sync] revoke failed", { connectionId: conn.id });
+    return false;
+  }
+}
+
+/**
  * Disconnect: revoke at the provider (best effort), then delete the tokens,
  * the links, the events imported from this connection, and the connection.
  * Local events that were pushed stay in the family calendar; their provider
@@ -942,24 +989,7 @@ export async function removeConnection(
   });
   if (!conn) return null;
 
-  if (isProvider(conn.provider)) {
-    const config = (deps.configFor ?? getProviderConfig)(conn.provider);
-    const token =
-      decryptToken(conn.refresh_token_enc, tokenAad.refresh(familyId)) ??
-      decryptToken(conn.access_token_enc, tokenAad.access(familyId));
-    if (config && token) {
-      try {
-        await (deps.oauthFor ?? ((p) => oauthFor(p)))(conn.provider).revoke(
-          config,
-          token,
-        );
-      } catch {
-        console.warn("[calendar-sync] revoke failed", {
-          connectionId: conn.id,
-        });
-      }
-    }
-  }
+  await revokeProviderGrant(conn, familyId, deps);
 
   const removedEvents: number = await db.$transaction(async (tx: any) => {
     const removed = await clearConnectionData(tx, conn.id, familyId);
