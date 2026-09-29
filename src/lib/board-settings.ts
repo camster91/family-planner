@@ -319,3 +319,52 @@ export async function applyBoardSettingsPatch(
   }
   return null
 }
+
+// ---------------------------------------------------------------------------
+// What a patch actually changed (#285 review): the household audit history
+// records only sections whose persisted values differ before and after the
+// patch, both read inside the same transaction. A no-op section
+// (`{ weather: {} }`), a resubmitted value or a retry changes nothing and is
+// not recorded.
+
+const SECTION_COLUMNS = {
+  weather: ['weather_enabled', 'weather_latitude', 'weather_longitude', 'weather_label', 'weather_unit'],
+  display: ['ambient_idle_minutes', 'night_start', 'night_end', 'ambient_photo_ids'],
+  deviceWrites: ['device_writes_enabled'],
+} as const
+
+export type BoardSettingsSnapshot = {
+  family: Record<string, unknown> | null
+  colors: Array<{ id: string; board_color: string | null }>
+}
+
+/** The persisted values every section is made of, for `changedBoardSections`. */
+export async function boardSettingsSnapshot(db: Db, familyId: string): Promise<BoardSettingsSnapshot> {
+  const select: Record<string, true> = {}
+  for (const cols of Object.values(SECTION_COLUMNS)) for (const c of cols) select[c] = true
+  const family = await db.family.findUnique({ where: { id: familyId }, select: select as never })
+  const colors = await db.user.findMany({
+    where: { family_id: familyId },
+    select: { id: true, board_color: true },
+    orderBy: { id: 'asc' },
+  })
+  return { family: (family as Record<string, unknown> | null) ?? null, colors }
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+}
+
+/** Sections whose persisted values differ between two snapshots, in a fixed order. */
+export function changedBoardSections(
+  before: BoardSettingsSnapshot,
+  after: BoardSettingsSnapshot
+): BoardSettingsSection[] {
+  const differs = (cols: readonly string[]) => cols.some((c) => !sameValue(before.family?.[c], after.family?.[c]))
+  const out: BoardSettingsSection[] = []
+  if (differs(SECTION_COLUMNS.weather)) out.push('weather')
+  if (!sameValue(before.colors, after.colors)) out.push('memberColors')
+  if (differs(SECTION_COLUMNS.display)) out.push('display')
+  if (differs(SECTION_COLUMNS.deviceWrites)) out.push('deviceWrites')
+  return out
+}

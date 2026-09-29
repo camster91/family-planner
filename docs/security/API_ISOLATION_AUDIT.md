@@ -212,7 +212,9 @@ it already authorised, inside the same transaction as the change (`src/lib/house
 `PATCH /api/device/label`, `POST /api/device/revoke-self`, `POST /api/family/invites`, `DELETE
 /api/family/invites/[id]`. Also the invite branch of `POST /api/auth/register` (`member.joined`, inside its locked join
 transaction) and member account deletion (`member.left`, role word only; the member's `member.joined` line loses
-their name; `auditLog` is a step of `HOUSEHOLD_DELETION_PLAN`). Summaries are fixed templates plus names; never emails, codes, tokens, places or colours.
+their name; `auditLog` is a step of `HOUSEHOLD_DELETION_PLAN`). Summaries are fixed templates plus names; never emails, codes, tokens, places or colours. Review follow-up: feature toggles re-read the flags under a `Family` row lock inside the transaction
+(concurrent toggles of different features both persist); board settings are recorded only for sections whose stored
+values changed.
 The account export adds the last 12 months (parent: all rows; teen/child: own rows). Tests:
 `src/app/api/audit/__tests__/audit.test.ts` (two households, roles, device, paging, retention),
 `audit-writes.test.ts` (every write path, refused and foreign requests write nothing), the opt-in

@@ -3,7 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceError, deviceInternalError, deviceJson, killSwitch, readJson } from '@/lib/device-http'
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
-import { applyBoardSettingsPatch, parseBoardSettingsPatch, readBoardSettings } from '@/lib/board-settings'
+import {
+  applyBoardSettingsPatch,
+  boardSettingsSnapshot,
+  changedBoardSections,
+  parseBoardSettingsPatch,
+  readBoardSettings,
+} from '@/lib/board-settings'
 import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
@@ -53,9 +59,13 @@ export async function PATCH(request: NextRequest) {
 
     // The change and its household audit row (#285, actor: the elevated
     // parent on the tablet) commit together.
+    // Only sections whose stored values actually changed are recorded.
     const refused = await prisma!.$transaction(async (tx) => {
+      const before = await boardSettingsSnapshot(tx, actor.familyId)
       const result = await applyBoardSettingsPatch(tx, actor.familyId, parsed.patch)
-      if (result || parsed.sections.length === 0) return result
+      if (result) return result
+      const changed = changedBoardSections(before, await boardSettingsSnapshot(tx, actor.familyId))
+      if (changed.length === 0) return null
       await writeAuditLog(tx, {
         familyId: actor.familyId,
         actorUserId: actor.parentId,
@@ -63,7 +73,7 @@ export async function PATCH(request: NextRequest) {
         action: 'board_settings.changed',
         targetType: 'family',
         targetId: actor.familyId,
-        summary: boardSettingsSummary(parsed.sections),
+        summary: boardSettingsSummary(changed),
       })
       return null
     })

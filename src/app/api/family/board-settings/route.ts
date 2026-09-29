@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
-import { applyBoardSettingsPatch, parseBoardSettingsPatch, readBoardSettings } from '@/lib/board-settings'
+import {
+  applyBoardSettingsPatch,
+  boardSettingsSnapshot,
+  changedBoardSections,
+  parseBoardSettingsPatch,
+  readBoardSettings,
+} from '@/lib/board-settings'
 import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
@@ -60,9 +66,14 @@ export async function PATCH(request: NextRequest) {
 
     // The change and its household audit row (#285) commit together. A
     // refused patch has written nothing (every check runs before a write).
+    // Only sections whose stored values actually changed are recorded, so a
+    // no-op, a resubmitted value or a retry writes no history row.
     const refused = await prisma!.$transaction(async (tx) => {
+      const before = await boardSettingsSnapshot(tx, familyId)
       const result = await applyBoardSettingsPatch(tx, familyId, parsed.patch)
-      if (result || parsed.sections.length === 0) return result
+      if (result) return result
+      const changed = changedBoardSections(before, await boardSettingsSnapshot(tx, familyId))
+      if (changed.length === 0) return null
       await writeAuditLog(tx, {
         familyId,
         actorUserId: auth.user.id,
@@ -70,7 +81,7 @@ export async function PATCH(request: NextRequest) {
         action: 'board_settings.changed',
         targetType: 'family',
         targetId: familyId,
-        summary: boardSettingsSummary(parsed.sections),
+        summary: boardSettingsSummary(changed),
       })
       return null
     })

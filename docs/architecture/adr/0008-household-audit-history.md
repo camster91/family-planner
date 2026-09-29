@@ -23,12 +23,15 @@ parent makes from a phone.
    `summary` is built only from fixed templates plus names (a feature title, a member's or a tablet's name, a role
    word), at most 200 characters. Never an email address, code, token, PIN, place, coordinate, colour value or other
    free text.
-4. **Audited changes:** `PATCH /api/family/features` (one row per feature that changed); joining a household
+4. **Audited changes:** `PATCH /api/family/features` (one row per feature that changed; the flags are re-read under
+   `SELECT … FOR UPDATE` on the `Family` row inside the transaction and only the features named in the request
+   change, so concurrent toggles of different features both survive); joining a household
    (`POST /api/family/join` and the invite branch of `POST /api/auth/register`, which is where a member's role is
    set; both inside the locked join transaction of `src/lib/household-lock.ts`); a member deleting their own account
    (`deleteMemberAccount`, #292: a `member.left` line with the role word only, the name taken out of their
    `member.joined` line, their actor references cleared, all in the deletion transaction); `PATCH /api/family/board-settings` and
-   `PATCH /api/device/elevated/board-settings` (section names only); tablet pairing (when the tablet is issued, plus the
+   `PATCH /api/device/elevated/board-settings` (section names only, and only sections whose stored values differ
+   before and after the patch inside the transaction: a no-op, a resubmitted value or a retry writes no row); tablet pairing (when the tablet is issued, plus the
    tablet it replaces), `PATCH /api/family/devices/[id]`, `POST /api/family/devices/[id]/revoke`, `PATCH /api/device/label`,
    `POST /api/device/revoke-self`; `POST /api/family/invites` and `DELETE /api/family/invites/[id]`. On the tablet the
    actor is the elevated parent and `actor_kind` is `device`.

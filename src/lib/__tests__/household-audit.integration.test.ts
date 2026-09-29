@@ -8,6 +8,19 @@
 // `node scripts/migrate.js` has prepared.
 
 jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
+// getServerUser (features route) reads the session cookie through next/headers;
+// each concurrent request runs in its own async context with its own token.
+jest.mock('next/headers', () => {
+  const { AsyncLocalStorage } = require('async_hooks')
+  const als = new AsyncLocalStorage()
+  return {
+    __als: als,
+    cookies: async () => ({
+      get: (name: string) => (name === 'session_token' && als.getStore() ? { value: als.getStore() } : undefined),
+    }),
+    headers: async () => new Headers(),
+  }
+})
 jest.mock('@/lib/session', () => ({
   // `session:<userId>` tokens; role and family always come from the real user row.
   verifySessionToken: async (token: string) => {
@@ -30,6 +43,9 @@ describeWithDatabase('household audit history against Postgres', () => {
   let settingsRoute: typeof import('@/app/api/family/board-settings/route')
   let inviteRoute: typeof import('@/app/api/family/invites/[id]/route')
   let auditRoute: typeof import('@/app/api/audit/route')
+  let featuresRoute: typeof import('@/app/api/family/features/route')
+  const asUser = <T>(userId: string, fn: () => Promise<T>): Promise<T> =>
+    (require('next/headers').__als as import('async_hooks').AsyncLocalStorage<string>).run(`session:${userId}`, fn)
 
   const FAM = 'auditint-family'
   const FAM2 = 'auditint-family-2'
@@ -64,6 +80,7 @@ describeWithDatabase('household audit history against Postgres', () => {
     settingsRoute = await import('@/app/api/family/board-settings/route')
     inviteRoute = await import('@/app/api/family/invites/[id]/route')
     auditRoute = await import('@/app/api/audit/route')
+    featuresRoute = await import('@/app/api/family/features/route')
     await cleanup()
     await prisma.family.createMany({
       data: [
@@ -213,6 +230,66 @@ describeWithDatabase('household audit history against Postgres', () => {
     const res = await auditRoute.GET(request(PARENT, { path: '/api/audit' }))
     expect(res.status).toBe(200)
     expect(await prisma.auditLog.findUnique({ where: { id: 'auditint-old' } })).toBeNull()
+  })
+
+  it('two parents toggling different features at once: both changes persist, one audit row each (#285 review)', async () => {
+    await prisma.family.update({ where: { id: FAM }, data: { features: { travel: false, pickups: false } } })
+    const auditBefore = await prisma.auditLog.count({ where: { family_id: FAM, target_type: 'feature' } })
+    // Hold the household row so both requests are in flight before either can
+    // write: a read outside the lock would now see the same stale flags.
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    let locked!: () => void
+    const isLocked = new Promise<void>((r) => (locked = r))
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${FAM} FOR UPDATE`
+        locked()
+        await gate
+      },
+      { timeout: 20_000 }
+    )
+    await isLocked
+    const patch = (userId: string, key: string) =>
+      asUser(userId, () =>
+        featuresRoute.PATCH({ json: async () => ({ key, enabled: true }) } as unknown as Request)
+      )
+    const both = Promise.all([patch(PARENT, 'travel'), patch(PARENT2, 'pickups')])
+    await new Promise((r) => setTimeout(r, 500))
+    release()
+    await holder
+    const [a, b] = await both
+    expect([a.status, b.status]).toEqual([200, 200])
+
+    const family = await prisma.family.findUnique({ where: { id: FAM }, select: { features: true } })
+    expect(family?.features).toMatchObject({ travel: true, pickups: true })
+    const rows = await prisma.auditLog.findMany({
+      where: { family_id: FAM, target_type: 'feature' },
+      orderBy: { created_at: 'asc' },
+    })
+    const added = rows.slice(auditBefore)
+    expect(added.map((r) => [r.action, r.target_id, r.actor_user_id]).sort()).toEqual([
+      ['feature.turned_on', 'pickups', PARENT2],
+      ['feature.turned_on', 'travel', PARENT],
+    ])
+  })
+
+  it('board settings: a no-op or resubmitted value writes no audit row; a real change writes one (#285 review)', async () => {
+    const count = () => prisma.auditLog.count({ where: { family_id: FAM, action: 'board_settings.changed' } })
+    const before = await count()
+    const current = await prisma.family.findUnique({ where: { id: FAM }, select: { ambient_idle_minutes: true } })
+    for (const body of [{ weather: {} }, { display: { idleMinutes: current!.ambient_idle_minutes } }, { memberColors: {} }]) {
+      const res = await settingsRoute.PATCH(request(PARENT, { method: 'PATCH', body }))
+      expect(res.status).toBe(200)
+    }
+    expect(await count()).toBe(before)
+    const next = current!.ambient_idle_minutes === 15 ? 10 : 15
+    const changed = await settingsRoute.PATCH(request(PARENT, { method: 'PATCH', body: { display: { idleMinutes: next } } }))
+    expect(changed.status).toBe(200)
+    expect(await count()).toBe(before + 1)
+    // The same value again (a retry) records nothing more.
+    await settingsRoute.PATCH(request(PARENT, { method: 'PATCH', body: { display: { idleMinutes: next } } }))
+    expect(await count()).toBe(before + 1)
   })
 
   it("deleting a member keeps the household's rows without an actor", async () => {

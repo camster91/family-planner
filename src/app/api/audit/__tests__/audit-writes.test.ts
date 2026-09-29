@@ -128,6 +128,51 @@ describe('household audit writes', () => {
   })
 
   describe('board settings', () => {
+    // Stored values as Postgres would hold them (the fake has no column defaults for these).
+    beforeEach(() => {
+      Object.assign(db.find('family', FAMILY_A)!, {
+        weather_enabled: false,
+        weather_latitude: null,
+        weather_longitude: null,
+        weather_label: null,
+        weather_unit: 'celsius',
+        ambient_idle_minutes: 5,
+        night_start: null,
+        night_end: null,
+        ambient_photo_ids: [],
+        device_writes_enabled: false,
+      })
+      for (const u of db.rows('user')) if (u.board_color === undefined) u.board_color = null
+    })
+
+    it('person door: a no-op section or the saved value writes no row; a real change writes one', async () => {
+      const patch = (body: unknown) => boardSettings.PATCH(req({ as: 'parentA', method: 'PATCH', body }))
+      for (const body of [{ weather: {} }, { display: { idleMinutes: 5 } }, { deviceWrites: { enabled: false } }, { memberColors: {} }]) {
+        expect((await patch(body)).status).toBe(200)
+      }
+      expect(auditRows()).toHaveLength(0)
+      // Idle minutes changes, night hours are resubmitted unchanged: only "calm display" once.
+      expect((await patch({ display: { idleMinutes: 10 }, weather: { unit: 'celsius' } })).status).toBe(200)
+      expect(onlyRow().summary).toBe('Changed the Today board settings: calm display')
+      // A retry of the same change records nothing more.
+      await patch({ display: { idleMinutes: 10 } })
+      expect(auditRows()).toHaveLength(1)
+    })
+
+    it('elevated tablet door: a no-op writes no row either', async () => {
+      enableSharedDevice()
+      const fx = seedDevices()
+      setPin('parentA', PIN)
+      const t = await elevationToken(fx.d1.cookies)
+      const patch = (body: unknown) =>
+        elevatedSettings.PATCH(deviceReq({ method: 'PATCH', cookies: fx.d1.cookies, headers: { 'x-device-elevation': t }, body }))
+      expect((await patch({ deviceWrites: { enabled: false } })).status).toBe(200)
+      expect((await patch({ weather: {} })).status).toBe(200)
+      expect(auditRows()).toHaveLength(0)
+      expect((await patch({ deviceWrites: { enabled: true } })).status).toBe(200)
+      expect(onlyRow()).toMatchObject({ actor_kind: 'device', summary: 'Changed the Today board settings: tablet changes' })
+    })
+
     it('person door: section names only, never values', async () => {
       const color = MEMBER_COLOR_KEYS[1]
       const res = await boardSettings.PATCH(
