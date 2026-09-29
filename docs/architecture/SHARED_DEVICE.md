@@ -21,25 +21,25 @@ device mode is an opt-in re-pair through Settings → Devices (§19) while the k
 
 ## 1. Source facts this contract builds on
 
-| Fact | Source |
-|---|---|
-| Person auth is a 7-day JWT in the httpOnly `session_token` cookie. | `src/lib/auth.ts` `signToken`, `src/app/api/auth/login/route.ts` |
-| Every auth path resolves `role`, `family_id`, `token_version` from the database per request; JWT claims are not authoritative. | `src/lib/session.ts` `resolveSession`, `verifySessionToken` |
-| Logout and password reset/change bump `User.token_version`, revoking all of that person's sessions. | `src/app/api/auth/logout/route.ts`, `src/lib/tokens.ts` `consumeResetToken` |
-| CSRF is a double-submit cookie (`csrf_token` + `X-CSRF-Token`) on every unsafe `/api/*` method except a fixed exemption list. | `src/middleware.ts`, `src/lib/csrf.ts` |
-| Middleware only gates `/dashboard` and auth routes, and applies the kid allowlist. | `src/middleware.ts`, `src/lib/kid-access.ts` |
-| Single-use secrets are stored as `sha256` hex and consumed with one atomic `updateMany`. | `src/lib/tokens.ts` |
-| Rate limiting is Postgres-backed (`RateLimitEntry`, unique `key`), counts every call (`checkRateLimit`) or only failures (`isRateLimited` + `checkRateLimit` on failure), and falls back to per-process memory on DB error. | `src/lib/rate-limit-db.ts` |
-| Client IP is taken `TRUSTED_PROXY_HOPS` from the right of `X-Forwarded-For`. | `src/lib/client-ip.ts` |
-| Role capability helpers: `isParentRole`, `canCreateList`, `shapeHandoffForRole`, etc. | `src/lib/role-capabilities.ts` |
-| Shared-surface DTO with explicit `select`s, scoped by `family_id`. | `src/app/dashboard/today/today-board-data.ts` |
-| `buildTodayBoard` derives links from `canRoleAccessPath(role, …)`; a `null`/unknown role is treated as non-kid and would get **every** link. | `today-board-data.ts` `allowedLink`, `src/lib/kid-access.ts` |
-| Dashboard layout passed `id, email, name, role, age, family_id, avatar_url, xp, level, streak, created_at` to `DashboardNav` and `TabBar`, so fridge mode serialised them. Fixed by #241: only `id, name, role, avatar_url`. | `src/app/dashboard/layout.tsx` |
-| `Activity.user_id` is required, so device events cannot be stored there without a contract change. | `prisma/schema.prisma` `Activity` |
-| `ListItem.added_by`, `Chore.created_by`, `Event.created_by`, `FamilyMeal.created_by` are required `User` FKs. | `prisma/schema.prisma` |
-| Android is a Capacitor shell loading `https://family.ashbi.ca`; `MainActivity` is a bare `BridgeActivity`; backup and device transfer are disabled. | `capacitor.config.ts`, `android/app/src/main/java/.../MainActivity.java`, `docs/architecture/ANDROID.md` |
-| The schema is applied by idempotent DDL on every container start (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, FK `DO $$ … duplicate_object`). | `scripts/migrate.js` |
-| No scheduled jobs without Cameron's approval. | `AGENTS.md` |
+| Fact                                                                                                                                                                                                                         | Source                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Person auth is a 7-day JWT in the httpOnly `session_token` cookie.                                                                                                                                                           | `src/lib/auth.ts` `signToken`, `src/app/api/auth/login/route.ts`                                         |
+| Every auth path resolves `role`, `family_id`, `token_version` from the database per request; JWT claims are not authoritative.                                                                                               | `src/lib/session.ts` `resolveSession`, `verifySessionToken`                                              |
+| Logout and password reset/change bump `User.token_version`, revoking all of that person's sessions.                                                                                                                          | `src/app/api/auth/logout/route.ts`, `src/lib/tokens.ts` `consumeResetToken`                              |
+| CSRF is a double-submit cookie (`csrf_token` + `X-CSRF-Token`) on every unsafe `/api/*` method except a fixed exemption list.                                                                                                | `src/middleware.ts`, `src/lib/csrf.ts`                                                                   |
+| Middleware only gates `/dashboard` and auth routes, and applies the kid allowlist.                                                                                                                                           | `src/middleware.ts`, `src/lib/kid-access.ts`                                                             |
+| Single-use secrets are stored as `sha256` hex and consumed with one atomic `updateMany`.                                                                                                                                     | `src/lib/tokens.ts`                                                                                      |
+| Rate limiting is Postgres-backed (`RateLimitEntry`, unique `key`), counts every call (`checkRateLimit`) or only failures (`isRateLimited` + `checkRateLimit` on failure), and falls back to per-process memory on DB error.  | `src/lib/rate-limit-db.ts`                                                                               |
+| Client IP is taken `TRUSTED_PROXY_HOPS` from the right of `X-Forwarded-For`.                                                                                                                                                 | `src/lib/client-ip.ts`                                                                                   |
+| Role capability helpers: `isParentRole`, `canCreateList`, `shapeHandoffForRole`, etc.                                                                                                                                        | `src/lib/role-capabilities.ts`                                                                           |
+| Shared-surface DTO with explicit `select`s, scoped by `family_id`.                                                                                                                                                           | `src/app/dashboard/today/today-board-data.ts`                                                            |
+| `buildTodayBoard` derives links from `canRoleAccessPath(role, …)`; a `null`/unknown role is treated as non-kid and would get **every** link.                                                                                 | `today-board-data.ts` `allowedLink`, `src/lib/kid-access.ts`                                             |
+| Dashboard layout passed `id, email, name, role, age, family_id, avatar_url, xp, level, streak, created_at` to `DashboardNav` and `TabBar`, so fridge mode serialised them. Fixed by #241: only `id, name, role, avatar_url`. | `src/app/dashboard/layout.tsx`                                                                           |
+| `Activity.user_id` is required, so device events cannot be stored there without a contract change.                                                                                                                           | `prisma/schema.prisma` `Activity`                                                                        |
+| `ListItem.added_by`, `Chore.created_by`, `Event.created_by`, `FamilyMeal.created_by` are required `User` FKs.                                                                                                                | `prisma/schema.prisma`                                                                                   |
+| Android is a Capacitor shell loading `https://family.ashbi.ca`; `MainActivity` is a bare `BridgeActivity`; backup and device transfer are disabled.                                                                          | `capacitor.config.ts`, `android/app/src/main/java/.../MainActivity.java`, `docs/architecture/ANDROID.md` |
+| The schema is applied by idempotent DDL on every container start (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, FK `DO $$ … duplicate_object`).                                                                  | `scripts/migrate.js`                                                                                     |
+| No scheduled jobs without Cameron's approval.                                                                                                                                                                                | `AGENTS.md`                                                                                              |
 
 ## 2. Identity and ownership
 
@@ -238,17 +238,17 @@ and a second run to prove idempotency.
 
 ## 4. Tokens, cookies and rotation
 
-| Item | Value |
-|---|---|
-| Access token | `fpd1_a_` + base64url(32 random bytes). Opaque, not a JWT. |
-| Refresh token | `fpd1_r_` + base64url(32 random bytes). Single use. |
-| At rest | `sha256` hex only (`hashToken` in `src/lib/tokens.ts`). Plaintext exists only in the `Set-Cookie` header. |
-| Access TTL | 60 minutes. |
-| Refresh TTL | 30 days idle (**O-8**); each rotation issues a new 30-day refresh. No absolute cap while the device keeps refreshing. |
-| Access cookie | `fp_device`, httpOnly, `Secure` in production (same rule as `session_token`), `SameSite=Lax`, `Path=/`, `Max-Age=3600`. |
-| Refresh cookie | `fp_device_refresh`, httpOnly, `Secure` in production, `SameSite=Strict`, `Path=/`, `Max-Age=2592000`. `Path=/` so a cold launch (Capacitor loads `/`) and `POST /api/auth/login` can see it after the 1-hour access cookie has expired. The server **rotates** it only at the refresh endpoint; elsewhere it is only looked up (bootstrap and the login guard below), never accepted as an access credential. |
-| Elevation token | `fpd1_e_` + base64url(32 bytes). Returned in the JSON body, held in JS memory only, sent as `X-Device-Elevation`. Never a cookie, never in storage. |
-| Pairing claim token | `fpd1_p_` + base64url(32 bytes). JSON body, memory only, sent in the status POST body. |
+| Item                | Value                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Access token        | `fpd1_a_` + base64url(32 random bytes). Opaque, not a JWT.                                                                                                                                                                                                                                                                                                                                                     |
+| Refresh token       | `fpd1_r_` + base64url(32 random bytes). Single use.                                                                                                                                                                                                                                                                                                                                                            |
+| At rest             | `sha256` hex only (`hashToken` in `src/lib/tokens.ts`). Plaintext exists only in the `Set-Cookie` header.                                                                                                                                                                                                                                                                                                      |
+| Access TTL          | 60 minutes.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Refresh TTL         | 30 days idle (**O-8**); each rotation issues a new 30-day refresh. No absolute cap while the device keeps refreshing.                                                                                                                                                                                                                                                                                          |
+| Access cookie       | `fp_device`, httpOnly, `Secure` in production (same rule as `session_token`), `SameSite=Lax`, `Path=/`, `Max-Age=3600`.                                                                                                                                                                                                                                                                                        |
+| Refresh cookie      | `fp_device_refresh`, httpOnly, `Secure` in production, `SameSite=Strict`, `Path=/`, `Max-Age=2592000`. `Path=/` so a cold launch (Capacitor loads `/`) and `POST /api/auth/login` can see it after the 1-hour access cookie has expired. The server **rotates** it only at the refresh endpoint; elsewhere it is only looked up (bootstrap and the login guard below), never accepted as an access credential. |
+| Elevation token     | `fpd1_e_` + base64url(32 bytes). Returned in the JSON body, held in JS memory only, sent as `X-Device-Elevation`. Never a cookie, never in storage.                                                                                                                                                                                                                                                            |
+| Pairing claim token | `fpd1_p_` + base64url(32 bytes). JSON body, memory only, sent in the status POST body.                                                                                                                                                                                                                                                                                                                         |
 
 The `fpd1_` prefix versions the format and makes the values recognisable to secret scanners.
 
@@ -379,7 +379,7 @@ digits on **their** screen, the real tablet shows "code already used", and the p
    `401 ELEVATION_INVALID_CREDENTIAL`, whether the user is unknown, foreign, not a parent or the secret is wrong.
 4. Success writes the elevation columns on `HouseholdDevice` (replacing any earlier elevation), records
    `elevated_token_version = User.token_version`, and returns `{ elevationToken, expiresAt, idleTimeoutSeconds:
-   300, member: { id, name } }`.
+300, member: { id, name } }`.
 
 ### 6.3 Enforcement
 
@@ -484,19 +484,19 @@ tablet.
 
 The device reads exactly the Today board DTO, built by `buildTodayBoard` with a new `audience: 'device'` option:
 
-| DTO part | Fields | Source model |
-|---|---|---|
-| `members` | `id`, `name`, `color` (#262: palette key from `board_color` or the fallback) | `User` (no email, age, avatar, role, XP, level, streak) |
-| `events` | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }`, `addedById` (#262: household member who added a local event; `null` for subscribed or provider-synced imports) | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`) |
-| `chores` | `id`, `title`, `dueDay`, `status`, `assigneeId`, `icon` | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`, `routine`, `routine_order`). `icon` (#272) is a key from the fixed picture catalogue or `null`, never user text, so it is safe on the shared surface. |
-| `dinners` | `id`, `day`, `recipeName`, `cookName` | `FamilyMeal` (no `notes`); `null` when meals feature is off |
-| `shopping` | `items[] { id, content, quantity, listId, listName }`, `total` | `ListItem`/`List` of type `grocery`/`shopping` (no `price`, `notes`, `added_by`) |
-| `links` | all `null` for the device audience (including `inventory`) | — |
-| `useSoon` (#262 tile, #263 data) | `id`, `name`, `location`, `expiresOn`; `null` when the `inventory` feature is off | `InventoryItem` of the device's household, expired or due within 3 days (no `amount`, `unit`, `ingredient_id`, `added_by`). Allowed on the device for the same reason as `shopping`: household food names every member may read; read-only |
-| `weather` (#262) | `label`, `unit`, `current { temperature, summary, icon, isDay }`, `days[] { day, high, low, summary, icon, precipitationChance }` (place-local dates), `utcOffsetSeconds` (the place's offset, so the client picks today by the place's date), `fetchedAt`; `null` unless the household opted in | `Family.weather_*` and `WeatherCache` of the device's household (no coordinates) |
-| `generatedAt` | server time | — |
-| `version` (#271) | opaque change version (`v1-` + 24 hex): a hash of the fields above (minus `generatedAt` and the forecast) plus `display` and the weather settings | computed from the rows above; no new data |
-| `display` (#271) | `idleMinutes` (0, 1, 2, 5, 10, 15 or 30), `night { start, end }` (`HH:MM`, tablet-local) or `null`. **No `photos`** (see the open question below) | `Family.ambient_idle_minutes`, `night_start`, `night_end` of the device's household (display settings, not household content). `Family.ambient_photo_ids` is never read for the device audience |
+| DTO part                         | Fields                                                                                                                                                                                                                                                                                           | Source model                                                                                                                                                                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `members`                        | `id`, `name`, `color` (#262: palette key from `board_color` or the fallback)                                                                                                                                                                                                                     | `User` (no email, age, avatar, role, XP, level, streak)                                                                                                                                                                                    |
+| `events`                         | `id`, `title`, `start`, `end`, `isTask`, `source { name, color }`, `addedById` (#262: household member who added a local event; `null` for subscribed or provider-synced imports)                                                                                                                | `Event`, `CalendarSubscription` (no `location`, `description`, `recurrence`, `url_enc`)                                                                                                                                                    |
+| `chores`                         | `id`, `title`, `dueDay`, `status`, `assigneeId`, `icon`                                                                                                                                                                                                                                          | `Chore` (no `description`, `points`, `photo_url`, `verified_notes`, `difficulty`, `routine`, `routine_order`). `icon` (#272) is a key from the fixed picture catalogue or `null`, never user text, so it is safe on the shared surface.    |
+| `dinners`                        | `id`, `day`, `recipeName`, `cookName`                                                                                                                                                                                                                                                            | `FamilyMeal` (no `notes`); `null` when meals feature is off                                                                                                                                                                                |
+| `shopping`                       | `items[] { id, content, quantity, listId, listName }`, `total`                                                                                                                                                                                                                                   | `ListItem`/`List` of type `grocery`/`shopping` (no `price`, `notes`, `added_by`)                                                                                                                                                           |
+| `links`                          | all `null` for the device audience (including `inventory`)                                                                                                                                                                                                                                       | —                                                                                                                                                                                                                                          |
+| `useSoon` (#262 tile, #263 data) | `id`, `name`, `location`, `expiresOn`; `null` when the `inventory` feature is off                                                                                                                                                                                                                | `InventoryItem` of the device's household, expired or due within 3 days (no `amount`, `unit`, `ingredient_id`, `added_by`). Allowed on the device for the same reason as `shopping`: household food names every member may read; read-only |
+| `weather` (#262)                 | `label`, `unit`, `current { temperature, summary, icon, isDay }`, `days[] { day, high, low, summary, icon, precipitationChance }` (place-local dates), `utcOffsetSeconds` (the place's offset, so the client picks today by the place's date), `fetchedAt`; `null` unless the household opted in | `Family.weather_*` and `WeatherCache` of the device's household (no coordinates)                                                                                                                                                           |
+| `generatedAt`                    | server time                                                                                                                                                                                                                                                                                      | —                                                                                                                                                                                                                                          |
+| `version` (#271)                 | opaque change version (`v1-` + 24 hex): a hash of the fields above (minus `generatedAt` and the forecast) plus `display` and the weather settings                                                                                                                                                | computed from the rows above; no new data                                                                                                                                                                                                  |
+| `display` (#271)                 | `idleMinutes` (0, 1, 2, 5, 10, 15 or 30), `night { start, end }` (`HH:MM`, tablet-local) or `null`. **No `photos`** (see the open question below)                                                                                                                                                | `Family.ambient_idle_minutes`, `night_start`, `night_end` of the device's household (display settings, not household content). `Family.ambient_photo_ids` is never read for the device audience                                            |
 
 Plus `GET /api/device/today/version` (#271): `{ version }` only, the same value as `GET /api/device/today`'s
 `version`, so the tablet can poll it (about every 25 s while visible) and re-fetch the board only on a change.
@@ -506,7 +506,7 @@ when the household opted in, the next event's `title` and `start`, and tonight's
 linked recipe title the board already shows). Night dimming is a dark layer drawn by the page; the page cannot
 change the hardware backlight.
 
-> **Open question (O-15, #271): family photos on a paired shared tablet.** Not allowed today and not implemented.
+> **O-15 (#271): family photos on a paired shared tablet.** Provisionally decided: not allowed (`decisions/PROVISIONAL_OWNER_DECISIONS.md`); not implemented.
 > Signed-in fridge boards can show photos a parent picked from the household's own uploads (`Upload` rows, served
 > by the household-scoped `GET /api/files/chores/<filename>`, which needs a person session). A paired tablet has no
 > person session, `Upload`/`/api/files/**` are prohibited on it (§9.3 "Imports, uploads, files"), and the current
@@ -538,12 +538,12 @@ included only when the `lists` feature is on.
 the owner's per-household choice (§16 O-16). These are the only non-elevated writes, each behind #162 (a
 required `Idempotency-Key`, scope `device:<deviceId>`) and the flag:
 
-| Action | Route | Rule |
-|---|---|---|
-| Grocery item tick/untick | `PATCH /api/device/lists/items/:id` | An item of a grocery/shopping list of the household (the lists the board shows); explicit desired state, last write wins (`updateListItemAndNoteTick`, shared with the person route); `checked_by` = the picked member. |
-| Grocery quick add | `POST /api/device/lists/:id/items` | An existing grocery/shopping list of the household; `content` 1–200 chars, quantity 1, no notes/price/ingredient (`createListItem`, shared); `added_by` = the picked member. The row stores the idempotency record id (`source_request_id`), so a retry that takes over the lock after a crash returns the committed row instead of adding a second one. The tablet board has no quick-add control yet (route only). |
-| Chore complete (**O-4**) | `POST /api/device/chores/:id/complete` | A chore of the household due today (its date is "today" in some zone from UTC−12 to UTC+14, since the server cannot know the tablet's zone), else `409 CHORE_NOT_DUE_TODAY`; status to `completed` through `completeChore` (shared with `POST /api/chores/complete`; the verify flow is unchanged, so it waits for a parent's check); no photo; no XP in the response or on the device. The activity row names the picked member. |
-| Chore Undo (own write) | `POST /api/device/chores/:id/uncomplete` | Only **this tablet's own** completion of that chore from the last **2 minutes**, proven by its own `device.member_action`/`chore_complete` audit row; anything else is `403 UNDO_NOT_ALLOWED`; a chore a parent verified meanwhile (also when the verify lands inside the reopen) is `409 CHORE_ALREADY_VERIFIED`; a chore already open again is `alreadyOpen: true` with no audit row. Reopens through `reopenCompletedChoreInTx` (shared). Grocery Undo is simply the opposite tick. Quick add has no Undo (a delete is prohibited, §9.3). |
+| Action                   | Route                                    | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grocery item tick/untick | `PATCH /api/device/lists/items/:id`      | An item of a grocery/shopping list of the household (the lists the board shows); explicit desired state, last write wins (`updateListItemAndNoteTick`, shared with the person route); `checked_by` = the picked member.                                                                                                                                                                                                                                                                                                                      |
+| Grocery quick add        | `POST /api/device/lists/:id/items`       | An existing grocery/shopping list of the household; `content` 1–200 chars, quantity 1, no notes/price/ingredient (`createListItem`, shared); `added_by` = the picked member. The row stores the idempotency record id (`source_request_id`), so a retry that takes over the lock after a crash returns the committed row instead of adding a second one. The tablet board has no quick-add control yet (route only).                                                                                                                         |
+| Chore complete (**O-4**) | `POST /api/device/chores/:id/complete`   | A chore of the household due today (its date is "today" in some zone from UTC−12 to UTC+14, since the server cannot know the tablet's zone), else `409 CHORE_NOT_DUE_TODAY`; status to `completed` through `completeChore` (shared with `POST /api/chores/complete`; the verify flow is unchanged, so it waits for a parent's check); no photo; no XP in the response or on the device. The activity row names the picked member.                                                                                                            |
+| Chore Undo (own write)   | `POST /api/device/chores/:id/uncomplete` | Only **this tablet's own** completion of that chore from the last **2 minutes**, proven by its own `device.member_action`/`chore_complete` audit row; anything else is `403 UNDO_NOT_ALLOWED`; a chore a parent verified meanwhile (also when the verify lands inside the reopen) is `409 CHORE_ALREADY_VERIFIED`; a chore already open again is `alreadyOpen: true` with no audit row. Reopens through `reopenCompletedChoreInTx` (shared). Grocery Undo is simply the opposite tick. Quick add has no Undo (a delete is prohibited, §9.3). |
 
 Gate, in this order (`src/lib/device-writes.ts`): kill switch (404) → device cookie → household flag
 (`403 DEVICE_WRITES_OFF`) → domain feature (`403 FEATURE_DISABLED`) → `device-write:<deviceId>` rate limit (§11)
@@ -567,31 +567,31 @@ sent once with a fresh key and roll back with a message when the tablet is offli
 
 ### 9.3 Prohibited on a device (not elevated), with the models and routes that hold them
 
-| Domain | Models / fields | Routes |
-|---|---|---|
-| Budget and finance | `Transaction`, `BudgetCategory`, `FinancialArchiveRecord`, `ListItem.price` | `/api/budget/**` |
-| Allowance | `Allowance` | `/api/allowance/**` |
-| Messages | `Message` | `/api/messages` |
-| Notifications / push | `Notification`, `PushSubscription` | `/api/notifications` |
-| Medical | `Medication`, `SickDay` | `/api/medications/**`, `/api/sick-days/**` |
-| Emergency cards (**O-10**) | `EmergencyContact` (blood type, allergies, medications, insurance, phones, notes) | `/api/emergency-contacts/**` |
-| Locations / addresses | `FamilyLocation` (`address`, lat/long), `Event.location`, `Pickup.location` | `/api/locations/**` |
-| Pickups (**O-11**) | `Pickup` (`location`, `notes`) | `/api/pickups/**` |
-| Handoff | `Handoff` (sitter phone, code words, authorised pickups, notes, `share_token`) | `/api/handoff/**` (public `/handoff/[token]` is unaffected) |
-| Travel | `Family.travel_*` | `/api/family/travel` |
-| Account and security | `User.email`, `age`, `password`, `reset_token`, `verify_token`, `token_version`, `ParentElevationPin` | `/api/users/**`, `/api/users/export`, `/api/auth/me`, `/api/auth/change-password` |
-| Household admin | `FamilyInvite`, `Family.invite_code`, `features` writes, members management | `/api/family`, `/api/family/invites/**`, `/api/family/join`, `/api/family/members`, `/api/family/features` (write), `/api/family/lookup` |
-| Secrets and tokens | `Family.capture_ai_key_enc`, `capture_ai_*`, `Family.feed_token`, `CalendarSubscription.url_enc`, device tokens | `/api/family/ai-settings`, `/api/family/feed-token`, `/api/calendar/feed/**`, `/api/calendar/subscriptions/**` |
-| AI capture | spends the household AI key | `/api/capture` |
-| Gamification | `User.xp`, `level`, `streak`, `best_streak`, `Reward`, `RewardRedemption`, `BadgeDefinition`, `EarnedBadge`, `Habit`, `HabitLog`, `FamilyGoal`, leaderboards | `/api/rewards/**` and any XP/leaderboard read |
-| Wishlist | `WishlistItem` (gift surprises) | `/api/wishlist/**` |
-| Notes and dates (**O-11**) | `PinnedNote` (free-text body), `Anniversary` | `/api/notes/**`, `/api/anniversaries/**` |
-| Projects | `Project`, `ProjectTask` | `/api/projects/**` |
-| Activity and analytics | `Activity` | `/api/activity`, `/api/analytics/**` |
-| Imports, uploads, files | `ImportJob`, `ImportedRecord`, `Upload` | `/api/admin/imports/**`, `/api/upload`, `/api/files/**` |
-| Free text in allowed domains | `Event.description`, `FamilyMeal.notes`, `Chore.description`, `Chore.verified_notes`, `ListItem.notes` | — |
-| Destructive operations | any delete, member/role changes | all |
-| Device management | other devices, audit history | `/api/family/devices/**` |
+| Domain                       | Models / fields                                                                                                                                              | Routes                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Budget and finance           | `Transaction`, `BudgetCategory`, `FinancialArchiveRecord`, `ListItem.price`                                                                                  | `/api/budget/**`                                                                                                                         |
+| Allowance                    | `Allowance`                                                                                                                                                  | `/api/allowance/**`                                                                                                                      |
+| Messages                     | `Message`                                                                                                                                                    | `/api/messages`                                                                                                                          |
+| Notifications / push         | `Notification`, `PushSubscription`                                                                                                                           | `/api/notifications`                                                                                                                     |
+| Medical                      | `Medication`, `SickDay`                                                                                                                                      | `/api/medications/**`, `/api/sick-days/**`                                                                                               |
+| Emergency cards (**O-10**)   | `EmergencyContact` (blood type, allergies, medications, insurance, phones, notes)                                                                            | `/api/emergency-contacts/**`                                                                                                             |
+| Locations / addresses        | `FamilyLocation` (`address`, lat/long), `Event.location`, `Pickup.location`                                                                                  | `/api/locations/**`                                                                                                                      |
+| Pickups (**O-11**)           | `Pickup` (`location`, `notes`)                                                                                                                               | `/api/pickups/**`                                                                                                                        |
+| Handoff                      | `Handoff` (sitter phone, code words, authorised pickups, notes, `share_token`)                                                                               | `/api/handoff/**` (public `/handoff/[token]` is unaffected)                                                                              |
+| Travel                       | `Family.travel_*`                                                                                                                                            | `/api/family/travel`                                                                                                                     |
+| Account and security         | `User.email`, `age`, `password`, `reset_token`, `verify_token`, `token_version`, `ParentElevationPin`                                                        | `/api/users/**`, `/api/users/export`, `/api/auth/me`, `/api/auth/change-password`                                                        |
+| Household admin              | `FamilyInvite`, `Family.invite_code`, `features` writes, members management                                                                                  | `/api/family`, `/api/family/invites/**`, `/api/family/join`, `/api/family/members`, `/api/family/features` (write), `/api/family/lookup` |
+| Secrets and tokens           | `Family.capture_ai_key_enc`, `capture_ai_*`, `Family.feed_token`, `CalendarSubscription.url_enc`, device tokens                                              | `/api/family/ai-settings`, `/api/family/feed-token`, `/api/calendar/feed/**`, `/api/calendar/subscriptions/**`                           |
+| AI capture                   | spends the household AI key                                                                                                                                  | `/api/capture`                                                                                                                           |
+| Gamification                 | `User.xp`, `level`, `streak`, `best_streak`, `Reward`, `RewardRedemption`, `BadgeDefinition`, `EarnedBadge`, `Habit`, `HabitLog`, `FamilyGoal`, leaderboards | `/api/rewards/**` and any XP/leaderboard read                                                                                            |
+| Wishlist                     | `WishlistItem` (gift surprises)                                                                                                                              | `/api/wishlist/**`                                                                                                                       |
+| Notes and dates (**O-11**)   | `PinnedNote` (free-text body), `Anniversary`                                                                                                                 | `/api/notes/**`, `/api/anniversaries/**`                                                                                                 |
+| Projects                     | `Project`, `ProjectTask`                                                                                                                                     | `/api/projects/**`                                                                                                                       |
+| Activity and analytics       | `Activity`                                                                                                                                                   | `/api/activity`, `/api/analytics/**`                                                                                                     |
+| Imports, uploads, files      | `ImportJob`, `ImportedRecord`, `Upload`                                                                                                                      | `/api/admin/imports/**`, `/api/upload`, `/api/files/**`                                                                                  |
+| Free text in allowed domains | `Event.description`, `FamilyMeal.notes`, `Chore.description`, `Chore.verified_notes`, `ListItem.notes`                                                       | —                                                                                                                                        |
+| Destructive operations       | any delete, member/role changes                                                                                                                              | all                                                                                                                                      |
+| Device management            | other devices, audit history                                                                                                                                 | `/api/family/devices/**`                                                                                                                 |
 
 These routes need no change: they authenticate only `session_token`, so a device is refused. The route-allowlist
 test (§14) keeps it that way.
@@ -601,22 +601,22 @@ test (§14) keeps it that way.
 Stored in `DeviceAuditEvent`. `metadata` keys are fixed per type; no names, free text, codes, PINs, tokens, IPs or
 user agents.
 
-| Type | Actor | Metadata |
-|---|---|---|
-| `device.pairing_created` | parent | `{ pairingId }` |
-| `device.pairing_claimed` | — | `{ pairingId, platform, appVersion }` |
-| `device.pairing_confirmed` | parent | `{ pairingId }` |
-| `device.pairing_cancelled` | parent or — | `{ pairingId, reason: 'parent' \| 'digits_mismatch' \| 'superseded' \| 'device_limit' }` |
-| `device.paired` | parent (confirmer) | `{ pairingId, platform }` |
-| `device.renamed` | parent | `{}` |
-| `device.revoked` | parent or — | `{ reason: 'parent' \| 'lost' \| 'replaced' \| 'token_reuse' }` |
-| `device.token_reuse_detected` | — | `{ sessionId }` |
-| `device.elevation_started` | parent | `{ method: 'pin' \| 'password' }` |
-| `device.elevation_ended` | parent | `{ reason: 'exit' \| 'idle' \| 'max' \| 'revoked' \| 'credential_changed' }` (server-observed only) |
-| `device.elevation_locked` | parent | `{ scope: 'device' \| 'account' }` |
-| `device.elevated_action` | parent | `{ action, targetType, targetId }` (action from a fixed list: `rename_device`, `revoke_device`; #274 `update_board_settings` with `targetType: 'family'` and `sections` — the names of the settings groups changed, `weather` \| `memberColors` \| `display` \| `deviceWrites`, never values) |
-| `device.member_action` | member | `{ action, targetType, targetId }`; #274: `action` is `list_item_check` \| `list_item_uncheck` \| `list_item_add` \| `chore_complete` \| `chore_undo`, `targetType` is `list_item` \| `chore` |
-| `parent_pin.set` / `parent_pin.removed` / `parent_pin.cleared_by_reset` | parent | `{}` |
+| Type                                                                    | Actor              | Metadata                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `device.pairing_created`                                                | parent             | `{ pairingId }`                                                                                                                                                                                                                                                                               |
+| `device.pairing_claimed`                                                | —                  | `{ pairingId, platform, appVersion }`                                                                                                                                                                                                                                                         |
+| `device.pairing_confirmed`                                              | parent             | `{ pairingId }`                                                                                                                                                                                                                                                                               |
+| `device.pairing_cancelled`                                              | parent or —        | `{ pairingId, reason: 'parent' \| 'digits_mismatch' \| 'superseded' \| 'device_limit' }`                                                                                                                                                                                                      |
+| `device.paired`                                                         | parent (confirmer) | `{ pairingId, platform }`                                                                                                                                                                                                                                                                     |
+| `device.renamed`                                                        | parent             | `{}`                                                                                                                                                                                                                                                                                          |
+| `device.revoked`                                                        | parent or —        | `{ reason: 'parent' \| 'lost' \| 'replaced' \| 'token_reuse' }`                                                                                                                                                                                                                               |
+| `device.token_reuse_detected`                                           | —                  | `{ sessionId }`                                                                                                                                                                                                                                                                               |
+| `device.elevation_started`                                              | parent             | `{ method: 'pin' \| 'password' }`                                                                                                                                                                                                                                                             |
+| `device.elevation_ended`                                                | parent             | `{ reason: 'exit' \| 'idle' \| 'max' \| 'revoked' \| 'credential_changed' }` (server-observed only)                                                                                                                                                                                           |
+| `device.elevation_locked`                                               | parent             | `{ scope: 'device' \| 'account' }`                                                                                                                                                                                                                                                            |
+| `device.elevated_action`                                                | parent             | `{ action, targetType, targetId }` (action from a fixed list: `rename_device`, `revoke_device`; #274 `update_board_settings` with `targetType: 'family'` and `sections` — the names of the settings groups changed, `weather` \| `memberColors` \| `display` \| `deviceWrites`, never values) |
+| `device.member_action`                                                  | member             | `{ action, targetType, targetId }`; #274: `action` is `list_item_check` \| `list_item_uncheck` \| `list_item_add` \| `chore_complete` \| `chore_undo`, `targetType` is `list_item` \| `chore`                                                                                                 |
+| `parent_pin.set` / `parent_pin.removed` / `parent_pin.cleared_by_reset` | parent             | `{}`                                                                                                                                                                                                                                                                                          |
 
 Per-request activity (access, refresh, reads) is **not** audited; it only moves `last_seen_at`. Failed pairing
 claims cannot be tied to a household and go to the structured log (`log.warn('device.pair_claim_throttled',
@@ -626,47 +626,47 @@ name.
 
 ## 11. Rate limits and abuse cases
 
-Keys use `checkRateLimit` (counts every call) unless marked *failure-only* (`isRateLimited` before, `checkRateLimit`
+Keys use `checkRateLimit` (counts every call) unless marked _failure-only_ (`isRateLimited` before, `checkRateLimit`
 after a failure). All return `429 RATE_LIMITED` with `Retry-After`.
 
-| Key | Limit | Window | Applies to |
-|---|---|---|---|
-| `device-pair-create:<userId>` | 5 | 1 h | pairing creation, per parent |
-| `device-pair-create-fam:<familyId>` | 10 | 1 h | pairing creation, per household |
-| `device-pair-claim:<ip>` | 10 | 15 min | claim attempts, per IP (all attempts) |
-| `device-pair-claim-fail:global` | 500 | 1 h | failed claims system-wide; trips a `log.warn` alert, not a block |
-| `device-pair-status:<pairingId>` | 300 | 10 min | tablet status polling (≈1 per 2 s) |
-| `device-pair-poll:<userId>` | 300 | 10 min | parent status polling |
-| `device-pair-confirm:<pairingId>` | 3 wrong digits | pairing life | then the pairing is cancelled |
-| `device-refresh:<deviceId>` | 30 | 1 h | refresh per device |
-| `device-refresh-ip:<ip>` | 60 | 15 min | refresh per IP (unknown tokens) |
-| `device-board-version:<deviceId>` | 1200 | 1 h | board change check (#271), ≈ one per 3 s against a 25 s poll |
-| `device-write:<deviceId>` | 300 | 1 h | §9.2 writes per tablet (#274) |
-| `weather-places:device:<deviceId>` | 30 | 10 min | elevated place search on the tablet (#274), same limit as a parent's |
-| `device-elev-fail:<deviceId>:<userId>` | 5 *failure-only* | 15 min | wrong PIN/password for one parent on one tablet |
-| `device-elev-fail:<deviceId>` | 10 *failure-only* | 15 min | any parent on one tablet |
-| `device-elev-fail-acct:<userId>` | 10 *failure-only* | 1 h | one parent across all tablets; on trip set `ParentElevationPin.locked_until = now + 1 h` and audit `device.elevation_locked` |
-| `login-fail:<email>` | existing 10 *failure-only* | 15 min | password-method elevation shares the login account key |
-| `device-revoke:<userId>` | 30 | 1 h | revoke/rename per parent |
-| `device-pin-set:<userId>` | 5 | 1 h | PIN set/change (requires current password) |
+| Key                                    | Limit                      | Window       | Applies to                                                                                                                   |
+| -------------------------------------- | -------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `device-pair-create:<userId>`          | 5                          | 1 h          | pairing creation, per parent                                                                                                 |
+| `device-pair-create-fam:<familyId>`    | 10                         | 1 h          | pairing creation, per household                                                                                              |
+| `device-pair-claim:<ip>`               | 10                         | 15 min       | claim attempts, per IP (all attempts)                                                                                        |
+| `device-pair-claim-fail:global`        | 500                        | 1 h          | failed claims system-wide; trips a `log.warn` alert, not a block                                                             |
+| `device-pair-status:<pairingId>`       | 300                        | 10 min       | tablet status polling (≈1 per 2 s)                                                                                           |
+| `device-pair-poll:<userId>`            | 300                        | 10 min       | parent status polling                                                                                                        |
+| `device-pair-confirm:<pairingId>`      | 3 wrong digits             | pairing life | then the pairing is cancelled                                                                                                |
+| `device-refresh:<deviceId>`            | 30                         | 1 h          | refresh per device                                                                                                           |
+| `device-refresh-ip:<ip>`               | 60                         | 15 min       | refresh per IP (unknown tokens)                                                                                              |
+| `device-board-version:<deviceId>`      | 1200                       | 1 h          | board change check (#271), ≈ one per 3 s against a 25 s poll                                                                 |
+| `device-write:<deviceId>`              | 300                        | 1 h          | §9.2 writes per tablet (#274)                                                                                                |
+| `weather-places:device:<deviceId>`     | 30                         | 10 min       | elevated place search on the tablet (#274), same limit as a parent's                                                         |
+| `device-elev-fail:<deviceId>:<userId>` | 5 _failure-only_           | 15 min       | wrong PIN/password for one parent on one tablet                                                                              |
+| `device-elev-fail:<deviceId>`          | 10 _failure-only_          | 15 min       | any parent on one tablet                                                                                                     |
+| `device-elev-fail-acct:<userId>`       | 10 _failure-only_          | 1 h          | one parent across all tablets; on trip set `ParentElevationPin.locked_until = now + 1 h` and audit `device.elevation_locked` |
+| `login-fail:<email>`                   | existing 10 _failure-only_ | 15 min       | password-method elevation shares the login account key                                                                       |
+| `device-revoke:<userId>`               | 30                         | 1 h          | revoke/rename per parent                                                                                                     |
+| `device-pin-set:<userId>`              | 5                          | 1 h          | PIN set/change (requires current password)                                                                                   |
 
 Abuse cases and responses:
 
-| Case | Mitigation |
-|---|---|
-| Brute-forcing a pairing code | 1.1 × 10^12 space, 10-minute life, ≤3 live codes per household, per-IP limit, global failure alert, uniform error. |
-| Shoulder-surfed or photographed code | Parent confirmation by typing the tablet's 4 digits; attacker's claim leaves the real tablet failing visibly. |
-| Replay of a used code | Atomic single-use claim. |
-| Code creation spam by a parent | Per-parent and per-household limits, 3 live codes, 5 active devices. |
-| Stolen access cookie | 60-minute life; revocation effective on next request. |
-| Stolen refresh cookie | Rotation with reuse detection revokes the device (§4). |
-| Stolen tablet | Parent revokes from phone; offline display hides after 24 h (**O-7**). |
-| Child guessing the parent PIN | 5 failures per parent per tablet per 15 min, 10 per tablet, account lock after 10 per hour; password fallback shares login lockout. |
-| Elevated session left open | 5-minute idle, 15-minute absolute, hide/exit drops it. |
-| Parent logs in on the tablet | Login refused while a device cookie is present (409). |
-| Foreign ids in device requests | Every lookup scoped by the device's `family_id`; foreign equals not found. |
-| Rate-limit table unavailable | `checkRateLimit` falls back to per-process memory (fails open by design). Pairing and elevation still require the single-use code, confirmation digits and bcrypt, so the fallback weakens but does not remove protection; the implementing PR logs the fallback. |
-| Device used to spend AI or provider quota | Capture and all provider-backed routes prohibited. |
+| Case                                      | Mitigation                                                                                                                                                                                                                                                        |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Brute-forcing a pairing code              | 1.1 × 10^12 space, 10-minute life, ≤3 live codes per household, per-IP limit, global failure alert, uniform error.                                                                                                                                                |
+| Shoulder-surfed or photographed code      | Parent confirmation by typing the tablet's 4 digits; attacker's claim leaves the real tablet failing visibly.                                                                                                                                                     |
+| Replay of a used code                     | Atomic single-use claim.                                                                                                                                                                                                                                          |
+| Code creation spam by a parent            | Per-parent and per-household limits, 3 live codes, 5 active devices.                                                                                                                                                                                              |
+| Stolen access cookie                      | 60-minute life; revocation effective on next request.                                                                                                                                                                                                             |
+| Stolen refresh cookie                     | Rotation with reuse detection revokes the device (§4).                                                                                                                                                                                                            |
+| Stolen tablet                             | Parent revokes from phone; offline display hides after 24 h (**O-7**).                                                                                                                                                                                            |
+| Child guessing the parent PIN             | 5 failures per parent per tablet per 15 min, 10 per tablet, account lock after 10 per hour; password fallback shares login lockout.                                                                                                                               |
+| Elevated session left open                | 5-minute idle, 15-minute absolute, hide/exit drops it.                                                                                                                                                                                                            |
+| Parent logs in on the tablet              | Login refused while a device cookie is present (409).                                                                                                                                                                                                             |
+| Foreign ids in device requests            | Every lookup scoped by the device's `family_id`; foreign equals not found.                                                                                                                                                                                        |
+| Rate-limit table unavailable              | `checkRateLimit` falls back to per-process memory (fails open by design). Pairing and elevation still require the single-use code, confirmation digits and bcrypt, so the fallback weakens but does not remove protection; the implementing PR logs the fallback. |
+| Device used to spend AI or provider quota | Capture and all provider-backed routes prohibited.                                                                                                                                                                                                                |
 
 ## 12. API endpoints
 
@@ -678,47 +678,47 @@ When the kill switch is off every route below returns `404`, and that response a
 
 ### 12.1 Parent routes (person session, `role = 'parent'`, same household)
 
-| Method | Path | Request | Response | Errors |
-|---|---|---|---|---|
-| POST | `/api/family/devices/pairings` | `{ label, replacesDeviceId? }` (1–40 chars; an active tablet of this household) | `201 { pairingId, code: "ABCD-EFGH", expiresAt, replacesDeviceId }` | 400 (already removed), 401, 403 `PARENT_REQUIRED`, 404 (foreign/unknown tablet), 409 `DEVICE_LIMIT_REACHED`, 429 |
-| GET | `/api/family/devices/pairings/:id` | — | `200 { status: 'waiting' \| 'claimed' \| 'confirmed' \| 'paired' \| 'expired' \| 'cancelled', claim?: { platform, appVersion }, replaces: null \| { deviceId, removed } }` (never the digits) | 401, 403, 404, 429 |
-| POST | `/api/family/devices/pairings/:id/confirm` | `{ digits }` (4 digits) | `200 { status: 'confirmed' }` | 400 `PAIRING_DIGITS_MISMATCH` (`attemptsLeft`), 404, 410 `PAIRING_EXPIRED` / `PAIRING_CANCELLED` |
-| DELETE | `/api/family/devices/pairings/:id` | — | `204` (idempotent) | 401, 403, 404 |
-| GET | `/api/family/devices` | — | `200 { devices: [{ id, label, platform, pairedAt, lastSeenAt, appVersion, status: 'active' \| 'removed' \| 'expired', revokedAt, revokeReason }] }` | 401, 403 |
-| PATCH | `/api/family/devices/:id` | `{ label }` | `200 { device }` | 400, 401, 403, 404 |
-| POST | `/api/family/devices/:id/revoke` | `{ reason?: 'lost' \| 'replaced' \| 'other' }` | `200 { device }` (idempotent) | 401, 403, 404, 429 |
-| GET | `/api/family/devices/:id/events` | `?cursor` | `200 { events: [{ type, actorName?, createdAt, metadata }], nextCursor }` (50 per page) | 401, 403, 404 |
-| PUT | `/api/users/elevation-pin` | `{ pin, currentPassword }` | `204` | 400 `PIN_TOO_WEAK`, 401 `INVALID_PASSWORD`, 403, 429 |
-| DELETE | `/api/users/elevation-pin` | — | `204` | 401, 403 |
+| Method | Path                                       | Request                                                                         | Response                                                                                                                                                                                      | Errors                                                                                                           |
+| ------ | ------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/family/devices/pairings`             | `{ label, replacesDeviceId? }` (1–40 chars; an active tablet of this household) | `201 { pairingId, code: "ABCD-EFGH", expiresAt, replacesDeviceId }`                                                                                                                           | 400 (already removed), 401, 403 `PARENT_REQUIRED`, 404 (foreign/unknown tablet), 409 `DEVICE_LIMIT_REACHED`, 429 |
+| GET    | `/api/family/devices/pairings/:id`         | —                                                                               | `200 { status: 'waiting' \| 'claimed' \| 'confirmed' \| 'paired' \| 'expired' \| 'cancelled', claim?: { platform, appVersion }, replaces: null \| { deviceId, removed } }` (never the digits) | 401, 403, 404, 429                                                                                               |
+| POST   | `/api/family/devices/pairings/:id/confirm` | `{ digits }` (4 digits)                                                         | `200 { status: 'confirmed' }`                                                                                                                                                                 | 400 `PAIRING_DIGITS_MISMATCH` (`attemptsLeft`), 404, 410 `PAIRING_EXPIRED` / `PAIRING_CANCELLED`                 |
+| DELETE | `/api/family/devices/pairings/:id`         | —                                                                               | `204` (idempotent)                                                                                                                                                                            | 401, 403, 404                                                                                                    |
+| GET    | `/api/family/devices`                      | —                                                                               | `200 { devices: [{ id, label, platform, pairedAt, lastSeenAt, appVersion, status: 'active' \| 'removed' \| 'expired', revokedAt, revokeReason }] }`                                           | 401, 403                                                                                                         |
+| PATCH  | `/api/family/devices/:id`                  | `{ label }`                                                                     | `200 { device }`                                                                                                                                                                              | 400, 401, 403, 404                                                                                               |
+| POST   | `/api/family/devices/:id/revoke`           | `{ reason?: 'lost' \| 'replaced' \| 'other' }`                                  | `200 { device }` (idempotent)                                                                                                                                                                 | 401, 403, 404, 429                                                                                               |
+| GET    | `/api/family/devices/:id/events`           | `?cursor`                                                                       | `200 { events: [{ type, actorName?, createdAt, metadata }], nextCursor }` (50 per page)                                                                                                       | 401, 403, 404                                                                                                    |
+| PUT    | `/api/users/elevation-pin`                 | `{ pin, currentPassword }`                                                      | `204`                                                                                                                                                                                         | 400 `PIN_TOO_WEAK`, 401 `INVALID_PASSWORD`, 403, 429                                                             |
+| DELETE | `/api/users/elevation-pin`                 | —                                                                               | `204`                                                                                                                                                                                         | 401, 403                                                                                                         |
 
 Teen and child sessions get `403 PARENT_REQUIRED` on every row. Foreign ids get `404`.
 
 ### 12.2 Pairing routes (no session)
 
-| Method | Path | Request | Response | Errors |
-|---|---|---|---|---|
-| POST | `/api/device/pair/claim` | `{ code, platform: 'android' \| 'web', appVersion }` | `200 { claimToken, confirmDigits, expiresAt }` | 400 `PAIRING_CODE_INVALID` (uniform), 429 |
-| POST | `/api/device/pair/status` | `{ claimToken }` | `200 { status: 'pending' }` or `200 { status: 'paired', device: { id, label } }` + device cookies, `session_token` cleared | 410 `PAIRING_EXPIRED` / `PAIRING_CANCELLED`, 429 |
+| Method | Path                      | Request                                              | Response                                                                                                                   | Errors                                           |
+| ------ | ------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| POST   | `/api/device/pair/claim`  | `{ code, platform: 'android' \| 'web', appVersion }` | `200 { claimToken, confirmDigits, expiresAt }`                                                                             | 400 `PAIRING_CODE_INVALID` (uniform), 429        |
+| POST   | `/api/device/pair/status` | `{ claimToken }`                                     | `200 { status: 'pending' }` or `200 { status: 'paired', device: { id, label } }` + device cookies, `session_token` cleared | 410 `PAIRING_EXPIRED` / `PAIRING_CANCELLED`, 429 |
 
 ### 12.3 Device routes (device cookie)
 
-| Method | Path | Request | Response | Errors |
-|---|---|---|---|---|
-| POST | `/api/device/session/refresh` | refresh cookie | `200 { accessExpiresAt }` + rotated cookies | 401 `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` (cookies cleared), 429 |
-| GET | `/api/device/me` | — | `200` (§9.1) | 401 `DEVICE_ACCESS_EXPIRED` / `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` |
-| GET | `/api/device/today` | — | `200 TodayBoardData` (device audience) | 401 as above |
-| GET | `/api/device/today/version` (#271) | — | `200 { version }` | 401 as above, 429 (`device-board-version:<deviceId>`, 1200/h) |
-| POST | `/api/device/elevation` | `{ userId, method: 'pin' \| 'password', secret }` | `200 { elevationToken, expiresAt, idleTimeoutSeconds, member: { id, name } }` | 401 `ELEVATION_INVALID_CREDENTIAL`, 423 `ELEVATION_LOCKED`, 429 |
-| DELETE | `/api/device/elevation` | `X-Device-Elevation` | `204` (idempotent) | 401 |
-| POST | `/api/device/revoke-self` | `X-Device-Elevation` | `200` + cookies cleared | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
-| PATCH | `/api/device/label` | `{ label }`, `X-Device-Elevation` | `200 { device }` | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
-| PATCH | `/api/device/lists/items/:id` (#274) | `{ checked, actingMemberId }`, `Idempotency-Key` | `200 { item: { id, checked } }` | 400 `ACTING_MEMBER_INVALID` / `VALIDATION_ERROR` / `IDEMPOTENCY_KEY_*`, 401, 403 `DEVICE_WRITES_OFF` / `FEATURE_DISABLED`, 404, 409 `DUPLICATE_OPEN_ITEM`, 422 `IDEMPOTENCY_KEY_REUSED`, 429 |
-| POST | `/api/device/lists/:id/items` (#274) | `{ content, actingMemberId }`, `Idempotency-Key` | `201 { item: { id, content, quantity, listId } }` | as above (no 409) |
-| POST | `/api/device/chores/:id/complete` (#274) | `{ actingMemberId }`, `Idempotency-Key` | `200 { chore: { id, status }, alreadyCompleted }` | as above, 409 `CHORE_NOT_DUE_TODAY` |
-| POST | `/api/device/chores/:id/uncomplete` (#274) | `{ actingMemberId }`, `Idempotency-Key` | `200 { chore: { id, status }, alreadyOpen }` | as above, 403 `UNDO_NOT_ALLOWED`, 409 `CHORE_ALREADY_VERIFIED` |
-| GET | `/api/device/elevated/board-settings` (#274) | `X-Device-Elevation` | `200 { weather: { available, enabled, place: { label } \| null, unit }, members, display: { idleMinutes, idleChoices, night }, deviceWrites: { available, enabled } }` (no photos, no coordinates) | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
-| PATCH | `/api/device/elevated/board-settings` (#274) | `{ weather?, memberColors?, display?: { idleMinutes?, night? }, deviceWrites? }`, `X-Device-Elevation` | `200` (as GET) | 400 (incl. any `photoIds`), 403 as above, 409 (weather off on the server) |
-| GET | `/api/device/elevated/board-settings/places?q=` (#274) | `X-Device-Elevation` | `200 { places: [{ label, latitude, longitude }] }` | 400, 403 as above, 409 `FEATURE_DISABLED`, 429, 502 |
+| Method | Path                                                   | Request                                                                                                | Response                                                                                                                                                                                           | Errors                                                                                                                                                                                       |
+| ------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/device/session/refresh`                          | refresh cookie                                                                                         | `200 { accessExpiresAt }` + rotated cookies                                                                                                                                                        | 401 `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` (cookies cleared), 429                                                                                                                       |
+| GET    | `/api/device/me`                                       | —                                                                                                      | `200` (§9.1)                                                                                                                                                                                       | 401 `DEVICE_ACCESS_EXPIRED` / `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID`                                                                                                                    |
+| GET    | `/api/device/today`                                    | —                                                                                                      | `200 TodayBoardData` (device audience)                                                                                                                                                             | 401 as above                                                                                                                                                                                 |
+| GET    | `/api/device/today/version` (#271)                     | —                                                                                                      | `200 { version }`                                                                                                                                                                                  | 401 as above, 429 (`device-board-version:<deviceId>`, 1200/h)                                                                                                                                |
+| POST   | `/api/device/elevation`                                | `{ userId, method: 'pin' \| 'password', secret }`                                                      | `200 { elevationToken, expiresAt, idleTimeoutSeconds, member: { id, name } }`                                                                                                                      | 401 `ELEVATION_INVALID_CREDENTIAL`, 423 `ELEVATION_LOCKED`, 429                                                                                                                              |
+| DELETE | `/api/device/elevation`                                | `X-Device-Elevation`                                                                                   | `204` (idempotent)                                                                                                                                                                                 | 401                                                                                                                                                                                          |
+| POST   | `/api/device/revoke-self`                              | `X-Device-Elevation`                                                                                   | `200` + cookies cleared                                                                                                                                                                            | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED`                                                                                                                                               |
+| PATCH  | `/api/device/label`                                    | `{ label }`, `X-Device-Elevation`                                                                      | `200 { device }`                                                                                                                                                                                   | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED`                                                                                                                                               |
+| PATCH  | `/api/device/lists/items/:id` (#274)                   | `{ checked, actingMemberId }`, `Idempotency-Key`                                                       | `200 { item: { id, checked } }`                                                                                                                                                                    | 400 `ACTING_MEMBER_INVALID` / `VALIDATION_ERROR` / `IDEMPOTENCY_KEY_*`, 401, 403 `DEVICE_WRITES_OFF` / `FEATURE_DISABLED`, 404, 409 `DUPLICATE_OPEN_ITEM`, 422 `IDEMPOTENCY_KEY_REUSED`, 429 |
+| POST   | `/api/device/lists/:id/items` (#274)                   | `{ content, actingMemberId }`, `Idempotency-Key`                                                       | `201 { item: { id, content, quantity, listId } }`                                                                                                                                                  | as above (no 409)                                                                                                                                                                            |
+| POST   | `/api/device/chores/:id/complete` (#274)               | `{ actingMemberId }`, `Idempotency-Key`                                                                | `200 { chore: { id, status }, alreadyCompleted }`                                                                                                                                                  | as above, 409 `CHORE_NOT_DUE_TODAY`                                                                                                                                                          |
+| POST   | `/api/device/chores/:id/uncomplete` (#274)             | `{ actingMemberId }`, `Idempotency-Key`                                                                | `200 { chore: { id, status }, alreadyOpen }`                                                                                                                                                       | as above, 403 `UNDO_NOT_ALLOWED`, 409 `CHORE_ALREADY_VERIFIED`                                                                                                                               |
+| GET    | `/api/device/elevated/board-settings` (#274)           | `X-Device-Elevation`                                                                                   | `200 { weather: { available, enabled, place: { label } \| null, unit }, members, display: { idleMinutes, idleChoices, night }, deviceWrites: { available, enabled } }` (no photos, no coordinates) | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED`                                                                                                                                               |
+| PATCH  | `/api/device/elevated/board-settings` (#274)           | `{ weather?, memberColors?, display?: { idleMinutes?, night? }, deviceWrites? }`, `X-Device-Elevation` | `200` (as GET)                                                                                                                                                                                     | 400 (incl. any `photoIds`), 403 as above, 409 (weather off on the server)                                                                                                                    |
+| GET    | `/api/device/elevated/board-settings/places?q=` (#274) | `X-Device-Elevation`                                                                                   | `200 { places: [{ label, latitude, longitude }] }`                                                                                                                                                 | 400, 403 as above, 409 `FEATURE_DISABLED`, 429, 502                                                                                                                                          |
 
 The #274 routes call the domain functions the person routes use (`updateListItemAndNoteTick`, `createListItem`,
 `completeChore`, `reopenCompletedChoreInTx`, `readBoardSettings`/`applyBoardSettingsPatch`, `runPlaceSearch`);
@@ -860,24 +860,24 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 Owner choices. O-1, O-2, O-4 and O-11 are confirmed by Cameron; every other row uses its recommended default,
 which the child issues assume unless Cameron decides otherwise on #157.
 
-| # | Decision | Recommended default | Alternative | Status |
-|---|---|---|---|---|
-| O-1 | Elevation credential | Per-parent 6-digit tablet PIN, password fallback | Account password only in v1 | Confirmed (Cameron, 2026-09-26) |
-| O-2 | Elevation timeouts | 5 min idle, 15 min absolute | 2 min idle / 10 min absolute (stricter) | Confirmed (Cameron, 2026-09-26) |
-| O-3 | Elevated scope | Short list of shared-surface parent actions (§6.4); parent-only data domains never on the tablet | Allow reading finance/messages/medical under elevation | Recommended default applied |
-| O-4 | Kids complete chores from the tablet | Yes (phase 2): chores due today, completion pending parent verify, no photo, no XP shown | Chores read-only on the tablet | Confirmed (Cameron, 2026-09-26): phase 2, not in #240 |
-| O-5 | Attribution of device writes | "Who's this?" member picker, unverified, device id audited | Device-only attribution (needs nullable `added_by`/`completed_by`, a contract migration) | Recommended default applied |
-| O-6 | Pairing confirmation | Parent types the tablet's 4 digits | Code only, no confirmation step | Recommended default applied |
-| O-7 | Offline snapshot max display age | 24 hours | 12 h or 72 h | Recommended default applied |
-| O-8 | Refresh idle expiry | 30 days | 14 or 90 days | Recommended default applied |
-| O-9 | Active devices per household | 5 | 3 or 10 | Recommended default applied |
-| O-10 | Emergency contacts on the tablet | Excluded; later opt-in minimal card (contact name and phone only) | Show the kid-readable view | Recommended default applied |
-| O-11 | Pinned notes, anniversaries, pickups on the tablet | Excluded in v1; per-domain opt-in later with field allowlists | Include pinned notes (a fridge note board is natural) | Confirmed (Cameron, 2026-09-26): board-only on the device |
-| O-12 | Audit retention | 180 days, pruned on parent read | 90 or 365 days | Recommended default applied |
-| O-13 | Block person login while a device cookie is present | Yes (409) | Allow, and warn | Recommended default applied |
-| O-14 | "Turn this tablet into the family tablet" from a signed-in parent session | Defer; code flow only | Offer it, with password re-entry | Recommended default applied |
-| O-15 | Family photos in the calm display on a paired tablet (#271, §9.1 open question) | No photos on paired tablets | Per-household opt-in with a device photo route limited to the chosen ids | **Open**: waiting for Cameron; paired tablets show no photos (the #274 tablet settings cannot choose photos either) |
-| O-16 | Turning on §9.2 tablet writes for a household (#274) | Off by default (`Family.device_writes_enabled = false`); a parent opts in per household in the board settings, knowing "Who's this?" is unverified | On by default for households with a paired tablet | Implemented with the default **off**; turning it on is the owner's per-household choice. Enabling the server kill switch in production still needs Cameron's approval |
+| #    | Decision                                                                        | Recommended default                                                                                                                                | Alternative                                                                              | Status                                                                                                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| O-1  | Elevation credential                                                            | Per-parent 6-digit tablet PIN, password fallback                                                                                                   | Account password only in v1                                                              | Confirmed (Cameron, 2026-09-26)                                                                                                                                                                                                                        |
+| O-2  | Elevation timeouts                                                              | 5 min idle, 15 min absolute                                                                                                                        | 2 min idle / 10 min absolute (stricter)                                                  | Confirmed (Cameron, 2026-09-26)                                                                                                                                                                                                                        |
+| O-3  | Elevated scope                                                                  | Short list of shared-surface parent actions (§6.4); parent-only data domains never on the tablet                                                   | Allow reading finance/messages/medical under elevation                                   | Recommended default applied                                                                                                                                                                                                                            |
+| O-4  | Kids complete chores from the tablet                                            | Yes (phase 2): chores due today, completion pending parent verify, no photo, no XP shown                                                           | Chores read-only on the tablet                                                           | Confirmed (Cameron, 2026-09-26): phase 2, not in #240                                                                                                                                                                                                  |
+| O-5  | Attribution of device writes                                                    | "Who's this?" member picker, unverified, device id audited                                                                                         | Device-only attribution (needs nullable `added_by`/`completed_by`, a contract migration) | Recommended default applied                                                                                                                                                                                                                            |
+| O-6  | Pairing confirmation                                                            | Parent types the tablet's 4 digits                                                                                                                 | Code only, no confirmation step                                                          | Recommended default applied                                                                                                                                                                                                                            |
+| O-7  | Offline snapshot max display age                                                | 24 hours                                                                                                                                           | 12 h or 72 h                                                                             | Recommended default applied                                                                                                                                                                                                                            |
+| O-8  | Refresh idle expiry                                                             | 30 days                                                                                                                                            | 14 or 90 days                                                                            | Recommended default applied                                                                                                                                                                                                                            |
+| O-9  | Active devices per household                                                    | 5                                                                                                                                                  | 3 or 10                                                                                  | Recommended default applied                                                                                                                                                                                                                            |
+| O-10 | Emergency contacts on the tablet                                                | Excluded; later opt-in minimal card (contact name and phone only)                                                                                  | Show the kid-readable view                                                               | Recommended default applied                                                                                                                                                                                                                            |
+| O-11 | Pinned notes, anniversaries, pickups on the tablet                              | Excluded in v1; per-domain opt-in later with field allowlists                                                                                      | Include pinned notes (a fridge note board is natural)                                    | Confirmed (Cameron, 2026-09-26): board-only on the device                                                                                                                                                                                              |
+| O-12 | Audit retention                                                                 | 180 days, pruned on parent read                                                                                                                    | 90 or 365 days                                                                           | Recommended default applied                                                                                                                                                                                                                            |
+| O-13 | Block person login while a device cookie is present                             | Yes (409)                                                                                                                                          | Allow, and warn                                                                          | Recommended default applied                                                                                                                                                                                                                            |
+| O-14 | "Turn this tablet into the family tablet" from a signed-in parent session       | Defer; code flow only                                                                                                                              | Offer it, with password re-entry                                                         | Recommended default applied                                                                                                                                                                                                                            |
+| O-15 | Family photos in the calm display on a paired tablet (#271, §9.1 open question) | No photos on paired tablets                                                                                                                        | Per-household opt-in with a device photo route limited to the chosen ids                 | **Provisionally decided** (2026-09-29, `decisions/PROVISIONAL_OWNER_DECISIONS.md`): no photos on paired tablets; the #274 tablet settings cannot choose photos either. Cameron may reverse                                                             |
+| O-16 | Turning on §9.2 tablet writes for a household (#274)                            | Off by default (`Family.device_writes_enabled = false`); a parent opts in per household in the board settings, knowing "Who's this?" is unverified | On by default for households with a paired tablet                                        | Implemented with the default **off**; turning it on is the owner's per-household choice (confirmed provisionally 2026-09-29, `decisions/PROVISIONAL_OWNER_DECISIONS.md`). Enabling the server kill switch in production still needs Cameron's approval |
 
 ## 17. Child issues (ready to file)
 
@@ -889,10 +889,12 @@ Depends on: #157 contract accepted (ADR-0006), owner decisions O-1…O-14 confir
 Related: #127, #136, #162, ADR-0002, ADR-0004
 
 ## Outcome
+
 A household can pair, refresh, elevate on and revoke a shared device through the API, with device identity
 fully separate from person sessions, behind a kill switch that defaults off.
 
 ## Scope
+
 - Prisma models `HouseholdDevice`, `DevicePairing`, `DeviceSession`, `ParentElevationPin`, `DeviceAuditEvent`
   and relations (docs/architecture/SHARED_DEVICE.md §3); matching idempotent DDL in `scripts/migrate.js`
   `CREATE_TABLES_SQL` and the FK block (§3.1).
@@ -908,10 +910,12 @@ fully separate from person sessions, behind a kill switch that defaults off.
   "implemented" only for what ships.
 
 ## Out of scope
+
 UI pages and dialogs; device writes (grocery/chore); offline cache; Android native changes; enabling the switch
 in any shared environment.
 
 ## Acceptance criteria
+
 - [ ] No existing route or page accepts a device cookie (route-allowlist test green).
 - [ ] No plaintext device, claim, elevation token or PIN is stored.
 - [ ] Pairing codes: 8 chars, 10 min, single use, ≤3 live per household, parent confirmation by 4 digits,
@@ -924,12 +928,14 @@ in any shared environment.
 - [ ] Kill switch off: all device routes 404.
 
 ## Tests
+
 SHARED_DEVICE.md §14.1 items 1 and 4, §14.2 items 5 and 8–15, §14.3 items 16–22, §14.4, §14.5 items 32–34 and
 37–38, §14.6 items 39–43. Two-household fixtures per docs/testing/TEST_DATA.md. Commands: `npx prisma generate`,
 `npm run typecheck`, `npm run lint`, `npm test -- --runInBand`, `npm run build`, fresh and repeat
 `node scripts/migrate.js`.
 
 ## Boundary
+
 No production deploy, no production env change (the kill switch stays off), no migration or revocation of
 existing person sessions, no change to device-owner policy. Merge needs Cameron's approval.
 ```
@@ -942,10 +948,12 @@ Depends on: schema/API child issue; Figma frames from #131 (pair, revoke, elevat
 Related: #119, #159, #151, #153, #162
 
 ## Outcome
+
 A parent can pair a tablet from their phone, see and remove household tablets, and briefly act as a parent on the
 tablet, while the tablet itself shows only the shared Today board and never holds a parent's session.
 
 ## Scope
+
 - `/device/pair`: code entry, confirmation digits, progress, expired/cancelled/invalid/rate-limited states.
 - `src/app/device/layout.tsx`: chrome-free layout that loads no person profile; `/device/today` renders
   `TodayBoard` in fridge mode from the device-audience DTO; `/device/removed`.
@@ -960,9 +968,11 @@ tablet, while the tablet itself shows only the shared Today board and never hold
   level and streak from every dashboard page payload, including `/dashboard/today?mode=fridge`).
 
 ## Out of scope
+
 Device writes (grocery tick/add, chore completion); offline snapshot storage (#162); native Android changes.
 
 ## Acceptance criteria
+
 - [ ] Pair → board → elevate → auto-return → remove → purge works end to end on a review environment.
 - [ ] `/device/*` HTML and RSC payloads contain no person email, age, avatar, XP/level/streak or prohibited-domain
       canary.
@@ -972,10 +982,12 @@ Device writes (grocery tick/add, chore completion); offline snapshot storage (#1
 - [ ] Responsive QA at 1280×800, 800×1280, 1920×1200 (tablet) and 390×844, 430×932 (phone settings).
 
 ## Tests
+
 SHARED_DEVICE.md §14.1 items 2–3, §14.3 items 23–24, §14.5 items 35–36, plus `e2e/device.spec.ts` covering the
 full journey, and visual baselines for pair, removed, elevated banner and device list.
 
 ## Boundary
+
 No production deploy or kill-switch change. Do not build large layouts before the #131 frames exist; small
 placeholders are acceptable behind the switch.
 ```
@@ -988,10 +1000,12 @@ Depends on: schema/API and web UI child issues; #160 baseline
 Related: #120, ADR-0004
 
 ## Outcome
+
 The Android app behaves reliably as a paired shared device across launches, process death and revocation,
 without storing any parent credential, and older installed builds keep working.
 
 ## Scope
+
 - Flush the WebView cookie store when the activity pauses (`CookieManager.getInstance().flush()` in
   `MainActivity.onPause`) so rotated device cookies survive process death.
 - Cold launch with a device cookie lands on `/device/today` (server redirect from `/`); verify on the installed
@@ -1005,9 +1019,11 @@ without storing any parent credential, and older installed builds keep working.
 - Document the supported old-client window for device mode in `docs/architecture/ANDROID.md`.
 
 ## Out of scope
+
 Kiosk/lock-task, immersive mode, screen-on/night dim, reboot launch (#120); any device-owner policy.
 
 ## Acceptance criteria
+
 - [ ] Pair on a tablet; cold launch, warm launch, rotation and `adb shell am kill com.ashbi.familyplanner`
       (including during a refresh) all return to the board without re-pairing.
 - [ ] After revoke, the next launch or network contact shows the removed screen and no cached board.
@@ -1015,10 +1031,12 @@ Kiosk/lock-task, immersive mode, screen-on/night dim, reboot launch (#120); any 
 - [ ] The currently released APK (versionCode 1) pairs and works against the candidate server.
 
 ## Tests
+
 `./gradlew testDebugUnitTest`; device/emulator evidence for SHARED_DEVICE.md §14.6 item 44 and the lifecycle list
 in docs/architecture/ANDROID.md; record Samsung-class and stock Android results.
 
 ## Boundary
+
 No Play Store publication, no signing or secret changes, no device-owner or lock-task policy, no production
 deploy.
 ```
@@ -1030,19 +1048,19 @@ Shipped behind the server kill switch `SHARED_DEVICE_ENABLED` (default off; `.en
 `/api/users/elevation-pin` handler returns `404`, the middleware ignores device cookies and the login guard is
 skipped.
 
-| Area | Source |
-|---|---|
-| Schema (§3) | `prisma/schema.prisma` (five models, relation fields on `Family`/`User`); `scripts/migrate.js` `CREATE_TABLES_SQL` and FK block |
-| Tokens, resolution, refresh rules 1–4, elevation, revocation, cookies (§4, §6, §8) | `src/lib/device-session.ts` |
-| Pairing codes, claim, confirm, issue with `SELECT … FOR UPDATE` (§5) | `src/lib/device-pairing.ts` |
-| Route guards (device cookie only / person parent only) | `src/lib/device-route.ts` |
-| Error envelope, `Cache-Control: private, no-store`, kill switch | `src/lib/device-http.ts` |
-| Audit vocabulary (§10) | `src/lib/device-audit.ts` |
-| PIN rules (§6.1) | `src/lib/elevation-pin.ts` |
-| Routes (§12.1–§12.3) | `src/app/api/device/**`, `src/app/api/family/devices/**`, `src/app/api/users/elevation-pin` |
-| Device read DTO (§9.1) | `buildTodayBoard({ audience: 'device' })` in `src/app/dashboard/today/today-board-data.ts` |
-| Login 409 (O-13), reset clears PIN (§6.1) | `src/app/api/auth/login/route.ts`, `src/lib/tokens.ts` `consumeResetToken` |
-| Middleware (§4 cold launch, §12 pages) | `src/middleware.ts` (cookie presence only; no new CSRF exemption) |
+| Area                                                                               | Source                                                                                                                          |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Schema (§3)                                                                        | `prisma/schema.prisma` (five models, relation fields on `Family`/`User`); `scripts/migrate.js` `CREATE_TABLES_SQL` and FK block |
+| Tokens, resolution, refresh rules 1–4, elevation, revocation, cookies (§4, §6, §8) | `src/lib/device-session.ts`                                                                                                     |
+| Pairing codes, claim, confirm, issue with `SELECT … FOR UPDATE` (§5)               | `src/lib/device-pairing.ts`                                                                                                     |
+| Route guards (device cookie only / person parent only)                             | `src/lib/device-route.ts`                                                                                                       |
+| Error envelope, `Cache-Control: private, no-store`, kill switch                    | `src/lib/device-http.ts`                                                                                                        |
+| Audit vocabulary (§10)                                                             | `src/lib/device-audit.ts`                                                                                                       |
+| PIN rules (§6.1)                                                                   | `src/lib/elevation-pin.ts`                                                                                                      |
+| Routes (§12.1–§12.3)                                                               | `src/app/api/device/**`, `src/app/api/family/devices/**`, `src/app/api/users/elevation-pin`                                     |
+| Device read DTO (§9.1)                                                             | `buildTodayBoard({ audience: 'device' })` in `src/app/dashboard/today/today-board-data.ts`                                      |
+| Login 409 (O-13), reset clears PIN (§6.1)                                          | `src/app/api/auth/login/route.ts`, `src/lib/tokens.ts` `consumeResetToken`                                                      |
+| Middleware (§4 cold launch, §12 pages)                                             | `src/middleware.ts` (cookie presence only; no new CSRF exemption)                                                               |
 
 Tests: `src/lib/__tests__/device-session.test.ts`, `src/app/api/device/__tests__/device-routes.test.ts`,
 `src/app/api/family/devices/__tests__/devices.test.ts`, `src/app/api/__tests__/device-route-allowlist.test.ts`
@@ -1090,16 +1108,16 @@ Shipped behind `SHARED_DEVICE_ENABLED` (default off). With it off, `/device/*` p
 available right now." (and wipe any `fp-device:v1:*` storage), `/dashboard/settings/devices` is a 404 and the
 Settings entries (Devices, Tablet PIN) are not rendered; the decision is made server-side per request.
 
-| Area | Source |
-|---|---|
-| Device client: single-flight refresh, one retry on `DEVICE_ACCESS_EXPIRED`, proactive refresh (< 5 min left, visible), cold-launch bootstrap, §8 purge on `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` / a `404` from any `/api/device/*` endpoint (kill switch) / a different cached device id, `503` / `429` / network never purge, memory-only elevation and claim tokens, an elevation that resolves after the tablet was hidden or unloading is ended at once (`DELETE`) and refused | `src/lib/device-client.ts` (unit tests `src/lib/__tests__/device-client.test.ts`) |
-| Chrome-free shell, no person profile | `src/app/device/layout.tsx` |
-| Pairing screen (code normalisation, 4 digits large, 3 s polling, expired/cancelled/invalid/rate-limited/device-limit states) | `src/app/device/pair/page.tsx`, `src/components/device/PairScreen.tsx` |
-| Board from `GET /api/device/today` (links null), parent picker, PIN pad with password fallback, lockout, elevated banner (countdown in the last 60 s), auto-exit on idle, max, hidden, page hide, reload and "Done", rename and "Remove this tablet" under elevation | `src/app/device/today/page.tsx`, `src/components/device/DeviceTodayScreen.tsx`, `ElevationSheet.tsx`, `ElevatedBanner.tsx` |
-| Removed screen | `src/app/device/removed/page.tsx`, `src/components/device/StatusScreens.tsx` |
-| Device management (list, last seen, status, rename, remove with reason, pair and replace dialogs with the confirmation-digits step, recent activity) | `src/app/dashboard/settings/devices/page.tsx`, `src/components/device/DevicesManager.tsx`, `PairTabletDialog.tsx` |
-| Settings → Privacy & Security → Devices and Tablet PIN (set/change with current password, remove) | `src/app/dashboard/settings/page.tsx` (server wrapper), `SharedDeviceSettings.tsx` |
-| Nav props reduced to `{ id, name, role, avatar_url }` on every dashboard page | `src/app/dashboard/layout.tsx`, `src/types` `NavUser` |
+| Area                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Source                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Device client: single-flight refresh, one retry on `DEVICE_ACCESS_EXPIRED`, proactive refresh (< 5 min left, visible), cold-launch bootstrap, §8 purge on `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` / a `404` from any `/api/device/*` endpoint (kill switch) / a different cached device id, `503` / `429` / network never purge, memory-only elevation and claim tokens, an elevation that resolves after the tablet was hidden or unloading is ended at once (`DELETE`) and refused | `src/lib/device-client.ts` (unit tests `src/lib/__tests__/device-client.test.ts`)                                          |
+| Chrome-free shell, no person profile                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `src/app/device/layout.tsx`                                                                                                |
+| Pairing screen (code normalisation, 4 digits large, 3 s polling, expired/cancelled/invalid/rate-limited/device-limit states)                                                                                                                                                                                                                                                                                                                                                             | `src/app/device/pair/page.tsx`, `src/components/device/PairScreen.tsx`                                                     |
+| Board from `GET /api/device/today` (links null), parent picker, PIN pad with password fallback, lockout, elevated banner (countdown in the last 60 s), auto-exit on idle, max, hidden, page hide, reload and "Done", rename and "Remove this tablet" under elevation                                                                                                                                                                                                                     | `src/app/device/today/page.tsx`, `src/components/device/DeviceTodayScreen.tsx`, `ElevationSheet.tsx`, `ElevatedBanner.tsx` |
+| Removed screen                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `src/app/device/removed/page.tsx`, `src/components/device/StatusScreens.tsx`                                               |
+| Device management (list, last seen, status, rename, remove with reason, pair and replace dialogs with the confirmation-digits step, recent activity)                                                                                                                                                                                                                                                                                                                                     | `src/app/dashboard/settings/devices/page.tsx`, `src/components/device/DevicesManager.tsx`, `PairTabletDialog.tsx`          |
+| Settings → Privacy & Security → Devices and Tablet PIN (set/change with current password, remove)                                                                                                                                                                                                                                                                                                                                                                                        | `src/app/dashboard/settings/page.tsx` (server wrapper), `SharedDeviceSettings.tsx`                                         |
+| Nav props reduced to `{ id, name, role, avatar_url }` on every dashboard page                                                                                                                                                                                                                                                                                                                                                                                                            | `src/app/dashboard/layout.tsx`, `src/types` `NavUser`                                                                      |
 
 As implemented:
 
@@ -1133,14 +1151,14 @@ As implemented:
 Shipped behind `SHARED_DEVICE_ENABLED` **and** the per-household `Family.device_writes_enabled` (default off,
 `prisma/schema.prisma` and the idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS` in `scripts/migrate.js`).
 
-| Area | Source |
-|---|---|
-| Write gate (kill switch, cookie, flag, feature, rate limit, required key, household member) and the `device:<deviceId>` idempotency scope | `src/lib/device-writes.ts` |
-| Routes (§9.2, §12.3) | `src/app/api/device/lists/items/[id]`, `src/app/api/device/lists/[id]/items`, `src/app/api/device/chores/[id]/complete`, `…/uncomplete` |
-| Shared domain functions | `src/lib/list-item-update.ts` `updateListItemAndNoteTick`, `src/lib/list-item-create.ts`, `src/lib/chore-complete.ts`, `src/lib/chore-reopen.ts` |
-| Board setup under elevation (§6.4) | `src/app/api/device/elevated/board-settings/**`, `src/lib/board-settings.ts` (shared with `/api/family/board-settings`), `src/lib/weather/place-search.ts` |
-| Device queue variant | `src/lib/offline-queue.ts` `device.list-item.set-checked`, `src/lib/offline-queue-browser.ts` `getDeviceQueue` |
-| Tablet UI: tiles, "Who's this?", "Ticking off as …", Undo toasts, "Board settings" in parent mode | `src/components/device/use-device-board-actions.tsx`, `DeviceTodayScreen.tsx`, `ElevatedBanner.tsx`, `src/components/fridge/board-actions.ts`, `BoardSettings.tsx` |
+| Area                                                                                                                                      | Source                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Write gate (kill switch, cookie, flag, feature, rate limit, required key, household member) and the `device:<deviceId>` idempotency scope | `src/lib/device-writes.ts`                                                                                                                                         |
+| Routes (§9.2, §12.3)                                                                                                                      | `src/app/api/device/lists/items/[id]`, `src/app/api/device/lists/[id]/items`, `src/app/api/device/chores/[id]/complete`, `…/uncomplete`                            |
+| Shared domain functions                                                                                                                   | `src/lib/list-item-update.ts` `updateListItemAndNoteTick`, `src/lib/list-item-create.ts`, `src/lib/chore-complete.ts`, `src/lib/chore-reopen.ts`                   |
+| Board setup under elevation (§6.4)                                                                                                        | `src/app/api/device/elevated/board-settings/**`, `src/lib/board-settings.ts` (shared with `/api/family/board-settings`), `src/lib/weather/place-search.ts`         |
+| Device queue variant                                                                                                                      | `src/lib/offline-queue.ts` `device.list-item.set-checked`, `src/lib/offline-queue-browser.ts` `getDeviceQueue`                                                     |
+| Tablet UI: tiles, "Who's this?", "Ticking off as …", Undo toasts, "Board settings" in parent mode                                         | `src/components/device/use-device-board-actions.tsx`, `DeviceTodayScreen.tsx`, `ElevatedBanner.tsx`, `src/components/fridge/board-actions.ts`, `BoardSettings.tsx` |
 
 Person boards (`/dashboard/today`, fridge mode or not) use the same tiles with the person routes
 (`src/components/fridge/use-person-board-actions.ts`): a chore row is a button for its assignee and for parents
