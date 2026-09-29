@@ -2,7 +2,7 @@
 
 **Inspected:** `master` at `cbef026` (#280), 2026-09-29. Static source inspection only: no route was run for this document, no production data was read, and nothing here claims runtime behaviour.
 
-**Scope:** every page (`src/app/**/page.tsx`, 57 files) and every API route (`src/app/api/**/route.ts`, 129 files, 195 exported handlers). The lists were produced by a throwaway Node script (not committed; the repository has no tooling-scripts location for doc generators) that walks `src/app`, reads each file's exported HTTP methods, `featureGate(...)` / `FeatureGate` / `useFeatureEnabled(...)` calls, device helpers (`authenticateDevice`, `requireElevation`, `refusePairedDevice`), env kill-switch helpers, Prisma delegates used in the route file and its direct `@/lib/*` imports, and joins each handler to the "Role gate" column of [`security/API_ISOLATION_AUDIT.md`](../security/API_ISOLATION_AUDIT.md). Hand-checked rows are marked.
+**Scope:** every page (`src/app/**/page.tsx`, 57 files) and every API route (`src/app/api/**/route.ts`, 131 files, 197 exported handlers; reconciled with #281 at `32f10d0`). The lists were produced by a throwaway Node script (not committed; the repository has no tooling-scripts location for doc generators) that walks `src/app`, reads each file's exported HTTP methods, `featureGate(...)` / `FeatureGate` / `useFeatureEnabled(...)` calls, device helpers (`authenticateDevice`, `requireElevation`, `refusePairedDevice`), env kill-switch helpers, Prisma delegates used in the route file and its direct `@/lib/*` imports, and joins each handler to the "Role gate" column of [`security/API_ISOLATION_AUDIT.md`](../security/API_ISOLATION_AUDIT.md). Hand-checked rows are marked.
 
 **Related documents.** Roles: [`ROLE_AND_ISOLATION_MATRIX.md`](../ROLE_AND_ISOLATION_MATRIX.md). Navigation: [`product/NAVIGATION.md`](../product/NAVIGATION.md). Meal/list model decision: [ADR-0007](../architecture/adr/0007-canonical-meal-recipe-grocery-models.md) and [`architecture/MEALS_AND_GROCERIES.md`](../architecture/MEALS_AND_GROCERIES.md) §2. Shared device: [`architecture/SHARED_DEVICE.md`](../architecture/SHARED_DEVICE.md). Feature flags: `src/lib/features.ts`.
 
@@ -21,13 +21,13 @@
 | | Count |
 |---|---|
 | Page routes | 57 (47 under `/dashboard`, 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
-| API route files | 129 |
-| API handlers (file × method) | 195 |
+| API route files | 131 |
+| API handlers (file × method) | 197 |
 | API handlers missing from the isolation audit | 5, all `/api/calendar/subscriptions/**` (finding F-4) |
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
 | Route-level `loading.tsx` / `error.tsx` files | 0 (finding F-9) |
 
-API route files by domain (first path segment): family 20, calendar 13, lists 11, auth 9, device 8, budget 5, chores 5, inventory 5, projects 5, handoff 4, rewards 3, users 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, sick-days, upload.
+API route files by domain (first path segment): family 21, calendar 13, lists 11, auth 9, device 9, budget 5, chores 5, inventory 5, projects 5, handoff 4, rewards 3, users 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, sick-days, upload.
 
 ## Page routes
 
@@ -112,7 +112,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 
 ## Shared-device and role exposure
 
-- Only `/api/device/*` accepts the device cookie (8 route files). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
+- Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
 - 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`.
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
 - Teens and children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`); every API row below carries its per-method role from the isolation audit.
@@ -223,10 +223,12 @@ Generated table. Roles are the audit's "Role gate" column per method, except the
 | `/api/device/revoke-self` | POST | POST: elevated parent | device + elevation | — | SHARED_DEVICE_ENABLED | — |
 | `/api/device/session/refresh` | POST | POST: n/a | device pairing/session (no person) | — | SHARED_DEVICE_ENABLED | — |
 | `/api/device/today` | GET | GET: n/a | device only | — | SHARED_DEVICE_ENABLED | — |
+| `/api/device/today/version` | GET | GET: n/a (the device's own household; returns only `{ version }`, #281) | device only | — | SHARED_DEVICE_ENABLED | — |
 | `/api/emergency-contacts/[id]` | PATCH, DELETE | PATCH: P ; DELETE: P | no | emergency | — | — |
 | `/api/emergency-contacts` | GET, POST | GET: all (kid-readable by design, kid-access.ts) ; POST: P | no | emergency | — | — |
 | `/api/events` | GET, POST, PATCH, DELETE | GET: all ; POST: all ; PATCH: P ; DELETE: P | no | — | — | — |
 | `/api/family/ai-settings` | GET, POST | GET: P ; POST: P | no | — | — | — |
+| `/api/family/board-version` | GET | GET: all (the caller's own household and role; returns only `{ version }`, #281) | no (tablet cookie 401) | — | — | — |
 | `/api/family/board-settings/places` | GET | GET: P | no | — | WEATHER_ENABLED | — |
 | `/api/family/board-settings` | GET, PATCH | GET: P ; PATCH: P | no | — | WEATHER_ENABLED (weather fields only) | — |
 | `/api/family/devices/[id]/events` | GET | GET: P | no | — | SHARED_DEVICE_ENABLED | — |

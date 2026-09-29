@@ -63,7 +63,7 @@ Decision context: [ADR-0004](adr/0004-api-compatibility.md) (installed Android c
 **versionName**
 - `MAJOR.MINOR.PATCH` from the next bump. The existing `"1.0"` is read as `1.0.0`.
 - PATCH: native fixes with no behaviour change. MINOR: a new native capability (plugin, permission, manifest or lifecycle change). MAJOR: a change that ends support for older server or client behaviour; it needs an owner decision under ADR-0004.
-- `versionName` is what the server records as `HouseholdDevice.last_seen_app_version` (`SHARED_DEVICE.md`), so it must stay at most 32 characters and must not contain household data.
+- Not yet reported to the server. Pairing (`src/components/device/PairScreen.tsx`) sends the literal `'web'` as the app version on every platform, and nothing refreshes `HouseholdDevice.last_seen_app_version` after an APK upgrade, so that field cannot identify installed Android builds or support an old-client window today. Wiring the native `versionName` into pairing and refresh is a follow-up; until then, compatibility decisions rely on the release record, not on that field. When it is wired, `versionName` must stay at most 32 characters and contain no household data.
 
 **When to bump.** The installed app loads the live site from `server.url`, so web and API changes reach every installed build without a new APK. Bump only when the native shell changes: `android/**`, `capacitor.config.ts`, Capacitor plugins or the Capacitor major version. A web-only release does not bump either value.
 
