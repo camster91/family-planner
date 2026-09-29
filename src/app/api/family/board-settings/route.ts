@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import {
   applyBoardSettingsPatch,
   boardSettingsSnapshot,
+  lockBoardSettings,
   changedBoardSections,
   parseBoardSettingsPatch,
   readBoardSettings,
@@ -69,6 +70,7 @@ export async function PATCH(request: NextRequest) {
     // Only sections whose stored values actually changed are recorded, so a
     // no-op, a resubmitted value or a retry writes no history row.
     const refused = await prisma!.$transaction(async (tx) => {
+      await lockBoardSettings(tx, familyId)
       const before = await boardSettingsSnapshot(tx, familyId)
       const result = await applyBoardSettingsPatch(tx, familyId, parsed.patch)
       if (result) return result

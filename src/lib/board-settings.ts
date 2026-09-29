@@ -338,6 +338,15 @@ export type BoardSettingsSnapshot = {
   colors: Array<{ id: string; board_color: string | null }>
 }
 
+/**
+ * Lock the household's Family row for the rest of the transaction, so two
+ * board-settings patches serialise and each one's before/after snapshots see
+ * only its own change (#285 review). Call it before `boardSettingsSnapshot`.
+ */
+export async function lockBoardSettings(tx: Pick<Prisma.TransactionClient, '$queryRaw'>, familyId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${familyId} FOR UPDATE`
+}
+
 /** The persisted values every section is made of, for `changedBoardSections`. */
 export async function boardSettingsSnapshot(db: Db, familyId: string): Promise<BoardSettingsSnapshot> {
   const select: Record<string, true> = {}

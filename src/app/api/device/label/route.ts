@@ -28,6 +28,12 @@ export async function PATCH(request: NextRequest) {
 
     // The rename and its household audit row (#285) commit together.
     const count = await prisma!.$transaction(async (tx) => {
+      // Read the label under a row lock so concurrent renames serialise and
+      // each audit row names the label it actually replaced (#285 review).
+      await tx.$queryRaw`
+        SELECT "id" FROM "HouseholdDevice"
+        WHERE "id" = ${actor.deviceId} AND "family_id" = ${actor.familyId}
+        FOR UPDATE`
       const before = await tx.householdDevice.findFirst({
         where: { id: actor.deviceId, family_id: actor.familyId },
         select: { label: true },

@@ -292,6 +292,96 @@ describeWithDatabase('household audit history against Postgres', () => {
     expect(await count()).toBe(before + 1)
   })
 
+  // Hold a row lock in another transaction until `release()`, so requests
+  // started meanwhile are all in flight before either can write.
+  async function holdRow(lock: (tx: any) => Promise<unknown>) {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    let locked!: () => void
+    const isLocked = new Promise<void>((r) => (locked = r))
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await lock(tx)
+        locked()
+        await gate
+      },
+      { timeout: 20_000 }
+    )
+    await isLocked
+    return async () => {
+      await new Promise((r) => setTimeout(r, 500))
+      release()
+      await holder
+    }
+  }
+
+  it("board settings: a no-op overlapping another parent's change never records that change as its own (#285 review)", async () => {
+    const rows = () =>
+      prisma.auditLog.findMany({
+        where: { family_id: FAM, action: 'board_settings.changed' },
+        orderBy: { created_at: 'asc' },
+      })
+    // Both patches queue behind a held household lock and then serialise on
+    // it (lockBoardSettings), so the no-op's before/after snapshots can never
+    // straddle the other parent's commit.
+    const before = (await rows()).length
+    const current = await prisma.family.findUnique({ where: { id: FAM }, select: { ambient_idle_minutes: true } })
+    const next = current!.ambient_idle_minutes === 30 ? 5 : 30
+    const release = await holdRow((tx) => tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${FAM} FOR UPDATE`)
+    const both = Promise.all([
+      settingsRoute.PATCH(request(PARENT, { method: 'PATCH', body: { weather: {} } })),
+      settingsRoute.PATCH(request(PARENT2, { method: 'PATCH', body: { display: { idleMinutes: next } } })),
+    ])
+    await release()
+    const [a, b] = await both
+    expect([a.status, b.status]).toEqual([200, 200])
+    const added = (await rows()).slice(before)
+    expect(added.map((r) => r.actor_user_id)).toEqual([PARENT2])
+  })
+
+  it('two parents renaming the same tablet at once: each row names the label it replaced (#285 review)', async () => {
+    const prev = process.env.SHARED_DEVICE_ENABLED
+    process.env.SHARED_DEVICE_ENABLED = 'true'
+    try {
+      const deviceRoute = await import('@/app/api/family/devices/[id]/route')
+      const DEVICE = 'auditint-device'
+      await prisma.householdDevice.create({
+        data: { id: DEVICE, family_id: FAM, label: 'Kitchen', platform: 'web', created_by: PARENT },
+      })
+      const release = await holdRow(
+        (tx) => tx.$queryRaw`SELECT "id" FROM "HouseholdDevice" WHERE "id" = ${DEVICE} FOR UPDATE`
+      )
+      const rename = (as: string, label: string) =>
+        deviceRoute.PATCH(request(as, { method: 'PATCH', body: { label } }), {
+          params: Promise.resolve({ id: DEVICE }),
+        })
+      const both = Promise.all([rename(PARENT, 'Hall'), rename(PARENT2, 'Fridge'), rename(PARENT, 'Fridge')])
+      await release()
+      const results = await both
+      expect(results.map((r) => r.status)).toEqual([200, 200, 200])
+
+      const rows = await prisma.auditLog.findMany({
+        where: { family_id: FAM, action: 'device.renamed', target_id: DEVICE },
+        orderBy: { created_at: 'asc' },
+      })
+      const final = await prisma.householdDevice.findUnique({ where: { id: DEVICE }, select: { label: true } })
+      // The renames form one chain from "Kitchen" to the final label: every row
+      // starts where the previous one ended, and a rename to the label the
+      // tablet already has (the repeated "Fridge") writes no row.
+      let label = 'Kitchen'
+      for (const row of rows) {
+        const m = /^Renamed the tablet “(.+)” to “(.+)”$/.exec(row.summary)
+        expect(m?.[1]).toBe(label)
+        expect(m?.[2]).not.toBe(label)
+        label = m![2]
+      }
+      expect(label).toBe(final!.label)
+    } finally {
+      if (prev === undefined) delete process.env.SHARED_DEVICE_ENABLED
+      else process.env.SHARED_DEVICE_ENABLED = prev
+    }
+  })
+
   it("deleting a member keeps the household's rows without an actor", async () => {
     await prisma.user.delete({ where: { id: PARENT2 } })
     const rows = await prisma.auditLog.findMany({ where: { family_id: FAM, summary: 'Turned on Wishlist' } })

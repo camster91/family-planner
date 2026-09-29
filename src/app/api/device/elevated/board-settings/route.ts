@@ -6,6 +6,7 @@ import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import {
   applyBoardSettingsPatch,
   boardSettingsSnapshot,
+  lockBoardSettings,
   changedBoardSections,
   parseBoardSettingsPatch,
   readBoardSettings,
@@ -61,6 +62,7 @@ export async function PATCH(request: NextRequest) {
     // parent on the tablet) commit together.
     // Only sections whose stored values actually changed are recorded.
     const refused = await prisma!.$transaction(async (tx) => {
+      await lockBoardSettings(tx, actor.familyId)
       const before = await boardSettingsSnapshot(tx, actor.familyId)
       const result = await applyBoardSettingsPatch(tx, actor.familyId, parsed.patch)
       if (result) return result
