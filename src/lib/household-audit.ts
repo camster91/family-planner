@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = [
   'feature.turned_on',
   'feature.turned_off',
   'member.joined',
+  'member.left',
   'board_settings.changed',
   'device.paired',
   'device.renamed',
@@ -100,6 +101,10 @@ export function roleWord(role: string): string {
   return ROLE_WORD[role] ?? 'a member'
 }
 
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 /** One entry per feature whose effective stored value changed. */
 export function featureAuditEntries(
   before: FamilyFeatures,
@@ -145,7 +150,9 @@ const REMOVE_REASON: Record<string, string> = {
 
 export const auditSummary = {
   memberJoined: (name: string | null | undefined, role: string) =>
-    `${auditName(name, 'A new member')} joined as ${roleWord(role)}`,
+    `${auditName(name, 'A former member')} joined as ${roleWord(role)}`,
+  /** Role word only: the account and its name are being deleted (#292). */
+  memberLeft: (role: string) => `${capitalise(roleWord(role))} deleted their account and left the household`,
   devicePaired: (label: string | null | undefined) => `Paired the tablet “${auditName(label, 'Family tablet')}”`,
   deviceRenamed: (from: string | null | undefined, to: string | null | undefined) =>
     `Renamed the tablet “${auditName(from, 'Family tablet')}” to “${auditName(to, 'Family tablet')}”`,

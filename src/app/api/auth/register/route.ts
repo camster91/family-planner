@@ -8,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { registerSchema } from '@/lib/validations'
 import { lockHouseholdForJoin } from '@/lib/household-lock'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
@@ -103,7 +104,18 @@ export async function POST(request: NextRequest) {
           data: { accepted_at: new Date() },
         })
         if (consumed.count === 0) return null
-        return tx.user.create({ data: { ...createData, email_verified: true } as any })
+        const created = await tx.user.create({ data: { ...createData, email_verified: true } as any })
+        // Household audit history (#285): the new member and their role, in this locked transaction.
+        await writeAuditLog(tx, {
+          familyId,
+          actorUserId: created.id,
+          actorKind: 'person',
+          action: 'member.joined',
+          targetType: 'member',
+          targetId: created.id,
+          summary: auditSummary.memberJoined(created.name, created.role),
+        })
+        return created
       })
       if (!user) {
         return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })

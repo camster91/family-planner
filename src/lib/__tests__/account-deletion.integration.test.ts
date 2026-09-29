@@ -170,6 +170,13 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.devicePairing.create({ data: { id: id('pairing'), family_id: f, code_hash: id('code'), label: 'Hall', created_by: parent, expires_at: later } })
     await db.parentElevationPin.create({ data: { user_id: parent, family_id: f, pin_hash: 'x' } })
     await db.deviceAuditEvent.create({ data: { id: id('audit'), family_id: f, device_id: id('device'), actor_user_id: parent, type: 'x' } })
+    // Household audit history (#285): a parent's change and the child's join.
+    await db.auditLog.createMany({
+      data: [
+        { id: id('auditlog'), family_id: f, actor_user_id: parent, actor_kind: 'person', action: 'feature.turned_on', target_type: 'feature', target_id: 'wishlist', summary: 'Turned on Wishlist' },
+        { id: id('auditlog-join'), family_id: f, actor_user_id: child, actor_kind: 'person', action: 'member.joined', target_type: 'member', target_id: child, summary: `Kid ${h} joined as a child` },
+      ],
+    })
     await db.idempotencyRecord.create({
       data: { id: id('idem'), scope: `user:${parent}`, key: id('key-0000000000'), family_id: f, user_id: parent, action: 'x', request_hash: 'x', expires_at: later },
     })
@@ -415,5 +422,15 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(msg?.read_by).toEqual([])
     // The parent's upload is still referenced by nothing of the child's: it stays.
     expect(fs.existsSync(path.join(uploadDir, 'chores', 'a1a1a1a1a1a1a1a1.jpg'))).toBe(true)
+    // Household audit history (#285): the join line loses the name and the actor;
+    // a "left" line is added in the same transaction; the parent's row stays.
+    expect(await prisma.auditLog.findUnique({ where: { id: `${P}-a-auditlog-join` } })).toMatchObject({
+      actor_user_id: null,
+      target_id: null,
+      summary: 'A former member joined as a child',
+    })
+    const left = await prisma.auditLog.findMany({ where: { family_id: fam('a'), action: 'member.left' } })
+    expect(left.map((r) => r.summary)).toEqual(['A child deleted their account and left the household'])
+    expect(await prisma.auditLog.findUnique({ where: { id: `${P}-a-auditlog` } })).toMatchObject({ actor_user_id: uid('a', 'parent') })
   })
 })

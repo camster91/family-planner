@@ -85,7 +85,7 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Household change history</h2>
             <p>
               When someone changes household settings (turns a feature on or off, sends or cancels an
-              invite, joins the household, changes the Today board, or pairs, renames or removes a family
+              invite, joins the household or deletes their account, changes the Today board, or pairs, renames or removes a family
               tablet), we record a short line saying what changed, who did it and when. It holds names
               (of a feature, a member or a tablet) but never email addresses, codes, places or messages.
               Only parents can see it, under Settings, Recent changes. It is kept for 12 months and then

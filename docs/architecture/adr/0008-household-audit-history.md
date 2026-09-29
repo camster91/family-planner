@@ -19,12 +19,15 @@ parent makes from a phone.
 2. **Written in the same transaction as the change** (`writeAuditLog(tx, …)` in `src/lib/household-audit.ts`). A failed
    audit write fails the change; a failed change leaves no row. This is the opposite of the device trail on purpose.
 3. **Fixed vocabulary.** `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`,
-   `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`.
+   `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`.
    `summary` is built only from fixed templates plus names (a feature title, a member's or a tablet's name, a role
    word), at most 200 characters. Never an email address, code, token, PIN, place, coordinate, colour value or other
    free text.
 4. **Audited changes:** `PATCH /api/family/features` (one row per feature that changed); joining a household
-   (`POST /api/family/join`, which is where a member's role is set); `PATCH /api/family/board-settings` and
+   (`POST /api/family/join` and the invite branch of `POST /api/auth/register`, which is where a member's role is
+   set; both inside the locked join transaction of `src/lib/household-lock.ts`); a member deleting their own account
+   (`deleteMemberAccount`, #292: a `member.left` line with the role word only, the name taken out of their
+   `member.joined` line, their actor references cleared, all in the deletion transaction); `PATCH /api/family/board-settings` and
    `PATCH /api/device/elevated/board-settings` (section names only); tablet pairing (when the tablet is issued, plus the
    tablet it replaces), `PATCH /api/family/devices/[id]`, `POST /api/family/devices/[id]/revoke`, `PATCH /api/device/label`,
    `POST /api/device/revoke-self`; `POST /api/family/invites` and `DELETE /api/family/invites/[id]`. On the tablet the
@@ -64,8 +67,8 @@ Additive: one new table, no backfill, no change to any response shape except the
 ## Security / privacy
 Household-scoped on every read (`family_id` from the session) and write (the change's household). Parent-only; teen and
 child get 403; a paired tablet gets 403 `DEVICE_WRITE_NOT_ALLOWED`. An actor who has left the household is shown as
-"A former member". Deleted with the household (FK cascade on `master`; a `HOUSEHOLD_DELETION_PLAN` entry once account
-deletion #292 lands). The privacy page describes it.
+"A former member". Deleted with the household (the `auditLog` step of `HOUSEHOLD_DELETION_PLAN`, #292, with the FK cascade as a
+backstop); a deleted member's name does not stay in the history. The privacy page describes it.
 
 ## Validation
 `src/app/api/audit/__tests__/audit.test.ts` (roles, device 403, two-household isolation, paging, retention),

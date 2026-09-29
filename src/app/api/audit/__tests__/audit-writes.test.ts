@@ -39,6 +39,8 @@ import * as boardSettings from '../../family/board-settings/route'
 import * as invites from '../../family/invites/route'
 import * as inviteById from '../../family/invites/[id]/route'
 import * as join from '../../family/join/route'
+import * as register from '../../auth/register/route'
+import { hashInviteToken } from '@/lib/family-invite'
 import * as deviceById from '../../family/devices/[id]/route'
 import * as deviceRevoke from '../../family/devices/[id]/revoke/route'
 import * as pairings from '../../family/devices/pairings/route'
@@ -225,6 +227,25 @@ describe('household audit writes', () => {
         target_type: 'member',
         target_id: 'loner',
         summary: 'Lonny joined as a child',
+      })
+    })
+  })
+
+  describe('registering with an emailed invite', () => {
+    it('records the new member and their role in the invite household', async () => {
+      const token = 'c'.repeat(64)
+      Object.assign(db.find('familyInvite', 'invite-a')!, { token_hash: hashInviteToken(token), email: 'newbie@invitee.test', role: 'teen' })
+      const res = await register.POST(
+        req({ method: 'POST', body: { email: 'newbie@invitee.test', password: 'long-enough-pw', name: 'Newbie', inviteToken: token } })
+      )
+      expect(res.status).toBe(200)
+      const user = db.rows('user').find((u) => u.email === 'newbie@invitee.test')!
+      expect(onlyRow()).toMatchObject({
+        family_id: FAMILY_A,
+        actor_user_id: user.id,
+        action: 'member.joined',
+        target_id: user.id,
+        summary: 'Newbie joined as a teen',
       })
     })
   })
