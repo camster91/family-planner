@@ -250,7 +250,9 @@ export default function ListDetailClient({
   // re-creating it (same text, quantity, category, amount, unit and
   // ingredient; ticked again if it was ticked). The restored row is a new row
   // at the end of the list and no longer shows which recipe added it.
-  const restoreItem = async (item: Item) => {
+  // `wasChecked` is what the person saw when deleting, including a tick still
+  // queued offline (#162), not the possibly stale server value.
+  const restoreItem = async (item: Item, wasChecked: boolean) => {
     try {
       const res = await fetch('/api/lists/items/create', {
         method: 'POST',
@@ -269,7 +271,7 @@ export default function ListDetailClient({
       if (!res.ok || !data.item) throw new Error(typeof data.error === 'string' ? data.error : 'Please try again.')
       const restored: Item = { ...toItem(data.item), ingredient_name: item.ingredient_name ?? null, added_by: item.added_by }
       setListItems(prev => [...prev, restored])
-      if (item.checked) void sync.setChecked(restored.id, true)
+      if (wasChecked) void sync.setChecked(restored.id, true)
     } catch (err) {
       addToast({
         type: 'error',
@@ -282,6 +284,8 @@ export default function ListDetailClient({
   const handleDeleteItem = async (itemId: string) => {
     const item = listItems.find(i => i.id === itemId)
     if (!item) return
+    const wasChecked = displayChecked(item)
+    const queued = sync.stateFor(itemId)
     setListItems(prev => prev.filter(i => i.id !== itemId))
     let ok = false
     try {
@@ -295,7 +299,10 @@ export default function ListDetailClient({
       addToast({ type: 'error', title: `Couldn't delete “${item.content}”`, message: 'Check your connection and try again.' })
       return
     }
-    showUndo({ title: `Deleted “${item.content}”`, onUndo: () => void restoreItem(item) })
+    // A tick still queued for the deleted row can never apply; drop it so it
+    // does not linger as a failed change. Undo re-applies it to the new row.
+    if (queued) void sync.discard(queued.id)
+    showUndo({ title: `Deleted “${item.content}”`, onUndo: () => void restoreItem(item, wasChecked) })
   }
 
   const handleAdd = async () => {

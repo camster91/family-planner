@@ -16,7 +16,7 @@ import { POST as complete } from "../complete/route";
 import { POST as verify } from "../verify/route";
 import { POST as uncomplete } from "../uncomplete/route";
 import { awardChoreXP } from "@/lib/gamification-server";
-import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, fakePrisma, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 const newChore = {
   title: "Feed cat",
@@ -135,6 +135,63 @@ describe("chores — two households", () => {
 
     it("rejects a missing choreId with 400", async () => {
       expect((await uncomplete(req({ as: "childA", body: {} }))).status).toBe(400);
+    });
+
+    it("removes exactly the successor its completion created, not a look-alike chore", async () => {
+      const chore = db.find("chore", "chore-a")!;
+      chore.frequency = "daily";
+      chore.recurrence_id = null;
+      const before = new Set(db.rows("chore").map((r: any) => r.id));
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      const created = db.rows("chore").filter((r: any) => !before.has(r.id));
+      expect(created).toHaveLength(1);
+      const successorId = created[0].id;
+      expect(db.find("chore", "chore-a")?.successor_id).toBe(successorId);
+
+      // An unrelated one-off with the same title, assignee and date (added by a
+      // parent after the tick) must survive the Undo.
+      db.rows("chore").push({ ...created[0], id: "look-alike", created_at: new Date(Date.now() + 1000) });
+
+      expect((await uncomplete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      expect(db.find("chore", successorId)).toBeUndefined();
+      expect(db.find("chore", "look-alike")).toBeDefined();
+      expect(db.find("chore", "chore-a")?.successor_id).toBeNull();
+
+      // Completing again creates one successor, not a duplicate.
+      const count = db.rows("chore").length;
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      expect(db.rows("chore").length).toBe(count + 1);
+    });
+
+    it("a chore completed before successor_id existed reopens and deletes nothing", async () => {
+      const chore = db.find("chore", "chore-a")!;
+      chore.frequency = "daily";
+      chore.recurrence_id = null;
+      chore.status = "completed";
+      chore.completed_at = new Date();
+      const count = db.rows("chore").length;
+      expect((await uncomplete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      expect(db.rows("chore").length).toBe(count);
+      expect(writesTo("chore").some((w) => w.op === "deleteMany")).toBe(false);
+    });
+
+    it("is a 409, not a false success, when a parent verifies between the check and the update", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const original = fakePrisma.chore.findUnique;
+      const spy = jest.spyOn(fakePrisma.chore, "findUnique").mockImplementationOnce(async (args: any) => {
+        const row = await original(args);
+        // The parent's verify lands right after the route's first read.
+        db.find("chore", "chore-a")!.status = "verified";
+        return row;
+      });
+      try {
+        const res = await uncomplete(req({ as: "childA", body: { choreId: "chore-a" } }));
+        expect(res.status).toBe(409);
+        expect(await res.json()).toMatchObject({ code: "CHORE_ALREADY_VERIFIED" });
+        expect(db.find("chore", "chore-a")?.status).toBe("verified");
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 });

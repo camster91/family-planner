@@ -10,6 +10,9 @@ import ListDetailClient from '../ListDetailClient'
 import { ToastProvider } from '@/components/ui/toast'
 
 const mockSetChecked = jest.fn(async () => {})
+const mockDiscard = jest.fn(async () => {})
+// Queued offline ticks by item id (#162): the visible state, not the server's.
+const mockQueued = new Map<string, boolean>()
 jest.mock('../use-list-item-sync', () => ({
   useListItemSync: () => ({
     online: true,
@@ -17,10 +20,11 @@ jest.mock('../use-list-item-sync', () => ({
     pendingCount: 0,
     notice: null,
     dismissNotice: () => {},
-    stateFor: () => undefined,
+    stateFor: (id: string) =>
+      mockQueued.has(id) ? { id: `op-${id}`, state: 'failed', payload: { itemId: id, checked: mockQueued.get(id) } } : undefined,
     setChecked: mockSetChecked,
     retry: async () => {},
-    discard: async () => {},
+    discard: mockDiscard,
   }),
 }))
 // The swipe gesture itself needs pointer capture, which jsdom lacks; expose
@@ -46,6 +50,8 @@ beforeEach(() => {
   calls = []
   deleteStatus = 200
   mockSetChecked.mockClear()
+  mockDiscard.mockClear()
+  mockQueued.clear()
   window.confirm = jest.fn(() => false)
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -113,4 +119,18 @@ it('puts the row back and says so when the delete fails', async () => {
   expect(alert.textContent).toContain('Couldn\'t delete “Milk”')
   expect(screen.getByRole('checkbox', { name: /Milk/ })).toBeTruthy()
   expect(screen.queryByTestId('undo-toast')).toBeNull()
+})
+
+it('Undo restores the tick the person saw, even one still queued offline, and drops the stale queued change', async () => {
+  const user = userEvent.setup()
+  // Milk is unticked on the server but shows ticked from a queued offline change.
+  mockQueued.set('b', true)
+  renderList()
+  const row = screen.getByRole('checkbox', { name: /Milk/ }).closest('[data-testid="list-item"]')!.parentElement!
+  await user.click(within(row).getByRole('button', { name: 'Swipe to delete' }))
+
+  await waitFor(() => expect(mockDiscard).toHaveBeenCalledWith('op-b'))
+  const toast = await screen.findByTestId('undo-toast')
+  await user.click(within(toast).getByRole('button', { name: 'Undo' }))
+  await waitFor(() => expect(mockSetChecked).toHaveBeenCalledWith('restored', true))
 })

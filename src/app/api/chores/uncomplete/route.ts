@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { uncompleteChoreSchema } from '@/lib/validations'
-import { nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +15,13 @@ export const dynamic = 'force-dynamic'
  *   `CHORE_ALREADY_VERIFIED` and nothing changes.
  * - Already open: a no-op success (`alreadyOpen: true`), so a repeated Undo is safe.
  * - Completing a legacy recurring one-off (no series) created the next
- *   occurrence; Undo removes that still-pending successor so completing again
- *   does not create a duplicate. Series occurrences are deduplicated by
- *   (recurrence_id, due_date) and are left alone.
+ *   occurrence and stored its id in `successor_id`; Undo removes exactly that
+ *   row while it is still pending, so completing again does not create a
+ *   duplicate. Series occurrences are deduplicated by (recurrence_id,
+ *   due_date) and are left alone. A chore completed before `successor_id`
+ *   existed has none, and Undo removes nothing.
+ * - If a parent verifies between the check above and the update, the update
+ *   loses and the route re-reads the row: 409, never a false success.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -56,35 +59,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const reopened = await prisma!.$transaction(async (tx) => {
+    const outcome = await prisma!.$transaction(async (tx) => {
+      // Read the recorded successor in the same transaction as the reopen.
+      const before = await tx.chore.findUnique({ where: { id: choreId }, select: { successor_id: true } })
       const result = await tx.chore.updateMany({
         where: { id: choreId, status: 'completed' },
-        data: { status: 'pending', completed_at: null },
+        data: { status: 'pending', completed_at: null, successor_id: null },
       })
-      if (result.count === 0) return false
-
-      const completedAt = chore.completed_at
-      if (chore.frequency && chore.frequency !== 'once' && !chore.recurrence_id && completedAt) {
-        const next = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
-        if (next) {
-          await tx.chore.deleteMany({
-            where: {
-              family_id: chore.family_id,
-              title: chore.title,
-              assigned_to: chore.assigned_to,
-              due_date: next,
-              status: 'pending',
-              frequency: 'once',
-              recurrence_id: null,
-              created_at: { gte: completedAt },
-            },
-          })
-        }
+      if (result.count === 0) {
+        // Lost the race (or nothing to undo): report what the row is now, so a
+        // parent's verify that landed in between is a 409, not a false success.
+        const current = await tx.chore.findUnique({ where: { id: choreId }, select: { status: true } })
+        return current?.status === 'verified' ? 'verified' : 'open'
       }
-      return true
+
+      // A legacy recurring one-off created its next occurrence on completion
+      // and recorded its id. Remove exactly that row while it is still an
+      // untouched pending one-off of this household; anything else stays.
+      if (before?.successor_id) {
+        await tx.chore.deleteMany({
+          where: { id: before.successor_id, family_id: chore.family_id, status: 'pending', recurrence_id: null },
+        })
+      }
+      return 'reopened'
     })
 
-    if (!reopened) {
+    if (outcome === 'verified') {
+      return NextResponse.json(
+        { error: 'A parent has already checked this chore, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
+        { status: 409 }
+      )
+    }
+    if (outcome === 'open') {
       return NextResponse.json({ success: true, alreadyOpen: true })
     }
     return NextResponse.json({ success: true, choreId, status: 'pending' })
