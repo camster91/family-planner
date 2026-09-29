@@ -94,7 +94,10 @@ guard() {
   if [ "$SOURCE_DB" = "$RESTORE_DB" ]; then
     refuse "source and restore database must differ"
   fi
-  if [ "${NODE_ENV:-}" = production ]; then
+  # Normalised like src/lib/fixtures/guard.ts: " Production " is still production.
+  local node_env
+  node_env="$(printf '%s' "${NODE_ENV:-}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+  if [ "$node_env" = production ]; then
     refuse "NODE_ENV is production"
   fi
   case "${PGHOST,,}" in
@@ -178,13 +181,18 @@ create_fresh_db() {
   echo "$db" >>"$CREATED_DBS_FILE"
 }
 
+# Returns non-zero if any database this run created could not be dropped, so
+# the run cannot report PASS while leaving seeded databases behind.
 drop_created_dbs() {
-  local db
+  local db failed=0
   while IFS= read -r db; do
     [ -n "$db" ] || continue
-    psql_admin -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)" >/dev/null 2>&1 ||
-      echo "WARNING: could not drop $db" >&2
+    if ! psql_admin -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)" >/dev/null 2>&1; then
+      echo "ERROR: could not drop $db" >&2
+      failed=1
+    fi
   done <"$CREATED_DBS_FILE"
+  return "$failed"
 }
 
 write_report() {
@@ -193,21 +201,38 @@ write_report() {
     DURATION="$((SECONDS - START_SECONDS))" FAILED_STEP="$CURRENT_STEP" \
     REHEARSAL_WORK_DIR="$WORK_DIR" REHEARSAL_OUT_DIR="$REPORT_DIR" SOURCE_DB="$SOURCE_DB" \
     RESTORE_DB="$RESTORE_DB" MODE="$DB_CONTAINER_MODE" GIT_SHA="${REHEARSAL_COMMIT:-${GITHUB_SHA:-unknown}}" \
-    node "$REPO_ROOT/scripts/recovery-rehearsal-report.mjs" || echo "WARNING: report generation failed" >&2
+    CLEANUP_OK="$CLEANUP_OK" \
+    node "$REPO_ROOT/scripts/recovery-rehearsal-report.mjs"
 }
 
 on_exit() {
   local rc=$?
   trap - EXIT
-  # Cleanup must run to the end even if report generation fails.
+  # Cleanup runs to the end whatever fails. The databases are dropped first so
+  # the report records the real cleanup outcome; a failed drop or a failed
+  # report turns a passing rehearsal into a failure (the gate promises both).
   set +e
-  if [ "$rc" -eq 0 ]; then write_report pass; else write_report fail; fi
-  drop_created_dbs
+  CLEANUP_OK=true
+  if ! drop_created_dbs; then
+    CLEANUP_OK=false
+    if [ "$rc" -eq 0 ]; then
+      rc=4
+      CURRENT_STEP="cleanup"
+    fi
+  fi
+  local status=pass
+  [ "$rc" -eq 0 ] || status=fail
+  if ! write_report "$status"; then
+    echo "ERROR: report generation failed" >&2
+    [ "$rc" -eq 0 ] && rc=5 && CURRENT_STEP="report"
+  fi
   rm -rf "$WORK_DIR"
+  local cleanup_note="databases dropped, dump deleted"
+  [ "$CLEANUP_OK" = true ] || cleanup_note="some databases could NOT be dropped, see above; dump deleted"
   if [ "$rc" -eq 0 ]; then
-    log "PASS; report in $REPORT_DIR (databases dropped, dump deleted)"
+    log "PASS; report in $REPORT_DIR ($cleanup_note)"
   else
-    log "FAIL at step '${CURRENT_STEP:-setup}' (exit $rc); report in $REPORT_DIR (databases dropped, dump deleted)"
+    log "FAIL at step '${CURRENT_STEP:-setup}' (exit $rc); report in $REPORT_DIR ($cleanup_note)"
   fi
   exit "$rc"
 }

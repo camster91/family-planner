@@ -65,6 +65,8 @@ describe("recovery rehearsal target guard", () => {
     ["a non-loopback IP", { PGHOST: "10.0.0.5" }],
     ["the service name outside GitHub Actions", { PGHOST: "postgres" }],
     ["NODE_ENV=production", { NODE_ENV: "production" }],
+    ["NODE_ENV=Production (any case)", { NODE_ENV: "Production" }],
+    ["NODE_ENV with surrounding spaces", { NODE_ENV: " production " }],
   ])("refuses %s before connecting", (_label, env) => {
     const { status, output } = run(env);
     expect(status).toBe(GUARD_EXIT);

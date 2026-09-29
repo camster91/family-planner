@@ -70,7 +70,7 @@ const report = {
   finishedAt: env.FINISHED_AT,
   durationSeconds: Number(env.DURATION),
   backupTransport: env.MODE === 'docker' ? 'docker exec into the CI database container' : 'local docker-exec shim',
-  databases: { source: env.SOURCE_DB, restored: env.RESTORE_DB, droppedOnExit: true },
+  databases: { source: env.SOURCE_DB, restored: env.RESTORE_DB, droppedOnExit: env.CLEANUP_OK === 'true' },
   dump: {
     bytes: read('dump.bytes') === null ? null : Number(read('dump.bytes')),
     sha256: read('dump.sha256'),

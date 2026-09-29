@@ -50,7 +50,7 @@ Examples:
 
 ## Recovery rehearsal (automated restore and rollback-forward drill)
 
-`scripts/recovery-rehearsal.sh` (#288) proves the backup and restore scripts and the migration path work together, on throwaway databases only. It never touches production and cannot be pointed at it: it refuses (exit 3, before any connection) unless both database names match `fp_rehearsal_*`, neither contains a production marker, `NODE_ENV` is not `production`, and the host is loopback, or `postgres` inside GitHub Actions. An inherited `DATABASE_URL` is ignored.
+`scripts/recovery-rehearsal.sh` (#288) proves the backup and restore scripts and the migration path work together, on throwaway databases only. It never touches production and cannot be pointed at it: it refuses (exit 3, before any connection) unless both database names match `fp_rehearsal_*`, neither contains a production marker, `NODE_ENV` is not `production` (in any case or spacing), and the host is loopback, or `postgres` inside GitHub Actions. An inherited `DATABASE_URL` is ignored. A run that passed every step still fails if a database it created cannot be dropped (exit 4, `droppedOnExit: false` in the report) or the report cannot be written (exit 5).
 
 What it does:
 
