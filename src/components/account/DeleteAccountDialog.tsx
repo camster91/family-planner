@@ -41,13 +41,24 @@ export interface DeleteAccountDialogProps {
   onClose: () => void
   /** After a successful deletion. Defaults to a full navigation to the sign-in page. */
   onDeleted?: (mode: 'account' | 'household') => void
+  /**
+   * False where only the member's own account may be deleted (the user menu
+   * for teens and children): household deletion is never offered, even if the
+   * server would allow it.
+   */
+  allowHousehold?: boolean
 }
 
 function defaultOnDeleted(mode: 'account' | 'household') {
   window.location.assign(`/login?deleted=${mode}`)
 }
 
-export default function DeleteAccountDialog({ open, onClose, onDeleted = defaultOnDeleted }: DeleteAccountDialogProps) {
+export default function DeleteAccountDialog({
+  open,
+  onClose,
+  onDeleted = defaultOnDeleted,
+  allowHousehold = true,
+}: DeleteAccountDialogProps) {
   const [phase, setPhase] = React.useState<Phase>({ kind: 'loading' })
   const [password, setPassword] = React.useState('')
   const [typed, setTyped] = React.useState('')
@@ -55,6 +66,11 @@ export default function DeleteAccountDialog({ open, onClose, onDeleted = default
   const [error, setError] = React.useState<string | null>(null)
   const [exportState, setExportState] = React.useState<'idle' | 'working' | 'done' | 'error'>('idle')
   const keyRef = React.useRef<string | null>(null)
+  // True while `keyRef` belongs to an attempt whose outcome is unknown (the
+  // network dropped twice) or that the server reported as still running. If
+  // that attempt went on to delete the account, a later request with the same
+  // key is answered 401 (the session is gone): that 401 means "done".
+  const pendingRef = React.useRef(false)
 
   const load = React.useCallback(async () => {
     setPhase({ kind: 'loading' })
@@ -74,13 +90,14 @@ export default function DeleteAccountDialog({ open, onClose, onDeleted = default
     setError(null)
     setBusy(false)
     setExportState('idle')
-    keyRef.current = null
+    // Keep a key whose request may still have deleted the account.
+    if (!pendingRef.current) keyRef.current = null
     void load()
   }, [open, load])
 
   const options = phase.kind === 'ready' ? phase.options : null
-  const householdMode = Boolean(options?.canDeleteHousehold)
-  const blocked = options ? !options.canDeleteAccount && !options.canDeleteHousehold : false
+  const householdMode = allowHousehold && Boolean(options?.canDeleteHousehold)
+  const blocked = options ? !options.canDeleteAccount && !householdMode : false
   const householdName = options?.household?.name ?? ''
   const expected = householdMode ? householdName : ACCOUNT_DELETE_PHRASE
   const ready = Boolean(options) && !blocked && password.length > 0 && confirmationMatches(typed, expected)
@@ -115,6 +132,7 @@ export default function DeleteAccountDialog({ open, onClose, onDeleted = default
     const mode = householdMode ? 'household' : 'account'
     // One key per confirmed attempt; kept across the network retry below.
     keyRef.current = keyRef.current ?? newIdempotencyKey()
+    const earlierAttemptPending = pendingRef.current
     let res: Response | null = null
     let retried = false
     try {
@@ -127,23 +145,27 @@ export default function DeleteAccountDialog({ open, onClose, onDeleted = default
         res = null
       }
     }
-    if (res && (res.ok || (retried && res.status === 401))) {
+    if (res && (res.ok || ((retried || earlierAttemptPending) && res.status === 401))) {
+      pendingRef.current = false
       onDeleted(mode)
       return
     }
     setBusy(false)
     if (!res) {
       // Unknown outcome: keep the key so the next try cannot run twice.
+      pendingRef.current = true
       setError('No connection. Check your connection and try again.')
       return
     }
     const data = await res.json().catch(() => null)
     if (res.status === 409 && data?.error?.code === 'IDEMPOTENCY_IN_PROGRESS') {
+      pendingRef.current = true
       setError('Still working on it. Wait a moment, then try again.')
       return
     }
     // A refused request did nothing: the next attempt uses a new key.
     keyRef.current = null
+    pendingRef.current = false
     if (res.status === 401) {
       setError('Your session has ended. Sign in again to continue.')
     } else {
@@ -181,7 +203,9 @@ export default function DeleteAccountDialog({ open, onClose, onDeleted = default
       {options && blocked && (
         <div className="space-y-4">
           <p className="text-[16px] text-label-primary">
-            You are the last member of this household. Ask a parent to delete the household instead.
+            {options.isOnlyParent
+              ? 'You are the only parent in this household. Delete the household from Settings instead.'
+              : 'You are the last member of this household. Ask a parent to delete the household instead.'}
           </p>
           <button type="button" className="btn-tinted min-h-[44px] w-full" onClick={onClose}>
             Close

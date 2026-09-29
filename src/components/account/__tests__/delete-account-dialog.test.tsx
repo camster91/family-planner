@@ -165,6 +165,46 @@ describe('DeleteAccountDialog', () => {
     expect(keys[0]).toBe(keys[1])
   })
 
+  it.each([
+    ['the network dropped twice', [new TypeError('Failed to fetch'), new TypeError('Failed to fetch')]],
+    [
+      'the server said the first request was still running',
+      [json(409, { error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'running', retryable: true } })],
+    ],
+  ] as const)('after %s, the next click reuses the key and treats a 401 as already deleted', async (_label, first) => {
+    const calls = mockApi(MEMBER, [...first, json(401, { error: 'Unauthorized' })])
+    const onDeleted = jest.fn()
+    render(<DeleteAccountDialog open onClose={() => undefined} onDeleted={onDeleted} />)
+    await userEvent.type(await screen.findByLabelText('Your password'), 'pw')
+    await userEvent.type(screen.getByLabelText(/to confirm/), 'DELETE')
+    await userEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(onDeleted).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith('account'))
+    const keys = calls.filter((c) => c.method === 'DELETE').map((c) => c.headers['Idempotency-Key'])
+    expect(new Set(keys).size).toBe(1)
+  })
+
+  it('after a refused request, a later 401 is an error again (new key)', async () => {
+    const calls = mockApi(MEMBER, [
+      json(400, { error: 'That password is not right.', code: 'INVALID_PASSWORD' }),
+      json(401, { error: 'Unauthorized' }),
+    ])
+    const onDeleted = jest.fn()
+    render(<DeleteAccountDialog open onClose={() => undefined} onDeleted={onDeleted} />)
+    await userEvent.type(await screen.findByLabelText('Your password'), 'pw')
+    await userEvent.type(screen.getByLabelText(/to confirm/), 'DELETE')
+    await userEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('password')
+    await userEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('session has ended'))
+    expect(onDeleted).not.toHaveBeenCalled()
+    const keys = calls.filter((c) => c.method === 'DELETE').map((c) => c.headers['Idempotency-Key'])
+    expect(keys[0]).not.toBe(keys[1])
+  })
+
   it('a first-attempt 401 is not treated as success', async () => {
     mockApi(MEMBER, [json(401, { error: 'Unauthorized' })])
     const onDeleted = jest.fn()

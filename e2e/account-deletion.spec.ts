@@ -14,6 +14,9 @@
  *   account by typing DELETE; the household stays and the chore they created
  *   now belongs to the other parent.
  *
+ * - A teen (who cannot open Settings) deletes their own account from the
+ *   user menu: account only, no household option; the household stays.
+ *
  * Spec-owned rows `fx_e2e_acctdel_<project>_*` are inserted before each test
  * and removed after it (whatever the test left). They copy the fixture
  * parent's password hash, so FIXTURE_PASSWORD signs them in.
@@ -53,6 +56,7 @@ function ids(testInfo: TestInfo) {
       family: `${p}_duo`,
       parent: `${p}_duo_parent`,
       parent2: `${p}_duo_parent2`,
+      teen: `${p}_duo_teen`,
       chore: `${p}_duo_chore`,
     },
     email: (id: string) => `${id.replace(/_/g, "-")}@example.test`,
@@ -111,6 +115,7 @@ async function seed(testInfo: TestInfo) {
       x.solo.family,
       "2026-01-01",
     );
+    await user(x.duo.teen, "Duo Teen", "teen", x.duo.family, "2026-01-03");
     await user(
       x.solo.child,
       "Solo Child",
@@ -302,12 +307,43 @@ test.describe("account and household deletion", () => {
         `SELECT id FROM "User" WHERE family_id = $1 ORDER BY id`,
         [x.duo.family],
       );
-      expect(users.rows.map((r) => r.id)).toEqual([x.duo.parent2]);
+      expect(users.rows.map((r) => r.id)).toEqual([x.duo.parent2, x.duo.teen]);
       const chore = await db.query(
         `SELECT created_by FROM "Chore" WHERE id = $1`,
         [x.duo.chore],
       );
       expect(chore.rows[0]?.created_by).toBe(x.duo.parent2);
+    });
+  });
+
+  test("a teen deletes their own account from the user menu", async ({
+    page,
+  }, testInfo) => {
+    const x = await seed(testInfo);
+    await loginViaUi(page, x.email(x.duo.teen));
+    await page.waitForURL(/\/dashboard/);
+    await page.getByRole("button", { name: "User menu" }).click();
+    await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Delete my account" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Delete account" });
+    await expect(dialog.getByText(/stay with it/)).toBeVisible();
+    await expect(dialog.getByText(/household name/)).toHaveCount(0);
+    await expectNoBlockingAxe(page, testInfo, "teen-account-dialog");
+    await dialog.getByLabel("Your password").fill(FIXTURE_PASSWORD);
+    await dialog.getByLabel(/to confirm/).fill("delete");
+    await dialog.getByRole("button", { name: "Delete my account" }).click();
+    await page.waitForURL(/\/login\?deleted=account/);
+
+    await withDb(async (db) => {
+      const users = await db.query(
+        `SELECT id FROM "User" WHERE family_id = $1 ORDER BY id`,
+        [x.duo.family],
+      );
+      expect(users.rows.map((r) => r.id)).toEqual([
+        x.duo.parent,
+        x.duo.parent2,
+      ]);
     });
   });
 });
