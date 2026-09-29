@@ -2,10 +2,9 @@
 
 Master roadmap: #128. Repository foundation: #147 / PR #129.
 
-## Blocked until repository reconciliation merges
+## Repository reconciliation
 
-- #147 is implemented on `plan/fridge-tablet-program`, but PR #129 remains blocked by required checks.
-- No autonomous coding agent should assume `master` contains this backlog while PR #129 is open.
+- PR #129 merged on 2026-09-23 (`2538499`); `master` contains this backlog. Current state: `docs/CURRENT_STATE.md`.
 
 ## Next five execution issues
 

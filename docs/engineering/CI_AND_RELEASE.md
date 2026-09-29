@@ -1,6 +1,6 @@
 # CI and Release Workflow Map
 
-**Last reconciled:** 2026-09-24
+**Last reconciled:** 2026-09-24 (workflow states re-checked through the GitHub API on 2026-09-29)
 **Default branch:** `master` (verify the live repository setting before changing it)
 
 ## Workflow ownership
@@ -9,9 +9,10 @@
 | --- | --- | --- | --- |
 | `release.yml` — `Build & Test` | Locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import integration test, production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
 | `release.yml` — `Release to VPS` | Transfer and promote the verified image for the exact workflow SHA | Manual dispatch on the actual default branch only | Production deployment after `production` environment credentials are configured |
-| `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise |
-| `auto-merge.yml` | Merge a pull request carrying the explicit `auto-merge` label | `pull_request_target` label/change events | Can merge; does not deploy |
-| `stale-issues.yml` | Apply the repository's stale-issue policy to issues | Manual dispatch only (no schedule, per AGENTS.md) | Labels and closes inactive issues; never touches pull requests |
+| `e2e.yml` | Playwright journeys, accessibility smoke and visual snapshots (`docs/testing/E2E.md`) | Pull request, `main`/`master` push, manual dispatch | Validation only; informational, not a required check |
+| `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise. **Disabled in GitHub (`disabled_manually`) as of 2026-09-29; last run 2026-09-08.** |
+| `auto-merge.yml` | Merge a pull request carrying the explicit `auto-merge` label | `pull_request_target` label/change events | Can merge; does not deploy. Disabled in GitHub (`disabled_manually`) as of 2026-09-29 |
+| `stale-issues.yml` | Apply the repository's stale-issue policy to issues | Manual dispatch only (no schedule, per AGENTS.md) | Labels and closes inactive issues; never touches pull requests. Disabled in GitHub (`disabled_manually`) as of 2026-09-29 |
 
 The required check name remains exactly `Build & Test`. The former duplicate `ci.yml` validation and unused `build-push.yml` GHCR publication path were removed to keep one owner for application validation and avoid publishing a second, unused release artifact.
 
@@ -39,7 +40,7 @@ The SSH account can control Docker and is therefore privileged. Treat its key ac
 
 ## Live repository settings observed on 2026-09-24
 
-- The GitHub Actions setting requires live verification. The PR description records it as disabled, while this document previously recorded it as enabled.
+- The GitHub Actions setting requires live verification. The PR description records it as disabled, while this document previously recorded it as enabled. (Update 2026-09-29: `release.yml` and `e2e.yml` runs on `master` through `cbef026` show Actions is enabled.)
 - The repository default workflow token permission was read-only.
 - Branch protection requires the strict `Build & Test` check and enforces it for administrators; required pull-request approvals are zero.
 - The `production` environment has no required reviewers or deployment-branch restrictions.
