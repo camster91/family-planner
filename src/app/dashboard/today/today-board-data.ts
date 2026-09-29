@@ -29,6 +29,7 @@ import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
 import { DEFAULT_USE_SOON_DAYS, getUseSoonItems, type InventoryLocation } from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
+import type { BoardDisplay } from '@/lib/ambient'
 
 /** Days after today covered by "Coming up". */
 export const COMING_UP_DAYS = 3
@@ -115,6 +116,23 @@ export interface BoardUseSoonItem {
   expiresOn: string
 }
 
+/** A household photo chosen by a parent for the calm display (#271). */
+export interface BoardPhoto {
+  /** `Upload.id` of the household's own upload. */
+  id: string
+  /** Same-origin, household-scoped file URL (`/api/files/chores/<filename>`). */
+  url: string
+}
+
+/**
+ * Fridge calm display settings (#271). `photos` is present only for a
+ * signed-in member; the shared-device audience never gets it
+ * (SHARED_DEVICE.md §9.1 and its open question).
+ */
+export interface BoardDisplayData extends BoardDisplay {
+  photos?: BoardPhoto[]
+}
+
 /** Where the board may link, already filtered by role and feature flags. */
 export interface BoardLinks {
   calendar: string | null
@@ -150,6 +168,16 @@ export interface TodayBoardData {
    * buildTodayBoard. Optional for clients built before #262.
    */
   weather?: BoardWeather | null
+  /**
+   * Calm display and night hours (#271), filled by loadTodayBoard
+   * (./board-snapshot.ts). Optional for clients built before #271.
+   */
+  display?: BoardDisplayData
+  /**
+   * Opaque change version (#271). The board polls the version route and
+   * re-fetches only when the answer differs. Optional for older servers.
+   */
+  version?: string
 }
 
 type Db = Pick<

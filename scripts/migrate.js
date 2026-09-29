@@ -42,6 +42,12 @@ ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_longitude" DOUBLE PRECISI
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_label" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_unit" TEXT NOT NULL DEFAULT 'celsius';
 
+-- Fridge calm display (#271; additive: idle minutes, night hours off, no photos)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "ambient_idle_minutes" INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "night_start" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "night_end" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "ambient_photo_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
   "id" TEXT PRIMARY KEY,

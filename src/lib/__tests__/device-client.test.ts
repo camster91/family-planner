@@ -242,6 +242,26 @@ describe('terminal errors purge (§8)', () => {
     expect(t.navigate).toHaveBeenCalledWith(REMOVED_PATH)
   })
 
+  // #271: the version check is a newer route. The kill switch (enveloped 404)
+  // still purges; a bare 404 from a server rolled back to a build without the
+  // route is a plain failure, so a rollback never purges a tablet.
+  it('optional route: the enveloped kill-switch 404 purges, a bare 404 does not', async () => {
+    const VERSION = '/api/device/today/version'
+    const killed = setup(() => envelope(404, 'NOT_FOUND'))
+    seedStorage(killed)
+    await expect(killed.client.request(VERSION, { optionalRoute: true })).rejects.toMatchObject({ status: 404 })
+    expect(killed.navigate).toHaveBeenCalledWith(REMOVED_PATH)
+
+    const rolledBack = setup(() => new Response('<html>Not Found</html>', { status: 404 }))
+    seedStorage(rolledBack)
+    await expect(rolledBack.client.request(VERSION, { optionalRoute: true })).rejects.toMatchObject({
+      status: 404,
+      enveloped: false,
+    })
+    expect(rolledBack.navigate).not.toHaveBeenCalled()
+    expect(rolledBack.local.getItem(DEVICE_QUEUE_KEY)).not.toBeNull()
+  })
+
   it('a 404 from a pairing endpoint (unpaired tablet) does not purge', async () => {
     const t = setup(() => envelope(404, 'NOT_FOUND'))
     await expect(t.client.claim('ABCDEFGH', 'web', 'web')).rejects.toMatchObject({ status: 404 })

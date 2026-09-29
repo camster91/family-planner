@@ -56,12 +56,19 @@ export class DeviceApiError extends Error {
   /** Seconds from `Retry-After`, when the server sent one. */
   readonly retryAfterSeconds: number | null
   readonly details: Record<string, unknown>
+  /** The response carried the device error envelope (`{ error: { code } }`). */
+  readonly enveloped: boolean
 
   constructor(
     status: number,
     code: string,
     message: string,
-    options: { retryable?: boolean; retryAfterSeconds?: number | null; details?: Record<string, unknown> } = {}
+    options: {
+      retryable?: boolean
+      retryAfterSeconds?: number | null
+      details?: Record<string, unknown>
+      enveloped?: boolean
+    } = {}
   ) {
     super(message)
     this.name = 'DeviceApiError'
@@ -70,6 +77,7 @@ export class DeviceApiError extends Error {
     this.retryable = options.retryable ?? false
     this.retryAfterSeconds = options.retryAfterSeconds ?? null
     this.details = options.details ?? {}
+    this.enveloped = options.enveloped ?? false
   }
 
   /** The device was disconnected; the client has purged (or is purging). */
@@ -135,6 +143,13 @@ export interface RequestOptions {
   body?: unknown
   /** Send the in-memory elevation token as `X-Device-Elevation`. */
   elevated?: boolean
+  /**
+   * A route added after earlier server builds (e.g. the #271 version check).
+   * A 404 WITH the device error envelope is still the kill switch (terminal);
+   * a bare 404 (a rolled-back server without the route) is a plain,
+   * non-terminal failure, so a rollback never makes a tablet purge itself.
+   */
+  optionalRoute?: boolean
 }
 
 async function readBody(res: Response): Promise<unknown> {
@@ -176,7 +191,12 @@ async function toError(res: Response): Promise<DeviceApiError> {
       if (key !== 'code' && key !== 'message' && key !== 'retryable') details[key] = value
     }
   }
-  return new DeviceApiError(res.status, code, message, { retryable, retryAfterSeconds: retryAfter(res), details })
+  return new DeviceApiError(res.status, code, message, {
+    retryable,
+    retryAfterSeconds: retryAfter(res),
+    details,
+    enveloped: envelope !== null,
+  })
 }
 
 function networkError(): DeviceApiError {
@@ -340,7 +360,8 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         if (!res.ok) error = await toError(res)
       }
       if (!res.ok) {
-        if (error.terminal || isKillSwitchResponse(path, res.status)) {
+        const killSwitch = isKillSwitchResponse(path, res.status) && (!options.optionalRoute || error.enveloped)
+        if (error.terminal || killSwitch) {
           await purge()
         } else if (options.elevated && ELEVATION_ENDED_CODES.has(error.code)) {
           dropElevation()
