@@ -114,6 +114,7 @@ jobs:
           src/app/api/lists/__tests__/from-recipe.integration.test.ts
           src/app/api/lists/__tests__/sections.integration.test.ts
           src/app/api/recipes/__tests__/recipes.integration.test.ts
+          src/app/api/search/__tests__/search.integration.test.ts
           src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts
           src/lib/__tests__/device.integration.test.ts
           src/lib/__tests__/idempotency.integration.test.ts

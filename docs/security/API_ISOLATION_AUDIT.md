@@ -157,6 +157,20 @@ the list; the walking order reads only the household's trips. A tick records its
 export adds the household's preferences and trips. Tests: `src/app/api/lists/__tests__/sections.test.ts`
 (two-household harness, same name in both households) and the opt-in `sections.integration.test.ts`.
 
+**Update 2026-09-29 (route inventory F-3, #101 D-2): household search.** New `GET /api/search?q=` replaces the
+placeholder `/dashboard/search`. It reads no new table and writes nothing. A paired shared device is refused (403
+`DEVICE_WRITE_NOT_ALLOWED`, listed in the route-allowlist test's refused routes, not its allowlist) before person auth;
+then `authenticateWithFamily`. Every query filters on the session `family_id` (list items through their list) and
+reads only ADR-0007 canonical tables, never a legacy meal/shopping table (F-7). Each type is searched only while the
+household has its feature on (`calendar`, `chores`, `lists`, `family`, `meals`, `notes`, `inventory`) and only
+when the caller's role may open the page the result links to (`src/lib/search-result-href.ts`, the kid allowlist):
+teens and children get lists, list items and inventory only. Budget, messages, medical, locations, handoff,
+allowance, projects, rewards and wishlist are never searched. Results carry type, id, title, an optional plain
+subtitle, the link and (events/chores) a time; note bodies are matched but never returned, and members never carry
+an email. `%`, `_` and `\` in the words are escaped, because Prisma's `contains` does not escape LIKE wildcards
+(checked against Postgres). Tests: `src/app/api/search/__tests__/search.test.ts` (two households, roles, features,
+validation, limits, device) and the opt-in `search.integration.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -372,6 +386,7 @@ recorded in route comments, as the de facto matrix.
 | /api/recipes/[id] | GET | family + `featureGate('meals')` | where id + family (404, same as missing) | all | none | recipes/iso, recipes.integration | implemented (#251) |
 | /api/recipes/[id] | PATCH | family + `featureGate('meals')` | where id + family (404) | P+T (O-7) | same as POST; `ingredients` replaces the set | recipes/iso, recipes.integration | implemented (#251) |
 | /api/recipes/[id] | DELETE | family + `featureGate('meals')` | where id + family (404) | P (O-7) | 409 `RECIPE_IN_ARCHIVED_PLAN` while a legacy `MealPlanEntry` references it | recipes/iso, recipes.integration | implemented (#251) |
+| /api/search | GET | device refused (403) + family + per-type feature flags | every query `where family_id` (list items `where list.family_id`); canonical tables only (members, events, chores, lists, list items, recipes, notes, active inventory); ≤ 5 per type, ≤ 30 in all; no `family_id`, email or note body out | all, by type: P gets every type; teen/child only types whose page is on the kid allowlist (lists, list items, inventory) | none (query text only; 2–100 characters; LIKE wildcards escaped) | search/__tests__/search.test.ts, search.integration, device-route-allowlist | implemented (F-3) |
 | /api/sick-days | GET | jwt | where | P; teen/child own (`person_id = self`) | none | sick-days/iso | implemented (D1) |
 | /api/sick-days | POST | jwt | session family | P; teen/child own (report self only) | person_id verified | sick-days/route.test.ts, sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | PATCH | jwt | match (404); raw SQL also filters family_id | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |

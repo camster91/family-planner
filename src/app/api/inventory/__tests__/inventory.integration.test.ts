@@ -255,6 +255,27 @@ describeWithDatabase('inventory API against Postgres', () => {
     await prisma.idempotencyRecord.deleteMany({ where: { scope: `user:${PARENT}`, key } })
   })
 
+  it('search words match literally: % and _ are not wildcards', async () => {
+    await prisma.inventoryItem.createMany({
+      data: [
+        { id: 'invint-like-1', family_id: FAM, name: '100% juice', location: 'fridge' },
+        { id: 'invint-like-2', family_id: FAM, name: '1000 grams rice', location: 'pantry' },
+        { id: 'invint-like-3', family_id: FAM, name: 'a_b snack', location: 'pantry' },
+        { id: 'invint-like-4', family_id: FAM, name: 'axb snack', location: 'pantry' },
+      ],
+    })
+    try {
+      const names = async (q: string) =>
+        ((await (await collection.GET(request(PARENT, undefined, { q }))).json()).items as Array<{ name: string }>).map(
+          (i) => i.name
+        )
+      expect(await names('100%')).toEqual(['100% juice'])
+      expect(await names('a_b')).toEqual(['a_b snack'])
+    } finally {
+      await prisma.inventoryItem.deleteMany({ where: { id: { startsWith: 'invint-like-' } } })
+    }
+  })
+
   it('deleting the household removes its inventory (cascade)', async () => {
     await collection.POST(request(OTHER, { name: 'Butter' }))
     expect(await prisma.inventoryItem.count({ where: { family_id: FAM2 } })).toBeGreaterThan(0)

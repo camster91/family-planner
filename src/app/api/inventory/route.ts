@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { refusePairedDevice } from '@/lib/device-route'
+import { escapeLikePattern } from '@/lib/household-search'
 import { addUTCDays, parseDateOnly } from '@/lib/dates'
 import {
   DEFAULT_USE_SOON_DAYS,
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
         status: 'active',
         ...(location ? { location } : {}),
         ...(category ? { category } : {}),
-        ...(q ? { name: { contains: q, mode: 'insensitive' as const } } : {}),
+        ...(q ? { name: { contains: escapeLikePattern(q), mode: 'insensitive' as const } } : {}),
         ...(expiring !== null ? { expires_on: { not: null, lte: addUTCDays(today, expiring) } } : {}),
       },
       select: INVENTORY_ITEM_SELECT,

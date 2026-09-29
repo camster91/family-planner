@@ -21,13 +21,13 @@
 | | Count |
 |---|---|
 | Page routes | 57 (47 under `/dashboard`, 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
-| API route files | 131 |
-| API handlers (file × method) | 197 |
+| API route files | 142 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; and `/api/search`, F-3) |
+| API handlers (file × method) | 209 (197 + 11 from #283/#284 + `GET /api/search`) |
 | API handlers missing from the isolation audit | 5, all `/api/calendar/subscriptions/**` (finding F-4) |
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
 | Route-level `loading.tsx` / `error.tsx` files | 0 (finding F-9) |
 
-API route files by domain (first path segment): family 21, calendar 13, lists 11, auth 9, device 9, budget 5, chores 5, inventory 5, projects 5, handoff 4, rewards 3, users 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, sick-days, upload.
+API route files by domain (first path segment, all 142): family 21, device 15, calendar 13, lists 11, auth 9, inventory 9, budget 5, chores 5, projects 5, handoff 4, rewards 3, users 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload.
 
 ## Page routes
 
@@ -61,7 +61,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/dashboard/settings` | P | no | sections by env: calendar sync, shared device | Utility (user menu) | `/api/users`, `/api/auth/change-password`, `/api/family/ai-settings`, `/api/family/feed-token`, `/api/calendar/*`, `/api/users/elevation-pin` | 4 |
 | `/dashboard/settings/devices` | P | manages devices | `SHARED_DEVICE_ENABLED` (`notFound()` while off) | Settings | `/api/family/devices*` | 4, 7 |
 | `/dashboard/settings/imports` | P | no | — | Settings | `POST /api/admin/imports/[source]` | 4 |
-| `/dashboard/search` | P | no | — | Utility (top bar link) | **none: placeholder page, every query shows "No results"** (F-3) | 3 (fold into the command palette) or 6 |
+| `/dashboard/search` | P | no | — (per type in the API) | Utility (top bar link; command palette "Search the household") | `GET /api/search` (F-3 search part fixed) | 1 |
 | `/dashboard/notifications` | P | no | — | Utility (bell) | `/api/notifications` | 1 |
 | `/dashboard/emergency` | all (edit P) | no | `emergency` | Tab (T/C); Family → Emergency (P) | `/api/emergency-contacts*` | 5 |
 | `/dashboard/inventory` | all (edit P+T) | no | `inventory`; `meals` for "what can I cook" | More; user menu (all roles) | `/api/inventory*` | 7 |
@@ -113,7 +113,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 ## Shared-device and role exposure
 
 - Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
-- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`.
+- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes and `GET /api/search` (F-3) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
 - Teens and children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`); every API row below carries its per-method role from the isolation audit.
 
@@ -142,7 +142,7 @@ Each is from source inspection at `cbef026`. "Proposed issue" means an issue sho
 |---|---|---|---|
 | F-1 | **Notes edit and delete cannot work.** The page sends `PATCH` and `DELETE` to `/api/notes`, which exports only `GET` and `POST`; the handlers live in `/api/notes/[id]`, which nothing calls. | `src/app/dashboard/notes/page.tsx:132-133`, `:158-159`; `src/app/api/notes/route.ts` (GET, POST); `src/app/api/notes/[id]/route.ts` | **Fixed** in this change: the page calls `/api/notes/${id}`; `src/app/dashboard/notes/__tests__/edit-delete.test.tsx` covers both |
 | F-2 | **Three pages do not check their feature flag.** `/dashboard/budget` and `/dashboard/projects` read Prisma on the server and render with `budget`/`projects` off; `/dashboard/messages` renders and gets 403 from its API. Their APIs are gated, and the nav hides them, so this is a direct-URL inconsistency, not a cross-household leak. | `src/app/dashboard/budget/page.tsx:55-90`, `src/app/dashboard/projects/page.tsx:17`, `src/app/dashboard/messages/page.tsx` (no `FeatureGate`) | Proposed issue: wrap in `FeatureGate` like the other 15 pages that use it |
-| F-3 | **Placeholder UI in production paths.** `/dashboard/search` has no data source and shows "No results" for every query; Settings has "Two-Factor Authentication", "Data Export" and "Delete Account" buttons with no handler (the export and delete APIs exist). | `src/app/dashboard/search/page.tsx` (whole file); `src/app/dashboard/settings/SettingsClient.tsx:731-739` | Proposed issue: remove or wire each control (`GET /api/users/export`, `DELETE /api/users`, account deletion per `product/ACCOUNT_DELETION.md`); fold search into the command palette |
+| F-3 | **Placeholder UI in production paths.** `/dashboard/search` had no data source and showed "No results" for every query; Settings has "Two-Factor Authentication", "Data Export" and "Delete Account" buttons with no handler (the export and delete APIs exist). | `src/app/dashboard/search/page.tsx` (whole file); `src/app/dashboard/settings/SettingsClient.tsx:731-739` | **Search fixed** (#101 D-2): `GET /api/search` searches the household's canonical members, events, chores, lists, list items, recipes, notes and active inventory, per feature and role (`ROLE_AND_ISOLATION_MATRIX.md` "Household search"); the page and the command palette use it. Settings controls: still proposed (wire `GET /api/users/export`, `DELETE /api/users`, account deletion per `product/ACCOUNT_DELETION.md`, or remove) |
 | F-4 | **ICS subscription routes are missing from the isolation audit and the role matrix.** 5 handlers. From source: list P+T (URL hint parent only), create/update/delete P, refresh P+T; every lookup uses `authenticateWithFamily`. | `src/app/api/calendar/subscriptions/**`; no row in `security/API_ISOLATION_AUDIT.md` | Proposed issue (docs/security): add audit rows and two-household tests if missing |
 | F-5 | **API routes with no in-app caller.** `GET /api/admin/imports`, `GET/POST /api/projects/[id]/tasks` (no UI adds a task to an existing project), `GET /api/lists/items` (only `e2e/`). Expected callers outside the app: `/api/calendar/connections/[provider]/callback` (OAuth redirect), `/api/calendar/feed` (ICS URL), `/api/health*` (release smoke), `/api/users/export` (documented on `/privacy`, no button). | generated reference scan of `src/` and `e2e/` | Decide per route: wire, or deprecate after evidence (class 6) |
 | F-6 | **Duplicate or overlapping routes.** `/dashboard/lists/type/[type]` duplicates a filter of `/dashboard/lists`; `/api/lists/items/delete` (body id) sits beside REST-style `[id]` routes elsewhere; `/api/files/[filename]` and `/api/files/chores/[filename]` serve two upload generations (D3 legacy path in the audit); `/api/chores/complete` and `PATCH /api/chores` both change chore status. | route list above | Record in the IA refactor; no deletion without migration evidence and ADR-0004 old-client review |
@@ -163,7 +163,7 @@ Highest-frequency daily flows first, each as one vertical slice (UI + canonical 
 5. **Meals and recipes** (`/dashboard/meals*`): canonical; #252 design review against FridgeCal is open.
 6. **Notes** (F-1 fixed), inventory, messages.
 7. **Weekly/occasional:** projects, budget, anniversaries, rewards/analytics, then the off-by-default family features (wishlist, pickups, allowance, handoff, sick days, locations, travel).
-8. **Settings and placeholders:** F-3, F-2, F-9.
+8. **Settings and placeholders:** F-3 (search done; Settings controls left), F-2, F-9.
 9. **Contract (gated):** #254 after the backfill run and a release with zero legacy reads.
 
 ## API routes
@@ -295,6 +295,7 @@ Generated table. Roles are the audit's "Role gate" column per method, except the
 | `/api/rewards/claim` | POST | POST: all | no | rewards | — | — |
 | `/api/rewards` | GET, POST, PATCH | GET: all ; POST: P ; PATCH: P | no | rewards | — | — |
 | `/api/sick-days/[id]` | PATCH, DELETE | PATCH: P (kid: own 403, sibling 404) ; DELETE: P (kid: own 403, sibling 404) | no | sick-days | — | — |
+| `/api/search` | GET | GET: all, by type (P every type; teen/child lists, list items and inventory only) — hand-checked (F-3) | refused | per type: family, calendar, chores, lists, meals, notes, inventory | — | canonical: List, ListItem, Recipe (and InventoryItem, PinnedNote, Event, Chore, User) |
 | `/api/sick-days` | GET, POST | GET: P; teen/child own (`person_id = self`) ; POST: P; teen/child own (report self only) | no | sick-days | — | — |
 | `/api/upload` | POST | POST: all | no | — | — | — |
 | `/api/users/elevation-pin` | PUT, DELETE | PUT: P (requires current password) ; DELETE: P | no | — | SHARED_DEVICE_ENABLED | — |

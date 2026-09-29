@@ -110,6 +110,8 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Grocery store sections (#273): "Move to…" and the per-list sorting switch.
   'PATCH /api/lists/items/section': [403],
   'PATCH /api/lists/section-sort': [403],
+  // Household search (route inventory F-3): a person read, never the tablet's.
+  'GET /api/search': [403],
 }
 
 function routeFiles(dir: string): string[] {
