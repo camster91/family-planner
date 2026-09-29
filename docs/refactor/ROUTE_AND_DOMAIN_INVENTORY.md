@@ -65,7 +65,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/dashboard/notifications` | P | no | — | Utility (bell) | `/api/notifications` | 1 |
 | `/dashboard/emergency` | all (edit P) | no | `emergency` | Tab (T/C); Family → Emergency (P) | `/api/emergency-contacts*` | 5 |
 | `/dashboard/inventory` | all (edit P+T) | no | `inventory`; `meals` for "what can I cook" | More; user menu (all roles) | `/api/inventory*` | 7 |
-| `/dashboard/notes` | P | no | `notes` | More | `/api/notes` (edit/delete broken, F-1) | 1 |
+| `/dashboard/notes` | P | no | `notes` | More | `/api/notes`, `/api/notes/[id]` (F-1 fixed) | 1 |
 | `/dashboard/anniversaries` | P | no | `anniversaries` | More | `/api/anniversaries*` | 1 |
 | `/dashboard/messages` | P | no | **none at page level** (API gates `messages`) | More | `/api/messages` | 1 (F-2) |
 | `/dashboard/projects` | P | no | **none at page level** (server reads `Project` directly) | More | server Prisma; `/api/projects` | 1 (F-2) |
@@ -93,7 +93,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `chores`, `calendar`, `lists`, `family` | core, always on | yes | `lists` gated (O-11); others core | 1 |
 | `meals` | on | `/dashboard/meals` | `featureGate('meals')` on meals, recipes, from-recipe, cook | 1 |
 | `inventory` | off (also for existing households) | `/dashboard/inventory` | `featureGate('inventory')`; scan also needs its key | 7 |
-| `notes` | on | `/dashboard/notes` | yes | 1 (fix F-1) |
+| `notes` | on | `/dashboard/notes` | yes | 1 (F-1 fixed) |
 | `anniversaries` | on | yes | yes | 1 |
 | `gamification` | off; on for pre-#248 households | setting, not a page | hides fields (`isGamificationOn`) | 7 |
 | `rewards` | on, requires `gamification` | yes | yes | 7 |
@@ -140,11 +140,11 @@ Each is from source inspection at `cbef026`. "Proposed issue" means an issue sho
 
 | ID | Finding | Evidence | Proposed action |
 |---|---|---|---|
-| F-1 | **Notes edit and delete cannot work.** The page sends `PATCH` and `DELETE` to `/api/notes`, which exports only `GET` and `POST`; the handlers live in `/api/notes/[id]`, which nothing calls. | `src/app/dashboard/notes/page.tsx:132-133`, `:158-159`; `src/app/api/notes/route.ts` (GET, POST); `src/app/api/notes/[id]/route.ts` | Proposed issue (bug): call `/api/notes/${id}`, add a component test and a Playwright step |
+| F-1 | **Notes edit and delete cannot work.** The page sends `PATCH` and `DELETE` to `/api/notes`, which exports only `GET` and `POST`; the handlers live in `/api/notes/[id]`, which nothing calls. | `src/app/dashboard/notes/page.tsx:132-133`, `:158-159`; `src/app/api/notes/route.ts` (GET, POST); `src/app/api/notes/[id]/route.ts` | **Fixed** in this change: the page calls `/api/notes/${id}`; `src/app/dashboard/notes/__tests__/edit-delete.test.tsx` covers both |
 | F-2 | **Three pages do not check their feature flag.** `/dashboard/budget` and `/dashboard/projects` read Prisma on the server and render with `budget`/`projects` off; `/dashboard/messages` renders and gets 403 from its API. Their APIs are gated, and the nav hides them, so this is a direct-URL inconsistency, not a cross-household leak. | `src/app/dashboard/budget/page.tsx:55-90`, `src/app/dashboard/projects/page.tsx:17`, `src/app/dashboard/messages/page.tsx` (no `FeatureGate`) | Proposed issue: wrap in `FeatureGate` like the other 15 pages that use it |
 | F-3 | **Placeholder UI in production paths.** `/dashboard/search` has no data source and shows "No results" for every query; Settings has "Two-Factor Authentication", "Data Export" and "Delete Account" buttons with no handler (the export and delete APIs exist). | `src/app/dashboard/search/page.tsx` (whole file); `src/app/dashboard/settings/SettingsClient.tsx:731-739` | Proposed issue: remove or wire each control (`GET /api/users/export`, `DELETE /api/users`, account deletion per `product/ACCOUNT_DELETION.md`); fold search into the command palette |
 | F-4 | **ICS subscription routes are missing from the isolation audit and the role matrix.** 5 handlers. From source: list P+T (URL hint parent only), create/update/delete P, refresh P+T; every lookup uses `authenticateWithFamily`. | `src/app/api/calendar/subscriptions/**`; no row in `security/API_ISOLATION_AUDIT.md` | Proposed issue (docs/security): add audit rows and two-household tests if missing |
-| F-5 | **API routes with no in-app caller.** `GET /api/admin/imports`, `GET/POST /api/projects/[id]/tasks` (no UI adds a task to an existing project), `/api/notes/[id]` (F-1), `GET /api/lists/items` (only `e2e/`). Expected callers outside the app: `/api/calendar/connections/[provider]/callback` (OAuth redirect), `/api/calendar/feed` (ICS URL), `/api/health*` (release smoke), `/api/users/export` (documented on `/privacy`, no button). | generated reference scan of `src/` and `e2e/` | Decide per route: wire, or deprecate after evidence (class 6) |
+| F-5 | **API routes with no in-app caller.** `GET /api/admin/imports`, `GET/POST /api/projects/[id]/tasks` (no UI adds a task to an existing project), `GET /api/lists/items` (only `e2e/`). Expected callers outside the app: `/api/calendar/connections/[provider]/callback` (OAuth redirect), `/api/calendar/feed` (ICS URL), `/api/health*` (release smoke), `/api/users/export` (documented on `/privacy`, no button). | generated reference scan of `src/` and `e2e/` | Decide per route: wire, or deprecate after evidence (class 6) |
 | F-6 | **Duplicate or overlapping routes.** `/dashboard/lists/type/[type]` duplicates a filter of `/dashboard/lists`; `/api/lists/items/delete` (body id) sits beside REST-style `[id]` routes elsewhere; `/api/files/[filename]` and `/api/files/chores/[filename]` serve two upload generations (D3 legacy path in the audit); `/api/chores/complete` and `PATCH /api/chores` both change chore status. | route list above | Record in the IA refactor; no deletion without migration evidence and ADR-0004 old-client review |
 | F-7 | **Legacy table reads** that block #254: `GET /api/users/export`, `DELETE /api/recipes/[id]`. | see "Meal and list overlap" | Part of #254 (gated) |
 | F-8 | **Dead helper.** `generateFamilyCode` (uses `Math.random`) is exported and has no caller. | `src/lib/utils.ts:106` | Delete in a cleanup PR |
@@ -161,7 +161,7 @@ Highest-frequency daily flows first, each as one vertical slice (UI + canonical 
 3. **Lists and groceries** (`/dashboard/lists*`): canonical; fold `/lists/type/[type]` into a filter (F-6).
 4. **Calendar** (`/dashboard/calendar*`): canonical `Event`; add the missing audit rows (F-4).
 5. **Meals and recipes** (`/dashboard/meals*`): canonical; #252 design review against FridgeCal is open.
-6. **Notes** (F-1 first), inventory, messages.
+6. **Notes** (F-1 fixed), inventory, messages.
 7. **Weekly/occasional:** projects, budget, anniversaries, rewards/analytics, then the off-by-default family features (wishlist, pickups, allowance, handoff, sick days, locations, travel).
 8. **Settings and placeholders:** F-3, F-2, F-9.
 9. **Contract (gated):** #254 after the backfill run and a release with zero legacy reads.
