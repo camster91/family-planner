@@ -102,16 +102,6 @@ export function truncateText(text: string, maxLength: number): string {
   return text.slice(0, maxLength) + '...'
 }
 
-// Generate random family code
-export function generateFamilyCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return code
-}
-
 // Convert file to base64
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
