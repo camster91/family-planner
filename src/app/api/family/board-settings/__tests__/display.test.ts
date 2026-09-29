@@ -63,6 +63,20 @@ describe('board settings: calm display (#271)', () => {
     expect(JSON.stringify(body)).not.toContain(FOREIGN)
   })
 
+  it('GET keeps a chosen photo older than the newest 60 listed, so it can be unticked', async () => {
+    for (let i = 0; i < 60; i++) {
+      addUpload(`up-new-${i}`, FAMILY_A, `${i.toString(16).padStart(16, '0')}.jpg`, 'image/jpeg', new Date(T0.getTime() + 1000 * (i + 1)))
+    }
+    db.find('family', FAMILY_A)!.ambient_photo_ids = ['up-a1']
+    const body = await bodyOf(await settings.GET(req({ as: 'parentA' })))
+    const ids = body.display.uploads.map((u: { id: string }) => u.id)
+    expect(ids).toHaveLength(61)
+    expect(ids).toContain('up-a1')
+    expect(ids).not.toContain('up-a2') // older and not chosen: past the cap
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(body.display.photoIds).toEqual(['up-a1'])
+  })
+
   it('a parent sets idle minutes, night hours and photos for their own household only', async () => {
     const res = await patch('parentA', {
       idleMinutes: 10,

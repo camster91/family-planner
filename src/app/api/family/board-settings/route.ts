@@ -107,12 +107,25 @@ async function readSettings(familyId: string) {
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     }),
   ])
-  const uploads = await prisma!.upload.findMany({
-    where: { family_id: familyId, content_type: { in: DISPLAYABLE_PHOTO_TYPES } },
-    select: { id: true, filename: true, created_at: true },
-    orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
-    take: MAX_UPLOADS_LISTED,
-  })
+  // The newest uploads to pick from, plus every photo already chosen (even an
+  // older one past the cap), so a parent can always see and untick it.
+  const selectedIds = family?.ambient_photo_ids ?? []
+  const [recent, selected] = await Promise.all([
+    prisma!.upload.findMany({
+      where: { family_id: familyId, content_type: { in: DISPLAYABLE_PHOTO_TYPES } },
+      select: { id: true, filename: true, created_at: true },
+      orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
+      take: MAX_UPLOADS_LISTED,
+    }),
+    selectedIds.length > 0
+      ? prisma!.upload.findMany({
+          where: { family_id: familyId, id: { in: selectedIds }, content_type: { in: DISPLAYABLE_PHOTO_TYPES } },
+          select: { id: true, filename: true, created_at: true },
+        })
+      : Promise.resolve([]),
+  ])
+  const recentIds = new Set(recent.map((u) => u.id))
+  const uploads = [...recent, ...selected.filter((u) => !recentIds.has(u.id))]
   const colors = resolveMemberColors(members)
   const hasPlace =
     !!family &&

@@ -126,6 +126,26 @@ describe('BoardVersionPoller', () => {
     expect(s.fetchVersion).not.toHaveBeenCalled()
   })
 
+  it('asks again soon for a full refresh that never arrived, instead of waiting another interval', async () => {
+    const s = setup()
+    s.poller.loaded('v1')
+    s.advance(BOARD_FULL_REFRESH_MS)
+    expect(await s.poller.tick()).toBe('refreshing')
+    expect(s.refresh).toHaveBeenCalledTimes(1)
+    // The request was lost (connection dropped); version checks still succeed.
+    s.advance(BOARD_POLL_MS)
+    expect(await s.poller.tick()).toBe('unchanged')
+    expect(s.refresh).toHaveBeenCalledTimes(1)
+    s.advance(BOARD_POLL_MS)
+    expect(await s.poller.tick()).toBe('refreshing')
+    expect(s.refresh).toHaveBeenCalledTimes(2)
+    // Once new data arrives, the full-refresh clock restarts.
+    s.poller.loaded('v1')
+    s.advance(BOARD_POLL_MS)
+    expect(await s.poller.tick()).toBe('unchanged')
+    expect(s.refresh).toHaveBeenCalledTimes(2)
+  })
+
   it('refreshes a board that arrived without a version (older server)', async () => {
     const s = setup()
     s.poller.loaded(undefined)

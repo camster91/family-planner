@@ -49,6 +49,8 @@ export class BoardVersionPoller {
   /** A refresh was requested and new data has not arrived yet. */
   private pending: string | null = null
   private pendingAt = 0
+  /** When the slow full refresh was last requested; cleared when data arrives. */
+  private fullRequestedAt: number | null = null
 
   constructor(private readonly deps: PollerDeps) {}
 
@@ -60,6 +62,7 @@ export class BoardVersionPoller {
     this.lastSyncAt = t
     this.failures = 0
     this.pending = null
+    this.fullRequestedAt = null
     this.deps.onChange?.()
   }
 
@@ -69,8 +72,16 @@ export class BoardVersionPoller {
     if (!deps.isVisible() || !deps.isOnline()) return 'skipped'
     if (this.inFlight) return 'busy'
     const t = deps.now()
-    // Old clients / boards without a version: fall back to the slow full refresh.
-    if (this.loadedAt !== null && t - this.loadedAt >= BOARD_FULL_REFRESH_MS) {
+    // The slow full refresh (weather, subscribed feeds, boards without a
+    // version). The clock only restarts when new data arrives (`loaded`), so
+    // a refresh lost to a dropped connection is asked for again after a
+    // couple of polls instead of waiting another full interval.
+    if (
+      this.loadedAt !== null &&
+      t - this.loadedAt >= BOARD_FULL_REFRESH_MS &&
+      (this.fullRequestedAt === null || t - this.fullRequestedAt >= 2 * BOARD_POLL_MS)
+    ) {
+      this.fullRequestedAt = t
       this.requestRefresh(this.current ?? '')
       return 'refreshing'
     }
@@ -101,8 +112,6 @@ export class BoardVersionPoller {
   private requestRefresh(version: string) {
     this.pending = version
     this.pendingAt = this.deps.now()
-    // Restart the full-refresh clock so a slow refresh is not requested twice.
-    this.loadedAt = this.deps.now()
     this.deps.refresh()
   }
 }
