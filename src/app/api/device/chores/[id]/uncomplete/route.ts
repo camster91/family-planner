@@ -76,8 +76,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
       if (chore.status === 'verified') return { status: 409, body: deviceErrorBody('CHORE_ALREADY_VERIFIED') }
 
-      const reopened = await prisma!.$transaction((tx) => reopenCompletedChoreInTx(tx, chore))
-      if (!reopened) return { status: 200, body: { chore: { id, status: chore.status }, alreadyOpen: true } }
+      // Three outcomes (src/lib/chore-reopen.ts). A parent's verify can land
+      // between the read above and this transaction, so `verified` is handled
+      // here too; `open` (already reopened, e.g. a second Undo with a fresh
+      // key) changes nothing and writes no audit row.
+      const outcome = await prisma!.$transaction((tx) => reopenCompletedChoreInTx(tx, chore))
+      if (outcome === 'verified') return { status: 409, body: deviceErrorBody('CHORE_ALREADY_VERIFIED') }
+      if (outcome === 'open') return { status: 200, body: { chore: { id, status: 'pending' }, alreadyOpen: true } }
       await writeDeviceAudit(prisma!, {
         familyId: ctx.actor.familyId,
         deviceId: ctx.actor.deviceId,

@@ -33,7 +33,15 @@ export async function createListItem(
   db: PrismaClient,
   input: NewListItem,
   actor: { familyId: string; addedBy: string },
-  options: { groceryOnly?: boolean } = {}
+  options: {
+    groceryOnly?: boolean
+    /**
+     * Idempotency record id of the request creating the row (#274 tablet quick
+     * add), stored in `ListItem.source_request_id` so a retry after a lock
+     * takeover finds the row instead of adding a second one.
+     */
+    sourceRequestId?: string | null
+  } = {}
 ): Promise<CreateListItemResult> {
   const { listId, content, quantity, category, notes, amount, unit, ingredient_id } = input
   const list = await db.list.findFirst({
@@ -72,6 +80,7 @@ export async function createListItem(
       ingredient_id: ingredient_id ?? null,
       added_by: actor.addedBy,
       position: nextPosition,
+      ...(options.sourceRequestId ? { source_request_id: options.sourceRequestId } : {}),
     },
   })
 

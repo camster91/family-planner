@@ -8,7 +8,7 @@ jest.mock('next/headers', () => require('@/__tests__/helpers/two-household').nex
 jest.mock('@/lib/session', () => require('@/__tests__/helpers/two-household').sessionMock)
 jest.mock('@/lib/prisma', () => ({ prisma: require('@/__tests__/helpers/two-household').fakePrisma }))
 
-import { FOREIGN, writesTo } from '@/__tests__/helpers/two-household'
+import { FOREIGN, fakePrisma, writesTo } from '@/__tests__/helpers/two-household'
 import {
   D1,
   D1B,
@@ -328,6 +328,39 @@ describe('shared-tablet writes (#274)', () => {
       expect(db.rows('listItem').filter((i) => i.content === 'Eggs')).toHaveLength(1)
     })
 
+    it('converges after a lock takeover: a committed run whose answer was never stored is found, not added again', async () => {
+      const k = key()
+      // The first run commits the row, then storing its response fails (the process "dies").
+      const store = jest
+        .spyOn(fakePrisma.idempotencyRecord, 'update')
+        .mockRejectedValueOnce(new Error('connection lost'))
+      const first = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
+      store.mockRestore()
+      expect(first.status).toBe(201)
+      const firstBody = await first.json()
+      const record = db.rows('idempotencyRecord').find((r) => r.key === k)!
+      expect(record.response_status ?? null).toBeNull()
+      expect(db.find('listItem', firstBody.item.id)!.source_request_id).toBe(record.id)
+      // Simulate the first run dying before its audit row too.
+      db.rows('deviceAuditEvent').splice(0)
+
+      // Before the lock timeout a retry is told to wait.
+      const early = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
+      expect(early.status).toBe(409)
+
+      // After it, the retry takes the record over and returns the same item.
+      idempotencyRuntime.now = () => new Date(Date.now() + 60 * 1000)
+      const retry = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
+      expect(retry.status).toBe(201)
+      expect(await retry.json()).toEqual(firstBody)
+      expect(db.rows('listItem').filter((i) => i.content === 'Eggs')).toHaveLength(1)
+      expect(audits().filter((a) => a.metadata.targetId === firstBody.item.id)).toHaveLength(1)
+      // A further retry is a plain replay and audits nothing more.
+      const replay = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
+      expect(replay.headers.get('Idempotency-Replayed')).toBe('true')
+      expect(audits()).toHaveLength(1)
+    })
+
     it('a foreign list is the same 404 as a missing one; content 1–200 characters', async () => {
       const foreign = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }), params('list-b'))
       const missing = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }), params('list-zzz'))
@@ -425,6 +458,38 @@ describe('shared-tablet writes (#274)', () => {
       addChore('chore-person-a', FAMILY_A, TODAY, { status: 'completed', completed_at: T0 })
       const notMine = await undo.POST(postReq({ actingMemberId: 'child-a' }), params('chore-person-a'))
       expect(await errorCode(notMine)).toBe('UNDO_NOT_ALLOWED')
+    })
+
+    it('a second Undo with a fresh key is alreadyOpen and writes no audit row', async () => {
+      await complete.POST(postReq({ actingMemberId: 'child-a' }), params('chore-today-a'))
+      const first = await undo.POST(postReq({ actingMemberId: 'child-a' }), params('chore-today-a'))
+      expect(await first.json()).toMatchObject({ alreadyOpen: false })
+      const second = await undo.POST(postReq({ actingMemberId: 'child-a' }), params('chore-today-a'))
+      expect(second.status).toBe(200)
+      expect(await second.json()).toEqual({ chore: { id: 'chore-today-a', status: 'pending' }, alreadyOpen: true })
+      expect(audits().map((a) => a.metadata.action)).toEqual(['chore_complete', 'chore_undo'])
+      expect(db.find('chore', 'chore-today-a')!.status).toBe('pending')
+    })
+
+    it("a parent's verify landing between the read and the transaction is 409 and nothing changes", async () => {
+      await complete.POST(postReq({ actingMemberId: 'child-a' }), params('chore-today-a'))
+      const original = fakePrisma.chore.findUnique
+      let calls = 0
+      const spy = jest.spyOn(fakePrisma.chore, 'findUnique').mockImplementation(async (args: any) => {
+        const row = await original(args)
+        // The first read inside the reopen transaction: a parent verifies right now.
+        if (++calls === 1) db.find('chore', 'chore-today-a')!.status = 'verified'
+        return row
+      })
+      try {
+        const res = await undo.POST(postReq({ actingMemberId: 'child-a' }), params('chore-today-a'))
+        expect(res.status).toBe(409)
+        expect(await errorCode(res)).toBe('CHORE_ALREADY_VERIFIED')
+      } finally {
+        spy.mockRestore()
+      }
+      expect(db.find('chore', 'chore-today-a')!.status).toBe('verified')
+      expect(audits().map((a) => a.metadata.action)).toEqual(['chore_complete'])
     })
 
     it('a chore a parent checked meanwhile stays done (409); a foreign chore is 404', async () => {

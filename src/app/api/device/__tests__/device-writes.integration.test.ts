@@ -162,6 +162,22 @@ describeWithDatabase('shared-tablet writes against Postgres', () => {
     expect(foreign.status).toBe(404)
   })
 
+  it('quick add converges after a lock takeover: the stored record id finds the committed row', async () => {
+    const k = key()
+    const first = await add.POST(request(access1, { content: 'Butter', actingMemberId: CHILD }, k), params(LIST))
+    expect(first.status).toBe(201)
+    const firstBody = await first.json()
+    // As if the first run died after committing the row but before storing its answer.
+    await prisma.idempotencyRecord.updateMany({
+      where: { key: k },
+      data: { response_status: null, response_body: undefined, created_at: new Date(Date.now() - 60_000) },
+    })
+    const retry = await add.POST(request(access1, { content: 'Butter', actingMemberId: CHILD }, k), params(LIST))
+    expect(retry.status).toBe(201)
+    expect(await retry.json()).toEqual(firstBody)
+    expect(await prisma.listItem.count({ where: { list_id: LIST, content: 'Butter' } })).toBe(1)
+  })
+
   it('completes a chore due today and the same tablet can undo it; the other household cannot touch it', async () => {
     const foreign = await complete.POST(request(access2, { actingMemberId: OTHER }), params(CHORE))
     expect(foreign.status).toBe(404)

@@ -26,7 +26,13 @@ import type { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
 import { checkRateLimit } from '@/lib/rate-limit-db'
-import { idempotencyError, readIdempotencyKey, withIdempotency, type EffectResult } from '@/lib/idempotency'
+import {
+  idempotencyError,
+  readIdempotencyKey,
+  withIdempotency,
+  type EffectResult,
+  type EffectRun,
+} from '@/lib/idempotency'
 import { NO_STORE, deviceError, rateLimited, readJson } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
 import type { DeviceActor } from '@/lib/device-session'
@@ -95,7 +101,12 @@ export async function runDeviceWrite(
   ctx: DeviceWriteContext,
   action: string,
   hashed: Record<string, unknown>,
-  effect: () => Promise<EffectResult>
+  /**
+   * `run.recordId` is the idempotency record holding the lock. It is stable for
+   * the life of the key, including a takeover after a crash, so an effect that
+   * creates a row can stamp it and find that row again on a retry.
+   */
+  effect: (run: EffectRun) => Promise<EffectResult>
 ): Promise<NextResponse> {
   const res = await withIdempotency(
     prisma!,
