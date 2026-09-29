@@ -7,6 +7,7 @@ import { deviceError, deviceInternalError, deviceJson, killSwitch, rateLimited, 
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { clearDeviceCookies } from '@/lib/device-session'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { getRequestId } from '@/lib/request-id'
 
 /** PATCH /api/device/label { label }: an elevated parent renames THIS tablet. */
 export async function PATCH(request: NextRequest) {
@@ -70,6 +71,6 @@ export async function PATCH(request: NextRequest) {
     })
     return deviceJson({ device: { id: actor.deviceId, label } })
   } catch (error) {
-    return deviceInternalError('device.label', error)
+    return deviceInternalError('device.label', error, getRequestId(request))
   }
 }

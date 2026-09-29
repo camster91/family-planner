@@ -4,6 +4,8 @@ import { existsSync } from 'fs'
 import path from 'path'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { log } from '@/lib/logger'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 import { sniffImageType } from '@/lib/image-sniff'
 import { prisma } from '@/lib/prisma'
 import { chorePhotoPath } from '@/lib/chore-photos'
@@ -142,11 +144,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Household not found' }, { status: 404 })
     }
     if (outcome === 'collision') {
-      log.warn('upload.photo.collision', { userId: auth.user.id, filename })
+      log.warn('upload.photo.collision')
       return NextResponse.json({ error: 'Upload failed, please try again' }, { status: 409 })
     }
 
-    log.info('upload.photo', { userId: auth.user.id, filename, size: buf.length, type: sniffed.mime })
+    log.info('upload.photo', { size: buf.length, type: sniffed.mime })
 
     return NextResponse.json({
       url: chorePhotoPath(filename),
@@ -155,7 +157,7 @@ export async function POST(request: NextRequest) {
       type: sniffed.mime,
     })
   } catch (error) {
-    log.error('upload.photo', error as Error)
+    logRouteError('POST /api/upload', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

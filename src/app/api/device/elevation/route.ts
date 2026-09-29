@@ -24,6 +24,7 @@ import {
   endElevation,
   startElevation,
 } from '@/lib/device-session'
+import { getRequestId } from '@/lib/request-id'
 
 const MIN = 60 * 1000
 // SHARED_DEVICE.md §11. All failure-only: checked before, counted on failure.
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
       member: { id: target.id, name: target.name },
     })
   } catch (error) {
-    return deviceInternalError('device.elevation_start', error)
+    return deviceInternalError('device.elevation_start', error, getRequestId(request))
   }
 }
 
@@ -192,6 +193,6 @@ export async function DELETE(request: NextRequest) {
     }
     return deviceEmpty(204)
   } catch (error) {
-    return deviceInternalError('device.elevation_end', error)
+    return deviceInternalError('device.elevation_end', error, getRequestId(request))
   }
 }

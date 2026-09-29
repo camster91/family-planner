@@ -76,9 +76,8 @@ export async function writeDeviceAudit(
       select: { id: true },
     })
   } catch (error) {
-    log.error('device.audit_write_failed', error instanceof Error ? error : new Error(String(error)), {
-      type: entry.type,
-    })
+    // `type` is the fixed audit event name; the error is reduced to its class name and code.
+    log.error('device.audit_write_failed', error, { type: entry.type })
   }
 }
 

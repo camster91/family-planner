@@ -15,6 +15,7 @@ import {
 } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { getRequestId } from '@/lib/request-id'
 
 /** PATCH /api/family/devices/:id { label } — rename a household tablet (parent only). */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -84,6 +85,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const live = await devicesWithLiveSession(prisma!, familyId, [id], now)
     return deviceJson({ device: row ? serializeDevice(row, live.has(id)) : null })
   } catch (error) {
-    return deviceInternalError('family_devices.rename', error)
+    return deviceInternalError('family_devices.rename', error, getRequestId(request))
   }
 }

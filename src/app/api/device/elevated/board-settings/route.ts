@@ -12,6 +12,7 @@ import {
   readBoardSettings,
 } from '@/lib/board-settings'
 import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     if (!elevated.ok) return elevated.response
     return deviceJson(await readBoardSettings(prisma!, elevated.actor.familyId, 'device'))
   } catch (error) {
-    return deviceInternalError('device.board_settings_read', error)
+    return deviceInternalError('device.board_settings_read', error, getRequestId(request))
   }
 }
 
@@ -97,6 +98,6 @@ export async function PATCH(request: NextRequest) {
     }
     return deviceJson(await readBoardSettings(prisma!, actor.familyId, 'device'))
   } catch (error) {
-    return deviceInternalError('device.board_settings_save', error)
+    return deviceInternalError('device.board_settings_save', error, getRequestId(request))
   }
 }

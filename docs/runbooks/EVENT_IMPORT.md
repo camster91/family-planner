@@ -67,7 +67,7 @@ in the same place as `JWT_SECRET` and the other runtime secrets:
 2. Check: sign in as a parent, open `/dashboard/calendar`; "Import from text or photo" is visible. Paste a short test
    email ("Picture day next Friday. Bake sale Oct 9, 3:30–5pm in the gym."); two suggestions appear with the right
    dates; add them, then press Undo in the toast and confirm both are gone. Try a photo and a one-page PDF.
-3. Check logs: `event.import` lines carry only `userId`, `kind`, `size`, `suggestions`, `dropped`, `unreadable`,
+3. Check logs: `event.import` lines carry only `kind`, `size`, `suggestions`, `dropped`, `unreadable`,
    `refused`, `ms`. There must be no email text, titles, model output or file data.
 
 ## 4. Watch

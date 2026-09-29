@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { deviceError, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       nextCursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.created_at, last.id) : null,
     })
   } catch (error) {
-    return deviceInternalError('family_devices.events', error)
+    return deviceInternalError('family_devices.events', error, getRequestId(request))
   }
 }

@@ -10,6 +10,7 @@ import {
   refreshDeviceSession,
   setDeviceCookies,
 } from '@/lib/device-session'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * POST /api/device/session/refresh (SHARED_DEVICE.md §4). Rotates the
@@ -48,6 +49,6 @@ export async function POST(request: NextRequest) {
     setDeviceCookies(res, result.tokens)
     return res
   } catch (error) {
-    return deviceInternalError('device.refresh', error)
+    return deviceInternalError('device.refresh', error, getRequestId(request))
   }
 }

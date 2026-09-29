@@ -4,6 +4,7 @@ import { normalizeFeatures } from '@/lib/features'
 import { deviceClock, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
 import { elevationState } from '@/lib/device-session'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,6 @@ export async function GET(request: NextRequest) {
       elevation: elevationState(device, now),
     })
   } catch (error) {
-    return deviceInternalError('device.me', error)
+    return deviceInternalError('device.me', error, getRequestId(request))
   }
 }

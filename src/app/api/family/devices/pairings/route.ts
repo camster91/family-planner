@@ -13,6 +13,7 @@ import {
   readJson,
 } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * POST /api/family/devices/pairings { label, replacesDeviceId? } — a parent
@@ -79,6 +80,6 @@ export async function POST(request: NextRequest) {
       201
     )
   } catch (error) {
-    return deviceInternalError('family_devices.pairing_create', error)
+    return deviceInternalError('family_devices.pairing_create', error, getRequestId(request))
   }
 }

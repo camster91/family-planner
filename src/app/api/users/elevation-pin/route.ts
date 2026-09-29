@@ -13,6 +13,7 @@ import {
   readJson,
 } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * PUT /api/users/elevation-pin { pin, currentPassword } — a parent sets or
@@ -51,7 +52,7 @@ export async function PUT(request: NextRequest) {
     await writeDeviceAudit(prisma!, { familyId, actorUserId: userId, type: 'parent_pin.set', metadata: {} })
     return deviceEmpty(204)
   } catch (error) {
-    return deviceInternalError('elevation_pin.set', error)
+    return deviceInternalError('elevation_pin.set', error, getRequestId(request))
   }
 }
 
@@ -73,6 +74,6 @@ export async function DELETE(request: NextRequest) {
     }
     return deviceEmpty(204)
   } catch (error) {
-    return deviceInternalError('elevation_pin.remove', error)
+    return deviceInternalError('elevation_pin.remove', error, getRequestId(request))
   }
 }

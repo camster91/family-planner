@@ -17,7 +17,7 @@
  * is no scheduled job.
  */
 import { Prisma, type PrismaClient } from '@prisma/client'
-import { log } from '@/lib/logger'
+import { describeError, log } from '@/lib/logger'
 import {
   fetchForecast,
   isValidLatitude,
@@ -160,7 +160,7 @@ async function refresh(
         update: row,
       })
     } catch (error) {
-      log.warn('weather.cache_write_failed', { message: error instanceof Error ? error.message : String(error) })
+      log.warn('weather.cache_write_failed', describeError(error))
     }
     return snapshot
   })()
@@ -216,7 +216,7 @@ export async function getBoardWeather(
     const snapshot = await refresh(db, familyId, latitude, longitude, now, fetchImpl)
     return snapshot ? toBoardWeather(snapshot, label, unit, now) : null
   } catch (error) {
-    log.warn('weather.board_failed', { message: error instanceof Error ? error.message : String(error) })
+    log.warn('weather.board_failed', describeError(error))
     return null
   }
 }

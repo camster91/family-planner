@@ -4,6 +4,7 @@ import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { deviceClock, deviceInternalError, deviceJson, killSwitch, rateLimited } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,6 @@ export async function GET(request: NextRequest) {
     })
     return deviceJson({ version: board.version })
   } catch (error) {
-    return deviceInternalError('device.today_version', error)
+    return deviceInternalError('device.today_version', error, getRequestId(request))
   }
 }

@@ -139,8 +139,8 @@ async function readForm(request: NextRequest, declared: number): Promise<Parsed>
  * does not use up quota.
  *
  * Privacy: the text or file stays in memory for this request only. Logs carry
- * the user id, input kind and size, suggestion count, duration and upstream
- * status, never the content or any model text.
+ * the input kind and size, suggestion count, duration and upstream status,
+ * never the content, any model text or a user/household id.
  */
 export async function POST(request: NextRequest) {
   const started = Date.now()
@@ -213,7 +213,6 @@ export async function POST(request: NextRequest) {
     try {
       const result = await suggestEvents(parsed.input, { today, timeZone }, config)
       log.info('event.import', {
-        userId,
         kind,
         size: parsed.size,
         suggestions: result.suggestions.length,
@@ -231,7 +230,6 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       if (err instanceof EventImportError) {
         log.warn('event.import.failed', {
-          userId,
           kind,
           code: err.code,
           upstreamStatus: err.upstreamStatus,

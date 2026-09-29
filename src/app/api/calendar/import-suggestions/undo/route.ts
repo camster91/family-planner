@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         source_connection_id: null,
       },
     })
-    log.info('event.import.undo', { userId, requested: check.eventIds.length, removed: removed.count })
+    log.info('event.import.undo', { requested: check.eventIds.length, removed: removed.count })
     return importJson({ removedCount: removed.count })
   } catch (err) {
     log.warn('event.import.undo.error', { name: err instanceof Error ? err.name : 'unknown' })

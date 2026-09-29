@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { after } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
-import { log } from '@/lib/logger'
+import { describeError, log } from '@/lib/logger'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import { deviceClock, isSharedDeviceEnabled } from '@/lib/device-http'
 import { DEVICE_ACCESS_COOKIE, readDeviceCookies, resolveDeviceAccess } from '@/lib/device-session'
@@ -34,9 +34,7 @@ export default async function DeviceTodayPage() {
         after(() => refreshStaleSubscriptions(familyId))
       }
     } catch (error) {
-      log.warn('device.today_subscription_refresh_skipped', {
-        message: error instanceof Error ? error.message : String(error),
-      })
+      log.warn('device.today_subscription_refresh_skipped', describeError(error))
     }
   }
 

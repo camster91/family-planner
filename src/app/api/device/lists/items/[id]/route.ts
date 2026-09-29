@@ -5,6 +5,7 @@ import { deviceClock, deviceError, deviceErrorBody, deviceInternalError, killSwi
 import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { isGroceryListType } from '@/lib/grocery-display'
 import { DUPLICATE_OPEN_ITEM, updateListItemAndNoteTick } from '@/lib/list-item-update'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +69,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return { status: 200, body: { item: { id, checked: result.body.item.checked === true } } }
     })
   } catch (error) {
-    return deviceInternalError('device.list_item_check', error)
+    return deviceInternalError('device.list_item_check', error, getRequestId(request))
   }
 }
