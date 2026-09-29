@@ -1,6 +1,6 @@
 # Current State
 
-**Last reconciled:** 2026-09-29, against `master` at `cbef02648c1c0d855ae7794c0ecbd77cfe9dac2f` (#280)
+**Last reconciled:** 2026-09-29, against `master` at `32f10d00221aff9959ad7365492b5ce4a498370b` (#281)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `master`
 
@@ -14,7 +14,7 @@ This is a dated snapshot. Inspect GitHub and executable source again before chan
 
 ## Merged on master since the baseline
 
-First-parent history from #221 (`cd1d78c`, 2026-09-24) to `cbef026`:
+First-parent history from #221 (`cd1d78c`, 2026-09-24) to `32f10d0`:
 
 | Commit | Date | PR | What |
 | --- | --- | --- | --- |
@@ -47,6 +47,7 @@ First-parent history from #221 (`cd1d78c`, 2026-09-24) to `cbef026`:
 | `211523e` | 09-28 | #278 | Grocery lists sorted by store section (#273) |
 | `63ec7c4` | 09-28 | #279 | One calm home, five tabs, Undo instead of confirm (#268, #269) |
 | `cbef026` | 09-28 | #280 | Picture routines for young kids; parent Verify/Reject that change the chore (#272) |
+| `32f10d0` | 09-29 | #281 | Visible sync ("Updated N min ago", change polling) and the calm fridge display with night hours (#271) |
 
 Earlier merges on the same line include #221 (hosted build), #226 (server-side feature gates), #224, #223, #222, #220, #173 (#168 lookup rate limit), #116 and #129.
 
@@ -65,7 +66,7 @@ Workflow files on `master`: `release.yml`, `e2e.yml`, `apk.yml`, `auto-merge.yml
 
 | Workflow | GitHub state (API, 2026-09-29) | Role |
 | --- | --- | --- |
-| `release.yml` — `Build & Test` | active | **Required check** (branch protection observed 2026-09-24, see CI_AND_RELEASE.md). Passed on master pushes for #278 (`211523e`) and #279 (`63ec7c4`); the run for `cbef026` was in progress at reconciliation. |
+| `release.yml` — `Build & Test` | active | **Required check** (branch protection observed 2026-09-24, see CI_AND_RELEASE.md). Passed on master pushes for #278 (`211523e`) and #279 (`63ec7c4`); #280 (`cbef026`) and #281 (`32f10d0`) passed Build & Test and E2E on their PR heads. |
 | `release.yml` — `Release to VPS` | active | Manual dispatch only; production deploy, owner-gated. |
 | `e2e.yml` | active | **Informational**, not required (the workflow's own header comment). Passed on `211523e` and `63ec7c4`. |
 | `apk.yml` | **`disabled_manually`** | Last run 2026-09-08 (run 177, PR #101 head `ef75581`). No Android CI runs on master changes until it is re-enabled. |
@@ -110,7 +111,9 @@ Per-household feature flags (`src/lib/features.ts`): `inventory`, `gamification`
 
 ## Work in flight
 
-- PR #281 (`claude/family-planner-review-kby4ca`, head `78e7ce7`): visible sync and ambient mode for the fridge (#271). Open; asks two owner decisions (photos on paired tablets, O-15; `display` on the device allowlist).
+- #271 merged as #281. Two owner decisions remain open from it: photos on paired tablets (O-15, currently off) and `display` on the device allowlist.
+- This docs PR also fixes two bugs the inventory and #101 disposition found: reset/verify tokens accepting the stored hash (D-1, security) and notes edit/delete calling the wrong route (F-1).
+- #121/#158 inventory completion (best-before vs use-by, consume/discard with undo, retry-safe edits): in progress, no PR yet.
 - #274 (board tiles act directly; parent setup from the fridge): in progress, no PR yet.
 - Other open PRs: #260 and #261 (Dependabot), #238 (draft docs).
 
