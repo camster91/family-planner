@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { authenticateWithFamily } from "@/lib/api-auth";
-import { featureGate } from "@/lib/feature-gate-server";
-import { refusePairedDevice } from "@/lib/device-route";
-import { escapeLikePattern } from "@/lib/household-search";
-import { addUTCDays, parseDateOnly } from "@/lib/dates";
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { authenticateWithFamily } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
+import { refusePairedDevice } from '@/lib/device-route'
+import { escapeLikePattern } from '@/lib/household-search'
+import { addUTCDays, parseDateOnly } from '@/lib/dates'
 import {
   DEFAULT_USE_SOON_DAYS,
   INVENTORY_DEFAULT_LIMIT,
@@ -21,17 +21,11 @@ import {
   parseDays,
   resolveInventoryIngredient,
   toInventoryDto,
-} from "@/lib/inventory";
-import {
-  inventoryError,
-  inventoryJson,
-  readJson,
-  todayFrom,
-  writeForbidden,
-} from "@/lib/inventory-http";
-import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+} from '@/lib/inventory'
+import { inventoryError, inventoryJson, readJson, todayFrom, writeForbidden } from '@/lib/inventory-http'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/inventory?location=&category=&q=&expiringWithinDays=&today=&limit=&offset=
@@ -43,117 +37,61 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request);
-    if (error) return error;
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const gate = await featureGate(auth.user.family_id, "inventory");
-    if (gate) return gate;
+    const gate = await featureGate(auth.user.family_id, 'inventory')
+    if (gate) return gate
 
-    const { searchParams } = new URL(request.url);
-    const today = todayFrom(searchParams);
-    if (today instanceof NextResponse) return today;
+    const { searchParams } = new URL(request.url)
+    const today = todayFrom(searchParams)
+    if (today instanceof NextResponse) return today
 
-    const location = searchParams.get("location");
-    if (
-      location !== null &&
-      !(INVENTORY_LOCATIONS as readonly string[]).includes(location)
-    ) {
-      return inventoryError(
-        400,
-        "VALIDATION_ERROR",
-        `location must be one of ${INVENTORY_LOCATIONS.join(", ")}`,
-      );
+    const location = searchParams.get('location')
+    if (location !== null && !(INVENTORY_LOCATIONS as readonly string[]).includes(location)) {
+      return inventoryError(400, 'VALIDATION_ERROR', `location must be one of ${INVENTORY_LOCATIONS.join(', ')}`)
     }
-    const category = searchParams.get("category");
-    if (
-      category !== null &&
-      !(INVENTORY_CATEGORIES as readonly string[]).includes(category)
-    ) {
-      return inventoryError(
-        400,
-        "VALIDATION_ERROR",
-        `category must be one of ${INVENTORY_CATEGORIES.join(", ")}`,
-      );
+    const category = searchParams.get('category')
+    if (category !== null && !(INVENTORY_CATEGORIES as readonly string[]).includes(category)) {
+      return inventoryError(400, 'VALIDATION_ERROR', `category must be one of ${INVENTORY_CATEGORIES.join(', ')}`)
     }
-    const q = (searchParams.get("q") ?? "")
-      .normalize("NFC")
-      .trim()
-      .replace(/\s+/g, " ");
+    const q = (searchParams.get('q') ?? '').normalize('NFC').trim().replace(/\s+/g, ' ')
     if (q.length > INVENTORY_SEARCH_MAX) {
-      return inventoryError(
-        400,
-        "VALIDATION_ERROR",
-        `q must be at most ${INVENTORY_SEARCH_MAX} characters`,
-      );
+      return inventoryError(400, 'VALIDATION_ERROR', `q must be at most ${INVENTORY_SEARCH_MAX} characters`)
     }
-    const expiringRaw = searchParams.get("expiringWithinDays");
-    const expiring =
-      expiringRaw === null
-        ? null
-        : parseDays(expiringRaw, DEFAULT_USE_SOON_DAYS);
+    const expiringRaw = searchParams.get('expiringWithinDays')
+    const expiring = expiringRaw === null ? null : parseDays(expiringRaw, DEFAULT_USE_SOON_DAYS)
     if (expiringRaw !== null && expiring === null) {
-      return inventoryError(
-        400,
-        "VALIDATION_ERROR",
-        "expiringWithinDays must be a whole number from 0 to 365",
-      );
+      return inventoryError(400, 'VALIDATION_ERROR', 'expiringWithinDays must be a whole number from 0 to 365')
     }
-    const limitRaw = searchParams.get("limit");
-    const offsetRaw = searchParams.get("offset");
-    const limit =
-      limitRaw === null ? INVENTORY_DEFAULT_LIMIT : Number(limitRaw);
-    const offset = offsetRaw === null ? 0 : Number(offsetRaw);
-    if (
-      !Number.isInteger(limit) ||
-      limit < 1 ||
-      limit > INVENTORY_MAX_LIMIT ||
-      !Number.isInteger(offset) ||
-      offset < 0
-    ) {
-      return inventoryError(
-        400,
-        "VALIDATION_ERROR",
-        `limit must be 1-${INVENTORY_MAX_LIMIT} and offset >= 0`,
-      );
+    const limitRaw = searchParams.get('limit')
+    const offsetRaw = searchParams.get('offset')
+    const limit = limitRaw === null ? INVENTORY_DEFAULT_LIMIT : Number(limitRaw)
+    const offset = offsetRaw === null ? 0 : Number(offsetRaw)
+    if (!Number.isInteger(limit) || limit < 1 || limit > INVENTORY_MAX_LIMIT || !Number.isInteger(offset) || offset < 0) {
+      return inventoryError(400, 'VALIDATION_ERROR', `limit must be 1-${INVENTORY_MAX_LIMIT} and offset >= 0`)
     }
 
     const rows = await prisma!.inventoryItem.findMany({
       where: {
         family_id: auth.user.family_id,
-        status: "active",
+        status: 'active',
         ...(location ? { location } : {}),
         ...(category ? { category } : {}),
-        ...(q
-          ? {
-              name: {
-                contains: escapeLikePattern(q),
-                mode: "insensitive" as const,
-              },
-            }
-          : {}),
-        ...(expiring !== null
-          ? { expires_on: { not: null, lte: addUTCDays(today, expiring) } }
-          : {}),
+        ...(q ? { name: { contains: escapeLikePattern(q), mode: 'insensitive' as const } } : {}),
+        ...(expiring !== null ? { expires_on: { not: null, lte: addUTCDays(today, expiring) } } : {}),
       },
       select: INVENTORY_ITEM_SELECT,
-      orderBy: [{ name: "asc" }, { id: "asc" }],
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
       skip: offset,
       take: limit + 1,
-    });
-    const hasMore = rows.length > limit;
-    const items = (hasMore ? rows.slice(0, limit) : rows).map((r) =>
-      toInventoryDto(r, today),
-    );
-    return inventoryJson({
-      items,
-      nextOffset: hasMore ? offset + limit : null,
-    });
+    })
+    const hasMore = rows.length > limit
+    const items = (hasMore ? rows.slice(0, limit) : rows).map((r) => toInventoryDto(r, today))
+    return inventoryJson({ items, nextOffset: hasMore ? offset + limit : null })
   } catch (err) {
-    console.error(
-      "Error fetching inventory:",
-      err instanceof Error ? err.message : "unknown error",
-    );
-    return inventoryError(500, "INTERNAL_ERROR", "Internal server error");
+    console.error('Error fetching inventory:', err instanceof Error ? err.message : 'unknown error')
+    return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }
 
@@ -172,53 +110,38 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request);
-    if (deviceRefusal) return deviceRefusal;
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
 
-    const [auth, error] = await authenticateWithFamily(request);
-    if (error) return error;
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const gate = await featureGate(auth.user.family_id, "inventory");
-    if (gate) return gate;
+    const gate = await featureGate(auth.user.family_id, 'inventory')
+    if (gate) return gate
 
-    if (!canWriteInventory(auth.user.role)) return writeForbidden();
+    if (!canWriteInventory(auth.user.role)) return writeForbidden()
 
-    const today = todayFrom(new URL(request.url).searchParams);
-    if (today instanceof NextResponse) return today;
+    const today = todayFrom(new URL(request.url).searchParams)
+    if (today instanceof NextResponse) return today
 
-    const { key, error: keyError } = readIdempotencyKey(request);
-    if (keyError) return keyError;
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
-    const json = await readJson(request);
-    if (!json.ok) return json.response;
-    const parsed = createInventorySchema.safeParse(json.body);
-    if (!parsed.success)
-      return inventoryError(
-        400,
-        "VALIDATION_ERROR",
-        parsed.error.issues[0].message,
-      );
-    const data = parsed.data;
-    const familyId = auth.user.family_id;
-    const name = cleanItemName(data.name);
+    const json = await readJson(request)
+    if (!json.ok) return json.response
+    const parsed = createInventorySchema.safeParse(json.body)
+    if (!parsed.success) return inventoryError(400, 'VALIDATION_ERROR', parsed.error.issues[0].message)
+    const data = parsed.data
+    const familyId = auth.user.family_id
+    const name = cleanItemName(data.name)
 
     const res = await withIdempotency(
       prisma!,
       key,
-      {
-        scope: `user:${auth.user.id}`,
-        familyId,
-        userId: auth.user.id,
-        action: INVENTORY_CREATE_ACTION,
-      },
+      { scope: `user:${auth.user.id}`, familyId, userId: auth.user.id, action: INVENTORY_CREATE_ACTION },
       data,
       async () => {
-        const ingredientId = await resolveInventoryIngredient(
-          prisma!,
-          familyId,
-          name,
-          data.ingredient_id,
-        );
+        const ingredientId = await resolveInventoryIngredient(prisma!, familyId, name, data.ingredient_id)
         const created = await prisma!.inventoryItem.create({
           data: {
             family_id: familyId,
@@ -226,30 +149,24 @@ export async function POST(request: NextRequest) {
             ingredient_id: ingredientId,
             amount: data.amount ?? null,
             unit: data.unit ?? null,
-            location: data.location ?? "fridge",
+            location: data.location ?? 'fridge',
             expires_on: data.expires_on ? parseDateOnly(data.expires_on) : null,
-            date_kind: data.date_kind ?? "best_before",
+            date_kind: data.date_kind ?? 'best_before',
             category: data.category ?? null,
-            purchased_on: data.purchased_on
-              ? parseDateOnly(data.purchased_on)
-              : null,
+            purchased_on: data.purchased_on ? parseDateOnly(data.purchased_on) : null,
             opened_on: data.opened_on ? parseDateOnly(data.opened_on) : null,
             added_by: auth.user.id,
           },
           select: INVENTORY_ITEM_SELECT,
-        });
-        return { status: 201, body: { item: toInventoryDto(created, today) } };
-      },
-    );
-    res.headers.set("Cache-Control", "private, no-store");
-    return res;
+        })
+        return { status: 201, body: { item: toInventoryDto(created, today) } }
+      }
+    )
+    res.headers.set('Cache-Control', 'private, no-store')
+    return res
   } catch (err) {
-    if (err instanceof InventoryInputError)
-      return inventoryError(400, "INGREDIENT_NOT_FOUND", err.message);
-    console.error(
-      "Error creating inventory item:",
-      err instanceof Error ? err.message : "unknown error",
-    );
-    return inventoryError(500, "INTERNAL_ERROR", "Internal server error");
+    if (err instanceof InventoryInputError) return inventoryError(400, 'INGREDIENT_NOT_FOUND', err.message)
+    console.error('Error creating inventory item:', err instanceof Error ? err.message : 'unknown error')
+    return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

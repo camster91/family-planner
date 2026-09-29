@@ -1,11 +1,11 @@
-import { NextRequest } from "next/server";
-import { authenticateWithFamily } from "@/lib/api-auth";
-import { featureGate } from "@/lib/feature-gate-server";
-import { refusePairedDevice } from "@/lib/device-route";
-import { sniffImageType } from "@/lib/image-sniff";
-import { checkRateLimit } from "@/lib/rate-limit-db";
-import { log } from "@/lib/logger";
-import { inventoryError, inventoryJson } from "@/lib/inventory-http";
+import { NextRequest } from 'next/server'
+import { authenticateWithFamily } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
+import { refusePairedDevice } from '@/lib/device-route'
+import { sniffImageType } from '@/lib/image-sniff'
+import { checkRateLimit } from '@/lib/rate-limit-db'
+import { log } from '@/lib/logger'
+import { inventoryError, inventoryJson } from '@/lib/inventory-http'
 import {
   INVENTORY_SCAN_FAMILY_PER_HOUR,
   INVENTORY_SCAN_FORBIDDEN_MESSAGE,
@@ -18,17 +18,17 @@ import {
   resolveInventoryScanConfig,
   scanFridgePhoto,
   type InventoryScanMime,
-} from "@/lib/inventory-scan";
+} from '@/lib/inventory-scan'
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-const MAX_MB = INVENTORY_SCAN_MAX_BYTES / 1024 / 1024;
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+const MAX_MB = INVENTORY_SCAN_MAX_BYTES / 1024 / 1024
 
 function retryAfter(ms: number): Record<string, string> {
-  return { "Retry-After": String(Math.max(1, Math.ceil(ms / 1000))) };
+  return { 'Retry-After': String(Math.max(1, Math.ceil(ms / 1000))) }
 }
 
 /**
@@ -49,182 +49,119 @@ function retryAfter(ms: number): Record<string, string> {
  * the image or any model text.
  */
 export async function POST(request: NextRequest) {
-  const started = Date.now();
+  const started = Date.now()
   try {
-    const deviceRefusal = await refusePairedDevice(request);
-    if (deviceRefusal) return deviceRefusal;
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
 
-    const [auth, error] = await authenticateWithFamily(request);
-    if (error) return error;
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
 
-    const config = resolveInventoryScanConfig();
-    if (!config)
-      return inventoryError(
-        404,
-        "INVENTORY_SCAN_DISABLED",
-        "Fridge scan is not available.",
-      );
+    const config = resolveInventoryScanConfig()
+    if (!config) return inventoryError(404, 'INVENTORY_SCAN_DISABLED', 'Fridge scan is not available.')
 
-    const gate = await featureGate(auth.user.family_id, "inventory");
-    if (gate) return gate;
+    const gate = await featureGate(auth.user.family_id, 'inventory')
+    if (gate) return gate
 
     if (!canScanInventory(auth.user.role)) {
-      return inventoryError(
-        403,
-        "INVENTORY_SCAN_FORBIDDEN",
-        INVENTORY_SCAN_FORBIDDEN_MESSAGE,
-      );
+      return inventoryError(403, 'INVENTORY_SCAN_FORBIDDEN', INVENTORY_SCAN_FORBIDDEN_MESSAGE)
     }
 
     // Bound the body before reading it: formData() buffers the whole request.
-    const lengthHeader = request.headers.get("content-length");
-    const declared = lengthHeader === null ? NaN : Number(lengthHeader);
+    const lengthHeader = request.headers.get('content-length')
+    const declared = lengthHeader === null ? NaN : Number(lengthHeader)
     if (!Number.isFinite(declared) || declared < 0) {
-      return inventoryError(
-        411,
-        "LENGTH_REQUIRED",
-        "Send the photo as a normal file upload.",
-      );
+      return inventoryError(411, 'LENGTH_REQUIRED', 'Send the photo as a normal file upload.')
     }
     if (declared > INVENTORY_SCAN_MAX_BYTES + INVENTORY_SCAN_FORM_OVERHEAD) {
-      return inventoryError(
-        413,
-        "IMAGE_TOO_LARGE",
-        `That photo is too large. The limit is ${MAX_MB} MB.`,
-      );
+      return inventoryError(413, 'IMAGE_TOO_LARGE', `That photo is too large. The limit is ${MAX_MB} MB.`)
     }
-    const contentType = request.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
-      return inventoryError(
-        400,
-        "INVALID_FORM",
-        'Send the photo as multipart/form-data with an "image" field.',
-      );
+    const contentType = request.headers.get('content-type') ?? ''
+    if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
+      return inventoryError(400, 'INVALID_FORM', 'Send the photo as multipart/form-data with an "image" field.')
     }
 
-    let form: FormData;
+    let form: FormData
     try {
-      form = await request.formData();
+      form = await request.formData()
     } catch {
-      return inventoryError(
-        400,
-        "INVALID_FORM",
-        'Send the photo as multipart/form-data with an "image" field.',
-      );
+      return inventoryError(400, 'INVALID_FORM', 'Send the photo as multipart/form-data with an "image" field.')
     }
-    const file = form.get("image");
-    if (
-      !file ||
-      typeof file === "string" ||
-      typeof (file as Blob).arrayBuffer !== "function"
-    ) {
-      return inventoryError(400, "INVALID_FORM", "Choose a photo to scan.");
+    const file = form.get('image')
+    if (!file || typeof file === 'string' || typeof (file as Blob).arrayBuffer !== 'function') {
+      return inventoryError(400, 'INVALID_FORM', 'Choose a photo to scan.')
     }
-    const blob = file as Blob;
-    if (blob.size === 0)
-      return inventoryError(400, "INVALID_FORM", "That photo is empty.");
+    const blob = file as Blob
+    if (blob.size === 0) return inventoryError(400, 'INVALID_FORM', 'That photo is empty.')
     if (blob.size > INVENTORY_SCAN_MAX_BYTES) {
-      return inventoryError(
-        413,
-        "IMAGE_TOO_LARGE",
-        `That photo is too large. The limit is ${MAX_MB} MB.`,
-      );
+      return inventoryError(413, 'IMAGE_TOO_LARGE', `That photo is too large. The limit is ${MAX_MB} MB.`)
     }
 
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const bytes = new Uint8Array(await blob.arrayBuffer())
     // Type from magic bytes, never the client-declared MIME.
-    const sniffed = sniffImageType(bytes);
-    if (
-      !sniffed ||
-      !(INVENTORY_SCAN_MIME_TYPES as readonly string[]).includes(sniffed.mime)
-    ) {
-      return inventoryError(
-        415,
-        "UNSUPPORTED_IMAGE_TYPE",
-        "Use a JPEG, PNG or WebP photo.",
-      );
+    const sniffed = sniffImageType(bytes)
+    if (!sniffed || !(INVENTORY_SCAN_MIME_TYPES as readonly string[]).includes(sniffed.mime)) {
+      return inventoryError(415, 'UNSUPPORTED_IMAGE_TYPE', 'Use a JPEG, PNG or WebP photo.')
     }
 
-    const userId = auth.user.id;
-    const familyId = auth.user.family_id;
-    const perUser = await checkRateLimit(
-      `inventory-scan:user:${userId}`,
-      INVENTORY_SCAN_USER_PER_HOUR,
-      HOUR_MS,
-    );
+    const userId = auth.user.id
+    const familyId = auth.user.family_id
+    const perUser = await checkRateLimit(`inventory-scan:user:${userId}`, INVENTORY_SCAN_USER_PER_HOUR, HOUR_MS)
     if (!perUser.allowed) {
-      return inventoryError(
-        429,
-        "RATE_LIMITED",
-        "Too many scans this hour. Try again later.",
-        retryAfter(perUser.retryAfterMs),
-      );
+      return inventoryError(429, 'RATE_LIMITED', 'Too many scans this hour. Try again later.', retryAfter(perUser.retryAfterMs))
     }
-    const perFamily = await checkRateLimit(
-      `inventory-scan:family:${familyId}`,
-      INVENTORY_SCAN_FAMILY_PER_HOUR,
-      HOUR_MS,
-    );
+    const perFamily = await checkRateLimit(`inventory-scan:family:${familyId}`, INVENTORY_SCAN_FAMILY_PER_HOUR, HOUR_MS)
     if (!perFamily.allowed) {
       return inventoryError(
         429,
-        "RATE_LIMITED",
-        "Your household has scanned a lot this hour. Try again later.",
-        retryAfter(perFamily.retryAfterMs),
-      );
+        'RATE_LIMITED',
+        'Your household has scanned a lot this hour. Try again later.',
+        retryAfter(perFamily.retryAfterMs)
+      )
     }
     // Spend guard: per household per UTC calendar day, from INVENTORY_SCAN_DAILY_LIMIT.
-    const day = new Date().toISOString().slice(0, 10);
-    const endOfDay = Date.parse(`${day}T00:00:00Z`) + DAY_MS;
+    const day = new Date().toISOString().slice(0, 10)
+    const endOfDay = Date.parse(`${day}T00:00:00Z`) + DAY_MS
     const daily =
       config.dailyLimit === 0
         ? { allowed: false, retryAfterMs: endOfDay - Date.now() }
-        : await checkRateLimit(
-            `inventory-scan:day:${familyId}:${day}`,
-            config.dailyLimit,
-            DAY_MS,
-          );
+        : await checkRateLimit(`inventory-scan:day:${familyId}:${day}`, config.dailyLimit, DAY_MS)
     if (!daily.allowed) {
       return inventoryError(
         429,
-        "SCAN_DAILY_LIMIT",
+        'SCAN_DAILY_LIMIT',
         "Your household has used today's fridge scans. Add items by hand, or scan again tomorrow.",
-        retryAfter(Math.max(endOfDay - Date.now(), 1000)),
-      );
+        retryAfter(Math.max(endOfDay - Date.now(), 1000))
+      )
     }
 
     try {
-      const result = await scanFridgePhoto(
-        { bytes, mime: sniffed.mime as InventoryScanMime },
-        config,
-      );
-      log.info("inventory.scan", {
+      const result = await scanFridgePhoto({ bytes, mime: sniffed.mime as InventoryScanMime }, config)
+      log.info('inventory.scan', {
         userId,
         bytes: bytes.length,
         type: sniffed.mime,
         items: result.items.length,
         dropped: result.dropped,
         ms: Date.now() - started,
-      });
-      return inventoryJson({ items: result.items, dropped: result.dropped });
+      })
+      return inventoryJson({ items: result.items, dropped: result.dropped })
     } catch (err) {
       if (err instanceof InventoryScanError) {
-        log.warn("inventory.scan.failed", {
+        log.warn('inventory.scan.failed', {
           userId,
           code: err.code,
           upstreamStatus: err.upstreamStatus,
           bytes: bytes.length,
           ms: Date.now() - started,
-        });
-        return inventoryError(502, err.code, err.message);
+        })
+        return inventoryError(502, err.code, err.message)
       }
-      throw err;
+      throw err
     }
   } catch (err) {
     // Name only: an error message could carry request details.
-    log.warn("inventory.scan.error", {
-      name: err instanceof Error ? err.name : "unknown",
-    });
-    return inventoryError(500, "INTERNAL_ERROR", "Internal server error");
+    log.warn('inventory.scan.error', { name: err instanceof Error ? err.name : 'unknown' })
+    return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

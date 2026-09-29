@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
-import { handleAdjust, type ItemContext } from "@/lib/inventory-adjust-route";
+import { NextRequest } from 'next/server'
+import { handleAdjust, type ItemContext } from '@/lib/inventory-adjust-route'
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/inventory/[id]/discard?today= (#158/#121) — "Throw away" the whole
@@ -9,5 +9,5 @@ export const dynamic = "force-dynamic";
  * `Idempotency-Key`. 200 `{ item, adjustment }`.
  */
 export async function POST(request: NextRequest, context: ItemContext) {
-  return handleAdjust(request, context, "discard");
+  return handleAdjust(request, context, 'discard')
 }

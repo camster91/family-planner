@@ -10,6 +10,12 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SearchClient from '../SearchClient'
 
+// The App Router keeps useSearchParams in step with the address bar; reading
+// window.location on each render gives the same behaviour here.
+jest.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}))
+
 type Reply = { status: number; body: unknown }
 let calls: string[] = []
 let reply: (url: string) => Reply
@@ -157,4 +163,33 @@ it('has a labelled clear button of a touch-friendly size', async () => {
   await user.click(clear)
   expect(box()).toHaveValue('')
   expect(box()).toHaveFocus()
+})
+
+describe('navigating to the page while it is open', () => {
+  it('follows a new ?q= (command palette) and an empty one (top-bar link)', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<SearchClient />)
+    await user.type(box(), 'xyz')
+    await waitFor(() => expect(window.location.search).toBe('?q=xyz'))
+
+    // The palette pushes /dashboard/search?q=milk: same component, new URL.
+    act(() => window.history.pushState(null, '', '/dashboard/search?q=milk'))
+    rerender(<SearchClient initialQuery="milk" />)
+    await waitFor(() => expect(box()).toHaveValue('milk'))
+    expect(await screen.findByText('Oat milk')).toBeInTheDocument()
+    expect(calls.at(-1)).toContain('q=milk')
+
+    // The top-bar Search link has no q: the box clears.
+    act(() => window.history.pushState(null, '', '/dashboard/search'))
+    rerender(<SearchClient initialQuery="" />)
+    await waitFor(() => expect(box()).toHaveValue(''))
+  })
+
+  it('does not undo typing: the box keeps what was typed, spaces included', async () => {
+    const user = userEvent.setup()
+    render(<SearchClient />)
+    await user.type(box(), 'oat  milk ')
+    await waitFor(() => expect(window.location.search).toBe('?q=oat+milk'))
+    expect(box()).toHaveValue('oat  milk ')
+  })
 })

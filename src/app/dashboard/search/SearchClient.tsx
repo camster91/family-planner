@@ -9,6 +9,7 @@
  * them, Up from the first one returns to the box, Escape clears the box.
  */
 import * as React from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Search, WifiOff, X } from 'lucide-react'
 import { useOnline } from '@/components/ui/use-online'
@@ -69,6 +70,21 @@ export default function SearchClient({ initialQuery = '' }: { initialQuery?: str
     else url.searchParams.delete('q')
     window.history.replaceState(window.history.state, '', url.pathname + url.search)
   }, [q])
+
+  // A navigation to /dashboard/search?q=… while this page is open (the command
+  // palette, or the top-bar link with no q) keeps this component mounted, so
+  // follow the address bar when it no longer matches the box. useSearchParams
+  // is only the trigger: it can lag behind the replaceState above while typing,
+  // so compare against the live address, which that effect has already written.
+  const urlQuery = useSearchParams()?.get('q') ?? ''
+  const qRef = React.useRef(q)
+  React.useEffect(() => {
+    qRef.current = q
+  }, [q])
+  React.useEffect(() => {
+    const live = (new URL(window.location.href).searchParams.get('q') ?? '').slice(0, 100)
+    if (cleanQuery(live) !== qRef.current) setQuery(live)
+  }, [urlQuery])
 
   React.useEffect(() => {
     if (!q) {
