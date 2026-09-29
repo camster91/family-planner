@@ -6,6 +6,8 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import ProjectCard, { type ProjectCardData } from '@/components/projects/ProjectCard'
+import { FeatureOffState } from '@/components/ui/feature-gate'
+import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,7 +119,22 @@ function ProjectsSkeleton() {
 
 import { FolderKanban } from 'lucide-react'
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const sessionUser = await getServerUser()
+  if (!sessionUser) return null
+
+  const user = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    select: { family_id: true, family: { select: { features: true } } },
+  })
+
+  // Server-side gate (route inventory F-2): with Projects off, no project is
+  // read, rendered or serialised. The APIs are gated the same way.
+  const familyId = user?.family_id
+  if (familyId && !isFeatureEnabled(normalizeFeatures(user?.family?.features), 'projects')) {
+    return <FeatureOffState featureKey="projects" />
+  }
+
   return (
     <div className="pb-20">
       <LargeHeader
@@ -131,34 +148,19 @@ export default function ProjectsPage() {
         }
       />
       <div className="px-4 mt-6">
-        <Suspense fallback={<ProjectsSkeleton />}>
-          <ProjectsContentWrapper />
-        </Suspense>
+        {familyId ? (
+          <Suspense fallback={<ProjectsSkeleton />}>
+            <ProjectsContent familyId={familyId} />
+          </Suspense>
+        ) : (
+          <EmptyState
+            icon={FolderKanban}
+            glyphColor="projects"
+            title="No family set up"
+            description="Create or join a family to start managing projects together."
+          />
+        )}
       </div>
     </div>
   )
-}
-
-async function ProjectsContentWrapper() {
-  const sessionUser = await getServerUser()
-  if (!sessionUser) return null
-
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: { family_id: true },
-  })
-
-  const familyId = user?.family_id
-  if (!familyId) {
-    return (
-      <EmptyState
-        icon={FolderKanban}
-        glyphColor="projects"
-        title="No family set up"
-        description="Create or join a family to start managing projects together."
-      />
-    )
-  }
-
-  return <ProjectsContent familyId={familyId} />
 }

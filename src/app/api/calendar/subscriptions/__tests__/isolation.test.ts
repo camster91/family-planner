@@ -266,3 +266,75 @@ describe("calendar subscriptions — two households", () => {
     );
   });
 });
+
+// Route inventory F-4: the exact statuses the audit rows record. A foreign id
+// is indistinguishable from a missing one (404), and the role gate runs before
+// the lookup (403), so neither reveals whether the other household's row exists.
+describe("calendar subscriptions — audit statuses (F-4)", () => {
+  it.each<[UserKey, string]>([
+    ["parentA", "sub-b"],
+    ["parentB", "sub-a"],
+  ])("%s gets 404 for %s on rename, remove and refresh", async (who, id) => {
+    for (const res of [
+      await item.PATCH(
+        req({ as: who, body: { name: "Mine" } }),
+        params({ id }),
+      ),
+      await item.DELETE(req({ as: who }), params({ id })),
+      await refresh.POST(req({ as: who }), params({ id })),
+    ]) {
+      expect(res.status).toBe(404);
+      await expectDenied(res, [404]);
+    }
+    expect(db.writes).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a teen refreshing another household's subscription gets 404", async () => {
+    await expectDenied(
+      await refresh.POST(req({ as: "teenA" }), params({ id: "sub-b" })),
+      [404],
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("the role gate answers 403 before any lookup, for own and foreign ids alike", async () => {
+    for (const id of ["sub-a", "sub-b"]) {
+      await expectDenied(
+        await item.PATCH(
+          req({ as: "teenA", body: { name: "x" } }),
+          params({ id }),
+        ),
+        [403],
+      );
+      await expectDenied(
+        await item.DELETE(req({ as: "childA" }), params({ id })),
+        [403],
+      );
+      await expectDenied(
+        await refresh.POST(req({ as: "childA" }), params({ id })),
+        [403],
+      );
+    }
+    expect(db.writes).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a signed-in user with no household is refused on every handler", async () => {
+    for (const res of [
+      await collection.GET(req({ as: "loner" })),
+      await collection.POST(req({ as: "loner", body: newSub })),
+      await item.PATCH(
+        req({ as: "loner", body: { name: "x" } }),
+        params({ id: "sub-a" }),
+      ),
+      await item.DELETE(req({ as: "loner" }), params({ id: "sub-a" })),
+      await refresh.POST(req({ as: "loner" }), params({ id: "sub-a" })),
+    ]) {
+      await expectDenied(res, [400]);
+    }
+    expect(db.writes).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

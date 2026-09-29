@@ -6,9 +6,20 @@ import { Avatar } from '@/components/ui/avatar'
 import { Glyph } from '@/components/ui/glyph'
 import { InsetList } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { FeatureGate } from '@/components/ui/feature-gate'
 import { cn, formatDate } from '@/lib/utils'
 
+// Gated like the other feature pages (route inventory F-2): with Family chat
+// off nothing below mounts, so it neither polls /api/messages nor shows a 403.
 export default function MessagesPage() {
+  return (
+    <FeatureGate featureKey="messages">
+      <MessagesContent />
+    </FeatureGate>
+  )
+}
+
+function MessagesContent() {
   const [messages, setMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [familyMembers, setFamilyMembers] = useState<any[]>([])

@@ -6,6 +6,7 @@ import { ArrowLeft, PlusCircle, Check } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
+import { FeatureGate } from '@/components/ui/feature-gate'
 
 const PRESET_COLORS = [
   { value: '#3B82F6', label: 'Blue', ring: 'ring-blue-400' },
@@ -16,7 +17,16 @@ const PRESET_COLORS = [
   { value: '#6366F1', label: 'Indigo', ring: 'ring-indigo-400' },
 ]
 
+// Gated like the projects list (route inventory F-2).
 export default function CreateProjectPage() {
+  return (
+    <FeatureGate featureKey="projects">
+      <CreateProjectForm />
+    </FeatureGate>
+  )
+}
+
+function CreateProjectForm() {
   const router = useRouter()
   const { addToast } = useToast()
   const [name, setName] = useState('')

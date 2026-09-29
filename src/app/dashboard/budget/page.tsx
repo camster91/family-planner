@@ -2,6 +2,8 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import BudgetDashboard from '@/components/budget/BudgetDashboard'
+import { FeatureOffState } from '@/components/ui/feature-gate'
+import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +64,13 @@ export default async function BudgetPage() {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { id: true, family_id: true, name: true, role: true },
+    select: {
+      id: true,
+      family_id: true,
+      name: true,
+      role: true,
+      family: { select: { features: true } },
+    },
   })
 
   if (!user?.family_id) {
@@ -74,6 +82,12 @@ export default async function BudgetPage() {
         </p>
       </div>
     )
+  }
+
+  // Server-side gate (route inventory F-2): with Budget off, no transaction or
+  // category is read, rendered or serialised. The APIs are gated the same way.
+  if (!isFeatureEnabled(normalizeFeatures(user.family?.features), 'budget')) {
+    return <FeatureOffState featureKey="budget" />
   }
 
   const familyId = user.family_id
