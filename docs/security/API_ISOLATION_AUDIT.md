@@ -216,7 +216,7 @@ recorded in route comments, as the de facto matrix.
 | /api/auth/login | POST | public | n/a | n/a | none | src/app/api/auth/login/__tests__/device-guard.test.ts | ok; 409 `DEVICE_MODE_LOGIN_BLOCKED` while a live device credential is present (#240, switch on only) |
 | /api/auth/logout | POST | cookie clear | n/a | n/a | none | — | ok |
 | /api/auth/me | GET | session | n/a (self) | all | none | — | ok |
-| /api/auth/register | POST | public | invite binds family | n/a | invite token + email match; 409 `DEVICE_MODE_LOGIN_BLOCKED` on a paired device (#240) | — | ok |
+| /api/auth/register | POST | public | invite binds family; invite path runs in one transaction under the household membership lock (400 if the household was deleted meanwhile, D-3) | n/a | invite token + email match; 409 `DEVICE_MODE_LOGIN_BLOCKED` on a paired device (#240) | family/__tests__/join-vs-deletion.integration.test.ts | ok |
 | /api/auth/resend-verification | POST | public | n/a | n/a | none | — | ok |
 | /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts, device/__tests__/device-routes.test.ts | ok; also deletes the parent's `ParentElevationPin` (#240) |
 | /api/auth/verify-email | GET | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |
@@ -301,7 +301,7 @@ recorded in route comments, as the de facto matrix.
 | /api/family/invites | POST | family | session family | P | none | family/iso | ok |
 | /api/family/invites/[id] | DELETE | family | where id + family (404) | P | none | family/iso | ok |
 | /api/family/invites/preview | GET | token | token's family only | n/a | none | family/membership.test.ts | ok |
-| /api/family/join | POST | session | token/code's family; refuses if already in a family | n/a | invite email must match | family/membership.test.ts | ok |
+| /api/family/join | POST | session | token/code's family; refuses if already in a family; joins in one transaction under the household membership lock, 404 if the household was deleted meanwhile (D-3) | n/a | invite email must match | family/membership.test.ts, family/__tests__/join-vs-deletion.integration.test.ts | ok |
 | /api/family/lookup | GET | session | code lookup (name only) | n/a | none | family/lookup/__tests__/route.test.ts | ok |
 | /api/family/members | GET | jwt | where | all | none | family/iso | ok |
 | /api/family/travel | GET | jwt (**now** 401 when signed out; was 400) | own family | P (was all) | none | family/iso | fixed |

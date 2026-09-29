@@ -56,8 +56,11 @@ dialog is built in the page (no browser `confirm`):
    both are filled in and the text matches.
 4. On success the browser goes to `/login?deleted=account|household`, which says so.
 
-Teens and children cannot open Settings (`src/lib/kid-access.ts`), so in the app only parents see the dialog. The API
-still lets a teen or child delete their own account (the role matrix gives every member "D own" on `/api/users`).
+Teens and children cannot open Settings (`src/lib/kid-access.ts`). They find **Delete my account** in the user menu
+(the avatar button in the top bar, on every page they can reach), which opens the same dialog with household deletion
+switched off (`allowHousehold={false}`): own account only, `DELETE` typed, password required. Parents do not get that
+menu entry; they use Settings. The API rule is the same for every role (the role matrix gives every member "D own" on
+`/api/users`).
 
 ### Rules
 
@@ -97,30 +100,32 @@ One transaction, after the rules are checked again inside it under a per-househo
    it and it is not a calm-display photo) are deleted, row and file; the rest stay with the household.
 6. The user row is deleted.
 
-Before the transaction, their calendar connection is revoked at the provider (best effort, see "Partial failure").
-After commit, the photo files are removed from disk.
+Inside the transaction, their calendar connections are read (the encrypted grants are kept in memory) and each
+one's links, imported events and row are deleted. After commit, each grant is revoked at the provider (best effort,
+see "Partial failure") and the photo files are removed from disk.
 
 ### Whole household deletion (`deleteHousehold`)
 
 1. Check: the actor is a parent of this household and its only parent (again inside the transaction, under the lock).
-2. **Before the transaction:** every calendar connection of the household is disconnected through calendar sync's
-   `removeConnection` (provider token revoke, best effort).
-3. **In one transaction:**
+2. **In one transaction** (under the household membership lock, see "Concurrency"):
    1. Every member's `token_version` is bumped and reset/verification tokens cleared; every device session is
       marked revoked; the calendar feed token is cleared.
-   2. The files to remove are collected: every `Upload` of the household, and legacy chore photos
+   2. Every calendar connection is read (encrypted grants kept in memory for step 4) and its links, imported events
+      and row are deleted.
+   3. The files to remove are collected: every `Upload` of the household, and legacy chore photos
       (`/api/files/chores/<f>`, `/api/files/<f>`, bare `<f>`) referenced only by this household. A legacy file that
       another household also references, or that another household owns through an `Upload` row, is kept (legacy
       files have no household namespace).
-   3. Every household-scoped table is deleted explicitly, in the order of `HOUSEHOLD_DELETION_PLAN`: device
+   4. Every household-scoped table is deleted explicitly, in the order of `HOUSEHOLD_DELETION_PLAN`: device
       sessions (access and refresh tokens), pairing codes, device audit, devices, tablet PINs; invitations, OAuth
       states, idempotency records, push subscriptions, sitter handoffs (share links); calendar event links, events,
       calendar connections, ICS subscriptions; then all household content (inventory, groceries, lists, budget,
       projects, chores, gamification, legacy and canonical meals/recipes, imports, messages, notifications,
       activity, notes, anniversaries, places, emergency cards, pickups, allowance, wishlist, medical rows),
       upload rows, the weather cache; then the member accounts.
-   4. The household row is deleted.
-4. **After commit:** the collected files are deleted from disk.
+   5. The household row is deleted.
+3. **After commit:** each calendar grant is revoked at the provider (calendar sync's `revokeProviderGrant`, no
+   database writes, best effort), then the collected files are deleted from disk.
 
 A unit test fails when a model in `prisma/schema.prisma` is neither in the plan nor listed as not household data
 (`Family` itself and `RateLimitEntry`), so a new table cannot be silently left to cascades.
@@ -155,13 +160,27 @@ dialog sends a key, retries once with the same key after a network error, and tr
 "already deleted" (a 401 on the first attempt is shown as "session ended"). The library functions are convergent: run
 again, they find nothing and return `deleted: false`.
 
+### Concurrency
+
+Deletion (both kinds) takes a transaction-scoped advisory lock per household (`src/lib/household-lock.ts`) before it
+reads the member list, and holds it until commit. Every path that adds a member to an existing household takes the
+same lock in its own transaction and then checks the household still exists: `POST /api/family/join` (invite code
+and email invite; the invite is consumed in that transaction) and `POST /api/auth/register` with an invite token.
+Creating a new household (`POST /api/family`) cannot race a deletion of that household. So a join either commits
+first (and the deletion then deletes the new member too, or refuses with `OTHER_PARENTS_EXIST` if they joined as a
+parent), or waits and finds the household gone: join 404 "Family not found" / "Invite not found or expired",
+registration 400 "Invite not found or expired", and no account is created or moved. Before this, a join committing
+between the deletion's delete of the members and of the Family row left the new account behind with
+`family_id = NULL` (`User.family` is ON DELETE SET NULL) while the deletion reported success.
+
 ### Partial failure
 
 - Database work is all-or-nothing (one transaction). If it fails, nothing is deleted and the request can be retried.
-- Provider revoke runs first and is best effort: if the provider is unreachable, the stored tokens are still deleted
-  by the transaction; the grant can outlive the account at the provider until the member revokes it there or it
-  expires. If the transaction then fails, the household has lost its calendar connections but nothing else; a retry
-  finishes the deletion.
+- Provider revoke runs only after commit and is best effort. A revoke cannot be undone, so doing it first would
+  leave calendar rows with a dead grant whenever the transaction failed; after commit it only ever affects data that
+  is already deleted. If the provider is unreachable, the stored tokens are still gone; the grant can outlive the
+  account at the provider until the member revokes it there or it expires. A failed transaction leaves every
+  calendar connection, link and imported event as it was (proved in the Postgres suite).
 - File removal runs after commit. A file that cannot be removed is counted in `filesNotRemoved` and logged by file
   name only; it is no longer reachable through the app (its `Upload` row and every chore reference are gone, and
   both file routes serve a file only through those).
@@ -203,4 +222,12 @@ household; member actor references cleared) — no separate analytics retention 
   one row in every household-scoped table for two households; a household delete leaves no row of A in any
   `family_id` table or child table, B unchanged, files removed, and A's session, device refresh token, invitation,
   feed token, share link and pairing code no longer resolve while B's do; member deletion through RESTRICT keys.
-- `src/components/account/__tests__/delete-account-dialog.test.tsx`, `src/app/dashboard/settings/__tests__/privacy-controls.test.tsx`: the dialog and the Settings controls.
+- `src/components/account/__tests__/delete-account-dialog.test.tsx`, `src/app/dashboard/settings/__tests__/privacy-controls.test.tsx`,
+  `src/components/layout/__tests__/dashboard-nav-delete-account.test.tsx`: the dialog (including a retained key after
+  an unknown or in-progress attempt, whose later 401 counts as deleted), the Settings controls and the teen/child
+  user-menu entry.
+- `src/app/api/family/__tests__/join-vs-deletion.integration.test.ts` (Postgres, in `release.yml`): with a second
+  connection holding the household lock, a join by code, a join by email invite and registration with an invite
+  wait, then fail cleanly once the household is deleted, and no account is orphaned; `deleteHousehold` waits on the
+  same lock; a real deletion racing a join always ends consistent.
+- `e2e/account-deletion.spec.ts` also covers a teen deleting their own account from the user menu.
