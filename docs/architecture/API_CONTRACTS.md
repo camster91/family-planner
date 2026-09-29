@@ -38,6 +38,21 @@ A future normalized form may look like:
 ```
 Do not expose stack traces, database details, foreign record existence or secrets to clients.
 
+### Error envelope in use (#161)
+`src/lib/api-error.ts` `apiError(status, code, message, { requestId, shape })` has two shapes so adoption never breaks an installed client:
+
+| Shape | Body | Used by |
+|---|---|---|
+| `flat` (default) | `{ "error": "<human message>", "code": "QUERY_TOO_SHORT", "requestId": "<id>" }` | Routes whose clients read `error` as a string. `error` is unchanged; `code` and `requestId` are additive. `GET /api/search`, `GET /api/audit` |
+| `nested` | `{ "error": { "code": "VALIDATION_ERROR", "message": "…", "requestId": "<id>", "retryable"?: bool } }` (the target above) | Routes already on the nested shape. `GET`/`PATCH /api/users/preferences` (`requestId` added inside `error`) |
+
+`code` is stable UPPER_SNAKE_CASE; clients branch on `code`, never on `message`. Success bodies and status codes of adopted routes did not change. Routes not yet adopted still return `{ error }` (and the shared-device routes their own nested envelope without `requestId`); the adoption order is in `OBSERVABILITY.md` "Incremental adoption plan". Moving an existing route from `flat` to `nested` is a breaking change and needs the compatibility plan above.
+
+## Request identity and build version (#161)
+- **`X-Request-Id`** is on every response that passes through `src/middleware.ts` (all API routes and pages; not `/_next/static`, `/_next/image`, `favicon.ico`), including CSRF 403s and redirects. A client or proxy may send its own `X-Request-Id` (`[A-Za-z0-9_-]{8,64}`); a well-formed value is echoed back, anything else is replaced by a random UUID. Adopted error bodies repeat it as `requestId`. Quote it in bug and support reports.
+- **`GET /api/version`** (public, `Cache-Control: no-store`): `200 { "version": "0.1.0", "commit": "<40-hex RELEASE_SHA or \"unknown\">", "builtAt": "<ISO time of next build or \"unknown\">" }` and nothing else. Clients may show it in an About/diagnostics view. Installed clients never depend on it; a server rolled back to a build without it answers 404.
+- `GET /api/health` is unchanged: `{ status }` plus the `X-Release-Commit` header.
+
 ## Idempotency
 Client-generated keys should be scoped to authenticated actor/device + operation. Replays should return the prior logical result or a deterministic conflict, never duplicate visible state.
 

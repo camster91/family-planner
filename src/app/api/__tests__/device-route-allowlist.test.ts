@@ -78,6 +78,7 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
   'POST /api/auth/logout': [200], // clears session_token only; nothing to revoke
   'GET /api/health': [200, 503],
   'GET /api/health/live': [200],
+  'GET /api/version': [200], // build identity only (#161): { version, commit, builtAt }
   'POST /api/analytics/event': [200, 204, 400], // anonymous callers are a no-op
   'GET /api/family/invites/preview': [400, 404],
   'GET /api/handoff/share/[token]': [404],
