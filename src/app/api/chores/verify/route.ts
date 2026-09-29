@@ -162,7 +162,8 @@ export async function POST(request: NextRequest) {
             userId: chore.assignee.id,
             title: `Level Up! ${outcome.xp.newLevel}`,
             message: `You reached Level ${outcome.xp.newLevel}! Keep it up!`,
-            type: 'system',
+            // Earned by chores, so "Chores and rewards" mutes it (#286).
+            type: 'reward',
           })
         }
       } catch (notifyErr) {

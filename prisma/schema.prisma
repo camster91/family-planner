@@ -35,6 +35,12 @@ model User {
   /// Today board colour (#262): a palette key from src/lib/member-colors.ts,
   /// set by a parent. NULL = deterministic fallback by household order.
   board_color                   String?
+  /// Per-member notification preferences (#286, PR101 D-5), one switch per
+  /// category in src/lib/notification-policy.ts. Default true keeps today's
+  /// behaviour. Account and safety messages ignore them (always sent).
+  notify_chores                 Boolean            @default(true)
+  notify_events                 Boolean            @default(true)
+  notify_messages               Boolean            @default(true)
   created_at                    DateTime           @default(now())
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)

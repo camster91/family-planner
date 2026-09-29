@@ -4,7 +4,7 @@ import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { createVerificationToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
-import { sendMail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
 
 export const dynamic = 'force-dynamic'
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
           '<p>This link expires in 24 hours.</p>',
         ].join('\n')
 
-        await sendMail({
+        await sendAccountMail('email_verification', {
           to: email,
           subject: 'Verify Your Family Planner Email',
           html,

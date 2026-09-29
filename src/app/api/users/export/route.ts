@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { BACKFILL_SOURCE_APP } from '@/lib/backfill/meals-groceries'
+import { NOTIFICATION_PREFERENCE_SELECT, preferencesFromRow } from '@/lib/notification-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic'
 // - All messages they sent
 // - All events they created
 // - All rewards they created or claimed
-// - All notifications addressed to them
+// - All notifications addressed to them, and their notification preferences
+//   (#286: `notificationPreferences`, also the notify_* columns on `user`)
 // - All activities they performed
 // - The household's meal plan (FamilyMeal, ADR-0007) and recipes
 // - The household's food inventory (InventoryItem, #263), including used-up
@@ -46,6 +48,8 @@ export async function GET(request: NextRequest) {
           xp: true, level: true, streak: true, best_streak: true,
           avatar_url: true, last_chore_date: true,
           created_at: true, email_verified: true,
+          // Notification preferences (#286); exported as `notificationPreferences`.
+          ...NOTIFICATION_PREFERENCE_SELECT,
           // Explicitly EXCLUDE password
         },
       }),
@@ -223,6 +227,8 @@ export async function GET(request: NextRequest) {
     const exportData = {
       exportedAt: new Date().toISOString(),
       user,
+      // Same shape as GET /api/users/preferences (#286).
+      notificationPreferences: user ? preferencesFromRow(user) : null,
       family,
       chores,
       lists,

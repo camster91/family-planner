@@ -67,6 +67,10 @@ function user(id: string, name: string, role: string, family_id: string | null):
     created_at: T0,
     password: 'hash',
     token_version: 0,
+    // Notification preferences (#286): NOT NULL DEFAULT true in the schema.
+    notify_chores: true,
+    notify_events: true,
+    notify_messages: true,
   }
 }
 

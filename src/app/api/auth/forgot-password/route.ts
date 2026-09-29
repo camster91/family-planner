@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { createResetToken } from '@/lib/tokens'
-import { sendMail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
 
 export async function POST(request: NextRequest) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     ].join('\n')
 
     try {
-      await sendMail({
+      await sendAccountMail('password_reset', {
         to: user.email,
         subject: 'Reset Your Family Planner Password',
         html,

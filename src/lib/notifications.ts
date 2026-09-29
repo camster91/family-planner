@@ -1,8 +1,12 @@
+import type { InAppNotificationType } from '@/lib/notification-policy'
+
+// Browser helper: every send goes through POST /api/notifications, which
+// applies the recipient's notification preferences on the server (#286).
 interface NotificationData {
   userId: string
   title: string
   message: string
-  type: 'chore' | 'event' | 'message' | 'reward' | 'system'
+  type: InAppNotificationType
 }
 
 class NotificationService {

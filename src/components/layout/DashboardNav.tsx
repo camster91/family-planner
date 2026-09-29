@@ -16,7 +16,10 @@ import {
   LayoutDashboard,
   Refrigerator,
   Trash2,
+  BellRing,
 } from 'lucide-react'
+import { Dialog } from '@/components/ui/dialog'
+import NotificationPreferences from '@/components/account/NotificationPreferences'
 import type { NavUser, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
@@ -44,9 +47,12 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false)
   // Teens and children cannot open Settings (kid-access.ts), so their
-  // "Delete my account" lives here (D-3, ACCOUNT_DELETION.md). Own account only.
+  // "Delete my account" (D-3, ACCOUNT_DELETION.md) and their notification
+  // switches (#286) live in this menu. Own account only.
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [notifyOpen, setNotifyOpen] = useState(false)
   const avatarRef = useRef<HTMLDivElement>(null)
+  const avatarButtonRef = useRef<HTMLButtonElement>(null)
   // Hide links the role would only be redirected away from (src/lib/kid-access.ts).
   const canSee = (href: string) => canRoleAccessPath(user?.role, href)
   const { features } = useFeatures()
@@ -160,6 +166,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {/* Avatar + overflow menu */}
             <div className="relative ml-1" ref={avatarRef}>
               <button
+                ref={avatarButtonRef}
                 onClick={() => setAvatarOpen((v) => !v)}
                 className="flex items-center gap-1.5 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
                 aria-label="User menu"
@@ -267,6 +274,19 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         Family
                       </Link>
                     )}
+                    {isKid && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAvatarOpen(false)
+                          setNotifyOpen(true)
+                        }}
+                        className="flex min-h-[44px] w-full items-center gap-3 px-4 py-2.5 text-left text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
+                      >
+                        <BellRing className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        Notifications
+                      </button>
+                    )}
                     {canSee('/dashboard/settings') && (
                       <Link
                         href="/dashboard/settings"
@@ -310,7 +330,22 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       </nav>
 
       {isKid && (
-        <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} allowHousehold={false} />
+        <>
+          <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} allowHousehold={false} />
+          <Dialog
+            open={notifyOpen}
+            onClose={() => {
+              setNotifyOpen(false)
+              // The menu item that opened it is gone; return focus to the menu button.
+              avatarButtonRef.current?.focus()
+            }}
+            title="Notifications"
+            description="Choose what you hear about. Each switch saves straight away."
+            testId="notification-preferences-dialog"
+          >
+            <NotificationPreferences />
+          </Dialog>
+        </>
       )}
 
       {/* ─── Mobile bottom TabBar (handled inside layout, but exported here for reuse) ─── */}
