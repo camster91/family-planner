@@ -125,6 +125,7 @@ jobs:
           src/lib/__tests__/device.integration.test.ts
           src/lib/__tests__/household-audit.integration.test.ts
           src/lib/__tests__/idempotency.integration.test.ts
+          src/lib/__tests__/list-item-delete.integration.test.ts
           src/lib/__tests__/list-item-provenance.integration.test.ts
           src/lib/__tests__/list-item-update.integration.test.ts
           src/lib/__tests__/membership-locks.integration.test.ts

@@ -110,6 +110,8 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Grocery store sections (#273): "Move to…" and the per-list sorting switch.
   'PATCH /api/lists/items/section': [403],
   'PATCH /api/lists/section-sort': [403],
+  // REST list-item delete (route inventory F-6, #289): new route, no new tablet write.
+  'DELETE /api/lists/items/[id]': [403],
   // Household search (route inventory F-3): a person read, never the tablet's.
   'GET /api/search': [403],
   // Account and household deletion (D-3, ACCOUNT_DELETION.md): never from a shared tablet.

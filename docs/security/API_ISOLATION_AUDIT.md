@@ -221,6 +221,21 @@ The account export adds the last 12 months (parent: all rows; teen/child: own ro
 `src/lib/__tests__/household-audit.integration.test.ts` (atomic commit/rollback, household deletion) and
 `users/export/__tests__/canonical.test.ts`.
 
+**Update 2026-09-29 (#289, route inventory F-5/F-6): unused and duplicate routes.** New `DELETE
+/api/lists/items/[id]`: a paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in the route-allowlist
+test's refused routes) before person auth; then `authenticateWithFamily`, `featureGate('lists')`, `requireParent`,
+and `deleteHouseholdListItem` (`src/lib/list-item-delete.ts`), which looks the item up `where { id, list: {
+family_id } }` and deletes by id only after that match, so another household's item is the same 404 as a missing
+one and is never written. The deprecated `DELETE /api/lists/items/delete?itemId=` (kept for installed Android
+builds) uses the same helper, so its foreign-id answer changes from 403 to that 404; its roles and gates are
+unchanged. `GET/POST /api/projects/[id]/tasks` now look the project up `where { id, family_id }` and a new
+assignee `where { id, family_id }` (both 404, foreign and missing alike; were 403). `GET /api/lists/items` and the
+old delete add a `Deprecation` header only. The chores status routes are unchanged (one path through
+`completeChore` / `reopenCompletedChoreInTx`; `PATCH /api/chores` never writes status). Tests:
+`src/app/api/lists/__tests__/item-delete.test.ts`, `src/app/api/projects/__tests__/isolation.test.ts`,
+`src/app/api/chores/__tests__/status-single-path.test.ts`, the route allowlist and the opt-in
+`src/lib/__tests__/list-item-delete.integration.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -387,10 +402,11 @@ recorded in route comments, as the de facto matrix.
 | /api/lists | GET | family + `featureGate('lists')` (#251) | where | all | none | lists/iso, lists/provenance | ok |
 | /api/lists | DELETE | family + `featureGate('lists')` (#251) | match (403) | P | none | lists/iso, lists/provenance | ok |
 | /api/lists/create | POST | family + `featureGate('lists')` (#251) | session family | P+T | none; type `meal_plan` hidden in the UI, still accepted for old clients (O-8) | lists/iso, lists/provenance | implemented (D9) |
-| /api/lists/items | GET | family + `featureGate('lists')` (#251) | list match (403) | all | none | lists/iso, lists/provenance | ok; grocery rows add the resolved `section` from the household's own overrides (#273, lists/sections) |
+| /api/lists/items | GET | family + `featureGate('lists')` (#251) | list match (403) | all | none | lists/iso, lists/provenance, lists/item-delete | ok; grocery rows add the resolved `section` from the household's own overrides (#273, lists/sections); deprecated (#289, `Deprecation` header, no in-app caller) |
 | /api/lists/items/create | POST | family + `featureGate('lists')` (#251) | list match (403) | all | listId verified; `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/provenance | ok; grocery rows add `section` (#273) |
 | /api/lists/items/update | PATCH | family + `featureGate('lists')` (#251) | item's list match (403) | all | `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/idempotency, lists/provenance, list-item-provenance.integration | ok; optional `Idempotency-Key` (#162): records scoped to `user:<id>` + `family_id`, never replayed across users or households, 401 before any lookup; `P2002` on `ListItem_open_recipe_source_key` → 409 `DUPLICATE_OPEN_ITEM` (not stored) |
-| /api/lists/items/delete | DELETE | family + `featureGate('lists')` (#251) | item's list match (403) | P | none | lists/iso, lists/provenance | ok |
+| /api/lists/items/delete | DELETE | family + `featureGate('lists')` (#251) | item `where { id, list: { family_id } }` via `deleteHouseholdListItem` (404, no existence leak; was 403 before #289) | P | none | lists/iso, lists/provenance, lists/item-delete, list-item-delete.integration | ok; deprecated (#289, `Deprecation` header), kept for installed Android builds |
+| /api/lists/items/[id] | DELETE | shared device refused first (403); family + `featureGate('lists')` | item `where { id, list: { family_id } }` via `deleteHouseholdListItem` (404, no existence leak) | P | none | lists/item-delete, list-item-delete.integration, device-route-allowlist | implemented (#289) |
 | /api/lists/items/from-recipe | POST | shared device refused first (403); family + `featureGate('meals')` + `featureGate('lists')` (#253) | recipe, meal, list each `where { id, family_id }` (404, no existence leak) | all | `ingredientIds` must belong to the recipe (400); ingredient rows come from the recipe, never from the body; `mealId` must use the recipe (400) | lists/from-recipe, lists/from-recipe.integration, device-route-allowlist | ok; `Idempotency-Key` required, records scoped to `user:<id>` + `family_id`; refusals not stored |
 | /api/lists/items/undo-add | POST | shared device refused first (403); family + `featureGate('lists')` (#253) | `IdempotencyRecord` `where { id, family_id, action }` (404); same user (403); rows filtered by `source_request_id`, `added_by`, list `family_id` | all (own request) | none | lists/from-recipe, lists/from-recipe.integration, device-route-allowlist | ok; 10-minute window (409) |
 | /api/lists/default-grocery | POST | family + `featureGate('lists')` (#253) | session family | P+T | none | lists/from-recipe, lists/from-recipe.integration | ok; advisory lock per household |
@@ -428,8 +444,8 @@ recorded in route comments, as the de facto matrix.
 | /api/projects/[id] | PATCH | family | match (403) | P | none | projects/iso | ok |
 | /api/projects/[id] | DELETE | family | match (403) | P | none | projects/iso | ok |
 | /api/projects/[id]/send-to-calendar | POST | family | match (403) | all | none | projects/iso | ok |
-| /api/projects/[id]/tasks | GET | family | project match (403) | all | none | projects/iso | ok |
-| /api/projects/[id]/tasks | POST | family | project match (403) | all | assigned_to verified | projects/iso | ok |
+| /api/projects/[id]/tasks | GET | family | project `where { id, family_id }` (404, no existence leak; #289) | all | none | projects/iso | ok |
+| /api/projects/[id]/tasks | POST | family | project `where { id, family_id }` (404, no existence leak; #289) | all | assigned_to `where { id, family_id }` (404, foreign and missing alike; #289) | projects/iso | ok; caller: "Add task" on the project page (#289) |
 | /api/projects/[id]/tasks/[taskId] | PATCH | family | task∈project + match (403/404) | P | assigned_to verified | projects/iso | ok |
 | /api/projects/[id]/tasks/[taskId] | DELETE | family | task∈project + match (403/404) | P | none | projects/iso | ok |
 | /api/rewards | GET | family | where | all | none | rewards/iso | ok |

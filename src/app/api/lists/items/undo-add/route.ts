@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  *
  * Removes the still-unticked rows that one `from-recipe` request created, for
  * the person who made it, within 10 minutes. Every other delete stays
- * parent-only (`DELETE /api/lists/items/delete`). 404 unknown or another
+ * parent-only (`DELETE /api/lists/items/[id]`). 404 unknown or another
  * household's request; 403 another member's request or a shared device; 409
  * after the window. Safe to retry: a second undo removes 0 rows.
  */

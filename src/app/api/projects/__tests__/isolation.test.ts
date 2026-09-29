@@ -12,7 +12,7 @@ import * as project from "../[id]/route";
 import * as tasks from "../[id]/tasks/route";
 import * as task from "../[id]/tasks/[taskId]/route";
 import { POST as sendToCalendar } from "../[id]/send-to-calendar/route";
-import { db, req, params, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, req, params, bodyOf, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 describe("projects — two households", () => {
   beforeEach(() => db.reset());
@@ -49,6 +49,54 @@ describe("projects — two households", () => {
     await expectDenied(await task.DELETE(req({ as: "parentA" }), params({ id: "proj-b", taskId: "task-b" })));
     await expectDenied(await sendToCalendar(req({ as: "parentA" }), params({ id: "proj-b" })));
     expect(db.writes).toHaveLength(0);
+  });
+
+  // Route inventory F-5 (#289): the tasks route now has an in-app caller
+  // ("Add task" on the project page); its lookups are household-scoped, so a
+  // foreign project or assignee is the same 404 as a missing one.
+  it("tasks: another household's project is the same 404 as a missing one", async () => {
+    for (const call of [
+      (id: string) => tasks.GET(req({ as: "parentA" }), params({ id })),
+      (id: string) => tasks.POST(req({ as: "childA", body: { title: "x" } }), params({ id })),
+    ]) {
+      const foreign = await call("proj-b");
+      const missing = await call("no-such-project");
+      expect([foreign.status, missing.status]).toEqual([404, 404]);
+      expect(await bodyOf(foreign)).toEqual(await bodyOf(missing));
+      await expectNoForeignData(foreign);
+    }
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("tasks: a family-B assignee is the same 404 as an unknown user", async () => {
+    const foreign = await tasks.POST(req({ as: "parentA", body: { title: "x", assigned_to: "child-b" } }), params({ id: "proj-a" }));
+    const missing = await tasks.POST(req({ as: "parentA", body: { title: "x", assigned_to: "nobody" } }), params({ id: "proj-a" }));
+    expect([foreign.status, missing.status]).toEqual([404, 404]);
+    expect(await bodyOf(foreign)).toEqual(await bodyOf(missing));
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it.each<[UserKey]>([["parentA"], ["teenA"], ["childA"]])("tasks: %s adds a task to their household's active project", async (who) => {
+    const res = await tasks.POST(
+      req({ as: who, body: { title: "Label boxes", due_date: "2026-10-03", assigned_to: "teen-a", project_id: "proj-b" } }),
+      params({ id: "proj-a" })
+    );
+    expect(res.status).toBe(201);
+    const body = await expectNoForeignData(res);
+    expect(body.task).toMatchObject({ title: "Label boxes", project_id: "proj-a", assigned_to: "teen-a", position: 1 });
+    expect(writesTo("projectTask")[0].args.data).toMatchObject({ project_id: "proj-a" });
+    const listed = await expectNoForeignData(await tasks.GET(req({ as: who }), params({ id: "proj-a" })));
+    expect(listed.tasks.map((t: any) => t.title)).toEqual(["Home sweep", "Label boxes"]);
+  });
+
+  it("tasks: a completed or archived project takes no new task", async () => {
+    for (const status of ["completed", "archived"]) {
+      db.reset();
+      db.find("project", "proj-a")!.status = status;
+      const res = await tasks.POST(req({ as: "parentA", body: { title: "x" } }), params({ id: "proj-a" }));
+      expect(res.status).toBe(400);
+      expect(writesTo("projectTask")).toHaveLength(0);
+    }
   });
 
   it("cannot reach a foreign task through the caller's own project id", async () => {

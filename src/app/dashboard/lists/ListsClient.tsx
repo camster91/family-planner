@@ -5,17 +5,15 @@ import { ShoppingCart, CheckSquare, UtensilsCrossed, Heart, ShoppingBag, List, L
 import { Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { Glyph } from '@/components/ui/glyph'
 import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
+import { listTypeFilter, listsFilterHref, type ListTypeKey } from '@/lib/list-type-filter'
 
 // -----------------------------------------------------------------------
 // Type config
 // -----------------------------------------------------------------------
-
-type ListTypeKey = 'grocery' | 'todo' | 'meal_plan' | 'wishlist' | 'shopping'
 
 interface TypeConfig {
   name: string
@@ -56,14 +54,29 @@ interface ListsClientProps {
   familyName: string
   /** D9 (#102): parents and teens may create lists; a child may not. */
   canCreate?: boolean
+  /** `?type=` from the URL (route inventory F-6): show only lists of this type. */
+  initialType?: string | null
 }
 
 // -----------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------
 
-export default function ListsClient({ lists, familyName, canCreate = true }: ListsClientProps) {
+export default function ListsClient({ lists, familyName, canCreate = true, initialType = null }: ListsClientProps) {
   const router = useRouter()
+  // The type cards filter this page (route inventory F-6); the old
+  // /dashboard/lists/type/[type] pages redirect here with `?type=`.
+  const [typeFilter, setTypeFilter] = React.useState<ListTypeKey | null>(() => listTypeFilter(initialType))
+  const applyFilter = (next: ListTypeKey | null) => {
+    setTypeFilter(next)
+    router.replace(listsFilterHref(next), { scroll: false })
+  }
+  const shown = typeFilter ? lists.filter(l => l.type === typeFilter) : lists
+  const filterCfg = typeFilter ? TYPE_CONFIG[typeFilter] : null
+  // ADR-0007 O-8: no new 'meal_plan' lists (existing ones stay readable).
+  const createHref =
+    typeFilter && typeFilter !== 'meal_plan' ? `/dashboard/lists/create?type=${typeFilter}` : '/dashboard/lists/create'
+  const canCreateHere = canCreate && typeFilter !== 'meal_plan'
 
   // Main type cards at the top. 'meal_plan' is no longer a list type people
   // create (ADR-0007 O-8; meals live in /dashboard/meals), so its card shows
@@ -81,7 +94,7 @@ export default function ListsClient({ lists, familyName, canCreate = true }: Lis
         subtitle="Shared Lists"
         trailing={
           canCreate ? (
-            <Link href="/dashboard/lists/create" className="btn-tinted" aria-label="Add list">
+            <Link href={createHref} className="btn-tinted" aria-label="Add list">
               <Plus className="w-4 h-4" />
             </Link>
           ) : undefined
@@ -90,18 +103,24 @@ export default function ListsClient({ lists, familyName, canCreate = true }: Lis
       />
 
       <div className="space-y-6 px-4">
-        {/* 4 type glyph cards */}
-        <section>
+        {/* Type cards: each one filters the lists below (pressed again, shows all). */}
+        <section aria-label="Filter by type">
           <div className="grid grid-cols-2 gap-3">
             {mainTypes.map((type) => {
               const cfg = TYPE_CONFIG[type]
               const Icon = ICONS[type]
               const count = lists.filter(l => l.type === type).length
+              const pressed = typeFilter === type
               return (
                 <button
                   key={type}
-                  onClick={() => router.push(`/dashboard/lists/type/${type}`)}
-                  className="card-apple p-4 flex flex-col items-center gap-2 text-center active:scale-95 transition-transform"
+                  type="button"
+                  aria-pressed={pressed}
+                  onClick={() => applyFilter(pressed ? null : type)}
+                  className={
+                    'card-apple p-4 min-h-[44px] flex flex-col items-center gap-2 text-center active:scale-95 motion-reduce:active:scale-100 transition-transform focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]' +
+                    (pressed ? ' ring-2 ring-[var(--accent)]' : '')
+                  }
                 >
                   <Glyph color={cfg.color} size="lg">
                     <Icon className="w-6 h-6 text-white" />
@@ -116,12 +135,26 @@ export default function ListsClient({ lists, familyName, canCreate = true }: Lis
           </div>
         </section>
 
-        {/* All lists */}
-        {lists.length > 0 ? (
+        {/* All lists, or the lists of the chosen type */}
+        {filterCfg && (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-subhead text-label-secondary" role="status">
+              Showing {filterCfg.name.toLowerCase()} lists only
+            </p>
+            <button
+              type="button"
+              onClick={() => applyFilter(null)}
+              className="inline-flex min-h-[44px] items-center rounded-full bg-[var(--surface-fill)] px-4 text-[15px] font-medium text-label-primary focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+            >
+              Show all lists
+            </button>
+          </div>
+        )}
+        {shown.length > 0 ? (
           <section>
-            <SectionHeader>All Lists</SectionHeader>
+            <SectionHeader>{filterCfg ? `${filterCfg.name} Lists` : 'All Lists'}</SectionHeader>
             <InsetList>
-              {lists.map((list, i) => {
+              {shown.map((list, i) => {
                 const cfg = TYPE_CONFIG[list.type] || TYPE_CONFIG.grocery
                 const Icon = ICONS[list.type] || ShoppingCart
                 return (
@@ -139,7 +172,7 @@ export default function ListsClient({ lists, familyName, canCreate = true }: Lis
                         </span>
                       ) : undefined
                     }
-                    last={i === lists.length - 1}
+                    last={i === shown.length - 1}
                   />
                 )
               })}
@@ -147,17 +180,21 @@ export default function ListsClient({ lists, familyName, canCreate = true }: Lis
           </section>
         ) : (
           <EmptyState
-            icon={List}
-            glyphColor="lists"
-            title="No lists yet"
+            icon={typeFilter ? ICONS[typeFilter] : List}
+            glyphColor={filterCfg ? filterCfg.color : 'lists'}
+            title={filterCfg ? `No ${filterCfg.name.toLowerCase()} lists` : 'No lists yet'}
             description={
-              canCreate
-                ? 'Create your first shared list for the family.'
-                : 'Ask a parent to create a new list.'
+              typeFilter === 'meal_plan'
+                ? 'Meals are planned in Meals now.'
+                : canCreate
+                  ? filterCfg
+                    ? `Create your first ${filterCfg.name.toLowerCase()} list.`
+                    : 'Create your first shared list for the family.'
+                  : 'Ask a parent to create a new list.'
             }
             action={
-              canCreate ? (
-                <Link href="/dashboard/lists/create" className="btn-filled">
+              canCreateHere ? (
+                <Link href={createHref} className="btn-filled">
                   <Plus className="w-4 h-4" />
                   <span>Create List</span>
                 </Link>
