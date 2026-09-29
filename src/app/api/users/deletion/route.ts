@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '@/lib/api-auth'
 import { getDeletionOptions } from '@/lib/account-deletion'
+import { refusePairedDevice } from '@/lib/device-route'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,9 +10,12 @@ export const dynamic = 'force-dynamic'
  * Settings dialog (docs/product/ACCOUNT_DELETION.md): their own account, or,
  * for the only parent, the whole household. Own household only: the name and
  * member/parent counts of the caller's household, nothing about anyone else.
- * Read-only; the deletion routes re-check every rule themselves.
+ * Read-only; the deletion routes re-check every rule themselves. A paired
+ * shared tablet is refused before person auth, like both DELETE routes.
  */
 export async function GET(request: NextRequest) {
+  const refused = await refusePairedDevice(request)
+  if (refused) return refused
   try {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error

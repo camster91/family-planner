@@ -192,6 +192,24 @@ describe('deleteHousehold', () => {
     expect(removed).toEqual([`${UPLOADS}/chores/1111111111111111.jpg`])
   })
 
+  it.each([
+    ['legacy root path', '/api/files/aaaaaaaaaaaaaaaa.jpg'],
+    ['bare filename', 'aaaaaaaaaaaaaaaa.jpg'],
+  ])('keeps a shared legacy photo that the other household spells as a %s', async (_label, ref) => {
+    db.find('chore', 'chore-b')!.photo_url = ref
+    const { d, removed } = deps()
+    await deleteHousehold(FAMILY_A, 'parent-a', d)
+    expect(removed).toEqual([`${UPLOADS}/chores/1111111111111111.jpg`])
+  })
+
+  it('keeps a shared legacy photo when this household uses the bare form and the other the canonical one', async () => {
+    db.find('chore', 'chore-a')!.photo_url = 'aaaaaaaaaaaaaaaa.jpg'
+    db.find('chore', 'chore-b')!.photo_url = '/api/files/chores/aaaaaaaaaaaaaaaa.jpg'
+    const { d, removed } = deps()
+    await deleteHousehold(FAMILY_A, 'parent-a', d)
+    expect(removed).toEqual([`${UPLOADS}/chores/1111111111111111.jpg`])
+  })
+
   it('counts a file that could not be removed and still finishes', async () => {
     const { d } = deps({
       removeFile: async () => {

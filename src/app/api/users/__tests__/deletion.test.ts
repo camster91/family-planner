@@ -251,6 +251,15 @@ describe('paired shared device', () => {
     expect(db.find('family', FAMILY_A)).toBeDefined()
     expect(db.find('user', 'parent-a')).toBeDefined()
   })
+
+  it('the deletion-options read is refused too, even next to a parent session', async () => {
+    const fx = seedDevices()
+    for (const as of [undefined, 'parentA'] as const) {
+      const res = await deletionOptions(deviceReq({ method: 'GET', as, cookies: fx.d1.cookies }))
+      expect(res.status).toBe(403)
+      expect(await errorCode(res)).toBe('DEVICE_WRITE_NOT_ALLOWED')
+    }
+  })
 })
 
 describe('GET /api/users/deletion', () => {

@@ -114,8 +114,8 @@ see "Partial failure") and the photo files are removed from disk.
       and row are deleted.
    3. The files to remove are collected: every `Upload` of the household, and legacy chore photos
       (`/api/files/chores/<f>`, `/api/files/<f>`, bare `<f>`) referenced only by this household. A legacy file that
-      another household also references, or that another household owns through an `Upload` row, is kept (legacy
-      files have no household namespace).
+      another household also references, in any of those three spellings (compared by filename), or that another
+      household owns through an `Upload` row, is kept (legacy files have no household namespace).
    4. Every household-scoped table is deleted explicitly, in the order of `HOUSEHOLD_DELETION_PLAN`: device
       sessions (access and refresh tokens), pairing codes, device audit, devices, tablet PINs; invitations, OAuth
       states, idempotency records, push subscriptions, sitter handoffs (share links); calendar event links, events,

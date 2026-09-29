@@ -115,6 +115,7 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Account and household deletion (D-3, ACCOUNT_DELETION.md): never from a shared tablet.
   'DELETE /api/users': [403],
   'DELETE /api/family': [403],
+  'GET /api/users/deletion': [403],
 }
 
 function routeFiles(dir: string): string[] {

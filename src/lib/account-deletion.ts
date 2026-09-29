@@ -186,21 +186,38 @@ async function removeFiles(targets: FileTarget[], deps: DeletionDeps): Promise<F
   return { filesRemoved, filesNotRemoved }
 }
 
+/** The filename a chore/assignment `photo_url` names, in any accepted form. */
+function photoRefName(url: string): string {
+  return chorePhotoFilename(url) ?? url.replace(/^\/api\/files\//, '')
+}
+
 /**
- * Photo references (`photo_url`) that another household also uses. Legacy
- * files (before Upload rows) are content-addressed without a household
- * namespace, so the same image can be shared; such a file is left in place.
+ * Every `photo_url` spelling that points at the same file: the canonical
+ * `/api/files/chores/<f>`, the legacy `/api/files/<f>` and a bare `<f>`, which
+ * the serving routes all accept.
  */
-async function photoUrlsUsedElsewhere(tx: any, familyId: string, urls: string[]): Promise<Set<string>> {
-  if (urls.length === 0) return new Set()
+function photoRefAliases(name: string): string[] {
+  return [`/api/files/chores/${name}`, `/api/files/${name}`, name]
+}
+
+/**
+ * Photo filenames that another household also references. Legacy files
+ * (before Upload rows) are content-addressed without a household namespace, so
+ * the same image can be shared, and each household may spell the reference
+ * differently; compare by filename across every accepted form. Such a file is
+ * left in place.
+ */
+async function photoNamesUsedElsewhere(tx: any, familyId: string, names: string[]): Promise<Set<string>> {
+  if (names.length === 0) return new Set()
+  const refs = [...new Set(names.flatMap(photoRefAliases))]
   const [chores, assignments] = await Promise.all([
-    tx.chore.findMany({ where: { photo_url: { in: urls }, family_id: { not: familyId } }, select: { photo_url: true } }),
+    tx.chore.findMany({ where: { photo_url: { in: refs }, family_id: { not: familyId } }, select: { photo_url: true } }),
     tx.choreAssignment.findMany({
-      where: { photo_url: { in: urls }, family_id: { not: familyId } },
+      where: { photo_url: { in: refs }, family_id: { not: familyId } },
       select: { photo_url: true },
     }),
   ])
-  return new Set([...chores, ...assignments].map((r: { photo_url: string }) => r.photo_url))
+  return new Set([...chores, ...assignments].map((r: { photo_url: string }) => photoRefName(r.photo_url)))
 }
 
 // ---------------------------------------------------------------------------
@@ -484,14 +501,12 @@ async function handOverAndDetach(
   if (uploads.length > 0) {
     const family = await tx.family.findUnique({ where: { id: familyId }, select: { ambient_photo_ids: true } })
     const ambient = new Set<string>(family?.ambient_photo_ids ?? [])
-    const refs = uploads.flatMap((u: { filename: string }) => [`/api/files/chores/${u.filename}`, u.filename])
+    const refs = uploads.flatMap((u: { filename: string }) => photoRefAliases(u.filename))
     const [refChores, refAssignments] = await Promise.all([
       tx.chore.findMany({ where: { ...inFamily, photo_url: { in: refs } }, select: { photo_url: true } }),
       tx.choreAssignment.findMany({ where: { ...inFamily, photo_url: { in: refs } }, select: { photo_url: true } }),
     ])
-    const used = new Set(
-      [...refChores, ...refAssignments].map((r: { photo_url: string }) => chorePhotoFilename(r.photo_url))
-    )
+    const used = new Set([...refChores, ...refAssignments].map((r: { photo_url: string }) => photoRefName(r.photo_url)))
     const unused = uploads.filter((u: { id: string; filename: string }) => !ambient.has(u.id) && !used.has(u.filename))
     if (unused.length > 0) {
       await tx.upload.deleteMany({ where: { id: { in: unused.map((u: { id: string }) => u.id) } } })
@@ -682,20 +697,15 @@ export async function deleteHousehold(
       }
       const legacyUrls = [
         ...new Set([...choresWithPhotos, ...assignmentsWithPhotos].map((r: { photo_url: string }) => r.photo_url)),
-      ].filter((url) => {
-        const name = chorePhotoFilename(url) ?? url.replace(/^\/api\/files\//, '')
-        return !owned.has(name)
-      })
-      const shared = await photoUrlsUsedElsewhere(tx, familyId, legacyUrls)
-      const legacyNames = legacyUrls
-        .filter((u) => !shared.has(u))
-        .map((u) => chorePhotoFilename(u) ?? u.replace(/^\/api\/files\//, ''))
+      ].filter((url) => !owned.has(photoRefName(url)))
+      const shared = await photoNamesUsedElsewhere(tx, familyId, legacyUrls.map(photoRefName))
+      const legacyNames = legacyUrls.filter((u) => !shared.has(photoRefName(u))).map(photoRefName)
       const foreignOwned = legacyNames.length
         ? await tx.upload.findMany({ where: { filename: { in: legacyNames } }, select: { filename: true } })
         : []
       const foreign = new Set(foreignOwned.map((u: { filename: string }) => u.filename))
       for (const url of legacyUrls) {
-        if (shared.has(url)) continue
+        if (shared.has(photoRefName(url))) continue
         for (const p of legacyPhotoPaths(root, url)) {
           if (!foreign.has(path.basename(p))) files.push({ path: p })
         }
