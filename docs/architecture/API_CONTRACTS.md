@@ -210,6 +210,18 @@ Compatibility: additive columns (`Ingredient.section`, `List.sort_by_section` de
 new routes; no existing field changes meaning. Old WebView bundles ignore `section`/`sectionSort` and keep the
 category grouping they shipped with. Rolling back the app code is safe: the columns and tables stay unused.
 
+## Chores
+Every change here is additive: old request bodies stay valid and old response fields keep their meaning. Roles:
+`docs/ROLE_AND_ISOLATION_MATRIX.md` "Chores".
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `POST /api/chores/verify` | Parent only. Body `{ choreId, decision?: 'approve' \| 'reject' (default 'approve'), verificationNotes? (≤ 500, trimmed) }`. `approve`: `completed` → `verified` (a completion photo is marked checked), awards XP; re-verifying is `{ success, alreadyVerified: true }`. `reject`: `completed` → `pending` with `completed_at` null, `photo_verified` false and the note in `verified_notes`; the child is notified and can tick it again; no XP moves; an open chore is `{ success, alreadyOpen: true }`. Every 200 carries `chore: { id, status, photo_verified, verified_at, verified_notes, completed_at }`. Status never changes through `PATCH /api/chores` (its schema drops `status`/`photo_verified`/`verified_*`). | 400 not completed (approve) or bad body; 403 teen/child or another household; 404; 409 `CHORE_ALREADY_VERIFIED` (reject of a verified chore, including one verified while the reject was in flight); 409 `CHORE_NOT_COMPLETED` with the current `chore` (an approve that lost to a concurrent reject or Undo; never reported as verified) |
+| `POST /api/chores/uncomplete` | Undo for a tick (#268): parent or the assignee, `completed` → `pending`. | 403; 404; 409 `CHORE_ALREADY_VERIFIED` |
+| `POST /api/chores/create`, `PATCH /api/chores` (#272) | Optional `icon` (a key from `src/lib/routine-icons.ts`), `routine` (≤ 40 chars after trimming and collapsing spaces; empty becomes `null`) and `routine_order` (integer 1–99); `null` clears on PATCH. Create stores `null` when absent. Assignee may PATCH them like the title. | 400 `Choose a picture from the list` / routine or step messages |
+| `GET /api/chores`, create/PATCH responses, `GET /api/users/export` (#272) | Chore rows add `icon`, `routine`, `routine_order` (nullable). Recurring generation copies them. | unchanged |
+| `GET /api/device/today`, the Today board DTO (#272) | Each `chores[]` item adds `icon`: a catalogue key or `null` (a stored key the build does not know is sent as `null`). Not the routine name or step. | unchanged |
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

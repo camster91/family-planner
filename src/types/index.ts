@@ -68,6 +68,10 @@ export interface Chore {
   completed_at?: string
   created_at: string
   streak?: number
+  /** Picture routines (#272): icon key (src/lib/routine-icons.ts), routine label and step. */
+  icon?: string | null
+  routine?: string | null
+  routine_order?: number | null
 }
 
 // Event type

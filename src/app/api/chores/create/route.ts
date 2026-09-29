@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url } = parsed.data
+    const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url, icon, routine, routine_order } =
+      parsed.data
 
     // due_date is a date-only value: store the UTC calendar day at midnight.
     const dueDate = normalizeDateOnlyInput(due_date)
@@ -68,6 +69,10 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         created_by: auth.user.id,
         photo_url: photo.value ?? null,
+        // Picture routines (#272); recurring generation copies them.
+        icon: icon ?? null,
+        routine: routine ?? null,
+        routine_order: routine_order ?? null,
       },
       include: {
         assignee: { select: { id: true, name: true, avatar_url: true, role: true } },

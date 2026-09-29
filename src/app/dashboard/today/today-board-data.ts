@@ -28,6 +28,7 @@ import type { FamilyFeatures } from '@/lib/features'
 import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
 import { DEFAULT_USE_SOON_DAYS, getUseSoonItems, type InventoryLocation } from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
+import { isRoutineIconKey } from '@/lib/routine-icons'
 
 /** Days after today covered by "Coming up". */
 export const COMING_UP_DAYS = 3
@@ -75,6 +76,13 @@ export interface BoardChore {
   dueDay: string
   status: string
   assigneeId: string
+  /**
+   * Picture key from the built-in chore icon set (#272), or null. A fixed
+   * catalogue key, never user text, so it is safe for every audience including
+   * the shared device (SHARED_DEVICE.md §9.1). Always sent by
+   * `buildTodayBoard`; optional in the type for older callers and fixtures.
+   */
+  icon?: string | null
 }
 
 export interface BoardDinner {
@@ -211,7 +219,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     }),
     db.chore.findMany({
       where: { family_id: familyId, due_date: { gte: windowStart, lt: windowEnd } },
-      select: { id: true, title: true, due_date: true, status: true, assigned_to: true },
+      select: { id: true, title: true, due_date: true, status: true, assigned_to: true, icon: true },
       orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: MAX_CHORES,
     }),
@@ -286,6 +294,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         dueDay: toDateOnlyUTC(c.due_date),
         status: c.status,
         assigneeId: c.assigned_to,
+        // Only a catalogue key leaves the server; anything else reads as no picture.
+        icon: isRoutineIconKey(c.icon) ? c.icon : null,
       })),
     dinners: dinners
       ? dinners.map((d) => ({

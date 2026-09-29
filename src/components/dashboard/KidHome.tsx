@@ -13,6 +13,9 @@ import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
 import { useToast, useUndoToast } from '@/components/ui/toast'
 import { setChoreDone } from '@/lib/chore-tick-client'
+import { isDueToday } from '@/lib/dates'
+import { groupByRoutine, normalizeRoutineName } from '@/lib/routine-icons'
+import KidRoutines from './KidRoutines'
 
 interface Chore {
   id: string
@@ -20,6 +23,10 @@ interface Chore {
   due_date: string
   status: string
   points?: number
+  /** Picture routines (#272). */
+  icon?: string | null
+  routine?: string | null
+  routine_order?: number | null
 }
 
 interface Event {
@@ -95,9 +102,19 @@ export default function KidHome({
   const xpNextLevel = xpForLevel(userLevel)
   const xpProgress = Math.min(userXp / xpNextLevel, 1)
 
-  // Today's chores (pending + in_progress) — up to 3
+  // Picture routines (#272): the child's chores due today that belong to a
+  // routine, grouped and in step order. Done steps stay (shown ticked).
+  // Routine steps on other days (a daily routine's later occurrences, or
+  // yesterday's) are not shown: a routine is about today.
+  const inRoutine = (c: Chore) => normalizeRoutineName(c.routine) !== null
+  const routineChores = (chores ?? []).filter((c) => inRoutine(c) && isDueToday(c.due_date))
+  const { routines } = groupByRoutine(routineChores)
+
+  // Today's chores (pending + in_progress) — up to 3. Routine steps show above
+  // as picture cards, so they are never repeated here; a child with no routine
+  // chores sees exactly the list they always did.
   const todayChores = (chores ?? []).filter(
-    (c) => c.status === 'pending' || c.status === 'in_progress'
+    (c) => (c.status === 'pending' || c.status === 'in_progress') && !inRoutine(c)
   ).slice(0, 3)
 
   // Today's events — up to 2
@@ -182,6 +199,18 @@ export default function KidHome({
       />
 
       <div className="space-y-6 px-4">
+
+        {/* Picture routines (#272): first, because they say what to do next. */}
+        {routines.length > 0 && (
+          <KidRoutines
+            routines={routines}
+            tickedIds={completedChores}
+            onComplete={(id) => {
+              const chore = routineChores.find((c) => c.id === id)
+              if (chore) handleChoreToggle(id, chore.status === 'completed' || chore.status === 'verified')
+            }}
+          />
+        )}
 
         {/* Stars card — XP + level progress (only with Points & streaks on) */}
         {gamification && (
@@ -280,8 +309,8 @@ export default function KidHome({
           </section>
         )}
 
-        {/* No chores state */}
-        {todayChores.length === 0 && (
+        {/* No chores state (a routine shows its own progress instead) */}
+        {todayChores.length === 0 && routines.length === 0 && (
           <div className="card-apple p-6 text-center">
             <div className="text-4xl mb-2">🎉</div>
             <p className="text-title-3 text-label-primary">All done for today!</p>

@@ -29,3 +29,52 @@ export async function setChoreDone(choreId: string, done: boolean): Promise<Chor
   }
   return { ok: false, message }
 }
+
+/** What POST /api/chores/verify reports about the chore after a check. */
+export interface CheckedChoreState {
+  id: string
+  status: 'pending' | 'in_progress' | 'completed' | 'verified' | 'overdue'
+  photo_verified: boolean
+  verified_at: string | null
+  verified_notes: string | null
+  completed_at: string | null
+}
+
+export type ChoreCheckResult =
+  | { ok: true; chore: CheckedChoreState | null }
+  | { ok: false; message: string; chore?: CheckedChoreState | null }
+
+/**
+ * A parent checks a chore a child marked done: `approve` verifies it,
+ * `reject` sends it back to the child with an optional reason. Both go through
+ * POST /api/chores/verify (PATCH /api/chores drops status fields).
+ */
+export async function checkChore(
+  choreId: string,
+  decision: 'approve' | 'reject',
+  notes?: string
+): Promise<ChoreCheckResult> {
+  let res: Response
+  try {
+    res = await fetch('/api/chores/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ choreId, decision, ...(notes ? { verificationNotes: notes } : {}) }),
+    })
+  } catch {
+    return { ok: false, message: OFFLINE_MESSAGE }
+  }
+  let body: { chore?: CheckedChoreState; error?: unknown } | null = null
+  try {
+    body = await res.json()
+  } catch {
+    // Non-JSON body: handled below.
+  }
+  if (res.ok) return { ok: true, chore: body?.chore ?? null }
+  const message =
+    body && typeof body.error === 'string' && res.status < 500
+      ? body.error
+      : 'Something went wrong on our side. Try again in a moment.'
+  // A conflict carries the chore's current state so the page can show it.
+  return { ok: false, message, chore: body?.chore ?? null }
+}

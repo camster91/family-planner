@@ -144,6 +144,11 @@ export async function PATCH(request: NextRequest) {
     if (updates.difficulty !== undefined) data.difficulty = updates.difficulty
     if (updates.frequency !== undefined) data.frequency = updates.frequency
     if (photo.value !== undefined) data.photo_url = photo.value
+    // Picture routines (#272): null clears. Like the title, the assignee may
+    // change them; they carry no XP or privilege.
+    if (updates.icon !== undefined) data.icon = updates.icon
+    if (updates.routine !== undefined) data.routine = updates.routine
+    if (updates.routine_order !== undefined) data.routine_order = updates.routine_order
 
     const updated = await prisma!.chore.update({
       where: { id: choreId },

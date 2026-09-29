@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
+import { RoutineIcon } from '@/components/chores/RoutineIcon'
 import { formatMinutes } from '@/lib/meal-slots'
 import type { ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
@@ -437,6 +438,13 @@ export function ChoresRegion({ people, choresHref }: { people: PersonChores[]; c
                     <ul className="mt-1 space-y-1">
                       {shown.map((c) => (
                         <li key={c.id} className={cn(itemTextClass, 'break-words')}>
+                          {/* Picture routines (#272): the chore's picture, when it has one. */}
+                          {c.icon && (
+                            <RoutineIcon
+                              icon={c.icon}
+                              className="mr-2 inline-block h-6 w-6 align-[-4px] text-label-secondary"
+                            />
+                          )}
                           {c.title}
                           {c.status === 'in_progress' && (
                             <span className={cn(metaTextClass, 'block')}>In progress</span>

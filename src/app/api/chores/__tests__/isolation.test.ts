@@ -97,6 +97,134 @@ describe("chores — two households", () => {
     expect(awardChoreXP).toHaveBeenCalledWith("child-a", "easy", 10, expect.anything());
   });
 
+  describe("verify: approve and reject (parent check)", () => {
+    it("approve moves a completed chore to verified and reports the server state", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const res = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "approve" } }));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.chore).toMatchObject({ id: "chore-a", status: "verified", photo_verified: true });
+      expect(db.find("chore", "chore-a")?.status).toBe("verified");
+      expect(awardChoreXP).toHaveBeenCalledTimes(1);
+    });
+
+    it("reject sends a completed chore back to pending with the reason and awards nothing", async () => {
+      const chore = db.find("chore", "chore-a")!;
+      chore.status = "completed";
+      chore.completed_at = new Date();
+      const res = await verify(
+        req({ as: "parentA", body: { choreId: "chore-a", decision: "reject", verificationNotes: "  Toys still on the floor " } })
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ success: true, rejected: true });
+      expect(body.chore).toMatchObject({
+        id: "chore-a",
+        status: "pending",
+        completed_at: null,
+        photo_verified: false,
+        verified_notes: "Toys still on the floor",
+      });
+      expect(db.find("chore", "chore-a")).toMatchObject({ status: "pending", completed_at: null });
+      expect(writesTo("activity")[0].args.data).toMatchObject({ type: "chore_rejected", family_id: "family-A" });
+      expect(awardChoreXP).not.toHaveBeenCalled();
+
+      // The child can tick it again.
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      expect(db.find("chore", "chore-a")?.status).toBe("completed");
+    });
+
+    it("reject of an open chore is a no-op success; of a verified chore is 409", async () => {
+      const open = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+      expect(open.status).toBe(200);
+      expect(await open.json()).toMatchObject({ alreadyOpen: true, chore: { status: "pending" } });
+
+      db.find("chore", "chore-a")!.status = "verified";
+      const done = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+      expect(done.status).toBe(409);
+      expect(await done.json()).toMatchObject({ code: "CHORE_ALREADY_VERIFIED" });
+      expect(db.find("chore", "chore-a")?.status).toBe("verified");
+      // The open-chore no-op matched no row; nothing else was written.
+      expect(writesTo("activity")).toHaveLength(0);
+      expect(db.writes.filter((w) => w.op !== "updateMany")).toHaveLength(0);
+    });
+
+    it("approve is 409 with the current state, not 'verified', when a reject lands first", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const original = fakePrisma.chore.findUnique;
+      let calls = 0;
+      const spy = jest.spyOn(fakePrisma.chore, "findUnique").mockImplementation(async (args: any) => {
+        const row = await original(args);
+        // Another parent's reject commits right after this request's read.
+        if (++calls === 1) db.find("chore", "chore-a")!.status = "pending";
+        return row;
+      });
+      try {
+        const res = await verify(req({ as: "parentA", body: { choreId: "chore-a" } }));
+        expect(res.status).toBe(409);
+        const body = await res.json();
+        expect(body).toMatchObject({ code: "CHORE_NOT_COMPLETED", chore: { status: "pending" } });
+        expect(body.alreadyVerified).toBeUndefined();
+        expect(awardChoreXP).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("approving an already verified chore stays an idempotent success", async () => {
+      db.find("chore", "chore-a")!.status = "verified";
+      const res = await verify(req({ as: "parentA", body: { choreId: "chore-a" } }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ alreadyVerified: true, chore: { status: "verified" } });
+    });
+
+    it("reject removes exactly the successor completion recorded", async () => {
+      const chore = db.find("chore", "chore-a")!;
+      chore.frequency = "daily";
+      chore.recurrence_id = null;
+      const before = new Set(db.rows("chore").map((r: any) => r.id));
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      const successorId = db.rows("chore").find((r: any) => !before.has(r.id))!.id;
+      const res = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+      expect(res.status).toBe(200);
+      expect(db.find("chore", successorId)).toBeUndefined();
+      expect(db.find("chore", "chore-a")).toMatchObject({ status: "pending", successor_id: null });
+    });
+
+    it("reject is 409 when another parent verifies between the check and the update", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const original = fakePrisma.chore.findUnique;
+      let calls = 0;
+      const spy = jest.spyOn(fakePrisma.chore, "findUnique").mockImplementation(async (args: any) => {
+        const row = await original(args);
+        // The other parent's verify lands right after the route's own read.
+        if (++calls === 1) db.find("chore", "chore-a")!.status = "verified";
+        return row;
+      });
+      try {
+        const res = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+        expect(res.status).toBe(409);
+        expect(await res.json()).toMatchObject({ code: "CHORE_ALREADY_VERIFIED" });
+        expect(db.find("chore", "chore-a")?.status).toBe("verified");
+        expect(writesTo("activity")).toHaveLength(0);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("children, teens and other households cannot reject; an unknown decision is 400", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      db.find("chore", "chore-b")!.status = "completed";
+      expect((await verify(req({ as: "childA", body: { choreId: "chore-a", decision: "reject" } }))).status).toBe(403);
+      expect((await verify(req({ as: "teenA", body: { choreId: "chore-a", decision: "reject" } }))).status).toBe(403);
+      await expectDenied(await verify(req({ as: "parentA", body: { choreId: "chore-b", decision: "reject" } })));
+      expect((await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "maybe" } }))).status).toBe(400);
+      expect(db.find("chore", "chore-a")?.status).toBe("completed");
+      expect(db.find("chore", "chore-b")?.status).toBe("completed");
+      expect(db.writes).toHaveLength(0);
+    });
+  });
+
   describe("uncomplete (Undo for a tick, #268)", () => {
     it("the assignee reopens their own completed chore; repeating is a no-op", async () => {
       expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
@@ -192,6 +320,82 @@ describe("chores — two households", () => {
       } finally {
         spy.mockRestore();
       }
+    });
+  });
+
+  describe("picture routines (#272): icon, routine, routine_order", () => {
+    it("create stores the picture, the trimmed routine name and the step", async () => {
+      const res = await create(
+        req({ as: "parentA", body: { ...newChore, icon: "brush-teeth", routine: "  Morning  ", routine_order: 2 } })
+      );
+      expect(res.status).toBe(200);
+      expect(writesTo("chore")[0].args.data).toMatchObject({ icon: "brush-teeth", routine: "Morning", routine_order: 2 });
+      expect((await res.json()).chore).toMatchObject({ icon: "brush-teeth", routine: "Morning", routine_order: 2 });
+    });
+
+    it("create without them stores nulls (old clients unchanged)", async () => {
+      expect((await create(req({ as: "parentA", body: newChore }))).status).toBe(200);
+      expect(writesTo("chore")[0].args.data).toMatchObject({ icon: null, routine: null, routine_order: null });
+    });
+
+    it.each([
+      ["an unknown icon", { icon: "rocket-launch" }],
+      ["a routine over 40 characters", { routine: "x".repeat(41) }],
+      ["a step of 0", { routine: "Morning", routine_order: 0 }],
+      ["a fractional step", { routine: "Morning", routine_order: 1.5 }],
+    ])("create rejects %s with 400 and writes nothing", async (_label, extra) => {
+      const res = await create(req({ as: "parentA", body: { ...newChore, ...extra } }));
+      expect(res.status).toBe(400);
+      expect(writesTo("chore")).toHaveLength(0);
+    });
+
+    it("PATCH sets and clears them; an empty routine clears it", async () => {
+      const set = await chores.PATCH(
+        req({ as: "parentA", body: { choreId: "chore-a", icon: "shoes", routine: "After school", routine_order: 3 } })
+      );
+      expect(set.status).toBe(200);
+      expect(db.find("chore", "chore-a")).toMatchObject({ icon: "shoes", routine: "After school", routine_order: 3 });
+
+      const cleared = await chores.PATCH(
+        req({ as: "parentA", body: { choreId: "chore-a", icon: null, routine: "   ", routine_order: null } })
+      );
+      expect(cleared.status).toBe(200);
+      expect(db.find("chore", "chore-a")).toMatchObject({ icon: null, routine: null, routine_order: null });
+    });
+
+    it("PATCH of another household's chore is refused and changes nothing", async () => {
+      await expectDenied(
+        await chores.PATCH(req({ as: "parentA", body: { choreId: "chore-b", icon: "hug", routine: "Morning", routine_order: 1 } }))
+      );
+      expect(db.find("chore", "chore-b")?.icon).toBeUndefined();
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it("a sibling cannot set a routine on someone else's chore", async () => {
+      expect(
+        (await chores.PATCH(req({ as: "teenA", body: { choreId: "chore-a", routine: "Morning" } }))).status
+      ).toBe(403);
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it("GET returns the fields for the caller's household only", async () => {
+      Object.assign(db.find("chore", "chore-a")!, { icon: "hug", routine: "Bedtime", routine_order: 1 });
+      Object.assign(db.find("chore", "chore-b")!, { icon: "trash", routine: "Evening", routine_order: 4 });
+      const body = await expectNoForeignData(await chores.GET(req({ as: "childA" })));
+      expect(body.chores).toEqual([expect.objectContaining({ id: "chore-a", icon: "hug", routine: "Bedtime", routine_order: 1 })]);
+    });
+
+    it("completing a legacy recurring chore copies them to the next occurrence", async () => {
+      Object.assign(db.find("chore", "chore-a")!, {
+        frequency: "daily",
+        recurrence_id: null,
+        icon: "make-bed",
+        routine: "Morning",
+        routine_order: 1,
+      });
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      const successor = writesTo("chore").find((w) => w.op === "create");
+      expect(successor?.args.data).toMatchObject({ icon: "make-bed", routine: "Morning", routine_order: 1 });
     });
   });
 });

@@ -3,13 +3,15 @@
 import * as React from 'react'
 import { Plus, CheckSquare, Flame } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { RoutineIcon } from '@/components/chores/RoutineIcon'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { useToast, useUndoToast } from '@/components/ui/toast'
-import { setChoreDone } from '@/lib/chore-tick-client'
+import { checkChore, setChoreDone, type CheckedChoreState } from '@/lib/chore-tick-client'
 import { LongPressRow } from '@/components/ui/long-press-row'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
@@ -23,6 +25,12 @@ interface ChoresContentProps {
   familyMembers: { id: string; name: string; role: string; age?: number }[]
   currentUserId: string
   userRole: string
+}
+
+/** "Morning, step 2" for a chore in a picture routine (#272), else null. */
+function routineLabel(chore: { routine?: string | null; routine_order?: number | null }): string | null {
+  if (!chore.routine) return null
+  return chore.routine_order ? `${chore.routine}, step ${chore.routine_order}` : chore.routine
 }
 
 // Reassign modal
@@ -102,6 +110,7 @@ export default function ChoresContent({
   // omits each chore's points and streak; this only decides what to draw.
   const gamification = useFeatureEnabled('gamification')
   const [reassignTarget, setReassignTarget] = React.useState<string | null>(null)
+  const router = useRouter()
 
   React.useEffect(() => {
     setLocalChores(chores)
@@ -143,6 +152,59 @@ export default function ChoresContent({
       })
     }
   }, [addToast, showUndo, localChores])
+
+  // A parent checks a chore a child marked done. Status changes go
+  // through POST /api/chores/verify; PATCH /api/chores drops status fields, so
+  // the old PATCH here silently did nothing. Optimistic, then the server's
+  // state; a failure puts the row back and says why.
+  const handleCheckChore = React.useCallback(async (choreId: string, decision: 'approve' | 'reject') => {
+    const before = localChores.find(c => c.id === choreId)
+    if (!before) return
+    let notes: string | undefined
+    if (decision === 'reject') {
+      const answer = window.prompt('What needs another go? (they will see this)')
+      if (answer === null) return
+      notes = answer.trim() || undefined
+    }
+    const applyServer = (state: CheckedChoreState) =>
+      setLocalChores(prev => prev.map(c =>
+        c.id === choreId
+          ? {
+              ...c,
+              status: state.status,
+              photo_verified: state.photo_verified,
+              verified_at: state.verified_at ?? undefined,
+              verified_notes: state.verified_notes ?? undefined,
+              completed_at: state.completed_at ?? undefined,
+            }
+          : c
+      ))
+    setLocalChores(prev => prev.map(c =>
+      c.id === choreId
+        ? decision === 'approve'
+          ? { ...c, status: 'verified' as const }
+          : { ...c, status: 'pending' as const, completed_at: undefined, verified_notes: notes }
+        : c
+    ))
+    const result = await checkChore(choreId, decision, notes)
+    if (!result.ok) {
+      // Show what the server has now (a 409 carries it); otherwise put the row back.
+      if (result.chore) applyServer(result.chore)
+      else setLocalChores(prev => prev.map(c => (c.id === choreId ? before : c)))
+      addToast({
+        type: 'error',
+        title: decision === 'approve' ? "Couldn't verify" : "Couldn't send it back",
+        message: result.message,
+      })
+      return
+    }
+    if (result.chore) applyServer(result.chore)
+    addToast(
+      decision === 'approve'
+        ? { type: 'success', title: 'Chore verified', message: `“${before.title}” is checked.` }
+        : { type: 'success', title: 'Sent back', message: `“${before.title}” is open again.` }
+    )
+  }, [addToast, localChores])
 
   const handleSnoozeChore = React.useCallback(async (choreId: string, currentDueDate: string) => {
     // due_date is date-only (UTC midnight): snoozing moves it to the next day,
@@ -283,6 +345,10 @@ export default function ChoresContent({
                       onClick: () => handleSnoozeChore(chore.id, chore.due_date),
                     },
                     {
+                      label: 'Edit',
+                      onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
+                    },
+                    {
                       label: 'Reassign',
                       onClick: () => setReassignTarget(chore.id),
                     },
@@ -301,14 +367,18 @@ export default function ChoresContent({
                     checked={false}
                     onChange={() => handleCompleteChore(chore.id)}
                     title={chore.title}
-                    subtitle={
-                      chore.assignee
-                        ? `${chore.assignee.name} · ${formatRelativeDueDate(chore.due_date)}`
-                        : formatRelativeDueDate(chore.due_date)
-                    }
+                    subtitle={[
+                      chore.assignee?.name,
+                      formatRelativeDueDate(chore.due_date),
+                      routineLabel(chore),
+                    ].filter(Boolean).join(' · ')}
                     glyph={
                       <Glyph color="chore" size="sm">
-                        <CheckSquare className="w-4 h-4 text-white" />
+                        {chore.icon ? (
+                          <RoutineIcon icon={chore.icon} className="w-4 h-4 text-white" />
+                        ) : (
+                          <CheckSquare className="w-4 h-4 text-white" />
+                        )}
                       </Glyph>
                     }
                     meta={
@@ -372,9 +442,9 @@ export default function ChoresContent({
 
         {/* Parent-only: Pending photo verification queue */}
         {userRole === 'parent' && (() => {
-          const pendingVerification = localChores.filter(c =>
-            c.status === 'completed' && !c.photo_verified
-          )
+          // Every chore marked done and not yet checked (the same count the
+          // home's "N chores to check" link uses), photo or not.
+          const pendingVerification = localChores.filter(c => c.status === 'completed')
           if (pendingVerification.length === 0) return null
           return (
             <section>
@@ -401,61 +471,17 @@ export default function ChoresContent({
                     <div className="flex gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch('/api/chores', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                choreId: chore.id,
-                                photo_verified: true,
-                                verified_at: new Date().toISOString(),
-                                status: 'verified',
-                              }),
-                            })
-                            if (!res.ok) throw new Error('Verify failed')
-                            setLocalChores(prev => prev.map(c =>
-                              c.id === chore.id
-                                ? { ...c, photo_verified: true, verified_at: new Date().toISOString(), status: 'verified' as const }
-                                : c
-                            ))
-                            addToast({ type: 'success', title: 'Chore verified!' })
-                          } catch {
-                            addToast({ type: 'error', title: 'Failed to verify' })
-                          }
-                        }}
-                        className="btn-filled text-sm py-1.5 px-3"
+                        onClick={() => handleCheckChore(chore.id, 'approve')}
+                        aria-label={`Verify “${chore.title}”`}
+                        className="btn-filled text-sm py-1.5 px-3 min-h-[44px]"
                       >
                         Verify
                       </button>
                       <button
                         type="button"
-                        onClick={async () => {
-                          const notes = prompt('Rejection reason (sent to child):')
-                          if (notes === null) return
-                          try {
-                            const res = await fetch('/api/chores', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                choreId: chore.id,
-                                photo_verified: false,
-                                verified_notes: notes,
-                                status: 'in_progress',
-                              }),
-                            })
-                            if (!res.ok) throw new Error('Reject failed')
-                            setLocalChores(prev => prev.map(c =>
-                              c.id === chore.id
-                                ? { ...c, photo_verified: false, verified_notes: notes, status: 'in_progress' as const }
-                                : c
-                            ))
-                            addToast({ type: 'success', title: 'Chore sent back' })
-                          } catch {
-                            addToast({ type: 'error', title: 'Failed to reject' })
-                          }
-                        }}
-                        className="btn-destructive text-sm py-1.5 px-3"
+                        onClick={() => handleCheckChore(chore.id, 'reject')}
+                        aria-label={`Send back “${chore.title}”`}
+                        className="btn-destructive text-sm py-1.5 px-3 min-h-[44px]"
                       >
                         Reject
                       </button>

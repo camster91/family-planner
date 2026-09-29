@@ -30,6 +30,10 @@ type Row = {
   status: string
   recurrence_id: string | null
   is_template: boolean
+  // Picture routines (#272)
+  icon?: string | null
+  routine?: string | null
+  routine_order?: number | null
 }
 
 // --- minimal in-memory Chore table -----------------------------------------
@@ -281,5 +285,34 @@ describe('#184 recurring chores', () => {
       expect(g.frequency).toBe('once')
       expect(g.is_template).toBe(false)
     }
+  })
+
+  it('#272: every occurrence keeps the template picture, routine and step', async () => {
+    const t = addRow({
+      frequency: 'daily',
+      is_template: true,
+      due_date: day(1),
+      icon: 'brush-teeth',
+      routine: 'Morning',
+      routine_order: 2,
+    })
+    t.recurrence_id = t.id
+
+    await expandRecurringChores({ id: t.id, frequency: 'daily' }, FAM, NOW)
+
+    const generated = rows.filter((r) => r.recurrence_id === t.id && r.id !== t.id)
+    expect(generated.length).toBeGreaterThan(0)
+    for (const g of generated) {
+      expect(g).toMatchObject({ icon: 'brush-teeth', routine: 'Morning', routine_order: 2 })
+    }
+  })
+
+  it('#272: a template without a routine generates occurrences without one', async () => {
+    const t = addRow({ frequency: 'weekly', is_template: true, due_date: day(1), icon: null, routine: null, routine_order: null })
+    t.recurrence_id = t.id
+    await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
+    const generated = rows.filter((r) => r.recurrence_id === t.id && r.id !== t.id)
+    expect(generated.length).toBeGreaterThan(0)
+    for (const g of generated) expect(g).toMatchObject({ icon: null, routine: null, routine_order: null })
   })
 })
