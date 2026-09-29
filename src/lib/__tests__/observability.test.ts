@@ -4,7 +4,7 @@
 jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
 
 import { getRequestId, isValidRequestId, newRequestId, resolveRequestId } from '@/lib/request-id'
-import { apiError, apiErrorBody, describeError, logRouteError } from '@/lib/api-error'
+import { apiError, apiErrorBody, describeError, logRouteError, logRouteWarning } from '@/lib/api-error'
 import { getBuildInfo } from '@/lib/build-info'
 import { shouldLogTiming, timingLine, withRouteTelemetry } from '@/lib/route-telemetry'
 import { attachQueryTiming, queryShape, queryTimingConfig } from '@/lib/db-query-timing'
@@ -108,6 +108,20 @@ describe('error envelope', () => {
       expect(line).not.toContain('at ')
     } finally {
       spy.mockRestore()
+    }
+  })
+
+  it('logRouteWarning writes the same fields at warn level; no request id is omitted, not invented', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      logRouteWarning('idempotency.store', Object.assign(new Error('note for Riley'), { code: 'ECONNRESET' }), undefined)
+      expect(warn).toHaveBeenCalledTimes(1)
+      const line = String(warn.mock.calls[0][0])
+      expect(line).toContain('route.warn')
+      expect(JSON.parse(line.slice(line.indexOf('{')))).toEqual({ route: 'idempotency.store', errorName: 'Error', errorCode: 'ECONNRESET' })
+      expect(line).not.toContain('Riley')
+    } finally {
+      warn.mockRestore()
     }
   })
 })

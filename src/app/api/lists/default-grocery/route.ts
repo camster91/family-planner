@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { canCreateList } from '@/lib/role-capabilities'
 import { resolveDefaultGroceryList } from '@/lib/grocery-from-recipe'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,10 +33,7 @@ export async function POST(request: NextRequest) {
     const { created, ...list } = await resolveDefaultGroceryList(prisma!, auth.user.family_id, auth.user.id)
     return NextResponse.json({ list, created })
   } catch (error) {
-    console.error(
-      'Error resolving the default grocery list:',
-      error instanceof Error ? error.message : 'unknown error'
-    )
+    logRouteError('POST /api/lists/default-grocery', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

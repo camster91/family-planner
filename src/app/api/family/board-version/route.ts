@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest) {
     const board = await loadTodayBoard(prisma!, { familyId: auth.user.family_id, role: auth.user.role })
     return NextResponse.json({ version: board.version }, { headers: NO_STORE })
   } catch (error) {
-    console.error('Board version error:', error instanceof Error ? error.message : error)
+    logRouteError('GET /api/family/board-version', error, getRequestId(request))
     return NextResponse.json({ error: 'Could not check for changes' }, { status: 500, headers: NO_STORE })
   }
 }

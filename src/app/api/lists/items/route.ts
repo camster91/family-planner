@@ -10,6 +10,8 @@ import {
   sectionsFor,
 } from '@/lib/grocery-section-store'
 import { DEPRECATED_SINCE_289, markDeprecated } from '@/lib/deprecation'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,7 +72,7 @@ async function readListItems(request: NextRequest) {
       sectionSort: { enabled: list.sort_by_section !== false, order: order.order, learned: order.learned },
     })
   } catch (error) {
-    console.error('Error fetching list items:', error)
+    logRouteError('GET /api/lists/items', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

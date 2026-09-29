@@ -13,6 +13,8 @@ import {
 import { lockHouseholdForJoin, lockUser } from '@/lib/household-lock'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
     const joinRole = user?.role === 'teen' ? 'teen' : 'child'
     return finishJoin(payload.userId, family.id, family.name, joinRole)
   } catch (error) {
-    console.error('Error joining family:', error)
+    logRouteError('POST /api/family/join', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

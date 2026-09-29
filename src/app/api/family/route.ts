@@ -8,6 +8,8 @@ import { readIdempotencyKey } from '@/lib/idempotency'
 import { deleteHousehold } from '@/lib/account-deletion'
 import { checkFreshAuthorization, runDeletion } from '@/lib/account-deletion-http'
 import { lockUser } from '@/lib/household-lock'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
     return response
   } catch (error) {
-    console.error('Error creating family:', error)
+    logRouteError('POST /api/family', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -122,7 +124,7 @@ export async function GET(request: NextRequest) {
       role: auth.user.role,
     })
   } catch (error) {
-    console.error('Error fetching family:', error)
+    logRouteError('GET /api/family', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -162,7 +164,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ family })
   } catch (error) {
-    console.error('Error updating family:', error)
+    logRouteError('PATCH /api/family', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -244,7 +246,7 @@ export async function DELETE(request: NextRequest) {
       }
     )
   } catch (error) {
-    console.error('Error deleting family:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('DELETE /api/family', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '@/lib/api-auth'
 import { getDeletionOptions } from '@/lib/account-deletion'
 import { refusePairedDevice } from '@/lib/device-route'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(options, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
-    console.error('Error reading deletion options:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('GET /api/users/deletion', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

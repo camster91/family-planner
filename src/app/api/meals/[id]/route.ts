@@ -4,6 +4,8 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { parseDateOnly } from '@/lib/dates'
 import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +93,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ meal: updated })
   } catch (err) {
-    console.error('Error updating meal:', err)
+    logRouteError('PATCH /api/meals/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -128,7 +130,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Error deleting meal:', err)
+    logRouteError('DELETE /api/meals/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

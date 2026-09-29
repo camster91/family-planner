@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +63,7 @@ export async function GET(
     delete publicHandoff.share_expires_at
     return NextResponse.json({ handoff: publicHandoff })
   } catch (err) {
-    console.error('GET /api/handoff/share/[token] error:', err)
+    logRouteError('GET /api/handoff/share/[token]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

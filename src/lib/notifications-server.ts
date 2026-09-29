@@ -1,4 +1,5 @@
 import { deliverNotification, type NotificationInput } from '@/lib/notification-delivery'
+import { logRouteError } from '@/lib/api-error'
 
 interface ChoreInfo {
   id: string
@@ -22,7 +23,7 @@ export class NotificationServiceServer {
       const result = await deliverNotification(data)
       return result.delivered
     } catch (error) {
-      console.error('Error in notification service:', error instanceof Error ? error.message : 'unknown error')
+      logRouteError('notification-service.send', error, undefined)
       return false
     }
   }

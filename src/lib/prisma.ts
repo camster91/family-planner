@@ -27,7 +27,7 @@ function initializePrisma(): PrismaClient | undefined {
     attachQueryTiming(client, timing)
     return client as unknown as PrismaClient
   } catch (error) {
-    console.error('Failed to initialize Prisma client:', error)
+    console.error('Failed to initialize Prisma client:', error instanceof Error ? error.name : 'unknown error')
     return undefined
   }
 }

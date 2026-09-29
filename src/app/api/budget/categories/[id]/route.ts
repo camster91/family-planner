@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { updateCategorySchema, deleteCategorySchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,7 +109,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ category: updated })
   } catch (error) {
-    console.error('Error updating category:', error)
+    logRouteError('PATCH /api/budget/categories/[id]', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -172,7 +174,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       orphaned_transactions: transactionCount,
     })
   } catch (error) {
-    console.error('Error deleting category:', error)
+    logRouteError('DELETE /api/budget/categories/[id]', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

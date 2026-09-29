@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       events: createdEvents,
     })
   } catch (error) {
-    console.error('Error sending tasks to calendar:', error)
+    logRouteError('POST /api/projects/[id]/send-to-calendar', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

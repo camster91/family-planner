@@ -6,6 +6,8 @@ import { refusePairedDevice } from '@/lib/device-route'
 import { canChangeListSectionSort } from '@/lib/role-capabilities'
 import { setListSectionSort } from '@/lib/grocery-section-store'
 import { readSectionJson, sectionError, sectionJson, sectionSortSchema } from '@/lib/grocery-section-http'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +48,7 @@ export async function PATCH(request: NextRequest) {
     if (!result.ok) return sectionError(result.status, result.code, result.message)
     return sectionJson({ listId: result.listId, sortBySection: result.sortBySection })
   } catch (err) {
-    console.error('Error changing list section sort:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('PATCH /api/lists/section-sort', err, getRequestId(request))
     return sectionError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

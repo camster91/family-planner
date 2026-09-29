@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { deleteHouseholdListItem } from '@/lib/list-item-delete'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +44,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting list item:', error)
+    logRouteError('DELETE /api/lists/items/[id]', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -5,6 +5,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { updateListItemSchema } from '@/lib/validations'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { updateListItemAndNoteTick } from '@/lib/list-item-update'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +63,7 @@ export async function PATCH(request: NextRequest) {
       () => updateListItemAndNoteTick(prisma!, parsed.data, auth.user)
     )
   } catch (error) {
-    console.error('Error updating list item:', error)
+    logRouteError('PATCH /api/lists/items/update', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

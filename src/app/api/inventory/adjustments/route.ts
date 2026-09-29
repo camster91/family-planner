@@ -4,6 +4,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { ADJUSTMENT_SELECT, isUndoable, toAdjustmentDto } from '@/lib/inventory-adjust'
 import { inventoryError, inventoryJson } from '@/lib/inventory-http'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
     }))
     return inventoryJson({ adjustments, nextOffset: hasMore ? offset + limit : null })
   } catch (err) {
-    console.error('Error fetching inventory history:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('GET /api/inventory/adjustments', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

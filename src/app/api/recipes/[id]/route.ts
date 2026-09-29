@@ -10,6 +10,8 @@ import {
   resolveIngredientLines,
   updateRecipeSchema,
 } from '@/lib/recipes'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest, context: Context) {
     if (!recipe) return notFound()
     return NextResponse.json({ recipe })
   } catch (err) {
-    console.error('Error fetching recipe:', err)
+    logRouteError('GET /api/recipes/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -105,7 +107,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     if (isUniqueViolation(err)) {
       return NextResponse.json({ error: 'The recipe changed at the same time. Please try again.' }, { status: 409 })
     }
-    console.error('Error updating recipe:', err)
+    logRouteError('PATCH /api/recipes/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -151,7 +153,7 @@ export async function DELETE(request: NextRequest, context: Context) {
     }
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Error deleting recipe:', err)
+    logRouteError('DELETE /api/recipes/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -4,6 +4,8 @@ import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib
 import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/validations'
 import { attachEventSources, EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-import/source'
 import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
     // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
     return NextResponse.json({ events: await attachEventSources(prisma!, auth.user.family_id, events) })
   } catch (error) {
-    console.error('Error fetching events:', error)
+    logRouteError('GET /api/events', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -121,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ event })
   } catch (error) {
-    console.error('Error creating event:', error)
+    logRouteError('POST /api/events', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -197,7 +199,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ event: updated })
   } catch (error) {
-    console.error('Error updating event:', error)
+    logRouteError('PATCH /api/events', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -243,7 +245,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting event:', error)
+    logRouteError('DELETE /api/events', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

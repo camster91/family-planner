@@ -3,6 +3,8 @@ import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +48,7 @@ export async function POST(
 
     return NextResponse.json({ handoff })
   } catch (err) {
-    console.error('POST /api/handoff/[id]/regenerate-token error:', err)
+    logRouteError('POST /api/handoff/[id]/regenerate-token', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { normalizeInviteCode } from '@/lib/family-invite'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ family })
   } catch (error) {
-    console.error('Error looking up family:', error)
+    logRouteError('GET /api/family/lookup', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

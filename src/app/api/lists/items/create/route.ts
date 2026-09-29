@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { createListItemSchema } from '@/lib/validations'
 import { createListItem } from '@/lib/list-item-create'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ success: true, item: result.item })
   } catch (error) {
-    console.error('Error creating list item:', error)
+    logRouteError('POST /api/lists/items/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

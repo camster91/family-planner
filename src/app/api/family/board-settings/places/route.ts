@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { runPlaceSearch } from '@/lib/weather/place-search'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
       }
     )
   } catch (error) {
-    console.error('Place search error:', error instanceof Error ? error.message : error)
+    logRouteError('GET /api/family/board-settings/places', error, getRequestId(request))
     return NextResponse.json({ error: 'Place search failed' }, { status: 500 })
   }
 }

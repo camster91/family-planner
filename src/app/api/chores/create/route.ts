@@ -8,6 +8,8 @@ import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 import { recordChoreAssigned } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest) {
           newChore.creator
         )
       } catch (err) {
-        console.error('Error sending chore assignment notification:', err)
+        logRouteError('POST /api/chores/create (assignment notification)', err, getRequestId(request))
       }
     }
 
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
           auth.user.family_id
         )
       } catch (err) {
-        console.error('Error expanding recurring chores:', err)
+        logRouteError('POST /api/chores/create (recurring expansion)', err, getRequestId(request))
       }
     }
 
@@ -121,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ chore: newChore })
   } catch (error) {
-    console.error('Error creating chore:', error)
+    logRouteError('POST /api/chores/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

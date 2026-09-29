@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { createProjectSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ projects: result })
   } catch (error) {
-    console.error('Error fetching projects:', error)
+    logRouteError('GET /api/projects', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -109,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ project }, { status: 201 })
   } catch (error) {
-    console.error('Error creating project:', error)
+    logRouteError('POST /api/projects', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -4,6 +4,8 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { completeChoreSchema } from '@/lib/validations'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { COMPLETABLE_CHORE_SELECT, completeChore } from '@/lib/chore-complete'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
       choreId,
     })
   } catch (error) {
-    console.error('Error completing chore:', error)
+    logRouteError('POST /api/chores/complete', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

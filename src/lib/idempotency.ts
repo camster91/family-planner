@@ -32,6 +32,7 @@
  */
 import crypto from 'crypto'
 import { NextResponse } from 'next/server'
+import { logRouteError } from '@/lib/api-error'
 import type { PrismaClient } from '@prisma/client'
 import { IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
 
@@ -145,7 +146,7 @@ async function maybePrune(db: IdempotencyDb, now: Date): Promise<void> {
     await db.idempotencyRecord.deleteMany({ where: { expires_at: { lt: now } } })
   } catch (error) {
     // Pruning is housekeeping; it must never fail the request.
-    console.error('Idempotency prune failed:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('idempotency.prune', error, undefined)
   }
 }
 
@@ -255,7 +256,7 @@ export async function withIdempotency(
     } catch (error) {
       // The effect is committed; answer with it. A retry sees the in-progress
       // row (409) until the lock timeout, then re-runs the convergent effect.
-      console.error('Idempotency store failed:', error instanceof Error ? error.message : 'unknown error')
+      logRouteError('idempotency.store', error, undefined)
     }
   } else {
     await release(db, recordId)
@@ -268,6 +269,6 @@ async function release(db: IdempotencyDb, recordId: string): Promise<void> {
     await db.idempotencyRecord.deleteMany({ where: { id: recordId, response_status: null } })
   } catch (error) {
     // The row then expires via the lock timeout; the client retries.
-    console.error('Idempotency release failed:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('idempotency.release', error, undefined)
   }
 }

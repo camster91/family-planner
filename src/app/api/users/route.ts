@@ -9,6 +9,8 @@ import { readIdempotencyKey } from '@/lib/idempotency'
 import { deleteMemberAccount } from '@/lib/account-deletion'
 import { checkFreshAuthorization, deletionError, runDeletion } from '@/lib/account-deletion-http'
 import { ACCOUNT_DELETE_PHRASE } from '@/lib/account-deletion-shared'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ user })
   } catch (error) {
-    console.error('Error fetching user:', error)
+    logRouteError('GET /api/users', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -78,7 +80,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ user })
   } catch (error) {
-    console.error('Error updating user:', error)
+    logRouteError('PATCH /api/users', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -137,7 +139,7 @@ export async function DELETE(request: NextRequest) {
       }
     )
   } catch (error) {
-    console.error('Error deleting user:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('DELETE /api/users', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

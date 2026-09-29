@@ -4,6 +4,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { COOK_DEFAULT_LIMIT, COOK_MAX_LIMIT, getCookSuggestions } from '@/lib/inventory'
 import { inventoryError, inventoryJson, todayFrom } from '@/lib/inventory-http'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
     const result = await getCookSuggestions(prisma!, auth.user.family_id, { today, limit })
     return inventoryJson(result)
   } catch (err) {
-    console.error('Error ranking recipes:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('GET /api/inventory/cook', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

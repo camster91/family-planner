@@ -5,6 +5,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { ADD_FROM_RECIPE_ACTION, addFromRecipeSchema, addRecipeToGroceries } from '@/lib/grocery-from-recipe'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
       ({ recordId }) => addRecipeToGroceries(prisma!, parsed.data, actor, recordId!)
     )
   } catch (error) {
-    console.error('Error adding recipe ingredients:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('POST /api/lists/items/from-recipe', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { encryptSecret, decryptSecret, maskSecret } from '@/lib/secret-box'
 import { checkProviderUrlShape } from '@/lib/outbound-url'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
       model: updated.capture_ai_model ?? '',
     })
   } catch (error) {
-    console.error('AI settings error:', error)
+    logRouteError('POST /api/family/ai-settings', error, getRequestId(request))
     return NextResponse.json({ error: 'Could not save those settings' }, { status: 500 })
   }
 }

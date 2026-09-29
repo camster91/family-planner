@@ -7,6 +7,8 @@ import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { INVENTORY_UNDO_ACTION, canWriteInventory, toInventoryDto } from '@/lib/inventory'
 import { toAdjustmentDto, undoInventoryAdjustment } from '@/lib/inventory-adjust'
 import { effectError, inventoryError, todayFrom, writeForbidden } from '@/lib/inventory-http'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest, context: Context) {
     res.headers.set('Cache-Control', 'private, no-store')
     return res
   } catch (err) {
-    console.error('Error undoing inventory change:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('POST /api/inventory/adjustments/[id]/undo', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

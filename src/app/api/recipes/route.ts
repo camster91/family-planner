@@ -10,6 +10,8 @@ import {
   createRecipeSchema,
   resolveIngredientLines,
 } from '@/lib/recipes'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
     const recipes = hasMore ? rows.slice(0, limit) : rows
     return NextResponse.json({ recipes, nextOffset: hasMore ? offset + limit : null })
   } catch (err) {
-    console.error('Error fetching recipes:', err)
+    logRouteError('GET /api/recipes', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
     if (isUniqueViolation(err)) {
       return NextResponse.json({ error: 'The recipe changed at the same time. Please try again.' }, { status: 409 })
     }
-    console.error('Error creating recipe:', err)
+    logRouteError('POST /api/recipes', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

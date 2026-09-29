@@ -3,6 +3,8 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
 import { isKidRole } from '@/lib/kid-access'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -121,7 +123,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     })
     return NextResponse.json({ sickDay: updated })
   } catch (error) {
-    console.error('Error updating sick day:', error)
+    logRouteError('PATCH /api/sick-days/[id]', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

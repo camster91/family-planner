@@ -19,6 +19,7 @@
  */
 import type { PrismaClient } from '@prisma/client'
 import { recordSectionTick } from '@/lib/grocery-section-store'
+import { logRouteError } from '@/lib/api-error'
 
 export interface ListItemUpdate {
   itemId: string
@@ -145,7 +146,7 @@ export async function updateListItemAndNoteTick(
       try {
         await recordSectionTick(db, { familyId: user.family_id, itemId: data.itemId, at: checkedAt })
       } catch (err) {
-        console.error('Error recording grocery walking order:', err instanceof Error ? err.message : 'unknown error')
+        logRouteError('list-item-update.section-tick', err, undefined)
       }
     }
   }
