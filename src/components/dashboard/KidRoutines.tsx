@@ -39,6 +39,9 @@ function baseDone(status: string) {
  * checks it).
  */
 export default function KidRoutines({ routines, tickedIds, onComplete }: KidRoutinesProps) {
+  // Routine names are free text, so headings get ids from position, not name:
+  // "After school" and "After-school" (or two non-Latin names) stay distinct.
+  const idPrefix = React.useId()
   const stateOf = (step: RoutineStep): Exclude<StepState, 'next'> => {
     if (step.status === 'verified') return 'checked'
     if (baseDone(step.status) || tickedIds.has(step.id)) return 'waiting'
@@ -58,11 +61,11 @@ export default function KidRoutines({ routines, tickedIds, onComplete }: KidRout
 
   return (
     <div className="space-y-6" data-testid="kid-routines">
-      {routines.map((routine) => {
+      {routines.map((routine, routineIndex) => {
         const total = routine.steps.length
         const doneCount = routine.steps.filter((s) => stateOf(s) !== 'todo').length
         const allDone = doneCount === total
-        const headingId = `routine-${routine.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+        const headingId = `${idPrefix}-routine-${routineIndex}`
         return (
           <section key={routine.name} aria-labelledby={headingId} data-testid="kid-routine">
             <div className="flex items-baseline justify-between gap-3 mb-2 px-1">

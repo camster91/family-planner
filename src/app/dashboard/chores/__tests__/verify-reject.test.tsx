@@ -133,6 +133,23 @@ describe('ChoresContent parent check', () => {
     await waitFor(() => expect(within(queue()!).getByText('Feed the cat')).toBeTruthy())
   })
 
+  it('a verify that loses to another parent\'s send-back shows the chore as open, not verified', async () => {
+    replies.push({
+      status: 409,
+      body: {
+        error: 'This chore changed while you were checking it and is no longer waiting to be checked.',
+        code: 'CHORE_NOT_COMPLETED',
+        chore: { id: 'c1', status: 'pending', photo_verified: false, verified_at: null, verified_notes: 'Try again', completed_at: null },
+      },
+    })
+    renderPage()
+    await userEvent.click(within(queue()!).getByRole('button', { name: 'Verify “Feed the cat”' }))
+    await screen.findByText("Couldn't verify")
+    expect(screen.queryByText('Chore verified')).toBeNull()
+    await waitFor(() => expect(within(queue()!).queryByText('Feed the cat')).toBeNull())
+    expect(screen.getByRole('checkbox', { name: /Feed the cat/ })).toBeTruthy()
+  })
+
   it('a network failure on reject rolls back too', async () => {
     jest.spyOn(window, 'prompt').mockReturnValue('')
     replies.push('network')

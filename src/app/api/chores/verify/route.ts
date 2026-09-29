@@ -125,7 +125,22 @@ export async function POST(request: NextRequest) {
     })
 
     if (!outcome.verified) {
-      return NextResponse.json({ success: true, alreadyVerified: true, chore: await choreState(choreId) })
+      // The conditional update lost: re-read before answering. Already
+      // verified (a repeat, or another parent approved) is an idempotent
+      // success; anything else (another parent sent it back, or the child
+      // undid the tick) is a conflict, never a false "verified".
+      const current = await choreState(choreId)
+      if (current?.status === 'verified') {
+        return NextResponse.json({ success: true, alreadyVerified: true, chore: current })
+      }
+      return NextResponse.json(
+        {
+          error: 'This chore changed while you were checking it and is no longer waiting to be checked.',
+          code: 'CHORE_NOT_COMPLETED',
+          chore: current,
+        },
+        { status: 409 }
+      )
     }
 
     // Notifications are sent only after the transaction commits, so a rolled-back

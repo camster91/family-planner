@@ -64,6 +64,20 @@ const MORNING: C[] = [
 ]
 
 describe('KidHome picture routines', () => {
+  it('gives routines whose names differ only in punctuation or script their own headings', () => {
+    renderHome([
+      { id: 'a', title: 'Snack', icon: null, routine: 'After school', routine_order: 1 },
+      { id: 'b', title: 'Homework', icon: null, routine: 'After-school', routine_order: 1 },
+      { id: 'c', title: 'Teeth', icon: null, routine: 'ночь', routine_order: 1 },
+      { id: 'd', title: 'Bath', icon: null, routine: '夜', routine_order: 1 },
+    ])
+    const ids = screen.getAllByTestId('kid-routine').map((section) => section.getAttribute('aria-labelledby'))
+    expect(new Set(ids).size).toBe(4)
+    for (const name of ['After school', 'After-school', 'ночь', '夜']) {
+      expect(within(routineByName(name)).getByRole('heading').textContent).toBe(name)
+    }
+  })
+
   it('shows today’s routine steps in order as picture cards with the first open step marked next', () => {
     renderHome([
       ...MORNING,

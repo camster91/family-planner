@@ -149,6 +149,35 @@ describe("chores — two households", () => {
       expect(db.writes.filter((w) => w.op !== "updateMany")).toHaveLength(0);
     });
 
+    it("approve is 409 with the current state, not 'verified', when a reject lands first", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const original = fakePrisma.chore.findUnique;
+      let calls = 0;
+      const spy = jest.spyOn(fakePrisma.chore, "findUnique").mockImplementation(async (args: any) => {
+        const row = await original(args);
+        // Another parent's reject commits right after this request's read.
+        if (++calls === 1) db.find("chore", "chore-a")!.status = "pending";
+        return row;
+      });
+      try {
+        const res = await verify(req({ as: "parentA", body: { choreId: "chore-a" } }));
+        expect(res.status).toBe(409);
+        const body = await res.json();
+        expect(body).toMatchObject({ code: "CHORE_NOT_COMPLETED", chore: { status: "pending" } });
+        expect(body.alreadyVerified).toBeUndefined();
+        expect(awardChoreXP).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("approving an already verified chore stays an idempotent success", async () => {
+      db.find("chore", "chore-a")!.status = "verified";
+      const res = await verify(req({ as: "parentA", body: { choreId: "chore-a" } }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ alreadyVerified: true, chore: { status: "verified" } });
+    });
+
     it("reject removes exactly the successor completion recorded", async () => {
       const chore = db.find("chore", "chore-a")!;
       chore.frequency = "daily";

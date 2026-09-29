@@ -42,7 +42,7 @@ export interface CheckedChoreState {
 
 export type ChoreCheckResult =
   | { ok: true; chore: CheckedChoreState | null }
-  | { ok: false; message: string }
+  | { ok: false; message: string; chore?: CheckedChoreState | null }
 
 /**
  * A parent checks a chore a child marked done: `approve` verifies it,
@@ -75,5 +75,6 @@ export async function checkChore(
     body && typeof body.error === 'string' && res.status < 500
       ? body.error
       : 'Something went wrong on our side. Try again in a moment.'
-  return { ok: false, message }
+  // A conflict carries the chore's current state so the page can show it.
+  return { ok: false, message, chore: body?.chore ?? null }
 }

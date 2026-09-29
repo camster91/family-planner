@@ -188,7 +188,9 @@ export default function ChoresContent({
     ))
     const result = await checkChore(choreId, decision, notes)
     if (!result.ok) {
-      setLocalChores(prev => prev.map(c => (c.id === choreId ? before : c)))
+      // Show what the server has now (a 409 carries it); otherwise put the row back.
+      if (result.chore) applyServer(result.chore)
+      else setLocalChores(prev => prev.map(c => (c.id === choreId ? before : c)))
       addToast({
         type: 'error',
         title: decision === 'approve' ? "Couldn't verify" : "Couldn't send it back",
