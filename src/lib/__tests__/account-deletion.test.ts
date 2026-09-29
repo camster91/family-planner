@@ -78,6 +78,10 @@ function seedExtras() {
     ...both((f, family_id) => audit(`alog-${f}`, family_id, `parent-${f}`, 'feature.turned_on', 'wishlist', 'Turned on Wishlist')),
     audit('alog-a-join', FAMILY_A, 'child-a', 'member.joined', 'child-a', 'Child A joined as a child')
   )
+  // Beta usage counts (#287)
+  db.rows('betaMetricDaily').push(
+    ...both((f, family_id) => ({ family_id, day: t, metric: 'chore_completed', count: f === 'a' ? 3 : 5 }))
+  )
 }
 
 /** Rows of household A (directly or through a parent row / member). */

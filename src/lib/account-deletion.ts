@@ -584,6 +584,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'devicePairing', scope: { kind: 'family' }, why: 'pending pairing codes' },
   { model: 'deviceAuditEvent', scope: { kind: 'family' }, why: 'device audit history' },
   { model: 'auditLog', scope: { kind: 'family' }, why: 'household audit history (#285)' },
+  { model: 'betaMetricDaily', scope: { kind: 'family' }, why: 'beta usage counts (#287)' },
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
   // 2. Tokens and links that could still reach the household.

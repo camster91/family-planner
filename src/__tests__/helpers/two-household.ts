@@ -373,6 +373,7 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
   },
   // Household audit history (#285)
   auditLog: { family: { model: 'family', fk: 'family_id' }, actor: { model: 'user', fk: 'actor_user_id' } },
+  betaMetricDaily: { family: { model: 'family', fk: 'family_id' } },
 }
 
 // ---------------------------------------------------------------------------
@@ -384,6 +385,8 @@ export type Write = { model: string; op: string; args: any }
 const COLUMN_DEFAULTS: Record<string, Record<string, unknown>> = {
   // Inventory foundation (#158/#121)
   inventoryItem: { date_kind: 'best_before', status: 'active' },
+  // Beta usage counts (#287): per-household opt-in, default off.
+  family: { beta_metrics_enabled: false },
 }
 
 class FakeDb {

@@ -177,6 +177,8 @@ describeWithDatabase('account deletion against Postgres', () => {
         { id: id('auditlog-join'), family_id: f, actor_user_id: child, actor_kind: 'person', action: 'member.joined', target_type: 'member', target_id: child, summary: `Kid ${h} joined as a child` },
       ],
     })
+    // Beta usage counts (#287): counts only, deleted with the household.
+    await db.betaMetricDaily.create({ data: { family_id: f, day: t, metric: 'chore_completed', count: 2 } })
     await db.idempotencyRecord.create({
       data: { id: id('idem'), scope: `user:${parent}`, key: id('key-0000000000'), family_id: f, user_id: parent, action: 'x', request_hash: 'x', expires_at: later },
     })

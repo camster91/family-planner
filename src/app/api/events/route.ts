@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/validations'
 import { attachEventSources, EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-import/source'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
 
       return created
     })
+
+    // Beta usage counts (#287): after the commit; never fails the request.
+    await recordBetaMetric(prisma!, auth.user.family_id, 'event_created')
 
     return NextResponse.json({ event })
   } catch (error) {

@@ -154,6 +154,10 @@ model Family {
   // default off: while false a paired tablet stays read-only. A parent turns it
   // on in the board settings (person session or elevated on the tablet).
   device_writes_enabled Boolean @default(false)
+  // Beta usage counts (#287, D-6). Per-household opt-in, default off: while
+  // false nothing is counted. A parent turns it on or off in Settings ->
+  // Privacy; turning it off also deletes the household's BetaMetricDaily rows.
+  beta_metrics_enabled Boolean @default(false)
   created_at         DateTime  @default(now())
 
   // Relations
@@ -217,6 +221,8 @@ model Family {
   grocery_shopping_sessions   GroceryShoppingSession[]
   // Household audit history (#285)
   audit_logs                  AuditLog[]
+  // Beta usage counts (#287)
+  beta_metrics                BetaMetricDaily[]
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -1652,4 +1658,24 @@ model AuditLog {
   actor  User?  @relation("AuditLogActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
 
   @@index([family_id, created_at(sort: Desc)])
+}
+
+/// Beta usage counts (#287, PR101 D-6; docs/PRODUCT_PROGRAM.md "How the beta
+/// criteria are measured"). One row per household, UTC day and metric name:
+/// a count and nothing else. `metric` is one of the fixed names in
+/// `src/lib/beta-metrics.ts` (BETA_METRICS); there is no user id, no text and
+/// no content. Written only through `recordBetaMetric` (an atomic upsert
+/// increment), and only while `Family.beta_metrics_enabled` is on. Kept 13
+/// months (older rows are pruned when the household records a new day), deleted
+/// when a parent turns the counts off, and deleted with the household.
+model BetaMetricDaily {
+  family_id String
+  day       DateTime @db.Date
+  metric    String
+  count     Int      @default(0)
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@id([family_id, day, metric])
+  @@index([day])
 }

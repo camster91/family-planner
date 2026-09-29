@@ -51,6 +51,9 @@ ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "ambient_photo_ids" TEXT[] NOT NUL
 -- Shared-device writes (#274; per-household opt-in, default off: SHARED_DEVICE.md §9.2)
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "device_writes_enabled" BOOLEAN NOT NULL DEFAULT false;
 
+-- Beta usage counts (#287, D-6; per-household opt-in, default off)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "beta_metrics_enabled" BOOLEAN NOT NULL DEFAULT false;
+
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
   "id" TEXT PRIMARY KEY,
@@ -1096,6 +1099,23 @@ DO $$ BEGIN
   ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS "AuditLog_family_id_created_at_idx" ON "AuditLog"("family_id", "created_at" DESC);
+
+-- ============ Beta usage counts (#287, PR101 D-6; additive) ============
+-- New table only, no backfill. One count per household, UTC day and fixed
+-- metric name (src/lib/beta-metrics.ts); no user ids, text or content.
+-- Deleted with the household (ON DELETE CASCADE) and when a parent turns the
+-- counts off. Kept 13 months, pruned by the recorder (no scheduled job).
+CREATE TABLE IF NOT EXISTS "BetaMetricDaily" (
+  "family_id" TEXT NOT NULL,
+  "day" DATE NOT NULL,
+  "metric" TEXT NOT NULL,
+  "count" INTEGER NOT NULL DEFAULT 0,
+  CONSTRAINT "BetaMetricDaily_pkey" PRIMARY KEY ("family_id", "day", "metric")
+);
+DO $$ BEGIN
+  ALTER TABLE "BetaMetricDaily" ADD CONSTRAINT "BetaMetricDaily_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "BetaMetricDaily_day_idx" ON "BetaMetricDaily"("day");
 `
 
 async function migrate() {

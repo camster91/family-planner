@@ -29,6 +29,8 @@ export const AUDIT_ACTIONS = [
   'device.removed',
   'invite.created',
   'invite.revoked',
+  'beta_metrics.turned_on',
+  'beta_metrics.turned_off',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -160,6 +162,9 @@ export const auditSummary = {
     `Removed the tablet “${auditName(label, 'Family tablet')}”${REMOVE_REASON[reason] ?? ''}`,
   inviteCreated: (role: string) => `Sent an invite to join as ${roleWord(role)}`,
   inviteRevoked: (role: string) => `Cancelled an invite to join as ${roleWord(role)}`,
+  /** Beta usage counts (#287). Off also deleted the stored counts. */
+  betaMetrics: (on: boolean) =>
+    on ? 'Turned on beta usage counts' : 'Turned off beta usage counts and deleted the stored counts',
 }
 
 // ---------------------------------------------------------------------------

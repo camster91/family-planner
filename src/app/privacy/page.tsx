@@ -85,12 +85,32 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Household change history</h2>
             <p>
               When someone changes household settings (turns a feature on or off, sends or cancels an
-              invite, joins the household or deletes their account, changes the Today board, or pairs, renames or removes a family
+              invite, joins the household or deletes their account, changes the Today board, turns beta usage counts on or off, or pairs, renames or removes a family
               tablet), we record a short line saying what changed, who did it and when. It holds names
               (of a feature, a member or a tablet) but never email addresses, codes, places or messages.
               Only parents can see it, under Settings, Recent changes. It is kept for 12 months and then
               deleted, and it is deleted with the household. It is part of a parent&apos;s data export;
               a teen&apos;s or child&apos;s export has only the lines about their own changes.
+            </p>
+          </section>
+
+          <section id="beta-usage-counts">
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Beta usage counts (optional)</h2>
+            <p>
+              While Family Planner is in a small beta, a parent can choose to share usage counts so we can check the
+              app is working for families. They are off unless a parent turns them on under Settings, Privacy &amp;
+              Security, &quot;Share beta usage counts&quot;. When they are on, we keep one number per day for your
+              household for each of these: events added, meals planned, chores assigned, chores completed, chores
+              checked by a parent, rewards claimed, members who joined, and whether the household&apos;s first chore
+              was assigned within 10 minutes of signing up. That is all: no names, no user accounts, no roles, no
+              chore, event, meal or reward titles, no messages or photos, and nothing about which member did what.
+            </p>
+            <p>
+              The counts are kept for 13 months: older days are never used, and are deleted the next time your
+              household&apos;s counts change. Turning the setting off deletes all
+              of your household&apos;s counts straight away, and they are deleted with the household. They are part
+              of every member&apos;s data export. They are never sold or shared with anyone, and they are separate
+              from any other analytics.
             </p>
           </section>
 

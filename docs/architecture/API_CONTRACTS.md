@@ -343,7 +343,7 @@ Additive: one new route and one new export key; no existing request or response 
 
 | Route | Contract | Errors |
 | --- | --- | --- |
-| `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`; clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
+| `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, `beta_metrics.turned_on`, `beta_metrics.turned_off` (#287); clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
 | `GET /api/users/export` (#285) | Adds `auditLog: [{ id, action, actor_kind, actor_user_id, target_type, target_id, summary, created_at }]`, last 12 months: every household row for a parent, only rows the caller acted in for a teen or child. | unchanged |
 
 ## Deprecated, duplicate and operator routes (#289, route inventory F-5/F-6)
@@ -365,6 +365,20 @@ review of installed Android clients (which builds still call the route, per requ
 
 Page: `/dashboard/lists/type/[type]` redirects to `/dashboard/lists?type=<type>` (an unknown type to
 `/dashboard/lists`); the web page is served by the server, so installed Android builds follow the redirect.
+
+## Beta usage counts (#287, PR101 D-6)
+Additive: one new route, one new `Family` column (`beta_metrics_enabled`, default false) and one new export key; no
+existing request or response changes. Existing routes gain a best-effort count after their write commits
+(`src/lib/beta-metrics.ts`); it never changes their status or body and never fails them. Roles:
+`docs/ROLE_AND_ISOLATION_MATRIX.md` "Beta usage counts"; measurement: `docs/PRODUCT_PROGRAM.md` "How the beta
+criteria are measured".
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `PATCH /api/family/beta-metrics` | Parent only; person session only. Body `{ "enabled": boolean }`, **strict** (any other key, e.g. a household id or a metric name, is 400). Sets the caller's own household's switch; `false` also deletes every stored count of that household in the same transaction. A real change adds a household audit line (`beta_metrics.turned_on` / `beta_metrics.turned_off`); repeating the current value adds none. `200 { "betaMetrics": { "enabled" } }`. `Cache-Control: private, no-store`. No `Idempotency-Key` needed: it sets an explicit value, so a retry converges. | 400 invalid JSON or body; 400 no household; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` for a paired tablet (before person auth); 404 household gone; 500 |
+| `GET /api/users/export` (#287) | `family` adds `beta_metrics_enabled`; adds `betaMetrics: [{ day, metric, count }]` (the household's counts, no `family_id`), for every role. | unchanged |
+
+The Settings page reads the switch on the server for parents; there is no GET route.
 
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.

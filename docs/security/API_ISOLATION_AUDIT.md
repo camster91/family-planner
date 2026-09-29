@@ -236,6 +236,23 @@ old delete add a `Deprecation` header only. The chores status routes are unchang
 `src/app/api/chores/__tests__/status-single-path.test.ts`, the route allowlist and the opt-in
 `src/lib/__tests__/list-item-delete.integration.test.ts`.
 
+**Update 2026-09-29 (#287, PR101 D-6): beta usage counts.** New household-scoped table `BetaMetricDaily`
+(`family_id` NOT NULL, `ON DELETE CASCADE`; columns `family_id`, `day`, `metric`, `count` only: no user id, text or
+content) and `PATCH /api/family/beta-metrics`. A paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in
+the route-allowlist test's refused routes) before person auth; then `authenticateWithFamily` and `requireParent`
+(teen/child 403); the body is strict (`enabled` only, so no household id can be named) and the update and the
+delete are `where` the session `family_id`, under a `Family` row lock. Writes to the table: only
+`src/lib/beta-metrics.ts` (source-scan test), with the household id each calling route already authorised, after
+its own write committed: `POST /api/chores/create`, `completeChore` (`POST /api/chores/complete` and the tablet's
+`POST /api/device/chores/[id]/complete`), `POST /api/chores/verify` (approve), `POST /api/rewards/claim`,
+`POST /api/events`, `POST /api/meals`, `POST /api/family/join` and the invite branch of `POST /api/auth/register`.
+The recorder's statement is a no-op unless that household opted in. The account export adds the household's counts
+(no `family_id`). `npm run beta:scorecard` reads every household's counts but numbers households inside the
+database, so no id or name leaves it. Tests: `src/app/api/family/__tests__/beta-metrics.test.ts` (two households,
+roles, device, strict body, off deletes only the caller's household), `src/lib/__tests__/beta-metrics.test.ts`,
+`beta-scorecard.test.ts`, the opt-in `beta-metrics.integration.test.ts` (concurrent increments, opt-out race,
+cascade) and `users/export/__tests__/canonical.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -352,6 +369,7 @@ recorded in route comments, as the de facto matrix.
 | /api/family | DELETE | family (person only; device 403 before auth) | familyId must equal session family (403); deletes only that household's rows and its members (explicit plan, `src/lib/account-deletion.ts`) | P, only parent (409 `OTHER_PARENTS_EXIST`); current password + household name (D-3) | familyId verified | family/iso, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion.test.ts, lib/__tests__/account-deletion.integration.test.ts | ok (D-3: re-auth, only-parent rule, explicit sequence) |
 | /api/family/ai-settings | GET | family | own family | P | none | family/iso | ok |
 | /api/family/ai-settings | POST | family | own family | P | none | family/iso | ok |
+| /api/family/beta-metrics | PATCH | device refused (403) + family | update and count delete `where` session `family_id` under a `Family` row lock; strict body (`enabled` only) | P (teen/child 403) | none (no ids accepted) | family/__tests__/beta-metrics.test.ts, beta-metrics.integration, device-route-allowlist | implemented (#287) |
 | /api/family/board-settings | GET | family | where (own family; members `family_id`) | P | none | family/board-settings/__tests__/board-settings.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#262) |
 | /api/family/board-settings | PATCH | family | own family; `WeatherCache` delete where `family_id`; #274 `deviceWrites.enabled` sets the own household's opt-in | P | `memberColors` ids verified in the household (400, same answer for foreign and missing); updates `where id + family_id`; `display.photoIds` (#271) must each be a displayable `Upload` of the household (400 `Unknown photo`, same answer for foreign, missing and HEIC) | family/board-settings/__tests__/board-settings.test.ts, family/board-settings/__tests__/display.test.ts | implemented (#262, #271); #285 `board_settings.changed` row (section names) in the same transaction |
 | /api/family/board-version | GET | family (person session only) | the caller's own board, built from `family_id`-scoped reads with the caller's role; returns only `{ version }` (an opaque hash) | all (P, T, C) | none; rate limit `board-version:<userId>` 1200/h | family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#271) |

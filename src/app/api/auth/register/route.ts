@@ -9,6 +9,7 @@ import { getClientIp } from '@/lib/client-ip'
 import { registerSchema } from '@/lib/validations'
 import { lockHouseholdForJoin } from '@/lib/household-lock'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
@@ -120,6 +121,8 @@ export async function POST(request: NextRequest) {
       if (!user) {
         return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
       }
+      // Beta usage counts (#287): after the commit; never fails the request.
+      await recordBetaMetric(prisma!, familyId, 'member_joined')
     } else {
       try {
         createData.email_verified = false
