@@ -278,7 +278,7 @@ recorded in route comments, as the de facto matrix.
 | /api/family | POST | session | creates own family | n/a (rejects if already in a family) | none | family/iso | ok |
 | /api/family | GET | family | own family; invite_code parent-only | all | none | family/iso | ok |
 | /api/family | PATCH | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
-| /api/family | DELETE | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
+| /api/family | DELETE | family (person only; device 403 before auth) | familyId must equal session family (403); deletes only that household's rows and its members (explicit plan, `src/lib/account-deletion.ts`) | P, only parent (409 `OTHER_PARENTS_EXIST`); current password + household name (D-3) | familyId verified | family/iso, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion.test.ts, lib/__tests__/account-deletion.integration.test.ts | ok (D-3: re-auth, only-parent rule, explicit sequence) |
 | /api/family/ai-settings | GET | family | own family | P | none | family/iso | ok |
 | /api/family/ai-settings | POST | family | own family | P | none | family/iso | ok |
 | /api/family/board-settings | GET | family | where (own family; members `family_id`) | P | none | family/board-settings/__tests__/board-settings.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#262) |
@@ -394,7 +394,8 @@ recorded in route comments, as the de facto matrix.
 | /api/upload | POST | family | records an `Upload` row (caller's family, uploader); filename namespaced per family | all | none | src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/users | GET | session | self | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | PATCH | session | self (id/family_id/role not writable) | all | none | users/__tests__/route.test.ts | ok |
-| /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
+| /api/users | DELETE | session (person only; device 403 before auth) | self; last-parent guard (409 `LAST_PARENT`); hand-over to a parent of the same household only | all; current password + `DELETE` (D-3) | none | users/__tests__/route.test.ts, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion*.test.ts | ok (D-3) |
+| /api/users/deletion | GET | session | self + own household (name, counts) | all | none | users/__tests__/deletion.test.ts | ok (D-3) |
 | /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) and `inventoryAdjustments` (InventoryAdjustment, #158) scoped by membership (#263); `grocerySectionPreferences` and `groceryShoppingSessions` scoped by membership (#273) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
