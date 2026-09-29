@@ -116,6 +116,9 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'DELETE /api/users': [403],
   'DELETE /api/family': [403],
   'GET /api/users/deletion': [403],
+  // Notification preferences (#286): a person's own switches, never the tablet's.
+  'GET /api/users/preferences': [403],
+  'PATCH /api/users/preferences': [403],
 }
 
 function routeFiles(dir: string): string[] {

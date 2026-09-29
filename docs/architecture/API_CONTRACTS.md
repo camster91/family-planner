@@ -51,7 +51,9 @@ lost-response case replays), the other inventory writes (#158/#121: `PATCH`/`DEL
 stamp the record id on their `InventoryAdjustment.request_id` (unique), so even the crash case converges on the row
 already written; undo of an undone change returns it; PATCH sets explicit values; DELETE completes its idempotency record in the same transaction as the delete, so a lost response or a failed
 response store replays the 200 and a takeover only happens when nothing was deleted) and `POST /api/calendar/import-suggestions/commit` (#270, key required, one per batch;
-the crash case converges: the takeover finds the batch's activity row by its record id and returns the same events).
+the crash case converges: the takeover finds the batch's activity row by its record id and returns the same events),
+and `PATCH /api/users/preferences` (#286; sets explicit values, so a re-run converges; a member without a household
+has no record scope, so their key is ignored and the same update runs again).
 Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
@@ -293,6 +295,47 @@ Retries: the in-progress idempotency record makes a concurrent duplicate 409. Th
 records (and, for a household, all of them) with everything else, so a retry after success is answered by
 authentication with 401: the account no longer exists. The Settings dialog retries once with the same key after a
 network error and treats that 401 as "already deleted".
+
+## Notification preferences (#286, PR101 D-5)
+
+Each member switches three categories of notifications on or off for themselves. Stored on `User` as
+`notify_chores`, `notify_events` and `notify_messages` (Boolean, `NOT NULL DEFAULT true`), added by
+`scripts/migrate.js` with `ADD COLUMN IF NOT EXISTS`. Additive: a row from before #286 reads as all on, which is
+today's behaviour, and an old client that never calls the routes keeps receiving everything.
+
+| Route | Change | Old clients |
+| --- | --- | --- |
+| `GET /api/users/preferences` | New. `{ "preferences": { "chores", "events", "messages" } }` (booleans) for the caller only. Any role. | n/a |
+| `PATCH /api/users/preferences` | New. Body `{ chores?, events?, messages? }`, booleans, at least one. **Strict**: any other key (including `userId`) is `400 VALIDATION_ERROR`; there is no way to name another member. Returns the full `preferences` after the change. Optional `Idempotency-Key` (see Idempotency). | n/a |
+| `POST /api/notifications` | `type` must be a type from the policy table (`chore`, `reward`, `event`, `message`, `system`); anything else is `400`. The recipient's preferences apply: a muted category creates nothing and answers `{ success: true, delivered: false, notification: null }`. The success body adds `delivered`. | The app's own caller (`src/lib/notifications.ts`) only sends table types. |
+| `GET /api/users/export` | Adds `notificationPreferences` (same shape as the GET) and the three `notify_*` columns on `user`. | unchanged |
+
+Both preference routes: a paired shared device is refused with `403 DEVICE_WRITE_NOT_ALLOWED` before person auth,
+then the person session is required (401). Errors use `{ "error": { "code", "message" } }`; every response is
+`Cache-Control: private, no-store`.
+
+**Categories and the policy table** (`src/lib/notification-policy.ts`). Every notification type is mapped
+explicitly:
+
+| Type | Category (switch) |
+| --- | --- |
+| `chore` (assigned, sent back) | `chores` |
+| `reward` (chore checked, reward added/claimed/approved, level-up) | `chores` |
+| `event` | `events` |
+| `message` | `messages` |
+| `system` (a parent's notice through `POST /api/notifications`) | **always sent** |
+| Account email: `password_reset`, `email_verification`, `family_invite` | **always sent** |
+
+Always-sent types ignore every switch. They are account and safety messages: muting them could lock a person out of
+their account or household, and a parent must be able to reach every member. The level-up notification used to be
+`system`; it is `reward` now, so "Chores and rewards" mutes it.
+
+**Enforcement.** One server helper, `src/lib/notification-delivery.ts`, creates every `Notification` row
+(`deliverNotification`, which reads the recipient's own switch for the type's category) and sends every account
+email (`sendAccountMail`). `src/lib/notifications-server.ts` (used by the chore and reward routes) and
+`POST /api/notifications` go through it. `src/lib/__tests__/notification-policy.test.ts` fails if any other file
+creates a `Notification` row or calls `sendMail`, or if a source file sends a type that is not in the table. There
+is no push channel today; a future one must go through the same helper.
 
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.

@@ -89,6 +89,11 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "token_version" INTEGER NOT NULL DEFAULT 0;
 -- Today board member colour (#262; palette key, NULL = fallback)
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "board_color" TEXT;
+-- Per-member notification preferences (#286, PR101 D-5). Additive, DEFAULT true:
+-- existing rows read as "everything on", which is today's behaviour.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_chores" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_events" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_messages" BOOLEAN NOT NULL DEFAULT true;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (

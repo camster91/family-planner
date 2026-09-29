@@ -131,6 +131,17 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(raw).not.toContain('trip-b')
   })
 
+  it.each(['parentA', 'childA'] as const)("%s export includes their own notification preferences (#286), nobody else's", async (who) => {
+    const self = who === 'parentA' ? 'parent-a' : 'child-a'
+    const other = who === 'parentA' ? 'child-a' : 'parent-a'
+    db.find('user', self)!.notify_events = false
+    db.find('user', other)!.notify_chores = false
+    db.find('user', 'parent-b')!.notify_messages = false
+    const { body } = await exportAs(who)
+    expect(body.notificationPreferences).toEqual({ chores: true, events: false, messages: true })
+    expect(body.user).toMatchObject({ notify_chores: true, notify_events: false, notify_messages: true })
+  })
+
   it('import job listings stay parent-only; backfill archives are the only job data a child gets', async () => {
     const child = await exportAs('childA')
     expect(child.body.importJobs).toEqual([])

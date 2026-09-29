@@ -184,6 +184,21 @@ the core calendar. Tests: `src/app/api/calendar/subscriptions/__tests__/isolatio
 harness: 401 on every handler, teen/child 403s, cross-household 404 both ways, household-less 400, URL never
 echoed, SSRF-shaped URLs rejected).
 
+**Update 2026-09-29 (#286, PR101 D-5): notification preferences.** New `GET` and `PATCH /api/users/preferences`
+read and change three booleans on the caller's own `User` row (`notify_chores`, `notify_events`,
+`notify_messages`, default true). A paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in the
+route-allowlist test's refused routes) before person auth; then `authenticateWithUser`. Both handlers read and
+write `where: { id: session user }` only; the PATCH body is strict (`chores`/`events`/`messages` booleans), so a
+`userId` or any other key is a 400 and no member can read or change another member's switches, in or outside their
+household. Responses carry only the three booleans and `Cache-Control: private, no-store`. `Idempotency-Key` is
+scoped `user:<id>` and the caller's household. Enforcement: every `Notification` row is now created by
+`src/lib/notification-delivery.ts`, which reads only the recipient's own switch; `POST /api/notifications` keeps
+its same-household check (403) and now also rejects a type outside the policy table (400). Account email
+(password reset, email verification, invites) and `system` notices are always sent. Tests:
+`src/app/api/users/__tests__/preferences.test.ts` (two households, every role, strict body, device, idempotency),
+`src/lib/__tests__/notification-delivery.test.ts`, `notification-policy.test.ts` and the opt-in
+`preferences.integration.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -377,7 +392,7 @@ recorded in route comments, as the de facto matrix.
 | /api/notes/[id] | PATCH | family | match (403) | P; teen/child own (`created_by = self`) | none | notes/iso | implemented (D9) |
 | /api/notes/[id] | DELETE | family | match (403) | P | none | notes/iso | implemented (D9) |
 | /api/notifications | GET | session | own user | all | none | notifications/iso | ok |
-| /api/notifications | POST | family | target user must share caller's family (403) | P | userId verified | notifications/iso | ok |
+| /api/notifications | POST | family | target user must share caller's family (403); type must be in the policy table (400); recipient's preferences apply (#286) | P | userId verified | notifications/iso, lib/__tests__/notification-delivery.test.ts | ok |
 | /api/notifications | PATCH | session | own user (404) | all | none | notifications/iso | ok |
 | /api/notifications | DELETE | session | own user (404) | all | none | notifications/iso | ok |
 | /api/pickups | GET | jwt | where | all | none | pickups/iso | ok |
@@ -414,9 +429,11 @@ recorded in route comments, as the de facto matrix.
 | /api/users | PATCH | session | self (id/family_id/role not writable) | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | DELETE | session (person only; device 403 before auth) | self; last-parent guard (409 `LAST_PARENT`); hand-over to a parent of the same household only | all; current password + `DELETE` (D-3) | none | users/__tests__/route.test.ts, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion*.test.ts | ok (D-3) |
 | /api/users/deletion | GET | session; paired device refused (403) before person auth | self + own household (name, counts) | all | none | users/__tests__/deletion.test.ts | ok (D-3) |
+| /api/users/preferences | GET | device refused (403) + session | self only (`where id = session user`); only the three booleans out | all | none | users/__tests__/preferences.test.ts, preferences.integration, device-route-allowlist | implemented (#286) |
+| /api/users/preferences | PATCH | device refused (403) + session | self only; strict body (`userId` or any unknown key 400); optional Idempotency-Key scoped `user:<id>` | all | none | users/__tests__/preferences.test.ts, preferences.integration, device-route-allowlist | implemented (#286) |
 | /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
-| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) and `inventoryAdjustments` (InventoryAdjustment, #158) scoped by membership (#263); `grocerySectionPreferences` and `groceryShoppingSessions` scoped by membership (#273) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
+| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) and `inventoryAdjustments` (InventoryAdjustment, #158) scoped by membership (#263); `grocerySectionPreferences` and `groceryShoppingSessions` scoped by membership (#273); the caller's own `notificationPreferences` (#286) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
 | /api/wishlist | GET | family | where | all | none | wishlist/iso | ok |
 | /api/wishlist | POST | family | session family | all | none | wishlist/iso | ok |
 | /api/wishlist/[id] | PATCH | family | match (403) | requester or P | none | wishlist/iso | ok |

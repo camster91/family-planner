@@ -10,7 +10,8 @@ import {
   INVITE_TTL_MS,
   normalizeEmail,
 } from '@/lib/family-invite'
-import { familyInviteEmail, sendMail } from '@/lib/mail'
+import { familyInviteEmail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
       role: parsed.data.role,
       joinUrl,
     })
-    await sendMail({ to: email, ...mail }).catch(async (mailErr) => {
+    await sendAccountMail('family_invite', { to: email, ...mail }).catch(async (mailErr) => {
       // The invite row is useless without its emailed join token — don't leave
       // a pending invite whose link was never delivered.
       await prisma!.familyInvite.deleteMany({ where: { token_hash } }).catch(() => undefined)

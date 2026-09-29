@@ -7,6 +7,7 @@ import CalendarSyncSection from './CalendarSyncSection'
 import SharedDeviceSettings from './SharedDeviceSettings'
 import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 import { downloadMyData } from '@/lib/data-export-client'
+import NotificationPreferences from '@/components/account/NotificationPreferences'
 import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles } from 'lucide-react'
 
 /**
@@ -24,12 +25,6 @@ export default function SettingsClient({
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('')
   const [age, setAge] = useState('')
-  const [notifications, setNotifications] = useState({
-    choreReminders: true,
-    eventReminders: true,
-    newMessages: true,
-    weeklyReports: false,
-  })
   const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light')
 
   useEffect(() => {
@@ -238,25 +233,6 @@ export default function SettingsClient({
     }
   }
 
-  const handleSavePreferences = async () => {
-    setSaving(true)
-    setMessage(null)
-
-    try {
-      // Save preferences to localStorage for now
-      localStorage.setItem('familyPlanner_notifications', JSON.stringify(notifications))
-      localStorage.setItem('familyPlanner_theme', theme)
-      localStorage.setItem('familyPlanner_language', language)
-
-      setMessage({ type: 'success', text: 'Preferences saved successfully!' })
-    } catch (err) {
-      console.error('Error saving preferences:', err)
-      setMessage({ type: 'error', text: 'Failed to save preferences.' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setPasswordError(null)
@@ -418,51 +394,12 @@ export default function SettingsClient({
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Notifications</h2>
-                <p className="text-gray-600">Choose what notifications you receive</p>
+                <p className="text-gray-600">Choose what you hear about. Each switch saves straight away.</p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {Object.entries(notifications).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between py-3 border-b last:border-0">
-                  <div>
-                    <div className="font-medium text-gray-900 capitalize">
-                      {key.replace(/([A-Z])/g, ' $1').trim()}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {key === 'choreReminders' && 'Reminders for assigned chores'}
-                      {key === 'eventReminders' && 'Reminders for upcoming events'}
-                      {key === 'newMessages' && 'Notifications for new family messages'}
-                      {key === 'weeklyReports' && 'Weekly family activity reports'}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setNotifications(prev => ({
-                      ...prev,
-                      [key]: !value
-                    }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                      value ? 'bg-blue-600' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      value ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end pt-4 border-t mt-6">
-              <button
-                onClick={handleSavePreferences}
-                disabled={saving}
-                className="btn-primary inline-flex items-center"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {saving ? 'Saving...' : 'Save Preferences'}
-              </button>
-            </div>
+            {/* Saved on your account (#286), so it follows you to every device. */}
+            <NotificationPreferences />
           </div>
         </div>
 
@@ -692,7 +629,16 @@ export default function SettingsClient({
             <select
               id="preferredLanguage"
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => {
+                // Was saved by the old notifications "Save Preferences" button,
+                // which is gone now that notification switches save themselves (#286).
+                setLanguage(e.target.value)
+                try {
+                  localStorage.setItem('familyPlanner_language', e.target.value)
+                } catch {
+                  // Storage blocked: the choice still applies for this visit.
+                }
+              }}
               className="input-field w-full"
             >
               <option value="en">English</option>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendMail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
 import { hashPassword } from '@/lib/auth'
 import { attachSessionCookie } from '@/lib/api-auth'
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       ].join('\n')
 
       try {
-        await sendMail({
+        await sendAccountMail('email_verification', {
           to: email,
           subject: 'Verify Your Family Planner Email',
           html,
