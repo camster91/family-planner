@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useOnline } from '@/components/ui/use-online'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Maximize2, Minimize2 } from 'lucide-react'

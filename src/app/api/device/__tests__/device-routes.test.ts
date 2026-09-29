@@ -179,10 +179,12 @@ describe('device routes', () => {
       db.find('family', FAMILY_A)!.features = { inventory: true }
       db.find('family', 'family-B')!.features = { inventory: true }
       const d1 = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
-      expect(d1.useSoon).toEqual([{ id: 'inv-a', name: 'Home Tomato', location: 'fridge', expiresOn: '2026-09-27' }])
+      expect(d1.useSoon).toEqual([
+        { id: 'inv-a', name: 'Home Tomato', location: 'fridge', expiresOn: '2026-09-27', dateKind: 'best_before' },
+      ])
       expect(JSON.stringify(d1)).not.toContain(FOREIGN)
       // No amount, author or ingredient link, and no inventory link on a device.
-      expect(Object.keys(d1.useSoon[0]).sort()).toEqual(['expiresOn', 'id', 'location', 'name'])
+      expect(Object.keys(d1.useSoon[0]).sort()).toEqual(['dateKind', 'expiresOn', 'id', 'location', 'name'])
       expect(d1.links.inventory).toBeNull()
 
       const d2 = await (await today.GET(deviceReq({ cookies: fx.d2.cookies }))).json()

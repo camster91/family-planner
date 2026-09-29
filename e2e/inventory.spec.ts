@@ -1,8 +1,12 @@
 /**
- * Food inventory (#263): /dashboard/inventory journey.
+ * Food inventory (#263, #158/#121): /dashboard/inventory journey.
  *
- * - Parent (Family A): items grouped by fridge / freezer / pantry; "Use soon"
- *   with written labels ("Expired yesterday", "Use by tomorrow"); "What can I
+ * - Parent (Family A): items grouped by fridge / freezer / pantry; "Past
+ *   use-by" (don't eat) kept out of "Use soon"; "Use soon" with written
+ *   best-before / use-by labels ("Best before was yesterday", "Best before
+ *   tomorrow"); search and filters; "Used it" (all and part), "Throw away"
+ *   and Undo (toast and history), checked in the database; offline states in
+ *   words with writes refused; "What can I
  *   cook" ranks the fixture recipes (Tomato soup fully in stock, Veggie
  *   lasagna missing Lasagna sheets) and "Add 1 missing to groceries" adds only
  *   the missing ingredient through `from-recipe`; add, edit and remove an item
@@ -18,8 +22,9 @@
  * (`fx_e2e_inventory_*`, or named "E2E inventory …" when the UI creates it)
  * and deleted before and after, together with the grocery rows and
  * idempotency records the add created, so seeded data and the visual
- * baselines are unchanged outside this file. Runs at 390×844, 800×1280 and
- * 1366×768. The fixture guard refuses production-like databases.
+ * baselines are unchanged outside this file. Consume/discard history rows go
+ * with their items (FK cascade). Runs at 390×844, 430×932, 800×1280,
+ * 1280×800 and 1366×768. The fixture guard refuses production-like databases.
  */
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page, TestInfo } from "@playwright/test";
@@ -38,7 +43,9 @@ const L = FIXTURE_LEGACY_MEAL_IDS.familyA;
 const PREFIX = "E2E inventory";
 const PROJECTS = [
   "phone-390x844",
+  "phone-430x932",
   "tablet-portrait-800x1280",
+  "fridge-landscape-1280x800",
   "desktop-1366x768",
 ];
 const LONG_NAME = `${PREFIX} ${"extra-mature farmhouse cheddar with caramelised onion chutney ".repeat(3).trim()}`;
@@ -48,14 +55,19 @@ const IDS = {
   milk: "fx_e2e_inventory_a_milk",
   peas: "fx_e2e_inventory_a_peas",
   long: "fx_e2e_inventory_a_long",
+  chicken: "fx_e2e_inventory_a_chicken",
+  yogurt: "fx_e2e_inventory_a_yogurt",
+  salad: "fx_e2e_inventory_a_salad",
   canaryB: "fx_e2e_inventory_b_canary",
 };
+const YOGURT = `${PREFIX} yogurt pots`;
+const SALAD = `${PREFIX} bagged salad`;
 const CANARY_B = `${PREFIX} B canary`;
 
 function onlyOnSomeProjects(testInfo: TestInfo) {
   test.skip(
     !PROJECTS.includes(testInfo.project.name),
-    "inventory journey runs at 390x844, 800x1280 and 1366x768",
+    "inventory journey runs at 390x844, 430x932, 800x1280, 1280x800 and 1366x768",
   );
 }
 
@@ -93,9 +105,14 @@ async function removeGroceryAdds(db: pg.Client) {
 }
 
 async function removeSpecRows(db: pg.Client) {
+  // InventoryAdjustment rows go with their items (ON DELETE CASCADE).
   await db.query(
     `DELETE FROM "InventoryItem" WHERE id LIKE 'fx_e2e_inventory_%' OR (family_id IN ($1, $2) AND name LIKE $3)`,
     [A.family, B.family, `${PREFIX}%`],
+  );
+  await db.query(
+    `DELETE FROM "IdempotencyRecord" WHERE family_id IN ($1, $2) AND (action LIKE 'inventory-item.%' OR action = 'inventory-adjustment.undo')`,
+    [A.family, B.family],
   );
   await removeGroceryAdds(db);
 }
@@ -118,11 +135,17 @@ test.beforeAll(async () => {
       name: string,
       location: string,
       expires: Date | null,
-      extra: { ingredient?: string; amount?: number; unit?: string } = {},
+      extra: {
+        ingredient?: string;
+        amount?: number;
+        unit?: string;
+        dateKind?: "best_before" | "use_by";
+        category?: string;
+      } = {},
     ) =>
       db.query(
-        `INSERT INTO "InventoryItem" (id, family_id, name, ingredient_id, amount, unit, location, expires_on, added_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        `INSERT INTO "InventoryItem" (id, family_id, name, ingredient_id, amount, unit, location, expires_on, added_by, date_kind, category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           id,
           family,
@@ -133,6 +156,8 @@ test.beforeAll(async () => {
           location,
           expires ? expires.toISOString().slice(0, 10) : null,
           addedBy,
+          extra.dateKind ?? "best_before",
+          extra.category ?? null,
         ],
       );
     await insert(
@@ -158,7 +183,18 @@ test.beforeAll(async () => {
       {
         amount: 1,
         unit: "L",
+        category: "dairy_eggs",
       },
+    );
+    // Use-by passed: "don't eat", never "use soon" (#158).
+    await insert(
+      IDS.chicken,
+      A.family,
+      A.parent,
+      "Chicken thighs",
+      "fridge",
+      anchorDay(-2),
+      { dateKind: "use_by", category: "meat_fish" },
     );
     await insert(IDS.peas, A.family, A.teen, "Frozen peas", "freezer", null);
     await insert(
@@ -292,8 +328,12 @@ test.describe("inventory (Family A parent)", () => {
   test.afterEach(async () => {
     await withDb(async (db) => {
       await db.query(
-        `DELETE FROM "InventoryItem" WHERE family_id = $1 AND name LIKE $2 AND id NOT LIKE 'fx_e2e_inventory_%'`,
-        [A.family, `${PREFIX}%`],
+        `DELETE FROM "InventoryItem" WHERE family_id = $1 AND ((name LIKE $2 AND id NOT LIKE 'fx_e2e_inventory_%') OR id IN ($3, $4))`,
+        [A.family, `${PREFIX}%`, IDS.yogurt, IDS.salad],
+      );
+      await db.query(
+        `DELETE FROM "IdempotencyRecord" WHERE family_id = $1 AND (action LIKE 'inventory-item.%' OR action = 'inventory-adjustment.undo')`,
+        [A.family],
       );
       await removeGroceryAdds(db);
     });
@@ -311,21 +351,40 @@ test.describe("inventory (Family A parent)", () => {
     await openInventory(page);
 
     const fridge = region(page, /^Fridge/);
-    await expect(fridge.getByTestId("inventory-item")).toHaveCount(2);
-    // Soonest first; the status is words, not colour alone.
+    await expect(fridge.getByTestId("inventory-item")).toHaveCount(3);
+    // Soonest first; the status is words, not colour alone, and best-before
+    // and use-by never share words (#158).
     await expect(fridge.getByTestId("inventory-item").first()).toContainText(
-      "Milk",
+      "Chicken thighs",
     );
-    await expect(itemRow(page, IDS.milk)).toContainText("Expired yesterday");
+    await expect(itemRow(page, IDS.chicken)).toContainText(
+      "Past use-by — don't eat",
+    );
+    await expect(itemRow(page, IDS.milk)).toContainText(
+      "Best before was yesterday",
+    );
     await expect(itemRow(page, IDS.milk)).toContainText("1 L");
-    await expect(itemRow(page, IDS.tomatoes)).toContainText("Use by tomorrow");
+    await expect(itemRow(page, IDS.milk)).toContainText("Dairy & eggs");
+    await expect(itemRow(page, IDS.tomatoes)).toContainText(
+      "Best before tomorrow",
+    );
     await expect(itemRow(page, IDS.tomatoes)).toContainText("6 pcs");
     await expect(itemRow(page, IDS.peas)).toContainText("No date");
     await expect(
       region(page, /^Freezer/).getByTestId("inventory-item"),
     ).toHaveCount(1);
-    await expect(itemRow(page, IDS.long)).toContainText("Use in 30 days");
+    await expect(itemRow(page, IDS.long)).toContainText(
+      "Best before in 30 days",
+    );
     await expect(page.getByText(CANARY_B)).toHaveCount(0);
+
+    // Past use-by is its own list with a Throw away action, never "use soon".
+    const past = page.getByTestId("past-use-by");
+    await expect(past.getByTestId("past-use-by-item")).toHaveCount(1);
+    await expect(past).toContainText("should not be eaten");
+    await expect(
+      past.getByRole("button", { name: "Throw away Chicken thighs" }),
+    ).toBeVisible();
 
     // Fridge photo scan (#265) is off without a provider key (the E2E server
     // never has one): no Scan button, and the route answers 404.
@@ -342,11 +401,32 @@ test.describe("inventory (Family A parent)", () => {
       "Milk",
     );
     await expect(soon.getByTestId("use-soon-item").nth(0)).toContainText(
-      "Expired yesterday",
+      "Best before was yesterday",
     );
     await expect(soon.getByTestId("use-soon-item").nth(1)).toContainText(
-      "Use by tomorrow",
+      "Best before tomorrow",
     );
+    await expect(soon).not.toContainText("Chicken thighs");
+
+    // Search and filters (#121).
+    const filters = page.getByRole("search", { name: "Search the inventory" });
+    await filters.getByLabel("Search by name").fill("peas");
+    await expect(page.getByTestId("inventory-item")).toHaveCount(1);
+    await expect(itemRow(page, IDS.peas)).toBeVisible();
+    await expect(page.getByTestId("filter-count")).toHaveText(
+      "Showing 1 of 5 items",
+    );
+    await filters.getByLabel("Search by name").fill("");
+    await filters.getByLabel("Category").selectOption("dairy_eggs");
+    await expect(page.getByTestId("inventory-item")).toHaveCount(1);
+    await expect(itemRow(page, IDS.milk)).toBeVisible();
+    await filters.getByLabel("Where").selectOption("freezer");
+    await expect(page.getByTestId("no-matches")).toBeVisible();
+    await page
+      .getByTestId("no-matches")
+      .getByRole("button", { name: "Clear search" })
+      .click();
+    await expect(page.getByTestId("inventory-item")).toHaveCount(5);
 
     await expectNoHorizontalOverflow(page);
     await expectTargets(page.locator("main"));
@@ -418,20 +498,30 @@ test.describe("inventory (Family A parent)", () => {
       .getByLabel(/Amount/)
       .fill("2");
     await dialog(page).getByLabel(/Unit/).fill("tubs");
+    await dialog(page).getByLabel("Best before date").fill("2026-01-07");
     await dialog(page)
-      .getByLabel(/Use by/)
-      .fill("2026-01-07");
+      .getByLabel(/Category/)
+      .selectOption("dairy_eggs");
+    await dialog(page)
+      .getByLabel(/Opened/)
+      .fill("2026-01-04");
     const posted = page.waitForRequest(
       (r) => r.url().includes("/api/inventory?today=") && r.method() === "POST",
     );
     await dialog(page).getByRole("button", { name: "Save" }).click();
-    expect((await posted).postDataJSON()).toEqual({
+    const request = await posted;
+    expect(request.postDataJSON()).toEqual({
       name: `${PREFIX} yogurt`,
       location: "freezer",
       amount: 2,
       unit: "tubs",
       expires_on: "2026-01-07",
+      date_kind: "best_before",
+      category: "dairy_eggs",
+      purchased_on: null,
+      opened_on: "2026-01-04",
     });
+    expect(request.headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/);
     await expect(dialog(page)).toBeHidden();
     await expect(page.getByRole("status").first()).toContainText(
       `Added ${PREFIX} yogurt.`,
@@ -440,8 +530,17 @@ test.describe("inventory (Family A parent)", () => {
     const yogurt = freezer
       .getByTestId("inventory-item")
       .filter({ hasText: `${PREFIX} yogurt` });
-    await expect(yogurt).toContainText("Use in 2 days");
+    await expect(yogurt).toContainText("Best before in 2 days");
     await expect(yogurt).toContainText("2 tubs");
+    await expect(yogurt).toContainText("Opened Jan 4");
+
+    await yogurt.click();
+    // Switching to use-by explains it and changes the words.
+    await dialog(page).getByLabel("Use by", { exact: true }).check();
+    await expect(dialog(page)).toContainText("do not eat it after this day");
+    await dialog(page).getByRole("button", { name: "Save" }).click();
+    await expect(dialog(page)).toBeHidden();
+    await expect(yogurt).toContainText("Use within 2 days");
 
     await yogurt.click();
     await dialog(page).getByLabel("Pantry").check();
@@ -468,6 +567,173 @@ test.describe("inventory (Family A parent)", () => {
         .filter({ hasText: `${PREFIX} yogurt` }),
     ).toHaveCount(0);
   });
+
+  test("used it, throw away and undo: the list, use soon and history agree with the database", async ({
+    page,
+  }, testInfo) => {
+    await withDb(async (db) => {
+      await db.query(`DELETE FROM "InventoryItem" WHERE id IN ($1, $2)`, [
+        IDS.yogurt,
+        IDS.salad,
+      ]);
+      await db.query(
+        `INSERT INTO "InventoryItem" (id, family_id, name, amount, unit, location, expires_on, date_kind, added_by)
+         VALUES ($1, $2, $3, 4, 'pots', 'fridge', $4, 'best_before', $5),
+                ($6, $2, $7, NULL, NULL, 'fridge', $8, 'use_by', $5)`,
+        [
+          IDS.yogurt,
+          A.family,
+          YOGURT,
+          anchorDay(1).toISOString().slice(0, 10),
+          A.parent,
+          IDS.salad,
+          SALAD,
+          anchorDay(2).toISOString().slice(0, 10),
+        ],
+      );
+    });
+    const state = (id: string) =>
+      withDb(async (db) => {
+        const item = await db.query(
+          `SELECT status, amount FROM "InventoryItem" WHERE id = $1`,
+          [id],
+        );
+        const adj = await db.query(
+          `SELECT kind, amount_delta, status_after, undone_at IS NOT NULL AS undone, family_id, actor_id
+             FROM "InventoryAdjustment" WHERE item_id = $1 ORDER BY created_at, id`,
+          [id],
+        );
+        return { item: item.rows[0], adjustments: adj.rows };
+      });
+
+    await openInventory(page);
+    const soon = page.getByTestId("use-soon");
+    const yogurtSoon = soon
+      .getByTestId("use-soon-item")
+      .filter({ hasText: YOGURT });
+    const saladSoon = soon
+      .getByTestId("use-soon-item")
+      .filter({ hasText: SALAD });
+    await expect(yogurtSoon).toContainText("Best before tomorrow");
+    await expect(saladSoon).toContainText("Use within 2 days");
+    await expectTargets(soon);
+
+    // "Used it" from use soon: gone at once, Undo in a toast.
+    const [consumed] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/inventory/${IDS.yogurt}/consume`) &&
+          r.request().method() === "POST",
+      ),
+      soon.getByRole("button", { name: `Used ${YOGURT}` }).click(),
+    ]);
+    expect(consumed.status()).toBe(200);
+    expect(consumed.request().headers()["idempotency-key"]).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
+    await expect(yogurtSoon).toHaveCount(0);
+    await expect(itemRow(page, IDS.yogurt)).toHaveCount(0);
+    expect(await state(IDS.yogurt)).toEqual({
+      item: { status: "consumed", amount: 4 },
+      adjustments: [
+        {
+          kind: "consume",
+          amount_delta: -4,
+          status_after: "consumed",
+          undone: false,
+          family_id: A.family,
+          actor_id: A.parent,
+        },
+      ],
+    });
+    const toast = page.getByTestId("undo-toast").filter({ hasText: YOGURT });
+    await expect(toast).toContainText(`Used ${YOGURT}`);
+    await toast.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByTestId("inventory-notice")).toContainText(
+      `Put ${YOGURT} back.`,
+    );
+    await expect(itemRow(page, IDS.yogurt)).toBeVisible();
+    expect((await state(IDS.yogurt)).item).toEqual({
+      status: "active",
+      amount: 4,
+    });
+    expect((await state(IDS.yogurt)).adjustments[0].undone).toBe(true);
+
+    // Part of it, from the dialog: the rest stays.
+    await itemRow(page, IDS.yogurt).click();
+    await dialog(page)
+      .getByLabel(/How much did you use/)
+      .fill("1");
+    await dialog(page).getByRole("button", { name: "Used it" }).click();
+    await expect(dialog(page)).toBeHidden();
+    await expect(itemRow(page, IDS.yogurt)).toContainText("3 pots");
+    expect((await state(IDS.yogurt)).item).toEqual({
+      status: "active",
+      amount: 3,
+    });
+
+    // "Throw away" from the dialog, then Undo from the history list (after
+    // the toast has gone).
+    await itemRow(page, IDS.salad).click();
+    await expectTargets(dialog(page));
+    await dialog(page).getByRole("button", { name: "Throw away" }).click();
+    await expect(dialog(page)).toBeHidden();
+    await expect(itemRow(page, IDS.salad)).toHaveCount(0);
+    expect((await state(IDS.salad)).item.status).toBe("discarded");
+    for (const t of await page
+      .getByTestId("undo-toast")
+      .getByRole("button", { name: "Dismiss" })
+      .all()) {
+      await t.click();
+    }
+    const history = page.getByTestId("inventory-history");
+    await expect(history.getByTestId("history-item").first()).toContainText(
+      `Threw away ${SALAD}`,
+    );
+    await expectTargets(history);
+    await history
+      .getByRole("button", { name: `Undo: Threw away ${SALAD}` })
+      .click();
+    await expect(itemRow(page, IDS.salad)).toBeVisible();
+    await expect(saladSoon).toContainText("Use within 2 days");
+    expect((await state(IDS.salad)).item.status).toBe("active");
+
+    // Another household cannot touch it; the history is household-only.
+    await expectNoHorizontalOverflow(page);
+    await expectNoSeriousAxe(page, testInfo, "inventory after consume/undo");
+  });
+
+  test("offline: says so in words, keeps the list and refuses writes", async ({
+    page,
+    context,
+  }) => {
+    await openInventory(page);
+    await context.setOffline(true);
+    const banner = page.getByTestId("inventory-connection");
+    await expect(banner).toContainText(
+      "You're offline. Showing what was loaded at",
+    );
+    await expect(banner).toContainText("Changes need a connection");
+    await expect(itemRow(page, IDS.milk)).toBeVisible();
+    await page
+      .getByTestId("use-soon")
+      .getByRole("button", { name: "Used Milk" })
+      .click();
+    await expect(page.getByTestId("inventory-notice")).toContainText(
+      "You're offline. Connect to the internet to change the inventory.",
+    );
+    await page.getByRole("button", { name: "Add item" }).first().click();
+    await expect(dialog(page)).toHaveCount(0);
+    await context.setOffline(false);
+    await expect(banner).toHaveCount(0);
+    const rows = await withDb((db) =>
+      db.query(
+        `SELECT count(*)::int AS n FROM "InventoryAdjustment" WHERE item_id = $1`,
+        [IDS.milk],
+      ),
+    );
+    expect(rows.rows[0].n).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -487,10 +753,17 @@ test.describe("inventory (Family A child)", () => {
     page,
   }, testInfo) => {
     await openInventory(page);
-    await expect(itemRow(page, IDS.milk)).toContainText("Expired yesterday");
+    await expect(itemRow(page, IDS.milk)).toContainText(
+      "Best before was yesterday",
+    );
     await expect(page.getByRole("button", { name: "Add item" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Used / })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /^Throw away / }),
+    ).toHaveCount(0);
     await expect(page.getByTestId("use-soon-item")).toHaveCount(2);
+    await expect(page.getByTestId("past-use-by-item")).toHaveCount(1);
     const res = await browserSend(page, "POST", "/api/inventory", {
       name: `${PREFIX} child`,
     });
@@ -498,6 +771,14 @@ test.describe("inventory (Family A child)", () => {
     expect(JSON.parse(res.body).error.code).toBe("INVENTORY_WRITE_FORBIDDEN");
     const del = await browserSend(page, "DELETE", `/api/inventory/${IDS.milk}`);
     expect(del.status).toBe(403);
+    for (const path of [
+      `/api/inventory/${IDS.milk}/consume`,
+      `/api/inventory/${IDS.milk}/discard`,
+    ]) {
+      const res = await browserSend(page, "POST", path, {});
+      expect(res.status).toBe(403);
+      expect(JSON.parse(res.body).error.code).toBe("INVENTORY_WRITE_FORBIDDEN");
+    }
     await expectNoHorizontalOverflow(page);
     await expectNoSeriousAxe(page, testInfo, "inventory child");
   });
@@ -535,5 +816,22 @@ test.describe("inventory (Family B parent)", () => {
       },
     );
     expect(patch.status).toBe(404);
+    for (const path of [
+      `/api/inventory/${IDS.milk}/consume`,
+      `/api/inventory/${IDS.milk}/discard`,
+    ]) {
+      const res = await browserSend(page, "POST", path, {});
+      expect(res.status).toBe(404);
+      expect(res.body).toBe(missing.body);
+    }
+    const history = await browserFetch(page, "/api/inventory/adjustments");
+    expect(history.status).toBe(200);
+    expect(history.body).not.toContain(A.family);
+    expect(history.body).not.toContain(IDS.milk);
+    // Family A's item is untouched.
+    const milk = await withDb((db) =>
+      db.query(`SELECT status FROM "InventoryItem" WHERE id = $1`, [IDS.milk]),
+    );
+    expect(milk.rows[0].status).toBe("active");
   });
 });

@@ -21,6 +21,11 @@ never replay an arbitrary request. Never queueable, whatever a future issue asks
 (budget, transactions, allowance), chore verification and reward approval, account/auth/password/PIN,
 device pairing/elevation, invites, exports and medical records.
 
+Food inventory (#263, #158/#121) does not change the allowlist: create, edit, delete, "Used it", "Throw away" and Undo
+are online writes with an optional `Idempotency-Key` (a retry never duplicates an adjustment). Offline, the page keeps
+the list it loaded, says so with the time it was loaded, and refuses a write with "You're offline. Connect to the
+internet to change the inventory." instead of queueing it.
+
 Store sections (#273) do not change the allowlist: grouping by section runs on the client from the rows and
 overrides delivered with the list page, so a queued tick re-renders in its section offline. "Move to…" and the
 per-list sorting switch are online writes; the page says a move needs a connection instead of queueing it.

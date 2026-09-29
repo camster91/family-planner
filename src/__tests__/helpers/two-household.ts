@@ -299,6 +299,14 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     family: { model: 'family', fk: 'family_id' },
     ingredient: { model: 'ingredient', fk: 'ingredient_id' },
     adder: { model: 'user', fk: 'added_by' },
+    adjustments: { model: 'inventoryAdjustment', fk: 'item_id', many: true },
+  },
+  // Inventory consume/discard history (#158/#121)
+  inventoryAdjustment: {
+    family: { model: 'family', fk: 'family_id' },
+    item: { model: 'inventoryItem', fk: 'item_id' },
+    actor: { model: 'user', fk: 'actor_id' },
+    undoer: { model: 'user', fk: 'undone_by' },
   },
   importJob: { family: { model: 'family', fk: 'family_id' } },
   mealPlan: {
@@ -366,6 +374,12 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
 
 export type Write = { model: string; op: string; args: any }
 
+/** Non-null column defaults of newer columns (applied on read and create). */
+const COLUMN_DEFAULTS: Record<string, Record<string, unknown>> = {
+  // Inventory foundation (#158/#121)
+  inventoryItem: { date_kind: 'best_before', status: 'active' },
+}
+
 class FakeDb {
   tables: Tables = seed()
   writes: Write[] = []
@@ -379,6 +393,14 @@ class FakeDb {
 
   rows(model: string): Row[] {
     if (!this.tables[model]) this.tables[model] = []
+    const defaults = COLUMN_DEFAULTS[model]
+    if (defaults) {
+      // Column defaults, as the database applies them to rows a test pushes
+      // without the newer columns.
+      for (const row of this.tables[model]) {
+        for (const [col, value] of Object.entries(defaults)) if (row[col] === undefined) row[col] = value
+      }
+    }
     return this.tables[model]
   }
 
@@ -452,7 +474,10 @@ function matchValue(value: any, cond: any): boolean {
         if (value == null || cmp(value, arg) < 0) return false
         break
       case 'contains':
-        if (typeof value !== 'string' || !value.includes(arg as string)) return false
+        if (typeof value !== 'string') return false
+        if (cond.mode === 'insensitive' ? !value.toLowerCase().includes(String(arg).toLowerCase()) : !value.includes(arg as string)) {
+          return false
+        }
         break
       case 'startsWith':
         if (typeof value !== 'string' || !value.startsWith(arg as string)) return false
@@ -626,6 +651,8 @@ const PARTIAL_UNIQUE: Record<string, Array<{ cols: string[]; where: (r: Row) => 
       where: (r) => r.checked !== true && r.source_key != null && r.ingredient_id != null,
     },
   ],
+  // "InventoryAdjustment_request_id_key" (#158): NULLs are distinct in Postgres.
+  inventoryAdjustment: [{ cols: ['request_id'], where: (r) => r.request_id != null }],
   // NULL event_id rows are delete tombstones; NULLs are distinct in Postgres.
   calendarEventLink: [{ cols: ['connection_id', 'event_id'], where: (r) => r.event_id != null }],
 }

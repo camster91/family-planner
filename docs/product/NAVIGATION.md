@@ -59,11 +59,13 @@ A reversible action runs at once and offers Undo in a toast (`useUndoToast` in `
 | Untick a done chore on the home | Reopens it straight away (no dialog). |
 | Delete a list item | Undo re-creates it with the same text, quantity, category, amount, unit and ingredient, ticked again if it was ticked. It comes back at the end of the list and no longer shows which recipe added it. |
 | Delete a meal | Undo re-creates it with the same day, slot, name, notes, cook, recipe and servings. |
+| "Used it" / "Throw away" a food item (inventory, #158/#121) | Runs at once; Undo calls `POST /api/inventory/adjustments/[id]/undo` and puts the item back with its amount. Only the latest change to an item can be undone (409 otherwise, explained in words). "Recently used or thrown away" on the page keeps Undo after the toast is gone. |
 
 Confirm stays for actions that cannot be put back faithfully or that remove a lot: delete or leave the family,
 delete a list, delete a project and its tasks, delete a chore (recurring series), delete an event (recurrence,
 sync), budget categories, calendar disconnects, and the older pages not touched here (locations, allowance,
-anniversaries, handoff, emergency contacts, inventory items). Each can move to Undo when its page is reworked.
+anniversaries, handoff, emergency contacts, and "Remove" of an inventory item added by mistake, which deletes its
+history too). Each can move to Undo when its page is reworked.
 
 ## Quiet colour
 

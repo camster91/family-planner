@@ -270,8 +270,8 @@ describe('inventory — two households, roles and gates', () => {
     const body = await expectNoForeignData(res)
     expect(body.days).toBe(3)
     expect(body.items).toEqual([
-      { id: 'inv-a-old', name: 'Old yogurt', location: 'fridge', expiresOn: utcPlus(-1), daysLeft: -1, status: 'expired', label: 'Expired yesterday' },
-      { id: 'inv-a', name: 'Home Tomato', location: 'fridge', expiresOn: utcPlus(2), daysLeft: 2, status: 'soon', label: 'Use in 2 days' },
+      { id: 'inv-a-old', name: 'Old yogurt', location: 'fridge', expiresOn: utcPlus(-1), dateKind: 'best_before', daysLeft: -1, status: 'expired', label: 'Best before was yesterday' },
+      { id: 'inv-a', name: 'Home Tomato', location: 'fridge', expiresOn: utcPlus(2), dateKind: 'best_before', daysLeft: 2, status: 'soon', label: 'Best before in 2 days' },
     ])
     const narrow = await (await useSoon.GET(req({ as: 'childA', query: { days: '1' } }))).json()
     expect(narrow.items.map((i: any) => i.id)).toEqual(['inv-a-old'])

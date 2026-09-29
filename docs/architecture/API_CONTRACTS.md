@@ -46,7 +46,10 @@ Implemented in #162 (`src/lib/idempotency.ts`, record `IdempotencyRecord`). Rout
 code: it is never stored, so a retry with the same key re-runs the check) and `POST /api/inventory` (#265, used by
 the fridge scan dialog; a create is not convergent, so a request that crashes after committing and before storing its
 response can, after the 30 s lock timeout, be re-run by a retry with the same key and add a second row; every other
-lost-response case replays) and `POST /api/calendar/import-suggestions/commit` (#270, key required, one per batch;
+lost-response case replays), the other inventory writes (#158/#121: `PATCH`/`DELETE /api/inventory/[id]`,
+`POST /api/inventory/[id]/consume`, `/discard` and `POST /api/inventory/adjustments/[id]/undo`; consume and discard
+stamp the record id on their `InventoryAdjustment.request_id` (unique), so even the crash case converges on the row
+already written; undo of an undone change returns it; PATCH sets explicit values; a crashed DELETE re-run answers 404) and `POST /api/calendar/import-suggestions/commit` (#270, key required, one per batch;
 the crash case converges: the takeover finds the batch's activity row by its record id and returns the same events).
 Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
@@ -108,8 +111,9 @@ old-shape fixtures). Roles and isolation: `docs/ROLE_AND_ISOLATION_MATRIX.md` "M
 Old Android WebViews and queued #247 operations keep working: no route, request field or `ListItem.id` changed, and
 every new field is optional. Rollback of the app code is safe; the new columns stay unused.
 
-## Food inventory (#263)
-New routes only; nothing existing changes shape except the additive `inventory` key in `GET /api/users/export`.
+## Food inventory (#263, #158/#121)
+New routes only; nothing existing changes shape except additive keys: `inventory` and (#158) `inventoryAdjustments`
+in `GET /api/users/export`, new optional item fields, `dateKind` on use-soon entries and the board DTO.
 Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. Roles and isolation:
 `docs/ROLE_AND_ISOLATION_MATRIX.md` "Food inventory".
 
@@ -118,33 +122,52 @@ Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. R
 - **Errors:** route-owned errors use the target envelope `{ error: { code, message, retryable } }` with
   `Cache-Control: private, no-store`: 400 `VALIDATION_ERROR` / `INVALID_JSON` / `INGREDIENT_NOT_FOUND`, 403
   `INVENTORY_WRITE_FORBIDDEN` (child), 404 `INVENTORY_ITEM_NOT_FOUND` (foreign and missing alike), 500
-  `INTERNAL_ERROR` (`retryable: true`). Authentication (401) and the feature gate keep their shared shapes. A paired
+  `INTERNAL_ERROR` (`retryable: true`). #158/#121 adds 409 `INVENTORY_ITEM_FINISHED` (the item was already used up or
+  thrown away; `retryable: false`), 409 `INVENTORY_CONFLICT` (the item changed while saving; `retryable: true`), 404
+  `INVENTORY_ADJUSTMENT_NOT_FOUND` (foreign and missing alike) and 409 `INVENTORY_UNDO_CONFLICT` (the item changed
+  after that change; `retryable: false`). Authentication (401) and the feature gate keep their shared shapes. A paired
   shared device gets 403 `DEVICE_WRITE_NOT_ALLOWED` on every write, before person auth.
 - **Dates:** `expires_on` is date-only (`YYYY-MM-DD`, Postgres `DATE`). Every handler takes an optional
   `today=YYYY-MM-DD` (the viewer's calendar day) that must be within one day of the server's UTC date (every real
-  zone is), else 400; without it the server's UTC day is used. `expiry.status` is `expired` (before today), `today`,
-  `soon` (within 3 days), `later` or `none`, with `daysLeft`.
-- **Item DTO:** `{ id, name, ingredient_id, amount, unit, location: 'fridge'|'freezer'|'pantry', expires_on, added_by,
-  created_at, updated_at, expiry: { status, daysLeft } }`. Never `family_id`.
+  zone is), else 400; without it the server's UTC day is used. `date_kind` (#158) says what `expires_on` means:
+  `best_before` (default; every older row) or `use_by`. `expiry.status` is `expired` (a best-before day has passed),
+  `past_use_by` (a use-by day has passed: do not eat; never "use soon"), `today`, `soon` (within 3 days), `later` or
+  `none`, with `daysLeft`. Clients that do not know `past_use_by` should show it like `expired`; the words come from
+  `expiryLabel` ("Best before was yesterday" / "Past use-by — don't eat").
+- **Item DTO:** `{ id, name, ingredient_id, amount, unit, location: 'fridge'|'freezer'|'pantry', expires_on,
+  date_kind: 'best_before'|'use_by', category: string | null, purchased_on, opened_on, status:
+  'active'|'consumed'|'discarded', finished_at, added_by, created_at, updated_at, expiry: { status, daysLeft } }`.
+  Never `family_id`. `category` is one of `produce`, `dairy_eggs`, `meat_fish`, `bakery`, `leftovers`, `dry_goods`,
+  `snacks_drinks`, `condiments`, `other` (`INVENTORY_CATEGORIES`). `purchased_on` / `opened_on` are `YYYY-MM-DD` or null.
+- **Adjustment DTO (#158):** `{ id, item_id, kind: 'consume'|'discard', amount_delta: number | null (negative),
+  amount_before, amount_after, status_before, status_after, actor_id, created_at, undone_at }`. Never `family_id` or
+  `request_id`.
 - **Idempotency / offline:** `POST /api/inventory` accepts an optional `Idempotency-Key` (#265, see "Idempotency"
   above): same key and body replays the stored 201 with `Idempotency-Replayed: true`, a different body is 422
   `IDEMPOTENCY_KEY_REUSED`, a malformed key is 400 `IDEMPOTENCY_KEY_INVALID`; only 2xx outcomes are stored. Keys are
-  scoped per user. PATCH and DELETE take no key. Inventory writes are not offline-queued; the #162 queue allowlist is
-  unchanged.
+  scoped per user. Since #158 PATCH, DELETE, consume, discard and undo take the same optional key (actions
+  `inventory-item.update`, `.delete`, `.consume`, `.discard`, `inventory-adjustment.undo`; the item or adjustment id is
+  part of the hashed request, so one key on another item is 422). Inventory writes are not offline-queued; the #162
+  queue allowlist is unchanged, and the page refuses writes while offline with a message.
 
 | Route | Contract | Errors |
 | --- | --- | --- |
-| `GET /api/inventory?location=&expiringWithinDays=&today=&limit=&offset=` | `{ items: [Item], nextOffset }`, by name. `expiringWithinDays=N` (0–365) keeps items whose expiry day is on or before today + N, expired included. `limit` 1–500 (default 200). All roles. | 400 bad filter/paging/today; 403 off |
-| `POST /api/inventory?today=` | Strict body `{ name (1–200), ingredient_id?: string \| null, amount?: number \| null (0–100000), unit?: string \| null (≤ 32), location? (default fridge), expires_on?: 'YYYY-MM-DD' \| null }`. Without `ingredient_id` the item links to a same-household ingredient with the same normalized name, if one exists (no ingredient is created); `null` keeps it free text. 201 `{ item }`. Optional header `Idempotency-Key` (#265): replays the stored 201. Parent and teen. | 400 validation / `INGREDIENT_NOT_FOUND` / `IDEMPOTENCY_KEY_INVALID`; 403 child, device or off; 409 `IDEMPOTENCY_IN_PROGRESS`; 422 `IDEMPOTENCY_KEY_REUSED` |
-| `GET /api/inventory/[id]?today=` | `{ item }`. All roles. | 404 |
-| `PATCH /api/inventory/[id]?today=` | Same fields as POST, all optional (at least one). `null` clears `amount`, `unit`, `expires_on`, `ingredient_id`. A new `name` without `ingredient_id` re-links by name. 200 `{ item }`. Parent and teen. | as POST; 404 |
-| `DELETE /api/inventory/[id]` | 200 `{ success: true }`. Parent and teen. | 403; 404 |
-| `GET /api/inventory/use-soon?days=3&today=&limit=` | `{ days, items: [{ id, name, location, expiresOn, daysLeft, status: 'expired'\|'today'\|'soon', label }] }`: expired items and those expiring within `days` (0–365, default 3), soonest first. `limit` 1–100 (default 50). Board-safe fields only; the same data comes from `getUseSoonItems` in `src/lib/inventory.ts`. All roles. | 400; 403 off |
+| `GET /api/inventory?location=&category=&q=&expiringWithinDays=&today=&limit=&offset=` | `{ items: [Item], nextOffset }`, by name, **active items only** (#158: consumed and discarded items are left out). `q` (≤ 100 characters) matches the name case-insensitively; `category` is one of the categories above. `expiringWithinDays=N` (0–365) keeps items whose date is on or before today + N, passed dates included. `limit` 1–500 (default 200). All roles. | 400 bad filter/paging/today; 403 off |
+| `POST /api/inventory?today=` | Strict body `{ name (1–200), ingredient_id?: string \| null, amount?: number \| null (0–100000), unit?: string \| null (≤ 32), location? (default fridge), expires_on?: 'YYYY-MM-DD' \| null, date_kind?: 'best_before' \| 'use_by' (default best_before), category?: string \| null, purchased_on?: 'YYYY-MM-DD' \| null, opened_on?: 'YYYY-MM-DD' \| null }`. `status` and `finished_at` are not accepted. Without `ingredient_id` the item links to a same-household ingredient with the same normalized name, if one exists (no ingredient is created); `null` keeps it free text. 201 `{ item }`. Optional header `Idempotency-Key` (#265): replays the stored 201. Parent and teen. | 400 validation / `INGREDIENT_NOT_FOUND` / `IDEMPOTENCY_KEY_INVALID`; 403 child, device or off; 409 `IDEMPOTENCY_IN_PROGRESS`; 422 `IDEMPOTENCY_KEY_REUSED` |
+| `GET /api/inventory/[id]?today=` | `{ item }`, whatever its status (so a client can show a finished item before Undo). All roles. | 404 |
+| `PATCH /api/inventory/[id]?today=` | Same fields as POST, all optional (at least one). `null` clears `amount`, `unit`, `expires_on`, `ingredient_id`, `category`, `purchased_on`, `opened_on`. A new `name` without `ingredient_id` re-links by name. Moving is `location`. Compare-and-set on the version read. 200 `{ item }`. Optional `Idempotency-Key`. Parent and teen. | as POST; 404; 409 `INVENTORY_ITEM_FINISHED` / `INVENTORY_CONFLICT` |
+| `DELETE /api/inventory/[id]` | 200 `{ success: true }`. Removes the item and its history (for an item added by mistake; "Used it" / "Throw away" keep history). Optional `Idempotency-Key`: a retry replays the 200 instead of a 404. Parent and teen. | 400 key; 403; 404 |
+| `POST /api/inventory/[id]/consume?today=` (#158) | "Used it". Strict body `{ amount?: number \| null }` (> 0, ≤ 100000). Omitted/null, or at least the item's amount, uses all of it (`status: 'consumed'`, amount kept for the record); less leaves the rest active. A partial amount on an item without an amount is 400. 200 `{ item, adjustment }`. Optional `Idempotency-Key`. Parent and teen. | 400; 403; 404; 409 `INVENTORY_ITEM_FINISHED` / `INVENTORY_CONFLICT` |
+| `POST /api/inventory/[id]/discard?today=` (#158) | "Throw away" the whole item (`status: 'discarded'`). Empty or `{}` body. 200 `{ item, adjustment }`. Optional `Idempotency-Key`. Parent and teen. | as consume |
+| `POST /api/inventory/adjustments/[id]/undo?today=` (#158) | Puts the item back as it was before that change (status and amount) and marks the adjustment undone (kept as history). Only the latest change to the item can be undone. Undoing an undone change is 200 with `alreadyUndone: true`. 200 `{ item, adjustment, alreadyUndone }`. Optional `Idempotency-Key`. Parent and teen. | 403; 404 `INVENTORY_ADJUSTMENT_NOT_FOUND`; 409 `INVENTORY_UNDO_CONFLICT` |
+| `GET /api/inventory/adjustments?itemId=&limit=&offset=` (#158) | `{ adjustments: [Adjustment & { item_name, item_status }], nextOffset }`, newest first. `limit` 1–100 (default 20). All roles. | 400; 403 off |
+| `GET /api/inventory/use-soon?days=3&today=&limit=` | `{ days, items: [{ id, name, location, expiresOn, dateKind, daysLeft, status: 'expired'\|'today'\|'soon', label }] }`: active items whose best-before day has passed or whose date is within `days` (0–365, default 3); a passed use-by day is never included; no-date items never are. Order: date, then use-by before best-before on the same day, then name, then id. `limit` 1–100 (default 50). Board-safe fields only; the same data comes from `getUseSoonItems` in `src/lib/inventory.ts`. All roles. | 400; 403 off |
 | `GET /api/inventory/cook?today=&limit=` | `{ suggestions: [{ recipeId, title, prep_time, cook_time, servings, totalCount, haveCount, missingCount, coverage, useSoonCount, have: [{ ingredientId, name }], missing: [{ ingredientId, name }] }], recipesConsidered, truncated, inputsTruncated }`, ranked by coverage, then in-stock count, use-soon count, fewer missing, title. Recipes with nothing in stock are left out. Expired items are excluded in the query. Inputs are read up to 1000 recipes and 5000 non-expired items; `inputsTruncated: true` means a cap was hit and suggestions may be missing (the page says so). `truncated` means more suggestions than `limit`. `limit` 1–50 (default 20). All roles. The UI passes `missing[].ingredientId` to `POST /api/lists/items/from-recipe` as `ingredientIds`. | 400; 403 inventory or meals off |
-| `GET /api/users/export` | Adds `inventory`: the household's items (no `family_id`). | unchanged |
+| `GET /api/users/export` | Adds `inventory`: the household's items, any status (no `family_id`), and (#158) `inventoryAdjustments`: the household's history (no `family_id`, no `request_id`). | unchanged |
 
-Compatibility: additive table and routes; old WebView bundles never call them. Rolling back the app code is safe;
-the table stays unused.
+Compatibility: additive tables, columns and routes; old WebView bundles never call the new routes and ignore the new
+fields. Old rows read as active best-before items. Rolling back the app code is safe: the older code ignores the new
+columns, so a consumed or discarded item would show again in its lists (expand-only; nothing is deleted).
 
 ### Fridge photo scan (#265)
 One new route, off until the deployment sets `INVENTORY_SCAN_ANTHROPIC_API_KEY`. Rules, privacy and limits:
@@ -166,7 +189,7 @@ built before #262 ignores it; the #262 client falls back when it is missing). Ro
 | Route | Change | Errors |
 | --- | --- | --- |
 | Today board DTO (`/dashboard/today` props, `GET /api/device/today`) | `members[].color` (palette key: `indigo`, `sky`, `green`, `orange`, `purple`, `pink`, `yellow`, `red`; the parent's choice or the deterministic fallback, `src/lib/member-colors.ts`); `events[].addedById` (the household member who added a local event, `null` for imported events (subscribed calendars and provider-synced calendars, #264) or a creator no longer in the household); `weather: { label, unit: 'C' \| 'F', current: { temperature, summary, icon, isDay }, days: [{ day, high, low, summary, icon, precipitationChance }] (≤ 4, place-local dates), utcOffsetSeconds, fetchedAt } \| null`. No coordinates are ever in the DTO. The client picks "today" among `days` by the place's current date (now + `utcOffsetSeconds`; Open-Meteo `timezone=auto`), not the viewer's zone; cache rows from before the offset was stored are refetched. `weather` is `null` when the household has not opted in, the kill switch is off, or the forecast is unavailable. | unchanged |
-| Today board DTO: `useSoon` (#263 data) | `useSoon: [{ id, name, location: 'fridge' \| 'freezer' \| 'pantry', expiresOn: 'YYYY-MM-DD' }] \| null` (≤ 50, soonest first) and `links.inventory` (`/dashboard/inventory` for roles that may open it with the feature on, else `null`; always `null` for a device). `null` when the household's `inventory` feature is off. The server reads `getUseSoonItems` anchored one UTC day ahead so the window covers the viewer's local day in every zone; the client computes the status and label ("Expired yesterday", "Use today", "Use in 2 days") against the viewer's local day and drops items not yet due. | unchanged |
+| Today board DTO: `useSoon` (#263 data) | `useSoon: [{ id, name, location: 'fridge' \| 'freezer' \| 'pantry', expiresOn: 'YYYY-MM-DD', dateKind?: 'best_before' \| 'use_by' }] \| null` (≤ 50, soonest first; `dateKind` added by #158, optional so a cached older DTO reads as best before) and `links.inventory` (`/dashboard/inventory` for roles that may open it with the feature on, else `null`; always `null` for a device). `null` when the household's `inventory` feature is off. The server reads active items with `getUseSoonItems` anchored one UTC day ahead so the window covers the viewer's local day in every zone, and keeps use-by items until the day before the server's UTC day; the client computes the status and label ("Best before was yesterday", "Use by today", "Best before in 2 days") against the viewer's local day and drops items not yet due and passed use-by days. | unchanged |
 | `GET /api/family/board-settings` (new) | Parent only. `{ weather: { available, enabled, place: { label, latitude, longitude } \| null, unit: 'celsius' \| 'fahrenheit' }, members: [{ id, name, color, custom }] }`. `available` is the `WEATHER_ENABLED` kill switch (false unless it is explicitly `1`/`true`). | 401; 400 no household; 403 teen/child |
 | `PATCH /api/family/board-settings` (new) | Parent only. Strict body `{ weather?: { enabled?, place?: { label (1–80), latitude (−90..90), longitude (−180..180) } \| null, unit? }, memberColors?: { [memberId]: key \| null } }`. Coordinates are stored rounded to 2 decimals. A new place, removing the place (which also turns weather off) or turning weather off deletes the household's `WeatherCache` row. Returns the GET shape. | 400 validation / unknown key / `Choose a place before turning on weather` / `Unknown household member` (another household's id and a missing id alike); 403 teen/child; 409 enabling while `WEATHER_ENABLED` is off |
 | `GET /api/family/board-settings/places?q=` (new) | Parent only. Place search through the fixed Open-Meteo geocoding host; nothing is stored. `{ places: [{ label, latitude, longitude }] }` (≤ 6, coordinates rounded to 2 decimals). 30 searches per parent per 10 minutes. | 400 `q` not 2–80 chars; 403; 409 kill switch off; 429 with `Retry-After`; 502 provider error or timeout |

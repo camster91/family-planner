@@ -37,6 +37,18 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Food inventory</h2>
+            <p>
+              If your family turns on the food inventory, we store the items you add (name, amount,
+              where it is kept, category, best-before or use-by date, and when it was bought or
+              opened) and a short history of what was used up or thrown away, with who did it and
+              when, so it can be undone. Every member of the household can see it, and it is part
+              of every member&apos;s data export. It is deleted with the household; removing an item
+              also removes its history.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Fridge photo scan</h2>
             <p>
               If the fridge photo scan is turned on, a parent can photograph the fridge,

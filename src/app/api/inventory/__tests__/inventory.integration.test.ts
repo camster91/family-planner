@@ -191,8 +191,8 @@ describeWithDatabase('inventory API against Postgres', () => {
 
     const soon = await (await useSoon.GET(request(CHILD))).json()
     expect(soon.items.map((i: any) => [i.name, i.status, i.label])).toEqual([
-      ['eggs', 'expired', 'Expired yesterday'],
-      ['TOMATOES', 'soon', 'Use in 2 days'],
+      ['eggs', 'expired', 'Best before was yesterday'],
+      ['TOMATOES', 'soon', 'Best before in 2 days'],
     ])
 
     const res = await cook.GET(request(CHILD))

@@ -348,10 +348,13 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       expect(args.where.family_id).toBe(FAMILY)
       // One UTC day ahead plus the 3-day window covers the viewer's local today in any zone.
       expect(args.where.expires_on.lte.toISOString()).toBe('2026-01-09T00:00:00.000Z')
-      expect(Object.keys(args.select).sort()).toEqual(['expires_on', 'id', 'location', 'name'])
+      expect(Object.keys(args.select).sort()).toEqual(['date_kind', 'expires_on', 'id', 'location', 'name'])
+      // Active items only (#158); a use-by day stays in until it has passed in every zone.
+      expect(args.where.status).toBe('active')
+      expect(args.where.OR[1].expires_on.gte.toISOString()).toBe('2026-01-04T00:00:00.000Z')
       expect(data.useSoon).toEqual([
-        { id: 'inv1', name: 'Spinach', location: 'fridge', expiresOn: '2026-01-04' },
-        { id: 'inv2', name: 'Yogurt', location: 'fridge', expiresOn: '2026-01-07' },
+        { id: 'inv1', name: 'Spinach', location: 'fridge', expiresOn: '2026-01-04', dateKind: 'best_before' },
+        { id: 'inv2', name: 'Yogurt', location: 'fridge', expiresOn: '2026-01-07', dateKind: 'best_before' },
       ])
       // The inventory page is on the kid allowlist, so a child gets the link.
       expect(data.links.inventory).toBe('/dashboard/inventory')

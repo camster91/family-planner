@@ -26,7 +26,7 @@ import { canRoleAccessPath } from '@/lib/kid-access'
 import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { FamilyFeatures } from '@/lib/features'
 import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
-import { DEFAULT_USE_SOON_DAYS, getUseSoonItems, type InventoryLocation } from '@/lib/inventory'
+import { DEFAULT_USE_SOON_DAYS, getUseSoonItems, type DateKind, type InventoryLocation } from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
@@ -114,6 +114,11 @@ export interface BoardUseSoonItem {
   location: InventoryLocation
   /** `YYYY-MM-DD` expiry day. */
   expiresOn: string
+  /**
+   * What the day means (#158): `best_before` or `use_by`. Optional so an
+   * older cached DTO still renders (read as best before).
+   */
+  dateKind?: DateKind
 }
 
 /** A household photo chosen by a parent for the calm display (#271). */
@@ -274,6 +279,9 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           today: addUTCDays(startOfTodayUTC(now), 1),
           days: DEFAULT_USE_SOON_DAYS,
           limit: MAX_USE_SOON,
+          // A use-by day stays in until it has passed in every zone; the
+          // client drops it once it is past for the viewer (#158).
+          useByCutoff: addUTCDays(startOfTodayUTC(now), -1),
         })
       : Promise.resolve(null),
   ])
@@ -337,7 +345,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       : null,
     shopping,
     useSoon: useSoon
-      ? useSoon.map((i) => ({ id: i.id, name: i.name, location: i.location, expiresOn: i.expiresOn }))
+      ? useSoon.map((i) => ({ id: i.id, name: i.name, location: i.location, expiresOn: i.expiresOn, dateKind: i.dateKind }))
       : null,
     links: isDevice
       ? { ...NO_LINKS }

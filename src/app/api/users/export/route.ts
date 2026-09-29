@@ -17,7 +17,9 @@ export const dynamic = 'force-dynamic'
 // - All notifications addressed to them
 // - All activities they performed
 // - The household's meal plan (FamilyMeal, ADR-0007) and recipes
-// - The household's food inventory (InventoryItem, #263)
+// - The household's food inventory (InventoryItem, #263), including used-up
+//   and thrown-away items, and its consume/discard history
+//   (InventoryAdjustment, #158/#121)
 // - The household's grocery store-section choices and shopping trips (#273)
 // - The frozen legacy MealPlan/ShoppingList tables while they exist, plus the
 //   ADR-0007 backfill job summaries that archive legacy rows the backfill
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
-      meals, mealBackfillJobs, inventory, grocerySectionPreferences, groceryShoppingSessions,
+      meals, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -187,7 +189,18 @@ export async function GET(request: NextRequest) {
         where: { family: { members: { some: { id: userId } } } },
         select: {
           id: true, name: true, ingredient_id: true, amount: true, unit: true,
-          location: true, expires_on: true, added_by: true, created_at: true, updated_at: true,
+          location: true, expires_on: true, date_kind: true, category: true, purchased_on: true,
+          opened_on: true, status: true, finished_at: true, added_by: true, created_at: true, updated_at: true,
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      }),
+      // Inventory history (#158/#121): "Used it" / "Throw away" rows, same
+      // audience as the items. No family_id and no idempotency request id.
+      prisma!.inventoryAdjustment.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        select: {
+          id: true, item_id: true, kind: true, amount_delta: true, amount_before: true, amount_after: true,
+          status_before: true, status_after: true, actor_id: true, created_at: true, undone_at: true, undone_by: true,
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       }),
@@ -223,6 +236,7 @@ export async function GET(request: NextRequest) {
       meals,
       recipes,
       inventory,
+      inventoryAdjustments,
       grocerySectionPreferences,
       groceryShoppingSessions,
       mealPlans,

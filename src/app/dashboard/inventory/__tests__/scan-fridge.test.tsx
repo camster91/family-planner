@@ -9,6 +9,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
 import InventoryClient from '../InventoryClient'
+import { ToastProvider } from '@/components/ui/toast'
 import { confidenceLabel } from '../ScanFridgeDialog'
 
 jest.mock('@/components/providers/features-provider', () => ({
@@ -51,7 +52,11 @@ function setup({
     if (url.startsWith('/api/inventory?') && method === 'POST') return create(body, creates++)
     return json(404, {})
   }) as unknown as typeof fetch
-  render(<InventoryClient canWrite={canWrite} canOpenRecipes={false} canScan={canScan} />)
+  render(
+    <ToastProvider>
+      <InventoryClient canWrite={canWrite} canOpenRecipes={false} canScan={canScan} />
+    </ToastProvider>
+  )
   return { calls, user: userEvent.setup() }
 }
 
