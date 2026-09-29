@@ -149,6 +149,40 @@ describe("chores — two households", () => {
       expect(db.writes.filter((w) => w.op !== "updateMany")).toHaveLength(0);
     });
 
+    it("reject removes exactly the successor completion recorded", async () => {
+      const chore = db.find("chore", "chore-a")!;
+      chore.frequency = "daily";
+      chore.recurrence_id = null;
+      const before = new Set(db.rows("chore").map((r: any) => r.id));
+      expect((await complete(req({ as: "childA", body: { choreId: "chore-a" } }))).status).toBe(200);
+      const successorId = db.rows("chore").find((r: any) => !before.has(r.id))!.id;
+      const res = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+      expect(res.status).toBe(200);
+      expect(db.find("chore", successorId)).toBeUndefined();
+      expect(db.find("chore", "chore-a")).toMatchObject({ status: "pending", successor_id: null });
+    });
+
+    it("reject is 409 when another parent verifies between the check and the update", async () => {
+      db.find("chore", "chore-a")!.status = "completed";
+      const original = fakePrisma.chore.findUnique;
+      let calls = 0;
+      const spy = jest.spyOn(fakePrisma.chore, "findUnique").mockImplementation(async (args: any) => {
+        const row = await original(args);
+        // The other parent's verify lands right after the route's own read.
+        if (++calls === 1) db.find("chore", "chore-a")!.status = "verified";
+        return row;
+      });
+      try {
+        const res = await verify(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }));
+        expect(res.status).toBe(409);
+        expect(await res.json()).toMatchObject({ code: "CHORE_ALREADY_VERIFIED" });
+        expect(db.find("chore", "chore-a")?.status).toBe("verified");
+        expect(writesTo("activity")).toHaveLength(0);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it("children, teens and other households cannot reject; an unknown decision is 400", async () => {
       db.find("chore", "chore-a")!.status = "completed";
       db.find("chore", "chore-b")!.status = "completed";
