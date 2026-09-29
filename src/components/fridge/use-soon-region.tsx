@@ -15,7 +15,8 @@ export const MAX_USE_SOON_ROWS = 5
 /**
  * "Use soon" (#263 data in the slot #262 reserved): food that is expired or
  * should be eaten within a few days. Read-only. The state is always words
- * ("Expired yesterday", "Use today", "Use in 2 days") plus the storage place;
+ * ("Best before was yesterday", "Use by today", "Best before in 2 days"; a
+ * passed use-by day never appears, #158) plus the storage place;
  * expired rows add an icon, never colour alone. Renders nothing when there is
  * nothing to use, so the board keeps its four-column layout.
  */

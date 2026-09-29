@@ -680,12 +680,13 @@ test.describe("inventory (Family A parent)", () => {
     await expect(dialog(page)).toBeHidden();
     await expect(itemRow(page, IDS.salad)).toHaveCount(0);
     expect((await state(IDS.salad)).item.status).toBe("discarded");
-    for (const t of await page
-      .getByTestId("undo-toast")
-      .getByRole("button", { name: "Dismiss" })
-      .all()) {
-      await t.click();
+    // Dismiss every toast (each click removes one), so only the history
+    // list offers Undo.
+    const toasts = page.getByTestId("undo-toast");
+    while ((await toasts.count()) > 0) {
+      await toasts.first().getByRole("button", { name: "Dismiss" }).click();
     }
+    await expect(toasts).toHaveCount(0);
     const history = page.getByTestId("inventory-history");
     await expect(history.getByTestId("history-item").first()).toContainText(
       `Threw away ${SALAD}`,

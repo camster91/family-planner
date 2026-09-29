@@ -941,7 +941,8 @@ function LocationSection({
             {items.map((item) => {
               const body = (
                 <>
-                  <span className="flex-1 min-w-0">
+                  {/* A minimum width lets the badge wrap under a long name on a phone instead of squeezing it. */}
+                  <span className="flex-1 min-w-[9rem]">
                     <span className="block text-body text-label-primary break-words">{item.name}</span>
                     <span className="block text-footnote text-label-secondary break-words">{itemMeta(item)}</span>
                   </span>

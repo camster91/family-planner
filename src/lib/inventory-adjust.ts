@@ -10,9 +10,10 @@
  *   leaves it active. Discard makes it `discarded`. Either way one
  *   `InventoryAdjustment` row records the kind, the amount change, the actor
  *   and what Undo needs to restore.
- * - Concurrency: the item update is a compare-and-set on `updated_at`; the
- *   item's new `updated_at` is the adjustment's `created_at`, so Undo can
- *   prove nothing changed the item since (otherwise 409).
+ * - Concurrency: the item update is a compare-and-set on `updated_at` (the
+ *   item's version). The new version is stored on the adjustment
+ *   (`item_version`), so Undo can prove nothing changed the item since
+ *   (otherwise 409). `created_at` stays the wall-clock time of the change.
  * - Retries: the route runs these inside `withIdempotency`; the adjustment
  *   carries the idempotency record id (`request_id`, unique), so a re-run
  *   after a crash finds the row it already wrote and converges. Undo of an
@@ -34,6 +35,7 @@ export const ADJUSTMENT_SELECT = {
   status_before: true,
   status_after: true,
   actor_id: true,
+  item_version: true,
   created_at: true,
   undone_at: true,
 } as const
@@ -48,6 +50,7 @@ export interface AdjustmentRow {
   status_before: string
   status_after: string
   actor_id: string | null
+  item_version: Date | string
   created_at: Date | string
   undone_at: Date | string | null
 }
@@ -180,7 +183,8 @@ export async function adjustInventoryItem(
   const statusAfter = partial ? 'active' : kind === 'consume' ? 'consumed' : 'discarded'
   const amountAfter = partial ? tidy(item.amount! - used!) : item.amount
   const amountDelta = partial ? -used! : item.amount === null ? null : -item.amount
-  const now = nextItemVersion(item.updated_at, input.now)
+  const now = input.now ?? new Date()
+  const version = nextItemVersion(item.updated_at, now)
 
   try {
     const adjustment = await db.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -190,7 +194,7 @@ export async function adjustInventoryItem(
           status: statusAfter,
           amount: amountAfter,
           finished_at: statusAfter === 'active' ? null : now,
-          updated_at: now,
+          updated_at: version,
         },
       })
       if (moved.count !== 1) throw new CasLost()
@@ -206,6 +210,7 @@ export async function adjustInventoryItem(
           status_after: statusAfter,
           actor_id: actorId,
           request_id: input.requestId,
+          item_version: version,
           created_at: now,
         },
         select: ADJUSTMENT_SELECT,
@@ -254,7 +259,8 @@ export async function undoInventoryAdjustment(
     return { ok: true, item, adjustment, alreadyUndone: true }
   }
 
-  const now = nextItemVersion(adjustment.created_at, input.now)
+  const now = input.now ?? new Date()
+  const version = nextItemVersion(adjustment.item_version, now)
   try {
     const undone = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       const restored = await tx.inventoryItem.updateMany({
@@ -262,13 +268,13 @@ export async function undoInventoryAdjustment(
           id: adjustment.item_id,
           family_id: familyId,
           status: adjustment.status_after,
-          updated_at: adjustment.created_at,
+          updated_at: adjustment.item_version,
         },
         data: {
           status: adjustment.status_before,
           amount: adjustment.amount_before,
           finished_at: null,
-          updated_at: now,
+          updated_at: version,
         },
       })
       if (restored.count !== 1) throw new CasLost()

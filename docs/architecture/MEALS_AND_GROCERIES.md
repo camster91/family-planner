@@ -400,7 +400,8 @@ Indexes: `(family_id, location)`, `(family_id, expires_on)`, `(family_id, status
 | `status_before`, `status_after` | text | |
 | `actor_id` | text null, FK `User` `ON DELETE SET NULL` | who did it |
 | `request_id` | text null, **unique** | the `IdempotencyRecord` id of the request that wrote it |
-| `created_at` | timestamp | also the item's new `updated_at` |
+| `item_version` | timestamp | the item's `updated_at` this change set; Undo needs the item to still have it |
+| `created_at` | timestamp | wall-clock time of the change (history order) |
 | `undone_at`, `undone_by` | timestamp null, text null (FK `User` SET NULL) | set by Undo; the row stays as history |
 
 Indexes: `(family_id, created_at)`, `(item_id, created_at)`, unique `(request_id)`.
@@ -477,12 +478,12 @@ yet due or already past use-by for its own day.
   item's amount, the item becomes `consumed` (its amount is kept for the record); a smaller positive amount reduces
   it and the item stays active. A partial amount on an item without an amount is 400 (use all of it, or set an amount).
 - **"Throw away"** (`POST /api/inventory/[id]/discard`): the whole item becomes `discarded`.
-- Both write one `InventoryAdjustment` and move the item's `updated_at` to the adjustment's `created_at`, in one
-  transaction, as a compare-and-set on the item's previous `updated_at` (and `status = 'active'`, `family_id`). A lost
+- Both write one `InventoryAdjustment` and move the item's `updated_at` (its version) forward, recording the new
+  version as the adjustment's `item_version`, in one transaction, as a compare-and-set on the item's previous `updated_at` (and `status = 'active'`, `family_id`). A lost
   race is 409 `INVENTORY_ITEM_FINISHED` (another member finished it) or retryable 409 `INVENTORY_CONFLICT`.
 - **Undo** (`POST /api/inventory/adjustments/[id]/undo`) restores `status_before` and `amount_before`, clears
   `finished_at` and marks the adjustment undone (kept as history). It is allowed only while the item's `updated_at`
-  still equals the adjustment's `created_at`, i.e. for the latest change to that item; an edit, another use or an
+  still equals the adjustment's `item_version`, i.e. for the latest change to that item; an edit, another use or an
   earlier undo in between is 409 `INVENTORY_UNDO_CONFLICT` ("edit the item instead"). Every write moves `updated_at`
   strictly forward (`nextItemVersion`), so two changes in the same millisecond cannot fool the check.
 - **Finished items** leave `GET /api/inventory`, "use soon", "what can I cook" and the Today board tile; they stay

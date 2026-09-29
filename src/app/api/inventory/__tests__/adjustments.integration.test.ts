@@ -212,7 +212,15 @@ describeWithDatabase('inventory consume / discard / undo against Postgres', () =
     // The unique index is the backstop.
     await expect(
       prisma.inventoryAdjustment.create({
-        data: { family_id: FAM, item_id: eggs.id, kind: 'consume', status_before: 'active', status_after: 'active', request_id: record.id },
+        data: {
+          family_id: FAM,
+          item_id: eggs.id,
+          kind: 'consume',
+          status_before: 'active',
+          status_after: 'active',
+          request_id: record.id,
+          item_version: new Date(),
+        },
       })
     ).rejects.toMatchObject({ code: 'P2002' })
 

@@ -1526,7 +1526,8 @@ model InventoryItem {
 // Inventory history (#158/#121): one row per "Used it" (consume, full or
 // partial) or "Throw away" (discard). Household-scoped like its item, deleted
 // with the item or the household. Holds what Undo needs to put the item back
-// (`status_before`, `amount_before`); `undone_at` marks a reversed row.
+// (`status_before`, `amount_before`, `item_version`); `undone_at` marks a
+// reversed row.
 // `request_id` is the IdempotencyRecord id of the request that wrote it, so a
 // retried request after a crash converges instead of adding a second row.
 // Additive: scripts/migrate.js creates the table idempotently.
@@ -1544,6 +1545,9 @@ model InventoryAdjustment {
   /// Nullable so deleting a member's account keeps the household's history.
   actor_id      String?
   request_id    String?   @unique
+  /// The item's `updated_at` this change set (its version). Undo is allowed
+  /// only while the item still has this version.
+  item_version  DateTime
   created_at    DateTime  @default(now())
   undone_at     DateTime?
   undone_by     String?

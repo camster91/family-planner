@@ -1007,6 +1007,7 @@ CREATE TABLE IF NOT EXISTS "InventoryAdjustment" (
   "status_after" TEXT NOT NULL,
   "actor_id" TEXT,
   "request_id" TEXT,
+  "item_version" TIMESTAMP(3) NOT NULL,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "undone_at" TIMESTAMP(3),
   "undone_by" TEXT

@@ -98,7 +98,7 @@ describe('GET /api/users/export — canonical meal data', () => {
       db.rows('inventoryAdjustment').push({
         id: `adj-${f}`, family_id, item_id: `inv-${f}`, kind: 'discard', amount_delta: -3, amount_before: 3, amount_after: 3,
         status_before: 'active', status_after: 'discarded', actor_id: `parent-${f}`, request_id: `req-${f}`,
-        created_at: T, undone_at: null, undone_by: null,
+        item_version: T, created_at: T, undone_at: null, undone_by: null,
       })
     }
     const { body } = await exportAs(who)
