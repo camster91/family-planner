@@ -151,8 +151,11 @@ export function getDeviceQueue(client: DeviceClient): OfflineQueue {
   queues.set(DEVICE_QUEUE, queue)
   deviceQueueClient = client
   const forget = () => {
+    // Abandon, not dispose: an operation in flight when the purge ran (e.g. the
+    // enveloped kill-switch 404) must not persist itself afterwards, which would
+    // recreate the just-deleted `fp-device` database with the old household's ids.
+    queue.abandon()
     if (queues.get(DEVICE_QUEUE) !== queue) return
-    queue.dispose()
     queues.delete(DEVICE_QUEUE)
     deviceQueueClient = null
   }

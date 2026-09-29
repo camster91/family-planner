@@ -160,7 +160,7 @@ they become queueable.
   `device:<deviceId>`). Each action belongs to one namespace: a person queue refuses and drops device actions, and
   the device queue refuses and drops person actions. The device queue sends through the device client
   (`getDeviceQueue`, `deviceQueueSend`), so an expired access token is refreshed and retried once, and a revoked
-  tablet or the kill switch runs the purge (the queue is dropped, never replayed). It is used only when the
+  tablet or the kill switch runs the purge (the queue is abandoned: dropped from memory and never written again, even by an operation still in flight, so the deleted `fp-device` storage is not recreated). It is used only when the
   household turned tablet writes on (§9.2). Chore completes from the tablet are not queued: they are sent once
   with a fresh key and rolled back with a message when offline.
 - Board tiles (#274): a person's grocery tick on the Today board uses the same person queue as the Lists page. A

@@ -343,6 +343,9 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
    * the UI say so. The next successful write makes it durable again.
    */
   async function persist(): Promise<boolean> {
+    // A disposed queue never writes again: after a device purge its storage was
+    // deleted on purpose, and writing would recreate it with the old ids (#274).
+    if (disposed) return durable
     let ok = true
     try {
       if (ops.length === 0) await deps.store.remove()
@@ -467,6 +470,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   }
 
   async function finish(op: QueuedOperation, outcome: Outcome, body: unknown): Promise<'continue' | 'stop'> {
+    if (disposed) return 'stop' // abandoned (device purge) while this send was in flight
     if (!ops.includes(op)) return outcome.kind === 'auth' ? 'stop' : 'continue' // discarded or cleared meanwhile
     if (outcome.kind === 'synced') {
       ops = ops.filter((o) => o !== op)
@@ -631,6 +635,18 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     subscribe(listener: (event: QueueEvent) => void): () => void {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+    /**
+     * Drop everything in memory and stop for good, WITHOUT touching storage
+     * (#274). For the shared-tablet purge: the purge has already deleted the
+     * stored queue, and an operation still in flight must not write it back.
+     */
+    abandon() {
+      disposed = true
+      ops = []
+      if (timer !== null) deps.clearTimer(timer)
+      timer = null
+      listeners.clear()
     },
     dispose() {
       disposed = true

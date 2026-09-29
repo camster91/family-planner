@@ -793,3 +793,43 @@ describe('device queue variant', () => {
     expect(revoked.events.some((e) => e.type === 'auth-lost')).toBe(true)
   })
 })
+
+// #274: a device purge while a send is in flight must not write the queue back.
+describe('abandon (device purge)', () => {
+  it('drops the in-flight operation and never persists again', async () => {
+    const store = memoryStore()
+    const writes: string[] = []
+    const write = store.write
+    store.write = async (v: string) => {
+      writes.push(v)
+      await write(v)
+    }
+    let release!: (r: { status: number; body: unknown }) => void
+    const queue = createOfflineQueue({
+      namespace: 'device',
+      store,
+      send: () => new Promise((resolve) => (release = resolve)),
+      now: () => 1_000_000,
+      random: () => 0.5,
+      newKey: () => 'key-0001-abcdefghijkl',
+      isOnline: () => true,
+      setTimer: () => 0,
+      clearTimer: () => undefined,
+    })
+    await queue.enqueue('device.list-item.set-checked', { itemId: 'item-1', checked: true, actingMemberId: 'm' })
+    await flush()
+    expect(queue.list()[0].state).toBe('syncing')
+
+    // The purge deletes the stored queue, then the queue is abandoned...
+    store.value = null
+    const before = writes.length
+    queue.abandon()
+    expect(queue.list()).toEqual([])
+    // ...and the answer that arrives afterwards (the kill-switch 404) changes nothing.
+    release({ status: 404, body: { error: { code: 'NOT_FOUND' } } })
+    await flush()
+    expect(writes.length).toBe(before)
+    expect(store.value).toBeNull()
+    expect(queue.list()).toEqual([])
+  })
+})
