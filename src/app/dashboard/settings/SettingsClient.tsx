@@ -8,7 +8,7 @@ import SharedDeviceSettings from './SharedDeviceSettings'
 import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 import { downloadMyData } from '@/lib/data-export-client'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
 
 /**
  * `sharedDevice` is decided on the server (./page.tsx): null unless the
@@ -682,6 +682,19 @@ export default function SettingsClient({
                   <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
                 </div>
               </Link>
+              {/* Household audit history, #285. Parents only; the page and API enforce it too. */}
+              {role === 'parent' && (
+                <Link
+                  href="/dashboard/settings/activity"
+                  className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3 min-h-[44px]"
+                >
+                  <History className="w-4 h-4 text-teal-600" aria-hidden="true" />
+                  <div>
+                    <div className="font-medium">Recent changes</div>
+                    <div className="text-xs text-gray-500">Who changed features, invites, the Today board or tablets</div>
+                  </div>
+                </Link>
+              )}
               <button
                 onClick={() => setShowPasswordModal(true)}
                 className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"

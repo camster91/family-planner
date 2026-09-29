@@ -119,6 +119,8 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Notification preferences (#286): a person's own switches, never the tablet's.
   'GET /api/users/preferences': [403],
   'PATCH /api/users/preferences': [403],
+  // Household audit history (#285): parent person read, never the tablet's.
+  'GET /api/audit': [403],
 }
 
 function routeFiles(dir: string): string[] {

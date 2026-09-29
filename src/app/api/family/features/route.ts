@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { defaultFeatures, normalizeFeatures, FEATURES, type FeatureKey } from '@/lib/features'
+import { featureAuditEntries, writeAuditLog } from '@/lib/household-audit'
 
 // getServerUser returns a narrow type but the actual JWT payload includes role + family_id.
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
@@ -34,7 +35,8 @@ export async function GET() {
  * PATCH /api/family/features
  * Body: { features: { key1: bool, key2: bool, ... } }
  *   OR: { key: FeatureKey, enabled: boolean } (single feature)
- * Parents only — kids and teens cannot toggle features.
+ * Parents only — kids and teens cannot toggle features. Each feature that
+ * changed is recorded in the household audit history (#285).
  */
 export async function PATCH(request: Request) {
   const user = (await getServerUser()) as SessionUser | null
@@ -90,9 +92,16 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'features object OR (key + enabled) required' }, { status: 400 })
   }
 
-  await prisma!.family.update({
-    where: { id: user.family_id },
-    data: { features: next as any },
+  // Household audit history (#285): one row per feature that changed, in the
+  // same transaction as the change.
+  const familyId = user.family_id
+  const audit = featureAuditEntries(current, next, { familyId, actorUserId: user.id, actorKind: 'person' })
+  await prisma!.$transaction(async (tx) => {
+    await tx.family.update({
+      where: { id: familyId },
+      data: { features: next as any },
+    })
+    await writeAuditLog(tx, audit)
   })
 
   return NextResponse.json({ features: next })

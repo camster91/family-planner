@@ -6,6 +6,7 @@ import { normaliseLabel } from '@/lib/device-pairing'
 import { deviceError, deviceInternalError, deviceJson, killSwitch, rateLimited, readJson } from '@/lib/device-http'
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { clearDeviceCookies } from '@/lib/device-session'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 
 /** PATCH /api/device/label { label }: an elevated parent renames THIS tablet. */
 export async function PATCH(request: NextRequest) {
@@ -25,9 +26,28 @@ export async function PATCH(request: NextRequest) {
     const limit = await checkRateLimit(`device-revoke:${actor.parentId}`, 30, 60 * 60 * 1000)
     if (!limit.allowed) return rateLimited(limit)
 
-    const { count } = await prisma!.householdDevice.updateMany({
-      where: { id: actor.deviceId, family_id: actor.familyId, revoked_at: null },
-      data: { label },
+    // The rename and its household audit row (#285) commit together.
+    const count = await prisma!.$transaction(async (tx) => {
+      const before = await tx.householdDevice.findFirst({
+        where: { id: actor.deviceId, family_id: actor.familyId },
+        select: { label: true },
+      })
+      const updated = await tx.householdDevice.updateMany({
+        where: { id: actor.deviceId, family_id: actor.familyId, revoked_at: null },
+        data: { label },
+      })
+      if (updated.count === 1 && before && before.label !== label) {
+        await writeAuditLog(tx, {
+          familyId: actor.familyId,
+          actorUserId: actor.parentId,
+          actorKind: 'device',
+          action: 'device.renamed',
+          targetType: 'device',
+          targetId: actor.deviceId,
+          summary: auditSummary.deviceRenamed(before.label, label),
+        })
+      }
+      return updated.count
     })
     if (count !== 1) {
       const res = deviceError(401, 'DEVICE_REVOKED')

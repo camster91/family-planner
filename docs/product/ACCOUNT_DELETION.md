@@ -23,6 +23,16 @@ Define and test:
 - third-party integration disconnect/delete behaviour;
 - billing entitlement cancellation only after billing exists.
 
+## Retention: household audit history (#285)
+- `AuditLog` (Settings → Recent changes, ADR-0008) is household data: deleted with the household (`ON DELETE CASCADE`
+  on `master`; account deletion #292 must also list `auditLog` in `HOUSEHOLD_DELETION_PLAN`, where the schema-coverage
+  test requires every household-scoped model).
+- Deleting one member keeps the household's rows and clears the actor (`ON DELETE SET NULL`); the page then shows
+  "A former member". The summary may still hold that member's name (for example "Sam joined as a teen"); that is the
+  only retained personal data and it expires with the row.
+- Rows are kept 12 months, then pruned when a parent next reads the history (no scheduled job). The account export
+  includes the last 12 months: every row for a parent, only the rows they acted in for a teen or child.
+
 ## Data execution
 Prefer a documented job/transaction sequence with observable status for large cascades. Do not rely on accidental database cascades as the entire deletion policy. Retention exceptions must be explicit and minimal.
 

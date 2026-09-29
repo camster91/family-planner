@@ -14,6 +14,7 @@ import {
 } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
 import { revokeDevice } from '@/lib/device-session'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 
 // Request reasons map onto the fixed audit vocabulary (§10); "other" is a plain parent removal.
 const REASONS: Record<string, RevokeReason> = { lost: 'lost', replaced: 'replaced', other: 'parent' }
@@ -43,10 +44,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const limit = await checkRateLimit(`device-revoke:${userId}`, 30, 60 * 60 * 1000)
     if (!limit.allowed) return rateLimited(limit)
 
-    const existing = await prisma!.householdDevice.findFirst({ where: { id, family_id: familyId }, select: { id: true } })
+    const existing = await prisma!.householdDevice.findFirst({
+      where: { id, family_id: familyId },
+      select: { id: true, label: true },
+    })
     if (!existing) return deviceError(404, 'NOT_FOUND')
 
-    await revokeDevice(prisma!, { deviceId: id, familyId, revokedBy: userId, reason, now: deviceClock.now() })
+    // Household audit history (#285): only when this call removed it, in the same transaction.
+    await revokeDevice(prisma!, { deviceId: id, familyId, revokedBy: userId, reason, now: deviceClock.now() }, (tx) =>
+      writeAuditLog(tx, {
+        familyId,
+        actorUserId: userId,
+        actorKind: 'person',
+        action: 'device.removed',
+        targetType: 'device',
+        targetId: id,
+        summary: auditSummary.deviceRemoved(existing.label, reason),
+      })
+    )
 
     const row = await prisma!.householdDevice.findFirst({ where: { id, family_id: familyId }, select: DEVICE_LIST_SELECT })
     return deviceJson({ device: row ? serializeDevice(row, false) : null })

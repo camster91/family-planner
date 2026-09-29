@@ -9,6 +9,7 @@ import crypto from 'crypto'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { hashToken } from '@/lib/tokens'
 import { timingSafeEqualStr } from '@/lib/constant-time'
+import { auditSummary, writeAuditLog, type AuditEntry } from '@/lib/household-audit'
 import {
   createDeviceSession,
   generateDeviceToken,
@@ -403,6 +404,14 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
       if (fresh.expires_at.getTime() <= now.getTime() || !fresh.confirmed_at) return { kind: 'expired' }
 
       // Scoped by household: a foreign or already-removed id revokes nothing.
+      const replacedLabel = fresh.replaces_device_id
+        ? (
+            await tx.householdDevice.findFirst({
+              where: { id: fresh.replaces_device_id, family_id: row.family_id },
+              select: { label: true },
+            })
+          )?.label ?? null
+        : null
       const replacedDeviceId =
         fresh.replaces_device_id &&
         (await revokeDeviceInTransaction(tx, {
@@ -445,6 +454,31 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
       })
       if (claimed.count !== 1) throw new IssueRaceError()
       const tokens = await createDeviceSession(tx, device.id, row.family_id, now)
+
+      // Household audit history (#285): the parent who confirmed the pairing
+      // on their phone is the actor; recorded in this transaction.
+      const audit: AuditEntry[] = []
+      if (replacedDeviceId) {
+        audit.push({
+          familyId: row.family_id,
+          actorUserId: row.confirmed_by,
+          actorKind: 'person',
+          action: 'device.removed',
+          targetType: 'device',
+          targetId: replacedDeviceId,
+          summary: auditSummary.deviceRemoved(replacedLabel, 'replaced'),
+        })
+      }
+      audit.push({
+        familyId: row.family_id,
+        actorUserId: row.confirmed_by,
+        actorKind: 'person',
+        action: 'device.paired',
+        targetType: 'device',
+        targetId: device.id,
+        summary: auditSummary.devicePaired(device.label),
+      })
+      await writeAuditLog(tx, audit)
       return { kind: 'paired', device, tokens, replacedDeviceId }
     })
   } catch (error) {

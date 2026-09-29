@@ -204,6 +204,20 @@ Teen and child columns follow the kid allowlist: events, chores, recipes and not
 APIs, but their pages are parent-only, so search does not surface them. Page: `/dashboard/search` is parent-only (not
 on the kid allowlist); the command palette offers "Search the household" only to roles that may open it.
 
+### Household audit history (#285, PR101 D-4)
+
+`GET /api/audit?limit=&cursor=` and Settings → Recent changes (`/dashboard/settings/activity`). ADR-0008.
+
+| Action | Parent | Teen | Child | Shared device | Notes |
+|---|---|---|---|---|---|
+| Read the household's history | yes | no (403) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Own household only; newest first; cursor-paged, 1–50 per page; `private, no-store`. Reading prunes the household's rows older than 12 months. |
+| Open Recent changes | yes | no (kid allowlist redirect; page re-checks the role) | no | no | Linked from Settings → Privacy & Security for parents only. |
+| Rows written | a parent's feature toggles, board-settings changes, invites created/cancelled, tablet pair/rename/remove | — (they cannot make these changes) | — | the elevated parent's rename, removal and board-settings changes on the tablet (`actor_kind: device`) | Also `member.joined` for anyone who joins (their own row, with their role). Same transaction as the change. |
+| Export (`GET /api/users/export`) | every row of the last 12 months | only rows they acted in | only rows they acted in | — | No `family_id` in the export. |
+
+Summaries are fixed templates plus names (feature title, member or tablet name, role word): never an email, code,
+token, place or colour. An actor who has left the household is shown as "A former member".
+
 ### Today board page (#119 / #159)
 
 `/dashboard/today` (the fridge/wall tablet view) is on the kid allowlist for parent, teen and child. It is read-only

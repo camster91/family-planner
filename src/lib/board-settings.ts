@@ -14,7 +14,7 @@
  * its label (§9.1: no coordinates on the device).
  */
 import { z } from 'zod'
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { MEMBER_COLOR_KEYS, isMemberColorKey, resolveMemberColors } from '@/lib/member-colors'
 import { isWeatherEnabled, isWeatherUnit, type WeatherUnit } from '@/lib/weather/board-weather'
 import { isValidLatitude, isValidLongitude, roundCoordinate } from '@/lib/weather/open-meteo'
@@ -31,7 +31,8 @@ import { isSharedDeviceEnabled } from '@/lib/device-http'
 
 export type BoardSettingsAudience = 'person' | 'device'
 
-type Db = Pick<PrismaClient, 'family' | 'user' | 'upload' | 'weatherCache'>
+// A client or a transaction: the routes apply a patch and its audit row in one transaction (#285).
+type Db = Pick<Prisma.TransactionClient, 'family' | 'user' | 'upload' | 'weatherCache'>
 
 /** Uploads offered in the photo picker, newest first. */
 const MAX_UPLOADS_LISTED = 60

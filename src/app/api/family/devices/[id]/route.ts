@@ -14,6 +14,7 @@ import {
   readJson,
 } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 
 /** PATCH /api/family/devices/:id { label } — rename a household tablet (parent only). */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,16 +36,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Foreign and missing ids are the same 404.
     const existing = await prisma!.householdDevice.findFirst({
       where: { id, family_id: familyId },
-      select: { id: true, revoked_at: true },
+      select: { id: true, label: true, revoked_at: true },
     })
     if (!existing) return deviceError(404, 'NOT_FOUND')
     if (existing.revoked_at) {
       return deviceError(400, 'VALIDATION_ERROR', { message: 'A removed tablet cannot be renamed.' })
     }
 
-    await prisma!.householdDevice.updateMany({
-      where: { id, family_id: familyId, revoked_at: null },
-      data: { label },
+    // The rename and its household audit row (#285) commit together; nothing
+    // is recorded when the label did not change or the tablet was removed meanwhile.
+    await prisma!.$transaction(async (tx) => {
+      const { count } = await tx.householdDevice.updateMany({
+        where: { id, family_id: familyId, revoked_at: null },
+        data: { label },
+      })
+      if (count !== 1 || existing.label === label) return
+      await writeAuditLog(tx, {
+        familyId,
+        actorUserId: userId,
+        actorKind: 'person',
+        action: 'device.renamed',
+        targetType: 'device',
+        targetId: id,
+        summary: auditSummary.deviceRenamed(existing.label, label),
+      })
     })
     await writeDeviceAudit(prisma!, {
       familyId,

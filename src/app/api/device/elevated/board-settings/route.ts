@@ -4,6 +4,7 @@ import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceError, deviceInternalError, deviceJson, killSwitch, readJson } from '@/lib/device-http'
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { applyBoardSettingsPatch, parseBoardSettingsPatch, readBoardSettings } from '@/lib/board-settings'
+import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,8 @@ export const dynamic = 'force-dynamic'
  *
  * Both need `X-Device-Elevation` (403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED`
  * otherwise). Every change is audited as `device.elevated_action` /
- * `update_board_settings` with the section names it touched, never values.
+ * `update_board_settings` with the section names it touched, never values,
+ * and in the household audit history (#285) in the same transaction.
  */
 export async function GET(request: NextRequest) {
   const off = killSwitch()
@@ -49,7 +51,22 @@ export async function PATCH(request: NextRequest) {
     const parsed = parseBoardSettingsPatch(await readJson(request), 'device')
     if (!parsed.ok) return deviceError(400, 'VALIDATION_ERROR', { message: parsed.error })
 
-    const refused = await applyBoardSettingsPatch(prisma!, actor.familyId, parsed.patch)
+    // The change and its household audit row (#285, actor: the elevated
+    // parent on the tablet) commit together.
+    const refused = await prisma!.$transaction(async (tx) => {
+      const result = await applyBoardSettingsPatch(tx, actor.familyId, parsed.patch)
+      if (result || parsed.sections.length === 0) return result
+      await writeAuditLog(tx, {
+        familyId: actor.familyId,
+        actorUserId: actor.parentId,
+        actorKind: 'device',
+        action: 'board_settings.changed',
+        targetType: 'family',
+        targetId: actor.familyId,
+        summary: boardSettingsSummary(parsed.sections),
+      })
+      return null
+    })
     if (refused) return deviceError(refused.status, 'VALIDATION_ERROR', { message: refused.error })
 
     if (parsed.sections.length > 0) {

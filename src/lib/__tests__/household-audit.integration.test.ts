@@ -1,0 +1,231 @@
+// Household audit history (#285, PR101 D-4) against real Postgres: the audit
+// row commits atomically with the change it records (a failure after both
+// writes rolls back both), the read route pages the real index newest first,
+// a deleted member's rows keep their summary with no actor, and deleting the
+// household deletes its history. Only the session token check and
+// next/server are replaced. Opt-in like the other integration suites:
+// RUN_DB_INTEGRATION=1 DATABASE_URL=... against a disposable database that
+// `node scripts/migrate.js` has prepared.
+
+jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
+jest.mock('@/lib/session', () => ({
+  // `session:<userId>` tokens; role and family always come from the real user row.
+  verifySessionToken: async (token: string) => {
+    if (!token?.startsWith('session:')) return null
+    const { prisma } = require('@/lib/prisma')
+    const u = await prisma.user.findUnique({ where: { id: token.slice(8) } })
+    return u ? { userId: u.id, email: u.email, role: u.role, family_id: u.family_id, tv: u.token_version } : null
+  },
+  getTokenVersion: async () => 0,
+}))
+
+import * as householdAudit from '@/lib/household-audit'
+
+const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
+
+jest.setTimeout(60_000)
+
+describeWithDatabase('household audit history against Postgres', () => {
+  let prisma: NonNullable<typeof import('@/lib/prisma').prisma>
+  let settingsRoute: typeof import('@/app/api/family/board-settings/route')
+  let inviteRoute: typeof import('@/app/api/family/invites/[id]/route')
+  let auditRoute: typeof import('@/app/api/audit/route')
+
+  const FAM = 'auditint-family'
+  const FAM2 = 'auditint-family-2'
+  const PARENT = 'auditint-parent'
+  const PARENT2 = 'auditint-parent-2'
+  const TEEN = 'auditint-teen'
+  const OTHER = 'auditint-other'
+
+  function request(as: string, opts: { method?: string; path?: string; body?: unknown; query?: Record<string, string> } = {}): any {
+    const url = new URL(`http://localhost${opts.path ?? '/api/test'}`)
+    for (const [k, v] of Object.entries(opts.query ?? {})) url.searchParams.set(k, v)
+    return {
+      method: opts.method ?? 'GET',
+      url: url.toString(),
+      nextUrl: url,
+      headers: new Headers(),
+      cookies: { get: (n: string) => (n === 'session_token' ? { value: `session:${as}` } : undefined) },
+      json: async () => opts.body,
+    }
+  }
+
+  async function cleanup() {
+    await prisma.family.deleteMany({ where: { id: { in: [FAM, FAM2] } } })
+    await prisma.user.deleteMany({ where: { id: { in: [PARENT, PARENT2, TEEN, OTHER] } } })
+  }
+
+  beforeAll(async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const mod = await import('@/lib/prisma')
+    if (!mod.prisma) throw new Error('Integration database is not configured')
+    prisma = mod.prisma
+    settingsRoute = await import('@/app/api/family/board-settings/route')
+    inviteRoute = await import('@/app/api/family/invites/[id]/route')
+    auditRoute = await import('@/app/api/audit/route')
+    await cleanup()
+    await prisma.family.createMany({
+      data: [
+        { id: FAM, name: 'Audit home', invite_code: 'auditint-invite' },
+        { id: FAM2, name: 'Audit other', invite_code: 'auditint-invite-2' },
+      ],
+    })
+    await prisma.user.createMany({
+      data: [
+        { id: PARENT, email: 'p@auditint.test', name: 'Robin', role: 'parent', family_id: FAM },
+        { id: PARENT2, email: 'p2@auditint.test', name: 'Sam', role: 'parent', family_id: FAM },
+        { id: TEEN, email: 't@auditint.test', name: 'Kit', role: 'teen', family_id: FAM },
+        { id: OTHER, email: 'o@auditint.test', name: 'Other', role: 'parent', family_id: FAM2 },
+      ],
+    })
+  })
+
+  afterAll(async () => {
+    await cleanup()
+    jest.restoreAllMocks()
+  })
+
+  it('commits the change and its audit row together', async () => {
+    const res = await settingsRoute.PATCH(
+      request(PARENT, { method: 'PATCH', body: { display: { idleMinutes: 0 } } })
+    )
+    expect(res.status).toBe(200)
+    const family = await prisma.family.findUnique({ where: { id: FAM }, select: { ambient_idle_minutes: true } })
+    expect(family?.ambient_idle_minutes).toBe(0)
+    const rows = await prisma.auditLog.findMany({ where: { family_id: FAM } })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      actor_user_id: PARENT,
+      actor_kind: 'person',
+      action: 'board_settings.changed',
+      target_type: 'family',
+      target_id: FAM,
+      summary: 'Changed the Today board settings: calm display',
+    })
+  })
+
+  it('rolls back the change when the transaction fails after the audit write', async () => {
+    const before = await prisma.family.findUnique({ where: { id: FAM }, select: { ambient_idle_minutes: true } })
+    const auditBefore = await prisma.auditLog.count({ where: { family_id: FAM } })
+    const original = householdAudit.writeAuditLog
+    const spy = jest.spyOn(householdAudit, 'writeAuditLog').mockImplementationOnce(async (db, entries) => {
+      await original(db, entries)
+      // The audit row is written; now fail the rest of the transaction.
+      throw new Error('simulated failure after the audit write')
+    })
+    const res = await settingsRoute.PATCH(request(PARENT, { method: 'PATCH', body: { display: { idleMinutes: 30 } } }))
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(res.status).toBe(500)
+    const after = await prisma.family.findUnique({ where: { id: FAM }, select: { ambient_idle_minutes: true } })
+    expect(after).toEqual(before)
+    expect(await prisma.auditLog.count({ where: { family_id: FAM } })).toBe(auditBefore)
+  })
+
+  it('rolls back the audit row when the change itself fails', async () => {
+    const auditBefore = await prisma.auditLog.count({ where: { family_id: FAM } })
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await householdAudit.writeAuditLog(tx, {
+          familyId: FAM,
+          actorUserId: PARENT,
+          actorKind: 'person',
+          action: 'invite.revoked',
+          targetType: 'invite',
+          targetId: 'missing',
+          summary: householdAudit.auditSummary.inviteRevoked('child'),
+        })
+        // The change fails (no such invite): the audit row must not survive.
+        await tx.familyInvite.delete({ where: { id: 'auditint-missing-invite' } })
+      })
+    ).rejects.toBeTruthy()
+    expect(await prisma.auditLog.count({ where: { family_id: FAM } })).toBe(auditBefore)
+  })
+
+  it('revoking an invite writes its row; the read route pages the real index, parents only', async () => {
+    const invite = await prisma.familyInvite.create({
+      data: {
+        family_id: FAM,
+        email: 'kid@auditint.test',
+        role: 'child',
+        token_hash: 'auditint-hash',
+        expires_at: new Date(Date.now() + 86_400_000),
+        created_by: PARENT,
+      },
+    })
+    const del = await inviteRoute.DELETE(request(PARENT, { method: 'DELETE' }), { params: Promise.resolve({ id: invite.id }) })
+    expect(del.status).toBe(200)
+    expect(await prisma.familyInvite.findUnique({ where: { id: invite.id } })).toBeNull()
+
+    // 25 more rows sharing a few timestamps, plus one in the other household.
+    const base = Date.now() - 60_000
+    await prisma.auditLog.createMany({
+      data: Array.from({ length: 25 }, (_, i) => ({
+        family_id: FAM,
+        actor_user_id: PARENT2,
+        actor_kind: 'person',
+        action: 'feature.turned_on',
+        target_type: 'feature',
+        target_id: 'wishlist',
+        summary: 'Turned on Wishlist',
+        created_at: new Date(base - Math.floor(i / 5) * 1000),
+      })),
+    })
+    await prisma.auditLog.create({
+      data: { family_id: FAM2, actor_user_id: OTHER, actor_kind: 'person', action: 'feature.turned_on', target_type: 'feature', target_id: 'wishlist', summary: 'Other household row' },
+    })
+
+    const teen = await auditRoute.GET(request(TEEN, { path: '/api/audit' }))
+    expect(teen.status).toBe(403)
+
+    const seen: string[] = []
+    let cursor: string | null = null
+    let first: any = null
+    do {
+      const res: any = await auditRoute.GET(request(PARENT, { path: '/api/audit', query: cursor ? { limit: '10', cursor } : { limit: '10' } }))
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+      const body = await res.json()
+      first = first ?? body
+      seen.push(...body.entries.map((e: { id: string }) => e.id))
+      cursor = body.nextCursor
+    } while (cursor)
+    expect(seen).toHaveLength(27)
+    expect(new Set(seen).size).toBe(27)
+    expect(first.entries[0]).toMatchObject({ action: 'invite.revoked', summary: 'Cancelled an invite to join as a child', actor: { id: PARENT, name: 'Robin' } })
+    expect(JSON.stringify(first)).not.toContain('Other household row')
+    expect(JSON.stringify(first)).not.toContain('kid@auditint.test')
+  })
+
+  it('prunes rows past 12 months when a parent reads', async () => {
+    await prisma.auditLog.create({
+      data: {
+        id: 'auditint-old',
+        family_id: FAM,
+        actor_kind: 'person',
+        action: 'feature.turned_off',
+        target_type: 'feature',
+        target_id: 'wishlist',
+        summary: 'Turned off Wishlist',
+        created_at: new Date(Date.now() - householdAudit.AUDIT_RETENTION_MS - 86_400_000),
+      },
+    })
+    const res = await auditRoute.GET(request(PARENT, { path: '/api/audit' }))
+    expect(res.status).toBe(200)
+    expect(await prisma.auditLog.findUnique({ where: { id: 'auditint-old' } })).toBeNull()
+  })
+
+  it("deleting a member keeps the household's rows without an actor", async () => {
+    await prisma.user.delete({ where: { id: PARENT2 } })
+    const rows = await prisma.auditLog.findMany({ where: { family_id: FAM, summary: 'Turned on Wishlist' } })
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((r) => r.actor_user_id === null)).toBe(true)
+  })
+
+  it("deleting the household deletes its history and leaves the other household's", async () => {
+    expect(await prisma.auditLog.count({ where: { family_id: FAM } })).toBeGreaterThan(0)
+    await prisma.family.delete({ where: { id: FAM } })
+    expect(await prisma.auditLog.count({ where: { family_id: FAM } })).toBe(0)
+    expect(await prisma.auditLog.count({ where: { family_id: FAM2 } })).toBe(1)
+  })
+})

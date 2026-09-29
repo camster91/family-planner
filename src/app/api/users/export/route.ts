@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { BACKFILL_SOURCE_APP } from '@/lib/backfill/meals-groceries'
 import { NOTIFICATION_PREFERENCE_SELECT, preferencesFromRow } from '@/lib/notification-policy'
+import { AUDIT_RETENTION_MS } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,9 @@ export const dynamic = 'force-dynamic'
 //   and thrown-away items, and its consume/discard history
 //   (InventoryAdjustment, #158/#121)
 // - The household's grocery store-section choices and shopping trips (#273)
+// - Household audit history (#285) from the last 12 months: every row for a
+//   parent (the audience of Settings -> Recent changes); for a teen or child
+//   only the rows where they are the actor (e.g. joining the household)
 // - The frozen legacy MealPlan/ShoppingList tables while they exist, plus the
 //   ADR-0007 backfill job summaries that archive legacy rows the backfill
 //   skipped (MEALS_AND_GROCERIES.md §6), so no archived row is lost when the
@@ -40,6 +44,7 @@ export async function GET(request: NextRequest) {
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
       meals, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
+      auditLog,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -222,6 +227,23 @@ export async function GET(request: NextRequest) {
         select: { id: true, list_id: true, sections: true, started_at: true, last_tick_at: true },
         orderBy: [{ started_at: 'asc' }, { id: 'asc' }],
       }),
+      // Household audit history (#285): no family_id; rows past the 12-month
+      // retention are left out even before the next read prunes them.
+      prisma!.auditLog.findMany({
+        where: {
+          created_at: { gte: new Date(Date.now() - AUDIT_RETENTION_MS) },
+          family: { members: { some: { id: userId } } },
+          OR: [
+            { family: { members: { some: { id: userId, role: 'parent' } } } },
+            { actor_user_id: userId },
+          ],
+        },
+        select: {
+          id: true, action: true, actor_kind: true, actor_user_id: true, target_type: true,
+          target_id: true, summary: true, created_at: true,
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      }),
     ])
 
     const exportData = {
@@ -245,6 +267,7 @@ export async function GET(request: NextRequest) {
       inventoryAdjustments,
       grocerySectionPreferences,
       groceryShoppingSessions,
+      auditLog,
       mealPlans,
       shoppingLists,
       habits,

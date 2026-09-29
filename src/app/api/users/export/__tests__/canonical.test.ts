@@ -149,6 +149,26 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(parent.body.importJobs.map((j: any) => j.id).sort()).toEqual(['backfill-a', 'job-a'])
   })
 
+  it('household audit history (#285): every recent row for a parent, only their own for a child, none past 12 months', async () => {
+    const recent = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
+    const row = (id: string, family_id: string, actor: string, at: Date, summary: string) => ({
+      id, family_id, actor_user_id: actor, actor_kind: 'person', action: 'feature.turned_on',
+      target_type: 'feature', target_id: 'wishlist', summary, created_at: at,
+    })
+    db.rows('auditLog').push(
+      row('al-parent', FAMILY_A, 'parent-a', recent, 'Turned on Wishlist'),
+      row('al-child', FAMILY_A, 'child-a', recent, 'Child A joined as a child'),
+      row('al-old', FAMILY_A, 'parent-a', old, 'Turned off Wishlist'),
+      row('al-b', FAMILY_B, 'parent-b', recent, `${FOREIGN} change`)
+    )
+    const parent = await exportAs('parentA')
+    expect(parent.body.auditLog.map((r: any) => r.id).sort()).toEqual(['al-child', 'al-parent'])
+    expect(parent.body.auditLog[0]).not.toHaveProperty('family_id')
+    const child = await exportAs('childA')
+    expect(child.body.auditLog.map((r: any) => r.id)).toEqual(['al-child'])
+  })
+
   it.each(['parentA', 'childA'] as const)('%s export never contains another household', async (who) => {
     const { raw } = await exportAs(who)
     expect(raw).not.toContain(FOREIGN)

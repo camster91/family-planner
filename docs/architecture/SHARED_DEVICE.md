@@ -624,6 +624,12 @@ claims cannot be tied to a household and go to the structured log (`log.warn('de
 "device paired / revoked") may mirror `device.paired` and `device.revoked` with no identifiers beyond the event
 name.
 
+**Household audit history (#285, ADR-0008) is a separate table.** `DeviceAuditEvent` stays the best-effort security
+trail above. Parent-visible household changes (pairing, rename and removal of a tablet, board settings changed on the
+tablet) are also written to `AuditLog` in the same transaction as the change, with `actor_kind: 'device'` when made
+on the tablet under elevation and a names-only summary. Token-reuse revocation, elevation and pairing attempts are not
+household history and are recorded here only.
+
 ## 11. Rate limits and abuse cases
 
 Keys use `checkRateLimit` (counts every call) unless marked _failure-only_ (`isRateLimited` before, `checkRateLimit`
