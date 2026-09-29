@@ -162,16 +162,33 @@ again, they find nothing and return `deleted: false`.
 
 ### Concurrency
 
-Deletion (both kinds) takes a transaction-scoped advisory lock per household (`src/lib/household-lock.ts`) before it
-reads the member list, and holds it until commit. Every path that adds a member to an existing household takes the
-same lock in its own transaction and then checks the household still exists: `POST /api/family/join` (invite code
-and email invite; the invite is consumed in that transaction) and `POST /api/auth/register` with an invite token.
-Creating a new household (`POST /api/family`) cannot race a deletion of that household. So a join either commits
-first (and the deletion then deletes the new member too, or refuses with `OTHER_PARENTS_EXIST` if they joined as a
-parent), or waits and finds the household gone: join 404 "Family not found" / "Invite not found or expired",
-registration 400 "Invite not found or expired", and no account is created or moved. Before this, a join committing
-between the deletion's delete of the members and of the Family row left the new account behind with
-`family_id = NULL` (`User.family` is ON DELETE SET NULL) while the deletion reported success.
+Two transaction-scoped advisory locks (`src/lib/household-lock.ts`), always taken in the same order, **user lock
+first, then household lock** (nothing takes a user lock while holding a household lock, so there is no deadlock):
+
+| Lock | Held by deletion | Taken by | Outcome of a write that loses the race |
+| --- | --- | --- | --- |
+| Household (`household-membership:<familyId>`) | Household deletion and member deletion, from before they read the member list until commit | `POST /api/family/join` (code and email invite; the invite is consumed in that transaction), `POST /api/auth/register` with an invite, the calendar OAuth commit (`commitConnection`), `POST /api/upload` | Waits, re-checks the household (and for calendar, that the member still belongs to it), then refuses: join 404, register 400, calendar callback `calendar_sync=forbidden` with the just-issued grant revoked, upload 404 with its file removed. Nothing is created or moved. |
+| User (`user-membership:<userId>`) | Member deletion, from before it reads the member's `family_id` | `POST /api/family` (create) and `POST /api/family/join`, which then re-check the account | Create/join refuse (401 for a deleted account); no Family without members is left. |
+
+Write-ups of the races this closes:
+
+- A join committing between the deletion's delete of the members and of the Family row left the account with
+  `family_id = NULL` (`User.family` is ON DELETE SET NULL) while the deletion reported success.
+- A household created for an account being deleted left a Family with no members.
+- A calendar connection committed after the deletion's snapshot, or a failed commit after the provider issued the
+  token, left a grant nothing would revoke. The callback now revokes the new grant whenever it is not stored, for any
+  reason (limit, no refresh token, household or member gone, a failed transaction).
+- An upload committed its row and then wrote its file, so a deletion could miss the file or the file could appear
+  after cleanup. Now the file is written first (temporary name, then rename), the row is written under the household
+  lock after re-checking the household, and a refused or failed transaction removes the file it wrote. A deletion that
+  runs after sees the row with its file on disk and removes both.
+
+Ordinary household rows written concurrently need no lock: every table's `family_id` foreign key cascades, and an
+insert holds a key-share lock on the Family row, so a row inserted while the deletion runs is removed with the
+Family row (or the insert fails if the Family is already gone). `User` is the only SET NULL reference. The only other
+places that create files or external grants are the ones above: `POST /api/upload` is the only filesystem write,
+and the calendar OAuth callback the only stored provider grant (fridge scan and event import send content to a
+provider and keep nothing; recipe images are URLs; calm-display photos are ids of existing uploads).
 
 ### Partial failure
 

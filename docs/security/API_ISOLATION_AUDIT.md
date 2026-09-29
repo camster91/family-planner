@@ -232,7 +232,7 @@ recorded in route comments, as the de facto matrix.
 | /api/calendar/feed | GET | token (feed_token) | where family = token's family | n/a | none | calendar/feed/__tests__/route.test.ts | ok |
 | /api/calendar/connections | GET | family (404 while sync off) | where | P | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
 | /api/calendar/connections/[provider]/start | POST | family (404 while off / provider unconfigured) | session family + user bound into OAuth state | P | provider allowlisted | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
-| /api/calendar/connections/[provider]/callback | GET | family (404 while off) | state must match session user, family and provider (single use, 10 min) | P | state hash lookup only | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/oauth-state.test.ts | implemented (dormant, #264) |
+| /api/calendar/connections/[provider]/callback | GET | family (404 while off) | state must match session user, family and provider (single use, 10 min); commit under the household lock, refused if the household or member is gone, and any grant not stored is revoked (D-3) | P | state hash lookup only | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/oauth-state.test.ts | implemented (dormant, #264) |
 | /api/calendar/sync-connections/[id] | PATCH | family (404 while off) | where (404) | P, connecting member only (403) | calendar_id must be one of the member's writable provider calendars | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
 | /api/calendar/sync-connections/[id] | DELETE | family (404 while off) | where (404) | P | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
 | /api/calendar/sync-connections/[id]/calendars | GET | family (404 while off) | where (404) | P, connecting member only (403) | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
@@ -275,7 +275,7 @@ recorded in route comments, as the de facto matrix.
 | /api/events | POST | family | session family | all | none | events/iso | ok |
 | /api/events | PATCH | family | match (403) | P | none | events/iso | ok |
 | /api/events | DELETE | family | match (403) | P | none | events/iso | ok |
-| /api/family | POST | session | creates own family | n/a (rejects if already in a family) | none | family/iso | ok |
+| /api/family | POST | session | creates own family; under the caller's user lock, re-checked (D-3) | n/a (rejects if already in a family) | none | family/iso, lib/__tests__/membership-locks.integration.test.ts | ok |
 | /api/family | GET | family | own family; invite_code parent-only | all | none | family/iso | ok |
 | /api/family | PATCH | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
 | /api/family | DELETE | family (person only; device 403 before auth) | familyId must equal session family (403); deletes only that household's rows and its members (explicit plan, `src/lib/account-deletion.ts`) | P, only parent (409 `OTHER_PARENTS_EXIST`); current password + household name (D-3) | familyId verified | family/iso, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion.test.ts, lib/__tests__/account-deletion.integration.test.ts | ok (D-3: re-auth, only-parent rule, explicit sequence) |
@@ -391,7 +391,7 @@ recorded in route comments, as the de facto matrix.
 | /api/sick-days | POST | jwt | session family | P; teen/child own (report self only) | person_id verified | sick-days/route.test.ts, sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | PATCH | jwt | match (404); raw SQL also filters family_id | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | DELETE | jwt | match (404) | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
-| /api/upload | POST | family | records an `Upload` row (caller's family, uploader); filename namespaced per family | all | none | src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
+| /api/upload | POST | family | records an `Upload` row (caller's family, uploader); filename namespaced per family; file written first, row under the household lock after re-checking the household, file removed if refused (D-3) | all | none | src/__tests__/chore-photo-ownership.test.ts, lib/__tests__/membership-locks.integration.test.ts | implemented (D3) |
 | /api/users | GET | session | self | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | PATCH | session | self (id/family_id/role not writable) | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | DELETE | session (person only; device 403 before auth) | self; last-parent guard (409 `LAST_PARENT`); hand-over to a parent of the same household only | all; current password + `DELETE` (D-3) | none | users/__tests__/route.test.ts, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion*.test.ts | ok (D-3) |
