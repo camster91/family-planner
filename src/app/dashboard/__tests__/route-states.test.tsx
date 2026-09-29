@@ -7,7 +7,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n'
 import DashboardError from '../error'
-import DashboardLoading from '../loading'
+import RouteLoading from '@/components/ui/route-loading'
+import TodayLoading from '../today/loading'
+import fs from 'fs'
+import path from 'path'
+
+const DASHBOARD = path.join(__dirname, '..')
 
 function secretError() {
   const error = new Error('relation "Transaction" family_id=fam-secret-123 failed') as Error & { digest?: string }
@@ -62,16 +67,29 @@ describe('dashboard error.tsx', () => {
   })
 })
 
-describe('dashboard loading.tsx', () => {
+describe('dashboard tab loading.tsx', () => {
   it('is a polite, busy status region with a spoken label', () => {
     render(
       <I18nProvider>
-        <DashboardLoading />
+        <RouteLoading />
       </I18nProvider>
     )
     const status = screen.getByRole('status')
     expect(status.getAttribute('aria-live')).toBe('polite')
     expect(status.getAttribute('aria-busy')).toBe('true')
     expect(status.textContent).toBe('Loading…')
+  })
+
+  it('each server-rendered tab re-exports the shared state', () => {
+    expect(TodayLoading).toBe(RouteLoading)
+    for (const tab of ['today', 'chores', 'lists', 'calendar', 'rewards']) {
+      expect(fs.existsSync(path.join(DASHBOARD, tab, 'loading.tsx'))).toBe(true)
+    }
+  })
+
+  // A loading boundary streams the page: a server redirect() becomes a
+  // client-side one and notFound() answers 200. These segments rely on both.
+  it.each(['', 'projects', 'settings'])('there is no loading boundary above /dashboard/%s', (segment) => {
+    expect(fs.existsSync(path.join(DASHBOARD, segment, 'loading.tsx'))).toBe(false)
   })
 })
