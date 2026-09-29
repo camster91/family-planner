@@ -13,6 +13,8 @@ export interface DeviceMe {
   household: { name: string }
   features: { calendar: boolean; chores: boolean; meals: boolean; lists: boolean }
   parents: Array<{ id: string; name: string; hasPin: boolean }>
+  /** Tablet writes (#274): the household's opt-in. Optional for older servers. */
+  deviceWrites?: boolean
   elevation: { active: boolean; memberId: string | null; expiresAt: string | null }
 }
 

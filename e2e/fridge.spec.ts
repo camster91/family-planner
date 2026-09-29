@@ -422,9 +422,11 @@ test.describe("Today board: Family A parent", () => {
       DINNER_TODAY,
     );
     await expect(dinner).toContainText("Cooking: Avery Fixture-A");
+    // #274: the tile heading opens the section (no "Open meals" button).
     await expect(
-      dinner.getByRole("link", { name: "Open meals" }),
+      dinner.getByRole("link", { name: /Dinner tonight\s*, open meals/ }),
     ).toHaveAttribute("href", "/dashboard/meals");
+    await expect(page.getByRole("link", { name: /^Open / })).toHaveCount(0);
 
     // Groceries: oldest 5 open items, checked items excluded, overflow link.
     const groceries = region(page, "groceries");
@@ -439,10 +441,13 @@ test.describe("Today board: Family A parent", () => {
     await expect(
       groceries.getByRole("link", { name: "1 more to buy" }),
     ).toHaveAttribute("href", "/dashboard/lists");
-    await expect(items.nth(0).getByRole("link")).toHaveAttribute(
-      "href",
-      `/dashboard/lists/${A.groceryList}`,
-    );
+    // #274: a grocery row ticks the item off in place; the heading opens lists.
+    await expect(
+      items.nth(0).getByRole("button", { name: "Tick off Milk, 2" }),
+    ).toBeVisible();
+    await expect(
+      groceries.getByRole("link", { name: /Groceries\s*, open lists/ }),
+    ).toHaveAttribute("href", "/dashboard/lists");
 
     // Chores due today, per person, household order, no points.
     const chores = region(page, "chores");
