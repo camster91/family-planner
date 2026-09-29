@@ -4,6 +4,7 @@
 import * as React from 'react'
 import { render, screen, within } from '@testing-library/react'
 import ListDetailClient from '../ListDetailClient'
+import { ToastProvider } from '@/components/ui/toast'
 
 // The offline queue (#162) is covered by its own tests and e2e/sync.spec.ts.
 jest.mock('../use-list-item-sync', () => ({
@@ -25,6 +26,7 @@ const base = { quantity: 1, category: null, added_by: { name: 'Pat' } }
 describe('grocery list rows (ADR-0007, #252)', () => {
   it('shows amount, unit and recipe provenance, and groups open rows by ingredient', () => {
     render(
+      <ToastProvider>
       <ListDetailClient
         listId="l1"
         listName="Groceries"
@@ -39,6 +41,7 @@ describe('grocery list rows (ADR-0007, #252)', () => {
           { ...base, id: 'd', content: 'Tofu', checked: true, amount: 400, unit: 'g', ingredient_id: 'ing_tofu', recipe_title: 'Tofu stir-fry', checked_by: { name: 'Sam' } },
         ]}
       />
+      </ToastProvider>
     )
 
     const group = screen.getByRole('group', { name: 'Tomatoes, 2 entries' })
@@ -57,6 +60,7 @@ describe('grocery list rows (ADR-0007, #252)', () => {
 
   it('leaves generic lists without provenance text', () => {
     render(
+      <ToastProvider>
       <ListDetailClient
         listId="l2"
         listName="Weekend"
@@ -64,6 +68,7 @@ describe('grocery list rows (ADR-0007, #252)', () => {
         userId="u1"
         items={[{ ...base, id: 't', content: 'Rake leaves', checked: false }]}
       />
+      </ToastProvider>
     )
     const row = screen.getByRole('checkbox', { name: /Rake leaves/ })
     expect(row.textContent).toBe('Rake leaves')

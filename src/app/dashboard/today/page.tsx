@@ -6,7 +6,9 @@ import { normalizeFeatures } from '@/lib/features'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import { getBoardWeather } from '@/lib/weather/board-weather'
+import HomeSummary from '@/components/dashboard/HomeSummary'
 import { buildTodayBoard } from './today-board-data'
+import { loadHomeSummary } from './home-summary-data'
 
 export const metadata: Metadata = { title: 'Today' }
 
@@ -18,6 +20,13 @@ export const dynamic = 'force-dynamic'
  * Today board (#119 / #159): the glanceable household view for the fridge or
  * wall tablet, also usable on a phone. `?mode=fridge` hides the app chrome for
  * a mounted tablet. Shared-surface data rules live in ./today-board-data.ts.
+ *
+ * One home (#269): this is the home for person sessions on every viewport;
+ * /dashboard redirects parents here (children and teens keep their own kid
+ * home at /dashboard). Outside fridge mode the page adds the viewer's summary
+ * sentence and their own tickable chores above the board (#268,
+ * ./home-summary-data.ts). Fridge mode is the shared surface, so it shows the
+ * board alone.
  */
 export default async function TodayBoardPage({
   searchParams,
@@ -54,7 +63,7 @@ export default async function TodayBoardPage({
 
   const now = new Date()
   // Weather (#262) is opt-in per household and never fails the page: null hides the tile.
-  const [board, weather] = await Promise.all([
+  const [board, weather, home] = await Promise.all([
     buildTodayBoard(prisma!, {
       familyId,
       role: user.role,
@@ -62,7 +71,16 @@ export default async function TodayBoardPage({
       now,
     }),
     getBoardWeather(prisma!, { familyId, now }),
+    fridgeMode ? Promise.resolve(null) : loadHomeSummary(prisma!, { familyId, role: user.role }),
   ])
 
-  return <TodayBoard data={{ ...board, weather }} fridgeMode={fridgeMode} />
+  const data = { ...board, weather }
+  if (!home) return <TodayBoard data={data} fridgeMode={fridgeMode} />
+
+  return (
+    <>
+      <HomeSummary viewer={{ id: sessionUser.id, role: user.role }} {...home} />
+      <TodayBoard data={data} fridgeMode={fridgeMode} />
+    </>
+  )
 }

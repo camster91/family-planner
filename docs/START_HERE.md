@@ -41,6 +41,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Architecture: `docs/architecture/**`
 - Testing: `docs/testing/**`
 - Design: `design/**` and `BRAND.md`
+- Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
 - Release/incident operations: `docs/runbooks/**`
 
 ## Historical/reference-only material

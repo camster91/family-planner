@@ -2,7 +2,6 @@
  * Browser journeys (#155): login, role gates, household isolation, logout.
  * Data: the #154 fixture households, seeded by e2e/global-setup.ts.
  */
-import type { Page } from "@playwright/test";
 import {
   buildFixtureDataset,
   FIXTURE_EMAILS,
@@ -43,12 +42,9 @@ const FAMILY_A_ONLY = [
   "Dish soap",
 ];
 
-/** Dashboard Shopping card size (getOpenShoppingItems default limit). */
-const SHOPPING_CARD_LIMIT = 5;
-
 /**
- * Open items of a family's grocery/shopping lists in the order the dashboard
- * Shopping card shows them (oldest first, then id), as rendered titles.
+ * Open items of a family's grocery/shopping lists in the order the Today
+ * board's Groceries region shows them (oldest first, then id), as rendered titles.
  */
 function openShoppingTitles(familyId: string) {
   const ds = buildFixtureDataset(E2E_ANCHOR);
@@ -71,12 +67,6 @@ function openShoppingTitles(familyId: string) {
     .map((i) =>
       (i.quantity ?? 1) > 1 ? `${i.content} × ${i.quantity}` : i.content,
     );
-}
-
-function shoppingCard(page: Page) {
-  return page.locator("#main-content section").filter({
-    has: page.locator("p.section-header", { hasText: /^Shopping$/ }),
-  });
 }
 
 /**
@@ -135,34 +125,39 @@ test.describe("signed out", () => {
     await expect(
       page.getByRole("button", { name: "Signing in..." }),
     ).toBeDisabled();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    // One home (#269): a parent lands on the Today board.
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
   });
 
   test("parent logs in through the form and sees real Family A data", async ({
     page,
   }) => {
     await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-    await expect(page).toHaveURL(/\/dashboard$/);
+    // One home (#269): /dashboard sends a parent to the Today board.
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
 
     const main = page.locator("#main-content");
     // Server clock (E2E_SERVER_NOW) and browser clock both sit on the anchor.
-    await expect(main.getByText("Monday, January 5")).toBeVisible();
+    await expect(main.getByTestId("board-date")).toHaveText(
+      "Monday, January 5",
+    );
+    // One true sentence for the parent: the household's chores due today by
+    // person (#268). The parent has none of their own, so no "My chores" list
+    // and no contradicting "All done" empty state.
+    await expect(main.getByTestId("home-summary-sentence")).toHaveText(
+      "3 chores left today · Taylor 2, Casey 1",
+    );
+    await expect(main.getByText("All done for today!")).toHaveCount(0);
+    await expect(main.getByTestId("my-chores")).toHaveCount(0);
+    // Completed-but-unverified chore ("Unload dishwasher") waits for a check.
     await expect(
-      main.getByText("Avery Fixture-A", { exact: true }).first(),
-    ).toBeAttached();
-    // "My chores" is scoped to the signed-in parent, who has none assigned;
-    // the progress card counts the household's chores due today.
-    await expect(main.getByText("All done for today!")).toBeVisible();
-    await expect(main.getByText("Take out recycling")).toHaveCount(0);
-    await expect(main.getByText(/^\d+ of \d+ done today$/)).toBeVisible();
-    // Seeded "upcoming" events from the busy household.
-    await expect(main.getByText("Dentist (Casey)")).toBeVisible();
-    await expect(main.getByText("Soccer practice")).toBeVisible();
-    // Budget card: real month totals; the fixtures set no category limits.
-    await expect(main.getByText("Budget this month")).toBeVisible();
-    await expect(main.getByText("No budget set")).toBeVisible();
-    // Completed-but-unverified chore lands in the parent review queue.
-    await expect(main.getByText("Unload dishwasher")).toBeVisible();
+      main.getByRole("link", { name: "1 chore to check" }),
+    ).toHaveAttribute("href", "/dashboard/chores");
+    // Seeded events still to come today, on the board.
+    await expect(main.getByText("Dentist (Casey)").first()).toBeVisible();
+    await expect(main.getByText("Soccer practice").first()).toBeVisible();
+    // Parent-only budget moved behind Family → More: not on the home.
+    await expect(main.getByText("Budget this month")).toHaveCount(0);
   });
 });
 
@@ -238,58 +233,6 @@ test.describe("Family A parent", () => {
     }
   });
 
-  test("dashboard Shopping card shows open grocery items and links to the list", async ({
-    page,
-  }) => {
-    const open = openShoppingTitles(FIXTURE_IDS.familyA.family);
-    expect(open.length).toBeGreaterThan(SHOPPING_CARD_LIMIT);
-    const shown = open.slice(0, SHOPPING_CARD_LIMIT);
-    const hidden = open.slice(SHOPPING_CARD_LIMIT);
-
-    await page.goto("/dashboard");
-    const card = shoppingCard(page);
-    await expect(card).toHaveCount(1);
-    // Oldest open items first; quantity > 1 renders as "× n".
-    await expect(card.getByRole("link")).toHaveCount(shown.length + 1);
-    for (const [i, title] of shown.entries()) {
-      const row = card.getByRole("link").nth(i);
-      await expect(row).toContainText(title);
-      await expect(row).toContainText("Groceries");
-      await expect(row).toHaveAttribute(
-        "href",
-        `/dashboard/lists/${FIXTURE_IDS.familyA.groceryList}`,
-      );
-    }
-    expect(shown).toContain("Milk × 2");
-    expect(shown).toContain(FIXTURE_LONG_TEXT.groceryItem);
-    // Items past the limit collapse into one "N more to buy" row.
-    for (const title of hidden) {
-      await expect(card.getByText(title, { exact: true })).toHaveCount(0);
-    }
-    const more = card.getByRole("link", {
-      name: `${hidden.length} more to buy`,
-    });
-    await expect(more).toBeVisible();
-    await expect(more).toHaveAttribute("href", "/dashboard/lists");
-    // Checked items and the other household's items never appear.
-    for (const title of [
-      "Coffee beans",
-      "Olive oil",
-      ...openShoppingTitles(FIXTURE_IDS.familyB.family),
-    ]) {
-      await expect(card.getByText(title)).toHaveCount(0);
-    }
-
-    // The item row opens its list.
-    await card.getByRole("link").first().click();
-    await expect(page).toHaveURL(
-      new RegExp(`/dashboard/lists/${FIXTURE_IDS.familyA.groceryList}$`),
-    );
-    const main = page.locator("#main-content");
-    await expect(main.getByText("Cheddar cheese")).toBeVisible();
-    await expect(main.getByText(hidden[0])).toBeVisible();
-  });
-
   test("own list shows its seeded items", async ({ page }) => {
     await page.goto(`/dashboard/lists/${FIXTURE_IDS.familyA.list}`);
     const main = page.locator("#main-content");
@@ -360,28 +303,29 @@ test.describe("Family B parent", () => {
 
   test("sees only its own sparse household", async ({ page }) => {
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const main = page.locator("#main-content");
-    // Water the plants is the teen's chore: not in the parent's "My chores",
-    // but listed on the household chores page.
-    await expect(main.getByText("All done for today!")).toBeVisible();
+    // Water the plants is the teen's chore, due today: the parent's sentence
+    // counts it for the teen.
+    await expect(main.getByTestId("home-summary-sentence")).toHaveText(
+      /^1 chore left today · \S+ 1$/,
+    );
     let text = await page.locator("body").innerText();
-    for (const title of FAMILY_A_ONLY) {
+    // "Groceries" is also the board's region heading; Family A's list of that
+    // name is checked through its items below.
+    for (const title of FAMILY_A_ONLY.filter((t) => t !== "Groceries")) {
       expect(text, `Family B dashboard leaked "${title}"`).not.toContain(title);
     }
-    // Shopping card: B's single open item, no overflow row, nothing from A.
-    const card = shoppingCard(page);
+    // Groceries on the board: B's single open item, nothing from A.
     const open = openShoppingTitles(FIXTURE_IDS.familyB.family);
     expect(open).toEqual(["Printer ink (Family B)"]);
-    await expect(card.getByRole("link")).toHaveCount(1);
-    await expect(card.getByRole("link").first()).toContainText(open[0]);
-    await expect(card.getByRole("link").first()).toHaveAttribute(
-      "href",
-      `/dashboard/lists/${FIXTURE_IDS.familyB.shoppingList}`,
-    );
-    await expect(card.getByText(/more to buy$/)).toHaveCount(0);
-    await expect(card.getByText("Light bulbs (Family B)")).toHaveCount(0);
+    await expect(
+      main.getByText("Printer ink (Family B)").first(),
+    ).toBeVisible();
+    await expect(main.getByText(/more to buy$/)).toHaveCount(0);
+    await expect(main.getByText("Light bulbs (Family B)")).toHaveCount(0);
     for (const title of openShoppingTitles(FIXTURE_IDS.familyA.family)) {
-      await expect(card.getByText(title)).toHaveCount(0);
+      await expect(main.getByText(title)).toHaveCount(0);
     }
 
     await page.goto("/dashboard/chores");

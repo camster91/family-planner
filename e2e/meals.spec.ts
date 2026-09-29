@@ -162,8 +162,14 @@ async function openMeals(page: Page) {
   await page.evaluate(() => document.fonts.ready);
 }
 
-async function acceptNextConfirm(page: Page) {
-  page.once("dialog", (d) => void d.accept());
+/** Undo over confirm (#269): deleting a meal must not open a browser dialog. */
+function countDialogs(page: Page) {
+  const seen = { count: 0 };
+  page.on("dialog", (d) => {
+    seen.count += 1;
+    void d.dismiss();
+  });
+  return seen;
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -261,10 +267,19 @@ test.describe("meals (parent)", () => {
       `${PREFIX} oatmeal`,
     );
 
+    const dialogs = countDialogs(page);
     await slotRows(page, "breakfast").click();
-    await acceptNextConfirm(page);
     await dialog(page).getByRole("button", { name: "Delete" }).click();
     await expect(slotRows(page, "breakfast")).toHaveCount(0);
+    // Undo puts the meal back (re-created with the same fields).
+    const toast = page.getByTestId("undo-toast");
+    await expect(toast).toContainText("Deleted");
+    await toast.getByRole("button", { name: "Undo" }).click();
+    await expect(slotRows(page, "breakfast")).toHaveCount(1);
+    await slotRows(page, "breakfast").click();
+    await dialog(page).getByRole("button", { name: "Delete" }).click();
+    await expect(slotRows(page, "breakfast")).toHaveCount(0);
+    expect(dialogs.count).toBe(0);
     await expect(
       todayCard(page).getByRole("button", {
         name: `Add breakfast, ${TODAY_LONG}`,
@@ -399,7 +414,6 @@ test.describe("meals (parent)", () => {
 
     // Delete the second meal; the first stays.
     await slotRows(page, "dinner").nth(1).click();
-    await acceptNextConfirm(page);
     await dialog(page).getByRole("button", { name: "Delete" }).click();
     await expect(slotRows(page, "dinner")).toHaveCount(1);
     await expect(slotRows(page, "dinner")).toContainText(`${PREFIX} tacos`);

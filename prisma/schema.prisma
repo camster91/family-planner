@@ -374,6 +374,11 @@ model Chore {
   recurrence_id  String?
   is_template    Boolean   @default(false)
 
+  // Legacy recurring one-offs (no series): the id of the next occurrence that
+  // completing this chore created, so Undo (#268) removes exactly that row
+  // instead of guessing it from title/date/timestamps. Cleared on Undo.
+  successor_id   String?
+
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id])

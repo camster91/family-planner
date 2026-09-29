@@ -107,6 +107,8 @@ CREATE TABLE IF NOT EXISTS "Chore" (
 -- Backfill the #184 recurrence columns for deployments whose Chore table predates them
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "recurrence_id" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "is_template" BOOLEAN NOT NULL DEFAULT false;
+-- #268 Undo: exact successor created by completing a legacy recurring one-off
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "successor_id" TEXT;
 
 -- ============ Event ============
 CREATE TABLE IF NOT EXISTS "Event" (

@@ -10,9 +10,12 @@ import DashboardNav from '../DashboardNav'
 import type { NavUser } from '@/types'
 
 let mockInventoryOn = true
-jest.mock('@/components/providers/features-provider', () => ({
-  useFeatureEnabled: (key: string) => (key === 'inventory' ? mockInventoryOn : true),
-}))
+jest.mock('@/components/providers/features-provider', () => {
+  const { defaultFeatures } = jest.requireActual('@/lib/features')
+  return {
+    useFeatures: () => ({ features: { ...defaultFeatures(), inventory: mockInventoryOn } }),
+  }
+})
 jest.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
@@ -42,6 +45,18 @@ describe('DashboardNav user menu: food inventory', () => {
     mockInventoryOn = false
     await openMenu('parent')
     expect(screen.queryByRole('link', { name: 'Food inventory' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Today board' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy()
+  })
+
+  // #269: the board is the parents' Today tab; children and teens, whose Today
+  // tab is the kid home, still reach it from the menu.
+  it('offers the Today board in the menu to children and teens only', async () => {
+    await openMenu('parent')
+    expect(screen.queryByRole('link', { name: 'Today board' })).toBeNull()
+  })
+
+  it.each(['teen', 'child'] as const)('links a %s to the Today board', async (role) => {
+    await openMenu(role)
+    expect(screen.getByRole('link', { name: 'Today board' }).getAttribute('href')).toBe('/dashboard/today')
   })
 })

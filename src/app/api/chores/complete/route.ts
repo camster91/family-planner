@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
           // the row is a one-off so the cron never re-expands it.
           const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
           if (nextDueDate) {
-            await tx.chore.create({
+            const successor = await tx.chore.create({
               data: {
                 family_id: chore.family_id,
                 title: chore.title,
@@ -121,6 +121,9 @@ export async function POST(request: NextRequest) {
                 created_by: chore.created_by,
               },
             })
+            // Remember exactly which row this completion created, so Undo
+            // removes that row and nothing else (#268).
+            await tx.chore.update({ where: { id: chore.id }, data: { successor_id: successor.id } })
           }
         }
       }

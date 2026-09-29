@@ -10,6 +10,8 @@ import { ChevronRight, LucideIcon } from 'lucide-react'
 type GlyphColor =
   | 'chore' | 'calendar' | 'lists' | 'budget'
   | 'messages' | 'family' | 'rewards' | 'projects' | 'meals' | 'gray'
+  // No tile: the icon in secondary label colour (quiet colour, #269).
+  | 'plain'
 
 export function ListRow({
   icon: Icon,
@@ -39,6 +41,7 @@ export function ListRow({
     budget: 'bg-tint-budget', messages: 'bg-tint-messages', family: 'bg-tint-family',
     rewards: 'bg-tint-rewards', projects: 'bg-tint-projects', meals: 'bg-tint-meals',
     gray: 'bg-surface-fill',
+    plain: '',
   }[glyphColor]
 
   const inner = (
@@ -49,7 +52,12 @@ export function ListRow({
         className
       )}
     >
-      {Icon && (
+      {Icon && glyphColor === 'plain' && (
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+          <Icon className="w-5 h-5 text-label-secondary" aria-hidden="true" />
+        </div>
+      )}
+      {Icon && glyphColor !== 'plain' && (
         <div className={cn('glyph', bgClass)}>
           <Icon className="w-5 h-5 text-white" />
         </div>

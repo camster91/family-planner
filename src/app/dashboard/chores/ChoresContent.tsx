@@ -8,7 +8,8 @@ import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
-import { useToast } from '@/components/ui/toast'
+import { useToast, useUndoToast } from '@/components/ui/toast'
+import { setChoreDone } from '@/lib/chore-tick-client'
 import { LongPressRow } from '@/components/ui/long-press-row'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
@@ -96,6 +97,7 @@ export default function ChoresContent({
   const [localChores, setLocalChores] = React.useState(chores)
   const [doneCollapsed, setDoneCollapsed] = React.useState(true)
   const { addToast } = useToast()
+  const showUndo = useUndoToast()
   // Points & streaks (#248). When off, the page's server component already
   // omits each chore's points and streak; this only decides what to draw.
   const gamification = useFeatureEnabled('gamification')
@@ -115,10 +117,24 @@ export default function ChoresContent({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to complete chore')
 
+      const before = localChores.find(c => c.id === choreId)
       setLocalChores(prev => prev.map(c =>
         c.id === choreId ? { ...c, status: 'completed' as const, completed_at: new Date().toISOString() } : c
       ))
-      addToast({ type: 'success', title: 'Chore completed!', message: 'Great work.' })
+      // Undo over confirm (#269): reopen through POST /api/chores/uncomplete.
+      showUndo({
+        title: before ? `“${before.title}” done` : 'Chore done',
+        onUndo: async () => {
+          const result = await setChoreDone(choreId, false)
+          if (!result.ok) {
+            addToast({ type: 'error', title: "Couldn't undo", message: result.message })
+            return
+          }
+          setLocalChores(prev => prev.map(c =>
+            c.id === choreId ? { ...c, status: 'pending' as const, completed_at: undefined } : c
+          ))
+        },
+      })
     } catch (error) {
       addToast({
         type: 'error',
@@ -126,7 +142,7 @@ export default function ChoresContent({
         message: error instanceof Error ? error.message : 'Please try again.',
       })
     }
-  }, [addToast])
+  }, [addToast, showUndo, localChores])
 
   const handleSnoozeChore = React.useCallback(async (choreId: string, currentDueDate: string) => {
     // due_date is date-only (UTC midnight): snoozing moves it to the next day,

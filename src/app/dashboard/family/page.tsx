@@ -1,32 +1,31 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Settings } from 'lucide-react'
+import { Users, Plus, Settings, Heart, LayoutGrid } from 'lucide-react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
-import { Glyph } from '@/components/ui/glyph'
 import { LargeHeader } from '@/components/ui/large-header'
-import { InsetList } from '@/components/ui/list-row'
+import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
-import { cn } from '@/lib/utils'
+import { useFeatures } from '@/components/providers/features-provider'
+import { isFeatureEnabled } from '@/lib/features'
+import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
 
-const ROLE_COLORS: Record<string, 'parent' | 'teen' | 'child' | 'gray'> = {
-  parent: 'parent',
-  teen: 'teen',
-  child: 'child',
-}
-
-const ROLE_BG: Record<string, string> = {
-  parent: 'bg-tint-family',
-  teen: 'bg-tint-rewards',
-  child: 'bg-tint-chore',
-}
+/**
+ * Family tab (#269): members, then the household's other places — Emergency
+ * (moved here from its own tab) and More (every other feature that is on).
+ * Parent-only page (kid allowlist). Colour marks people (avatars), not roles.
+ */
 
 export default function FamilyPage() {
   const [familyMembers, setFamilyMembers] = useState<any[]>([])
   const [familyName, setFamilyName] = useState('')
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
+  const { features } = useFeatures()
+  const emergencyOn = isFeatureEnabled(features, 'emergency')
+  // Chores and Emergency have their own rows; count what else More holds.
+  const moreCount = moreItemsFor('parent', features).filter((i) => i.key !== 'chores' && i.key !== 'emergency').length
 
   useEffect(() => {
     loadFamilyData()
@@ -61,11 +60,6 @@ export default function FamilyPage() {
       <LargeHeader
         title={familyName || 'Your Family'}
         subtitle={`${familyMembers.length} member${familyMembers.length !== 1 ? 's' : ''}`}
-        trailing={
-          <Glyph color="family" size="md">
-            <Users className="w-4 h-4" />
-          </Glyph>
-        }
         className="px-4"
       />
 
@@ -114,10 +108,7 @@ export default function FamilyPage() {
                       {member.name}
                     </span>
                     {member.role && (
-                      <span className={cn(
-                        'px-2 py-0.5 rounded-full text-caption-1 font-semibold text-white',
-                        ROLE_BG[member.role] || 'bg-surface-fill'
-                      )}>
+                      <span className="px-2 py-0.5 rounded-full text-caption-1 font-medium bg-[var(--surface-secondary)] text-label-secondary">
                         {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                       </span>
                     )}
@@ -129,6 +120,35 @@ export default function FamilyPage() {
           </InsetList>
         )}
       </div>
+
+      <section className="px-4 mt-6" aria-labelledby="family-household">
+        <SectionHeader>
+          <span id="family-household">Household</span>
+        </SectionHeader>
+        <InsetList>
+          {emergencyOn && (
+            <ListRow
+              icon={Heart}
+              glyphColor="plain"
+              title="Emergency"
+              subtitle="Contacts and medical info for everyone"
+              href="/dashboard/emergency"
+            />
+          )}
+          <ListRow
+            icon={LayoutGrid}
+            glyphColor="plain"
+            title="More"
+            subtitle={
+              moreCount === 0
+                ? 'Chores and features you turn on'
+                : `Chores and ${moreCount} more feature${moreCount === 1 ? '' : 's'}`
+            }
+            href={MORE_HREF}
+            last
+          />
+        </InsetList>
+      </section>
     </div>
   )
 }
