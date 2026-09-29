@@ -6,6 +6,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CalendarSync, Link2, RefreshCw, Unlink } from "lucide-react";
+import { describeCalendarSync } from "@/lib/calendar-sync-status";
+import { useNow } from "@/components/fridge/sync-status";
 
 interface Provider {
   id: string;
@@ -46,21 +48,26 @@ const OUTCOMES: Record<string, { ok: boolean; text: string }> = {
 const BUTTON =
   "inline-flex items-center min-h-[44px] px-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60";
 
-function statusText(c: Connection): string {
+/** Last sync and any problem, in words (#271). */
+function statusText(c: Connection, now: number): string {
   if (!c.calendar_id) return "Choose a calendar to start syncing.";
-  if (c.status === "reauth_required") return c.last_error || "Reconnect this calendar to keep it in sync.";
-  if (c.status === "error") return c.last_error || "Last sync failed.";
-  if (!c.last_synced_at) return "Waiting for first sync.";
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(c.last_synced_at).getTime()) / 60000));
-  const when =
-    minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : new Date(c.last_synced_at).toLocaleString();
-  return `Synced ${when}.`;
+  return describeCalendarSync({
+    lastAttemptAt: c.last_synced_at,
+    failed: c.status === "error" || c.status === "reauth_required",
+    error: c.last_error,
+    now,
+    verb: "synced",
+    failedFallback:
+      c.status === "reauth_required" ? "Reconnect this calendar to keep it in sync." : "The last sync failed.",
+  }).text;
 }
 
 export default function CalendarSyncSection() {
   const [available, setAvailable] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  // Keeps "Last synced 3 min ago" current (#271).
+  const now = useNow(30 * 1000) ?? Date.now();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -260,7 +267,7 @@ export default function CalendarSyncSection() {
                   role={c.status === "error" || c.status === "reauth_required" ? "status" : undefined}
                 >
                   {c.status === "error" || c.status === "reauth_required" ? "Problem: " : ""}
-                  {statusText(c)}
+                  {statusText(c, now)}
                 </div>
                 {c.conflicts_count > 0 && (
                   <div className="text-xs text-gray-600 mt-1">

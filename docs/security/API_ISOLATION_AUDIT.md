@@ -43,6 +43,20 @@ engine scopes every event and link statement by `family_id` and connection id. O
 and never returned. Tests: `src/app/api/calendar/connections/__tests__/routes.test.ts`,
 `src/lib/calendar-sync/__tests__/*.test.ts`, opt-in `sync.integration.test.ts`.
 
+**Update 2026-09-28 (#271): visible sync and calm display.** 2 handlers in 2 new route files, both read-only
+and returning only `{ version }` (an opaque hash of the caller's own Today board, built by `loadTodayBoard` from the
+same `family_id`-scoped reads as the board): `GET /api/family/board-version` (person session only, every role, own
+household and role; a device cookie gets 401, asserted by the route-allowlist test) and `GET
+/api/device/today/version` (device cookie only, device's household only, 404 with the kill switch off; added to
+`DEVICE_ALLOWED_ROUTES`). Both rate limited (1200 per member / per tablet per hour). `PATCH
+/api/family/board-settings` gains `display` (idle minutes, night hours, photo ids); photo ids must each be a
+displayable `Upload` of the caller's household (400 `Unknown photo`, identical for another household's upload and a
+missing id). Photos appear only in the person board DTO; the device audience never reads the photo ids. Tests:
+`src/app/api/family/board-version/__tests__/board-version.test.ts` (two households, parent/teen/child, device
+D1/D2, revoked tablet, kill switch, rate limits, photos person-only),
+`src/app/api/family/board-settings/__tests__/display.test.ts`, the opt-in
+`src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts`.
+
 **Update 2026-09-28 (#251): canonical meal, recipe and grocery APIs (ADR-0007).** New family-scoped
 `/api/recipes` and `/api/recipes/[id]` (every lookup `where { id, family_id }`, so another household's recipe is a
 404 identical to a missing one); `recipe_id` on `/api/meals` and `ingredient_id` on `/api/lists/items/create|update`
@@ -200,7 +214,8 @@ recorded in route comments, as the de facto matrix.
 | /api/device/pair/status | POST | token (claim token, body) | the claimed pairing's family | n/a | none | family/devices/__tests__/devices.test.ts, src/lib/__tests__/device.integration.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/device/revoke-self | POST | device + elevation | this device only | elevated parent | elevation token bound to this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/device/session/refresh | POST | device (refresh cookie) | session's device/family | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts, src/lib/__tests__/device-session.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
-| /api/device/today | GET | device | where (device's family); device-audience DTO; weather (#262) from the device household's own settings and `WeatherCache` row only | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/today | GET | device | where (device's family); device-audience DTO; weather (#262) from the device household's own settings and `WeatherCache` row only; `display` (#271) idle minutes and night hours only, photo ids never read | n/a | none | device/__tests__/device-routes.test.ts, family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/today/version | GET | device | the device-audience board of the device's family; returns only `{ version }` | n/a | none; rate limit `device-board-version:<deviceId>` 1200/h | family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#271, behind SHARED_DEVICE_ENABLED) |
 | /api/emergency-contacts | GET | family | where | all (kid-readable by design, kid-access.ts) | none | emergency-contacts/iso | ok |
 | /api/emergency-contacts | POST | family | session family | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
 | /api/emergency-contacts/[id] | PATCH | family | match (403) | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
@@ -216,7 +231,8 @@ recorded in route comments, as the de facto matrix.
 | /api/family/ai-settings | GET | family | own family | P | none | family/iso | ok |
 | /api/family/ai-settings | POST | family | own family | P | none | family/iso | ok |
 | /api/family/board-settings | GET | family | where (own family; members `family_id`) | P | none | family/board-settings/__tests__/board-settings.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#262) |
-| /api/family/board-settings | PATCH | family | own family; `WeatherCache` delete where `family_id` | P | `memberColors` ids verified in the household (400, same answer for foreign and missing); updates `where id + family_id` | family/board-settings/__tests__/board-settings.test.ts | implemented (#262) |
+| /api/family/board-settings | PATCH | family | own family; `WeatherCache` delete where `family_id` | P | `memberColors` ids verified in the household (400, same answer for foreign and missing); updates `where id + family_id`; `display.photoIds` (#271) must each be a displayable `Upload` of the household (400 `Unknown photo`, same answer for foreign, missing and HEIC) | family/board-settings/__tests__/board-settings.test.ts, family/board-settings/__tests__/display.test.ts | implemented (#262, #271) |
+| /api/family/board-version | GET | family (person session only) | the caller's own board, built from `family_id`-scoped reads with the caller's role; returns only `{ version }` (an opaque hash) | all (P, T, C) | none; rate limit `board-version:<userId>` 1200/h | family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#271) |
 | /api/family/board-settings/places | GET | family | n/a (no household data read or stored; outbound to a fixed Open-Meteo host only) | P | none | family/board-settings/__tests__/board-settings.test.ts | implemented (#262) |
 | /api/family/devices | GET | session (person only) | where | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/family/devices/[id] | PATCH | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |

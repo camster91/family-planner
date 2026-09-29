@@ -494,6 +494,32 @@ The device reads exactly the Today board DTO, built by `buildTodayBoard` with a 
 | `useSoon` (#262 tile, #263 data) | `id`, `name`, `location`, `expiresOn`; `null` when the `inventory` feature is off | `InventoryItem` of the device's household, expired or due within 3 days (no `amount`, `unit`, `ingredient_id`, `added_by`). Allowed on the device for the same reason as `shopping`: household food names every member may read; read-only |
 | `weather` (#262) | `label`, `unit`, `current { temperature, summary, icon, isDay }`, `days[] { day, high, low, summary, icon, precipitationChance }` (place-local dates), `utcOffsetSeconds` (the place's offset, so the client picks today by the place's date), `fetchedAt`; `null` unless the household opted in | `Family.weather_*` and `WeatherCache` of the device's household (no coordinates) |
 | `generatedAt` | server time | — |
+| `version` (#271) | opaque change version (`v1-` + 24 hex): a hash of the fields above (minus `generatedAt` and the forecast) plus `display` and the weather settings | computed from the rows above; no new data |
+| `display` (#271) | `idleMinutes` (0, 1, 2, 5, 10, 15 or 30), `night { start, end }` (`HH:MM`, tablet-local) or `null`. **No `photos`** (see the open question below) | `Family.ambient_idle_minutes`, `night_start`, `night_end` of the device's household (display settings, not household content). `Family.ambient_photo_ids` is never read for the device audience |
+
+Plus `GET /api/device/today/version` (#271): `{ version }` only, the same value as `GET /api/device/today`'s
+`version`, so the tablet can poll it (about every 25 s while visible) and re-fetch the board only on a change.
+
+The tablet's calm display (#271) uses only fields already in this table: the clock, the date, `weather.current`
+when the household opted in, the next event's `title` and `start`, and tonight's dinner (`recipeName`, else the
+linked recipe title the board already shows). Night dimming is a dark layer drawn by the page; the page cannot
+change the hardware backlight.
+
+> **Open question (O-15, #271): family photos on a paired shared tablet.** Not allowed today and not implemented.
+> Signed-in fridge boards can show photos a parent picked from the household's own uploads (`Upload` rows, served
+> by the household-scoped `GET /api/files/chores/<filename>`, which needs a person session). A paired tablet has no
+> person session, `Upload`/`/api/files/**` are prohibited on it (§9.3 "Imports, uploads, files"), and the current
+> uploads are mostly chore verification photos of children. **Proposal for the owner to decide:**
+>
+> 1. Keep photos off paired tablets (current behaviour, recommended default until decided).
+> 2. Or allow them as a per-household opt-in with its own consent line: a parent ticks "Also show these photos on
+>    paired tablets" (default off). The device DTO would gain `display.photos [{ id, url }]` for exactly the
+>    chosen ids, and a new device route `GET /api/device/photos/:id` would serve only an id that is currently in
+>    the household's chosen list (never an arbitrary upload or filename), `Cache-Control: private, no-store`, rate
+>    limited per tablet, with a route-allowlist entry and two-household/revoked/kill-switch tests. Chore
+>    verification photos stay pickable only if the parent explicitly chooses them.
+>
+> Until Cameron decides, the device read surface stays as in this table.
 
 Plus `GET /api/device/me`: `device { id, label }`, `household { name }` (`Family.name`), `features` (booleans for
 calendar, chores, meals, lists only), `parents [{ id, name, hasPin }]`, `elevation { active, memberId, expiresAt }`.
@@ -593,6 +619,7 @@ after a failure). All return `429 RATE_LIMITED` with `Retry-After`.
 | `device-pair-confirm:<pairingId>` | 3 wrong digits | pairing life | then the pairing is cancelled |
 | `device-refresh:<deviceId>` | 30 | 1 h | refresh per device |
 | `device-refresh-ip:<ip>` | 60 | 15 min | refresh per IP (unknown tokens) |
+| `device-board-version:<deviceId>` | 1200 | 1 h | board change check (#271), ≈ one per 3 s against a 25 s poll |
 | `device-elev-fail:<deviceId>:<userId>` | 5 *failure-only* | 15 min | wrong PIN/password for one parent on one tablet |
 | `device-elev-fail:<deviceId>` | 10 *failure-only* | 15 min | any parent on one tablet |
 | `device-elev-fail-acct:<userId>` | 10 *failure-only* | 1 h | one parent across all tablets; on trip set `ParentElevationPin.locked_until = now + 1 h` and audit `device.elevation_locked` |
@@ -657,6 +684,7 @@ Teen and child sessions get `403 PARENT_REQUIRED` on every row. Foreign ids get 
 | POST | `/api/device/session/refresh` | refresh cookie | `200 { accessExpiresAt }` + rotated cookies | 401 `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` (cookies cleared), 429 |
 | GET | `/api/device/me` | — | `200` (§9.1) | 401 `DEVICE_ACCESS_EXPIRED` / `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` |
 | GET | `/api/device/today` | — | `200 TodayBoardData` (device audience) | 401 as above |
+| GET | `/api/device/today/version` (#271) | — | `200 { version }` | 401 as above, 429 (`device-board-version:<deviceId>`, 1200/h) |
 | POST | `/api/device/elevation` | `{ userId, method: 'pin' \| 'password', secret }` | `200 { elevationToken, expiresAt, idleTimeoutSeconds, member: { id, name } }` | 401 `ELEVATION_INVALID_CREDENTIAL`, 423 `ELEVATION_LOCKED`, 429 |
 | DELETE | `/api/device/elevation` | `X-Device-Elevation` | `204` (idempotent) | 401 |
 | POST | `/api/device/revoke-self` | `X-Device-Elevation` | `200` + cookies cleared | 403 `ELEVATION_REQUIRED` / `ELEVATION_EXPIRED` |
@@ -816,6 +844,7 @@ which the child issues assume unless Cameron decides otherwise on #157.
 | O-12 | Audit retention | 180 days, pruned on parent read | 90 or 365 days | Recommended default applied |
 | O-13 | Block person login while a device cookie is present | Yes (409) | Allow, and warn | Recommended default applied |
 | O-14 | "Turn this tablet into the family tablet" from a signed-in parent session | Defer; code flow only | Offer it, with password re-entry | Recommended default applied |
+| O-15 | Family photos in the calm display on a paired tablet (#271, §9.1 open question) | No photos on paired tablets | Per-household opt-in with a device photo route limited to the chosen ids | **Open**: waiting for Cameron; paired tablets show no photos |
 
 ## 17. Child issues (ready to file)
 
@@ -1058,3 +1087,10 @@ As implemented:
   authority.
 - E2E: `e2e/device.spec.ts` (docs/testing/E2E.md). §14.3 item 24 (24-hour offline snapshot) waits on #162.
 - Figma frames (#131) still do not exist; the screens reuse the Today board tokens and are intentionally simple.
+- #271: the board polls `GET /api/device/today/version` about every 25 s while visible (paused while hidden) and
+  re-fetches `GET /api/device/today` only on a change, plus a full refresh every 15 minutes; "Updated just now / 3
+  min ago", offline and "can't reach" states are in words. A revoke or the kill switch is therefore noticed within
+  one poll. The version call uses `optionalRoute`: a bare 404 (a server rolled back to a build without the route)
+  is a plain failure, while the enveloped kill-switch 404 still purges. After the household's idle time the board
+  fades to the calm display (§9.1 fields only, no photos: O-15), night hours dim it, and a tap or key only returns
+  to the board.

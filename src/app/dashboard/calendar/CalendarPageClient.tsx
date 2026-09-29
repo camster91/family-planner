@@ -12,6 +12,8 @@ import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
 import { IMPORT_UNDO_WINDOW_MS, type ImportCommitResult } from '@/lib/event-import-client'
 import { ImportEventsDialog } from './ImportEventsDialog'
+import { SyncNotice, UpdatedLine, useNow } from '@/components/fridge/sync-status'
+import { useOnline } from '@/components/fridge/use-board-sync'
 
 type ViewMode = 'day' | 'week' | 'month'
 
@@ -113,6 +115,57 @@ export function SourceBadge({ name, color }: { name: string; color: string | nul
   )
 }
 
+/** Re-request the page when the tab comes back after this long, or when the connection returns. */
+const CALENDAR_REFRESH_AFTER_MS = 5 * 60 * 1000
+
+/**
+ * "Updated just now / 3 min ago" and the offline notice for the calendar
+ * (#271), on the viewer's own clock. The calendar does not poll: it
+ * re-requests its server component when the connection returns or the tab
+ * becomes visible with data older than CALENDAR_REFRESH_AFTER_MS.
+ */
+function CalendarSyncLine({ events }: { events: unknown }) {
+  const router = useRouter()
+  const online = useOnline()
+  const now = useNow(15 * 1000)
+  const [loadedAt, setLoadedAt] = React.useState<number | null>(null)
+  const loadedRef = React.useRef(0)
+
+  React.useEffect(() => {
+    const t = Date.now()
+    loadedRef.current = t
+    setLoadedAt(t)
+  }, [events])
+
+  React.useEffect(() => {
+    const refresh = () => {
+      if (navigator.onLine) router.refresh()
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - loadedRef.current >= CALENDAR_REFRESH_AFTER_MS) refresh()
+    }
+    window.addEventListener('online', refresh)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', refresh)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [router])
+
+  if (now === null) return null
+  return (
+    <div className="px-4 mb-4 space-y-3">
+      <UpdatedLine
+        lastSyncAt={loadedAt}
+        now={now}
+        testId="calendar-updated"
+        className="text-footnote text-label-secondary"
+      />
+      <SyncNotice lastSyncAt={loadedAt} now={now} online={online} what="calendar" canGoStale={false} />
+    </div>
+  )
+}
+
 export default function CalendarPageClient({
   events,
   currentMonth,
@@ -167,6 +220,8 @@ export default function CalendarPageClient({
         }
         className="px-4"
       />
+
+      <CalendarSyncLine events={events} />
 
       <div className="px-4 mb-4">
         <SegmentedControl value={view} onChange={setView} />

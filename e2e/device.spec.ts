@@ -570,7 +570,7 @@ test.describe("Shared tablet", () => {
       await expect(row).toContainText("Removed");
       await expect(row).toContainText("(lost)");
 
-      // The board's own 5-minute refresh hits DEVICE_REVOKED and purges.
+      // The board's own change check (every 25 s, #271) hits DEVICE_REVOKED and purges.
       await tablet.clock.runFor(5 * 60 * 1000);
       await expect(tablet).toHaveURL(/\/device\/removed$/);
       await expect(

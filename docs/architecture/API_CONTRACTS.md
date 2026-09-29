@@ -177,6 +177,38 @@ Weather is fetched server-side only (`src/lib/weather/open-meteo.ts`): fixed hos
 failure for 10 minutes so an outage hides the tile without retrying on every board refresh. It never throws; the
 board renders without the tile.
 
+## Today board: visible sync and calm display (#271)
+Additive: two read routes, optional DTO fields and optional settings keys. Roles and isolation:
+`docs/ROLE_AND_ISOLATION_MATRIX.md` "Today board page"; device read surface: `SHARED_DEVICE.md` §9.1.
+
+**Change detection.** `version` is an opaque string (`v1-` + 24 hex) that hashes exactly what the caller's board
+shows (the DTO without `generatedAt` and without the forecast itself) plus the display settings and the weather
+settings (on/off, place label, unit, coarse place). It is computed by `loadTodayBoard`
+(`src/app/dashboard/today/board-snapshot.ts`) for both the full board and the version routes, so they cannot
+disagree. Hashing the board's own bounded, `select`-only reads keeps the check exact without a schema change:
+chores have no `updated_at` and deleted rows leave no timestamp. A client treats the value as opaque and compares
+it for equality only. The board (`src/lib/board-sync.ts`) polls about every 25 s while the page is visible and
+online, pauses while hidden, checks at once on return to visible or on reconnect, re-fetches only when the value
+differs, and still does a full refresh every 15 minutes for what the version does not cover (a forecast ageing
+out, the view-driven subscribed-calendar refresh). No cron and no server job.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `GET /api/family/board-version` (new) | Person session, any role (parent, teen, child) of a household. `200 { version }` and nothing else, `Cache-Control: private, no-store`. Computed with the caller's role and household only (the same board `/dashboard/today` renders). 1200 checks per member per hour (key `board-version:<userId>`). A paired tablet's cookie is not a session. | 401 (also a device cookie alone); 400 no household; 429 `{ error }` with `Retry-After`; 500 |
+| `GET /api/device/today/version` (new) | Device cookie only (`/api/device/*` rules, SHARED_DEVICE.md §12.3). `200 { version }` of the device-audience board, device's household only. 1200 checks per tablet per hour (key `device-board-version:<deviceId>`). | 401 `DEVICE_ACCESS_EXPIRED` / `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID`; 404 kill switch (device cookies expired); 429 `RATE_LIMITED` with `Retry-After`; 500 `INTERNAL_ERROR` |
+| Today board DTO (`/dashboard/today` props, `GET /api/device/today`) | Adds `version` (above) and `display: { idleMinutes: 0 \| 1 \| 2 \| 5 \| 10 \| 15 \| 30, night: { start: 'HH:MM', end: 'HH:MM' } \| null, photos?: [{ id, url }] }`. `photos` is present for person boards only (the household's chosen `Upload` rows, in the parent's order, JPEG/PNG/WebP only, `url` = the household-scoped `/api/files/chores/<filename>`) and is never sent to a paired tablet. | unchanged |
+| `GET /api/family/board-settings` | Adds `display: { idleMinutes, idleChoices, night, photoIds, uploads: [{ id, url, createdAt }] }`. `uploads` lists the household's own displayable uploads, newest first, at most 60. | unchanged |
+| `PATCH /api/family/board-settings` | Adds optional `display: { idleMinutes?, night?: { start, end } \| null, photoIds? }` (strict). `idleMinutes` must be one of the choices; `night` times are 24-hour `HH:MM` and must differ (`null` turns night hours off); `photoIds` at most 20, duplicates dropped, every id a displayable upload of this household. Returns the GET shape. | 400 validation / `Unknown photo` (another household's upload, a missing id and a HEIC upload alike); 403 teen/child |
+
+Client wording: "Updated just now / 3 min ago" (`src/lib/relative-time.ts`), offline and "can't reach" notices in
+words; the relative time is not a live region, and a separate polite live region announces only real changes.
+Night hours are on the tablet's own clock and only draw a dark layer: a web page cannot change the hardware
+backlight. Compatibility: `Family.ambient_idle_minutes` (default 5), `night_start`/`night_end` (NULL = off) and
+`ambient_photo_ids` (default empty) are additive; clients built before #271 ignore `display`/`version`, and the
+#271 board falls back to the defaults (and a full refresh) without them. The tablet treats a bare 404 from the
+version route (a server rolled back to a build without it) as a plain failure, not the kill switch, so a rollback
+never makes a tablet purge itself; the kill-switch 404 still does (`optionalRoute` in `src/lib/device-client.ts`).
+
 ## Grocery store sections (#273)
 Additive fields on existing list routes plus two new routes. Rules and data model:
 [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §11. Roles and isolation: `docs/ROLE_AND_ISOLATION_MATRIX.md`

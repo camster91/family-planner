@@ -5,6 +5,15 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { MEMBER_COLOR_KEYS, isMemberColorKey, resolveMemberColors } from '@/lib/member-colors'
 import { isWeatherEnabled, isWeatherUnit, type WeatherUnit } from '@/lib/weather/board-weather'
 import { isValidLatitude, isValidLongitude, roundCoordinate } from '@/lib/weather/open-meteo'
+import {
+  AMBIENT_IDLE_CHOICES,
+  MAX_AMBIENT_PHOTOS,
+  idleMinutesFrom,
+  isAmbientIdleChoice,
+  isClockTime,
+  nightHoursFrom,
+} from '@/lib/ambient'
+import { CHORE_PHOTO_FILENAME_RE, chorePhotoPath } from '@/lib/chore-photos'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +23,24 @@ export const dynamic = 'force-dynamic'
  * cookie is not a person session, so it gets 401 like every other person
  * route (device route allowlist test).
  *
- * GET  -> { weather: { available, enabled, place, unit }, members: [{ id, name, color, custom }] }
- * PATCH { weather?: { enabled?, place?, unit? }, memberColors?: { [memberId]: key | null } }
+ * GET  -> { weather: { available, enabled, place, unit }, members: [{ id, name, color, custom }],
+ *           display: { idleMinutes, idleChoices, night: { start, end } | null, photoIds,
+ *                      uploads: [{ id, url, createdAt }] } }
+ * PATCH { weather?: { enabled?, place?, unit? }, memberColors?: { [memberId]: key | null },
+ *         display?: { idleMinutes?, night?: { start, end } | null, photoIds? } }
+ *
+ * Calm display (#271): `display.uploads` lists the household's own
+ * displayable photo uploads (newest first) for the parent to choose from;
+ * every `photoIds` entry must be one of them (a foreign and a missing id get
+ * the same 400).
  */
+
+/** Uploads offered in the photo picker, newest first. */
+const MAX_UPLOADS_LISTED = 60
+/** Photo types a browser can draw (HEIC is stored for chores but not displayable). */
+const DISPLAYABLE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+const clockSchema = z.string().refine(isClockTime, 'Use a 24-hour time like 21:30')
 
 const placeSchema = z.object({
   label: z.string().trim().min(1).max(80),
@@ -38,6 +62,26 @@ const patchSchema = z
       .record(z.string().min(1).max(64), z.enum(MEMBER_COLOR_KEYS).nullable())
       .refine((v) => Object.keys(v).length <= 50, 'Too many members')
       .optional(),
+    display: z
+      .object({
+        idleMinutes: z
+          .number()
+          .int()
+          .refine(isAmbientIdleChoice, `Choose one of ${AMBIENT_IDLE_CHOICES.join(', ')} minutes`)
+          .optional(),
+        night: z
+          .object({ start: clockSchema, end: clockSchema })
+          .strict()
+          .refine((v) => v.start !== v.end, 'Night hours need different start and end times')
+          .nullable()
+          .optional(),
+        photoIds: z
+          .array(z.string().min(1).max(64))
+          .max(MAX_AMBIENT_PHOTOS, `Choose at most ${MAX_AMBIENT_PHOTOS} photos`)
+          .optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
 
@@ -51,6 +95,10 @@ async function readSettings(familyId: string) {
         weather_longitude: true,
         weather_label: true,
         weather_unit: true,
+        ambient_idle_minutes: true,
+        night_start: true,
+        night_end: true,
+        ambient_photo_ids: true,
       },
     }),
     prisma!.user.findMany({
@@ -59,6 +107,25 @@ async function readSettings(familyId: string) {
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     }),
   ])
+  // The newest uploads to pick from, plus every photo already chosen (even an
+  // older one past the cap), so a parent can always see and untick it.
+  const selectedIds = family?.ambient_photo_ids ?? []
+  const [recent, selected] = await Promise.all([
+    prisma!.upload.findMany({
+      where: { family_id: familyId, content_type: { in: DISPLAYABLE_PHOTO_TYPES } },
+      select: { id: true, filename: true, created_at: true },
+      orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
+      take: MAX_UPLOADS_LISTED,
+    }),
+    selectedIds.length > 0
+      ? prisma!.upload.findMany({
+          where: { family_id: familyId, id: { in: selectedIds }, content_type: { in: DISPLAYABLE_PHOTO_TYPES } },
+          select: { id: true, filename: true, created_at: true },
+        })
+      : Promise.resolve([]),
+  ])
+  const recentIds = new Set(recent.map((u) => u.id))
+  const uploads = [...recent, ...selected.filter((u) => !recentIds.has(u.id))]
   const colors = resolveMemberColors(members)
   const hasPlace =
     !!family &&
@@ -81,6 +148,15 @@ async function readSettings(familyId: string) {
       color: colors.get(m.id)!,
       custom: isMemberColorKey(m.board_color),
     })),
+    display: {
+      idleMinutes: idleMinutesFrom(family?.ambient_idle_minutes),
+      idleChoices: [...AMBIENT_IDLE_CHOICES],
+      night: nightHoursFrom(family?.night_start, family?.night_end),
+      photoIds: family?.ambient_photo_ids ?? [],
+      uploads: uploads
+        .filter((u) => CHORE_PHOTO_FILENAME_RE.test(u.filename))
+        .map((u) => ({ id: u.id, url: chorePhotoPath(u.filename), createdAt: u.created_at.toISOString() })),
+    },
   }
 }
 
@@ -115,7 +191,23 @@ export async function PATCH(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid settings' }, { status: 400 })
     }
-    const { weather, memberColors } = parsed.data
+    const { weather, memberColors, display } = parsed.data
+
+    // Photos (#271): every id must be a displayable upload of this household.
+    // A foreign and a missing id get the same answer.
+    let photoIds: string[] | undefined
+    if (display?.photoIds !== undefined) {
+      photoIds = [...new Set(display.photoIds)]
+      if (photoIds.length > 0) {
+        const found = await prisma!.upload.findMany({
+          where: { id: { in: photoIds }, family_id: familyId, content_type: { in: DISPLAYABLE_PHOTO_TYPES } },
+          select: { id: true },
+        })
+        if (found.length !== photoIds.length) {
+          return NextResponse.json({ error: 'Unknown photo' }, { status: 400 })
+        }
+      }
+    }
 
     // Member colours: every id must be a member of this household. A foreign
     // and a missing id get the same answer, so nothing about other
@@ -176,6 +268,19 @@ export async function PATCH(request: NextRequest) {
       // A new place, or turning weather off, drops the cached forecast.
       if (weather.place !== undefined || weather.enabled === false) {
         await prisma!.weatherCache.deleteMany({ where: { family_id: familyId } })
+      }
+    }
+
+    if (display) {
+      const data: Record<string, unknown> = {}
+      if (display.idleMinutes !== undefined) data.ambient_idle_minutes = display.idleMinutes
+      if (display.night !== undefined) {
+        data.night_start = display.night?.start ?? null
+        data.night_end = display.night?.end ?? null
+      }
+      if (photoIds !== undefined) data.ambient_photo_ids = photoIds
+      if (Object.keys(data).length > 0) {
+        await prisma!.family.update({ where: { id: familyId }, data })
       }
     }
 

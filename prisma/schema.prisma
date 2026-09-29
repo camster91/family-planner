@@ -129,6 +129,16 @@ model Family {
   weather_longitude  Float?
   weather_label      String?
   weather_unit       String    @default("celsius") // 'celsius' | 'fahrenheit'
+  // Fridge calm display (#271). Additive; parent-set in board settings.
+  // Minutes without a touch before the fridge board fades to the calm frame
+  // (0 = never). Night hours dim the screen between two local "HH:MM" times
+  // on the tablet's clock; both NULL = off (default). Photos: ids of the
+  // household's own Upload rows, chosen by a parent; shown to signed-in
+  // members only, never on a paired shared device (SHARED_DEVICE.md §9.1).
+  ambient_idle_minutes Int      @default(5)
+  night_start        String?
+  night_end          String?
+  ambient_photo_ids  String[]  @default([])
   created_at         DateTime  @default(now())
 
   // Relations

@@ -2,18 +2,17 @@ import type { Metadata } from 'next'
 import { after } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { normalizeFeatures } from '@/lib/features'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
-import { getBoardWeather } from '@/lib/weather/board-weather'
 import HomeSummary from '@/components/dashboard/HomeSummary'
-import { buildTodayBoard } from './today-board-data'
+import { loadTodayBoard } from './board-snapshot'
 import { loadHomeSummary } from './home-summary-data'
 
 export const metadata: Metadata = { title: 'Today' }
 
 // Always render from current household data; the board re-requests this page
-// on its own refresh interval (client-side router.refresh, not a server job).
+// when its version check sees a change (#271: client-side polling of
+// /api/family/board-version, then router.refresh; not a server job).
 export const dynamic = 'force-dynamic'
 
 /**
@@ -39,7 +38,7 @@ export default async function TodayBoardPage({
   // Role and household are read fresh from the database (D6, #102).
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { role: true, family_id: true, family: { select: { features: true } } },
+    select: { role: true, family_id: true },
   })
 
   const params = await searchParams
@@ -62,19 +61,14 @@ export default async function TodayBoardPage({
   after(() => refreshStaleSubscriptions(familyId))
 
   const now = new Date()
-  // Weather (#262) is opt-in per household and never fails the page: null hides the tile.
-  const [board, weather, home] = await Promise.all([
-    buildTodayBoard(prisma!, {
-      familyId,
-      role: user.role,
-      features: normalizeFeatures(user.family?.features),
-      now,
-    }),
-    getBoardWeather(prisma!, { familyId, now }),
+  // Weather (#262) is opt-in per household and never fails the page: null
+  // hides the tile. The board carries its display settings and change
+  // version (#271).
+  const [data, home] = await Promise.all([
+    loadTodayBoard(prisma!, { familyId, role: user.role, now, withWeather: true }),
     fridgeMode ? Promise.resolve(null) : loadHomeSummary(prisma!, { familyId, role: user.role }),
   ])
 
-  const data = { ...board, weather }
   if (!home) return <TodayBoard data={data} fridgeMode={fridgeMode} />
 
   return (

@@ -42,6 +42,7 @@ const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as 
 const DEVICE_ALLOWED_ROUTES = new Set([
   'GET /api/device/me',
   'GET /api/device/today',
+  'GET /api/device/today/version', // #271 change version of the same board
   'POST /api/device/session/refresh',
   'POST /api/device/elevation',
   'DELETE /api/device/elevation',
@@ -227,7 +228,7 @@ describe('device cookie route allowlist', () => {
 
   it('the allowlisted read routes do accept the device cookie', async () => {
     const fx = seedDevices()
-    for (const p of ['me', 'today']) {
+    for (const p of ['me', 'today', 'today/version']) {
       const mod = require(path.join(API_ROOT, 'device', p, 'route.ts'))
       const res = await mod.GET(deviceReq({ cookies: fx.d1.cookies }))
       expect(res.status).toBe(200)
@@ -239,7 +240,7 @@ describe('device cookie route allowlist', () => {
     const deviceFiles = files.filter((f) =>
       /\/api\/(device|family\/devices)\//.test(urlPath(f) + '/') || urlPath(f) === '/api/users/elevation-pin'
     )
-    expect(deviceFiles.length).toBe(16)
+    expect(deviceFiles.length).toBe(17)
     for (const file of deviceFiles) {
       const mod = require(file)
       for (const method of METHODS) {

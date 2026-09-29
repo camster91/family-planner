@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import type { WeatherIconKind } from '@/lib/weather/codes'
 import { shortWeekday, type WeatherView } from './board-model'
 
-function iconFor(kind: WeatherIconKind, isDay = true): LucideIcon {
+export function iconFor(kind: WeatherIconKind, isDay = true): LucideIcon {
   switch (kind) {
     case 'clear':
       return isDay ? Sun : Moon
