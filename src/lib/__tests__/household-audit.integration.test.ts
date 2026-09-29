@@ -382,6 +382,42 @@ describeWithDatabase('household audit history against Postgres', () => {
     }
   })
 
+  it('a rename overlapping a removal: the removal row names the label the tablet ended with (#285 review)', async () => {
+    const prev = process.env.SHARED_DEVICE_ENABLED
+    process.env.SHARED_DEVICE_ENABLED = 'true'
+    try {
+      const deviceRoute = await import('@/app/api/family/devices/[id]/route')
+      const revokeRoute = await import('@/app/api/family/devices/[id]/revoke/route')
+      const DEVICE = 'auditint-device-revoke'
+      await prisma.householdDevice.create({
+        data: { id: DEVICE, family_id: FAM, label: 'Kitchen', platform: 'web', created_by: PARENT },
+      })
+      const release = await holdRow(
+        (tx) => tx.$queryRaw`SELECT "id" FROM "HouseholdDevice" WHERE "id" = ${DEVICE} FOR UPDATE`
+      )
+      const ctx = { params: Promise.resolve({ id: DEVICE }) }
+      const both = Promise.all([
+        deviceRoute.PATCH(request(PARENT, { method: 'PATCH', body: { label: 'Hall' } }), ctx),
+        revokeRoute.POST(request(PARENT2, { method: 'POST', body: {} }), { params: Promise.resolve({ id: DEVICE }) }),
+      ])
+      await release()
+      await both
+      const final = await prisma.householdDevice.findUnique({
+        where: { id: DEVICE },
+        select: { label: true, revoked_at: true },
+      })
+      expect(final?.revoked_at).not.toBeNull()
+      const removed = await prisma.auditLog.findMany({
+        where: { family_id: FAM, action: 'device.removed', target_id: DEVICE },
+      })
+      expect(removed).toHaveLength(1)
+      expect(removed[0].summary).toContain(`“${final!.label}”`)
+    } finally {
+      if (prev === undefined) delete process.env.SHARED_DEVICE_ENABLED
+      else process.env.SHARED_DEVICE_ENABLED = prev
+    }
+  })
+
   it("deleting a member keeps the household's rows without an actor", async () => {
     await prisma.user.delete({ where: { id: PARENT2 } })
     const rows = await prisma.auditLog.findMany({ where: { family_id: FAM, summary: 'Turned on Wishlist' } })

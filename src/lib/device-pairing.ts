@@ -404,14 +404,6 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
       if (fresh.expires_at.getTime() <= now.getTime() || !fresh.confirmed_at) return { kind: 'expired' }
 
       // Scoped by household: a foreign or already-removed id revokes nothing.
-      const replacedLabel = fresh.replaces_device_id
-        ? (
-            await tx.householdDevice.findFirst({
-              where: { id: fresh.replaces_device_id, family_id: row.family_id },
-              select: { label: true },
-            })
-          )?.label ?? null
-        : null
       const replacedDeviceId =
         fresh.replaces_device_id &&
         (await revokeDeviceInTransaction(tx, {
@@ -423,6 +415,16 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
         }))
           ? fresh.replaces_device_id
           : null
+      // Read after the revoke's row update (which waited for any overlapping
+      // rename to commit), so the audit row names the tablet's final label.
+      const replacedLabel = replacedDeviceId
+        ? (
+            await tx.householdDevice.findFirst({
+              where: { id: replacedDeviceId, family_id: row.family_id },
+              select: { label: true },
+            })
+          )?.label ?? null
+        : null
 
       const active = await tx.householdDevice.count({ where: { family_id: row.family_id, revoked_at: null } })
       // Throw (roll back) rather than return, so a replaced tablet is never

@@ -46,21 +46,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const existing = await prisma!.householdDevice.findFirst({
       where: { id, family_id: familyId },
-      select: { id: true, label: true },
+      select: { id: true },
     })
     if (!existing) return deviceError(404, 'NOT_FOUND')
 
     // Household audit history (#285): only when this call removed it, in the same transaction.
-    await revokeDevice(prisma!, { deviceId: id, familyId, revokedBy: userId, reason, now: deviceClock.now() }, (tx) =>
-      writeAuditLog(tx, {
-        familyId,
-        actorUserId: userId,
-        actorKind: 'person',
-        action: 'device.removed',
-        targetType: 'device',
-        targetId: id,
-        summary: auditSummary.deviceRemoved(existing.label, reason),
-      })
+    // The label is read after the revoke's row update, which waited for any
+    // overlapping rename to commit, so the row names the tablet's final label.
+    await revokeDevice(
+      prisma!,
+      { deviceId: id, familyId, revokedBy: userId, reason, now: deviceClock.now() },
+      async (tx) => {
+        const row = await tx.householdDevice.findFirst({ where: { id, family_id: familyId }, select: { label: true } })
+        await writeAuditLog(tx, {
+          familyId,
+          actorUserId: userId,
+          actorKind: 'person',
+          action: 'device.removed',
+          targetType: 'device',
+          targetId: id,
+          summary: auditSummary.deviceRemoved(row?.label, reason),
+        })
+      }
     )
 
     const row = await prisma!.householdDevice.findFirst({ where: { id, family_id: familyId }, select: DEVICE_LIST_SELECT })
