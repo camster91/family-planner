@@ -15,13 +15,14 @@
  *   account in it. Refused while another parent exists (OTHER_PARENTS_EXIST).
  *
  * Both run their database work in one transaction, re-checking the rules
- * inside it under a per-household advisory lock, so a concurrent change (a
- * second parent joining, a duplicate request) cannot slip between the check
- * and the delete. Two things cannot be transactional and are ordered around
- * it: provider-side calendar revocation runs before (best effort; the stored
- * tokens are deleted by the transaction either way) and uploaded files are
- * removed from disk after commit (a failure is counted and logged, the rows
- * that made the files reachable are already gone).
+ * inside it under the per-household membership lock (src/lib/household-lock.ts,
+ * also taken by every join path), so a concurrent change (a member joining, a
+ * duplicate request) cannot slip between the check and the delete. Two things
+ * cannot be transactional and both run after commit, so a failed transaction
+ * changes nothing: provider-side calendar revocation (best effort; the stored
+ * tokens, links and imported events are deleted inside the transaction) and
+ * removal of uploaded files from disk (a failure is counted and logged, the
+ * rows that made the files reachable are already gone).
  *
  * Retries converge: the functions are safe to run again, and after a
  * successful run the member no longer exists, so a replayed request fails
@@ -32,7 +33,8 @@ import { unlink } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { log } from '@/lib/logger'
 import { chorePhotoFilename, CHORE_PHOTO_FILENAME_RE } from '@/lib/chore-photos'
-import { removeConnection } from '@/lib/calendar-sync/sync'
+import { clearConnectionData, revokeProviderGrant } from '@/lib/calendar-sync/sync'
+import { lockHousehold } from '@/lib/household-lock'
 import type { AccountDeletionCode, DeletionOptions } from '@/lib/account-deletion-shared'
 
 export class AccountDeletionError extends Error {
@@ -56,8 +58,11 @@ export interface DeletionDeps {
   uploadDir?: string
   /** File removal; defaults to fs.unlink. A missing file counts as removed. */
   removeFile?: (absolutePath: string) => Promise<void>
-  /** Provider-side calendar disconnect; defaults to calendar-sync `removeConnection`. */
-  disconnectCalendar?: (connectionId: string, familyId: string) => Promise<unknown>
+  /**
+   * Provider-side revoke of one calendar grant, run after commit; defaults to
+   * calendar-sync `revokeProviderGrant` (no database writes).
+   */
+  revokeCalendarGrant?: (grant: CalendarGrant, familyId: string) => Promise<unknown>
   now?: () => Date
 }
 
@@ -98,11 +103,6 @@ async function defaultRemoveFile(absolutePath: string): Promise<void> {
   }
 }
 
-/** Serialise every deletion for one household (released at commit). */
-async function lockHousehold(tx: any, familyId: string): Promise<void> {
-  const key = `account-deletion:${familyId}`
-  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`
-}
 
 // ---------------------------------------------------------------------------
 // Options (read-only)
@@ -218,33 +218,33 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
   if (!pre) return { mode: 'account', deleted: false, successorId: null, filesRemoved: 0, filesNotRemoved: 0 }
   if (pre.family_id) await assertMemberMayLeave(db, pre)
 
-  // 1. Provider-side calendar revoke (best effort, outside the transaction).
-  if (pre.family_id) {
-    await disconnectCalendars(db, deps, { family_id: pre.family_id, user_id: pre.id }, pre.family_id)
-  }
-
   const outcome = await db.$transaction(
     async (tx: any) => {
       const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, role: true, family_id: true } })
-      if (!user) return { deleted: false, successorId: null, files: [] as FileTarget[] }
+      if (!user) return { deleted: false, successorId: null, files: [] as FileTarget[], grants: [] as CalendarGrant[] }
 
       if (!user.family_id) {
+        const grants = await takeCalendarConnections(tx, { user_id: user.id })
         await deletePersonalRows(tx, user.id)
         await tx.user.delete({ where: { id: user.id } })
-        return { deleted: true, successorId: null, files: [] as FileTarget[] }
+        return { deleted: true, successorId: null, files: [] as FileTarget[], grants }
       }
 
       const familyId: string = user.family_id
       await lockHousehold(tx, familyId)
       const successorId = await assertMemberMayLeave(tx, user)
+      // Their calendar connections: encrypted grants kept for the revoke
+      // after commit; links, imported events and rows deleted here.
+      const grants = await takeCalendarConnections(tx, { user_id: user.id })
       const files = await handOverAndDetach(tx, user.id, familyId, successorId, root)
       await deletePersonalRows(tx, user.id)
       await tx.user.delete({ where: { id: user.id } })
-      return { deleted: true, successorId, files }
+      return { deleted: true, successorId, files, grants }
     },
     { timeout: 60_000 }
   )
 
+  await revokeGrantsAfterCommit(outcome.grants, deps)
   const cleanup = await removeFiles(outcome.files, deps)
   if (outcome.deleted) {
     log.info('account_deletion.member', { role: pre.role, hadHousehold: Boolean(pre.family_id), ...cleanup })
@@ -281,17 +281,52 @@ async function assertMemberMayLeave(
   )
 }
 
-async function disconnectCalendars(db: any, deps: DeletionDeps, where: Record<string, string>, familyId: string) {
-  const disconnect = deps.disconnectCalendar ?? ((id: string, fam: string) => removeConnection(id, fam))
-  const connections = await db.calendarConnection.findMany({ where, select: { id: true } })
-  for (const conn of connections) {
+/** What is needed to revoke one calendar grant at the provider after commit. */
+export interface CalendarGrant {
+  id: string
+  family_id: string
+  provider: string
+  access_token_enc: string | null
+  refresh_token_enc: string | null
+}
+
+/**
+ * Inside the deletion transaction: read the connections matching `where`
+ * (with their encrypted tokens, kept in memory for the revoke after commit),
+ * then delete each one's links, the events imported through it, and the row.
+ * Nothing about a connection changes unless the whole deletion commits.
+ */
+async function takeCalendarConnections(tx: any, where: Record<string, unknown>): Promise<CalendarGrant[]> {
+  const grants: CalendarGrant[] = await tx.calendarConnection.findMany({
+    where,
+    select: { id: true, family_id: true, provider: true, access_token_enc: true, refresh_token_enc: true },
+  })
+  for (const grant of grants) {
+    await clearConnectionData(tx, grant.id, grant.family_id)
+    await tx.calendarConnection.deleteMany({ where: { id: grant.id, family_id: grant.family_id } })
+  }
+  return grants
+}
+
+/**
+ * After commit: revoke each grant at the provider, best effort.
+ *
+ * Why after, not before: a revoke cannot be undone. Revoking first and then
+ * failing the transaction would leave the household with calendar rows whose
+ * grant is dead. Revoking after commit only ever affects data that is already
+ * deleted; if the provider is unreachable the grant can outlive the account at
+ * the provider (the stored tokens are gone either way), which is the retention
+ * exception documented in ACCOUNT_DELETION.md.
+ */
+async function revokeGrantsAfterCommit(grants: CalendarGrant[], deps: DeletionDeps): Promise<void> {
+  const revoke =
+    deps.revokeCalendarGrant ?? ((grant: CalendarGrant, familyId: string) => revokeProviderGrant(grant, familyId))
+  for (const grant of grants) {
     try {
-      await disconnect(conn.id, familyId)
+      await revoke(grant, grant.family_id)
     } catch (error) {
-      // The transaction still deletes the stored tokens; only the provider
-      // grant may outlive this (the member can revoke it at the provider).
-      log.warn('account_deletion.calendar_disconnect_failed', {
-        connectionId: conn.id,
+      log.warn('account_deletion.calendar_revoke_failed', {
+        connectionId: grant.id,
         error: error instanceof Error ? error.message : 'unknown',
       })
     }
@@ -512,7 +547,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'idempotencyRecord', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'stored responses' },
   { model: 'pushSubscription', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'push endpoints' },
   { model: 'handoff', scope: { kind: 'family' }, why: 'sitter share links' },
-  // 3. Calendar integrations (provider revoke already attempted).
+  // 3. Calendar integrations (connections already cleared one by one above; listed so none is missed).
   { model: 'calendarEventLink', scope: { kind: 'family' }, why: 'provider event links' },
   { model: 'event', scope: { kind: 'family' }, why: 'events' },
   { model: 'calendarConnection', scope: { kind: 'family' }, why: 'provider tokens' },
@@ -599,14 +634,11 @@ export async function deleteHousehold(
   if (!exists) return { mode: 'household', deleted: false, membersRemoved: 0, filesRemoved: 0, filesNotRemoved: 0 }
   await assertOnlyParent(db, familyId, actorUserId)
 
-  // 1. Provider-side calendar revoke for every connection (best effort).
-  await disconnectCalendars(db, deps, { family_id: familyId }, familyId)
-
   const outcome = await db.$transaction(
     async (tx: any) => {
       await lockHousehold(tx, familyId)
       const family = await tx.family.findUnique({ where: { id: familyId }, select: { id: true } })
-      if (!family) return { deleted: false, membersRemoved: 0, files: [] as FileTarget[] }
+      if (!family) return { deleted: false, membersRemoved: 0, files: [] as FileTarget[], grants: [] as CalendarGrant[] }
       await assertOnlyParent(tx, familyId, actorUserId)
 
       const members = await tx.user.findMany({ where: { family_id: familyId }, select: { id: true } })
@@ -626,6 +658,10 @@ export async function deleteHousehold(
       })
       await tx.deviceSession.updateMany({ where: { family_id: familyId, revoked_at: null }, data: { revoked_at: now } })
       await tx.family.update({ where: { id: familyId }, data: { feed_token: null } })
+
+      // Calendar connections of the household: grants kept for the revoke
+      // after commit; links, imported events and rows deleted here.
+      const grants = await takeCalendarConnections(tx, { family_id: familyId })
 
       // 3. Files to remove after commit: every Upload of the household, and
       // legacy photo files referenced only by this household.
@@ -671,11 +707,12 @@ export async function deleteHousehold(
       }
       // 5. The household row.
       await tx.family.delete({ where: { id: familyId } })
-      return { deleted: true, membersRemoved: memberIds.length, files }
+      return { deleted: true, membersRemoved: memberIds.length, files, grants }
     },
     { timeout: 120_000 }
   )
 
+  await revokeGrantsAfterCommit(outcome.grants, deps)
   const cleanup = await removeFiles(outcome.files, deps)
   if (outcome.deleted) {
     log.info('account_deletion.household', { membersRemoved: outcome.membersRemoved, ...cleanup })

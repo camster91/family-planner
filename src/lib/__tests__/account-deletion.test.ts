@@ -101,8 +101,8 @@ function deps(extra: Partial<DeletionDeps> = {}) {
     removeFile: async (p) => {
       removed.push(p)
     },
-    disconnectCalendar: async (id) => {
-      disconnected.push(id)
+    revokeCalendarGrant: async (grant) => {
+      disconnected.push(grant.id)
     },
     ...extra,
   }
@@ -205,12 +205,48 @@ describe('deleteHousehold', () => {
 
   it('still deletes when a provider revoke fails (the stored tokens go either way)', async () => {
     const { d } = deps({
-      disconnectCalendar: async () => {
+      revokeCalendarGrant: async () => {
         throw new Error('provider down')
       },
     })
     await deleteHousehold(FAMILY_A, 'parent-a', d)
     expect(db.rows('calendarConnection').map((c) => c.id)).toEqual(['conn-b'])
+  })
+
+  it('revokes calendar grants only after the transaction committed; a failed transaction revokes nothing', async () => {
+    const order: string[] = []
+    const failing = new Proxy(fakePrisma, {
+      get(target, prop) {
+        if (prop !== '$transaction') return target[prop]
+        return async (fn: (tx: any) => Promise<unknown>) => {
+          order.push('tx-start')
+          await fn(
+            new Proxy(fakePrisma, {
+              get(t, p) {
+                if (p === 'family') return { ...t.family, delete: async () => Promise.reject(new Error('boom')) }
+                return t[p]
+              },
+            })
+          )
+          order.push('tx-commit')
+        }
+      },
+    })
+    const { d, disconnected } = deps({ db: failing })
+    await expect(deleteHousehold(FAMILY_A, 'parent-a', d)).rejects.toThrow('boom')
+    expect(order).toEqual(['tx-start'])
+    expect(disconnected).toEqual([])
+
+    db.reset()
+    seedExtras()
+    const ok = deps({
+      revokeCalendarGrant: async (grant) => {
+        // By the time the provider is called, the rows are already gone.
+        order.push(`revoke:${grant.id}:${db.find('calendarConnection', grant.id) ? 'row' : 'gone'}`)
+      },
+    })
+    await deleteHousehold(FAMILY_A, 'parent-a', ok.d)
+    expect(order.filter((o) => o.startsWith('revoke')).sort()).toEqual(['revoke:conn-a-teen:gone', 'revoke:conn-a:gone'])
   })
 
   it.each([

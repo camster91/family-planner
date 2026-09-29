@@ -44,7 +44,7 @@ describeWithDatabase('account deletion against Postgres', () => {
       const parent = await prisma.user.findFirst({ where: { family_id: f, role: 'parent' }, select: { id: true } })
       if (parent) {
         await prisma.user.updateMany({ where: { family_id: f, role: 'parent', id: { not: parent.id } }, data: { role: 'teen' } })
-        await lib.deleteHousehold(f, parent.id, { uploadDir, disconnectCalendar: async () => undefined })
+        await lib.deleteHousehold(f, parent.id, { uploadDir, revokeCalendarGrant: async () => undefined })
       }
     }
     await prisma.user.deleteMany({ where: { id: { in: users } } })
@@ -258,8 +258,8 @@ describeWithDatabase('account deletion against Postgres', () => {
 
     const result = await lib.deleteHousehold(fam('a'), parentA, {
       uploadDir,
-      disconnectCalendar: async (id) => {
-        disconnected.push(id)
+      revokeCalendarGrant: async (grant) => {
+        disconnected.push(grant.id)
       },
     })
 
@@ -286,9 +286,57 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(await lookups('b')).toEqual({ deviceRefresh: 1, invite: 1, feed: 1, share: 1, pairingCode: 1 })
 
     // A retry converges.
-    const again = await lib.deleteHousehold(fam('a'), parentA, { uploadDir, disconnectCalendar: async () => undefined })
+    const again = await lib.deleteHousehold(fam('a'), parentA, { uploadDir, revokeCalendarGrant: async () => undefined })
     expect(again).toMatchObject({ deleted: false })
     expect(await rowsOf('b')).toEqual(beforeB)
+  })
+
+  it('a transaction that fails leaves calendar rows intact and revokes nothing at the provider', async () => {
+    const before = await rowsOf('a')
+    const revoked: string[] = []
+    // The real client, except that deleting the Family row fails inside the transaction.
+    const failing = new Proxy(prisma as any, {
+      get(target, prop) {
+        if (prop !== '$transaction') return Reflect.get(target, prop)
+        return (fn: (tx: any) => Promise<unknown>, opts: unknown) =>
+          target.$transaction(
+            (tx: any) =>
+              fn(
+                new Proxy(tx, {
+                  get(t, p) {
+                    if (p === 'family') {
+                      return new Proxy(t.family, {
+                        get(ft, fp) {
+                          if (fp === 'delete') return async () => Promise.reject(new Error('simulated failure'))
+                          const v = Reflect.get(ft, fp)
+                          return typeof v === 'function' ? v.bind(ft) : v
+                        },
+                      })
+                    }
+                    const v = Reflect.get(t, p)
+                    return typeof v === 'function' ? v.bind(t) : v
+                  },
+                })
+              ),
+            opts
+          )
+      },
+    })
+    await expect(
+      lib.deleteHousehold(fam('a'), uid('a', 'parent'), {
+        db: failing,
+        uploadDir,
+        revokeCalendarGrant: async (grant) => {
+          revoked.push(grant.id)
+        },
+      })
+    ).rejects.toThrow('simulated failure')
+    expect(revoked).toEqual([])
+    expect(await rowsOf('a')).toEqual(before)
+    expect(await prisma.calendarConnection.count({ where: { id: `${P}-a-conn` } })).toBe(1)
+    expect(await prisma.calendarEventLink.count({ where: { id: `${P}-a-link` } })).toBe(1)
+    expect(await prisma.event.count({ where: { id: `${P}-a-event-imported` } })).toBe(1)
+    expect(fs.existsSync(path.join(uploadDir, 'chores', 'a1a1a1a1a1a1a1a1.jpg'))).toBe(true)
   })
 
   it('is refused while another parent exists, and nothing changes', async () => {
@@ -309,8 +357,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     const disconnected: string[] = []
     const result = await lib.deleteMemberAccount(uid('a', 'parent'), {
       uploadDir,
-      disconnectCalendar: async (id) => {
-        disconnected.push(id)
+      revokeCalendarGrant: async (grant) => {
+        disconnected.push(grant.id)
       },
     })
     expect(result).toMatchObject({ deleted: true, successorId: p2 })
@@ -357,7 +405,7 @@ describeWithDatabase('account deletion against Postgres', () => {
 
   it('a child deleting their account removes what was only theirs and keeps the household', async () => {
     const child = uid('a', 'child')
-    await lib.deleteMemberAccount(child, { uploadDir, disconnectCalendar: async () => undefined })
+    await lib.deleteMemberAccount(child, { uploadDir, revokeCalendarGrant: async () => undefined })
     expect(await prisma.user.count({ where: { id: child } })).toBe(0)
     expect(await prisma.chore.count({ where: { id: `${P}-a-chore` } })).toBe(0)
     expect(await prisma.chore.count({ where: { id: `${P}-a-chore-parent` } })).toBe(1)

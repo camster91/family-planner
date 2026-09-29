@@ -884,7 +884,12 @@ export async function listConnectionCalendars(
 }
 
 /** Remove events imported from this connection and all its links. */
-async function clearConnectionData(tx: any, connectionId: string, familyId: string) {
+/**
+ * Delete a connection's links and the events imported through it (not the
+ * connection row). Exported for account deletion, which runs it inside its
+ * own transaction (src/lib/account-deletion.ts).
+ */
+export async function clearConnectionData(tx: any, connectionId: string, familyId: string) {
   await tx.calendarEventLink.deleteMany({
     where: { connection_id: connectionId, family_id: familyId },
   });
@@ -925,6 +930,33 @@ export async function changeCalendar(
 }
 
 /**
+ * Revoke a connection's grant at the provider, best effort, with no database
+ * writes. Returns true when a revoke call was made and did not throw. Used by
+ * `removeConnection` (before it deletes the rows) and by account deletion
+ * (after its transaction committed, so a failed deletion never leaves a
+ * connection whose grant is already gone).
+ */
+export async function revokeProviderGrant(
+  conn: { id: string; provider: string; access_token_enc: string | null; refresh_token_enc: string | null },
+  familyId: string,
+  deps: Pick<EngineDeps, "configFor" | "oauthFor"> = {},
+): Promise<boolean> {
+  if (!isProvider(conn.provider)) return false;
+  const config = (deps.configFor ?? getProviderConfig)(conn.provider);
+  const token =
+    decryptToken(conn.refresh_token_enc, tokenAad.refresh(familyId)) ??
+    decryptToken(conn.access_token_enc, tokenAad.access(familyId));
+  if (!config || !token) return false;
+  try {
+    await (deps.oauthFor ?? ((p) => oauthFor(p)))(conn.provider).revoke(config, token);
+    return true;
+  } catch {
+    console.warn("[calendar-sync] revoke failed", { connectionId: conn.id });
+    return false;
+  }
+}
+
+/**
  * Disconnect: revoke at the provider (best effort), then delete the tokens,
  * the links, the events imported from this connection, and the connection.
  * Local events that were pushed stay in the family calendar; their provider
@@ -942,24 +974,7 @@ export async function removeConnection(
   });
   if (!conn) return null;
 
-  if (isProvider(conn.provider)) {
-    const config = (deps.configFor ?? getProviderConfig)(conn.provider);
-    const token =
-      decryptToken(conn.refresh_token_enc, tokenAad.refresh(familyId)) ??
-      decryptToken(conn.access_token_enc, tokenAad.access(familyId));
-    if (config && token) {
-      try {
-        await (deps.oauthFor ?? ((p) => oauthFor(p)))(conn.provider).revoke(
-          config,
-          token,
-        );
-      } catch {
-        console.warn("[calendar-sync] revoke failed", {
-          connectionId: conn.id,
-        });
-      }
-    }
-  }
+  await revokeProviderGrant(conn, familyId, deps);
 
   const removedEvents: number = await db.$transaction(async (tx: any) => {
     const removed = await clearConnectionData(tx, conn.id, familyId);

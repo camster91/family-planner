@@ -7,6 +7,7 @@ import { attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { registerSchema } from '@/lib/validations'
+import { lockHouseholdForJoin } from '@/lib/household-lock'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
@@ -88,29 +89,41 @@ export async function POST(request: NextRequest) {
       createData.family_id = invite.family_id
     }
     let user
-    try {
-      createData.email_verified = Boolean(invite)
-      user = await prisma!.user.create({ data: createData as any })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (msg.includes('email_verified') || msg.includes('does not exist')) {
-        delete createData.email_verified
+    if (invite) {
+      // Invite path: create the member and consume the invite in one
+      // transaction under the household membership lock, so the account can
+      // never be created into a household that a concurrent deletion is
+      // removing (src/lib/household-lock.ts, ACCOUNT_DELETION.md).
+      const inviteId = invite.id
+      const familyId = invite.family_id
+      user = await prisma!.$transaction(async (tx) => {
+        if (!(await lockHouseholdForJoin(tx, familyId))) return null
+        const consumed = await tx.familyInvite.updateMany({
+          where: { id: inviteId, accepted_at: null, expires_at: { gt: new Date() } },
+          data: { accepted_at: new Date() },
+        })
+        if (consumed.count === 0) return null
+        return tx.user.create({ data: { ...createData, email_verified: true } as any })
+      })
+      if (!user) {
+        return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
+      }
+    } else {
+      try {
+        createData.email_verified = false
         user = await prisma!.user.create({ data: createData as any })
-      } else {
-        throw e
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('email_verified') || msg.includes('does not exist')) {
+          delete createData.email_verified
+          user = await prisma!.user.create({ data: createData as any })
+        } else {
+          throw e
+        }
       }
     }
 
     if (invite) {
-      const consumed = await prisma!.familyInvite.updateMany({
-        where: { id: invite.id, accepted_at: null, expires_at: { gt: new Date() } },
-        data: { accepted_at: new Date() },
-      })
-      if (consumed.count === 0) {
-        await prisma!.user.delete({ where: { id: user.id } }).catch(() => undefined)
-        return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
-      }
-
       const { password: _pw, reset_token, reset_token_expires, verify_token, verify_token_expires, token_version, ...safeUser } = user as typeof user & {
         reset_token?: string | null
         reset_token_expires?: Date | null

@@ -12,7 +12,10 @@ jest.mock('@/lib/rate-limit-db', () => {
   const mock = require('@/__tests__/helpers/two-household').rateLimitMock
   return { ...mock, checkRateLimit: jest.fn(mock.checkRateLimit) }
 })
-jest.mock('@/lib/calendar-sync/sync', () => ({ removeConnection: jest.fn(async () => ({ removedEvents: 0 })) }))
+jest.mock('@/lib/calendar-sync/sync', () => ({
+  ...jest.requireActual('@/lib/calendar-sync/sync'),
+  revokeProviderGrant: jest.fn(async () => false),
+}))
 
 import { DELETE as deleteAccount } from '../route'
 import { GET as deletionOptions } from '../deletion/route'
