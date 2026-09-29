@@ -210,6 +210,12 @@ async function addBoardInventory(db: pg.Client) {
       ],
     );
   }
+  // A use-by day that has passed (#158): "don't eat", never on the tile.
+  await db.query(
+    `INSERT INTO "InventoryItem" (id, family_id, name, location, expires_on, date_kind, added_by)
+     VALUES ($1, $2, 'Old prawns', 'fridge', $3, 'use_by', $4)`,
+    [INVENTORY_PREFIX + "a_prawns", A.family, dayKey(-1), A.parent],
+  );
   // Another household's item, due today: must never reach Family A's board.
   await db.query(
     `INSERT INTO "InventoryItem" (id, family_id, name, location, expires_on)
@@ -686,16 +692,19 @@ test.describe("Today board: Family A parent", () => {
       const rows = tile.getByTestId("use-soon-item");
       await expect(rows).toHaveCount(5);
       await expect(rows.nth(0)).toHaveText(
-        /Baby spinach\s*Expired 2 days ago\s*·\s*Fridge/,
+        /Baby spinach\s*Best before was 2 days ago\s*·\s*Fridge/,
       );
       await expect(rows.nth(0)).toHaveAttribute("data-status", "expired");
-      await expect(rows.nth(1)).toHaveText(/Oat milk\s*Use today\s*·\s*Fridge/);
-      await expect(rows.nth(2)).toContainText("Use by tomorrow");
+      await expect(rows.nth(1)).toHaveText(
+        /Oat milk\s*Best before today\s*·\s*Fridge/,
+      );
+      await expect(rows.nth(2)).toContainText("Best before tomorrow");
       await expect(tile.getByTestId("use-soon-more")).toHaveText(
         "2 more to use soon",
       );
-      // Not due yet, and another household's item, are never shown.
+      // Not due yet, past use-by, and another household's item, are never shown.
       await expect(tile).not.toContainText("Apricot jam");
+      await expect(tile).not.toContainText("Old prawns");
       expect(await page.content()).not.toContain(INVENTORY_CANARY_B);
       await expect(
         tile.getByRole("link", { name: "Open inventory" }),

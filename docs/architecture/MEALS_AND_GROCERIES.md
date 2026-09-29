@@ -360,7 +360,9 @@ Expected results:
 
 ## 10. Food inventory (#263)
 
-**Status (2026-09-28): implemented in #263.** FridgeCal-style inventory without AI: what the household has in the fridge, freezer and pantry, what to use soon, and which saved recipes it covers. No push notifications and no scheduled job: "use soon" is computed when a page or tile asks. Photo recognition was added later, off until configured: see "Fridge photo scan (#265)" below.
+**Status (2026-09-28): implemented in #263; 2026-09-29: foundation completed in #158/#121** (best-before vs use-by,
+category, bought/opened days, "Used it" / "Throw away" with history and Undo, idempotent edits, search and filters,
+offline and stale states). FridgeCal-style inventory without AI: what the household has in the fridge, freezer and pantry, what to use soon, and which saved recipes it covers. No push notifications and no scheduled job: "use soon" is computed when a page or tile asks. Photo recognition was added later, off until configured: see "Fridge photo scan (#265)" below.
 
 ### Model (additive)
 
@@ -375,10 +377,40 @@ Expected results:
 | `amount`, `unit` | float null, text null | presence and display only; no unit arithmetic (O-3 spirit) |
 | `location` | text, default `fridge` | `fridge` \| `freezer` \| `pantry` (validated in the API) |
 | `expires_on` | `DATE` null | date-only, like `FamilyMeal.date` semantics |
+| `date_kind` | text, default `best_before` (#158) | `best_before` \| `use_by`: what `expires_on` means. Every older row reads as best before |
+| `category` | text null (#158) | `INVENTORY_CATEGORIES`: produce, dairy_eggs, meat_fish, bakery, leftovers, dry_goods, snacks_drinks, condiments, other. Separate from grocery store sections (§11): an inventory needs "Leftovers", not "Household" |
+| `purchased_on`, `opened_on` | `DATE` null (#158) | optional, date-only |
+| `status` | text, default `active` (#158) | `active` \| `consumed` \| `discarded` |
+| `finished_at` | timestamp null (#158) | when it was used up or thrown away |
 | `added_by` | text null, FK `User` `ON DELETE SET NULL` | nullable so deleting a member's account keeps the household's food |
-| `created_at`, `updated_at` | timestamp | |
+| `created_at`, `updated_at` | timestamp | `updated_at` is also the item's version for compare-and-set; every write moves it strictly forward |
 
-Indexes: `(family_id, location)`, `(family_id, expires_on)`, `(ingredient_id)`. Expand only; rolling back the app leaves an unused table. It is not a new recipe, meal or grocery generation (ADR-0005/0007): it is a new domain that references the canonical `Ingredient`.
+Indexes: `(family_id, location)`, `(family_id, expires_on)`, `(family_id, status, expires_on)` (#158), `(ingredient_id)`.
+
+`InventoryAdjustment` (#158/#121; same idempotent DDL block): one row per "Used it" or "Throw away".
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text PK | cuid |
+| `family_id` | text, FK `Family` `ON DELETE CASCADE` | from the session, never the body |
+| `item_id` | text, FK `InventoryItem` `ON DELETE CASCADE` | deleting an item (added by mistake) deletes its history |
+| `kind` | text | `consume` \| `discard` |
+| `amount_delta` | float null | negative change; null when the item had no amount |
+| `amount_before`, `amount_after` | float null | what Undo restores / what was left |
+| `status_before`, `status_after` | text | |
+| `actor_id` | text null, FK `User` `ON DELETE SET NULL` | who did it |
+| `request_id` | text null, **unique** | the `IdempotencyRecord` id of the request that wrote it |
+| `item_version` | timestamp | the item's `updated_at` this change set; Undo needs the item to still have it |
+| `created_at` | timestamp | wall-clock time of the change (history order) |
+| `undone_at`, `undone_by` | timestamp null, text null (FK `User` SET NULL) | set by Undo; the row stays as history |
+
+Indexes: `(family_id, created_at)`, `(item_id, created_at)`, unique `(request_id)`.
+
+Expand only; rolling back the app leaves unused tables and columns (older code does not filter on `status`, so it
+would show consumed and discarded items again; nothing is lost). Rehearsed on a database migrated by the previous
+`scripts/migrate.js` with an existing item: the item reads as an active best-before item, and a second run is a
+no-op. It is not a new recipe, meal or grocery generation (ADR-0005/0007): it is a new domain that references the
+canonical `Ingredient`.
 
 ### Ingredient link: link to an existing ingredient, never create one
 
@@ -388,15 +420,38 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 
 ### Use soon
 
-`getUseSoonItems(db, familyId, { today, days = 3, limit })` in `src/lib/inventory.ts` returns items whose `expires_on` is on or before `today + days`, expired included, soonest (most overdue) first, then by name. Each entry carries only board-safe fields (`id`, `name`, `location`, `expiresOn`, `daysLeft`, `status`, `label`), so the fridge board (#262) can add a tile by calling it from its own DTO builder with the household it has already proven (a person's `family_id` or a device's). It is exposed as `GET /api/inventory/use-soon`. Labels are words ("Expired yesterday", "Use today", "Use by tomorrow", "Use in 3 days"); colour only reinforces them.
+`getUseSoonItems(db, familyId, { today, days = 3, limit, useBySkewFrom })` in `src/lib/inventory.ts` is deterministic:
 
-"Today" is the viewer's calendar day: the page sends `today=YYYY-MM-DD` (browser local date) and the server accepts it only within one day of its UTC date; without it the server's UTC day is used. A board tile should pass the household's local day the same way.
+- **Included:** active items whose date is on or before `today + days`, except a **use-by** day that has passed.
+- **A passed best-before day** stays in, most overdue first, labelled "Best before was N days ago" (quality: check
+  it). **A passed use-by day** is "Past use-by — don't eat" (safety) and is never "use soon"; the page lists those
+  separately under "Past use-by" with a Throw away action.
+- **Left out:** items without a date (they are "No date" in their location list), and consumed or discarded items.
+- **Order:** date ascending, use-by before best-before on the same day, then name, then id.
+
+Each entry carries only board-safe fields (`id`, `name`, `location`, `expiresOn`, `dateKind`, `daysLeft`, `status`,
+`label`), so the fridge board (#262) builds its tile from its own DTO with the household it has already proven (a
+person's `family_id` or a device's). It is exposed as `GET /api/inventory/use-soon`. Labels are words and never
+conflate the two kinds: best before "Best before was yesterday", "Best before today", "Best before tomorrow", "Best
+before in 3 days"; use by "Past use-by — don't eat", "Use by today", "Use by tomorrow", "Use within 3 days". Colour only
+reinforces them.
+
+"Today" is the viewer's calendar day: the page sends `today=YYYY-MM-DD` (browser local date) and the server accepts it
+only within one day of its UTC date; without it the server's UTC day is used. Dates are date-only (UTC-midnight days),
+so days left are whole calendar days whatever the clock does: the America/Toronto spring-forward (2026-03-08, a 23-hour
+day) and fall-back (2026-11-01, a 25-hour day) fixtures in `src/lib/__tests__/inventory.test.ts` check that the
+viewer's day never skips or repeats and that days left stay whole on both sides of each change, for both kinds. The
+Today board anchors its query one UTC day ahead (so every zone's local today is inside the window). Use-by days
+between one UTC day behind and that anchor may be "Use by today" for a viewer behind UTC or already past for one
+ahead of it; they are read as a separate use-by set (`useBySkewFrom`, newest first, capped on its own), so however
+many of them there are they never crowd rows that are valid for every viewer out of the main 50-row set. The client
+drops rows that are not yet due or already past use-by for its own day.
 
 ### What can I cook
 
 `GET /api/inventory/cook` (`getCookSuggestions` → pure `rankCookableRecipes`) ranks the household's saved recipes against its non-expired inventory. Inputs are read up to 1000 recipes and 5000 non-expired items (expired rows are filtered in SQL, so they never use up the cap); one row past each cap is fetched, and when either cap is hit the response carries `inputsTruncated: true` and the page says the list may be incomplete instead of "no saved recipe uses what you have".
 
-- An ingredient is in stock when a **non-expired** item links to it by `ingredient_id`, or an **unlinked** non-expired item has the same normalized name as the ingredient. A linked item never matches another ingredient by name. Expired items never count (food safety beats optimism).
+- An ingredient is in stock when a **non-expired** item links to it by `ingredient_id`, or an **unlinked** non-expired item has the same normalized name as the ingredient. A linked item never matches another ingredient by name. Expired items never count (food safety beats optimism): neither a passed best-before nor a passed use-by day, and (#158) neither do consumed or discarded items.
 - Presence only: amounts are not compared (no cross-unit arithmetic).
 - Recipes without ingredients or with nothing in stock are left out.
 - Order: coverage (in stock / total) descending, then in-stock count, then how many in-stock ingredients are in the use-soon window, then fewer missing, then title.
@@ -404,12 +459,61 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 
 ### Roles, gate, device, export
 
-- Parent and teen create, edit and delete; child reads (403 `INVENTORY_WRITE_FORBIDDEN`). `/dashboard/inventory` is on the kid allowlist; the page hides write controls for a child.
+- Parent and teen create, edit, move, use up, throw away, undo and delete; child reads (403 `INVENTORY_WRITE_FORBIDDEN`). `/dashboard/inventory` is on the kid allowlist; the page hides write controls for a child.
 - Navigation: the user menu (top bar, every viewport and role) has a "Food inventory" link while the feature is on, so the page is reachable by touch; the command palette entry stays for keyboards, and `/dashboard/meals` links to it ("What's in the fridge"). The page follows the list's `nextOffset` (500 per request) for up to 20 pages and says "Showing the first 10,000 items" beyond that.
 - Feature `inventory` (`src/lib/features.ts`, group "planning", `defaultEnabled: false`, no `legacyDefault`): off for new and existing households, because the feature needs data entry to be useful and adds a nav entry. A stored blob without the key reads as off, so `scripts/migrate.js` stamps nothing (compare `gamification`, which needed a stamp). The column default in `database/migration-features.sql` and `schema.prisma` carries `"inventory":false`. A parent turns it on in Features.
-- Paired shared device: writes refused (403 `DEVICE_WRITE_NOT_ALLOWED`, `refusePairedDevice`, listed in the route-allowlist test); no device read route yet. The board tile (#262) is the intended device read path, through `getUseSoonItems` fields only.
-- Export: `GET /api/users/export` adds `inventory` (every member; no `family_id`).
-- Not offline-queued. Create accepts an optional `Idempotency-Key` since #265 (the fridge scan sends one per row); edit and delete take none.
+- Paired shared device: writes refused (403 `DEVICE_WRITE_NOT_ALLOWED`, `refusePairedDevice`, listed in the route-allowlist test), including consume, discard and undo; no device read route yet. The board tile (#262) is the intended device read path, through `getUseSoonItems` fields only.
+- Export: `GET /api/users/export` adds `inventory` (every member; no `family_id`; every status) and, since #158,
+  `inventoryAdjustments` (every member; no `family_id`, no `request_id`). Both are deleted with the household (FK
+  cascade); an adjustment is deleted with its item; deleting a member keeps the history with `actor_id` null.
+- Not offline-queued. Create accepts an optional `Idempotency-Key` since #265 (the fridge scan sends one per row);
+  since #158 edit, delete, consume, discard and undo accept one too, and the page sends one per logical change
+  (reused for a retry of the same body, new when the body changes).
+- Telemetry: none. #121 asks for privacy-safe telemetry of creation, correction, consume/discard and abandonment, but
+  the only client event helper (`src/lib/analytics.ts` → `POST /api/analytics/event`) stores free-form metadata in
+  `Activity` with the user and is not a privacy-reviewed telemetry module. Left for #161 (observability), which should
+  provide a content-minimal event path first; no inventory events are sent.
+
+### Consume, discard and undo (#158/#121)
+
+- **"Used it"** (`POST /api/inventory/[id]/consume`, body `{ amount? }`): without an amount, or with at least the
+  item's amount, the item becomes `consumed` (its amount is kept for the record); a smaller positive amount reduces
+  it and the item stays active. A partial amount on an item without an amount is 400 (use all of it, or set an amount).
+- **"Throw away"** (`POST /api/inventory/[id]/discard`): the whole item becomes `discarded`.
+- Both write one `InventoryAdjustment` and move the item's `updated_at` (its version) forward, recording the new
+  version as the adjustment's `item_version`, in one transaction, as a compare-and-set on the item's previous `updated_at` (and `status = 'active'`, `family_id`). A lost
+  race is 409 `INVENTORY_ITEM_FINISHED` (another member finished it) or retryable 409 `INVENTORY_CONFLICT`.
+- **Undo** (`POST /api/inventory/adjustments/[id]/undo`) restores `status_before` and `amount_before`, clears
+  `finished_at` and marks the adjustment undone (kept as history). It is allowed only while the item's `updated_at`
+  still equals the adjustment's `item_version`, i.e. for the latest change to that item; an edit, another use or an
+  earlier undo in between is 409 `INVENTORY_UNDO_CONFLICT` ("edit the item instead"). Every write moves `updated_at`
+  strictly forward (`nextItemVersion`), so two changes in the same millisecond cannot fool the check.
+- **Finished items** leave `GET /api/inventory`, "use soon", "what can I cook" and the Today board tile; they stay
+  readable by id and in the export, so Undo and history keep working.
+- **Retries:** with an `Idempotency-Key` a retry replays the stored response. The adjustment carries the idempotency
+  record id in the unique `request_id`, so even a re-run after a crash (after the 30 s lock timeout) finds the row it
+  already wrote and converges instead of adding a second adjustment.
+- **Page:** "Used it" and "Throw away" on each "Use soon" row, "Throw away" on each "Past use-by" row, and "Used it"
+  (with "How much did you use?" when the item has an amount) and "Throw away" in the item dialog. Each runs at once and
+  offers Undo in a toast (`useUndoToast`, docs/product/NAVIGATION.md); "Recently used or thrown away" (the last 10
+  changes, `GET /api/inventory/adjustments`) keeps Undo available after the toast has gone, on the rows the API marks
+  `undoable` only (the latest change to its item, not undone, item still at that change's version); the list and the
+  history are fetched again after every undo attempt. "Remove" in the dialog still deletes the item and its history,
+  behind a confirm, for an item added by mistake. A keyed Remove deletes the item and completes its idempotency record
+  in one transaction, so a retry after a lost response replays the 200 instead of answering 404.
+
+### Search, filters and page states (#121)
+
+- Search by name, and filter by where (fridge, freezer, pantry) and category, on the page (client-side over the
+  loaded list, with "Showing N of M items" and "Clear search"). `GET /api/inventory` takes the same `q` and `category`
+  for other clients.
+- Loading: skeletons. Empty: "Nothing tracked yet". Validation and server errors: in words in the dialog or the notice.
+- Offline: nothing is queued. The page says "You're offline. Showing what was loaded at … Changes need a connection",
+  keeps the loaded list, refuses writes with "You're offline. Connect to the internet to change the inventory." and
+  reloads when the connection returns (`useOnline`, shared with the Today board).
+- Stale: a failed refresh keeps the last list and says "Couldn't refresh. Showing what was loaded at …, which may be
+  out of date" with Try again.
+- The subtitle says the list is "as far as the family has noted it": the inventory is approximate by design.
 
 ### Fridge photo scan (#265)
 

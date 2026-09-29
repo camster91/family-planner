@@ -57,6 +57,7 @@ jest.mock("@/lib/prisma", () => {
       financialArchiveRecord: { findMany: findMany() },
       familyMeal: { findMany: findMany() },
       inventoryItem: { findMany: findMany() },
+      inventoryAdjustment: { findMany: findMany() },
       grocerySectionPreference: { findMany: findMany() },
       groceryShoppingSession: { findMany: findMany() },
     },

@@ -100,6 +100,9 @@ model User {
   idempotency_records           IdempotencyRecord[] @relation("IdempotencyRecordUser")
   // Food inventory (#263). Relation field only; no new User columns.
   inventory_items_added         InventoryItem[]    @relation("InventoryItemAdder")
+  // Inventory adjustments (#158/#121). Relation fields only; no new User columns.
+  inventory_adjustments_made    InventoryAdjustment[] @relation("InventoryAdjustmentActor")
+  inventory_adjustments_undone  InventoryAdjustment[] @relation("InventoryAdjustmentUndoer")
   // Grocery store sections (#273). Relation field only; no new User columns.
   grocery_section_preferences_set GrocerySectionPreference[] @relation("GrocerySectionPreferenceSetter")
 
@@ -197,6 +200,8 @@ model Family {
   idempotency_records IdempotencyRecord[]
   // Food inventory (#263)
   inventory_items     InventoryItem[]
+  // Inventory consume/discard history (#158/#121)
+  inventory_adjustments InventoryAdjustment[]
   // Today board weather cache (#262)
   weather_cache       WeatherCache?
   // Grocery store sections (#273)
@@ -1489,18 +1494,71 @@ model InventoryItem {
   location      String    @default("fridge") // 'fridge' | 'freezer' | 'pantry'
   /// Date-only (UTC midnight of the calendar day), like FamilyMeal.date.
   expires_on    DateTime? @db.Date
+  /// What `expires_on` means (#158): 'best_before' (quality; still safe to
+  /// check after) or 'use_by' (safety; do not eat after). Old rows read as
+  /// 'best_before'.
+  date_kind     String    @default("best_before")
+  /// Optional food category id (`INVENTORY_CATEGORIES` in src/lib/inventory.ts).
+  category      String?
+  /// Optional date-only purchase and opening days.
+  purchased_on  DateTime? @db.Date
+  opened_on     DateTime? @db.Date
+  /// 'active' | 'consumed' | 'discarded' (#158). Finished items leave the
+  /// active lists and use-soon; Undo puts them back.
+  status        String    @default("active")
+  finished_at   DateTime?
   /// Nullable so deleting a member's account keeps the household's inventory.
   added_by      String?
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
 
-  family     Family      @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  ingredient Ingredient? @relation(fields: [ingredient_id], references: [id], onDelete: SetNull)
-  adder      User?       @relation("InventoryItemAdder", fields: [added_by], references: [id], onDelete: SetNull)
+  family      Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  ingredient  Ingredient?           @relation(fields: [ingredient_id], references: [id], onDelete: SetNull)
+  adder       User?                 @relation("InventoryItemAdder", fields: [added_by], references: [id], onDelete: SetNull)
+  adjustments InventoryAdjustment[]
 
   @@index([family_id, location])
   @@index([family_id, expires_on])
+  @@index([family_id, status, expires_on])
   @@index([ingredient_id])
+}
+
+// Inventory history (#158/#121): one row per "Used it" (consume, full or
+// partial) or "Throw away" (discard). Household-scoped like its item, deleted
+// with the item or the household. Holds what Undo needs to put the item back
+// (`status_before`, `amount_before`, `item_version`); `undone_at` marks a
+// reversed row.
+// `request_id` is the IdempotencyRecord id of the request that wrote it, so a
+// retried request after a crash converges instead of adding a second row.
+// Additive: scripts/migrate.js creates the table idempotently.
+model InventoryAdjustment {
+  id            String    @id @default(cuid())
+  family_id     String
+  item_id       String
+  kind          String // 'consume' | 'discard'
+  /// Change in amount (negative), or null when the item had no amount.
+  amount_delta  Float?
+  amount_before Float?
+  amount_after  Float?
+  status_before String
+  status_after  String
+  /// Nullable so deleting a member's account keeps the household's history.
+  actor_id      String?
+  request_id    String?   @unique
+  /// The item's `updated_at` this change set (its version). Undo is allowed
+  /// only while the item still has this version.
+  item_version  DateTime
+  created_at    DateTime  @default(now())
+  undone_at     DateTime?
+  undone_by     String?
+
+  family Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  actor  User?         @relation("InventoryAdjustmentActor", fields: [actor_id], references: [id], onDelete: SetNull)
+  undoer User?         @relation("InventoryAdjustmentUndoer", fields: [undone_by], references: [id], onDelete: SetNull)
+
+  @@index([family_id, created_at])
+  @@index([item_id, created_at])
 }
 
 // Per-household weather cache for the Today board (#262). One row per family,

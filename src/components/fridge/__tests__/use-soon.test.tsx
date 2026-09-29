@@ -14,11 +14,18 @@ jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) 
 // Local noon on Monday 5 January 2026 in whatever zone the test runs in.
 const NOW = new Date(2026, 0, 5, 12, 0, 0)
 
-const item = (id: string, name: string, expiresOn: string, location: BoardUseSoonItem['location'] = 'fridge') => ({
+const item = (
+  id: string,
+  name: string,
+  expiresOn: string,
+  location: BoardUseSoonItem['location'] = 'fridge',
+  dateKind?: BoardUseSoonItem['dateKind']
+): BoardUseSoonItem => ({
   id,
   name,
   location,
   expiresOn,
+  ...(dateKind ? { dateKind } : {}),
 })
 
 function board(useSoon: BoardUseSoonItem[] | null | undefined, inventoryHref: string | null = null): TodayBoardData {
@@ -59,13 +66,32 @@ describe('itemsToUseSoon', () => {
       NOW
     )
     expect(out.map((i) => [i.name, i.status, i.label])).toEqual([
-      ['Spinach', 'expired', 'Expired 2 days ago'],
-      ['Milk', 'today', 'Use today'],
-      ['Bread', 'soon', 'Use by tomorrow'],
-      ['Yogurt', 'soon', 'Use in 3 days'],
+      ['Spinach', 'expired', 'Best before was 2 days ago'],
+      ['Milk', 'today', 'Best before today'],
+      ['Bread', 'soon', 'Best before tomorrow'],
+      ['Yogurt', 'soon', 'Best before in 3 days'],
     ])
     expect(itemsToUseSoon(null, NOW)).toEqual([])
     expect(itemsToUseSoon(undefined, NOW)).toEqual([])
+  })
+
+  it('use-by (#158): a passed day is dropped (never "use soon"), and use-by sorts first on the same day', () => {
+    const out = itemsToUseSoon(
+      [
+        item('a', 'Old chicken', '2026-01-04', 'fridge', 'use_by'),
+        item('b', 'Apples', '2026-01-06'),
+        item('c', 'Ham', '2026-01-06', 'fridge', 'use_by'),
+        item('d', 'Fish', '2026-01-05', 'fridge', 'use_by'),
+        item('e', 'Stock', '2026-01-08', 'pantry', 'use_by'),
+      ],
+      NOW
+    )
+    expect(out.map((i) => [i.name, i.status, i.label])).toEqual([
+      ['Fish', 'today', 'Use by today'],
+      ['Ham', 'soon', 'Use by tomorrow'],
+      ['Apples', 'soon', 'Best before tomorrow'],
+      ['Stock', 'soon', 'Use within 3 days'],
+    ])
   })
 })
 
@@ -75,7 +101,7 @@ describe('UseSoonRegion', () => {
     render(<UseSoonRegion items={items} inventoryHref={null} />)
     const region = screen.getByRole('region', { name: 'Use soon' })
     const rows = within(region).getAllByTestId('use-soon-item')
-    expect(rows.map((r) => r.textContent)).toEqual(['SpinachExpired yesterday·Fridge', 'PeasUse in 2 days·Freezer'])
+    expect(rows.map((r) => r.textContent)).toEqual(['SpinachBest before was yesterday·Fridge', 'PeasBest before in 2 days·Freezer'])
     expect(rows[0].getAttribute('data-status')).toBe('expired')
     expect(rows[0].querySelector('svg')).not.toBeNull()
     expect(rows[1].querySelector('svg')).toBeNull()
@@ -105,7 +131,7 @@ describe('TodayBoard use soon slot', () => {
     await renderBoard(board([item('a', 'Spinach', '2026-01-05')], '/dashboard/inventory'))
     const slot = screen.getByTestId('board-slot-use-soon')
     expect(within(slot).getByRole('heading', { name: 'Use soon' })).toBeTruthy()
-    expect(within(slot).getByTestId('use-soon-item').textContent).toContain('Use today')
+    expect(within(slot).getByTestId('use-soon-item').textContent).toContain('Best before today')
   })
 
   it.each([

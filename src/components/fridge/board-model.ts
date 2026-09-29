@@ -15,7 +15,7 @@ import type {
   BoardMember,
   BoardUseSoonItem,
 } from '@/app/dashboard/today/today-board-data'
-import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus } from '@/lib/inventory'
+import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus, isUseSoonStatus } from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { MEMBER_COLOR_KEYS, type MemberColorKey } from '@/lib/member-colors'
 
@@ -210,16 +210,19 @@ export function memberDisplayNames(members: BoardMember[]): Map<string, string> 
 }
 
 export interface UseSoonEntry extends BoardUseSoonItem {
+  /** `expired` is a passed best-before day; a passed use-by day never appears. */
   status: 'expired' | 'today' | 'soon'
   daysLeft: number
-  /** "Expired yesterday", "Use today", "Use in 2 days" (text carries the state). */
+  /** "Best before was yesterday", "Use by today", "Best before in 2 days" (text carries the state). */
   label: string
 }
 
 /**
  * Items to use soon against the viewer's LOCAL today (#263 data, #262 tile):
- * expired, due today, or due within DEFAULT_USE_SOON_DAYS. The server sends a
- * window wide enough for any zone; rows not yet due are dropped here.
+ * a passed best-before day, due today, or due within DEFAULT_USE_SOON_DAYS.
+ * A passed use-by day is "don't eat", never "use soon" (#158), so it is
+ * dropped. The server sends a window wide enough for any zone; rows not yet
+ * due (or already past use-by) for this viewer are dropped here.
  */
 export function itemsToUseSoon(items: BoardUseSoonItem[] | null | undefined, now: Date): UseSoonEntry[] {
   if (!items || items.length === 0) return []
@@ -227,11 +230,18 @@ export function itemsToUseSoon(items: BoardUseSoonItem[] | null | undefined, now
   if (!today) return []
   return items
     .flatMap((item) => {
-      const { status, daysLeft } = expiryStatus(item.expiresOn, today, DEFAULT_USE_SOON_DAYS)
-      if (daysLeft === null || (status !== 'expired' && status !== 'today' && status !== 'soon')) return []
-      return [{ ...item, status, daysLeft, label: expiryLabel(status, daysLeft) }]
+      const kind = item.dateKind ?? 'best_before'
+      const { status, daysLeft } = expiryStatus(item.expiresOn, today, DEFAULT_USE_SOON_DAYS, kind)
+      if (daysLeft === null || !isUseSoonStatus(status)) return []
+      return [{ ...item, status, daysLeft, label: expiryLabel(status, daysLeft, kind) }]
     })
-    .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+    .sort(
+      (a, b) =>
+        a.expiresOn.localeCompare(b.expiresOn) ||
+        useByFirst(a.dateKind) - useByFirst(b.dateKind) ||
+        a.name.localeCompare(b.name) ||
+        a.id.localeCompare(b.id)
+    )
 }
 
 export interface NextEventView {
@@ -264,3 +274,6 @@ export function dinnerTitle(dinner: BoardDinner | null): string | null {
   if (!dinner) return null
   return dinner.recipeName?.trim() || dinner.recipeTitle?.trim() || 'Dinner is planned'
 }
+
+/** Same day: a use-by item (safety) before a best-before one (quality). */
+const useByFirst = (kind: string | undefined) => (kind === 'use_by' ? 0 : 1)

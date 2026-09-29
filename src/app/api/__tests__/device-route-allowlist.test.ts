@@ -97,6 +97,10 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'POST /api/inventory': [403],
   'PATCH /api/inventory/[id]': [403],
   'DELETE /api/inventory/[id]': [403],
+  // Consume / discard / undo (#158/#121): refused before person auth.
+  'POST /api/inventory/[id]/consume': [403],
+  'POST /api/inventory/[id]/discard': [403],
+  'POST /api/inventory/adjustments/[id]/undo': [403],
   // Fridge photo scan (#265): spends the provider quota and is parent-only.
   'POST /api/inventory/scan': [403],
   // Review-first event import (#270): spends the provider quota; its undo deletes events.

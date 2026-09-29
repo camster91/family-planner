@@ -340,7 +340,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     })
 
     it('reads the household window with board-safe fields only when the feature is on', async () => {
-      const findMany = jest.fn().mockResolvedValue(inventoryRows)
+      const findMany = jest.fn().mockResolvedValueOnce(inventoryRows).mockResolvedValueOnce([])
       const db = mockDb({ inventoryItem: { findMany } })
       const features = { ...defaultFeatures(), inventory: true }
       const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'child', features, now: NOW })
@@ -348,17 +348,27 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       expect(args.where.family_id).toBe(FAMILY)
       // One UTC day ahead plus the 3-day window covers the viewer's local today in any zone.
       expect(args.where.expires_on.lte.toISOString()).toBe('2026-01-09T00:00:00.000Z')
-      expect(Object.keys(args.select).sort()).toEqual(['expires_on', 'id', 'location', 'name'])
+      expect(Object.keys(args.select).sort()).toEqual(['date_kind', 'expires_on', 'id', 'location', 'name'])
+      // Active items only (#158). The main set keeps use-by days from the
+      // anchor day on; the zone-skew days (UTC yesterday and today) are a
+      // separate, separately capped use-by set.
+      expect(args.where.status).toBe('active')
+      expect(args.where.OR[1].expires_on.gte.toISOString()).toBe('2026-01-06T00:00:00.000Z')
+      const skew = findMany.mock.calls[1][0]
+      expect(skew.where).toMatchObject({ family_id: FAMILY, status: 'active', date_kind: 'use_by' })
+      expect(skew.where.expires_on.gte.toISOString()).toBe('2026-01-04T00:00:00.000Z')
+      expect(skew.where.expires_on.lt.toISOString()).toBe('2026-01-06T00:00:00.000Z')
+      expect(skew.take).toBe(50)
       expect(data.useSoon).toEqual([
-        { id: 'inv1', name: 'Spinach', location: 'fridge', expiresOn: '2026-01-04' },
-        { id: 'inv2', name: 'Yogurt', location: 'fridge', expiresOn: '2026-01-07' },
+        { id: 'inv1', name: 'Spinach', location: 'fridge', expiresOn: '2026-01-04', dateKind: 'best_before' },
+        { id: 'inv2', name: 'Yogurt', location: 'fridge', expiresOn: '2026-01-07', dateKind: 'best_before' },
       ])
       // The inventory page is on the kid allowlist, so a child gets the link.
       expect(data.links.inventory).toBe('/dashboard/inventory')
     })
 
     it('gives the device the same items and no link', async () => {
-      const db = mockDb({ inventoryItem: { findMany: jest.fn().mockResolvedValue(inventoryRows) } })
+      const db = mockDb({ inventoryItem: { findMany: jest.fn().mockResolvedValueOnce(inventoryRows).mockResolvedValueOnce([]) } })
       const data = await buildTodayBoard(db as any, {
         familyId: FAMILY,
         audience: 'device',

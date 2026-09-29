@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/inventory/use-soon?days=3&today=&limit= (#263). Items that are
  * expired or expire within `days` (default 3), soonest first, with a text
- * label for each ("Expired yesterday", "Use today", "Use in 2 days"). Every
+ * label for each ("Best before was yesterday", "Use by today", "Best before in
+ * 2 days"); a passed use-by day is never included (#158). Every
  * role may read. Board-safe fields only (`getUseSoonItems`).
  */
 export async function GET(request: NextRequest) {

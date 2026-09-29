@@ -104,6 +104,19 @@ handlers are listed in the route-allowlist test. The export adds the household's
 `src/app/api/inventory/__tests__/isolation.test.ts` (two-household harness, which now seeds an `inventoryItem` per
 household) and the opt-in `inventory.integration.test.ts`.
 
+**Update 2026-09-29 (#158/#121): inventory consume, discard, undo and history.** New family-owned
+`InventoryAdjustment` (FK `family_id` cascade, `item_id` cascade, `actor_id`/`undone_by` SET NULL) and routes
+`POST /api/inventory/[id]/consume`, `POST /api/inventory/[id]/discard`, `POST /api/inventory/adjustments/[id]/undo` and
+`GET /api/inventory/adjustments`, all behind `featureGate('inventory')`. Items and adjustments are looked up with
+`where { id, family_id }` (another household's id is a 404 identical to a missing one); every write is a
+compare-and-set that repeats `family_id`; the adjustment's `family_id` comes from the session, never the body (strict
+bodies). Writes are parent and teen (child 403 `INVENTORY_WRITE_FORBIDDEN`); a paired device is refused with 403
+`DEVICE_WRITE_NOT_ALLOWED` before person auth, and the three write routes are in the route-allowlist test. PATCH,
+DELETE, consume, discard and undo accept an optional `Idempotency-Key` scoped `user:<id>` whose record carries the
+family, so a key is never replayed into another household. History and the export never return `family_id` or the
+idempotency record id. Tests: `src/app/api/inventory/__tests__/adjustments.test.ts` (two households, roles, device,
+retries) and the opt-in `adjustments.integration.test.ts` (in release.yml).
+
 **Update 2026-09-28 (#265): fridge photo scan.** `POST /api/inventory/scan` reads and writes no household rows: it
 returns model suggestions for one uploaded photo, and the page adds reviewed items through `POST /api/inventory`
 (above). A paired device is refused (403, listed in the route-allowlist test) before person auth; then a session, the
@@ -289,11 +302,15 @@ recorded in route comments, as the de facto matrix.
 | /api/handoff/share/[token] | GET | token (rate-limited, expiring) | token's handoff only; allowlisted fields | n/a | none | handoff/share/[token]/__tests__/route.test.ts | ok |
 | /api/health | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
 | /api/health/live | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
-| /api/inventory | GET | family + `featureGate('inventory')` | where family_id (+ location / expiry filters); paginated (limit ≤ 500) | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory | GET | family + `featureGate('inventory')` | where family_id + status active (+ location / category / name search / expiry filters); paginated (limit ≤ 500) | all | none | inventory/iso, inventory/adjustments, inventory.integration | implemented (#263, #158) |
 | /api/inventory | POST | device refused (403) + family + `featureGate('inventory')` | session family | P+T | `ingredient_id` verified in family (400, no existence leak); name link only to a same-family ingredient; strict body (no `family_id`/`added_by`); optional `Idempotency-Key` scoped `user:<id>`, record carries the family (#265) | inventory/iso, inventory/create-idempotency, inventory.integration, device-route-allowlist | implemented (#263) |
 | /api/inventory/[id] | GET | family + `featureGate('inventory')` | where id + family (404, same as missing) | all | none | inventory/iso, inventory.integration | implemented (#263) |
-| /api/inventory/[id] | PATCH | device refused (403) + family + `featureGate('inventory')` | where id + family (404); update also scoped by family | P+T | same as POST | inventory/iso, inventory.integration, device-route-allowlist | implemented (#263) |
-| /api/inventory/[id] | DELETE | device refused (403) + family + `featureGate('inventory')` | `deleteMany where id + family` (404 when 0) | P+T | none | inventory/iso, inventory.integration, device-route-allowlist | implemented (#263) |
+| /api/inventory/[id] | PATCH | device refused (403) + family + `featureGate('inventory')` | where id + family (404); compare-and-set update scoped by family, status and version (409 finished / retryable conflict) | P+T | same as POST; optional `Idempotency-Key` (#158) | inventory/iso, inventory/adjustments, inventory.integration, adjustments.integration, device-route-allowlist | implemented (#263, #158) |
+| /api/inventory/[id] | DELETE | device refused (403) + family + `featureGate('inventory')` | `deleteMany where id + family` (404 when 0); history cascades | P+T | optional `Idempotency-Key` (#158) | inventory/iso, inventory/adjustments, inventory.integration, adjustments.integration, device-route-allowlist | implemented (#263, #158) |
+| /api/inventory/[id]/consume | POST | device refused (403) + family + `featureGate('inventory')` | item where id + family (404); compare-and-set scoped by family; adjustment family from session | P+T | strict `{ amount? }`; optional `Idempotency-Key`, adjustment `request_id` unique | inventory/adjustments, adjustments.integration, device-route-allowlist | implemented (#158) |
+| /api/inventory/[id]/discard | POST | device refused (403) + family + `featureGate('inventory')` | as consume | P+T | strict `{}`; optional `Idempotency-Key` | inventory/adjustments, adjustments.integration, device-route-allowlist | implemented (#158) |
+| /api/inventory/adjustments/[id]/undo | POST | device refused (403) + family + `featureGate('inventory')` | adjustment where id + family (404); item compare-and-set scoped by family | P+T | optional `Idempotency-Key` | inventory/adjustments, adjustments.integration, device-route-allowlist | implemented (#158) |
+| /api/inventory/adjustments | GET | family + `featureGate('inventory')` | where family_id (+ item id); paginated (limit ≤ 100); no `family_id`/`request_id` out | all | none | inventory/adjustments, adjustments.integration | implemented (#158) |
 | /api/inventory/use-soon | GET | family + `featureGate('inventory')` | where family_id; board-safe fields only; limit ≤ 100 | all | none | inventory/iso, inventory.integration | implemented (#263) |
 | /api/inventory/cook | GET | family + `featureGate('inventory')` + `featureGate('meals')` | recipes and items where family_id; ingredients owned through the recipe | all | none | inventory/iso, inventory.integration | implemented (#263) |
 | /api/inventory/scan | POST | device refused (403) + family + kill switch (404) + `featureGate('inventory')` | none read or written; rate-limit keys from session user/family | P | multipart image: Content-Length bound, 8 MB, magic-byte type (JPEG/PNG/WebP); model output zod-validated and cleaned; fixed provider host, server-only key | inventory/scan, lib/inventory-scan, device-route-allowlist | implemented (#265) |
@@ -365,7 +382,7 @@ recorded in route comments, as the de facto matrix.
 | /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
 | /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
-| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) scoped by membership (#263); `grocerySectionPreferences` and `groceryShoppingSessions` scoped by membership (#273) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
+| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) and `inventoryAdjustments` (InventoryAdjustment, #158) scoped by membership (#263); `grocerySectionPreferences` and `groceryShoppingSessions` scoped by membership (#273) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed |
 | /api/wishlist | GET | family | where | all | none | wishlist/iso | ok |
 | /api/wishlist | POST | family | session family | all | none | wishlist/iso | ok |
 | /api/wishlist/[id] | PATCH | family | match (403) | requester or P | none | wishlist/iso | ok |

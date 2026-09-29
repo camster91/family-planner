@@ -10,6 +10,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
 import InventoryClient from '../InventoryClient'
+import { ToastProvider } from '@/components/ui/toast'
 
 jest.mock('@/components/providers/features-provider', () => ({
   useFeatureEnabled: () => false,
@@ -80,7 +81,11 @@ function setup(plan: (n: number) => 'ok' | 'lost' | 'fail' = () => 'ok', scan = 
     }
     return json(404, {})
   }) as unknown as typeof fetch
-  render(<InventoryClient canWrite canOpenRecipes={false} canScan />)
+  render(
+    <ToastProvider>
+      <InventoryClient canWrite canOpenRecipes={false} canScan />
+    </ToastProvider>
+  )
   return { posts, created, gets: () => gets, user: userEvent.setup() }
 }
 

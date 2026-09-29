@@ -86,6 +86,26 @@ describe('GET /api/users/export — canonical meal data', () => {
       added_by: 'parent-a',
     })
     expect(body.inventory[0]).not.toHaveProperty('family_id')
+    // #158 fields (defaults for a row written before them).
+    expect(body.inventory[0]).toMatchObject({ date_kind: 'best_before', status: 'active' })
+  })
+
+  it.each(['parentA', 'childA'] as const)('%s export includes the household inventory history (#158), never another household', async (who) => {
+    for (const [f, family_id] of [
+      ['a', FAMILY_A],
+      ['b', FAMILY_B],
+    ] as const) {
+      db.rows('inventoryAdjustment').push({
+        id: `adj-${f}`, family_id, item_id: `inv-${f}`, kind: 'discard', amount_delta: -3, amount_before: 3, amount_after: 3,
+        status_before: 'active', status_after: 'discarded', actor_id: `parent-${f}`, request_id: `req-${f}`,
+        item_version: T, created_at: T, undone_at: null, undone_by: null,
+      })
+    }
+    const { body } = await exportAs(who)
+    expect(body.inventoryAdjustments.map((a: any) => a.id)).toEqual(['adj-a'])
+    expect(body.inventoryAdjustments[0]).toMatchObject({ item_id: 'inv-a', kind: 'discard', amount_delta: -3, actor_id: 'parent-a' })
+    expect(body.inventoryAdjustments[0]).not.toHaveProperty('family_id')
+    expect(body.inventoryAdjustments[0]).not.toHaveProperty('request_id')
   })
 
   it.each(['parentA', 'childA'] as const)('%s export includes the household grocery sections and trips (#273)', async (who) => {
