@@ -6,6 +6,7 @@ import { verifyChoreSchema } from '@/lib/validations'
 import { awardChoreXP } from '@/lib/gamification-server'
 import { isGamificationOn } from '@/lib/gamification-visibility'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,6 +143,9 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       )
     }
+
+    // Beta usage counts (#287): after the commit; never fails the request.
+    await recordBetaMetric(prisma!, auth.user.family_id, 'chore_verified')
 
     // Notifications are sent only after the transaction commits, so a rolled-back
     // verify never tells the child it succeeded. A notification failure must not

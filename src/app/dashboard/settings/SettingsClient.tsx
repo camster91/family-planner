@@ -8,17 +8,22 @@ import SharedDeviceSettings from './SharedDeviceSettings'
 import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 import { downloadMyData } from '@/lib/data-export-client'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
+import BetaMetricsSwitch from '@/components/account/BetaMetricsSwitch'
 import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
 
 /**
  * `sharedDevice` is decided on the server (./page.tsx): null unless the
- * shared-device kill switch is on AND the viewer is a parent.
+ * shared-device kill switch is on AND the viewer is a parent. `betaMetrics`
+ * (#287) is the household's beta usage counts switch, read on the server for
+ * a parent only (null otherwise, and the switch is not shown).
  */
 export default function SettingsClient({
   sharedDevice,
+  betaMetrics = null,
   calendarSync = false,
 }: {
   sharedDevice: { hasPin: boolean } | null
+  betaMetrics?: { enabled: boolean } | null
   calendarSync?: boolean
 }) {
   const [name, setName] = useState('')
@@ -702,6 +707,8 @@ export default function SettingsClient({
                 Change Password
               </button>
               {sharedDevice && <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />}
+              {/* Beta usage counts (#287): parents only; PATCH /api/family/beta-metrics enforces it too. */}
+              {betaMetrics && <BetaMetricsSwitch initialEnabled={betaMetrics.enabled} />}
               <button
                 type="button"
                 onClick={() => void handleExport()}

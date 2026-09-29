@@ -12,6 +12,7 @@ import {
 } from '@/lib/family-invite'
 import { lockHouseholdForJoin, lockUser } from '@/lib/household-lock'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -155,6 +156,8 @@ async function finishJoin(userId: string, familyId: string, familyName: string, 
     return NextResponse.json({ error: outcome.error }, { status: 404 })
   }
   const updated = outcome.user
+  // Beta usage counts (#287): after the commit; never fails the request.
+  await recordBetaMetric(prisma!, familyId, 'member_joined')
 
   const response = NextResponse.json({ success: true, familyName })
   await attachSessionCookie(response, {

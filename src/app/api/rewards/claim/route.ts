@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { claimRewardSchema } from '@/lib/validations'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,6 +111,9 @@ export async function POST(request: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: result.reason }, { status: 409 })
     }
+
+    // Beta usage counts (#287): after the commit; never fails the request.
+    await recordBetaMetric(prisma!, auth.user.family_id, 'reward_claimed')
 
     const updated = await prisma!.reward.findUnique({
       where: { id: rewardId },

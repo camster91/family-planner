@@ -21,13 +21,13 @@
 | | Count |
 |---|---|
 | Page routes | 58 (48 under `/dashboard`, including `/dashboard/settings/activity` from #285; 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
-| API route files | 146 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; `/api/search`, F-3; `/api/users/deletion`, D-3; `/api/users/preferences`, #286; `/api/audit`, #285; and `/api/lists/items/[id]`, F-6) |
-| API handlers (file × method) | 214 (197 + 11 from #283/#284 + `GET /api/search` + `GET /api/users/deletion` + `GET`/`PATCH /api/users/preferences` + `GET /api/audit` + `DELETE /api/lists/items/[id]`) |
+| API route files | 147 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; `/api/search`, F-3; `/api/users/deletion`, D-3; `/api/users/preferences`, #286; `/api/audit`, #285; `/api/lists/items/[id]`, F-6; and `/api/family/beta-metrics`, #287) |
+| API handlers (file × method) | 215 (197 + 11 from #283/#284 + `GET /api/search` + `GET /api/users/deletion` + `GET`/`PATCH /api/users/preferences` + `GET /api/audit` + `DELETE /api/lists/items/[id]` + `PATCH /api/family/beta-metrics`) |
 | API handlers missing from the isolation audit | 0 (the 5 `/api/calendar/subscriptions/**` handlers were added for finding F-4) |
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
 | Route-level `loading.tsx` / `error.tsx` files | `error.tsx` for `/dashboard` and `/device`; `loading.tsx` for the today, chores, lists, calendar and rewards tabs (finding F-9, fixed) |
 
-API route files by domain (first path segment, all 146): family 21, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload.
+API route files by domain (first path segment, all 147): family 22, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload.
 
 ## Page routes
 
@@ -114,7 +114,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 ## Shared-device and role exposure
 
 - Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
-- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) `GET`/`PATCH /api/users/preferences` (#286) and `GET /api/audit` (#285) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
+- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) `GET`/`PATCH /api/users/preferences` (#286) `GET /api/audit` (#285) and `PATCH /api/family/beta-metrics` (#287) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
 - Teens and children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`); every API row below carries its per-method role from the isolation audit.
 
@@ -231,6 +231,7 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/events` | GET, POST, PATCH, DELETE | GET: all ; POST: all ; PATCH: P ; DELETE: P | no | — | — | — |
 | `/api/family/ai-settings` | GET, POST | GET: P ; POST: P | no | — | — | — |
 | `/api/family/board-version` | GET | GET: all (the caller's own household and role; returns only `{ version }`, #281) | no (tablet cookie 401) | — | — | — |
+| `/api/family/beta-metrics` | PATCH | PATCH: P (teen/child 403; strict body) — hand-checked (#287) | refused | — | — | `BetaMetricDaily` (beta usage counts) |
 | `/api/family/board-settings/places` | GET | GET: P | no | — | WEATHER_ENABLED | — |
 | `/api/family/board-settings` | GET, PATCH | GET: P ; PATCH: P | no | — | WEATHER_ENABLED (weather fields only) | — |
 | `/api/family/devices/[id]/events` | GET | GET: P | no | — | SHARED_DEVICE_ENABLED | — |

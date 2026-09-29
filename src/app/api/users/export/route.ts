@@ -27,6 +27,9 @@ export const dynamic = 'force-dynamic'
 // - Household audit history (#285) from the last 12 months: every row for a
 //   parent (the audience of Settings -> Recent changes); for a teen or child
 //   only the rows where they are the actor (e.g. joining the household)
+// - The household's beta usage counts (#287): the on/off switch
+//   (`family.beta_metrics_enabled`) and every stored count (`betaMetrics`,
+//   day, metric name and count only; nothing about a person)
 // - The frozen legacy MealPlan/ShoppingList tables while they exist, plus the
 //   ADR-0007 backfill job summaries that archive legacy rows the backfill
 //   skipped (MEALS_AND_GROCERIES.md §6), so no archived row is lost when the
@@ -44,7 +47,7 @@ export async function GET(request: NextRequest) {
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
       meals, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
-      auditLog,
+      auditLog, betaMetrics,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -67,7 +70,7 @@ export async function GET(request: NextRequest) {
               where: { id: u.family_id },
               select: {
                 id: true, name: true, subscription_tier: true, features: true,
-                created_at: true,
+                created_at: true, beta_metrics_enabled: true,
                 ...(u.role === 'parent'
                   ? {
                       travel_mode_active: true, travel_start_date: true,
@@ -244,6 +247,12 @@ export async function GET(request: NextRequest) {
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       }),
+      // Beta usage counts (#287): household counts, no family_id.
+      prisma!.betaMetricDaily.findMany({
+        where: { family: { members: { some: { id: userId } } } },
+        select: { day: true, metric: true, count: true },
+        orderBy: [{ day: 'asc' }, { metric: 'asc' }],
+      }),
     ])
 
     const exportData = {
@@ -268,6 +277,7 @@ export async function GET(request: NextRequest) {
       grocerySectionPreferences,
       groceryShoppingSessions,
       auditLog,
+      betaMetrics,
       mealPlans,
       shoppingLists,
       habits,

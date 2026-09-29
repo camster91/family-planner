@@ -212,11 +212,24 @@ on the kid allowlist); the command palette offers "Search the household" only to
 |---|---|---|---|---|---|
 | Read the household's history | yes | no (403) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Own household only; newest first; cursor-paged, 1–50 per page; `private, no-store`. Reading prunes the household's rows older than 12 months. |
 | Open Recent changes | yes | no (kid allowlist redirect; page re-checks the role) | no | no | Linked from Settings → Privacy & Security for parents only. |
-| Rows written | a parent's feature toggles, board-settings changes, invites created/cancelled, tablet pair/rename/remove | — (they cannot make these changes) | — | the elevated parent's rename, removal and board-settings changes on the tablet (`actor_kind: device`) | Also `member.joined` for anyone who joins by code, invite or invite registration (their own row, with their role), and `member.left` (role word only, no actor) when a member deletes their account. Same transaction as the change. |
+| Rows written | a parent's feature toggles, board-settings changes, invites created/cancelled, tablet pair/rename/remove, beta usage counts on/off (#287) | — (they cannot make these changes) | — | the elevated parent's rename, removal and board-settings changes on the tablet (`actor_kind: device`) | Also `member.joined` for anyone who joins by code, invite or invite registration (their own row, with their role), and `member.left` (role word only, no actor) when a member deletes their account. Same transaction as the change. |
 | Export (`GET /api/users/export`) | every row of the last 12 months | only rows they acted in | only rows they acted in | — | No `family_id` in the export. |
 
 Summaries are fixed templates plus names (feature title, member or tablet name, role word): never an email, code,
 token, place or colour. An actor who has left the household is shown as "A former member".
+
+### Beta usage counts (#287, PR101 D-6)
+
+`PATCH /api/family/beta-metrics` and the "Share beta usage counts" switch in Settings → Privacy & Security.
+Counts only (`BetaMetricDaily`: household, UTC day, fixed metric name, count), off by default.
+
+| Action | Parent | Teen | Child | Shared device | Notes |
+|---|---|---|---|---|---|
+| Turn the household's counts on or off | yes (own household) | no (403) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Strict body `{ enabled }`; off deletes the household's counts in the same transaction; a real change adds a household audit line. `private, no-store`. |
+| See the switch | yes (Settings, value read on the server) | no (Settings is not on the kid allowlist) | no | no | |
+| Actions that are counted | whatever the existing routes already allow them (no role changes) | same | same | a tablet chore completion (through the shared `completeChore`) | Eight success paths add one to the household's number for the day: never who did it. No-op while the household is opted out. |
+| Export (`GET /api/users/export`) | the household's counts and switch | same | same | — | No `family_id`, no user reference. |
+| Read the counts | — (no app route) | — | — | — | Only `npm run beta:scorecard`, run by the operator, households as numbers. |
 
 ### Today board page (#119 / #159)
 

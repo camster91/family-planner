@@ -4,6 +4,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { addUTCDays, parseDateOnly, startOfTodayUTC } from '@/lib/dates'
 import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,6 +135,9 @@ export async function POST(request: NextRequest) {
       },
       include: MEAL_INCLUDE,
     })
+
+    // Beta usage counts (#287): after the write; never fails the request.
+    await recordBetaMetric(prisma!, auth.user.family_id, 'meal_planned')
 
     return NextResponse.json({ meal }, { status: 201 })
   } catch (err) {

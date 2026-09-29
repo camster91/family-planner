@@ -33,6 +33,16 @@ Define and test:
 - Rows are kept 12 months, then pruned when a parent next reads the history (no scheduled job). The account export
   includes the last 12 months: every row for a parent, only the rows they acted in for a teen or child.
 
+## Retention: beta usage counts (#287)
+- `BetaMetricDaily` holds counts only (household, UTC day, fixed metric name, count), never a user id, so deleting one
+  member changes nothing in it. It is deleted with the household, explicitly as the `betaMetricDaily` step of
+  `HOUSEHOLD_DELETION_PLAN` (and by `ON DELETE CASCADE` as a backstop).
+- A parent turning "Share beta usage counts" off (`PATCH /api/family/beta-metrics`) deletes all of the household's
+  rows in the same transaction. Counting is off by default.
+- Rows are kept 13 months: the recorder deletes the household's older rows each time it records (no scheduled job),
+  and the scorecard ignores older rows. A household that stops recording keeps its older rows until it records
+  again, turns counting off or is deleted. Every member's export includes the household's rows.
+
 ## Data execution
 Prefer a documented job/transaction sequence with observable status for large cascades. Do not rely on accidental database cascades as the entire deletion policy. Retention exceptions must be explicit and minimal.
 
@@ -129,7 +139,7 @@ see "Partial failure") and the photo files are removed from disk.
       another household also references, in any of those three spellings (compared by filename), or that another
       household owns through an `Upload` row, is kept (legacy files have no household namespace).
    4. Every household-scoped table is deleted explicitly, in the order of `HOUSEHOLD_DELETION_PLAN`: device
-      sessions (access and refresh tokens), pairing codes, device audit, household audit history (#285), devices, tablet PINs; invitations, OAuth
+      sessions (access and refresh tokens), pairing codes, device audit, household audit history (#285), beta usage counts (#287), devices, tablet PINs; invitations, OAuth
       states, idempotency records, push subscriptions, sitter handoffs (share links); calendar event links, events,
       calendar connections, ICS subscriptions; then all household content (inventory, groceries, lists, budget,
       projects, chores, gamification, legacy and canonical meals/recipes, imports, messages, notifications,
@@ -228,9 +238,11 @@ Explicit and minimal:
 | Photos a deleted member uploaded | They stay with the household (uploader cleared); another member may be attaching one | Until the household is deleted |
 | Files that could not be removed from disk | Reported as `filesNotRemoved`; unreachable through the app | Until removed by an operator |
 
-There is no product analytics store. The audit stores are the device audit (`DeviceAuditEvent`) and the household
-audit history (`AuditLog`, #285, 12 months, pruned on a parent's read); both are deleted with the household and a
-deleted member's actor references are cleared — no separate analytics retention applies.
+The audit stores are the device audit (`DeviceAuditEvent`) and the household audit history (`AuditLog`, #285, 12
+months, pruned on a parent's read); both are deleted with the household and a deleted member's actor references are
+cleared. The only usage store is the opt-in beta usage counts (`BetaMetricDaily`, #287): counts per household and
+day with no user reference, 13 months, deleted when turned off and with the household. `src/lib/analytics.ts` rows
+live in the `Activity` table and follow its deletion rules above.
 
 ### Not implemented (open)
 

@@ -7,6 +7,7 @@ import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
+import { recordChoreAssigned } from '@/lib/beta-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +80,9 @@ export async function POST(request: NextRequest) {
         creator: { select: { id: true, name: true, avatar_url: true, role: true } },
       },
     })
+
+    // Beta usage counts (#287): after the write; never fails the request.
+    await recordChoreAssigned(prisma!, auth.user.family_id, newChore)
 
     // Send notification to assigned user
     if (newChore.assignee && newChore.creator) {

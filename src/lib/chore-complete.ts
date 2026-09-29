@@ -12,13 +12,15 @@
  *   parent's verify is the only path that awards XP, so a child's tick waits
  *   for a parent's check.
  * - The status change, the activity row and the recurring successor commit in
- *   one transaction.
+ *   one transaction. After it commits, the household's beta usage count
+ *   `chore_completed` goes up (#287; a no-op unless the household opted in).
  */
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { expandSeriesInTx, nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
 import { toDateOnlyUTC } from '@/lib/dates'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 
-type Db = Pick<PrismaClient, 'chore' | '$transaction'>
+type Db = Pick<PrismaClient, 'chore' | '$transaction' | '$executeRaw'>
 
 /** The chore fields the completion reads. */
 export const COMPLETABLE_CHORE_SELECT = {
@@ -65,7 +67,7 @@ export async function completeChore(
 ): Promise<boolean> {
   const now = options.now ?? new Date()
   const photoValue = options.photoValue ?? null
-  return db.$transaction(async (tx) => {
+  const completed = await db.$transaction(async (tx) => {
     const updateResult = await tx.chore.updateMany({
       where: { id: chore.id, status: { in: ['pending', 'in_progress', 'overdue'] } },
       data: {
@@ -119,6 +121,9 @@ export async function completeChore(
     }
     return true
   })
+  // Beta usage counts (#287): after the commit, person and tablet alike; never throws.
+  if (completed) await recordBetaMetric(db, chore.family_id, 'chore_completed', { now })
+  return completed
 }
 
 /**

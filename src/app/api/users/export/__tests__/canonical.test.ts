@@ -169,6 +169,21 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(child.body.auditLog.map((r: any) => r.id)).toEqual(['al-child'])
   })
 
+  it.each(['parentA', 'childA'] as const)(
+    "beta usage counts (#287): %s gets the household's switch and counts, no family_id, never household B's",
+    async (who) => {
+      db.rows('family').find((f) => f.id === FAMILY_A)!.beta_metrics_enabled = true
+      const day = new Date('2026-09-28T00:00:00Z')
+      db.rows('betaMetricDaily').push(
+        { family_id: FAMILY_A, day, metric: 'chore_completed', count: 4 },
+        { family_id: FAMILY_B, day, metric: 'reward_claimed', count: 9 }
+      )
+      const { body } = await exportAs(who)
+      expect(body.family.beta_metrics_enabled).toBe(true)
+      expect(body.betaMetrics).toEqual([{ day: day.toISOString(), metric: 'chore_completed', count: 4 }])
+    }
+  )
+
   it.each(['parentA', 'childA'] as const)('%s export never contains another household', async (who) => {
     const { raw } = await exportAs(who)
     expect(raw).not.toContain(FOREIGN)
