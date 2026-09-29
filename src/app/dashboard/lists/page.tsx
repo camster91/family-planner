@@ -1,12 +1,19 @@
-import { Suspense } from 'react'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ListsClient from './ListsClient'
 import { canCreateList } from '@/lib/role-capabilities'
+import { listTypeFilter } from '@/lib/list-type-filter'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ListsPage() {
+export default async function ListsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ type?: string | string[] }>
+}) {
+  // `?type=` (route inventory F-6): the old /dashboard/lists/type/[type] pages redirect here.
+  const initialType = listTypeFilter((await searchParams)?.type)
+
   const sessionUser = await getServerUser()
   if (!sessionUser) return null
 
@@ -51,6 +58,7 @@ export default async function ListsPage() {
       lists={listsWithCounts}
       familyName={user.family?.name || 'Family'}
       canCreate={canCreateList(sessionUser.role)}
+      initialType={initialType}
     />
   )
 }

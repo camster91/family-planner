@@ -44,7 +44,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH - Update a chore (family-scoped, parent or assignee)
+// PATCH - Update a chore (family-scoped, parent or assignee). Details only:
+// `updateChoreSchema` drops `status` and the verify fields, so status changes
+// only through the shared helpers (`completeChore` behind /api/chores/complete,
+// `reopenCompletedChoreInTx` behind /uncomplete and the verify reject; route
+// inventory F-6, #289; pinned by __tests__/status-single-path.test.ts).
 export async function PATCH(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)

@@ -346,6 +346,26 @@ Additive: one new route and one new export key; no existing request or response 
 | `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`; clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
 | `GET /api/users/export` (#285) | Adds `auditLog: [{ id, action, actor_kind, actor_user_id, target_type, target_id, summary, created_at }]`, last 12 months: every household row for a parent, only rows the caller acted in for a teen or child. | unchanged |
 
+## Deprecated, duplicate and operator routes (#289, route inventory F-5/F-6)
+Nothing was removed. A deprecated route keeps its status codes and bodies; every response adds
+`Deprecation: @1790640000` (RFC 9745, 2026-09-29 UTC, `src/lib/deprecation.ts`) and, where a replacement exists,
+`Link: <…>; rel="successor-version"`. No `Sunset` header is sent: a removal date is set only after the ADR-0004
+review of installed Android clients (which builds still call the route, per request logs and the supported
+`versionCode` window) and is written here first. Removal is a separate, reviewed change.
+
+| Route | Status | Contract |
+| --- | --- | --- |
+| `DELETE /api/lists/items/[id]` | New (REST form) | Parent only; `lists` feature on; the item's list must be in the caller's household. 200 `{ success: true }`; 401; 403 teen/child (`Only parents can perform this action`), lists off, or a paired shared device (`DEVICE_WRITE_NOT_ALLOWED`, before person auth); 404 `{ error: 'Item not found' }` for a missing item and for another household's item alike. Not idempotent-keyed: a repeat is 404. The web list page calls it. |
+| `DELETE /api/lists/items/delete?itemId=` | Deprecated, kept | Installed Android builds call it. Same helper (`deleteHouseholdListItem`) and the same answers as the REST route, plus 400 `Missing itemId`; `Link` names `/api/lists/items/<itemId>`. Change in #289: another household's item is now the same 404 as a missing one (was 403). A paired device with only its device cookie still gets 401, as before. |
+| `GET /api/lists/items?listId=` | Deprecated, kept | No in-app caller (the list page reads on the server); only `e2e/`. Body unchanged (see "Grocery store sections"). |
+| `GET /api/admin/imports` | Kept (operator) | Parent only. `{ jobs: [{ id, source_app, source_version, status, dry_run, started_at, completed_at, summary, error }] }`, the caller's household's last 50 `ImportJob` rows, newest first. For operators checking an import (`POST /api/admin/imports/[source]`); no page calls it. |
+| `GET`/`POST /api/projects/[id]/tasks` | Wired | "Add task" on an active project's page posts `{ title (1–200), due_date?: 'YYYY-MM-DD', assigned_to?: user id }`; 201 `{ task }` (with `assignee`). Any household member. Since #289 the project and the assignee are looked up with the caller's household: another household's project, or a member of another household as assignee, is the same 404 as a missing one (was 403). 400 on a completed or archived project. |
+| `/api/files/[filename]` | Legacy, kept | Serves pre-D3 chore photos next to `/api/files/chores/[filename]`; stays until there is evidence no stored chore or assignment still references a legacy path (D3 contract step, `docs/security/API_ISOLATION_AUDIT.md`). |
+| `POST /api/chores/complete`, `PATCH /api/chores` | Unchanged | Status changes on one path: `completeChore` (`src/lib/chore-complete.ts`, also the tablet's complete) and `reopenCompletedChoreInTx` (`src/lib/chore-reopen.ts`, Undo and the verify reject). `PATCH /api/chores` edits details only; its schema drops `status`, `photo_verified` and `verified_*`, so it never changed status. Responses pinned by `src/app/api/chores/__tests__/status-single-path.test.ts`. |
+
+Page: `/dashboard/lists/type/[type]` redirects to `/dashboard/lists?type=<type>` (an unknown type to
+`/dashboard/lists`); the web page is served by the server, so installed Android builds follow the redirect.
+
 ## Rate limits
 Apply based on abuse/cost/risk rather than one global number. Authentication, invite/recovery, AI, uploads and expensive search/integration routes need stronger controls.
 

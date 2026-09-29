@@ -289,7 +289,7 @@ export default function ListDetailClient({
     setListItems(prev => prev.filter(i => i.id !== itemId))
     let ok = false
     try {
-      const res = await fetch(`/api/lists/items/delete?itemId=${itemId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/lists/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' })
       ok = res.ok
     } catch {
       ok = false

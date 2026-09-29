@@ -9,13 +9,22 @@ import {
   loadSectionOverrides,
   sectionsFor,
 } from '@/lib/grocery-section-store'
+import { DEPRECATED_SINCE_289, markDeprecated } from '@/lib/deprecation'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/lists/items?listId=<id>
 // Returns the items of one list (family-scoped). The list index endpoint only
 // includes counts, so this is the read side of the items CRUD.
+//
+// Deprecated (route inventory F-5, #289): no in-app caller (the list page
+// reads on the server), only e2e/. Kept, unchanged, until the ADR-0004 review
+// of installed Android clients; every response adds a `Deprecation` header.
 export async function GET(request: NextRequest) {
+  return markDeprecated(await readListItems(request), { since: DEPRECATED_SINCE_289 })
+}
+
+async function readListItems(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error

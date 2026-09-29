@@ -94,7 +94,7 @@ it('deletes without confirm and Undo re-creates the item (ticked again)', async 
 
   expect(window.confirm).not.toHaveBeenCalled()
   expect(screen.queryByRole('checkbox', { name: /Tofu/ })).toBeNull()
-  expect(calls[0]).toMatchObject({ url: '/api/lists/items/delete?itemId=a', method: 'DELETE' })
+  expect(calls[0]).toMatchObject({ url: '/api/lists/items/a', method: 'DELETE' })
 
   const toast = await screen.findByTestId('undo-toast')
   expect(toast.textContent).toContain('Deleted “Tofu”')

@@ -39,7 +39,7 @@ Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" sr
 | --- | --- | --- | --- |
 | Plan a meal for a day and slot | `/dashboard/meals` (client, 7-day grid) | `GET/POST /api/meals`, `PATCH/DELETE /api/meals/[id]` (`featureGate('meals')`, `cook_id` family check) | `FamilyMeal` |
 | Tonight's dinner on the fridge | `/dashboard/today`, `/device/*` board | `today-board-data.ts` (dinners in window, `recipe_name`, cook name; no `notes`) | `FamilyMeal` |
-| Grocery and generic lists | `/dashboard/lists`, `/lists/[listId]`, `/lists/type/[type]`, `/lists/create` | `/api/lists` GET/DELETE, `/api/lists/create`, `/api/lists/items{,/create,/update,/delete}` | `List`, `ListItem` |
+| Grocery and generic lists | `/dashboard/lists`, `/lists/[listId]`, `/lists/type/[type]` (redirects to the `?type=` filter, #289), `/lists/create` | `/api/lists` GET/DELETE, `/api/lists/create`, `/api/lists/items{,/create,/update,/delete,/[id]}` (`GET /api/lists/items` and `/delete` deprecated, #289) | `List`, `ListItem` |
 | Quick capture "something to buy" | `CaptureBox` | first `grocery` list (or `lists[0]`, or creates `Shopping`/`grocery`) → `/api/lists/items/create` | `List`, `ListItem` |
 | Groceries on the fridge | Today board Shopping card | `shopping-snapshot.ts` (unchecked items on `grocery`/`shopping` lists) | `ListItem` via `List` |
 | Offline grocery tick (PR #247, open) | list page | `POST /api/lists/items/update` + `Idempotency-Key`; queue op `list-item.set-checked {itemId}` | `ListItem`, `IdempotencyRecord` |
