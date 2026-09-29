@@ -198,6 +198,7 @@ export default function ActivityClient() {
                       key={entry.id}
                       className="row-apple border-b border-[var(--surface-separator)] last:border-b-0"
                       data-testid="activity-entry"
+                      data-entry-id={entry.id}
                     >
                       {entry.actorKind === 'device' && (
                         <TabletSmartphone className="w-4 h-4 text-label-tertiary shrink-0" aria-hidden="true" />

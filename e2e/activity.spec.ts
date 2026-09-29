@@ -128,10 +128,16 @@ test.describe("recent changes (Family A parent)", () => {
     ).toBeVisible();
 
     const list = page.getByTestId("activity-list");
-    await expect(list.getByText("Turned on Wishlist")).toBeVisible();
-    await expect(
-      list.getByTestId("activity-entry").filter({ hasText: "calm display" }),
-    ).toContainText("Avery Fixture-A, on the family tablet");
+    // Other specs write real audit rows with the same wording (the tiles spec
+    // changes the board on the tablet), so find the spec-owned rows by id.
+    const entry = (id: string) => list.locator(`[data-entry-id="${id}"]`);
+    await expect(entry(IDS.aFeature)).toContainText("Turned on Wishlist");
+    await expect(entry(IDS.aTablet)).toContainText(
+      "Changed the Today board settings: calm display",
+    );
+    await expect(entry(IDS.aTablet)).toContainText(
+      "Avery Fixture-A, on the family tablet",
+    );
     await expect(page.getByText("Family B canary change")).toHaveCount(0);
 
     const back = page.getByRole("link", { name: "Settings" });
