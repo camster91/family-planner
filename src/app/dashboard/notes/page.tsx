@@ -129,7 +129,8 @@ function NotesPageInner() {
         await fetchNotes()
         closeModal()
       } else if (modalState === 'edit' && selectedNote) {
-        const res = await fetch('/api/notes', {
+        // Edit and delete live on /api/notes/[id]; /api/notes is GET/POST only.
+        const res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -155,7 +156,7 @@ function NotesPageInner() {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/notes', {
+      const res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedNote.id }),

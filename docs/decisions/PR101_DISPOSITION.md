@@ -1,0 +1,76 @@
+# PR #101 disposition (#167)
+
+**Status: awaiting owner sign-off.** Nothing was closed, merged, reopened or cherry-picked in producing this record. #167 stays open until Cameron accepts or amends it.
+
+## What was compared
+
+- PR #101 "Restore enforceable Ashbi release gate", branch `codex/launch-readiness-gaps`, head `c19121da3772b5fba06526d035f01bcf57074974`, base `6553f4d` (the merge base with `master`). Closed without merging on 2026-09-23. 56 commits, 83 files, +7046/−2026 (GitHub API).
+- Current `master` at `cbef02648c1c0d855ae7794c0ecbd77cfe9dac2f` (#280), 2026-09-29.
+- Method: `git fetch origin pull/101/head`, then `git diff 6553f4d c19121d` for what #101 changed, and for each file whether it exists on `master`, whether it differs, and which `master` commits touched it since `6553f4d`. Where a claim below says a behaviour is on `master`, the file and line were read.
+- Earlier record: the owner's closing comment on #101 (2026-09-23) says the release gate it built is live as `release.yml` `Build & Test` and "nothing unique is being discarded", with the audit-history SQL named as a possible cherry-pick. The comparison below agrees on the release gate and **disagrees on "nothing unique"**: items D-1 to D-7 have no equivalent on `master`.
+- Overlap with #116 and #129 (acceptance criterion of #167): both have since merged (#116 as `aae427a`, #129 as `2538499`), so there is no remaining branch conflict to resolve. The reconciliation candidate #172 was closed unmerged on 2026-09-23.
+
+Disposition values: **on master** (cite where), **superseded** (cite the PR that replaced it), **still wanted** (proposed issue), **no longer needed** (why).
+
+## Release gate, CI and deploy
+
+| #101 files | Disposition | Evidence |
+|---|---|---|
+| `scripts/ci-gate.sh`, `scripts/ci-cleanup.sh`, `package.json` `verify:release` | superseded by #192 and #221 | `.github/workflows/release.yml` `Build & Test` runs frozen install, Prisma generate/validate, typecheck, lint, format, unit tests, migrations twice, the persisted-import test, DB-backed route tests, `npm audit --omit=dev --audit-level=high`, build, Docker image build and a readiness smoke. It is the required check (`docs/engineering/CI_AND_RELEASE.md`). |
+| `.github/workflows/ci.yml`, `build-and-push.yml`, `build-push.yml`, `deploy-coolify.yml`, `deploy-from-ghcr.yml`, `format.yml`, `lint.yml` | no longer needed | All deleted from `master`: `ci.yml` and `build-push.yml` in `f793ce8`, `build-and-push.yml` and `deploy-from-ghcr.yml` in #192 (`8ed88e9`), `deploy-coolify.yml` in #194 (`ee326e3`), `format.yml` in `d231198`, `lint.yml` in `b48a771`. Re-adding them is what the owner's closing comment warned against. |
+| `.github/workflows/review-target.yml`, `scripts/deploy-review-artifact.sh`, `scripts/inspect-review-target.sh` | superseded by #221 | Review/production promotion is `release.yml` `Release to VPS` (manual, default branch, exact image, `.github/scripts/deploy-over-ssh.sh` + `deploy-vps.sh`). No separate review environment exists on `master`; adding one would be a new owner decision. |
+| `.github/workflows/apk.yml`, `auto-merge.yml`, `stale-issues.yml` | superseded | `master` versions are later (#234 added Android security tests and AAB; stale is manual-only). All three are `disabled_manually` in GitHub (`CURRENT_STATE.md`). |
+| `Dockerfile` (`npm ci` instead of `npm install`) | on master | `Dockerfile:16` `RUN npm ci --ignore-scripts --no-audit --no-fund`. |
+| `package.json` override `prisma > mysql2 3.24.4`, `package-lock.json` | superseded | `package.json` `overrides` pins `mysql2` `^3.24.4` at top level; the lock has moved on through #217/#218 and later. |
+| `scripts/core-loop-smoke.mjs`, `src/__tests__/critical-paths.test.ts` | superseded by #230 | Playwright journeys in `e2e/` run in `.github/workflows/e2e.yml` (informational) and cover the core loop across the viewport projects in `playwright.config.ts` (phone, tablet, fridge and desktop) (`docs/testing/E2E.md`). |
+| `scripts/recovery-rehearsal.sh`, `docs/RECOVERY_RUNBOOK.md`, `docs/MIGRATION_REHEARSAL.md` | **still wanted (D-7)** | `master` has `scripts/backup.sh`, `scripts/restore.sh` and `docs/runbooks/RELEASE_AND_ROLLBACK.md`, but no automated restore/rollback rehearsal. `CI_AND_RELEASE.md` "Release limitations" still lists isolated restore evidence and a rollback drill as open gates. |
+
+## Security and auth
+
+| #101 files | Disposition | Evidence |
+|---|---|---|
+| `src/lib/tokens.ts` (hash reset/verify tokens, atomic consume) | on master via #189 | `src/lib/tokens.ts:5-10` stores `sha256(token)`; consume is transactional. |
+| `src/lib/tokens.ts` `ef75581` "reject stored account token hashes" | **done (D-1, security)**: fixed alongside this record; `tokenMatch` is now only `hashToken(token)` and `src/__tests__/auth-tokens.test.ts` checks the stored hash is not accepted. Before: | `master` still matches `{ in: [hashToken(token), token] }` (`src/lib/tokens.ts:32-34`, used at `:68`, `:96`, `:107`, `:156`). The plaintext arm also matches a submitted value equal to the stored hash, so a database read during a live reset/verify window could be replayed, which contradicts the file's own comment. The arm existed for tokens issued before #189 (merged 2026-09-17, `e537e22`); those expired after 24 h at most. |
+| `src/lib/supabase/server.ts`, `src/middleware.ts` (refresh mutable session authorization) | superseded by #189 and #240 | `token_version` revocation (`src/lib/supabase/server.ts:13`, `src/middleware.ts:109`); device-cookie handling added in #243. |
+| `src/app/api/auth/*` (change-password, forgot-password, register, reset-password, resend-verification) | superseded by #189, #223, #224, #228 | `resend-verification` exists on `master` (#224); login timing fixed in #244. |
+| `src/lib/validations.ts` | superseded | 6 later `master` commits rewrote it (#223, #228, #251, #273, #280). |
+| CSRF contract test (`d5f17af`), release-smoke rate-limit isolation (`ffdb589`) | superseded | `src/lib/csrf.ts` on `master`; rate-limit tests `src/lib/__tests__/rate-limit-db.test.ts`, `rate-limit-failures.test.ts`; the release smoke is in `release.yml`. |
+
+## Application features
+
+| #101 files | Disposition | Evidence |
+|---|---|---|
+| `src/app/api/search/route.ts`, `src/lib/search-result-href.ts`, `src/app/dashboard/search/page.tsx` | **still wanted (D-2)** | No `/api/search` on `master`; `/dashboard/search` is a placeholder that shows "No results" for every query (finding F-3 in `docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`). #101's route was family-scoped (`where: { family_id }`) and sent teens/children to `/dashboard`. |
+| `src/lib/account-deletion.ts` (+ erase tests in `persistence.integration.test.ts`) | **still wanted (D-3)** | `master` `DELETE /api/users` refuses the last parent (`src/app/api/users/route.ts:97-111`) but has no explicit whole-family deletion path, and the Settings "Delete Account" button has no handler (`SettingsClient.tsx:738`). Contract: `docs/product/ACCOUNT_DELETION.md`. |
+| `database/migration-audit-history.sql`, `src/app/api/audit/route.ts`, `src/app/dashboard/settings/audit/page.tsx`, `auditLog` writes in `family/features` and other routes | **still wanted? owner decision (D-4)** | No `AuditLog` model or route on `master`. `master` has a device-only audit (`src/lib/device-audit.ts`). The owner's closing comment named this as the one piece worth cherry-picking. |
+| `database/migration-notification-preferences.sql`, `src/app/api/users/preferences/route.ts`, `src/lib/notifications-server.ts` | **still wanted? owner decision (D-5)** | No `notify_chores`/`notify_events`/`notify_messages` columns or preference checks on `master`. |
+| `src/lib/beta-metrics.ts`, `database/migration-beta-metrics.sql`, `scripts/beta-scorecard*.mjs`, `src/lib/__tests__/beta-metrics.test.ts`, `docs/BETA_OPERATIONS_PACKET.md`, `docs/DESIGN_PARTNER_BETA.md`, `package.json` `beta:scorecard` | **still wanted? owner decision (D-6)** | No beta metrics on `master`. The beta criteria in `docs/PRODUCT_PROGRAM.md` still need instrumentation; recruiting households needs Cameron's approval (AGENTS.md). |
+| `src/lib/transactional-email.ts` (+ test), `docs/TRANSACTIONAL_EMAIL_PROVIDER_DECISION.md`, `docs/TRANSACTIONAL_EMAIL_RUNBOOK.md`, `.env.example` email vars | superseded | `master` sends through Mailgun (`src/lib/mail.ts`; `.env.production.example` `MAILGUN_*`), fails closed in production without a key and logs in development. #101's Maton/Resend provider choice was not adopted. Production email provider and DNS remain owner items. |
+| `src/app/api/users/export/route.ts` | superseded by #251 | Export rewritten for canonical models; still reads two legacy tables until #254. |
+| `src/app/api/chores/{complete,create,verify}/route.ts`, `src/app/dashboard/chores/ChoresContent.tsx` | superseded by #223, #228, #279, #280 | Atomic completion (`src/app/api/chores/complete/route.ts:70` conditional `updateMany` in a transaction), Undo, Verify/Reject. |
+| `src/app/api/events/route.ts`, `src/app/dashboard/calendar/CalendarPageClient.tsx` | superseded by #223, #228, #235, #277 | |
+| `src/app/api/family/features/route.ts` | superseded by #226 (server-side feature gates); the audit-log write belongs to D-4 | |
+| `src/app/api/health/route.ts` | superseded by #221 | `/api/health` returns the released commit header used by the deploy check. |
+| `src/app/api/messages/route.ts`, `src/app/api/notifications/route.ts`, `src/app/api/rewards/claim/route.ts`, `src/app/api/users/route.ts` | superseded by #228, #229 (isolation audit) | Beta-metric and preference hooks in these files belong to D-5/D-6. |
+| `src/app/dashboard/settings/page.tsx`, `src/components/layout/DashboardNav.tsx`, `src/app/globals.css`, auth pages, `src/app/page.tsx`, `src/app/privacy/page.tsx`, `src/i18n/index.tsx` | superseded by #234 (WCAG tokens, 44 px targets), #279 (navigation), #222 (i18n) | Settings moved to `SettingsClient.tsx`; the privacy page was rewritten on `master`. |
+| `database/migration-rewards.sql` (`ALTER COLUMN "icon" DROP NOT NULL`) | no longer needed at runtime; drift noted | `prisma/schema.prisma` declares `Reward.icon String?` while `scripts/migrate.js:311` creates `"icon" TEXT NOT NULL DEFAULT 'gift'`. No route writes `null` (`src/app/api/rewards/route.ts:73`, `updateRewardSchema` has no `nullable`), so nothing fails today. Fold into any later schema-drift cleanup. |
+| `src/lib/imports/__tests__/persistence.integration.test.ts` | partly superseded, partly D-3/D-1 | Meal Planner case superseded by `meal-planner-canonical.integration.test.ts` (#251). "Reconciles every source record and completed import job" has no `master` equivalent (fold into D-7). The token and erase cases go with D-1 and D-3. |
+| `docs/PRODUCT_PROGRAM.md`, `docs/ISSUE_TRIAGE.md`, `README.md` | no longer needed | `master` versions are newer; `ISSUE_TRIAGE.md` is historical (START_HERE). |
+
+## Proposed issues (not filed)
+
+| ID | Proposal | Why |
+|---|---|---|
+| D-1 | ~~Drop the plaintext arm of `tokenMatch`~~ **Done** alongside this record, with tests that submitting the stored hash fails. | Security; #101 `ef75581` did this. The rollout window it served has passed. |
+| D-2 | Real family-scoped search, or remove `/dashboard/search` and its nav link in favour of the command palette. | Placeholder page in a production path. |
+| D-3 | Account and household deletion per `docs/product/ACCOUNT_DELETION.md`, wiring the Settings button. | Play requirement; #101's `account-deletion.ts` is a starting point. |
+| D-4 | Decide whether a parent-visible household audit history is wanted; if yes, port `AuditLog` as an additive migration. | Owner named it on #101. |
+| D-5 | Decide whether per-member notification preferences are wanted before notifications grow. | No preference model on `master`. |
+| D-6 | Decide how beta criteria are measured (privacy-safe metrics vs existing analytics) before recruiting. | `PRODUCT_PROGRAM.md` beta gate. |
+| D-7 | Restore and rollback rehearsal evidence (script + runbook), plus an import reconciliation test. | Open release gate in `CI_AND_RELEASE.md`. |
+
+## Owner sign-off
+
+- [ ] Cameron accepts the dispositions above (or amends them in this file).
+- [ ] Cameron chooses which of D-2 to D-7 become issues (D-1 is fixed).
+- [ ] Then #167 can close with a link to this file; #101 stays closed.

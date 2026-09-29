@@ -24,7 +24,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Existing release/security gate: `docs/PRODUCT_PROGRAM.md`
 - Master roadmap: #128
 - Repository foundation: #147 / PR #129
-- First implementation audit: #148
+- First implementation audit: #148 (`docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`)
 - Canonical meal/list decision: #149
 - Design/IA: #150–#153
 - Test foundations: #154–#156

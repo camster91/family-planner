@@ -49,6 +49,33 @@ Android system back must have deterministic behaviour. Do not implement iOS-like
 ## Packaging
 Public release work must support an Android App Bundle (AAB), stable application ID, versionCode/versionName policy, production signing ownership/recovery, adaptive/monochrome icons and exact artifact provenance. Internal APKs remain useful for development/testing.
 
+## Versioning policy (#160, ADR-0004)
+
+Decision context: [ADR-0004](adr/0004-api-compatibility.md) (installed Android clients must keep working; versionCode/versionName are operational inputs). Current values, `android/app/build.gradle` on `master` at `cbef026`: `applicationId "com.ashbi.familyplanner"`, `versionCode 1`, `versionName "1.0"`. This section sets the rules for changing them; it does not change them.
+
+**Application ID.** `com.ashbi.familyplanner` never changes. Play, backups and installed tablets key on it.
+
+**versionCode**
+- A positive integer that increases by at least 1 for every build distributed beyond a developer machine: a GitHub Release APK, any Play track upload (internal, closed, open or production), or a sideloaded tablet build. Play rejects an upload whose `versionCode` is not higher than every code already uploaded.
+- Never reused or lowered, including after a rollback. Rolling back means shipping the old code under a new, higher `versionCode`.
+- Local debug builds keep whatever is on the branch; they are never distributed.
+
+**versionName**
+- `MAJOR.MINOR.PATCH` from the next bump. The existing `"1.0"` is read as `1.0.0`.
+- PATCH: native fixes with no behaviour change. MINOR: a new native capability (plugin, permission, manifest or lifecycle change). MAJOR: a change that ends support for older server or client behaviour; it needs an owner decision under ADR-0004.
+- Not yet reported to the server. Pairing (`src/components/device/PairScreen.tsx`) sends the literal `'web'` as the app version on every platform, and nothing refreshes `HouseholdDevice.last_seen_app_version` after an APK upgrade, so that field cannot identify installed Android builds or support an old-client window today. Wiring the native `versionName` into pairing and refresh is a follow-up; until then, compatibility decisions rely on the release record, not on that field. When it is wired, `versionName` must stay at most 32 characters and contain no household data.
+
+**When to bump.** The installed app loads the live site from `server.url`, so web and API changes reach every installed build without a new APK. Bump only when the native shell changes: `android/**`, `capacitor.config.ts`, Capacitor plugins or the Capacitor major version. A web-only release does not bump either value.
+
+**How to bump**
+1. A PR that changes only `versionCode` and `versionName` in `android/app/build.gradle` (plus release notes), after the native changes it ships have merged.
+2. After merge, the release tag is `v<versionName>` on that exact commit. `apk.yml` builds tagged releases, names the APK from the tag (`family-planner-<tag without v>.apk`) and refuses to publish an unsigned one. CI does not yet check that the tag matches `versionName`; check it by hand.
+3. Record the commit SHA, `versionCode`, `versionName` and the APK/AAB SHA-256 with the release evidence (`docs/runbooks/RELEASE_AND_ROLLBACK.md`).
+
+Pushing a tag, signing, `apk.yml` (currently disabled in GitHub, `CURRENT_STATE.md`) and any Play upload remain owner actions (AGENTS.md).
+
+**Old-client window (ADR-0004).** The server supports every `versionCode` from 1 up, the window recorded for device mode above. Raising the minimum supported `versionCode` is an owner decision. It needs a compatibility note in the release PR, and the previous supported build has to be smoke-tested against the new server candidate first.
+
 ## Android tests and build baseline (#160)
 Prerequisites: JDK 21, an Android SDK with `platforms;android-36` (set `ANDROID_HOME`), and `npx cap sync android` run from the repo root first. The sync generates `android/capacitor-cordova-android-plugins/` and `android/app/src/main/assets/capacitor.config.json`; both are gitignored and must not be committed.
 

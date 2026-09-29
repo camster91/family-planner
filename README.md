@@ -128,7 +128,7 @@ prisma/schema.prisma   # Canonical data model (Prisma client generation)
 scripts/migrate.js     # Idempotent schema migration, run at container start
 database/migration-*.sql  # Per-feature idempotent SQL applied by migrate.js
 android/               # Capacitor Android project
-.github/workflows/      # release.yml, apk.yml, auto-merge.yml, stale-issues.yml
+.github/workflows/      # release.yml, e2e.yml, apk.yml, auto-merge.yml, stale-issues.yml
 ```
 
 ## Testing
