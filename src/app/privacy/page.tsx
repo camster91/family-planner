@@ -82,6 +82,19 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Household change history</h2>
+            <p>
+              When someone changes household settings (turns a feature on or off, sends or cancels an
+              invite, joins the household or deletes their account, changes the Today board, or pairs, renames or removes a family
+              tablet), we record a short line saying what changed, who did it and when. It holds names
+              (of a feature, a member or a tablet) but never email addresses, codes, places or messages.
+              Only parents can see it, under Settings, Recent changes. It is kept for 12 months and then
+              deleted, and it is deleted with the household. It is part of a parent&apos;s data export;
+              a teen&apos;s or child&apos;s export has only the lines about their own changes.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>

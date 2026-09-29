@@ -457,13 +457,22 @@ export async function revokeDeviceInTransaction(
  * Revoke a device: mark it, revoke every session generation and clear any
  * elevation in one transaction, then audit. Idempotent: returns false (and
  * writes nothing) when the device is already revoked or not in `familyId`.
+ *
+ * `inTransaction` runs inside the same transaction only when this call
+ * revoked the device; parent-initiated removals use it to write the household
+ * audit history row (#285) atomically with the revoke.
  */
 export async function revokeDevice(
   db: Db,
-  args: { deviceId: string; familyId: string; revokedBy: string | null; reason: RevokeReason; now: Date }
+  args: { deviceId: string; familyId: string; revokedBy: string | null; reason: RevokeReason; now: Date },
+  inTransaction?: (tx: Tx) => Promise<void>
 ): Promise<boolean> {
   const { deviceId, familyId, revokedBy, reason } = args
-  const changed = await db.$transaction((tx) => revokeDeviceInTransaction(tx, args))
+  const changed = await db.$transaction(async (tx) => {
+    const revoked = await revokeDeviceInTransaction(tx, args)
+    if (revoked && inTransaction) await inTransaction(tx)
+    return revoked
+  })
   if (changed) {
     await writeDeviceAudit(db, {
       familyId,

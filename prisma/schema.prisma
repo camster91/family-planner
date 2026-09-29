@@ -111,6 +111,8 @@ model User {
   inventory_adjustments_undone  InventoryAdjustment[] @relation("InventoryAdjustmentUndoer")
   // Grocery store sections (#273). Relation field only; no new User columns.
   grocery_section_preferences_set GrocerySectionPreference[] @relation("GrocerySectionPreferenceSetter")
+  // Household audit history (#285). Relation field only; no new User columns.
+  audit_log_entries             AuditLog[]         @relation("AuditLogActor")
 
   @@index([family_id])
 }
@@ -213,6 +215,8 @@ model Family {
   // Grocery store sections (#273)
   grocery_section_preferences GrocerySectionPreference[]
   grocery_shopping_sessions   GroceryShoppingSession[]
+  // Household audit history (#285)
+  audit_logs                  AuditLog[]
 }
 
 // Ownership record for a stored upload (D3, #102). One row per file written by
@@ -1622,4 +1626,30 @@ model GroceryShoppingSession {
 
   @@index([family_id, last_tick_at])
   @@index([list_id, last_tick_at])
+}
+
+/// Household audit history (#285, PR101 D-4; ADR-0008): what a parent changed
+/// in household settings, for parents to read under Settings -> Recent
+/// changes. Written in the same transaction as the change it records.
+/// `action` is a fixed vocabulary (`src/lib/household-audit.ts`); `summary` is
+/// a short sentence built from a fixed template plus names (a feature title,
+/// a member's or tablet's name), never free text, emails, codes or secrets.
+/// Kept 12 months (pruned when a parent reads it) and deleted with the
+/// household. Separate from DeviceAuditEvent, which stays the best-effort
+/// security trail of the shared tablet.
+model AuditLog {
+  id            String   @id @default(cuid())
+  family_id     String
+  actor_user_id String?
+  actor_kind    String // 'person' | 'device'
+  action        String
+  target_type   String
+  target_id     String?
+  summary       String
+  created_at    DateTime @default(now())
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  actor  User?  @relation("AuditLogActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
+
+  @@index([family_id, created_at(sort: Desc)])
 }

@@ -11,6 +11,7 @@ import {
   normalizeInviteToken,
 } from '@/lib/family-invite'
 import { lockHouseholdForJoin, lockUser } from '@/lib/household-lock'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,7 +110,9 @@ async function acceptEmailInvite(userId: string, userEmail: string, token: strin
  * (src/lib/household-lock.ts), so a join cannot interleave with a household
  * deletion: it either finishes before the deletion starts, or waits and finds
  * the household gone (404). An email invite is consumed in the same
- * transaction, so a refused join leaves it unused.
+ * transaction, so a refused join leaves it unused. The household audit
+ * history row (#285, `member.joined` with the role the member gets) is
+ * written in this transaction too, under the same lock.
  */
 async function finishJoin(userId: string, familyId: string, familyName: string, role: string, inviteId?: string) {
   const outcome = await prisma!.$transaction(async (tx) => {
@@ -129,7 +132,16 @@ async function finishJoin(userId: string, familyId: string, familyName: string, 
     const user = await tx.user.update({
       where: { id: userId },
       data: { family_id: familyId, role },
-      select: { id: true, email: true, role: true, family_id: true },
+      select: { id: true, email: true, name: true, role: true, family_id: true },
+    })
+    await writeAuditLog(tx, {
+      familyId,
+      actorUserId: user.id,
+      actorKind: 'person',
+      action: 'member.joined',
+      targetType: 'member',
+      targetId: user.id,
+      summary: auditSummary.memberJoined(user.name, user.role),
     })
     return { user }
   })

@@ -9,6 +9,7 @@ import crypto from 'crypto'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { hashToken } from '@/lib/tokens'
 import { timingSafeEqualStr } from '@/lib/constant-time'
+import { auditSummary, writeAuditLog, type AuditEntry } from '@/lib/household-audit'
 import {
   createDeviceSession,
   generateDeviceToken,
@@ -414,6 +415,16 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
         }))
           ? fresh.replaces_device_id
           : null
+      // Read after the revoke's row update (which waited for any overlapping
+      // rename to commit), so the audit row names the tablet's final label.
+      const replacedLabel = replacedDeviceId
+        ? (
+            await tx.householdDevice.findFirst({
+              where: { id: replacedDeviceId, family_id: row.family_id },
+              select: { label: true },
+            })
+          )?.label ?? null
+        : null
 
       const active = await tx.householdDevice.count({ where: { family_id: row.family_id, revoked_at: null } })
       // Throw (roll back) rather than return, so a replaced tablet is never
@@ -445,6 +456,31 @@ export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date
       })
       if (claimed.count !== 1) throw new IssueRaceError()
       const tokens = await createDeviceSession(tx, device.id, row.family_id, now)
+
+      // Household audit history (#285): the parent who confirmed the pairing
+      // on their phone is the actor; recorded in this transaction.
+      const audit: AuditEntry[] = []
+      if (replacedDeviceId) {
+        audit.push({
+          familyId: row.family_id,
+          actorUserId: row.confirmed_by,
+          actorKind: 'person',
+          action: 'device.removed',
+          targetType: 'device',
+          targetId: replacedDeviceId,
+          summary: auditSummary.deviceRemoved(replacedLabel, 'replaced'),
+        })
+      }
+      audit.push({
+        familyId: row.family_id,
+        actorUserId: row.confirmed_by,
+        actorKind: 'person',
+        action: 'device.paired',
+        targetType: 'device',
+        targetId: device.id,
+        summary: auditSummary.devicePaired(device.label),
+      })
+      await writeAuditLog(tx, audit)
       return { kind: 'paired', device, tokens, replacedDeviceId }
     })
   } catch (error) {

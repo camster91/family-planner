@@ -12,6 +12,7 @@ import {
 } from '@/lib/family-invite'
 import { familyInviteEmail } from '@/lib/mail'
 import { sendAccountMail } from '@/lib/notification-delivery'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +92,27 @@ export async function POST(request: NextRequest) {
     const token_hash = hashInviteToken(token)
     const expires_at = new Date(Date.now() + INVITE_TTL_MS)
 
-    await prisma!.$transaction(async (tx) => {
+    const inviteId = await prisma!.$transaction(async (tx) => {
+      // A new invite replaces any pending one to the same address. Each one
+      // whose link still worked is recorded as cancelled (#285 review); an
+      // expired one had already stopped working and is just cleared.
+      const superseded = await tx.familyInvite.findMany({
+        where: { family_id: auth.user.family_id, email, accepted_at: null, expires_at: { gt: new Date() } },
+        select: { id: true, role: true },
+      })
+      for (const old of superseded) {
+        const { count } = await tx.familyInvite.deleteMany({ where: { id: old.id, accepted_at: null } })
+        if (count !== 1) continue
+        await writeAuditLog(tx, {
+          familyId: auth.user.family_id,
+          actorUserId: auth.user.id,
+          actorKind: 'person',
+          action: 'invite.revoked',
+          targetType: 'invite',
+          targetId: old.id,
+          summary: auditSummary.inviteRevoked(old.role),
+        })
+      }
       await tx.familyInvite.deleteMany({
         where: {
           family_id: auth.user.family_id,
@@ -99,7 +120,7 @@ export async function POST(request: NextRequest) {
           accepted_at: null,
         },
       })
-      await tx.familyInvite.create({
+      const invite = await tx.familyInvite.create({
         data: {
           family_id: auth.user.family_id,
           email,
@@ -108,7 +129,19 @@ export async function POST(request: NextRequest) {
           expires_at,
           created_by: auth.user.id,
         },
+        select: { id: true },
       })
+      // Household audit history (#285): the role only, never the email address.
+      await writeAuditLog(tx, {
+        familyId: auth.user.family_id,
+        actorUserId: auth.user.id,
+        actorKind: 'person',
+        action: 'invite.created',
+        targetType: 'invite',
+        targetId: invite.id,
+        summary: auditSummary.inviteCreated(parsed.data.role),
+      })
+      return invite.id
     })
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
@@ -121,8 +154,15 @@ export async function POST(request: NextRequest) {
     })
     await sendAccountMail('family_invite', { to: email, ...mail }).catch(async (mailErr) => {
       // The invite row is useless without its emailed join token — don't leave
-      // a pending invite whose link was never delivered.
-      await prisma!.familyInvite.deleteMany({ where: { token_hash } }).catch(() => undefined)
+      // a pending invite whose link was never delivered, nor its history row.
+      await prisma!
+        .$transaction([
+          prisma!.familyInvite.deleteMany({ where: { token_hash } }),
+          prisma!.auditLog.deleteMany({
+            where: { family_id: auth.user.family_id, action: 'invite.created', target_id: inviteId },
+          }),
+        ])
+        .catch(() => undefined)
       throw mailErr
     })
 

@@ -20,14 +20,14 @@
 
 | | Count |
 |---|---|
-| Page routes | 57 (47 under `/dashboard`, 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
-| API route files | 144 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; `/api/search`, F-3; `/api/users/deletion`, D-3; and `/api/users/preferences`, #286) |
-| API handlers (file × method) | 212 (197 + 11 from #283/#284 + `GET /api/search` + `GET /api/users/deletion` + `GET`/`PATCH /api/users/preferences`) |
+| Page routes | 58 (48 under `/dashboard`, including `/dashboard/settings/activity` from #285; 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
+| API route files | 145 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; `/api/search`, F-3; `/api/users/deletion`, D-3; `/api/users/preferences`, #286; and `/api/audit`, #285) |
+| API handlers (file × method) | 213 (197 + 11 from #283/#284 + `GET /api/search` + `GET /api/users/deletion` + `GET`/`PATCH /api/users/preferences` + `GET /api/audit`) |
 | API handlers missing from the isolation audit | 0 (the 5 `/api/calendar/subscriptions/**` handlers were added for finding F-4) |
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
 | Route-level `loading.tsx` / `error.tsx` files | `error.tsx` for `/dashboard` and `/device`; `loading.tsx` for the today, chores, lists, calendar and rewards tabs (finding F-9, fixed) |
 
-API route files by domain (first path segment, all 144): family 21, device 15, calendar 13, lists 11, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload.
+API route files by domain (first path segment, all 145): family 21, device 15, calendar 13, lists 11, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload.
 
 ## Page routes
 
@@ -61,6 +61,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/dashboard/settings` | P | no | sections by env: calendar sync, shared device | Utility (user menu) | `/api/users` (incl. `DELETE`, D-3), `/api/users/deletion`, `/api/users/export`, `/api/family` (`DELETE`, only parent), `/api/auth/change-password`, `/api/family/ai-settings`, `/api/family/feed-token`, `/api/calendar/*`, `/api/users/elevation-pin`, `/api/users/preferences` (#286; teens and children reach it from the user menu) | 4 |
 | `/dashboard/settings/devices` | P | manages devices | `SHARED_DEVICE_ENABLED` (`notFound()` while off) | Settings | `/api/family/devices*` | 4, 7 |
 | `/dashboard/settings/imports` | P | no | — | Settings | `POST /api/admin/imports/[source]` | 4 |
+| `/dashboard/settings/activity` | P | no | — | Settings → Privacy & Security "Recent changes" (parents) | `GET /api/audit` (#285) | 1 |
 | `/dashboard/search` | P | no | — (per type in the API) | Utility (top bar link; command palette "Search the household") | `GET /api/search` (F-3 search part fixed) | 1 |
 | `/dashboard/notifications` | P | no | — | Utility (bell) | `/api/notifications` | 1 |
 | `/dashboard/emergency` | all (edit P) | no | `emergency` | Tab (T/C); Family → Emergency (P) | `/api/emergency-contacts*` | 5 |
@@ -113,7 +114,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 ## Shared-device and role exposure
 
 - Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
-- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) and `GET`/`PATCH /api/users/preferences` (#286) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
+- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) `GET`/`PATCH /api/users/preferences` (#286) and `GET /api/audit` (#285) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
 - Teens and children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`); every API row below carries its per-method role from the isolation audit.
 
@@ -173,6 +174,7 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | Route | Methods | Roles (audit "Role gate", per method) | Device cookie | Feature gate | Env gate | Meal/list model |
 |---|---|---|---|---|---|---|
 | `/api/activity` | GET | GET: all | no | — | — | — |
+| `/api/audit` | GET | GET: P (teen/child 403) — hand-checked (#285) | refused | — | — | `AuditLog` (household audit history, ADR-0008) |
 | `/api/admin/imports/[source]` | POST | POST: P | no | — | — | — |
 | `/api/admin/imports` | GET | GET: P | no | — | — | — |
 | `/api/allowance/[id]` | PATCH | PATCH: P | no | allowance | — | — |

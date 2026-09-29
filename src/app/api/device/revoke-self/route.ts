@@ -5,6 +5,7 @@ import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceClock, deviceInternalError, deviceJson, killSwitch, rateLimited } from '@/lib/device-http'
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { clearDeviceCookies, revokeDevice } from '@/lib/device-session'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
 
 /**
  * POST /api/device/revoke-self: an elevated parent removes THIS tablet
@@ -30,13 +31,32 @@ export async function POST(request: NextRequest) {
       type: 'device.elevated_action',
       metadata: { action: 'revoke_device', targetType: 'device', targetId: actor.deviceId },
     })
-    await revokeDevice(prisma!, {
-      deviceId: actor.deviceId,
-      familyId: actor.familyId,
-      revokedBy: actor.parentId,
-      reason: 'parent',
-      now: deviceClock.now(),
-    })
+    await revokeDevice(
+      prisma!,
+      {
+        deviceId: actor.deviceId,
+        familyId: actor.familyId,
+        revokedBy: actor.parentId,
+        reason: 'parent',
+        now: deviceClock.now(),
+      },
+      // Household audit history (#285), in the revoke's transaction.
+      async (tx) => {
+        const row = await tx.householdDevice.findFirst({
+          where: { id: actor.deviceId, family_id: actor.familyId },
+          select: { label: true },
+        })
+        await writeAuditLog(tx, {
+          familyId: actor.familyId,
+          actorUserId: actor.parentId,
+          actorKind: 'device',
+          action: 'device.removed',
+          targetType: 'device',
+          targetId: actor.deviceId,
+          summary: auditSummary.deviceRemoved(row?.label, 'parent'),
+        })
+      }
+    )
 
     const res = deviceJson({ status: 'revoked' })
     clearDeviceCookies(res)

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
-import { applyBoardSettingsPatch, parseBoardSettingsPatch, readBoardSettings } from '@/lib/board-settings'
+import {
+  applyBoardSettingsPatch,
+  boardSettingsSnapshot,
+  lockBoardSettings,
+  changedBoardSections,
+  parseBoardSettingsPatch,
+  readBoardSettings,
+} from '@/lib/board-settings'
+import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +65,28 @@ export async function PATCH(request: NextRequest) {
     const parsed = parseBoardSettingsPatch(body, 'person')
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
-    const refused = await applyBoardSettingsPatch(prisma!, familyId, parsed.patch)
+    // The change and its household audit row (#285) commit together. A
+    // refused patch has written nothing (every check runs before a write).
+    // Only sections whose stored values actually changed are recorded, so a
+    // no-op, a resubmitted value or a retry writes no history row.
+    const refused = await prisma!.$transaction(async (tx) => {
+      await lockBoardSettings(tx, familyId)
+      const before = await boardSettingsSnapshot(tx, familyId)
+      const result = await applyBoardSettingsPatch(tx, familyId, parsed.patch)
+      if (result) return result
+      const changed = changedBoardSections(before, await boardSettingsSnapshot(tx, familyId))
+      if (changed.length === 0) return null
+      await writeAuditLog(tx, {
+        familyId,
+        actorUserId: auth.user.id,
+        actorKind: 'person',
+        action: 'board_settings.changed',
+        targetType: 'family',
+        targetId: familyId,
+        summary: boardSettingsSummary(changed),
+      })
+      return null
+    })
     if (refused) return NextResponse.json({ error: refused.error }, { status: refused.status })
 
     return NextResponse.json(await readBoardSettings(prisma!, familyId, 'person'))

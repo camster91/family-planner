@@ -371,6 +371,8 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     device: { model: 'householdDevice', fk: 'device_id' },
     actor: { model: 'user', fk: 'actor_user_id' },
   },
+  // Household audit history (#285)
+  auditLog: { family: { model: 'family', fk: 'family_id' }, actor: { model: 'user', fk: 'actor_user_id' } },
 }
 
 // ---------------------------------------------------------------------------

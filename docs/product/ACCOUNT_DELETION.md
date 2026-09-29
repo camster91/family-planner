@@ -23,6 +23,16 @@ Define and test:
 - third-party integration disconnect/delete behaviour;
 - billing entitlement cancellation only after billing exists.
 
+## Retention: household audit history (#285)
+- `AuditLog` (Settings → Recent changes, ADR-0008) is household data: deleted with the household, explicitly as the
+  `auditLog` step of `HOUSEHOLD_DELETION_PLAN` (and by `ON DELETE CASCADE` as a backstop).
+- Deleting one member keeps the household's rows, in the deletion transaction: their actor references are cleared
+  (the page then shows "A former member"), the line recording when they joined loses their name and id ("A former
+  member joined as a teen"), and a `member.left` line is added with their role word only ("A teen deleted their
+  account and left the household"). No name of theirs stays in the history. Lines by other members are unchanged.
+- Rows are kept 12 months, then pruned when a parent next reads the history (no scheduled job). The account export
+  includes the last 12 months: every row for a parent, only the rows they acted in for a teen or child.
+
 ## Data execution
 Prefer a documented job/transaction sequence with observable status for large cascades. Do not rely on accidental database cascades as the entire deletion policy. Retention exceptions must be explicit and minimal.
 
@@ -95,7 +105,7 @@ One transaction, after the rules are checked again inside it under a per-househo
    subscriptions, import jobs, recipes, legacy meal plans/shopping lists, habits and goals.
 4. **Other references are cleared** (`NULL`): who ticked a list item, cook of a meal, claimer/approver of a reward,
    project task assignee, anniversary person, emergency card person, pickup assignee, inventory adder/actor, grocery
-   section setter, device audit actor, upload uploader.
+   section setter, device audit actor, household audit actor (#285), upload uploader.
 5. **Uploaded photos** they uploaded stay with the household (uploader cleared) and are removed with it. Whether a
    photo is still used cannot be decided atomically: attaching a photo to a chore, an assignment or the calm
    display is a separate write without the household lock or a foreign key to `Upload`, so removing an
@@ -119,7 +129,7 @@ see "Partial failure") and the photo files are removed from disk.
       another household also references, in any of those three spellings (compared by filename), or that another
       household owns through an `Upload` row, is kept (legacy files have no household namespace).
    4. Every household-scoped table is deleted explicitly, in the order of `HOUSEHOLD_DELETION_PLAN`: device
-      sessions (access and refresh tokens), pairing codes, device audit, devices, tablet PINs; invitations, OAuth
+      sessions (access and refresh tokens), pairing codes, device audit, household audit history (#285), devices, tablet PINs; invitations, OAuth
       states, idempotency records, push subscriptions, sitter handoffs (share links); calendar event links, events,
       calendar connections, ICS subscriptions; then all household content (inventory, groceries, lists, budget,
       projects, chores, gamification, legacy and canonical meals/recipes, imports, messages, notifications,
@@ -218,8 +228,9 @@ Explicit and minimal:
 | Photos a deleted member uploaded | They stay with the household (uploader cleared); another member may be attaching one | Until the household is deleted |
 | Files that could not be removed from disk | Reported as `filesNotRemoved`; unreachable through the app | Until removed by an operator |
 
-There is no product analytics or audit store beyond the device audit (`DeviceAuditEvent`, deleted with the
-household; member actor references cleared) — no separate analytics retention applies.
+There is no product analytics store. The audit stores are the device audit (`DeviceAuditEvent`) and the household
+audit history (`AuditLog`, #285, 12 months, pruned on a parent's read); both are deleted with the household and a
+deleted member's actor references are cleared — no separate analytics retention applies.
 
 ### Not implemented (open)
 

@@ -35,6 +35,7 @@ import { log } from '@/lib/logger'
 import { chorePhotoFilename, CHORE_PHOTO_FILENAME_RE } from '@/lib/chore-photos'
 import { clearConnectionData, revokeProviderGrant } from '@/lib/calendar-sync/sync'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
+import { auditSummary, roleWord, writeAuditLog } from '@/lib/household-audit'
 import type { AccountDeletionCode, DeletionOptions } from '@/lib/account-deletion-shared'
 
 export class AccountDeletionError extends Error {
@@ -262,6 +263,7 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       // after commit; links, imported events and rows deleted here.
       const grants = await takeCalendarConnections(tx, { user_id: user.id })
       const files = await handOverAndDetach(tx, user.id, familyId, successorId, root)
+      await recordMemberLeft(tx, user, familyId)
       await deletePersonalRows(tx, user.id)
       await tx.user.delete({ where: { id: user.id } })
       return { deleted: true, successorId, files, grants }
@@ -488,6 +490,7 @@ async function handOverAndDetach(
     ['inventoryAdjustment', 'undone_by'],
     ['grocerySectionPreference', 'updated_by'],
     ['deviceAuditEvent', 'actor_user_id'],
+    ['auditLog', 'actor_user_id'],
   ]
 
   // Delete what was only about this member before handing anything over, so
@@ -524,6 +527,28 @@ async function handOverAndDetach(
   return files
 }
 
+/**
+ * Household audit history (#285, ADR-0008), in the deletion transaction: the
+ * household keeps a line saying a member left, with their role word only, and
+ * the name is taken out of the line recording when they joined. Their actor
+ * references are cleared with the other nullable references above.
+ */
+async function recordMemberLeft(tx: any, user: { id: string; role: string }, familyId: string): Promise<void> {
+  await tx.auditLog.updateMany({
+    where: { family_id: familyId, action: 'member.joined', target_type: 'member', target_id: user.id },
+    data: { summary: auditSummary.memberJoined(null, user.role), target_id: null },
+  })
+  await writeAuditLog(tx, {
+    familyId,
+    actorUserId: null,
+    actorKind: 'person',
+    action: 'member.left',
+    targetType: 'member',
+    targetId: null,
+    summary: auditSummary.memberLeft(user.role),
+  })
+}
+
 /** Rows that belong to the person alone (any household). */
 async function deletePersonalRows(tx: any, userId: string): Promise<void> {
   await tx.notification.deleteMany({ where: { user_id: userId } })
@@ -558,6 +583,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'deviceSession', scope: { kind: 'family' }, why: 'device access and refresh tokens' },
   { model: 'devicePairing', scope: { kind: 'family' }, why: 'pending pairing codes' },
   { model: 'deviceAuditEvent', scope: { kind: 'family' }, why: 'device audit history' },
+  { model: 'auditLog', scope: { kind: 'family' }, why: 'household audit history (#285)' },
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
   // 2. Tokens and links that could still reach the household.

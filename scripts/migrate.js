@@ -1073,6 +1073,29 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS "GroceryShoppingSession_family_id_last_tick_at_idx" ON "GroceryShoppingSession"("family_id", "last_tick_at");
 CREATE INDEX IF NOT EXISTS "GroceryShoppingSession_list_id_last_tick_at_idx" ON "GroceryShoppingSession"("list_id", "last_tick_at");
+
+-- ============ Household audit history (#285, PR101 D-4; additive) ============
+-- New table only, no backfill. Deleted with the household (ON DELETE CASCADE);
+-- a deleted member's rows keep their summary and lose the actor (SET NULL).
+-- Kept 12 months, pruned when a parent reads it (no scheduled job). ADR-0008.
+CREATE TABLE IF NOT EXISTS "AuditLog" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "actor_user_id" TEXT,
+  "actor_kind" TEXT NOT NULL,
+  "action" TEXT NOT NULL,
+  "target_type" TEXT NOT NULL,
+  "target_id" TEXT,
+  "summary" TEXT NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "AuditLog_family_id_created_at_idx" ON "AuditLog"("family_id", "created_at" DESC);
 `
 
 async function migrate() {

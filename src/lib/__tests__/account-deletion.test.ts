@@ -69,6 +69,15 @@ function seedExtras() {
   db.rows('inventoryAdjustment').push(
     ...both((f, family_id) => ({ id: `adj-${f}`, family_id, item_id: `inv-${f}`, kind: 'consume', actor_id: `parent-${f}` }))
   )
+  // Household audit history (#285)
+  const audit = (id: string, family_id: string, actor: string, action: string, target_id: string | null, summary: string) => ({
+    id, family_id, actor_user_id: actor, actor_kind: 'person', action, target_type: action.startsWith('member.') ? 'member' : 'feature',
+    target_id, summary, created_at: t,
+  })
+  db.rows('auditLog').push(
+    ...both((f, family_id) => audit(`alog-${f}`, family_id, `parent-${f}`, 'feature.turned_on', 'wishlist', 'Turned on Wishlist')),
+    audit('alog-a-join', FAMILY_A, 'child-a', 'member.joined', 'child-a', 'Child A joined as a child')
+  )
 }
 
 /** Rows of household A (directly or through a parent row / member). */
@@ -326,6 +335,23 @@ describe('deleteMemberAccount', () => {
     expect(db.find('projectTask', 'task-a')).toMatchObject({ assigned_to: null })
     expect(db.find('anniversary', 'ann-a')).toMatchObject({ person_id: null })
     expect(snapshot((m, r) => !belongsToA(m, r))).toEqual(beforeB)
+  })
+
+  it("household audit history (#285): a line that a member left, without their name; their actor refs cleared", async () => {
+    const { d } = deps()
+    await deleteMemberAccount('child-a', d)
+    const rows = db.rows('auditLog').filter((r) => r.family_id === FAMILY_A)
+    expect(rows.find((r) => r.id === 'alog-a-join')).toMatchObject({
+      actor_user_id: null,
+      target_id: null,
+      summary: 'A former member joined as a child',
+    })
+    const left = rows.find((r) => r.action === 'member.left')
+    expect(left).toMatchObject({ actor_user_id: null, target_id: null, summary: 'A child deleted their account and left the household' })
+    expect(JSON.stringify(rows)).not.toContain('Child A')
+    // The parent's own row and household B are untouched.
+    expect(db.find('auditLog', 'alog-a')).toMatchObject({ actor_user_id: 'parent-a' })
+    expect(db.find('auditLog', 'alog-b')).toMatchObject({ actor_user_id: 'parent-b' })
   })
 
   it('a parent with another parent: household content is handed over, not deleted', async () => {
