@@ -171,6 +171,19 @@ an email. `%`, `_` and `\` in the words are escaped, because Prisma's `contains`
 (checked against Postgres). Tests: `src/app/api/search/__tests__/search.test.ts` (two households, roles, features,
 validation, limits, device) and the opt-in `search.integration.test.ts`.
 
+**Update 2026-09-29 (route inventory F-4): ICS calendar subscriptions (#232).** 5 handlers in 3 route files
+(`/api/calendar/subscriptions`, `…/[id]`, `…/[id]/refresh`) were missing from this table and are added below, read
+from source. All use `authenticateWithFamily` (person session only; a device cookie is refused, and the
+route-allowlist test enumerates these files). Every lookup is `where { id, family_id }`, so another household's id
+is a 404 identical to a missing one; the role check runs first, so a role refusal (403) is the same for an own and a
+foreign id. `GET` is parent and teen (child 403); only parents see the host-only `url_hint`. `POST`, `PATCH` and
+`DELETE` are parent only. `POST …/refresh` is parent and teen. The feed URL is write-only (AES-256-GCM encrypted,
+never returned or logged), `PATCH` cannot change it (strict body), and `DELETE` removes only events with
+`source_subscription_id` = that subscription in the caller's household. No `featureGate`: subscriptions belong to
+the core calendar. Tests: `src/app/api/calendar/subscriptions/__tests__/isolation.test.ts` (two-household
+harness: 401 on every handler, teen/child 403s, cross-household 404 both ways, household-less 400, URL never
+echoed, SSRF-shaped URLs rejected).
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -240,6 +253,11 @@ recorded in route comments, as the de facto matrix.
 | /api/calendar/import-suggestions | POST | device refused (403) + family + kill switch (404) + `featureGate('calendar')` | none read or written; rate-limit keys from session user/family | P+T | JSON text ≤ 20k chars or multipart file: Content-Length bound, 8 MB photo / 10 MB PDF, magic-byte type (JPEG/PNG/WebP/PDF); model output zod-validated and cleaned; fixed provider host, server-only key | calendar/import-suggestions/__tests__/route.test.ts, lib/event-import, device-route-allowlist | implemented (#270) |
 | /api/calendar/import-suggestions/commit | POST | device refused (403) + family + `featureGate('calendar')` + `Idempotency-Key` required | creates events + one activity with session `family_id` and `created_by`; idempotency records scoped `user:<id>` and checked against the household | P+T | strict body, 1–30 events, `POST /api/events` field and range rules; unknown keys (e.g. `family_id`) 400 | calendar/import-suggestions/__tests__/commit.test.ts, device-route-allowlist | implemented (#270, #277 review) |
 | /api/calendar/import-suggestions/undo | POST | device refused (403) + family + `featureGate('calendar')` | HMAC undo token must name the session user and household (403) and be ≤ 10 min old (409); then deleteMany where id in token ids + family + created_by self + not imported | P+T (own import only) | strict `{ token }`; ids never accepted directly; constant-time MAC compare; key derived from JWT_SECRET with a purpose label | calendar/import-suggestions/__tests__/commit.test.ts, device-route-allowlist | implemented (#270, #277 review) |
+| /api/calendar/subscriptions | GET | family | where | P+T (child 403); `url_hint` parent only | none | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions | POST | family + rate limit (10/h per household) | session family; max per household (409) | P | feed URL shape + public-address check (400); name/colour validated, a body `family_id` is ignored; URL encrypted, never echoed | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions/[id] | PATCH | family | where (404) | P | strict body: name/colour only, URL cannot change (400) | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions/[id] | DELETE | family | where (404); deletes only its imported events `where { family_id, source_subscription_id }` | P | none | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions/[id]/refresh | POST | family + rate limit (6 per 10 min per subscription) | where (404); imports into the session family only | P+T | none; returns counts and status, no event content | calendar/subscriptions/iso | ok (F-4, #232) |
 | /api/capture | GET | family | caller family's config | all; returns `allowed` (false for child) | none | capture/iso | implemented (D4) |
 | /api/capture | POST | family | caller family's config | P+T (child 403 "Ask a parent to add this.") | none | capture/iso, capture/route.test.ts | implemented (D4) |
 | /api/chores | GET | family | where | all | assigned_to filter cannot widen | chores/iso | ok |

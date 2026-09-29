@@ -23,9 +23,9 @@
 | Page routes | 57 (47 under `/dashboard`, 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
 | API route files | 142 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; and `/api/search`, F-3) |
 | API handlers (file × method) | 209 (197 + 11 from #283/#284 + `GET /api/search`) |
-| API handlers missing from the isolation audit | 5, all `/api/calendar/subscriptions/**` (finding F-4) |
+| API handlers missing from the isolation audit | 0 (the 5 `/api/calendar/subscriptions/**` handlers were added for finding F-4) |
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
-| Route-level `loading.tsx` / `error.tsx` files | 0 (finding F-9) |
+| Route-level `loading.tsx` / `error.tsx` files | 3: `dashboard/error.tsx`, `dashboard/loading.tsx`, `device/error.tsx` (finding F-9, fixed) |
 
 API route files by domain (first path segment, all 142): family 21, device 15, calendar 13, lists 11, auth 9, inventory 9, budget 5, chores 5, projects 5, handoff 4, rewards 3, users 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload.
 
@@ -67,10 +67,10 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/dashboard/inventory` | all (edit P+T) | no | `inventory`; `meals` for "what can I cook" | More; user menu (all roles) | `/api/inventory*` | 7 |
 | `/dashboard/notes` | P | no | `notes` | More | `/api/notes`, `/api/notes/[id]` (F-1 fixed) | 1 |
 | `/dashboard/anniversaries` | P | no | `anniversaries` | More | `/api/anniversaries*` | 1 |
-| `/dashboard/messages` | P | no | **none at page level** (API gates `messages`) | More | `/api/messages` | 1 (F-2) |
-| `/dashboard/projects` | P | no | **none at page level** (server reads `Project` directly) | More | server Prisma; `/api/projects` | 1 (F-2) |
-| `/dashboard/projects/[id]`, `/dashboard/projects/create` | P | no | none at page level | Sub-page | `/api/projects/*` | 1 |
-| `/dashboard/budget` | P | no | **none at page level** (server reads `Transaction` directly) | More | server Prisma; budget components → `/api/budget/*` | 4 (F-2) |
+| `/dashboard/messages` | P | no | `messages` (FeatureGate; F-2 fixed) | More | `/api/messages` | 1 |
+| `/dashboard/projects` | P | no | `projects` (checked in page before any read; F-2 fixed) | More | server Prisma; `/api/projects` | 1 |
+| `/dashboard/projects/[id]`, `/dashboard/projects/create` | P | no | `projects` (`[id]` checked in page before the project read; `create` FeatureGate; F-2 fixed) | Sub-page | `/api/projects/*` | 1 |
+| `/dashboard/budget` | P | no | `budget` (checked in page before any read; F-2 fixed) | More | server Prisma; budget components → `/api/budget/*` | 4 |
 | `/dashboard/rewards` | P | no | `rewards` (checked in page; requires `gamification`) | More | server; `/api/rewards*` | 7 |
 | `/dashboard/rewards/create` | P | no | `rewards` | Sub-page | `/api/rewards` | 7 |
 | `/dashboard/analytics` | P | no | `analytics` (requires `gamification`) | More | `/api/analytics` | 7 |
@@ -98,9 +98,9 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `gamification` | off; on for pre-#248 households | setting, not a page | hides fields (`isGamificationOn`) | 7 |
 | `rewards` | on, requires `gamification` | yes | yes | 7 |
 | `analytics` | on, requires `gamification` | yes | yes | 7 |
-| `budget` | on | yes (page ungated, F-2) | yes | 4 |
-| `projects` | on | yes (page ungated, F-2) | yes | 1 |
-| `messages` | on | yes (page ungated, F-2) | yes | 1 |
+| `budget` | on | yes (F-2 fixed) | yes | 4 |
+| `projects` | on | yes (F-2 fixed) | yes | 1 |
+| `messages` | on | yes (F-2 fixed) | yes | 1 |
 | `emergency` | on | yes | yes | 5 (kid-readable by design) |
 | `wishlist` | off | yes | yes | 5, 7 |
 | `locations` | off | yes | yes | 4, 7 |
@@ -136,19 +136,19 @@ No page or API route **writes** a legacy table. The two live legacy reads above 
 
 ## Findings
 
-Each is from source inspection at `cbef026`. "Proposed issue" means an issue should be filed; none was filed here.
+Each is from source inspection at `cbef026`. "Proposed issue" means an issue should be filed; none was filed here. F-2, F-4, F-8 and F-9 were fixed in a follow-up change on top of `c379c5e`; their rows say what changed.
 
 | ID | Finding | Evidence | Proposed action |
 |---|---|---|---|
 | F-1 | **Notes edit and delete cannot work.** The page sends `PATCH` and `DELETE` to `/api/notes`, which exports only `GET` and `POST`; the handlers live in `/api/notes/[id]`, which nothing calls. | `src/app/dashboard/notes/page.tsx:132-133`, `:158-159`; `src/app/api/notes/route.ts` (GET, POST); `src/app/api/notes/[id]/route.ts` | **Fixed** in this change: the page calls `/api/notes/${id}`; `src/app/dashboard/notes/__tests__/edit-delete.test.tsx` covers both |
-| F-2 | **Three pages do not check their feature flag.** `/dashboard/budget` and `/dashboard/projects` read Prisma on the server and render with `budget`/`projects` off; `/dashboard/messages` renders and gets 403 from its API. Their APIs are gated, and the nav hides them, so this is a direct-URL inconsistency, not a cross-household leak. | `src/app/dashboard/budget/page.tsx:55-90`, `src/app/dashboard/projects/page.tsx:17`, `src/app/dashboard/messages/page.tsx` (no `FeatureGate`) | Proposed issue: wrap in `FeatureGate` like the other 15 pages that use it |
+| F-2 | **Three pages do not check their feature flag.** `/dashboard/budget` and `/dashboard/projects` read Prisma on the server and render with `budget`/`projects` off; `/dashboard/messages` renders and gets 403 from its API. Their APIs are gated, and the nav hides them, so this is a direct-URL inconsistency, not a cross-household leak. | `src/app/dashboard/budget/page.tsx:55-90`, `src/app/dashboard/projects/page.tsx:17`, `src/app/dashboard/messages/page.tsx` (no `FeatureGate`) | **Fixed** (route inventory follow-up): budget, projects and projects/[id] check the effective flag on the server before any Prisma read and render `FeatureOffState` (as rewards does); messages and projects/create use `FeatureGate`. Tests: `src/app/dashboard/{budget,projects,messages}/__tests__/feature-gate.test.tsx` |
 | F-3 | **Placeholder UI in production paths.** `/dashboard/search` had no data source and showed "No results" for every query; Settings has "Two-Factor Authentication", "Data Export" and "Delete Account" buttons with no handler (the export and delete APIs exist). | `src/app/dashboard/search/page.tsx` (whole file); `src/app/dashboard/settings/SettingsClient.tsx:731-739` | **Search fixed** (#101 D-2): `GET /api/search` searches the household's canonical members, events, chores, lists, list items, recipes, notes and active inventory, per feature and role (`ROLE_AND_ISOLATION_MATRIX.md` "Household search"); the page and the command palette use it. Settings part **fixed (D-3)**: Data Export downloads `GET /api/users/export`, the Two-Factor Authentication entry is removed (no 2FA exists), Delete Account opens the in-page deletion dialog (`product/ACCOUNT_DELETION.md`) |
-| F-4 | **ICS subscription routes are missing from the isolation audit and the role matrix.** 5 handlers. From source: list P+T (URL hint parent only), create/update/delete P, refresh P+T; every lookup uses `authenticateWithFamily`. | `src/app/api/calendar/subscriptions/**`; no row in `security/API_ISOLATION_AUDIT.md` | Proposed issue (docs/security): add audit rows and two-household tests if missing |
-| F-5 | **API routes with no in-app caller.** `GET /api/admin/imports`, `GET/POST /api/projects/[id]/tasks` (no UI adds a task to an existing project), `GET /api/lists/items` (only `e2e/`). Expected callers outside the app: `/api/calendar/connections/[provider]/callback` (OAuth redirect), `/api/calendar/feed` (ICS URL), `/api/health*` (release smoke), `/api/users/export` (now Settings → Data Export and the delete dialog, D-3). | generated reference scan of `src/` and `e2e/` | Decide per route: wire, or deprecate after evidence (class 6) |
+| F-4 | **ICS subscription routes are missing from the isolation audit and the role matrix.** 5 handlers. From source: list P+T (URL hint parent only), create/update/delete P, refresh P+T; every lookup uses `authenticateWithFamily`. | `src/app/api/calendar/subscriptions/**`; no row in `security/API_ISOLATION_AUDIT.md` | **Fixed** (route inventory follow-up): 5 rows and an update note in `security/API_ISOLATION_AUDIT.md`, a row in `ROLE_AND_ISOLATION_MATRIX.md`; the existing two-household suite `src/app/api/calendar/subscriptions/__tests__/isolation.test.ts` now also pins the exact 404/403/400 statuses |
+| F-5 | **API routes with no in-app caller.** `GET /api/admin/imports`, `GET/POST /api/projects/[id]/tasks` (no UI adds a task to an existing project), `GET /api/lists/items` (only `e2e/`). Expected callers outside the app: `/api/calendar/connections/[provider]/callback` (OAuth redirect), `/api/calendar/feed` (ICS URL), `/api/health*` (release smoke), `/api/users/export` (documented on `/privacy`, no button). | generated reference scan of `src/` and `e2e/` | Decide per route: wire, or deprecate after evidence (class 6) |
 | F-6 | **Duplicate or overlapping routes.** `/dashboard/lists/type/[type]` duplicates a filter of `/dashboard/lists`; `/api/lists/items/delete` (body id) sits beside REST-style `[id]` routes elsewhere; `/api/files/[filename]` and `/api/files/chores/[filename]` serve two upload generations (D3 legacy path in the audit); `/api/chores/complete` and `PATCH /api/chores` both change chore status. | route list above | Record in the IA refactor; no deletion without migration evidence and ADR-0004 old-client review |
 | F-7 | **Legacy table reads** that block #254: `GET /api/users/export`, `DELETE /api/recipes/[id]`. | see "Meal and list overlap" | Part of #254 (gated) |
-| F-8 | **Dead helper.** `generateFamilyCode` (uses `Math.random`) is exported and has no caller. | `src/lib/utils.ts:106` | Delete in a cleanup PR |
-| F-9 | **No route-level `loading.tsx` or `error.tsx` anywhere in `src/app`.** Loading, error and empty states are per component, so a server-page exception falls through to the framework error page. | `find src/app -name loading.tsx -o -name error.tsx` returns nothing | Proposed issue: add `error.tsx` for `/dashboard` and `/device`, and `loading.tsx` for the server-rendered tabs |
+| F-8 | **Dead helper.** `generateFamilyCode` (uses `Math.random`) is exported and has no caller. | `src/lib/utils.ts:106` | **Fixed** (route inventory follow-up): deleted; no caller in `src`, `e2e`, `scripts` or tests |
+| F-9 | **No route-level `loading.tsx` or `error.tsx` anywhere in `src/app`.** Loading, error and empty states are per component, so a server-page exception falls through to the framework error page. | `find src/app -name loading.tsx -o -name error.tsx` returns nothing | **Fixed** (route inventory follow-up): `src/app/dashboard/error.tsx` and `src/app/device/error.tsx` (plain-words message, Try again calls `reset()`, no error text, stack or digest; the tablet one shows no household data and does not unpair), `src/app/dashboard/loading.tsx` (polite `role="status"` skeleton inside the layout, which covers every server-rendered tab). Tests: `src/app/dashboard/__tests__/route-states.test.tsx`, `src/app/device/__tests__/error.test.tsx` |
 
 Not assessed here, because static inspection cannot support a claim: responsive/tablet weaknesses beyond the tab model already in `NAVIGATION.md`, and bundle/performance hotspots (#137 owns route budgets).
 
@@ -159,16 +159,16 @@ Highest-frequency daily flows first, each as one vertical slice (UI + canonical 
 1. **Today / home** (`/dashboard/today`, kid `/dashboard`, `/device/today`): already canonical; next are #271 (PR #281) and #274.
 2. **Chores** (`/dashboard/chores*`): canonical; #272 merged in #280.
 3. **Lists and groceries** (`/dashboard/lists*`): canonical; fold `/lists/type/[type]` into a filter (F-6).
-4. **Calendar** (`/dashboard/calendar*`): canonical `Event`; add the missing audit rows (F-4).
+4. **Calendar** (`/dashboard/calendar*`): canonical `Event`; the missing audit rows are added (F-4 fixed).
 5. **Meals and recipes** (`/dashboard/meals*`): canonical; #252 design review against FridgeCal is open.
 6. **Notes** (F-1 fixed), inventory, messages.
 7. **Weekly/occasional:** projects, budget, anniversaries, rewards/analytics, then the off-by-default family features (wishlist, pickups, allowance, handoff, sick days, locations, travel).
-8. **Settings and placeholders:** F-3 (search done; Settings controls left), F-2, F-9.
+8. **Settings and placeholders:** F-3, F-2 and F-9 fixed.
 9. **Contract (gated):** #254 after the backfill run and a release with zero legacy reads.
 
 ## API routes
 
-Generated table. Roles are the audit's "Role gate" column per method, except the three `/api/calendar/subscriptions` rows (read from source, F-4). "Device cookie: refused" is `refusePairedDevice`.
+Generated table. Roles are the audit's "Role gate" column per method; the three `/api/calendar/subscriptions` rows were read from source before the audit had them (F-4, now fixed). "Device cookie: refused" is `refusePairedDevice`.
 
 | Route | Methods | Roles (audit "Role gate", per method) | Device cookie | Feature gate | Env gate | Meal/list model |
 |---|---|---|---|---|---|---|
@@ -202,9 +202,9 @@ Generated table. Roles are the audit's "Role gate" column per method, except the
 | `/api/calendar/import-suggestions/commit` | POST | POST: P+T | refused | calendar | — | — |
 | `/api/calendar/import-suggestions` | POST | POST: P+T | refused | calendar | EVENT_IMPORT_ANTHROPIC_API_KEY | — |
 | `/api/calendar/import-suggestions/undo` | POST | POST: P+T (own import only) | refused | calendar | — | — |
-| `/api/calendar/subscriptions/[id]/refresh` | POST | POST: P+T — **missing from the isolation audit** (from source) | no | — | — | — |
-| `/api/calendar/subscriptions/[id]` | PATCH, DELETE | PATCH: P ; DELETE: P — **missing from the isolation audit** (from source) | no | — | — | — |
-| `/api/calendar/subscriptions` | GET, POST | GET: P+T (URL hint parent only) ; POST: P — **missing from the isolation audit** (from source) | no | — | — | — |
+| `/api/calendar/subscriptions/[id]/refresh` | POST | POST: P+T | no | — | — | — |
+| `/api/calendar/subscriptions/[id]` | PATCH, DELETE | PATCH: P ; DELETE: P | no | — | — | — |
+| `/api/calendar/subscriptions` | GET, POST | GET: P+T (URL hint parent only) ; POST: P | no | — | — | — |
 | `/api/calendar/sync-connections/[id]/calendars` | GET | GET: P, connecting member only (403) | no | — | calendar sync envs | — |
 | `/api/calendar/sync-connections/[id]` | PATCH, DELETE | PATCH: P, connecting member only (403) ; DELETE: P | no | — | calendar sync envs | — |
 | `/api/calendar/sync-connections/[id]/sync` | POST | POST: P | no | — | calendar sync envs | — |
