@@ -84,6 +84,8 @@ interface CookData {
 interface HistoryEntry extends AdjustmentDto {
   item_name: string
   item_status: string
+  /** Undo would work now (latest change to the item, unchanged since). Older servers omit it. */
+  undoable?: boolean
 }
 
 interface PageData {
@@ -308,12 +310,14 @@ export default function InventoryClient({
         )
         if (!res.ok) {
           setNotice({ text: await errorMessage(res, `Could not put ${name} back. Try again.`), error: true })
-          return
+        } else {
+          setNotice({ text: `Put ${name} back.` })
         }
-        setNotice({ text: `Put ${name} back.` })
       } catch {
         setNotice({ text: `Could not put ${name} back. Check your connection and try again.`, error: true })
       }
+      // Refresh the list and the history either way, so every Undo shown
+      // still works (a refused undo usually means the item changed).
       await load()
     },
     [load]
@@ -1013,7 +1017,7 @@ function HistorySection({
                   {e.undone_at ? ' · Undone' : ''}
                 </span>
               </span>
-              {canWrite && !e.undone_at && (
+              {canWrite && e.undoable === true && (
                 <ActionButton icon={Undo2} label={`Undo: ${historyText(e)}`} onClick={() => onUndo(e)}>
                   Undo
                 </ActionButton>

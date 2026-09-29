@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
-import { ADJUSTMENT_SELECT, toAdjustmentDto } from '@/lib/inventory-adjust'
+import { ADJUSTMENT_SELECT, isUndoable, toAdjustmentDto } from '@/lib/inventory-adjust'
 import { inventoryError, inventoryJson } from '@/lib/inventory-http'
 
 export const dynamic = 'force-dynamic'
@@ -13,8 +13,9 @@ const ADJUSTMENTS_MAX_LIMIT = 100
 /**
  * GET /api/inventory/adjustments?itemId=&limit=&offset= (#158/#121). The
  * household's "Used it" / "Throw away" history, newest first, each with the
- * item's name and current status, so the page can offer Undo after the toast
- * is gone. `limit` 1–100 (default 20). Every role may read (the items are
+ * item's name and current status and `undoable` (the latest change to its
+ * item, not undone, and the item still at the version that change set), so
+ * the page offers Undo after the toast is gone only where it will work. `limit` 1–100 (default 20). Every role may read (the items are
  * readable by every member).
  */
 export async function GET(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const rows = await prisma!.inventoryAdjustment.findMany({
       where: { family_id: auth.user.family_id, ...(itemId ? { item_id: itemId } : {}) },
-      select: { ...ADJUSTMENT_SELECT, item: { select: { name: true, status: true } } },
+      select: { ...ADJUSTMENT_SELECT, item: { select: { name: true, status: true, updated_at: true } } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       skip: offset,
       take: limit + 1,
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
       ...toAdjustmentDto(r),
       item_name: r.item?.name ?? '',
       item_status: r.item?.status ?? 'active',
+      undoable: isUndoable(r, r.item),
     }))
     return inventoryJson({ adjustments, nextOffset: hasMore ? offset + limit : null })
   } catch (err) {

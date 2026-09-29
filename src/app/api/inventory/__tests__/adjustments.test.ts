@@ -257,6 +257,37 @@ describe('inventory consume / discard / undo', () => {
     }
   })
 
+  it('history marks only the change Undo would accept as undoable', async () => {
+    const older = await (await consume('parentA', 'inv-a', { amount: 1 })).json()
+    const newer = await (await consume('parentA', 'inv-a', { amount: 1 })).json()
+    db.find('inventoryAdjustment', newer.adjustment.id)!.created_at = new Date(Date.now() + 1000)
+    const flags = async () =>
+      Object.fromEntries(
+        (await (await history.GET(req({ as: 'childA' }))).json()).adjustments.map((a: any) => [a.id, a.undoable])
+      )
+    expect(await flags()).toEqual({ [older.adjustment.id]: false, [newer.adjustment.id]: true })
+    // The flag agrees with the route: the older change is refused.
+    expect((await undo('parentA', older.adjustment.id)).status).toBe(409)
+
+    // After undoing the newest, the older one is undoable only if the item is
+    // still at the version it set; the undo moved the version, so it is not.
+    expect((await undo('parentA', newer.adjustment.id)).status).toBe(200)
+    expect(await flags()).toEqual({ [older.adjustment.id]: false, [newer.adjustment.id]: false })
+    expect((await undo('parentA', older.adjustment.id)).status).toBe(409)
+
+    // Were the item still at the older change's version, it would be undoable
+    // (and the route would accept it).
+    const item = db.find('inventoryItem', 'inv-a')!
+    item.updated_at = db.find('inventoryAdjustment', older.adjustment.id)!.item_version
+    expect((await flags())[older.adjustment.id]).toBe(true)
+    expect((await undo('parentA', older.adjustment.id)).status).toBe(200)
+    expect(item).toMatchObject({ status: 'active', amount: 3 })
+
+    // A finished item's last change is undoable.
+    const thrown = await (await discard('parentA', 'inv-a')).json()
+    expect((await flags())[thrown.adjustment.id]).toBe(true)
+  })
+
   it('history is newest first with the item name and status, and paginated', async () => {
     const a = await (await consume('parentA', 'inv-a', { amount: 1 })).json()
     const b = await (await consume('parentA', 'inv-a', { amount: 1 })).json()
@@ -355,6 +386,44 @@ describe('inventory consume / discard / undo', () => {
       // Without a key the second delete is an honest 404.
       expect((await remove('parentA', 'inv-a')).status).toBe(404)
       // Deleting the item removes its history with it (FK cascade in Postgres; see the integration test).
+    })
+
+    it('a keyed DELETE whose response store failed replays 200 on retry (delete and record commit together)', async () => {
+      const { fakePrisma } = await import('@/__tests__/helpers/two-household')
+      const dKey = 'inv-delete-lost-000000001'
+      const store = jest.spyOn(fakePrisma.idempotencyRecord, 'update').mockRejectedValueOnce(new Error('connection reset'))
+      try {
+        const first = await remove('parentA', 'inv-a', dKey)
+        expect(first.status).toBe(200)
+      } finally {
+        store.mockRestore()
+      }
+      expect(db.find('inventoryItem', 'inv-a')).toBeUndefined()
+      // The record was completed inside the delete's transaction.
+      const record = db.rows('idempotencyRecord').find((r: any) => r.key === dKey)!
+      expect(record).toMatchObject({ response_status: 200, response_body: { success: true } })
+      const retry = await remove('parentA', 'inv-a', dKey)
+      expect(retry.status).toBe(200)
+      expect(retry.headers.get('Idempotency-Replayed')).toBe('true')
+      expect(await retry.json()).toEqual({ success: true })
+    })
+
+    it('a keyed DELETE that died before deleting is taken over after the lock timeout and deletes once', async () => {
+      const { hashIdempotentRequest, IDEMPOTENCY_LOCK_TIMEOUT_MS } = await import('@/lib/idempotency')
+      const { INVENTORY_DELETE_ACTION } = await import('@/lib/inventory')
+      const dKey = 'inv-delete-crash-00000001'
+      // The abandoned in-progress record a crashed first attempt leaves behind.
+      db.rows('idempotencyRecord').push({
+        id: 'idem-crashed', scope: 'user:parent-a', key: dKey, family_id: 'family-A', user_id: 'parent-a',
+        action: INVENTORY_DELETE_ACTION, request_hash: hashIdempotentRequest(INVENTORY_DELETE_ACTION, { id: 'inv-a' }),
+        response_status: null, response_body: null,
+        created_at: new Date(Date.now() - IDEMPOTENCY_LOCK_TIMEOUT_MS - 1000), expires_at: new Date(Date.now() + 86_400_000),
+      })
+      const res = await remove('parentA', 'inv-a', dKey)
+      expect(res.status).toBe(200)
+      expect(db.find('inventoryItem', 'inv-a')).toBeUndefined()
+      expect(db.find('idempotencyRecord', 'idem-crashed')).toMatchObject({ response_status: 200 })
+      expect((await remove('parentA', 'inv-a', dKey)).headers.get('Idempotency-Replayed')).toBe('true')
     })
 
     it('rejects a malformed key with 400 before writing', async () => {

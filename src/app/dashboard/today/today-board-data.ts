@@ -279,9 +279,11 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           today: addUTCDays(startOfTodayUTC(now), 1),
           days: DEFAULT_USE_SOON_DAYS,
           limit: MAX_USE_SOON,
-          // A use-by day stays in until it has passed in every zone; the
-          // client drops it once it is past for the viewer (#158).
-          useByCutoff: addUTCDays(startOfTodayUTC(now), -1),
+          // A use-by day stays in until it has passed in every zone, read as
+          // its own capped set so stale use-by rows never crowd out rows
+          // that are valid for every viewer; the client drops the ones that
+          // are past for its own day (#158).
+          useBySkewFrom: addUTCDays(startOfTodayUTC(now), -1),
         })
       : Promise.resolve(null),
   ])

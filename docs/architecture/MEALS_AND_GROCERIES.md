@@ -420,7 +420,7 @@ Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not
 
 ### Use soon
 
-`getUseSoonItems(db, familyId, { today, days = 3, limit, useByCutoff })` in `src/lib/inventory.ts` is deterministic:
+`getUseSoonItems(db, familyId, { today, days = 3, limit, useBySkewFrom })` in `src/lib/inventory.ts` is deterministic:
 
 - **Included:** active items whose date is on or before `today + days`, except a **use-by** day that has passed.
 - **A passed best-before day** stays in, most overdue first, labelled "Best before was N days ago" (quality: check
@@ -441,9 +441,11 @@ only within one day of its UTC date; without it the server's UTC day is used. Da
 so days left are whole calendar days whatever the clock does: the America/Toronto spring-forward (2026-03-08, a 23-hour
 day) and fall-back (2026-11-01, a 25-hour day) fixtures in `src/lib/__tests__/inventory.test.ts` check that the
 viewer's day never skips or repeats and that days left stay whole on both sides of each change, for both kinds. The
-Today board anchors its query one UTC day ahead (so every zone's local today is inside the window) with
-`useByCutoff` one UTC day behind (so a viewer behind UTC still sees "Use by today"); the client drops rows that are not
-yet due or already past use-by for its own day.
+Today board anchors its query one UTC day ahead (so every zone's local today is inside the window). Use-by days
+between one UTC day behind and that anchor may be "Use by today" for a viewer behind UTC or already past for one
+ahead of it; they are read as a separate use-by set (`useBySkewFrom`, newest first, capped on its own), so however
+many of them there are they never crowd rows that are valid for every viewer out of the main 50-row set. The client
+drops rows that are not yet due or already past use-by for its own day.
 
 ### What can I cook
 
@@ -494,8 +496,11 @@ yet due or already past use-by for its own day.
 - **Page:** "Used it" and "Throw away" on each "Use soon" row, "Throw away" on each "Past use-by" row, and "Used it"
   (with "How much did you use?" when the item has an amount) and "Throw away" in the item dialog. Each runs at once and
   offers Undo in a toast (`useUndoToast`, docs/product/NAVIGATION.md); "Recently used or thrown away" (the last 10
-  changes, `GET /api/inventory/adjustments`) keeps Undo available after the toast has gone. "Remove" in the dialog
-  still deletes the item and its history, behind a confirm, for an item added by mistake.
+  changes, `GET /api/inventory/adjustments`) keeps Undo available after the toast has gone, on the rows the API marks
+  `undoable` only (the latest change to its item, not undone, item still at that change's version); the list and the
+  history are fetched again after every undo attempt. "Remove" in the dialog still deletes the item and its history,
+  behind a confirm, for an item added by mistake. A keyed Remove deletes the item and completes its idempotency record
+  in one transaction, so a retry after a lost response replays the 200 instead of answering 404.
 
 ### Search, filters and page states (#121)
 

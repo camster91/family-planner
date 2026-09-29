@@ -238,6 +238,57 @@ describeWithDatabase('inventory consume / discard / undo against Postgres', () =
     expect(await prisma.inventoryAdjustment.count({ where: { item_id: eggs.id } })).toBe(0)
   })
 
+  it('a keyed DELETE whose response store fails still converges: the record completed with the delete', async () => {
+    const jam = await newItem(PARENT, { name: 'Invadj jam' })
+    const dk = key(9)
+    // Make withIdempotency's own response store fail once (the lost-response
+    // case). The route reads the client from the `@/lib/prisma` module, so
+    // swap that export for a proxy whose idempotencyRecord.update throws once;
+    // $transaction (and so the route's transaction client) stays the real one.
+    const mod = require('@/lib/prisma') as { prisma: typeof prisma }
+    const real = mod.prisma
+    let storeFailures = 0
+    const failingRecords = new Proxy(real.idempotencyRecord, {
+      get(target, prop) {
+        if (prop === 'update' && storeFailures === 0) {
+          return async () => {
+            storeFailures += 1
+            throw new Error('connection reset')
+          }
+        }
+        const v = Reflect.get(target, prop)
+        return typeof v === 'function' ? v.bind(target) : v
+      },
+    })
+    mod.prisma = new Proxy(real, {
+      get(target, prop) {
+        if (prop === 'idempotencyRecord') return failingRecords
+        const v = Reflect.get(target, prop)
+        return typeof v === 'function' ? v.bind(target) : v
+      },
+    })
+    let first: any
+    try {
+      first = await item.DELETE({ ...request(PARENT, undefined, {}, { 'Idempotency-Key': dk }), method: 'DELETE' }, P(jam.id))
+    } finally {
+      mod.prisma = real
+    }
+    expect(first.status).toBe(200)
+    expect(storeFailures).toBe(1)
+    expect(await prisma.inventoryItem.count({ where: { id: jam.id } })).toBe(0)
+    const record = await prisma.idempotencyRecord.findFirstOrThrow({ where: { scope: `user:${PARENT}`, key: dk } })
+    expect(record).toMatchObject({ response_status: 200, response_body: { success: true } })
+    const retry = await item.DELETE({ ...request(PARENT, undefined, {}, { 'Idempotency-Key': dk }), method: 'DELETE' }, P(jam.id))
+    expect(retry.status).toBe(200)
+    expect(retry.headers.get('Idempotency-Replayed')).toBe('true')
+
+    // A delete that finds nothing commits nothing and leaves the key retryable.
+    const dk2 = key(10)
+    const missing = await item.DELETE({ ...request(PARENT, undefined, {}, { 'Idempotency-Key': dk2 }), method: 'DELETE' }, P(jam.id))
+    expect(missing.status).toBe(404)
+    expect(await prisma.idempotencyRecord.count({ where: { scope: `user:${PARENT}`, key: dk2 } })).toBe(0)
+  })
+
   it('concurrent consumes of the same item without keys: never both finish it', async () => {
     const bread = await newItem(TEEN, { name: 'Invadj bread' })
     const results = await Promise.all([

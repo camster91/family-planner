@@ -191,6 +191,32 @@ describe('device routes', () => {
       expect(d2.useSoon.map((i: any) => i.name)).toEqual([`${FOREIGN} Tomato`])
     })
 
+    // #158 review: the 50-row cap must not let stale use-by rows (past for
+    // this viewer, kept only for zones behind UTC) crowd out valid rows.
+    it('use soon: more than 50 stale use-by rows never crowd out valid items', async () => {
+      const day = (offset: number) => new Date(Date.UTC(2026, 8, 26 + offset))
+      db.find('family', FAMILY_A)!.features = { inventory: true }
+      db.tables.inventoryItem = db.rows('inventoryItem').filter((r) => r.family_id !== FAMILY_A)
+      for (let i = 0; i < 60; i++) {
+        db.rows('inventoryItem').push({
+          id: `inv-a-stale-${String(i).padStart(2, '0')}`, family_id: FAMILY_A, name: `Old ham ${i}`, ingredient_id: null,
+          amount: null, unit: null, location: 'fridge', expires_on: day(-1), date_kind: 'use_by', added_by: 'parent-a',
+          created_at: T0, updated_at: T0,
+        })
+      }
+      db.rows('inventoryItem').push(
+        { id: 'inv-a-yogurt', family_id: FAMILY_A, name: 'Yogurt', ingredient_id: null, amount: null, unit: null, location: 'fridge', expires_on: day(1), added_by: 'parent-a', created_at: T0, updated_at: T0 },
+        { id: 'inv-a-chicken', family_id: FAMILY_A, name: 'Chicken', ingredient_id: null, amount: null, unit: null, location: 'fridge', expires_on: day(2), date_kind: 'use_by', added_by: 'parent-a', created_at: T0, updated_at: T0 }
+      )
+      const d1 = await (await today.GET(deviceReq({ cookies: fx.d1.cookies }))).json()
+      const ids = d1.useSoon.map((i: any) => i.id)
+      expect(ids).toEqual(expect.arrayContaining(['inv-a-yogurt', 'inv-a-chicken']))
+      // The viewer's own day drops the stale rows and keeps the valid ones.
+      const { itemsToUseSoon } = await import('@/components/fridge/board-model')
+      const shown = itemsToUseSoon(d1.useSoon, new Date(2026, 8, 26, 12))
+      expect(shown.map((i) => i.id)).toEqual(['inv-a-yogurt', 'inv-a-chicken'])
+    })
+
     it('shopping follows only the lists feature for a device', async () => {
       db.find('family', FAMILY_A)!.features = { lists: false }
       // lists is a core feature and cannot be disabled; normalizeFeatures keeps it on.

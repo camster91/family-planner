@@ -159,7 +159,13 @@ export async function PATCH(request: NextRequest, context: Context) {
 // history (for an item added by mistake); "Used it" and "Throw away" are the
 // consume/discard routes, which keep history and can be undone.
 // Optional `Idempotency-Key` (#158): a retry after a lost response replays the
-// stored 200 instead of answering 404.
+// stored 200 instead of answering 404. With a key the delete and the
+// completion of its idempotency record commit in ONE transaction, so there is
+// no moment where the item is gone but the record is still "in progress": a
+// retry either replays the stored 200 (the delete committed) or takes over a
+// run that never deleted anything and deletes now. A delete leaves no row to
+// find on takeover, so this is how it converges (compare the #283 routes,
+// which stamp the record id on the row they create).
 export async function DELETE(request: NextRequest, context: Context) {
   try {
     const deviceRefusal = await refusePairedDevice(request)
@@ -183,10 +189,21 @@ export async function DELETE(request: NextRequest, context: Context) {
       key,
       { scope: `user:${auth.user.id}`, familyId, userId: auth.user.id, action: INVENTORY_DELETE_ACTION },
       { id },
-      async () => {
-        const result = await prisma!.inventoryItem.deleteMany({ where: { id, family_id: familyId } })
-        if (result.count === 0) return notFoundResult()
-        return { status: 200, body: { success: true } }
+      async ({ recordId }) => {
+        const body = { success: true }
+        const deleted = await prisma!.$transaction(async (tx) => {
+          const result = await tx.inventoryItem.deleteMany({ where: { id, family_id: familyId } })
+          if (result.count === 0) return false
+          if (recordId) {
+            await tx.idempotencyRecord.updateMany({
+              where: { id: recordId, family_id: familyId, response_status: null },
+              data: { response_status: 200, response_body: body },
+            })
+          }
+          return true
+        })
+        if (!deleted) return notFoundResult()
+        return { status: 200, body }
       }
     )
     res.headers.set('Cache-Control', 'private, no-store')

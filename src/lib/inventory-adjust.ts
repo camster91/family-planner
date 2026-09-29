@@ -88,6 +88,23 @@ export function toAdjustmentDto(row: AdjustmentRow): AdjustmentDto {
   }
 }
 
+/**
+ * Whether Undo of `adjustment` would succeed now: it is not undone, and the
+ * item is still exactly as that change left it (same status and version, so
+ * no later change, edit or undo happened). The same test the undo route's
+ * compare-and-set makes, so the page shows Undo only where it will work.
+ */
+export function isUndoable(
+  adjustment: Pick<AdjustmentRow, 'undone_at' | 'status_after' | 'item_version'>,
+  item: { status: string; updated_at: Date | string } | null | undefined
+): boolean {
+  if (!item || adjustment.undone_at) return false
+  return (
+    item.status === adjustment.status_after &&
+    new Date(item.updated_at).getTime() === new Date(adjustment.item_version).getTime()
+  )
+}
+
 export type AdjustFailure =
   /** No such item in this household (foreign ids look the same). */
   | 'NOT_FOUND'

@@ -41,7 +41,13 @@ const HISTORY = [
   {
     id: 'adj-1', item_id: 'i-old', kind: 'discard', amount_delta: null, amount_before: null, amount_after: null,
     status_before: 'active', status_after: 'discarded', actor_id: 'u', created_at: '2026-01-04T10:00:00.000Z', undone_at: null,
-    item_name: 'Old soup', item_status: 'discarded',
+    item_name: 'Old soup', item_status: 'discarded', undoable: true,
+  },
+  {
+    // Not the latest change to its item any more: no Undo.
+    id: 'adj-0', item_id: 'i-milk', kind: 'consume', amount_delta: -0.5, amount_before: 1.5, amount_after: 1,
+    status_before: 'active', status_after: 'active', actor_id: 'u', created_at: '2026-01-03T10:00:00.000Z', undone_at: null,
+    item_name: 'Milk', item_status: 'active', undoable: false,
   },
 ]
 const USE_SOON = [
@@ -382,9 +388,16 @@ describe('/dashboard/inventory', () => {
     const { calls } = setup({ history: HISTORY, writeStatus: 409 })
     const history = await screen.findByTestId('inventory-history')
     expect(within(history).getByText('Threw away Old soup')).toBeTruthy()
+    // Undo only where the server says it would work.
+    expect(within(history).getByText('Used 0.5 of Milk')).toBeTruthy()
+    expect(within(history).getAllByRole('button', { name: /^Undo/ })).toHaveLength(1)
+    const historyLoads = () => calls.filter((c) => c.url.startsWith('/api/inventory/adjustments?')).length
+    const before = historyLoads()
     await user.click(within(history).getByRole('button', { name: 'Undo: Threw away Old soup' }))
     await waitFor(() => expect(calls.some((c) => c.url.startsWith('/api/inventory/adjustments/adj-1/undo?'))).toBe(true))
     expect(await screen.findByText(/cannot be undone\. Edit the item instead/)).toBeTruthy()
+    // The history is fetched again after the attempt.
+    await waitFor(() => expect(historyLoads()).toBeGreaterThan(before))
   })
 
   it('a child sees the inventory without write controls', async () => {

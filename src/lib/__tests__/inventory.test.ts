@@ -221,24 +221,35 @@ describe('use-soon across America/Toronto DST changes', () => {
   })
 })
 
-/** A minimal inventoryItem reader: filters like the Prisma `where` used by getUseSoonItems. */
+/**
+ * A minimal inventoryItem reader: filters and orders like the two Prisma
+ * queries getUseSoonItems makes (the main set, and the board's use-by skew set).
+ */
 function fakeReader(rows: Array<Record<string, any>>) {
+  const kind = (r: Record<string, any>) => r.date_kind ?? 'best_before'
   const findMany = jest.fn(async (args: any) => {
     const w = args.where
+    const base = rows.filter((r) => r.family_id === w.family_id && (r.status ?? 'active') === w.status && r.expires_on !== null)
+    if (w.date_kind === 'use_by') {
+      const kept = base.filter(
+        (r) =>
+          kind(r) === 'use_by' &&
+          r.expires_on.getTime() >= w.expires_on.gte.getTime() &&
+          r.expires_on.getTime() < w.expires_on.lt.getTime()
+      )
+      kept.sort((a, b) => b.expires_on.getTime() - a.expires_on.getTime() || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+      return kept.slice(0, args.take)
+    }
     const cutoff: Date = w.OR[1].expires_on.gte
-    const lte: Date = w.expires_on.lte
-    const kept = rows.filter(
+    const kept = base.filter(
       (r) =>
-        r.family_id === w.family_id &&
-        (r.status ?? 'active') === w.status &&
-        r.expires_on !== null &&
-        r.expires_on.getTime() <= lte.getTime() &&
-        ((r.date_kind ?? 'best_before') !== 'use_by' || r.expires_on.getTime() >= cutoff.getTime())
+        r.expires_on.getTime() <= w.expires_on.lte.getTime() &&
+        (kind(r) !== 'use_by' || r.expires_on.getTime() >= cutoff.getTime())
     )
     kept.sort(
       (a, b) =>
         a.expires_on.getTime() - b.expires_on.getTime() ||
-        (b.date_kind ?? 'best_before').localeCompare(a.date_kind ?? 'best_before') ||
+        kind(b).localeCompare(kind(a)) ||
         a.name.localeCompare(b.name) ||
         a.id.localeCompare(b.id)
     )
@@ -283,11 +294,30 @@ describe('getUseSoonItems', () => {
     expect(await getUseSoonItems(db, 'fam', { today: TODAY })).toEqual(items)
   })
 
-  it('an earlier use-by cutoff (the board) keeps a use-by row that is still today for a viewer behind UTC', async () => {
+  it('the board skew set keeps a use-by row that is still today for a viewer behind UTC', async () => {
     const { db } = fakeReader([row('k', 'Ham', day(0), { date_kind: 'use_by' })])
     expect(await getUseSoonItems(db, 'fam', { today: day(1) })).toEqual([])
-    const kept = await getUseSoonItems(db, 'fam', { today: day(1), useByCutoff: day(-1) })
+    const kept = await getUseSoonItems(db, 'fam', { today: day(1), useBySkewFrom: day(-1) })
     expect(kept.map((i) => [i.id, i.status, i.dateKind])).toEqual([['k', 'soon', 'use_by']])
+  })
+
+  it('more than a full cap of stale use-by rows never crowds out rows valid for every viewer', async () => {
+    const stale = Array.from({ length: 60 }, (_, i) =>
+      row(`s${String(i).padStart(2, '0')}`, `Old ham ${i}`, day(-1), { date_kind: 'use_by' })
+    )
+    const valid = [
+      row('v1', 'Yogurt', day(2)),
+      row('v2', 'Chicken', day(3), { date_kind: 'use_by' }),
+      row('v3', 'Old bread', day(-5)), // best before: still "use soon"
+    ]
+    const { db, findMany } = fakeReader([...stale, ...valid])
+    const items = await getUseSoonItems(db, 'fam', { today: day(1), days: 3, limit: 50, useBySkewFrom: day(-1) })
+    for (const id of ['v1', 'v2', 'v3']) expect(items.map((i) => i.id)).toContain(id)
+    // The skew set is capped on its own, and ordered with the rest.
+    expect(items.filter((i) => i.id.startsWith('s'))).toHaveLength(50)
+    expect(items.length).toBe(53)
+    expect(items[0].id).toBe('v3')
+    expect(findMany).toHaveBeenCalledTimes(2)
   })
 })
 

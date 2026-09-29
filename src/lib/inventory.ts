@@ -456,10 +456,14 @@ type InventoryReader = Pick<PrismaClient, 'inventoryItem'> | Prisma.TransactionC
  * - order: date ascending, use-by before best-before on the same day, then
  *   name, then id.
  *
- * `useByCutoff` (default `today`) is the first day a use-by item still counts.
- * The Today board anchors `today` one UTC day ahead so every zone's local day
- * is covered, and passes an earlier cutoff so a viewer behind UTC still sees
- * "Use by today"; the client then drops rows that are past for its own day.
+ * `useBySkewFrom` (board only): the Today board anchors `today` one UTC day
+ * ahead so every zone's local day is covered, so a use-by day between
+ * `useBySkewFrom` and `today` may still be "Use by today" for a viewer behind
+ * UTC, or already past for one ahead of it. Those rows are read as a separate,
+ * separately capped set (newest first), so they can never crowd the rows that
+ * are valid for every viewer out of the main set; the client drops the ones
+ * that are past for its own day. The result then holds at most `limit` rows
+ * from each set.
  *
  * The data helper for the inventory page and the Today board "Use soon" tile
  * (#262): it returns only the fields a shared surface may show. The caller
@@ -469,30 +473,38 @@ type InventoryReader = Pick<PrismaClient, 'inventoryItem'> | Prisma.TransactionC
 export async function getUseSoonItems(
   db: InventoryReader,
   familyId: string,
-  opts: { today?: Date; days?: number; limit?: number; useByCutoff?: Date } = {}
+  opts: { today?: Date; days?: number; limit?: number; useBySkewFrom?: Date } = {}
 ): Promise<UseSoonItem[]> {
   const today = opts.today ?? startOfTodayUTC()
   const days = Math.min(Math.max(opts.days ?? DEFAULT_USE_SOON_DAYS, 0), MAX_WINDOW_DAYS)
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), USE_SOON_MAX_LIMIT)
-  const useByCutoff = opts.useByCutoff ?? today
-  const rows = await db.inventoryItem.findMany({
+  const select = { id: true, name: true, location: true, expires_on: true, date_kind: true } as const
+  const main = await db.inventoryItem.findMany({
     where: {
       family_id: familyId,
       status: 'active',
       expires_on: { not: null, lte: addUTCDays(today, days) },
-      OR: [{ date_kind: { not: 'use_by' } }, { expires_on: { gte: useByCutoff } }],
+      OR: [{ date_kind: { not: 'use_by' } }, { expires_on: { gte: today } }],
     },
-    select: { id: true, name: true, location: true, expires_on: true, date_kind: true },
+    select,
     orderBy: [{ expires_on: 'asc' }, { date_kind: 'desc' }, { name: 'asc' }, { id: 'asc' }],
     take: limit,
   })
-  return rows.flatMap((r) => {
+  const skewFrom = opts.useBySkewFrom
+  const skew =
+    skewFrom && skewFrom.getTime() < today.getTime()
+      ? await db.inventoryItem.findMany({
+          where: { family_id: familyId, status: 'active', date_kind: 'use_by', expires_on: { gte: skewFrom, lt: today } },
+          select,
+          orderBy: [{ expires_on: 'desc' }, { name: 'asc' }, { id: 'asc' }],
+          take: limit,
+        })
+      : []
+
+  type Row = (typeof main)[number]
+  const toItem = (r: Row, against: Date): UseSoonItem[] => {
     const kind = asDateKind(r.date_kind)
-    // A use-by row the query kept only because the cutoff is earlier than
-    // `today` (the board) is classified against the cutoff day; the board
-    // client re-labels every row for the viewer's own day anyway.
-    let { status, daysLeft } = expiryStatus(r.expires_on, today, days, kind)
-    if (status === 'past_use_by') ({ status, daysLeft } = expiryStatus(r.expires_on, useByCutoff, days, kind))
+    const { status, daysLeft } = expiryStatus(r.expires_on, against, days, kind)
     if (!isUseSoonStatus(status) || daysLeft === null) return []
     return [
       {
@@ -506,7 +518,19 @@ export async function getUseSoonItems(
         label: expiryLabel(status, daysLeft, kind),
       },
     ]
-  })
+  }
+  // Skew rows are classified against the skew day (they are "today" there);
+  // the board client re-labels every row for the viewer's own day anyway.
+  const items = [...main.flatMap((r) => toItem(r, today)), ...skew.flatMap((r) => toItem(r, skewFrom!))]
+  if (skew.length === 0) return items
+  const rank = (k: DateKind) => (k === 'use_by' ? 0 : 1)
+  return items.sort(
+    (a, b) =>
+      a.expiresOn.localeCompare(b.expiresOn) ||
+      rank(a.dateKind) - rank(b.dateKind) ||
+      a.name.localeCompare(b.name) ||
+      a.id.localeCompare(b.id)
+  )
 }
 
 // ---------------------------------------------------------------------------
