@@ -12,7 +12,11 @@ import { log } from '@/lib/logger'
 type PairingCancelReason = 'parent' | 'digits_mismatch' | 'superseded' | 'device_limit'
 export type RevokeReason = 'parent' | 'lost' | 'replaced' | 'token_reuse'
 export type ElevationEndReason = 'exit' | 'idle' | 'max' | 'revoked' | 'credential_changed'
-export type ElevatedActionName = 'rename_device' | 'revoke_device'
+export type ElevatedActionName = 'rename_device' | 'revoke_device' | 'update_board_settings'
+/** Attributed shared-tablet writes (#274, SHARED_DEVICE.md §9.2, O-5). */
+export type MemberActionName = 'list_item_check' | 'list_item_uncheck' | 'list_item_add' | 'chore_complete' | 'chore_undo'
+/** Board-settings sections an elevated change touched (names only, never values). */
+export type BoardSettingsSectionName = 'weather' | 'memberColors' | 'display' | 'deviceWrites'
 
 export type DeviceAuditEntry =
   | { type: 'device.pairing_created'; metadata: { pairingId: string } }
@@ -28,7 +32,18 @@ export type DeviceAuditEntry =
   | { type: 'device.elevation_locked'; metadata: { scope: 'device' | 'account' } }
   | {
       type: 'device.elevated_action'
-      metadata: { action: ElevatedActionName; targetType: 'device'; targetId: string }
+      metadata:
+        | { action: 'rename_device' | 'revoke_device'; targetType: 'device'; targetId: string }
+        | {
+            action: 'update_board_settings'
+            targetType: 'family'
+            targetId: string
+            sections: BoardSettingsSectionName[]
+          }
+    }
+  | {
+      type: 'device.member_action'
+      metadata: { action: MemberActionName; targetType: 'list_item' | 'chore'; targetId: string }
     }
   | { type: 'parent_pin.set'; metadata: Record<string, never> }
   | { type: 'parent_pin.removed'; metadata: Record<string, never> }
@@ -40,7 +55,13 @@ type AuditDb = Pick<PrismaClient, 'deviceAuditEvent'>
 
 export async function writeDeviceAudit(
   db: AuditDb,
-  entry: DeviceAuditEntry & { familyId: string; deviceId?: string | null; actorUserId?: string | null }
+  entry: DeviceAuditEntry & {
+    familyId: string
+    deviceId?: string | null
+    actorUserId?: string | null
+    /** Event time; defaults to the database clock. Tablet writes pass the device clock. */
+    at?: Date
+  }
 ): Promise<void> {
   try {
     await db.deviceAuditEvent.create({
@@ -50,6 +71,7 @@ export async function writeDeviceAudit(
         actor_user_id: entry.actorUserId ?? null,
         type: entry.type,
         metadata: entry.metadata as Prisma.InputJsonValue,
+        ...(entry.at ? { created_at: entry.at } : {}),
       },
       select: { id: true },
     })

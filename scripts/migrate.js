@@ -48,6 +48,9 @@ ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "night_start" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "night_end" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "ambient_photo_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 
+-- Shared-device writes (#274; per-household opt-in, default off: SHARED_DEVICE.md §9.2)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "device_writes_enabled" BOOLEAN NOT NULL DEFAULT false;
+
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
   "id" TEXT PRIMARY KEY,

@@ -150,6 +150,8 @@ export interface RequestOptions {
    * non-terminal failure, so a rollback never makes a tablet purge itself.
    */
   optionalRoute?: boolean
+  /** Extra request headers from a fixed set (the #274 writes send `Idempotency-Key`). */
+  headers?: { 'Idempotency-Key'?: string }
 }
 
 async function readBody(res: Response): Promise<unknown> {
@@ -255,6 +257,8 @@ export function createDeviceClient(deps: DeviceClientDeps) {
       if (csrf) headers['X-CSRF-Token'] = csrf
     }
     if (options.elevated && elevation) headers[ELEVATION_HEADER] = elevation.token
+    const idempotencyKey = options.headers?.['Idempotency-Key']
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
     try {
       return await deps.fetch(path, {
         method,

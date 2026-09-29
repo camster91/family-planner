@@ -3,11 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { createListItemSchema } from '@/lib/validations'
-import { isGroceryListType } from '@/lib/grocery-display'
-import { loadSectionOverrides, sectionsFor } from '@/lib/grocery-section-store'
+import { createListItem } from '@/lib/list-item-create'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * POST /api/lists/items/create. The write is `createListItem`
+ * (src/lib/list-item-create.ts), shared with the paired tablet's quick add
+ * (POST /api/device/lists/:id/items, #274).
+ */
 export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -28,70 +32,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { listId, content, quantity, category, notes, amount, unit, ingredient_id } = parsed.data
-
-    // Verify list belongs to user's family
+    // Verify list belongs to user's family (a foreign list keeps its 403).
     const list = await prisma!.list.findUnique({
-      where: { id: listId },
-      select: { family_id: true, type: true },
+      where: { id: parsed.data.listId },
+      select: { family_id: true },
     })
-
     if (!list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 })
     }
-
     const familyError = requireFamilyMatch(list.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    // An ingredient reference must belong to this household (ADR-0007). A
-    // foreign or missing id is the same 400, so nothing about another
-    // household's ingredients is revealed.
-    if (ingredient_id) {
-      const ingredient = await prisma!.ingredient.findFirst({
-        where: { id: ingredient_id, family_id: auth.user.family_id },
-        select: { id: true },
-      })
-      if (!ingredient) {
-        return NextResponse.json({ error: 'Ingredient not found' }, { status: 400 })
-      }
+    const result = await createListItem(prisma!, parsed.data, {
+      familyId: auth.user.family_id,
+      addedBy: auth.user.id,
+    })
+    if (!result.ok) {
+      return result.reason === 'ingredient_not_found'
+        ? NextResponse.json({ error: 'Ingredient not found' }, { status: 400 })
+        : NextResponse.json({ error: 'List not found' }, { status: 404 })
     }
-
-    // Get current max position
-    const maxPositionItem = await prisma!.listItem.findFirst({
-      where: { list_id: listId },
-      orderBy: { position: 'desc' },
-      select: { position: true },
-    })
-
-    const nextPosition = (maxPositionItem?.position || 0) + 1
-
-    const item = await prisma!.listItem.create({
-      data: {
-        list_id: listId,
-        content,
-        quantity: quantity || 1,
-        category: category || null,
-        notes: notes || null,
-        amount: amount ?? null,
-        unit: unit ?? null,
-        ingredient_id: ingredient_id ?? null,
-        added_by: auth.user.id,
-        position: nextPosition,
-      },
-    })
-
-    if (!isGroceryListType(list.type)) return NextResponse.json({ success: true, item })
-
-    // Grocery/shopping lists (#273): the new row carries its resolved store section.
-    const ingredient = item.ingredient_id
-      ? await prisma!.ingredient.findFirst({
-          where: { id: item.ingredient_id, family_id: auth.user.family_id },
-          select: { name: true, section: true },
-        })
-      : null
-    const row = { content: item.content, ingredient }
-    const [section] = sectionsFor([row], await loadSectionOverrides(prisma!, auth.user.family_id, [row]))
-    return NextResponse.json({ success: true, item: { ...item, section } })
+    return NextResponse.json({ success: true, item: result.item })
   } catch (error) {
     console.error('Error creating list item:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

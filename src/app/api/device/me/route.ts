@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/device/me (SHARED_DEVICE.md §9.1): the device's own identity, the
- * household name, four feature booleans and the parents who can elevate.
+ * household name, four feature booleans, the parents who can elevate and
+ * whether the household turned tablet writes on (#274).
  * Names only: no email, age, avatar, role, XP or PIN material.
  */
 export async function GET(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const now = deviceClock.now()
 
     const [family, parents] = await Promise.all([
-      prisma!.family.findUnique({ where: { id: actor.familyId }, select: { name: true, features: true } }),
+      prisma!.family.findUnique({ where: { id: actor.familyId }, select: { name: true, features: true, device_writes_enabled: true } }),
       prisma!.user.findMany({
         where: { family_id: actor.familyId, role: 'parent' },
         select: { id: true, name: true },
@@ -48,6 +49,8 @@ export async function GET(request: NextRequest) {
         lists: features.lists,
       },
       parents: parents.map((p) => ({ id: p.id, name: p.name, hasPin: withPin.has(p.id) })),
+      // Tablet writes (#274, §9.2): the household's opt-in, default off.
+      deviceWrites: Boolean(family?.device_writes_enabled),
       elevation: elevationState(device, now),
     })
   } catch (error) {
