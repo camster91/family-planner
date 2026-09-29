@@ -24,6 +24,8 @@ import {
 } from '@/lib/inventory'
 import { inventoryError, inventoryJson, readJson, todayFrom, writeForbidden } from '@/lib/inventory-http'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +92,7 @@ export async function GET(request: NextRequest) {
     const items = (hasMore ? rows.slice(0, limit) : rows).map((r) => toInventoryDto(r, today))
     return inventoryJson({ items, nextOffset: hasMore ? offset + limit : null })
   } catch (err) {
-    console.error('Error fetching inventory:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('GET /api/inventory', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
     return res
   } catch (err) {
     if (err instanceof InventoryInputError) return inventoryError(400, 'INGREDIENT_NOT_FOUND', err.message)
-    console.error('Error creating inventory item:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('POST /api/inventory', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

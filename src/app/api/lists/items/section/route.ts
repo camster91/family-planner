@@ -5,6 +5,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { refusePairedDevice } from '@/lib/device-route'
 import { moveItemToSection } from '@/lib/grocery-section-store'
 import { moveItemSectionSchema, readSectionJson, sectionError, sectionJson } from '@/lib/grocery-section-http'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +48,7 @@ export async function PATCH(request: NextRequest) {
     if (!result.ok) return sectionError(result.status, result.code, result.message)
     return sectionJson({ nameKey: result.nameKey, override: result.override, sections: result.sections })
   } catch (err) {
-    console.error('Error moving list item section:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('PATCH /api/lists/items/section', err, getRequestId(request))
     return sectionError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

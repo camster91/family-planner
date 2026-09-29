@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { undoAddSchema, undoRecipeAdd } from '@/lib/grocery-from-recipe'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
-    console.error('Error undoing recipe add:', error instanceof Error ? error.message : 'unknown error')
+    logRouteError('POST /api/lists/items/undo-add', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

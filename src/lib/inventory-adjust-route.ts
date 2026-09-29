@@ -7,6 +7,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { refusePairedDevice } from '@/lib/device-route'
@@ -104,7 +106,7 @@ export async function handleAdjust(request: NextRequest, context: ItemContext, k
     res.headers.set('Cache-Control', 'private, no-store')
     return res
   } catch (err) {
-    console.error(`Error recording inventory ${kind}:`, err instanceof Error ? err.message : 'unknown error')
+    logRouteError(`POST /api/inventory/[id]/${kind}`, err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

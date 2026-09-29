@@ -28,6 +28,8 @@ import {
 } from '@/lib/inventory-http'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { nextItemVersion } from '@/lib/inventory-adjust'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest, context: Context) {
     if (!row) return itemNotFound()
     return inventoryJson({ item: toInventoryDto(row, today) })
   } catch (err) {
-    console.error('Error fetching inventory item:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('GET /api/inventory/[id]', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }
@@ -150,7 +152,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     return res
   } catch (err) {
     if (err instanceof InventoryInputError) return inventoryError(400, 'INGREDIENT_NOT_FOUND', err.message)
-    console.error('Error updating inventory item:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('PATCH /api/inventory/[id]', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }
@@ -209,7 +211,7 @@ export async function DELETE(request: NextRequest, context: Context) {
     res.headers.set('Cache-Control', 'private, no-store')
     return res
   } catch (err) {
-    console.error('Error deleting inventory item:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('DELETE /api/inventory/[id]', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

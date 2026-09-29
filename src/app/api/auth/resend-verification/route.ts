@@ -6,6 +6,8 @@ import { createVerificationToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
+import { logRouteError, logRouteWarning } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
             data: { verify_token: oldToken, verify_token_expires: oldExpires },
           })
           .catch(() => undefined)
-        console.warn('Resend-verification mail failed:', e)
+        logRouteWarning('POST /api/auth/resend-verification (mail)', e, getRequestId(request))
       }
     }
 
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
       message: 'If that email belongs to an unverified account, a new verification link has been sent.',
     })
   } catch (error) {
-    console.error('Resend-verification error:', error)
+    logRouteError('POST /api/auth/resend-verification', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

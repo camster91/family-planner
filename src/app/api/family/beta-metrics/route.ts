@@ -5,6 +5,8 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { setBetaMetricsEnabled } from '@/lib/beta-metrics'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +79,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ betaMetrics: result }, { headers: NO_STORE })
   } catch (err) {
-    console.error('Beta metrics switch failed:', err instanceof Error ? err.name : 'unknown error')
+    logRouteError('PATCH /api/family/beta-metrics', err, getRequestId(request))
     return NextResponse.json({ error: 'Could not save this setting' }, { status: 500, headers: NO_STORE })
   }
 }

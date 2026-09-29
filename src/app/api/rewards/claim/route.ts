@@ -5,6 +5,8 @@ import { claimRewardSchema } from '@/lib/validations'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -138,7 +140,7 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (err) {
-      console.error('Error sending claim notification:', err)
+      logRouteError('POST /api/rewards/claim (notification)', err, getRequestId(request))
     }
 
     return NextResponse.json({ reward: updated, xp: result.xp })
@@ -146,7 +148,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof InsufficientXpError) {
       return NextResponse.json({ error: 'Not enough XP for this reward' }, { status: 400 })
     }
-    console.error('Error claiming reward:', error)
+    logRouteError('POST /api/rewards/claim', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

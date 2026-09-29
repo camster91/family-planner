@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +62,7 @@ export async function PATCH(
       item: { ...updated, approx_price: updated.approx_price ? updated.approx_price.toString() : null },
     })
   } catch (err) {
-    console.error('PATCH /api/wishlist/[id] error:', err)
+    logRouteError('PATCH /api/wishlist/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -95,7 +97,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('DELETE /api/wishlist/[id] error:', err)
+    logRouteError('DELETE /api/wishlist/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -10,6 +10,8 @@ import {
   readBoardSettings,
 } from '@/lib/board-settings'
 import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (parentError) return parentError
     return NextResponse.json(await readBoardSettings(prisma!, auth.user.family_id, 'person'))
   } catch (error) {
-    console.error('Board settings read error:', error instanceof Error ? error.message : error)
+    logRouteError('GET /api/family/board-settings', error, getRequestId(request))
     return NextResponse.json({ error: 'Could not load board settings' }, { status: 500 })
   }
 }
@@ -91,7 +93,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json(await readBoardSettings(prisma!, familyId, 'person'))
   } catch (error) {
-    console.error('Board settings save error:', error instanceof Error ? error.message : error)
+    logRouteError('PATCH /api/family/board-settings', error, getRequestId(request))
     return NextResponse.json({ error: 'Could not save board settings' }, { status: 500 })
   }
 }

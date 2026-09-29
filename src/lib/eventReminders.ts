@@ -10,14 +10,14 @@ class EventReminderService {
       })
 
       if (!res.ok) {
-        console.error('Error checking reminders:', await res.text())
+        console.error('Error checking reminders:', res.status)
         return
       }
 
       const data = await res.json()
       console.log(`Sent ${data.immediateCount || 0} immediate and ${data.dailyCount || 0} daily reminders`)
     } catch (err) {
-      console.error('Error in checkAndSendReminders:', err)
+      console.error('Error in checkAndSendReminders:', err instanceof Error ? err.name : 'unknown error')
     }
   }
 
@@ -46,9 +46,9 @@ class EventReminderService {
         }
       )
 
-      console.log(`Sent ${timeUntil} reminder for event: ${event.title}`)
+      console.log(`Sent ${timeUntil} event reminder`)
     } catch (err) {
-      console.error('Error sending event reminder:', err)
+      console.error('Error sending event reminder:', err instanceof Error ? err.name : 'unknown error')
     }
   }
 
@@ -63,7 +63,7 @@ class EventReminderService {
 
       return res.ok
     } catch (err) {
-      console.error('Error in triggerManualReminder:', err)
+      console.error('Error in triggerManualReminder:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }
@@ -77,14 +77,14 @@ class EventReminderService {
       })
 
       if (!res.ok) {
-        console.error('Error checking overdue chores:', await res.text())
+        console.error('Error checking overdue chores:', res.status)
         return
       }
 
       const data = await res.json()
       console.log(`Sent ${data.count || 0} overdue chore reminders`)
     } catch (err) {
-      console.error('Error in checkOverdueChores:', err)
+      console.error('Error in checkOverdueChores:', err instanceof Error ? err.name : 'unknown error')
     }
   }
 
@@ -113,9 +113,9 @@ class EventReminderService {
         })
       }
 
-      console.log(`Sent overdue reminder for chore: ${chore.title}`)
+      console.log('Sent overdue chore reminder')
     } catch (err) {
-      console.error('Error sending overdue chore reminder:', err)
+      console.error('Error sending overdue chore reminder:', err instanceof Error ? err.name : 'unknown error')
     }
   }
 }

@@ -82,8 +82,21 @@ export function describeError(error: unknown): { errorName: string; errorCode?: 
  * Deliberately NOT logged: the exception message (Prisma and pg messages can
  * quote column values), the stack, the request body, query string, URL, user,
  * household or any other identifier. `route` must be a template such as
- * `GET /api/audit`, never a raw URL.
+ * `GET /api/audit`, never a raw URL; code with no request in scope (a shared
+ * helper) passes a stable name such as `idempotency.store` and no request id.
  */
-export function logRouteError(route: string, error: unknown, requestId: string): void {
-  log.error('route.error', { route: route.slice(0, 120), requestId, ...describeError(error) })
+export function logRouteError(route: string, error: unknown, requestId: string | undefined): void {
+  log.error('route.error', routeErrorContext(route, error, requestId))
+}
+
+/**
+ * The same line at warn level (`event: 'route.warn'`), for a failure the
+ * route recovers from (an optional email or notification that did not send).
+ */
+export function logRouteWarning(route: string, error: unknown, requestId: string | undefined): void {
+  log.warn('route.warn', routeErrorContext(route, error, requestId))
+}
+
+function routeErrorContext(route: string, error: unknown, requestId: string | undefined) {
+  return { route: route.slice(0, 120), ...(requestId === undefined ? {} : { requestId }), ...describeError(error) }
 }

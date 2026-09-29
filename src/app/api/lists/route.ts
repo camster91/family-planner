@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { deleteListSchema } from '@/lib/validations'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ lists })
   } catch (error) {
-    console.error('Error fetching lists:', error)
+    logRouteError('GET /api/lists', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -79,7 +81,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting list:', error)
+    logRouteError('DELETE /api/lists', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

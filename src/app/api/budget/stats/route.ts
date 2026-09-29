@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { featureGate } from '@/lib/feature-gate-server';
 import { parseYearMonth, utcMonthRange } from "@/lib/dates";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
@@ -199,7 +201,7 @@ export async function GET(request: NextRequest) {
       monthly_trend: monthlyTrend,
     });
   } catch (error) {
-    console.error("Error fetching budget stats:", error);
+    logRouteError("GET /api/budget/stats", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

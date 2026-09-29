@@ -4,6 +4,8 @@ import { authenticateRequest } from '@/lib/api-auth'
 import { BACKFILL_SOURCE_APP } from '@/lib/backfill/meals-groceries'
 import { NOTIFICATION_PREFERENCE_SELECT, preferencesFromRow } from '@/lib/notification-policy'
 import { AUDIT_RETENTION_MS } from '@/lib/household-audit'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -298,7 +300,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error exporting user data:', error)
+    logRouteError('GET /api/users/export', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -4,6 +4,8 @@ import { CaptureError, draftFromText, draftFromImage, resolveCaptureConfig } fro
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { CAPTURE_CHILD_MESSAGE, canUseCapture } from '@/lib/role-capabilities'
+import { logRouteWarning } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // Only messages written for users are returned; anything else (network
     // errors, DNS failures) stays in the server log.
-    console.warn('Capture error:', error instanceof Error ? error.message : error)
+    logRouteWarning('POST /api/capture', error, getRequestId(request))
     if (error instanceof CaptureError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }

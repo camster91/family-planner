@@ -7,6 +7,8 @@ import { awardChoreXP } from '@/lib/gamification-server'
 import { isGamificationOn } from '@/lib/gamification-visibility'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
 import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +78,7 @@ export async function POST(request: NextRequest) {
     if (familyError) return familyError
 
     if (decision === 'reject') {
-      return rejectChore(auth.user, chore, verificationNotes)
+      return rejectChore(auth.user, chore, verificationNotes, getRequestId(request))
     }
 
     // 'verified' is accepted so re-verifying is idempotent (the updateMany
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
           })
         }
       } catch (notifyErr) {
-        console.error('Verify notification failed:', notifyErr)
+        logRouteError('POST /api/chores/verify (approve notification)', notifyErr, getRequestId(request))
       }
     }
 
@@ -182,7 +184,7 @@ export async function POST(request: NextRequest) {
       chore: await choreState(choreId),
     })
   } catch (error) {
-    console.error('Error verifying chore:', error)
+    logRouteError('POST /api/chores/verify', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -202,7 +204,12 @@ type CheckedChore = {
 }
 
 /** Send a completed chore back to the child (decision 'reject'). No XP moves. */
-async function rejectChore(caller: VerifyCaller, chore: CheckedChore, notes: string | undefined) {
+async function rejectChore(
+  caller: VerifyCaller,
+  chore: CheckedChore,
+  notes: string | undefined,
+  requestId: string
+) {
   if (chore.status === 'verified') {
     return NextResponse.json(
       { error: 'This chore has already been checked, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
@@ -249,7 +256,7 @@ async function rejectChore(caller: VerifyCaller, chore: CheckedChore, notes: str
         type: 'chore',
       })
     } catch (notifyErr) {
-      console.error('Reject notification failed:', notifyErr)
+      logRouteError('POST /api/chores/verify (reject notification)', notifyErr, requestId)
     }
   }
 

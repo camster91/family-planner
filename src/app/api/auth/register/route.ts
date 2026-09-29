@@ -13,6 +13,8 @@ import { recordBetaMetric } from '@/lib/beta-metrics'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
+import { logRouteError, logRouteWarning } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
@@ -186,13 +188,13 @@ export async function POST(request: NextRequest) {
         })
       } catch (e) {
         // Registration must not fail if email delivery fails; surface it in logs.
-        console.warn('Verification email failed:', e)
+        logRouteWarning('POST /api/auth/register (verification email)', e, getRequestId(request))
       }
     } catch (e) {
       // Token creation failed (e.g. old deploy without verify_token column)
       // Log but don't fail registration — the user can request a new verify
       // email later via /api/auth/resend-verification (TODO: implement)
-      console.warn('Verification token creation failed:', e)
+      logRouteWarning('POST /api/auth/register (verification token)', e, getRequestId(request))
     }
 
     // NOTE: We deliberately do NOT issue a session token here. The user must
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest) {
     })
     return response
   } catch (error) {
-    console.error('Register error:', error)
+    logRouteError('POST /api/auth/register', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

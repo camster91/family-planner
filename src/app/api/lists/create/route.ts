@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { createListSchema } from '@/lib/validations'
 import { canCreateList } from '@/lib/role-capabilities'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, list })
   } catch (error) {
-    console.error('Error creating list:', error)
+    logRouteError('POST /api/lists/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -7,6 +7,8 @@ import {
 } from "@/lib/api-auth";
 import { createTransactionSchema } from "@/lib/validations";
 import { featureGate } from '@/lib/feature-gate-server';
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ transactions, total, limit, offset });
   } catch (error) {
-    console.error("Error fetching transactions:", error);
+    logRouteError("GET /api/budget/transactions", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -139,9 +141,7 @@ export async function POST(request: NextRequest) {
 
       // Warn if category type doesn't match transaction type (but allow it)
       if (category.type !== type) {
-        console.warn(
-          `Transaction type "${type}" doesn't match category type "${category.type}" for category ${category_id}`,
-        );
+        console.warn("Transaction type does not match its category type");
       }
     }
 
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ transaction }, { status: 201 });
   } catch (error) {
-    console.error("Error creating transaction:", error);
+    logRouteError("POST /api/budget/transactions", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

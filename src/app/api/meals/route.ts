@@ -5,6 +5,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { addUTCDays, parseDateOnly, startOfTodayUTC } from '@/lib/dates'
 import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
 import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ meals })
   } catch (err) {
-    console.error('Error fetching meals:', err)
+    logRouteError('GET /api/meals', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ meal }, { status: 201 })
   } catch (err) {
-    console.error('Error creating meal:', err)
+    logRouteError('POST /api/meals', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

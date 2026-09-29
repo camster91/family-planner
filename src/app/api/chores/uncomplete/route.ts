@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { uncompleteChoreSchema } from '@/lib/validations'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ success: true, choreId, status: 'pending' })
   } catch (error) {
-    console.error('Error reopening chore:', error)
+    logRouteError('POST /api/chores/uncomplete', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

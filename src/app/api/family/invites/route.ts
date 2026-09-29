@@ -13,6 +13,8 @@ import {
 import { familyInviteEmail } from '@/lib/mail'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
       invite: { email, role: parsed.data.role, expires_at: expires_at.toISOString() },
     })
   } catch (error) {
-    console.error('Error sending family invite:', error)
+    logRouteError('POST /api/family/invites', error, getRequestId(request))
     const message = error instanceof Error ? error.message : ''
     if (message.includes('MAILGUN_API_KEY')) {
       return NextResponse.json(

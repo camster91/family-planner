@@ -4,6 +4,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { DEFAULT_USE_SOON_DAYS, USE_SOON_MAX_LIMIT, getUseSoonItems, parseDays } from '@/lib/inventory'
 import { inventoryError, inventoryJson, todayFrom } from '@/lib/inventory-http'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
     const items = await getUseSoonItems(prisma!, auth.user.family_id, { today, days, limit })
     return inventoryJson({ days, items })
   } catch (err) {
-    console.error('Error fetching use-soon items:', err instanceof Error ? err.message : 'unknown error')
+    logRouteError('GET /api/inventory/use-soon', err, getRequestId(request))
     return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
   }
 }

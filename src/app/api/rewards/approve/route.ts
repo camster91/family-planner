@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,13 +73,13 @@ export async function POST(request: NextRequest) {
           type: 'reward',
         })
       } catch (err) {
-        console.error('Error sending approval notification:', err)
+        logRouteError('POST /api/rewards/approve (notification)', err, getRequestId(request))
       }
     }
 
     return NextResponse.json({ reward: updated })
   } catch (error) {
-    console.error('Error approving reward:', error)
+    logRouteError('POST /api/rewards/approve', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

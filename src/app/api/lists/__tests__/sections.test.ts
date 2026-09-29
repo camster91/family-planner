@@ -308,7 +308,14 @@ describe('walking order: ticks record shopping trips (#273)', () => {
     const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined)
     const res = await tick('parentA', 'soap')
     spy.mockRestore()
-    expect(logged).toHaveBeenCalledWith('Error recording grocery walking order:', 'boom')
+    // One privacy-safe line (docs/architecture/OBSERVABILITY.md): the helper's
+    // name and the error class, never the exception message.
+    expect(logged).toHaveBeenCalledTimes(1)
+    const line = String(logged.mock.calls[0][0])
+    expect(line).toContain('route.error')
+    expect(line).toContain('list-item-update.section-tick')
+    expect(line).toContain('"errorName":"Error"')
+    expect(line).not.toContain('boom')
     expect(res.status).toBe(200)
     expect(db.find('listItem', 'soap')!.checked).toBe(true)
   })

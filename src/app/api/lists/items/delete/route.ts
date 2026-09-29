@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { deleteHouseholdListItem } from '@/lib/list-item-delete'
 import { DEPRECATED_SINCE_289, markDeprecated } from '@/lib/deprecation'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +45,7 @@ export async function DELETE(request: NextRequest) {
 
     return markDeprecated(NextResponse.json({ success: true }), deprecated)
   } catch (error) {
-    console.error('Error deleting list item:', error)
+    logRouteError('DELETE /api/lists/items/delete', error, getRequestId(request))
     return markDeprecated(NextResponse.json({ error: 'Internal server error' }, { status: 500 }), deprecated)
   }
 }

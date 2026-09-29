@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ dates })
   } catch (err) {
-    console.error('Error fetching anniversaries:', err)
+    logRouteError('GET /api/anniversaries', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -109,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ date: created }, { status: 201 })
   } catch (err) {
-    console.error('Error creating anniversary:', err)
+    logRouteError('POST /api/anniversaries', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

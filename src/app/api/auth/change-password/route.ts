@@ -3,6 +3,8 @@ import { verifyPassword, hashPassword } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest, attachSessionCookie } from '@/lib/api-auth'
 import { changePasswordSchema } from '@/lib/validations'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    console.error('Change password error:', error)
+    logRouteError('POST /api/auth/change-password', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

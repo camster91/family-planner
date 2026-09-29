@@ -19,7 +19,7 @@ class NotificationService {
       })
       return res.ok
     } catch (err) {
-      console.error('Error in sendNotification:', err)
+      console.error('Error in sendNotification:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }
@@ -34,7 +34,7 @@ class NotificationService {
       )
       return results.every(Boolean)
     } catch (err) {
-      console.error('Error in sendNotificationsToUsers:', err)
+      console.error('Error in sendNotificationsToUsers:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }
@@ -49,7 +49,7 @@ class NotificationService {
       })
       return res.ok
     } catch (err) {
-      console.error('Error in sendNotificationToFamily:', err)
+      console.error('Error in sendNotificationToFamily:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }

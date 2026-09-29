@@ -122,7 +122,7 @@ export async function checkRateLimit(
         console.warn('RateLimitEntry table missing — rate limiting disabled. Will activate on next deploy after migration runs.')
       }
     } else {
-      console.warn('Rate limit DB query failed, using in-memory fallback:', err)
+      console.warn('Rate limit DB query failed, using in-memory fallback:', err instanceof Error ? err.name : 'unknown error')
     }
     return memCheck(key, maxAttempts, windowMs, now)
   }

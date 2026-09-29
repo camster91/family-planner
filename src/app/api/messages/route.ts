@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
       userId: auth.user.id,
     })
   } catch (error) {
-    console.error('Error fetching messages:', error)
+    logRouteError('GET /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -96,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message })
   } catch (error) {
-    console.error('Error sending message:', error)
+    logRouteError('POST /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -150,7 +152,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error marking messages as read:', error)
+    logRouteError('PATCH /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

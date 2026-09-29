@@ -206,9 +206,8 @@ async function callModel(
   })
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    // Log the detail server-side only; the client gets the status code.
-    console.warn(`Capture model failed (${res.status}): ${detail.slice(0, 200)}`)
+    // Log the status only: the provider's error body can echo the prompt.
+    console.warn('Capture model failed', { status: res.status })
     throw new CaptureError(`The AI provider returned an error (${res.status}). Check the key and provider in Settings.`)
   }
 

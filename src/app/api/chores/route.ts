@@ -5,6 +5,8 @@ import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ chores })
   } catch (error) {
-    console.error('Error fetching chores:', error)
+    logRouteError('GET /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -169,7 +171,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ chore: updated })
   } catch (error) {
-    console.error('Error updating chore:', error)
+    logRouteError('PATCH /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -214,7 +216,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting chore:', error)
+    logRouteError('DELETE /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
