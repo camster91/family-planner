@@ -199,6 +199,24 @@ Weather is off per household by default (`Family.weather_enabled = false`); with
 (coordinates rounded to 2 decimals) is sent to Open-Meteo, server-side, and the server kill switch
 `WEATHER_ENABLED` is off unless explicitly set to `1`/`true`, so weather is unavailable everywhere until it is set.
 
+#271 (visible sync and calm display) adds a change check for the board, "Updated … ago" in words, and, in fridge
+mode only, a calm frame after a household-set idle time (clock, date, weather when on, the next event's title and
+time, tonight's dinner title) with optional night dimming and optional family photos.
+
+| Visible sync and calm display (#271) | Parent | Teen | Child | Shared device |
+|---|---|---|---|---|
+| `GET /api/family/board-version` (`{ version }` of the caller's own board) | yes | yes | yes | no (401, route allowlist) |
+| `GET /api/device/today/version` (`{ version }` of the device board) | n/a (device cookie only) | n/a | n/a | yes, own household (route allowlist) |
+| `display.idleMinutes` / `display.night` in the board DTO | read | read | read | read (same DTO) |
+| `display.photos` (chosen household uploads) in the board DTO | read | read | read | **no** (never sent; open question in SHARED_DEVICE.md §9.1) |
+| Set idle time, night hours, photos (`PATCH /api/family/board-settings` `display`) | yes | 403 | 403 | no (401, route allowlist) |
+| Settings UI ("Calm screen", "Night hours", "Family photos") | shown | not rendered | not rendered | n/a |
+
+The version is an opaque hash of the caller's own board; it is computed from the same `family_id`-scoped reads as
+the board and reveals nothing the caller cannot already read. Photos are the household's own `Upload` rows chosen
+by a parent (another household's upload is refused exactly like a missing one) and are served by the existing
+household-scoped `/api/files/chores/<filename>` route, so only signed-in members of that household can load them.
+
 Implemented (behind SHARED_DEVICE_ENABLED), #240: the same DTO, built with `audience: 'device'` (all links
 `null`, shopping only when the lists feature is on), is the entire shared-device read surface, served by
 `GET /api/device/today`. The `/device/today` page (#241) fetches it on the client under a layout that loads no

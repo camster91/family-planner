@@ -524,19 +524,27 @@ test.describe("Today board: Family A parent", () => {
     await expect(region(page, "today")).toBeVisible();
   });
 
-  test("refreshes itself on the client and says when it is offline", async ({
+  test("checks for changes on the client and says when it is offline", async ({
     page,
   }) => {
     await openBoard(page);
-
-    // Five minutes later the board re-requests its server component (RSC).
-    const refreshed = page.waitForRequest(
-      (req) =>
-        req.url().includes("/dashboard/today") && Boolean(req.headers()["rsc"]),
+    await expect(board(page).getByTestId("board-updated")).toHaveText(
+      "Updated just now",
     );
-    await page.clock.runFor(5 * 60 * 1000);
-    await refreshed;
+
+    // Visible sync (#271): about every 25 s the board asks the cheap version
+    // route; with nothing changed it keeps its data and stays "just now".
+    // (e2e/ambient.spec.ts covers the re-fetch when something changes.)
+    const checked = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/family/board-version") && res.status() === 200,
+    );
+    await page.clock.runFor(30 * 1000);
+    await checked;
     await expect(region(page, "dinner")).toContainText(DINNER_TODAY);
+    await expect(board(page).getByTestId("board-updated")).toHaveText(
+      "Updated just now",
+    );
 
     await goOffline(page);
     await expect(board(page).getByRole("status")).toContainText(
