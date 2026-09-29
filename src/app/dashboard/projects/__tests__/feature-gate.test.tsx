@@ -17,6 +17,8 @@ jest.mock('@/lib/supabase/server', () => ({
 
 import ProjectsPage from '../page'
 import ProjectDetailPage from '../[id]/page'
+import CreateProjectPage from '../create/page'
+import { FeaturesProvider } from '@/components/providers/features-provider'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { defaultFeatures } from '@/lib/features'
 
@@ -63,6 +65,16 @@ async function renderDetail(id: string) {
   if (!inner) return null
   return (inner.type as AsyncComponent)(inner.props)
 }
+
+it('the create page shows the off state instead of the form when Projects is off', () => {
+  render(
+    <FeaturesProvider initial={{ ...defaultFeatures(), projects: false }}>
+      <CreateProjectPage />
+    </FeaturesProvider>
+  )
+  expect(screen.getByRole('heading', { name: 'Projects is off' })).toBeTruthy()
+  expect(screen.queryByRole('textbox')).toBeNull()
+})
 
 it('the project detail page shows the off state and reads no project when Projects is off', async () => {
   familyWith(false)
