@@ -89,7 +89,7 @@ export default function PrivacyPage() {
               <li>
                 <strong>Delete your account</strong>: Settings → Delete Account. You confirm with your password. Your
                 account, sign-ins, messages, notifications and your own chores are deleted; things you added for the
-                household (events, lists, meals, notes) stay with the household under another parent.
+                household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.
               </li>
               <li>
                 <strong>Delete the household</strong>: the only parent can delete the whole household from the same

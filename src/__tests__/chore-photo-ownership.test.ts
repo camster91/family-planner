@@ -160,6 +160,43 @@ describe("D3 chore photo ownership — two households", () => {
     }
   });
 
+  it("leaves no file when the transaction fails after writing its row (commit lost)", async () => {
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.create;
+    fakePrisma.upload.create = async (args: unknown) => {
+      await original(args);
+      throw new Error("connection lost during commit");
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const before = new Set(mockFiles.keys());
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(500);
+      // The final file is only moved into place after a successful commit.
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+    } finally {
+      fakePrisma.upload.create = original;
+    }
+  });
+
+  it("removes the file it placed when a household deletion removed its row after commit", async () => {
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.findUnique;
+    let calls = 0;
+    fakePrisma.upload.findUnique = async (args: unknown) => {
+      // The second read is the re-check after commit; the deletion has
+      // committed in between.
+      if (++calls === 2) db.tables.upload = [];
+      return original(args);
+    };
+    try {
+      const before = new Set(mockFiles.keys());
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(404);
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+    } finally {
+      fakePrisma.upload.findUnique = original;
+    }
+  });
+
   it("removes its temporary file when moving it into place fails", async () => {
     const fsp = jest.requireMock("fs/promises");
     const original = fsp.rename;

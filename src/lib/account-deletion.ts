@@ -511,29 +511,15 @@ async function handOverAndDetach(
     WHERE "family_id" = ${familyId} AND ${userId} = ANY("read_by")
   `
 
-  // Photos this member uploaded that nothing in the household uses any more
-  // (typically their own chore photos, deleted above). Photos still shown on
-  // a chore or picked for the calm display stay with the household.
-  const uploads = await tx.upload.findMany({ where: { ...inFamily, uploaded_by: userId }, select: { id: true, filename: true } })
+  // Photos this member uploaded stay with the household (uploader cleared
+  // below) and go with the household when it is deleted. They are not
+  // removed here even when nothing seems to use them: attaching a photo to a
+  // chore, an assignment or the calm display is a separate write that does
+  // not take the household lock and has no foreign key to Upload, so "unused"
+  // cannot be decided atomically, and removing a photo another member is
+  // attaching at that moment would break their chore. Retention exception in
+  // docs/product/ACCOUNT_DELETION.md.
   const files: FileTarget[] = []
-  if (uploads.length > 0) {
-    const family = await tx.family.findUnique({ where: { id: familyId }, select: { ambient_photo_ids: true } })
-    const ambient = new Set<string>(family?.ambient_photo_ids ?? [])
-    const refs = uploads.flatMap((u: { filename: string }) => photoRefAliases(u.filename))
-    const [refChores, refAssignments] = await Promise.all([
-      tx.chore.findMany({ where: { ...inFamily, photo_url: { in: refs } }, select: { photo_url: true } }),
-      tx.choreAssignment.findMany({ where: { ...inFamily, photo_url: { in: refs } }, select: { photo_url: true } }),
-    ])
-    const used = new Set([...refChores, ...refAssignments].map((r: { photo_url: string }) => photoRefName(r.photo_url)))
-    const unused = uploads.filter((u: { id: string; filename: string }) => !ambient.has(u.id) && !used.has(u.filename))
-    if (unused.length > 0) {
-      await tx.upload.deleteMany({ where: { id: { in: unused.map((u: { id: string }) => u.id) } } })
-      for (const u of unused) {
-        const p = resolveUnder(root, 'chores', u.filename)
-        if (p) files.push({ path: p })
-      }
-    }
-  }
   await tx.upload.updateMany({ where: { uploaded_by: userId }, data: { uploaded_by: null } })
   return files
 }

@@ -96,8 +96,10 @@ One transaction, after the rules are checked again inside it under a per-househo
 4. **Other references are cleared** (`NULL`): who ticked a list item, cook of a meal, claimer/approver of a reward,
    project task assignee, anniversary person, emergency card person, pickup assignee, inventory adder/actor, grocery
    section setter, device audit actor, upload uploader.
-5. **Uploaded photos** they uploaded that nothing in the household still shows (no chore or assignment references
-   it and it is not a calm-display photo) are deleted, row and file; the rest stay with the household.
+5. **Uploaded photos** they uploaded stay with the household (uploader cleared) and are removed with it. Whether a
+   photo is still used cannot be decided atomically: attaching a photo to a chore, an assignment or the calm
+   display is a separate write without the household lock or a foreign key to `Upload`, so removing an
+   "unused" photo could break one another member is attaching at that moment.
 6. The user row is deleted.
 
 Inside the transaction, their calendar connections are read (the encrypted grants are kept in memory) and each
@@ -213,6 +215,7 @@ Explicit and minimal:
 | Server logs | Operational; deletion logs carry role and counts only, no names or content | The host's log retention |
 | Provider-side copies | Events already pushed to a member's Google/Outlook calendar stay in that calendar (as on a normal disconnect); a provider grant whose revoke failed | Controlled by the member at the provider |
 | Legacy photo file shared with another household | The other household still shows it | While referenced |
+| Photos a deleted member uploaded | They stay with the household (uploader cleared); another member may be attaching one | Until the household is deleted |
 | Files that could not be removed from disk | Reported as `filesNotRemoved`; unreachable through the app | Until removed by an operator |
 
 There is no product analytics or audit store beyond the device audit (`DeviceAuditEvent`, deleted with the

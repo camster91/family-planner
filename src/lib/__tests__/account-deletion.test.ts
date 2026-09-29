@@ -398,7 +398,7 @@ describe('deleteMemberAccount', () => {
     expect(disconnected).toHaveLength(0)
   })
 
-  it('removes a photo the member uploaded once nothing uses it, keeps one still in use', async () => {
+  it('keeps every photo the member uploaded with the household (uploader cleared), used or not', async () => {
     db.rows('upload').push(
       { id: 'up-child-own', family_id: FAMILY_A, uploaded_by: 'child-a', filename: '3333333333333333.jpg' },
       { id: 'up-child-shared', family_id: FAMILY_A, uploaded_by: 'child-a', filename: '4444444444444444.jpg' },
@@ -416,8 +416,11 @@ describe('deleteMemberAccount', () => {
     db.find('family', FAMILY_A)!.ambient_photo_ids = ['up-child-ambient']
     const { d, removed } = deps()
     await deleteMemberAccount('child-a', d)
-    expect(removed).toEqual([`${UPLOADS}/chores/3333333333333333.jpg`])
-    expect(db.find('upload', 'up-child-own')).toBeUndefined()
+    // Nothing is removed from disk: whether a photo is still used cannot be
+    // decided atomically against a concurrent attach, so it stays with the
+    // household and goes with it when the household is deleted.
+    expect(removed).toEqual([])
+    expect(db.find('upload', 'up-child-own')).toMatchObject({ uploaded_by: null })
     expect(db.find('upload', 'up-child-shared')).toMatchObject({ uploaded_by: null })
     expect(db.find('upload', 'up-child-ambient')).toMatchObject({ uploaded_by: null })
   })
