@@ -1,7 +1,7 @@
-import { NextRequest } from 'next/server'
-import { handleAdjust, type ItemContext } from '@/lib/inventory-adjust-route'
+import { NextRequest } from "next/server";
+import { handleAdjust, type ItemContext } from "@/lib/inventory-adjust-route";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 /**
  * POST /api/inventory/[id]/consume?today= (#158/#121) — "Used it". Body
@@ -10,5 +10,5 @@ export const dynamic = 'force-dynamic'
  * paired device refused. Optional `Idempotency-Key`. 200 `{ item, adjustment }`.
  */
 export async function POST(request: NextRequest, context: ItemContext) {
-  return handleAdjust(request, context, 'consume')
+  return handleAdjust(request, context, "consume");
 }
