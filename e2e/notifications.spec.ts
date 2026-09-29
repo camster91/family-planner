@@ -160,7 +160,11 @@ test.describe("notification preferences (Family A child, user menu)", () => {
     const menu = page.getByRole("button", { name: "User menu" });
     await menu.click();
     const item = page.getByRole("button", { name: "Notifications" });
-    expect((await item.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    // The menu opens with a spring animation that starts at scale(0.92), so
+    // measure once it has settled rather than mid-animation.
+    await expect
+      .poll(async () => (await item.boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(44);
     await item.click();
 
     const dialog = page.getByRole("dialog", { name: "Notifications" });
