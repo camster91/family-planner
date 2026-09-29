@@ -13,6 +13,8 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { describeCalendarSync } from "@/lib/calendar-sync-status";
+import { useNow } from "@/components/fridge/sync-status";
 
 interface Subscription {
   id: string;
@@ -32,27 +34,22 @@ const COLORS: Array<{ value: string; label: string }> = [
   { value: "#7c3aed", label: "Purple" },
 ];
 
-function statusText(sub: Subscription): string {
-  if (sub.last_status === "error")
-    return sub.last_error || "Last refresh failed";
-  if (!sub.last_fetched_at) return "Waiting for first refresh";
-  const minutes = Math.max(
-    0,
-    Math.round((Date.now() - new Date(sub.last_fetched_at).getTime()) / 60000),
-  );
-  const when =
-    minutes < 1
-      ? "just now"
-      : minutes < 60
-        ? `${minutes} min ago`
-        : new Date(sub.last_fetched_at).toLocaleString();
-  return sub.last_error
-    ? `Updated ${when}. ${sub.last_error}`
-    : `Updated ${when}`;
+/** Last refresh and any problem, in words (#271). */
+function statusText(sub: Subscription, now: number): string {
+  return describeCalendarSync({
+    lastAttemptAt: sub.last_fetched_at,
+    failed: sub.last_status === "error",
+    error: sub.last_error,
+    now,
+    verb: "updated",
+    failedFallback: "The last refresh failed.",
+  }).text;
 }
 
 export default function CalendarSubscriptionsSection() {
   const [subs, setSubs] = useState<Subscription[]>([]);
+  // Keeps "Last updated 3 min ago" current (#271).
+  const now = useNow(30 * 1000) ?? Date.now();
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -280,7 +277,7 @@ export default function CalendarSubscriptionsSection() {
                     role={sub.last_status === "error" ? "status" : undefined}
                   >
                     {sub.last_status === "error" ? "Problem: " : ""}
-                    {statusText(sub)}
+                    {statusText(sub, now)}
                   </div>
                 </div>
               </div>

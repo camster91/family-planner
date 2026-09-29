@@ -22,9 +22,26 @@ interface Place {
   longitude: number
 }
 
+interface DisplaySettings {
+  idleMinutes: number
+  idleChoices: number[]
+  night: { start: string; end: string } | null
+  photoIds: string[]
+  uploads: Array<{ id: string; url: string; createdAt: string }>
+}
+
 interface BoardSettingsData {
   weather: { available: boolean; enabled: boolean; place: Place | null; unit: 'celsius' | 'fahrenheit' }
   members: Array<{ id: string; name: string; color: MemberColorKey; custom: boolean }>
+  /** Calm display, night hours and photos (#271). Optional for older servers. */
+  display?: DisplaySettings
+}
+
+const DEFAULT_NIGHT = { start: '21:30', end: '06:30' }
+
+function idleLabel(minutes: number): string {
+  if (minutes === 0) return 'Never'
+  return minutes === 1 ? 'After 1 minute' : `After ${minutes} minutes`
 }
 
 const buttonClass =
@@ -49,6 +66,59 @@ export default function BoardSettings() {
   const [query, setQuery] = React.useState('')
   const [results, setResults] = React.useState<Place[] | null>(null)
   const [searching, setSearching] = React.useState(false)
+  const [night, setNight] = React.useState(DEFAULT_NIGHT)
+  const [uploading, setUploading] = React.useState(false)
+
+  // Keep the night-hours inputs in step with what is saved.
+  const savedNight = data?.display?.night
+  React.useEffect(() => {
+    if (savedNight) setNight(savedNight)
+  }, [savedNight])
+
+  const togglePhoto = (id: string, on: boolean) => {
+    const current = data?.display?.photoIds ?? []
+    const next = on ? [...current.filter((x) => x !== id), id] : current.filter((x) => x !== id)
+    void save({ display: { photoIds: next } }, on ? 'Photo added to the calm screen.' : 'Photo removed from the calm screen.')
+  }
+
+  const uploadPhoto = async (file: File) => {
+    setUploading(true)
+    setError(null)
+    setStatus(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        setError(await readError(res))
+        return
+      }
+      const { filename } = (await res.json()) as { filename?: string }
+      // Re-read the household's uploads, then choose the new one.
+      const listRes = await fetch('/api/family/board-settings')
+      if (!listRes.ok) {
+        setError(await readError(listRes))
+        return
+      }
+      const fresh = (await listRes.json()) as BoardSettingsData
+      setData(fresh)
+      const added = fresh.display?.uploads.find((u) => filename && u.url.endsWith(`/${filename}`))
+      if (!added) {
+        setError('That photo cannot be shown on the calm screen. Use a JPEG, PNG or WebP photo.')
+        return
+      }
+      const ids = fresh.display?.photoIds ?? []
+      if (!ids.includes(added.id)) {
+        await save({ display: { photoIds: [...ids, added.id] } }, 'Photo uploaded and added to the calm screen.')
+      } else {
+        setStatus('That photo is already on the calm screen.')
+      }
+    } catch {
+      setError('Could not upload the photo. Check your connection and try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   React.useEffect(() => {
     let cancelled = false
@@ -306,6 +376,166 @@ export default function BoardSettings() {
                 </>
               )}
             </fieldset>
+
+            {data.display && (
+              <>
+                <fieldset className="space-y-3" data-testid="calm-display-settings">
+                  <legend className="text-headline font-semibold text-label-primary">Calm screen</legend>
+                  <p className="text-subhead text-label-secondary">
+                    In fridge mode, when nobody has touched the board for a while, it fades to a calm screen: the
+                    time, the date, the weather (when it is on), the next event and tonight&apos;s dinner. A tap
+                    brings the board back.
+                  </p>
+                  <label htmlFor="calm-idle" className="block text-subhead font-medium text-label-primary">
+                    Fade to the calm screen
+                  </label>
+                  <select
+                    id="calm-idle"
+                    value={data.display.idleMinutes}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const minutes = Number(e.target.value)
+                      void save(
+                        { display: { idleMinutes: minutes } },
+                        minutes === 0
+                          ? 'The calm screen is off.'
+                          : `The board fades after ${minutes} minute${minutes === 1 ? '' : 's'} without a touch.`
+                      )
+                    }}
+                    className="input-apple min-h-[44px]"
+                  >
+                    {data.display.idleChoices.map((m) => (
+                      <option key={m} value={m}>
+                        {idleLabel(m)}
+                      </option>
+                    ))}
+                  </select>
+                </fieldset>
+
+                <fieldset className="space-y-3" data-testid="night-hours-settings">
+                  <legend className="text-headline font-semibold text-label-primary">Night hours</legend>
+                  <p className="text-subhead text-label-secondary">
+                    Dims the fridge screen between these times, on the tablet&apos;s own clock, once the board has been
+                    left alone. The app can only darken what it shows; it cannot turn down the tablet&apos;s backlight,
+                    so use the tablet&apos;s display settings for that.
+                  </p>
+                  <label className="flex min-h-[44px] items-center gap-3 text-body text-label-primary">
+                    <input
+                      type="checkbox"
+                      className="h-6 w-6"
+                      checked={data.display.night !== null}
+                      disabled={busy}
+                      onChange={(e) =>
+                        void save(
+                          { display: { night: e.target.checked ? night : null } },
+                          e.target.checked ? 'Night hours are on.' : 'Night hours are off.'
+                        )
+                      }
+                    />
+                    Dim the screen at night
+                  </label>
+                  {data.display.night && (
+                    <form
+                      className="flex flex-wrap items-end gap-3"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void save({ display: { night } }, 'Night hours saved.')
+                      }}
+                    >
+                      <div>
+                        <label htmlFor="night-start" className="mb-2 block text-subhead font-medium text-label-primary">
+                          From
+                        </label>
+                        <input
+                          id="night-start"
+                          type="time"
+                          required
+                          value={night.start}
+                          onChange={(e) => setNight((n) => ({ ...n, start: e.target.value }))}
+                          className="input-apple min-h-[44px]"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="night-end" className="mb-2 block text-subhead font-medium text-label-primary">
+                          Until
+                        </label>
+                        <input
+                          id="night-end"
+                          type="time"
+                          required
+                          value={night.end}
+                          onChange={(e) => setNight((n) => ({ ...n, end: e.target.value }))}
+                          className="input-apple min-h-[44px]"
+                        />
+                      </div>
+                      <button type="submit" disabled={busy} className={`${buttonClass} bg-accent-tint text-accent`}>
+                        Save night hours
+                      </button>
+                    </form>
+                  )}
+                </fieldset>
+
+                <fieldset className="space-y-3" data-testid="calm-photos-settings">
+                  <legend className="text-headline font-semibold text-label-primary">Family photos</legend>
+                  <p className="text-subhead text-label-secondary">
+                    Optional. Photos you choose from your household&apos;s own uploads show on the calm screen of a
+                    signed-in fridge board. They are not shown on a paired shared tablet, and the calm screen never
+                    shows ads.
+                  </p>
+                  <label className={`${buttonClass} w-fit cursor-pointer bg-[var(--surface-fill)] text-label-primary`}>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      disabled={uploading || busy}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        e.target.value = ''
+                        if (file) void uploadPhoto(file)
+                      }}
+                    />
+                    {uploading ? 'Uploading…' : 'Upload a photo'}
+                  </label>
+                  {data.display.uploads.length === 0 ? (
+                    <p className="text-subhead text-label-secondary">No household photos uploaded yet.</p>
+                  ) : (
+                    <ul aria-label="Household photos" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {data.display.uploads.map((u, i) => {
+                        const chosen = data.display!.photoIds.includes(u.id)
+                        return (
+                          <li key={u.id}>
+                            <label className="flex min-h-[44px] cursor-pointer flex-col gap-2 text-subhead text-label-primary">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- household-scoped file route */}
+                              <img
+                                src={u.url}
+                                alt=""
+                                loading="lazy"
+                                className="aspect-[4/3] w-full rounded-[var(--radius-md)] object-cover"
+                              />
+                              <span className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  className="h-6 w-6"
+                                  checked={chosen}
+                                  disabled={busy || (!chosen && data.display!.photoIds.length >= 20)}
+                                  onChange={(e) => togglePhoto(u.id, e.target.checked)}
+                                />
+                                Photo {i + 1}, uploaded {new Date(u.createdAt).toLocaleDateString()}
+                              </span>
+                            </label>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                  <p className="text-subhead text-label-secondary">
+                    {data.display.photoIds.length === 0
+                      ? 'No photos chosen: the calm screen is plain.'
+                      : `${data.display.photoIds.length} of up to 20 photos chosen.`}
+                  </p>
+                </fieldset>
+              </>
+            )}
           </>
         )}
       </div>

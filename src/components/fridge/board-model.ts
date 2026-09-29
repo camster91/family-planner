@@ -233,3 +233,34 @@ export function itemsToUseSoon(items: BoardUseSoonItem[] | null | undefined, now
     })
     .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
+
+export interface NextEventView {
+  title: string
+  /** "7:30 PM" today, "Tomorrow 9:00 AM", or "Wed 9:00 AM". */
+  when: string
+}
+
+/**
+ * The next event to start (calm display, #271): the soonest event that has
+ * not started yet, title and time only (no source, member, place or notes).
+ */
+export function nextEvent(events: BoardEvent[], now: Date): NextEventView | null {
+  const t = now.getTime()
+  const next = events
+    .filter((e) => new Date(e.start).getTime() > t)
+    .sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))[0]
+  if (!next) return null
+  const start = new Date(next.start)
+  const day = toDateOnlyLocal(start)
+  const time = formatTime(start)
+  let when = time
+  if (day === localDayKey(now, 1)) when = `Tomorrow ${time}`
+  else if (day !== localDayKey(now)) when = `${start.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
+  return { title: next.title, when }
+}
+
+/** Tonight's dinner title for the calm display (as the Dinner region names it), or null. */
+export function dinnerTitle(dinner: BoardDinner | null): string | null {
+  if (!dinner) return null
+  return dinner.recipeName?.trim() || dinner.recipeTitle?.trim() || 'Dinner is planned'
+}

@@ -60,6 +60,16 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Family photos on the fridge board (optional)</h2>
+            <p>
+              A parent can choose photos your household has already uploaded to show on the calm screen
+              of the fridge board when it is left alone. They are shown only to signed-in members of your
+              household, never on a paired shared tablet, and never sent to anyone else. No photos are
+              chosen unless a parent picks them, and the calm screen never shows ads.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>
