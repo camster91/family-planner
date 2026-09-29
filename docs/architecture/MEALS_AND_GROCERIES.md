@@ -5,7 +5,7 @@ Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.m
 ## 1. Evidence base
 
 - Inspected on `master` @ `2fd6cc5` on 2026-09-27. Static source inspection only. No production data was read, and no row counts in this document come from a live database.
-- #148 (route/domain inventory, deliverable `docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`) is **still open and its output does not exist**. `EXECUTION_ORDER.md` puts #149 after #148. To avoid blocking on it, this document includes its own inventory of the meal/list slice (§2). #148 must reconcile with it and trigger the ADR's revisit clause if it finds another live path.
+- #148 (route/domain inventory) was not available when this was written, so this document includes its own inventory of the meal/list slice (§2). **Update 2026-09-29:** the inventory now exists at [`docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`](../refactor/ROUTE_AND_DOMAIN_INVENTORY.md) (inspected at `cbef026`). Its "Meal and list overlap" section reconciles with §2: no route writes a legacy table, the only live legacy reads are `GET /api/users/export` and `DELETE /api/recipes/[id]` (both for #254), and no new live path triggers the ADR's revisit clause.
 - The idempotency primitive (`src/lib/idempotency.ts`, `IdempotencyRecord`, `Idempotency-Key`) is on `master` (merged in #247 for #162). Child D builds on it.
 
 ## 2. Source inventory

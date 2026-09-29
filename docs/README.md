@@ -15,6 +15,7 @@ Start with [`START_HERE.md`](START_HERE.md).
 - `engineering/AGENT_WORKFLOW.md`
 - `engineering/EXECUTION_ORDER.md`
 - `engineering/DEFINITION_OF_DONE.md`
+- `refactor/ROUTE_AND_DOMAIN_INVENTORY.md`
 
 ## Architecture
 - `architecture/SYSTEM.md`
