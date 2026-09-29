@@ -258,6 +258,7 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/handoff` | GET, POST | GET: all; teen: no share token; child: `id`, `sitter_name`, `arrival_time`, `departure_time` only ; POST: P | no | handoff | — | — |
 | `/api/handoff/share/[token]` | GET | GET: n/a | no | — | — | — |
 | `/api/health/live` | GET | GET: n/a | no | — | — | — |
+| `/api/version` | GET | GET: n/a | no | — | — | — |
 | `/api/health` | GET | GET: n/a | no | — | — | — |
 | `/api/inventory/[id]` | GET, PATCH, DELETE | GET: all ; PATCH: P+T ; DELETE: P+T | refused | inventory | — | canonical: Ingredient, Recipe |
 | `/api/inventory/cook` | GET | GET: all | no | inventory, meals | — | canonical: Ingredient, Recipe |

@@ -10,6 +10,9 @@ import {
   preferencesFromRow,
   preferencesToColumns,
 } from '@/lib/notification-policy'
+import { apiError, logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,13 +31,16 @@ const patchSchema = z
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
-function error(status: number, code: string, message: string): NextResponse {
-  return NextResponse.json({ error: { code, message } }, { status, headers: NO_STORE })
+// This route was already on the nested API_CONTRACTS.md shape; #161 adds
+// `requestId` inside it: `{ error: { code, message, requestId } }`.
+function error(status: number, code: string, message: string, requestId: string): NextResponse {
+  return apiError(status, code, message, { requestId, shape: 'nested', headers: NO_STORE })
 }
 
 // GET /api/users/preferences — the caller's own notification preferences
 // (#286, PR101 D-5). Any role; there is no way to name another member.
-export async function GET(request: NextRequest) {
+async function getPreferences(request: NextRequest) {
+  const requestId = getRequestId(request)
   try {
     const deviceRefusal = await refusePairedDevice(request)
     if (deviceRefusal) return deviceRefusal
@@ -48,17 +54,20 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json({ preferences: preferencesFromRow(row) }, { headers: NO_STORE })
   } catch (err) {
-    console.error('Error reading notification preferences:', err instanceof Error ? err.message : 'unknown error')
-    return error(500, 'INTERNAL_ERROR', 'Internal server error')
+    logRouteError('GET /api/users/preferences', err, requestId)
+    return error(500, 'INTERNAL_ERROR', 'Internal server error', requestId)
   }
 }
+
+export const GET = withRouteTelemetry('/api/users/preferences', getPreferences)
 
 // PATCH /api/users/preferences { chores?, events?, messages? } — change the
 // caller's own switches. Any role. Optional `Idempotency-Key`: the update sets
 // explicit values, so a replay or a re-run converges. A member without a
 // household has no idempotency scope (records belong to a household), so their
 // key is ignored and the same explicit update simply runs again.
-export async function PATCH(request: NextRequest) {
+async function patchPreferences(request: NextRequest) {
+  const requestId = getRequestId(request)
   try {
     const deviceRefusal = await refusePairedDevice(request)
     if (deviceRefusal) return deviceRefusal
@@ -73,10 +82,10 @@ export async function PATCH(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return error(400, 'INVALID_JSON', 'Invalid JSON')
+      return error(400, 'INVALID_JSON', 'Invalid JSON', requestId)
     }
     const parsed = patchSchema.safeParse(body)
-    if (!parsed.success) return error(400, 'VALIDATION_ERROR', parsed.error.issues[0].message)
+    if (!parsed.success) return error(400, 'VALIDATION_ERROR', parsed.error.issues[0].message, requestId)
 
     const userId = auth.user.id
     const effect = async (): Promise<EffectResult> => {
@@ -101,7 +110,9 @@ export async function PATCH(request: NextRequest) {
     for (const [name, value] of Object.entries(NO_STORE)) res.headers.set(name, value)
     return res
   } catch (err) {
-    console.error('Error updating notification preferences:', err instanceof Error ? err.message : 'unknown error')
-    return error(500, 'INTERNAL_ERROR', 'Internal server error')
+    logRouteError('PATCH /api/users/preferences', err, requestId)
+    return error(500, 'INTERNAL_ERROR', 'Internal server error', requestId)
   }
 }
+
+export const PATCH = withRouteTelemetry('/api/users/preferences', patchPreferences)

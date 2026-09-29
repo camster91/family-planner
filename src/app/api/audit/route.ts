@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { parseAuditQuery, readAuditPage } from '@/lib/household-audit'
+import { apiError, logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,9 +21,11 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' }
  * 200 `{ entries: [{ id, action, actorKind, actor: { id, name } | null,
  * targetType, targetId, summary, createdAt }], nextCursor }`. `limit` 1–50
  * (default 20); `cursor` is the previous page's opaque `nextCursor`.
- * 400 for a bad `limit` or `cursor`.
+ * 400 `INVALID_QUERY` for a bad `limit` or `cursor`; 500 `INTERNAL_ERROR`.
+ * Error bodies are `{ error, code, requestId }` (#161, `src/lib/api-error.ts`).
  */
-export async function GET(request: NextRequest) {
+async function getAudit(request: NextRequest) {
+  const requestId = getRequestId(request)
   try {
     const deviceRefusal = await refusePairedDevice(request)
     if (deviceRefusal) return deviceRefusal
@@ -31,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (parentError) return parentError
 
     const parsed = parseAuditQuery(new URL(request.url).searchParams)
-    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400, headers: NO_STORE })
+    if (!parsed.ok) return apiError(400, 'INVALID_QUERY', parsed.error, { requestId, headers: NO_STORE })
 
     const page = await readAuditPage(prisma!, auth.user.family_id, {
       limit: parsed.limit,
@@ -40,7 +45,9 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json(page, { headers: NO_STORE })
   } catch (err) {
-    console.error('Audit history read failed:', err instanceof Error ? err.name : 'unknown error')
-    return NextResponse.json({ error: 'Could not load recent changes' }, { status: 500, headers: NO_STORE })
+    logRouteError('GET /api/audit', err, requestId)
+    return apiError(500, 'INTERNAL_ERROR', 'Could not load recent changes', { requestId, headers: NO_STORE })
   }
 }
+
+export const GET = withRouteTelemetry('/api/audit', getAudit)

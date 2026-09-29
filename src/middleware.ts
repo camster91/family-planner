@@ -6,6 +6,7 @@ import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
 import { KID_ALLOWED_PREFIXES, isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
 import { isSharedDeviceEnabled } from '@/lib/device-http'
 import { clearDeviceCookies, DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE } from '@/lib/device-session'
+import { REQUEST_ID_HEADER, resolveRequestId } from '@/lib/request-id'
 
 // Shared-device pages that need no device cookie (SHARED_DEVICE.md §12).
 const DEVICE_PUBLIC_PAGES = new Set(['/device/pair', '/device/removed'])
@@ -49,7 +50,23 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/cron/recurring-chores',
 ])
 
+/**
+ * Request identity (#161): every response leaving the middleware, including
+ * early CSRF rejections and redirects, carries `X-Request-Id`.
+ */
+function withRequestId<T extends NextResponse>(response: T, requestId: string): T {
+  response.headers.set('X-Request-Id', requestId)
+  return response
+}
+
 export async function middleware(request: NextRequest) {
+  // Accept a well-formed inbound id, otherwise generate one (src/lib/request-id.ts).
+  const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
+  const response = await handle(request, requestId)
+  return withRequestId(response, requestId)
+}
+
+async function handle(request: NextRequest, requestId: string): Promise<NextResponse> {
   // CSRF check: reject all state-changing /api/* requests without a valid token,
   // except for the auth endpoints listed above (where credentials are the second factor).
   //
@@ -171,7 +188,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  const response = NextResponse.next()
+  // Forward the request id to route handlers (`getRequestId(request)`) without
+  // dropping any inbound header.
+  const forwardedHeaders = new Headers(request.headers)
+  forwardedHeaders.set(REQUEST_ID_HEADER, requestId)
+  const response = NextResponse.next({ request: { headers: forwardedHeaders } })
 
   // Kill switch off: device cookies are ignored above, and expired here so a
   // tablet that was paired re-pairs instead of silently resuming when the

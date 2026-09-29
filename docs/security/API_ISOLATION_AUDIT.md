@@ -405,6 +405,7 @@ recorded in route comments, as the de facto matrix.
 | /api/handoff/share/[token] | GET | token (rate-limited, expiring) | token's handoff only; allowlisted fields | n/a | none | handoff/share/[token]/__tests__/route.test.ts | ok |
 | /api/health | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
 | /api/health/live | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
+| /api/version | GET | public (build identity only, #161) | n/a | n/a | none | src/app/api/version/__tests__/version.test.ts | ok |
 | /api/inventory | GET | family + `featureGate('inventory')` | where family_id + status active (+ location / category / name search / expiry filters); paginated (limit ≤ 500) | all | none | inventory/iso, inventory/adjustments, inventory.integration | implemented (#263, #158) |
 | /api/inventory | POST | device refused (403) + family + `featureGate('inventory')` | session family | P+T | `ingredient_id` verified in family (400, no existence leak); name link only to a same-family ingredient; strict body (no `family_id`/`added_by`); optional `Idempotency-Key` scoped `user:<id>`, record carries the family (#265) | inventory/iso, inventory/create-idempotency, inventory.integration, device-route-allowlist | implemented (#263) |
 | /api/inventory/[id] | GET | family + `featureGate('inventory')` | where id + family (404, same as missing) | all | none | inventory/iso, inventory.integration | implemented (#263) |

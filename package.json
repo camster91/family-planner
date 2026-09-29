@@ -26,6 +26,7 @@
     "health": "curl -f http://localhost:3000/api/health || exit 1",
     "fixtures:seed": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs seed",
     "fixtures:reset": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs reset",
+    "perf:baseline": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/perf-baseline.mjs",
     "backfill:meals-groceries": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/backfill-meals-groceries.mjs",
     "beta:scorecard": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/beta-scorecard.mjs"
   },

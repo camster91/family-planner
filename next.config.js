@@ -67,6 +67,12 @@ if (process.env.NODE_ENV === 'production') {
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // Build identity (#161, src/lib/build-info.ts): when this bundle was
+  // compiled, served by GET /api/version. Inlined at build time, so it is not
+  // a runtime variable and a deploy cannot inherit an older value.
+  env: {
+    FP_BUILT_AT: new Date().toISOString(),
+  },
   images: {
     remotePatterns: [],
   },
