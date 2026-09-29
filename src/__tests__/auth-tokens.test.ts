@@ -96,35 +96,36 @@ describe("token storage", () => {
     });
   });
 
-  // Tokens issued before the hashing change live in these columns in PLAINTEXT.
-  // Registration is email-unique and there is no resend-verification endpoint,
-  // so if the lookup only matched sha256 the affected users would be locked out
-  // of both flows permanently.
-  describe("legacy plaintext tokens", () => {
-    it("tokenMatch accepts both the hash and the raw token", () => {
-      expect(tokenMatch("t")).toEqual({ in: [hashToken("t"), "t"] });
+  // PR #101 disposition D-1: the pre-hashing plaintext arm is gone. It let the
+  // stored hash itself be submitted as a token (a DB reader could reset a
+  // password during a live reset window); every pre-hashing token expired long
+  // ago, so only sha256(token) matches now.
+  describe("stored hash is never accepted as a token", () => {
+    it("tokenMatch is exactly the hash of the submitted token", () => {
+      expect(tokenMatch("t")).toBe(hashToken("t"));
     });
 
-    it("consumeResetToken still matches a pre-hashing reset token", async () => {
+    it("consumeResetToken looks up only the hash (submitting the stored hash does not match it)", async () => {
       updateMany.mockResolvedValue({ count: 1 });
+      const stored = hashToken("real-token");
 
-      await consumeResetToken("legacy-plaintext", "bcrypt-hash");
+      await consumeResetToken(stored, "bcrypt-hash");
 
       const { where } = updateMany.mock.calls[0][0];
-      expect(where.reset_token.in).toContain("legacy-plaintext");
-      expect(where.reset_token.in).toContain(hashToken("legacy-plaintext"));
+      expect(where.reset_token).toBe(hashToken(stored));
+      expect(where.reset_token).not.toBe(stored);
     });
 
-    it("consumeEmailVerificationToken still matches a pre-hashing verify token", async () => {
+    it("consumeEmailVerificationToken looks up only the hash", async () => {
       updateMany.mockResolvedValue({ count: 1 });
+      const stored = hashToken("real-token");
 
-      await consumeEmailVerificationToken("legacy-plaintext");
+      await consumeEmailVerificationToken(stored);
 
       const { where } = updateMany.mock.calls[0][0];
-      expect(where.verify_token.in).toContain("legacy-plaintext");
-      expect(where.verify_token.in).toContain(hashToken("legacy-plaintext"));
+      expect(where.verify_token).toBe(hashToken(stored));
+      expect(where.verify_token).not.toBe(stored);
       expect(where.verify_token_expires.gt).toBeInstanceOf(Date);
-      expect(updateMany.mock.calls[0][0].data.email_verified).toBe(true);
     });
   });
 
