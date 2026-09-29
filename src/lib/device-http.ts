@@ -10,7 +10,7 @@
  * - A replaceable clock so tests can move time without faking timers.
  */
 import { NextResponse } from 'next/server'
-import { log } from '@/lib/logger'
+import { logRouteError } from '@/lib/api-error'
 import type { RateLimitResult } from '@/lib/rate-limit-db'
 import { clearDeviceCookies } from '@/lib/device-session'
 
@@ -167,8 +167,13 @@ export async function readJson(request: { json: () => Promise<unknown> }): Promi
   }
 }
 
-/** Log and turn an unexpected error into the envelope, without echoing it. */
-export function deviceInternalError(event: string, error: unknown): NextResponse {
-  log.error(event, error instanceof Error ? error : new Error(String(error)))
+/**
+ * Log and turn an unexpected error into the envelope, without echoing it. The
+ * log line is `logRouteError`'s: `where` (a stable name such as
+ * `device.chore_complete`), the request id when given, and the error's class
+ * name and machine code; never its message or stack.
+ */
+export function deviceInternalError(where: string, error: unknown, requestId?: string): NextResponse {
+  logRouteError(where, error, requestId)
   return deviceError(500, 'INTERNAL_ERROR')
 }

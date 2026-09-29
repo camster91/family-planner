@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
 import { deviceClock, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,6 @@ export async function GET(request: NextRequest) {
     })
     return deviceJson(data)
   } catch (error) {
-    return deviceInternalError('device.today', error)
+    return deviceInternalError('device.today', error, getRequestId(request))
   }
 }

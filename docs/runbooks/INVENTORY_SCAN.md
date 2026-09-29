@@ -52,7 +52,7 @@ in the same place as `JWT_SECRET` and the other runtime secrets:
 2. The household must also have the **Food inventory** feature on (Settings → Features; off by default).
 3. Check: sign in as a parent, open `/dashboard/inventory`; "Scan fridge" is visible. Scan a test photo of a few
    obvious items; suggestions appear; add one and remove it. As a teen, the button is absent.
-4. Check logs: `inventory.scan` lines carry only `userId`, `bytes`, `type`, `items`, `dropped`, `ms`. There must be no
+4. Check logs: `inventory.scan` lines carry only `bytes`, `type`, `items`, `dropped`, `ms`. There must be no
    item names, model text or image data.
 
 ## 4. Watch

@@ -4,6 +4,7 @@ import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceClock, deviceError, deviceErrorBody, deviceInternalError, killSwitch } from '@/lib/device-http'
 import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { createListItem } from '@/lib/list-item-create'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +89,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return { status: 201, body: { item: { id: itemId, content, quantity: 1, listId } } }
     })
   } catch (error) {
-    return deviceInternalError('device.list_item_add', error)
+    return deviceInternalError('device.list_item_add', error, getRequestId(request))
   }
 }

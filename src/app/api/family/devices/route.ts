@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { log } from '@/lib/logger'
+import { logRouteWarning } from '@/lib/api-error'
 import { AUDIT_RETENTION_MS } from '@/lib/device-audit'
 import { PAIRING_RETENTION_MS } from '@/lib/device-pairing'
 import { DEVICE_LIST_SELECT, REMOVED_DEVICE_VISIBLE_MS, devicesWithLiveSession, serializeDevice } from '@/lib/device-admin'
 import { deviceClock, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
         where: { family_id: familyId, created_at: { lt: new Date(now.getTime() - AUDIT_RETENTION_MS) } },
       })
     } catch (error) {
-      log.warn('device.prune_failed', { message: error instanceof Error ? error.message : String(error) })
+      logRouteWarning('GET /api/family/devices (prune)', error, getRequestId(request))
     }
 
     const rows = await prisma!.householdDevice.findMany({
@@ -50,6 +51,6 @@ export async function GET(request: NextRequest) {
     )
     return deviceJson({ devices: rows.map((r) => serializeDevice(r, live.has(r.id))) })
   } catch (error) {
-    return deviceInternalError('family_devices.list', error)
+    return deviceInternalError('family_devices.list', error, getRequestId(request))
   }
 }

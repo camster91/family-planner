@@ -6,6 +6,7 @@ import { deviceClock, deviceInternalError, deviceJson, killSwitch, rateLimited }
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { clearDeviceCookies, revokeDevice } from '@/lib/device-session'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * POST /api/device/revoke-self: an elevated parent removes THIS tablet
@@ -62,6 +63,6 @@ export async function POST(request: NextRequest) {
     clearDeviceCookies(res)
     return res
   } catch (error) {
-    return deviceInternalError('device.revoke_self', error)
+    return deviceInternalError('device.revoke_self', error, getRequestId(request))
   }
 }

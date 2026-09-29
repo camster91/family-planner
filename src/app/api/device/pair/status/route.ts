@@ -13,6 +13,7 @@ import {
   readJson,
 } from '@/lib/device-http'
 import { clearPersonSessionCookie, setDeviceCookies } from '@/lib/device-session'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * POST /api/device/pair/status { claimToken } — the tablet polls until the
@@ -70,6 +71,6 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
-    return deviceInternalError('device.pair_status', error)
+    return deviceInternalError('device.pair_status', error, getRequestId(request))
   }
 }

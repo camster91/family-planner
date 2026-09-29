@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       ({ recordId }) => commitImportedEvents(prisma!, parsed.data, actor, recordId!)
     )
     response.headers.set('Cache-Control', 'private, no-store')
-    log.info('event.import.commit', { userId: auth.user.id, events: parsed.data.events.length, status: response.status })
+    log.info('event.import.commit', { events: parsed.data.events.length, status: response.status })
     return response
   } catch (err) {
     log.warn('event.import.commit.error', { name: err instanceof Error ? err.name : 'unknown' })

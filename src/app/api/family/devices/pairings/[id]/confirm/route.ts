@@ -4,6 +4,7 @@ import { writeDeviceAudit } from '@/lib/device-audit'
 import { confirmPairing } from '@/lib/device-pairing'
 import { deviceClock, deviceError, deviceInternalError, deviceJson, killSwitch, readJson } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * POST /api/family/devices/pairings/:id/confirm { digits } — the parent types
@@ -62,6 +63,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return deviceError(400, 'PAIRING_DIGITS_MISMATCH', { extra: { attemptsLeft: result.attemptsLeft } })
     }
   } catch (error) {
-    return deviceInternalError('family_devices.pairing_confirm', error)
+    return deviceInternalError('family_devices.pairing_confirm', error, getRequestId(request))
   }
 }

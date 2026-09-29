@@ -15,6 +15,7 @@ import {
   rateLimited,
   readJson,
 } from '@/lib/device-http'
+import { getRequestId } from '@/lib/request-id'
 
 /** Coarse, non-reversible source label for alert logs; never the raw IP. */
 function ipBucket(ip: string): string {
@@ -65,6 +66,6 @@ export async function POST(request: NextRequest) {
       expiresAt: result.expiresAt.toISOString(),
     })
   } catch (error) {
-    return deviceInternalError('device.pair_claim', error)
+    return deviceInternalError('device.pair_claim', error, getRequestId(request))
   }
 }

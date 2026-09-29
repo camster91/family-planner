@@ -4,6 +4,7 @@ import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceClock, deviceError, deviceErrorBody, deviceInternalError, killSwitch } from '@/lib/device-http'
 import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,6 +95,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return { status: 200, body: { chore: { id, status: 'pending' }, alreadyOpen: false } }
     })
   } catch (error) {
-    return deviceInternalError('device.chore_undo', error)
+    return deviceInternalError('device.chore_undo', error, getRequestId(request))
   }
 }

@@ -4,7 +4,8 @@ import { safeVerifyPassword, signToken } from '@/lib/auth'
 import { checkRateLimit, isRateLimited, resetRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { loginSchema } from '@/lib/validations'
-import { log } from '@/lib/logger'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
 import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    log.error('auth.login', error instanceof Error ? error : new Error(String(error)), { ip })
+    logRouteError('POST /api/auth/login', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

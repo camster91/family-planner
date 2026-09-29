@@ -31,7 +31,7 @@
 import path from 'path'
 import { unlink } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
-import { log } from '@/lib/logger'
+import { describeError, log } from '@/lib/logger'
 import { chorePhotoFilename, CHORE_PHOTO_FILENAME_RE } from '@/lib/chore-photos'
 import { clearConnectionData, revokeProviderGrant } from '@/lib/calendar-sync/sync'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
@@ -179,9 +179,7 @@ async function removeFiles(targets: FileTarget[], deps: DeletionDeps): Promise<F
       filesRemoved += 1
     } catch (error) {
       filesNotRemoved += 1
-      log.error('account_deletion.file_remove_failed', error instanceof Error ? error : undefined, {
-        file: path.basename(target),
-      })
+      log.error('account_deletion.file_remove_failed', error, {})
     }
   }
   return { filesRemoved, filesNotRemoved }
@@ -362,10 +360,7 @@ async function revokeGrantsAfterCommit(grants: CalendarGrant[], deps: DeletionDe
     try {
       await revoke(grant, grant.family_id)
     } catch (error) {
-      log.warn('account_deletion.calendar_revoke_failed', {
-        connectionId: grant.id,
-        error: error instanceof Error ? error.message : 'unknown',
-      })
+      log.warn('account_deletion.calendar_revoke_failed', { provider: grant.provider, ...describeError(error) })
     }
   }
 }

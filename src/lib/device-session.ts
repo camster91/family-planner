@@ -19,7 +19,7 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 import { hashToken } from '@/lib/tokens'
 import { timingSafeEqualStr } from '@/lib/constant-time'
 import { writeDeviceAudit, type ElevationEndReason, type RevokeReason } from '@/lib/device-audit'
-import { log } from '@/lib/logger'
+import { describeError, log } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
 // Constants (§4, §6.3; O-2 and O-8 confirmed/defaulted)
@@ -243,7 +243,7 @@ export async function resolveDeviceAccess(db: Db, cookies: DeviceCookieValues, n
       },
     }
   } catch (error) {
-    log.error('device.resolve_failed', error instanceof Error ? error : new Error(String(error)))
+    log.error('device.resolve_failed', error, {})
     return unavailable
   }
 }
@@ -360,7 +360,8 @@ async function refreshOnce(db: Db, refreshToken: string, now: Date, depth: numbe
     type: 'device.token_reuse_detected',
     metadata: { sessionId: row.id },
   })
-  log.warn('device.token_reuse_detected', { deviceId: row.device_id })
+  // No device id in the log line: the audit row written above records which device.
+  log.warn('device.token_reuse_detected')
   return { ok: false, code: 'DEVICE_REVOKED', deviceId: row.device_id, reuseDetected: true }
 }
 
@@ -372,7 +373,7 @@ async function afterRefresh(db: Db, deviceId: string, now: Date): Promise<void> 
       where: { device_id: deviceId, rotated_at: { lt: new Date(now.getTime() - ROTATED_SESSION_RETENTION_MS) } },
     })
   } catch (error) {
-    log.warn('device.refresh_housekeeping_failed', { message: error instanceof Error ? error.message : String(error) })
+    log.warn('device.refresh_housekeeping_failed', describeError(error))
   }
 }
 

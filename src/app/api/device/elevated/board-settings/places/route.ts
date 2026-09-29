@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { deviceError, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { runPlaceSearch } from '@/lib/weather/place-search'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,6 @@ export async function GET(request: NextRequest) {
     const code = result.status === 502 ? 'SERVICE_UNAVAILABLE' : result.status === 409 ? 'FEATURE_DISABLED' : 'VALIDATION_ERROR'
     return deviceError(result.status, code, { message: result.error })
   } catch (error) {
-    return deviceInternalError('device.board_settings_places', error)
+    return deviceInternalError('device.board_settings_places', error, getRequestId(request))
   }
 }

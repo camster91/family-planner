@@ -45,8 +45,8 @@ function retryAfter(ms: number): Record<string, string> {
  * only a request that reaches the provider is counted against the daily cap.
  *
  * Privacy: the image stays in memory for this request only. Logs carry the
- * user id, byte size, type, item count, duration and upstream status, never
- * the image or any model text.
+ * byte size, type, item count, duration and upstream status, never the image,
+ * any model text or a user/household id.
  */
 export async function POST(request: NextRequest) {
   const started = Date.now()
@@ -138,7 +138,6 @@ export async function POST(request: NextRequest) {
     try {
       const result = await scanFridgePhoto({ bytes, mime: sniffed.mime as InventoryScanMime }, config)
       log.info('inventory.scan', {
-        userId,
         bytes: bytes.length,
         type: sniffed.mime,
         items: result.items.length,
@@ -149,7 +148,6 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       if (err instanceof InventoryScanError) {
         log.warn('inventory.scan.failed', {
-          userId,
           code: err.code,
           upstreamStatus: err.upstreamStatus,
           bytes: bytes.length,

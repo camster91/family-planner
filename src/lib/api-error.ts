@@ -14,7 +14,7 @@
  * text derived from the request or from an exception.
  */
 import { NextResponse } from 'next/server'
-import { log } from '@/lib/logger'
+import { describeError, log } from '@/lib/logger'
 
 export type ApiErrorShape = 'flat' | 'nested'
 
@@ -60,24 +60,12 @@ export function apiError(status: number, code: string, message: string, options:
   })
 }
 
-const NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
-/** Prisma (`P2002`) and Node (`ECONNREFUSED`) style codes only. */
-const ERROR_CODE_RE = /^[A-Z][A-Z0-9_]{1,31}$/
-
-/** The loggable identity of an exception: its class name and a short machine code, nothing else. */
-export function describeError(error: unknown): { errorName: string; errorCode?: string } {
-  if (!error || typeof error !== 'object') return { errorName: 'unknown' }
-  const name = (error as { name?: unknown }).name
-  const code = (error as { code?: unknown }).code
-  return {
-    errorName: typeof name === 'string' && NAME_RE.test(name) ? name : 'unknown',
-    ...(typeof code === 'string' && ERROR_CODE_RE.test(code) ? { errorCode: code } : {}),
-  }
-}
+/** The loggable identity of an exception (class name, machine code, HTTP status); defined with the logger. */
+export { describeError }
 
 /**
  * Log an unexpected route failure as one structured line:
- * `{ event: 'route.error', route, requestId, errorName, errorCode? }`.
+ * `{ event: 'route.error', route, requestId, errorName, errorCode?, errorStatus? }`.
  *
  * Deliberately NOT logged: the exception message (Prisma and pg messages can
  * quote column values), the stack, the request body, query string, URL, user,

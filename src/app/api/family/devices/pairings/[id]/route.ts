@@ -13,6 +13,7 @@ import {
   rateLimited,
 } from '@/lib/device-http'
 import { requireDeviceManager } from '@/lib/device-route'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       replaces,
     })
   } catch (error) {
-    return deviceInternalError('family_devices.pairing_get', error)
+    return deviceInternalError('family_devices.pairing_get', error, getRequestId(request))
   }
 }
 
@@ -80,6 +81,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
     return deviceEmpty(204)
   } catch (error) {
-    return deviceInternalError('family_devices.pairing_cancel', error)
+    return deviceInternalError('family_devices.pairing_cancel', error, getRequestId(request))
   }
 }
