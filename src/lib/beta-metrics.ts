@@ -2,8 +2,9 @@
  * Beta usage counts (#287, PR101 D-6; docs/PRODUCT_PROGRAM.md "How the beta
  * criteria are measured").
  *
- * A privacy-safe store that keeps counts and nothing else, separate from
- * `src/lib/analytics.ts` (which keeps free-form metadata tied to a user):
+ * A privacy-safe store that keeps counts and nothing else, separate from the
+ * removed `src/lib/analytics.ts` page-view helper (which kept free-form
+ * metadata tied to a user; see `src/lib/legacy-analytics.ts`):
  *
  * - One `BetaMetricDaily` row per household, UTC day and metric name, holding
  *   a count. No user id, no text, no content, no role.

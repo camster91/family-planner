@@ -13,6 +13,7 @@ import {
   isDueWithinDays,
   normalizeDateOnlyInput,
   snoozedDueDate,
+  eventFormRange,
 } from '../dates'
 
 describe('parseDateOnly', () => {
@@ -66,6 +67,29 @@ describe('localDateTimeToISO', () => {
   })
   it('returns null for invalid input', () => {
     expect(localDateTimeToISO('nope')).toBeNull()
+  })
+})
+
+describe('eventFormRange (calendar create/edit)', () => {
+  const local = (y: number, m: number, d: number, h: number, min: number) => new Date(y, m - 1, d, h, min).toISOString()
+  it('an end time with no end date ends on the start day', () => {
+    expect(eventFormRange({ startDate: '2026-10-03', startTime: '15:00', endDate: '', endTime: '16:00' })).toEqual({
+      start: local(2026, 10, 3, 15, 0),
+      end: local(2026, 10, 3, 16, 0),
+    })
+  })
+  it('an end date with no time ends at 23:59 that day', () => {
+    expect(eventFormRange({ startDate: '2026-10-03', startTime: '', endDate: '2026-10-04', endTime: '' })?.end).toBe(
+      local(2026, 10, 4, 23, 59)
+    )
+  })
+  it('no end at all means the start instant', () => {
+    const r = eventFormRange({ startDate: '2026-10-03', startTime: '09:30', endDate: '', endTime: '' })
+    expect(r?.end).toBe(r?.start)
+  })
+  it('no start date or an unparseable value is null', () => {
+    expect(eventFormRange({ startDate: '', startTime: '09:30', endDate: '', endTime: '' })).toBeNull()
+    expect(eventFormRange({ startDate: '2026-10-03', startTime: '9pm', endDate: '', endTime: '' })).toBeNull()
   })
 })
 

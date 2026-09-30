@@ -274,6 +274,16 @@ describe('household audit writes', () => {
       expect(auditRows()).toHaveLength(0)
     })
 
+    it('mail not configured: 503 with a parent-facing message, no server variable names', async () => {
+      ;(sendMail as jest.Mock).mockRejectedValueOnce(new Error('MAILGUN_API_KEY is not set'))
+      const res = await invites.POST(req({ as: 'parentA', method: 'POST', body: { email: 'new.person@invitee.test', role: 'child' } }))
+      expect(res.status).toBe(503)
+      const body = await res.json()
+      expect(body.error).toMatch(/family code/i)
+      expect(body.error).not.toMatch(/MAILGUN|server/i)
+      expect(db.rows('familyInvite').find((i) => i.email === 'new.person@invitee.test')).toBeUndefined()
+    })
+
     it("revoking another household's invite is 404 and writes nothing", async () => {
       const res = await inviteById.DELETE(req({ as: 'parentA', method: 'DELETE' }), params({ id: 'invite-b' }))
       expect(res.status).toBe(404)

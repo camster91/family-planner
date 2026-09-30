@@ -456,6 +456,7 @@ drops rows that are not yet due or already past use-by for its own day.
 - Recipes without ingredients or with nothing in stock are left out.
 - Order: coverage (in stock / total) descending, then in-stock count, then how many in-stock ingredients are in the use-soon window, then fewer missing, then title.
 - Each suggestion returns `have` and `missing` as `{ ingredientId, name }`. The page's "Add N missing to groceries" is `AddToGroceriesButton` with `recipeId` and `ingredientIds` = the missing ids, i.e. `POST /api/lists/items/from-recipe` (§7) with its idempotency, duplicate and undo rules unchanged. Needs `meals` (recipes) as well as `inventory`.
+- Today board dinner card (#122): when `meals` and `inventory` are both on, a signed-in member's board shows "N ingredients missing" (nothing when 0) under the recipe and prep line. `buildTodayBoard` reads the linked recipe's ingredient ids and names plus the household's non-expired inventory (`loadCookInventory`, the same read and 5000-item cap as above) and counts with `countMissingIngredients`, which uses the same matching helpers as `rankCookableRecipes` (`indexCookInventory`, `matchRecipeIngredients`), against each dinner's own day. Only the count (`BoardDinner.missingIngredients`) leaves the server. It is omitted when the recipe has no ingredients, when the inventory is over the cap (an uncertain number is not shown), and always for the shared-device audience, whose §9.1 allowlist does not include it.
 
 ### Roles, gate, device, export
 
@@ -469,10 +470,10 @@ drops rows that are not yet due or already past use-by for its own day.
 - Not offline-queued. Create accepts an optional `Idempotency-Key` since #265 (the fridge scan sends one per row);
   since #158 edit, delete, consume, discard and undo accept one too, and the page sends one per logical change
   (reused for a retry of the same body, new when the body changes).
-- Telemetry: none. #121 asks for privacy-safe telemetry of creation, correction, consume/discard and abandonment, but
-  the only client event helper (`src/lib/analytics.ts` → `POST /api/analytics/event`) stores free-form metadata in
-  `Activity` with the user and is not a privacy-reviewed telemetry module. Left for #161 (observability), which should
-  provide a content-minimal event path first; no inventory events are sent.
+- Telemetry: none. #121 asks for privacy-safe telemetry of creation, correction, consume/discard and abandonment. The
+  old client event helper (`src/lib/analytics.ts` → `POST /api/analytics/event`) is removed and that endpoint stores
+  nothing since #136/#140. Left for #161 (observability), which should provide a content-minimal event path first; no
+  inventory events are sent.
 
 ### Consume, discard and undo (#158/#121)
 

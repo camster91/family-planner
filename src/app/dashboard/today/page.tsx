@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { after } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
@@ -51,6 +52,14 @@ export default async function TodayBoardPage({
         <p className="mt-3 text-body text-label-secondary">
           Join or create a household to see today&apos;s plans here.
         </p>
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Link href="/dashboard" className="btn-filled">
+            Create a household
+          </Link>
+          <Link href="/join" className="btn-plain">
+            Join with a code
+          </Link>
+        </div>
       </div>
     )
   }

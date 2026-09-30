@@ -575,6 +575,84 @@ export interface CookSuggestion {
 }
 
 /**
+ * What is in stock for recipe matching, built once per inventory read. Keys
+ * are ingredient ids (linked items) and normalized names (unlinked items
+ * only); the value says whether any matching item expires soon. Expired
+ * items and past use-by items never count.
+ */
+export interface CookInventoryIndex {
+  haveIds: Map<string, boolean>
+  haveNames: Map<string, boolean>
+}
+
+export function indexCookInventory(
+  inventory: readonly CookInventoryInput[],
+  today: Date,
+  days: number = DEFAULT_USE_SOON_DAYS
+): CookInventoryIndex {
+  const haveIds = new Map<string, boolean>() // ingredient id -> expiring soon
+  const haveNames = new Map<string, boolean>() // normalized name -> expiring soon (unlinked items only)
+  for (const item of inventory) {
+    const { status } = expiryStatus(item.expires_on, today, days, item.date_kind ?? 'best_before')
+    if (status === 'expired' || status === 'past_use_by') continue
+    const soon = status === 'today' || status === 'soon'
+    if (item.ingredient_id) {
+      haveIds.set(item.ingredient_id, (haveIds.get(item.ingredient_id) ?? false) || soon)
+    } else {
+      const key = normalizeName(item.name)
+      if (key) haveNames.set(key, (haveNames.get(key) ?? false) || soon)
+    }
+  }
+  return { haveIds, haveNames }
+}
+
+/**
+ * Split one recipe's ingredient lines into in stock and missing (each
+ * ingredient once, in recipe order). The single matching rule used by "What
+ * can I cook" and the Today board's dinner line.
+ */
+export function matchRecipeIngredients(
+  lines: CookRecipeInput['ingredients'],
+  index: CookInventoryIndex
+): { have: CookIngredient[]; missing: CookIngredient[]; useSoonCount: number } {
+  const seen = new Set<string>()
+  const have: CookIngredient[] = []
+  const missing: CookIngredient[] = []
+  let useSoonCount = 0
+  for (const line of lines) {
+    const ing = line.ingredient
+    if (!ing || seen.has(ing.id)) continue
+    seen.add(ing.id)
+    const byId = index.haveIds.get(ing.id)
+    const byName = index.haveNames.get(normalizeName(ing.name))
+    const entry = { ingredientId: ing.id, name: ing.name }
+    if (byId !== undefined || byName !== undefined) {
+      have.push(entry)
+      if (byId || byName) useSoonCount += 1
+    } else {
+      missing.push(entry)
+    }
+  }
+  return { have, missing, useSoonCount }
+}
+
+/**
+ * How many of a recipe's ingredients are not in stock on `today` (#122, the
+ * Today board's dinner line). Same matching as `rankCookableRecipes`:
+ * presence only, no amounts. null when the recipe lists no ingredients, so
+ * "nothing to compare" never reads as "nothing missing".
+ */
+export function countMissingIngredients(
+  lines: CookRecipeInput['ingredients'],
+  inventory: readonly CookInventoryInput[],
+  today: Date
+): number | null {
+  const { have, missing } = matchRecipeIngredients(lines, indexCookInventory(inventory, today))
+  if (have.length + missing.length === 0) return null
+  return missing.length
+}
+
+/**
  * Rank recipes by how much of them is in stock. Pure: no database access.
  *
  * - An ingredient is "in stock" when a non-expired inventory item links to it
@@ -592,40 +670,11 @@ export function rankCookableRecipes(
   today: Date,
   days: number = DEFAULT_USE_SOON_DAYS
 ): CookSuggestion[] {
-  const haveIds = new Map<string, boolean>() // ingredient id -> expiring soon
-  const haveNames = new Map<string, boolean>() // normalized name -> expiring soon (unlinked items only)
-  for (const item of inventory) {
-    const { status } = expiryStatus(item.expires_on, today, days, item.date_kind ?? 'best_before')
-    if (status === 'expired' || status === 'past_use_by') continue
-    const soon = status === 'today' || status === 'soon'
-    if (item.ingredient_id) {
-      haveIds.set(item.ingredient_id, (haveIds.get(item.ingredient_id) ?? false) || soon)
-    } else {
-      const key = normalizeName(item.name)
-      if (key) haveNames.set(key, (haveNames.get(key) ?? false) || soon)
-    }
-  }
+  const index = indexCookInventory(inventory, today, days)
 
   const out: CookSuggestion[] = []
   for (const recipe of recipes) {
-    const seen = new Set<string>()
-    const have: CookIngredient[] = []
-    const missing: CookIngredient[] = []
-    let useSoonCount = 0
-    for (const line of recipe.ingredients) {
-      const ing = line.ingredient
-      if (!ing || seen.has(ing.id)) continue
-      seen.add(ing.id)
-      const byId = haveIds.get(ing.id)
-      const byName = haveNames.get(normalizeName(ing.name))
-      const entry = { ingredientId: ing.id, name: ing.name }
-      if (byId !== undefined || byName !== undefined) {
-        have.push(entry)
-        if (byId || byName) useSoonCount += 1
-      } else {
-        missing.push(entry)
-      }
-    }
+    const { have, missing, useSoonCount } = matchRecipeIngredients(recipe.ingredients, index)
     const totalCount = have.length + missing.length
     if (totalCount === 0 || have.length === 0) continue
     const byName = (a: CookIngredient, b: CookIngredient) => a.name.localeCompare(b.name) || a.ingredientId.localeCompare(b.ingredientId)
@@ -672,6 +721,28 @@ export interface CookSuggestionsResult {
 }
 
 /**
+ * One household's active inventory that is not expired on `from` (or has no
+ * date), with only the fields recipe matching reads. At most `cap` rows;
+ * `truncated` says more exist. Shared by "What can I cook" and the Today
+ * board's dinner line (#122).
+ */
+export async function loadCookInventory(
+  db: Pick<PrismaClient, 'inventoryItem'> | Prisma.TransactionClient,
+  familyId: string,
+  opts: { from: Date; cap?: number }
+): Promise<{ items: CookInventoryInput[]; truncated: boolean }> {
+  const cap = Math.max(opts.cap ?? COOK_INVENTORY_SCAN_LIMIT, 1)
+  const rows = await db.inventoryItem.findMany({
+    where: { family_id: familyId, status: 'active', OR: [{ expires_on: null }, { expires_on: { gte: opts.from } }] },
+    select: { ingredient_id: true, name: true, expires_on: true, date_kind: true },
+    orderBy: [{ id: 'asc' }],
+    take: cap + 1,
+  })
+  const truncated = rows.length > cap
+  return { items: truncated ? rows.slice(0, cap) : rows, truncated }
+}
+
+/**
  * Load one household's recipes and non-expired inventory and rank them (see
  * `rankCookableRecipes`). Expired items are filtered in the query, since they
  * never count. Inputs are capped (`COOK_*_SCAN_LIMIT`, overridable for tests);
@@ -687,14 +758,7 @@ export async function getCookSuggestions(
   const recipeCap = Math.max(opts.recipeCap ?? COOK_RECIPE_SCAN_LIMIT, 1)
   const inventoryCap = Math.max(opts.inventoryCap ?? COOK_INVENTORY_SCAN_LIMIT, 1)
 
-  const inventoryRows = await db.inventoryItem.findMany({
-    where: { family_id: familyId, status: 'active', OR: [{ expires_on: null }, { expires_on: { gte: today } }] },
-    select: { ingredient_id: true, name: true, expires_on: true, date_kind: true },
-    orderBy: [{ id: 'asc' }],
-    take: inventoryCap + 1,
-  })
-  const inventoryCut = inventoryRows.length > inventoryCap
-  const inventory = inventoryCut ? inventoryRows.slice(0, inventoryCap) : inventoryRows
+  const { items: inventory, truncated: inventoryCut } = await loadCookInventory(db, familyId, { from: today, cap: inventoryCap })
   if (inventory.length === 0) {
     return { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false }
   }

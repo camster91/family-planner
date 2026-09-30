@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { pruneLegacyAnalytics } from '@/lib/legacy-analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
     if (cursor) {
       where.created_at = { lt: new Date(cursor) }
     }
+
+    // Housekeeping: drop this household's legacy analytics rows past retention (#136).
+    await pruneLegacyAnalytics(prisma!, auth.user.family_id)
 
     const activities = await prisma!.activity.findMany({
       where,

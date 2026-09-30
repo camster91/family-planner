@@ -325,6 +325,91 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     })
   })
 
+  // #122: "N ingredients missing" on the dinner card.
+  describe('missing ingredients for dinner', () => {
+    const withIngredients = () =>
+      jest.fn().mockResolvedValue([
+        {
+          id: 'm1',
+          date: new Date('2026-01-05T00:00:00Z'),
+          recipe_name: 'Tacos',
+          cook: null,
+          recipe: {
+            title: 'Street tacos',
+            prep_time: 20,
+            ingredients: [
+              { ingredient: { id: 'ing-tortilla', name: 'Tortillas' } },
+              { ingredient: { id: 'ing-beans', name: 'Black beans' } },
+              { ingredient: { id: 'ing-salsa', name: 'Salsa' } },
+            ],
+          },
+        },
+        // Linked recipe without ingredients: no count.
+        { id: 'm2', date: new Date('2026-01-06T00:00:00Z'), recipe_name: null, cook: null, recipe: { title: 'Soup', prep_time: null, ingredients: [] } },
+        // Free-text dinner: no count.
+        { id: 'm3', date: new Date('2026-01-07T00:00:00Z'), recipe_name: 'Leftovers', cook: null, recipe: null },
+      ])
+    const stock = [
+      { ingredient_id: 'ing-tortilla', name: 'Tortillas', expires_on: null, date_kind: 'best_before' },
+      // Unlinked, matched by name like "What can I cook".
+      { ingredient_id: null, name: ' black BEANS ', expires_on: new Date('2026-01-09T00:00:00Z'), date_kind: 'best_before' },
+    ]
+    const inventoryOn = { ...defaultFeatures(), inventory: true }
+
+    it('counts missing ingredients for a member when inventory is on, and sends only the count', async () => {
+      // Use-soon reads twice (main + use-by skew), then the matching read.
+      const findMany = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce(stock)
+      const db = mockDb({ familyMeal: { findMany: withIngredients() }, inventoryItem: { findMany } })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: inventoryOn, now: NOW })
+
+      const mealArgs = (db.familyMeal.findMany as jest.Mock).mock.calls[0][0]
+      expect(mealArgs.select.recipe.select.ingredients).toEqual({ select: { ingredient: { select: { id: true, name: true } } } })
+      const matchArgs = findMany.mock.calls[2][0]
+      expect(matchArgs.where).toMatchObject({ family_id: FAMILY, status: 'active' })
+      expect(Object.keys(matchArgs.select).sort()).toEqual(['date_kind', 'expires_on', 'ingredient_id', 'name'])
+
+      expect(data.dinners?.[0]).toEqual({
+        id: 'm1',
+        day: '2026-01-05',
+        recipeName: 'Tacos',
+        cookName: null,
+        recipeTitle: 'Street tacos',
+        prepMinutes: 20,
+        missingIngredients: 1,
+      })
+      expect(data.dinners?.[1]).not.toHaveProperty('missingIngredients')
+      expect(data.dinners?.[2]).not.toHaveProperty('missingIngredients')
+      // Ingredient names never leave the server.
+      expect(JSON.stringify(data.dinners)).not.toContain('Salsa')
+    })
+
+    it('does not read ingredients or count when inventory is off', async () => {
+      const db = mockDb({ inventoryItem: { findMany: jest.fn() } })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+      expect(db.familyMeal.findMany.mock.calls[0][0].select.recipe).toEqual({ select: { title: true, prep_time: true } })
+      expect((db as any).inventoryItem.findMany).not.toHaveBeenCalled()
+      for (const d of data.dinners ?? []) expect(d).not.toHaveProperty('missingIngredients')
+    })
+
+    it('never counts for a shared device (SHARED_DEVICE.md §9.1)', async () => {
+      const findMany = jest.fn().mockResolvedValue([])
+      const db = mockDb({ familyMeal: { findMany: withIngredients() }, inventoryItem: { findMany } })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: inventoryOn, now: NOW })
+      expect((db.familyMeal.findMany as jest.Mock).mock.calls[0][0].select.recipe).toEqual({ select: { title: true, prep_time: true } })
+      // Only the two use-soon reads; no matching read.
+      expect(findMany).toHaveBeenCalledTimes(2)
+      for (const d of data.dinners ?? []) expect(d).not.toHaveProperty('missingIngredients')
+    })
+
+    it('shows no count when the inventory is larger than the scan cap', async () => {
+      const many = Array.from({ length: 5001 }, (_, i) => ({ ingredient_id: `x${i}`, name: `X${i}`, expires_on: null, date_kind: 'best_before' }))
+      const findMany = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce(many)
+      const db = mockDb({ familyMeal: { findMany: withIngredients() }, inventoryItem: { findMany } })
+      const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: inventoryOn, now: NOW })
+      expect(data.dinners?.[0]).not.toHaveProperty('missingIngredients')
+    })
+  })
+
   describe('use soon (#263 data, #262 tile)', () => {
     const inventoryRows = [
       { id: 'inv1', name: 'Spinach', location: 'fridge', expires_on: new Date('2026-01-04T00:00:00Z') },

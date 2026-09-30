@@ -23,6 +23,10 @@ export default function PrivacyPage() {
               That&apos;s it. No analytics sold to third parties, no advertising, no
               tracking pixels.
             </p>
+            <p>
+              We don&apos;t record which pages or screens you open. Older builds of the app kept a
+              log of page visits; those records are deleted 90 days after they were made.
+            </p>
           </section>
 
           <section>

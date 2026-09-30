@@ -80,14 +80,29 @@ export default function InviteMemberPage() {
   }
 
   const handleRevoke = async (id: string) => {
-    const res = await fetch(`/api/family/invites/${id}`, { method: 'DELETE' })
-    if (res.ok) setInvites((current) => current.filter((invite) => invite.id !== id))
+    setError(null)
+    try {
+      const res = await fetch(`/api/family/invites/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setInvites((current) => current.filter((invite) => invite.id !== id))
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || 'Could not cancel that invite. Please try again.')
+    } catch {
+      setError('Could not cancel that invite. Check your connection and try again.')
+    }
   }
 
   const copy = async (kind: 'code' | 'link', value: string) => {
-    await navigator.clipboard.writeText(value)
-    setCopied(kind)
-    setTimeout(() => setCopied(null), 2000)
+    try {
+      // Missing or refused on plain http and in some Android WebViews.
+      await navigator.clipboard.writeText(value)
+      setCopied(kind)
+      setTimeout(() => setCopied(null), 2000)
+    } catch {
+      setError('Could not copy. Select the text and copy it yourself.')
+    }
   }
 
   return (

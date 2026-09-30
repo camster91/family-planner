@@ -227,7 +227,11 @@ export default function SettingsClient({
       })
       const data = await res.json()
 
-      if (!res.ok) throw new Error(data.error || 'Failed to update profile')
+      if (!res.ok) {
+        // Show the server's reason (for example "Age must be between 1 and 150").
+        setMessage({ type: 'error', text: data.error || 'Failed to update profile. Please try again.' })
+        return
+      }
 
       setMessage({ type: 'success', text: 'Profile updated successfully!' })
     } catch (err) {

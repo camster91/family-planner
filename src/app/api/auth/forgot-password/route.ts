@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { createResetToken } from '@/lib/tokens'
+import { normalizeEmail } from '@/lib/family-invite'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
 import { logRouteError, logRouteWarning } from '@/lib/api-error'
@@ -26,12 +27,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
-    const { email } = payload
-    if (!email || typeof email !== 'string') {
+    // Trimmed and lower-cased like every stored email (a pasted or autofilled
+    // address often carries a trailing space).
+    const email = normalizeEmail(payload?.email)
+    if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    const user = await prisma!.user.findUnique({ where: { email: email.toLowerCase() } })
+    const user = await prisma!.user.findUnique({ where: { email } })
 
     // Always return success to prevent email enumeration
     if (!user) {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Users, Plus, ArrowRight, CheckCircle, Sparkles, UserPlus } from 'lucide-react'
 
 interface OnboardingFlowProps {
@@ -102,6 +103,13 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
             >
               {loading ? 'Creating...' : 'Create Family'}
             </button>
+            {/* A child, teen or second parent joins an existing household instead. */}
+            <p className="text-center text-sm text-gray-600">
+              Already have a family code or invite?{' '}
+              <Link href="/join" className="font-medium text-blue-600 hover:text-blue-700">
+                Join an existing family
+              </Link>
+            </p>
           </div>
         </div>
       )}

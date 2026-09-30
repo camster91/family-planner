@@ -36,8 +36,12 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   // Parse month/year from searchParams or default to today
   const now = new Date()
-  const month = params.month ? parseInt(params.month) : now.getMonth() + 1
-  const year = params.year ? parseInt(params.year) : now.getFullYear()
+  // A hand-edited or truncated URL (?month=abc, ?month=13) falls back to the
+  // current month instead of building an Invalid Date query and a 500 page.
+  const monthParam = Number(params.month)
+  const yearParam = Number(params.year)
+  const month = Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12 ? monthParam : now.getMonth() + 1
+  const year = Number.isInteger(yearParam) && yearParam >= 1970 && yearParam <= 9999 ? yearParam : now.getFullYear()
 
   // Calculate month boundaries
   const monthStart = new Date(year, month - 1, 1)

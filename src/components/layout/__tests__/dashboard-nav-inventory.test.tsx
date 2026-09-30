@@ -45,7 +45,16 @@ describe('DashboardNav user menu: food inventory', () => {
     mockInventoryOn = false
     await openMenu('parent')
     expect(screen.queryByRole('link', { name: 'Food inventory' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeTruthy()
+  })
+
+  // There is no /dashboard/profile page: the menu's "Profile" link was a 404.
+  // The profile form lives in Settings.
+  it('never links to the missing /dashboard/profile page', async () => {
+    await openMenu('parent')
+    const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
+    expect(hrefs).not.toContain('/dashboard/profile')
+    expect(hrefs).toContain('/dashboard/settings')
   })
 
   // #269: the board is the parents' Today tab; children and teens, whose Today

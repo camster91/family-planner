@@ -256,6 +256,16 @@ export function dinnerRecipeLine(dinner: Pick<BoardDinner, 'recipeName' | 'recip
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
+/**
+ * "2 ingredients missing" for tonight's linked recipe (#122), or null when
+ * nothing is missing or the count is unknown (inventory off, shared device,
+ * no recipe, or a recipe without ingredients).
+ */
+export function missingIngredientsLine(count: number | null | undefined): string | null {
+  if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) return null
+  return `${count} ${count === 1 ? 'ingredient' : 'ingredients'} missing`
+}
+
 export function DinnerRegion({
   dinner,
   mealsEnabled,
@@ -289,6 +299,7 @@ export function DinnerRegion({
     }
   } else {
     const recipeLine = dinnerRecipeLine(dinner)
+    const missingLine = missingIngredientsLine(dinner.missingIngredients)
     // #274: the tile heading opens meals; no separate "Open meals" button.
     body = (
       <div data-testid="dinner-tonight">
@@ -296,6 +307,11 @@ export function DinnerRegion({
           {dinner.recipeName ?? dinner.recipeTitle ?? 'Dinner is planned'}
         </p>
         {recipeLine && <p className={cn(metaTextClass, 'mt-2 break-words')}>{recipeLine}</p>}
+        {missingLine && (
+          <p className={cn(metaTextClass, 'mt-2 break-words')} data-testid="dinner-missing">
+            {missingLine}
+          </p>
+        )}
         {dinner.cookName && <p className={cn(metaTextClass, 'mt-2')}>Cooking: {dinner.cookName}</p>}
       </div>
     )

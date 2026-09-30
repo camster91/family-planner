@@ -71,8 +71,8 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // except for the auth endpoints listed above (where credentials are the second factor).
   //
   // /api/analytics/event is exempt only while the caller is anonymous. A signed-in
-  // caller still causes a database write (an Activity row), so it must keep the CSRF
-  // check — otherwise a forged same-origin POST could inject analytics for that user.
+  // caller's request still reaches the database (it prunes old legacy analytics rows),
+  // so it keeps the CSRF check like every other state-changing request.
   // Anonymous callers are no-ops, and have no csrf_token cookie yet, so requiring one
   // there is what produced the console noise this exemption exists to remove.
   const isAnalyticsEvent = request.nextUrl.pathname === '/api/analytics/event'
@@ -119,8 +119,13 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
 
   // Protected routes
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard')
-  // Auth routes (login/register/join) - redirect to dashboard if already logged in
-  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
+  // Auth routes (login/register) - redirect to dashboard if already logged in.
+  // `/join` is deliberately NOT one of them: a signed-in member without a
+  // household must reach it to accept an email invite or enter a family code
+  // (the login page sends them there after sign-in, and onboarding links to
+  // it). The page itself handles both signed-in and signed-out visitors, and
+  // POST /api/family/join refuses anyone already in a household.
+  const isAuthRoute = ['/login', '/register'].includes(request.nextUrl.pathname)
 
   // A JWT stays cryptographically valid for its full 7 days, so signature and
   // expiry alone cannot express "this session was revoked" — `token_version` is
@@ -183,7 +188,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // from the built middleware.
   void KID_ALLOWED_PREFIXES
 
-  // Auth routes (login/register/join) - redirect to dashboard if already logged in
+  // Auth routes (login/register) - redirect to dashboard if already logged in
   if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }

@@ -4,7 +4,6 @@ import { CheckCircle, Wallet, ShoppingCart, Calendar, FolderKanban, MessageSquar
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import { Glyph } from '@/components/ui/glyph'
-import { trackEvent } from '@/lib/analytics'
 
 const FEATURES = [
   {
@@ -69,7 +68,6 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href="/register"
-                onClick={() => trackEvent('cta_click', { location: 'hero_primary', label: 'Start Free' })}
                 className="btn-filled"
               >
                 {t('landing.startFreeTrial')}
@@ -77,7 +75,6 @@ export default function Home() {
               </Link>
               <Link
                 href="/login"
-                onClick={() => trackEvent('cta_click', { location: 'hero_secondary', label: 'Sign In' })}
                 className="btn-plain"
               >
                 {t('landing.signIn')}
@@ -161,7 +158,6 @@ export default function Home() {
             </p>
             <Link
               href="/register"
-              onClick={() => trackEvent('cta_click', { location: 'bottom_cta', label: 'Get Started' })}
               className="btn-filled"
             >
               {t('landing.ctaPrimary')}

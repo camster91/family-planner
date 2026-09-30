@@ -139,7 +139,13 @@ export default function KidHome({
       if (res.ok) {
         setCelebratingReward(rewardId)
         setTimeout(() => setCelebratingReward(null), 2000)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        addToast({ type: 'error', title: "Couldn't claim that", message: data.error || 'Please try again.' })
       }
+    } catch {
+      // Offline or the request failed: say so instead of an unhandled rejection.
+      addToast({ type: 'error', title: "Couldn't claim that", message: 'Check your connection and try again.' })
     } finally {
       setClaimingReward(false)
     }
@@ -164,10 +170,13 @@ export default function KidHome({
       // optimistic tick, or the chore looks done while the server disagrees.
       if (!res.ok) {
         rollback()
+        const data = await res.json().catch(() => ({}))
+        addToast({ type: 'error', title: "Couldn't mark it done", message: data.error || 'Please try again.' })
         return
       }
     } catch {
       rollback()
+      addToast({ type: 'error', title: "Couldn't mark it done", message: 'Check your connection and try again.' })
       return
     }
     // Undo over confirm (#269): a mis-tap is one tap to reverse.

@@ -95,8 +95,8 @@ These are acceptance thresholds, not claims about current performance.
 ### How the beta criteria are measured
 
 Decision D-6 (`decisions/PROVISIONAL_OWNER_DECISIONS.md`, #287): a separate,
-count-only store, not `src/lib/analytics.ts` (which keeps free-form metadata
-tied to a user). `BetaMetricDaily` holds one count per household, UTC day and
+count-only store, not `src/lib/analytics.ts` (which kept free-form metadata
+tied to a user; removed in #136/#140, see `src/lib/legacy-analytics.ts`). `BetaMetricDaily` holds one count per household, UTC day and
 metric name from the fixed list in `src/lib/beta-metrics.ts`; it has no user
 id, role, text or content. Counting is **off by default**: a parent turns on
 "Share beta usage counts" in Settings → Privacy & Security, and turning it off

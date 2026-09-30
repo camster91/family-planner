@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { LogIn, Eye, EyeOff, Users } from 'lucide-react'
 import { useTranslation } from '@/i18n'
 import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
+import { loginNoticeFor, safeRedirectPath } from '@/lib/safe-redirect'
 
 export default function LoginPage() {
   const { t } = useTranslation()
@@ -17,6 +18,8 @@ export default function LoginPage() {
   const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [registerHref, setRegisterHref] = useState('/register')
   const [deletedNotice, setDeletedNotice] = useState<string | null>(null)
+  // After the email verification link (/api/auth/verify-email).
+  const [verifyNotice, setVerifyNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function LoginPage() {
     const deleted = params.get('deleted')
     if (deleted === 'household') setDeletedNotice('Your household and its accounts have been deleted.')
     else if (deleted === 'account') setDeletedNotice('Your account has been deleted.')
+    setVerifyNotice(loginNoticeFor(params))
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -51,9 +55,10 @@ export default function LoginPage() {
       }
 
       const params = new URLSearchParams(window.location.search)
-      const redirect = params.get('redirect')
+      // Same-origin paths only: `//host` would leave the app (open redirect).
+      const redirect = safeRedirectPath(params.get('redirect'))
       const token = params.get('token')
-      if (redirect && redirect.startsWith('/')) {
+      if (redirect) {
         router.push(redirect)
       } else if (token) {
         router.push(`/join?token=${encodeURIComponent(token)}`)
@@ -108,6 +113,19 @@ export default function LoginPage() {
               className="mb-4 rounded-[var(--radius-md)] bg-[var(--surface-fill)] px-4 py-3 text-[15px] text-[var(--label-primary)]"
             >
               {deletedNotice}
+            </p>
+          )}
+
+          {verifyNotice && (
+            <p
+              role={verifyNotice.kind === 'error' ? 'alert' : 'status'}
+              className={
+                verifyNotice.kind === 'error'
+                  ? 'mb-4 rounded-[var(--radius-md)] bg-[var(--danger-tint)] px-4 py-3 text-[15px] text-[var(--danger-text)]'
+                  : 'mb-4 rounded-[var(--radius-md)] bg-[var(--surface-fill)] px-4 py-3 text-[15px] text-[var(--label-primary)]'
+              }
+            >
+              {verifyNotice.text}
             </p>
           )}
 
@@ -172,6 +190,11 @@ export default function LoginPage() {
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
+              </div>
+              <div className="mt-1 text-right">
+                <Link href="/forgot-password" className="btn-plain py-1 px-2 -my-1 text-[15px]">
+                  {t('auth.forgotPassword')}
+                </Link>
               </div>
             </div>
 

@@ -21,12 +21,19 @@
  * and the next days against the viewer's local calendar.
  */
 import type { PrismaClient } from '@prisma/client'
-import { addUTCDays, startOfTodayUTC, toDateOnlyUTC } from '@/lib/dates'
+import { addUTCDays, parseDateOnly, startOfTodayUTC, toDateOnlyUTC } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
 import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { FamilyFeatures } from '@/lib/features'
 import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
-import { DEFAULT_USE_SOON_DAYS, getUseSoonItems, type DateKind, type InventoryLocation } from '@/lib/inventory'
+import {
+  DEFAULT_USE_SOON_DAYS,
+  countMissingIngredients,
+  getUseSoonItems,
+  loadCookInventory,
+  type DateKind,
+  type InventoryLocation,
+} from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
@@ -99,6 +106,15 @@ export interface BoardDinner {
   recipeTitle?: string | null
   /** Recipe prep time in minutes, when linked and known. */
   prepMinutes?: number | null
+  /**
+   * How many of the linked recipe's ingredients are not in the household's
+   * inventory on the dinner's day (#122), matched exactly like "What can I
+   * cook" (`countMissingIngredients`). A count only, never the names.
+   * Present only for a signed-in member when the `inventory` feature is on
+   * and the recipe lists ingredients; never sent to a shared device
+   * (SHARED_DEVICE.md §9.1 does not allow it). Omitted, not 0, when unknown.
+   */
+  missingIngredients?: number
 }
 
 /**
@@ -205,7 +221,47 @@ interface BuildTodayBoardBase {
 export type BuildTodayBoardOptions = BuildTodayBoardBase &
   ({ audience?: 'person'; role: string | null | undefined } | { audience: 'device'; role?: never })
 
-const NO_LINKS: BoardLinks = { calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null }
+/** A dinner row as read for the board; `ingredients` only when counting what is missing (#122). */
+interface DinnerRow {
+  id: string
+  date: Date
+  recipe_name: string | null
+  cook: { name: string } | null
+  recipe: {
+    title: string
+    prep_time: number | null
+    ingredients?: Array<{ ingredient: { id: string; name: string } }>
+  } | null
+}
+
+/**
+ * Missing-ingredient counts per dinner id (#122), each against the
+ * inventory on the dinner's own day, with the "What can I cook" rules
+ * (`countMissingIngredients`). Dinners without a recipe or without
+ * ingredients get no count. When the household has more items than the scan
+ * cap, nothing is counted: an uncertain number is not shown.
+ */
+async function missingIngredientCounts(
+  db: Pick<PrismaClient, 'inventoryItem'>,
+  familyId: string,
+  dinners: readonly DinnerRow[],
+  from: Date
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  const withIngredients = dinners.filter((d) => (d.recipe?.ingredients?.length ?? 0) > 0)
+  if (withIngredients.length === 0) return counts
+  const { items, truncated } = await loadCookInventory(db, familyId, { from })
+  if (truncated) return counts
+  for (const d of withIngredients) {
+    const day = parseDateOnly(toDateOnlyUTC(d.date))
+    if (!day) continue
+    const missing = countMissingIngredients(d.recipe!.ingredients!, items, day)
+    if (missing !== null) counts.set(d.id, missing)
+  }
+  return counts
+}
+
+const NO_LINKS: BoardLinks ={ calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null }
 
 /**
  * Link target if the role may open it and its feature is on, else null. The
@@ -222,6 +278,9 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const role = isDevice ? undefined : options.role
   const now = options.now ?? new Date()
   const includeShopping = isDevice ? features.lists : canRoleAccessPath(role, '/dashboard/lists')
+  // #122: "N ingredients missing" on the dinner card, for signed-in members
+  // only. SHARED_DEVICE.md §9.1 does not allow it on a paired tablet.
+  const withMissing = !isDevice && features.meals && features.inventory
 
   // A UTC-day window that contains "today" through "today + COMING_UP_DAYS"
   // for every zone from UTC-12 to UTC+14.
@@ -264,10 +323,18 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
             date: true,
             recipe_name: true,
             cook: { select: { name: true } },
-            recipe: { select: { title: true, prep_time: true } },
+            recipe: {
+              select: {
+                title: true,
+                prep_time: true,
+                // #122: ingredient ids and names only, to count what is
+                // missing; never sent (only the count leaves the server).
+                ...(withMissing ? { ingredients: { select: { ingredient: { select: { id: true, name: true } } } } } : {}),
+              },
+            },
           },
           orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        })
+        }) as Promise<DinnerRow[]>
       : Promise.resolve(null),
     includeShopping ? getOpenShoppingItems(db, familyId) : Promise.resolve(null),
     // "Use soon" (#263): only with the inventory feature on. Anchored one UTC
@@ -299,6 +366,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : []
   const subById = new Map(subs.map((s) => [s.id, s]))
+  const missingByDinner =
+    withMissing && dinners ? await missingIngredientCounts(db, familyId, dinners, windowStart) : new Map<string, number>()
 
   const memberIds = new Set(members.map((m) => m.id))
   const colors = resolveMemberColors(members)
@@ -343,6 +412,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           cookName: d.cook?.name ?? null,
           recipeTitle: d.recipe?.title?.trim() || null,
           prepMinutes: d.recipe?.prep_time ?? null,
+          ...(missingByDinner.has(d.id) ? { missingIngredients: missingByDinner.get(d.id) } : {}),
         }))
       : null,
     shopping,

@@ -1,0 +1,30 @@
+# Secret scanning config for gitleaks (#136). CI runs it in `Build & Test`
+# (.github/workflows/release.yml, "Scan for secrets"); locally:
+#   gitleaks dir . --redact --verbose
+#
+# The default gitleaks rules apply. The allowlist below is deliberately narrow:
+# it only skips the `generic-api-key` rule, only in test files, and only for
+# values shaped like the fake idempotency keys those tests use. An idempotency
+# key is a client-chosen retry id (a random UUID in the app), not a credential.
+# Anything else that looks like a secret still fails the build.
+#
+# Adding an entry: keep it to one rule, test paths and a value pattern, and say
+# why it is not a secret. Never allowlist a real credential; rotate it instead.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake Idempotency-Key values in unit/integration tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^src/.*/__tests__/[^/]+\.test\.ts$''']
+regexTarget = "secret"
+regexes = [
+  # UUID-shaped keys, e.g. src/lib/__tests__/idempotency.test.ts,
+  # src/lib/__tests__/idempotency.integration.test.ts,
+  # src/app/api/users/__tests__/deletion.test.ts
+  '''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$''',
+  # src/lib/__tests__/device-queue-send.test.ts
+  '''^key-[0-9]{4}-[a-z]+$''',
+]

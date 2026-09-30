@@ -3,6 +3,7 @@ import { verifyPassword, hashPassword } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest, attachSessionCookie } from '@/lib/api-auth'
 import { changePasswordSchema } from '@/lib/validations'
+import { checkRateLimit } from '@/lib/rate-limit-db'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -10,6 +11,16 @@ export async function POST(request: NextRequest) {
   try {
     const [payload, authError] = await authenticateRequest(request)
     if (authError) return authError
+
+    // A stolen session cookie must not become an unlimited current-password
+    // oracle. Counted per account, like login's per-account failure limit.
+    const rateCheck = await checkRateLimit(`change-password:${payload.userId}`, 10, 15 * 60 * 1000)
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+      )
+    }
 
     let body: any
     try {
