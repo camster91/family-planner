@@ -32,6 +32,7 @@ function touch(name: string, where = dir) {
 function run(args: string[], env: Record<string, string> = {}) {
   const result = spawnSync("bash", [SCRIPT, ...args], {
     env: {
+      NODE_ENV: "test",
       PATH: process.env.PATH ?? "/usr/bin:/bin",
       BACKUP_PRUNE_NOW: String(NOW / 1000),
       ...env,
