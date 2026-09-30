@@ -3,6 +3,7 @@
 
 import {
   consumeInventorySchema,
+  countMissingIngredients,
   createInventorySchema,
   discardInventorySchema,
   getUseSoonItems,
@@ -453,5 +454,57 @@ describe('rankCookableRecipes', () => {
 
   it('returns nothing for an empty inventory', () => {
     expect(rankCookableRecipes(recipes, [], TODAY)).toEqual([])
+  })
+})
+
+// #122: the Today board's "N ingredients missing" uses the same matching.
+describe('countMissingIngredients', () => {
+  const lines = (pairs: Array<[string, string]>) => pairs.map(([id, name]) => ({ ingredient: { id, name } }))
+  const soup = lines([
+    ['ing-tomato', 'Tomatoes'],
+    ['ing-onion', 'Red Onion'],
+    ['ing-stock', 'Stock'],
+    // The same ingredient twice counts once, as in "What can I cook".
+    ['ing-tomato', 'Tomatoes'],
+  ])
+
+  it('counts what is not in stock, matching by id or by name for unlinked items', () => {
+    const inventory = [
+      { ingredient_id: 'ing-tomato', name: 'Tomatoes', expires_on: day(2) },
+      { ingredient_id: null, name: '  red onion ', expires_on: null },
+    ]
+    expect(countMissingIngredients(soup, inventory, TODAY)).toBe(1)
+    // Agrees with rankCookableRecipes for the same recipe and inventory.
+    const [ranked] = rankCookableRecipes(
+      [{ id: 'r', title: 'Soup', prep_time: null, cook_time: null, servings: 2, ingredients: soup }],
+      inventory,
+      TODAY
+    )
+    expect(ranked.missingCount).toBe(1)
+  })
+
+  it('returns 0 when everything is in stock and every ingredient when nothing is', () => {
+    const all = [
+      { ingredient_id: 'ing-tomato', name: 'Tomatoes', expires_on: null },
+      { ingredient_id: 'ing-onion', name: 'Red Onion', expires_on: null },
+      { ingredient_id: 'ing-stock', name: 'Stock', expires_on: null },
+    ]
+    expect(countMissingIngredients(soup, all, TODAY)).toBe(0)
+    expect(countMissingIngredients(soup, [], TODAY)).toBe(3)
+  })
+
+  it('does not count items expired or past use-by on the given day', () => {
+    const inventory = [
+      { ingredient_id: 'ing-tomato', name: 'Tomatoes', expires_on: day(-1) },
+      { ingredient_id: 'ing-onion', name: 'Red Onion', expires_on: day(-1), date_kind: 'use_by' },
+      { ingredient_id: 'ing-stock', name: 'Stock', expires_on: day(0), date_kind: 'use_by' },
+    ]
+    expect(countMissingIngredients(soup, inventory, TODAY)).toBe(2)
+    // A day later the stock is past its use-by day too.
+    expect(countMissingIngredients(soup, inventory, day(1))).toBe(3)
+  })
+
+  it('is null for a recipe without ingredients, so "unknown" never reads as "none missing"', () => {
+    expect(countMissingIngredients([], [{ ingredient_id: 'x', name: 'X', expires_on: null }], TODAY)).toBeNull()
   })
 })
