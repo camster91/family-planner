@@ -240,12 +240,19 @@
   /* === Buttons (iOS HIG) ===
      - .btn-filled uses --accent-fill (background, white text)
      - .btn-tinted uses --accent-tint (bg) + --accent-text (color)
-     - .btn-plain uses --accent-text (color on transparent) */
-  .btn-filled {
+     - .btn-plain uses --accent-text (color on transparent)
+     - .btn-primary is the same as .btn-filled. Settings, kid home, family,
+       join and password-reset screens used it while it was never defined,
+       so their main action rendered as bare text (#133).
+     - Filled and destructive buttons are primary actions: never shorter than
+       44px, even when a screen shrinks their padding (AGENTS.md). */
+  .btn-filled,
+  .btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 44px;
     border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
     background: var(--accent-fill);
@@ -254,9 +261,12 @@
     font-size: 17px;
     transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
-  .btn-filled:active { transform: scale(0.97); background: var(--accent-fill-pressed); }
-  .btn-filled:disabled { opacity: 0.4; pointer-events: none; }
-  .btn-filled:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .btn-filled:active,
+  .btn-primary:active { transform: scale(0.97); background: var(--accent-fill-pressed); }
+  .btn-filled:disabled,
+  .btn-primary:disabled { opacity: 0.4; pointer-events: none; }
+  .btn-filled:focus-visible,
+  .btn-primary:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
   .btn-tinted {
     display: inline-flex;
@@ -310,6 +320,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 44px;
     border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
     /* --danger-fill, not --danger: white on #FF3B30 is 3.55:1 (#131). */
