@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       try {
         const token = await createVerificationToken(user.id)
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
-        const verifyUrl = appUrl + '/api/auth/verify-email?token=' + token
+        const verifyUrl = appUrl + '/verify-email?token=' + token
 
         const html = [
           '<h2>Verify Your Email</h2>',

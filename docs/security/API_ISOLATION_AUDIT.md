@@ -302,7 +302,7 @@ recorded in route comments, as the de facto matrix.
 | /api/auth/register | POST | public | invite binds family; invite path runs in one transaction under the household membership lock (400 if the household was deleted meanwhile, D-3) | n/a | invite token + email match; 409 `DEVICE_MODE_LOGIN_BLOCKED` on a paired device (#240) | family/__tests__/join-vs-deletion.integration.test.ts | ok |
 | /api/auth/resend-verification | POST | public | n/a | n/a | none | — | ok |
 | /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts, device/__tests__/device-routes.test.ts | ok; also deletes the parent's `ParentElevationPin` (#240) |
-| /api/auth/verify-email | GET | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |
+| /api/auth/verify-email | GET, POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts, auth/__tests__/verify-email.test.ts | ok; GET only redirects to the `/verify-email` confirm page, POST consumes the token, rate limited per address (O-24) |
 | /api/budget/categories | GET | family | where | P | none | budget/iso | ok |
 | /api/budget/categories | POST | family | session family | P | none | budget/iso | ok |
 | /api/budget/categories/[id] | PATCH | family | match (403) | P | none | budget/iso | ok |

@@ -143,8 +143,13 @@ export async function createVerificationToken(userId: string): Promise<string> {
 
 /**
  * Atomically consume the email verification token and mark the email verified.
- * Single-use: the verify_token columns are cleared in the same UPDATE that
- * matches them, so a replayed link matches zero rows.
+ * Single-use: the expiry is cleared in the same UPDATE that matches it, so a
+ * replayed link matches zero rows here.
+ *
+ * The token HASH is kept on the row after use (O-24) so that a second press of
+ * "Confirm my email" can say "already verified" instead of "invalid"
+ * (`isVerificationTokenAlreadyUsed`). The hash alone changes nothing: this
+ * claim requires an unexpired row, and a used row has no expiry.
  */
 export async function consumeEmailVerificationToken(token: string): Promise<boolean> {
   const { count } = await prisma!.user.updateMany({
@@ -154,10 +159,25 @@ export async function consumeEmailVerificationToken(token: string): Promise<bool
     },
     data: {
       email_verified: true,
-      verify_token: null,
       verify_token_expires: null,
     },
   })
 
   return count === 1
+}
+
+/**
+ * True when `token` is a verification link that was already used on an
+ * account that is now verified. Read-only.
+ */
+export async function isVerificationTokenAlreadyUsed(token: string): Promise<boolean> {
+  const row = await prisma!.user.findFirst({
+    where: {
+      verify_token: tokenMatch(token),
+      verify_token_expires: null,
+      email_verified: true,
+    },
+    select: { id: true },
+  })
+  return row !== null
 }

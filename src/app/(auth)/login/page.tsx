@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [registerHref, setRegisterHref] = useState('/register')
   const [deletedNotice, setDeletedNotice] = useState<string | null>(null)
-  // After the email verification link (/api/auth/verify-email).
+  // After the email confirm step (/verify-email).
   const [verifyNotice, setVerifyNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const router = useRouter()
 

@@ -74,7 +74,8 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
   'POST /api/auth/forgot-password': [400],
   'POST /api/auth/reset-password': [400],
   'POST /api/auth/resend-verification': [400],
-  'GET /api/auth/verify-email': [307], // redirects to the sign-in page with an error
+  'GET /api/auth/verify-email': [307], // never consumes: redirects to /verify-email or the sign-in page
+  'POST /api/auth/verify-email': [400], // the confirm button (O-24); needs the emailed token, not a cookie
   'POST /api/auth/logout': [200], // clears session_token only; nothing to revoke
   'GET /api/health': [200, 503],
   'GET /api/health/live': [200],
