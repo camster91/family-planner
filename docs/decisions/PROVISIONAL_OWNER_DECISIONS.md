@@ -26,9 +26,10 @@ DNS, billing, Play Store or device action; those stay on the owner list in `CURR
 | O-20 | Beta usage counts default | **Keep off by default** (D-6); beta onboarding asks parents to turn it on in Settings → Privacy & Security. | The privacy-safer reading; counts from households that don't opt in are never collected. | Flip `Family.beta_metrics_enabled` default in `schema.prisma` and `scripts/migrate.js` |
 | O-21 | `next dev` writing an agent-rules block into AGENTS.md | **Disabled** with `agentRules: false` in `next.config.js`. | AGENTS.md is the repository's operating contract; the generated block kept appearing as an uncommitted change. | Remove the option |
 | O-22 | Design gallery `@visual` baselines | **Deferred.** Record them on CI with the E2E workflow's `update_snapshots` input when the gallery layout settles; the gallery's axe, overflow and focus checks already run on every PR. | Baselines must come from the CI production build; recording them now would lock in a layout still being refined. | Run the E2E workflow with `update_snapshots` |
+| O-23 | Pricing copy on the landing and register pages | **"Free during the beta"**, with no trial length and no credit-card line. The register page says "Free during the beta · We never ask for payment details"; the landing page buttons say "Get Started Free" and "Join the Free Beta", and the "thousands of families" claim is replaced with a plain beta invitation (English and Spanish). `src/__tests__/beta-pricing-copy.test.ts` guards it. | There is no billing, so a "14-day free trial" and "No credit card required" promised something that does not exist. | Restore the old strings in `src/i18n/index.tsx` once billing and a trial exist, and update the test |
 
 
-Rows O-18 to O-22 were added on 2026-09-30, when Cameron again approved best guesses for the open items; they are reversible the same way.
+Rows O-18 to O-22 were added on 2026-09-30, when Cameron again approved best guesses for the open items; they are reversible the same way. Rows O-23 onward were added on 2026-09-30 for the real-user readiness follow-ups, under the same approval.
 
 ## PR #101 disposition
 
