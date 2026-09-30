@@ -121,4 +121,4 @@ Existing backups stay until you delete them. They contain every household's data
 
 ## Alternative: Coolify scheduled backups
 
-If production moves to Coolify, its built-in scheduled database backups (with retention and optional S3 upload) can replace this timer. Use one or the other, not both. Coolify is not the current deployment (`DEPLOYMENT.md`), and there is no Coolify runbook on `master` yet. The same restore test and the 35-day limit apply either way.
+If production moves to Coolify, its built-in scheduled database backups (with retention and optional S3 upload) can replace this timer. Use one or the other, not both. Coolify is not the current deployment (`DEPLOYMENT.md`); its setup is in `COOLIFY_DEPLOY.md`. The same restore test and the 35-day limit apply either way.
