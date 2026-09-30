@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
-import { localDateTimeToISO, toDateOnlyLocal } from '@/lib/dates'
+import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
 
 export default function CreateEventPage() {
   const [title, setTitle] = useState('')
@@ -25,8 +25,10 @@ export default function CreateEventPage() {
 
     try {
       // Form values are local wall-clock time; send real ISO instants (with offset)
-      const startDateTime = localDateTimeToISO(`${startDate}T${startTime || '00:00'}`)
-      const endDateTime = endDate ? localDateTimeToISO(`${endDate}T${endTime || '23:59'}`) : startDateTime
+      // An end time without an end date is on the start day (src/lib/dates.ts).
+      const range = eventFormRange({ startDate, startTime, endDate, endTime })
+      const startDateTime = range?.start
+      const endDateTime = range?.end
 
       if (!startDateTime || !endDateTime) {
         setError('Invalid date/time')

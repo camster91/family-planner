@@ -6,7 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { format } from 'date-fns'
-import { localDateTimeToISO } from '@/lib/dates'
+import { eventFormRange } from '@/lib/dates'
 
 function EditEventForm() {
   const [title, setTitle] = useState('')
@@ -76,8 +76,10 @@ function EditEventForm() {
 
     try {
       // Form values are local wall-clock time; send real ISO instants (with offset)
-      const startDateTime = localDateTimeToISO(`${startDate}T${startTime || '00:00'}`)
-      const endDateTime = endDate ? localDateTimeToISO(`${endDate}T${endTime || '23:59'}`) : startDateTime
+      // An end time without an end date is on the start day (src/lib/dates.ts).
+      const range = eventFormRange({ startDate, startTime, endDate, endTime })
+      const startDateTime = range?.start
+      const endDateTime = range?.end
 
       if (!startDateTime || !endDateTime) {
         setError('Invalid date/time')

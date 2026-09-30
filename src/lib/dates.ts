@@ -144,3 +144,26 @@ export function localDateTimeToISO(value: string): string | null {
   if (isNaN(date.getTime())) return null
   return date.toISOString()
 }
+
+/**
+ * Start and end instants for the event create/edit forms (local wall-clock
+ * inputs). An end time with no end date means the same day as the start: a
+ * parent entering "Soccer, 15:00 to 16:00" usually leaves the end date blank,
+ * and that end time used to be dropped, saving a 15:00-15:00 event. An end
+ * date with no time means the end of that day; neither means the start.
+ */
+export function eventFormRange(input: {
+  startDate: string
+  startTime: string
+  endDate: string
+  endTime: string
+}): { start: string; end: string } | null {
+  if (!input.startDate) return null
+  const start = localDateTimeToISO(`${input.startDate}T${input.startTime || '00:00'}`)
+  if (!start) return null
+  let end: string | null = start
+  if (input.endDate) end = localDateTimeToISO(`${input.endDate}T${input.endTime || '23:59'}`)
+  else if (input.endTime) end = localDateTimeToISO(`${input.startDate}T${input.endTime}`)
+  if (!end) return null
+  return { start, end }
+}
