@@ -8,6 +8,7 @@ When information conflicts, use this order:
 
 1. `AGENTS.md` — operating rules and approval boundaries.
 2. `docs/START_HERE.md` — this authority map.
+   - `docs/LAUNCH_CHECKLIST.md` — what must be true before the first real families use the app, and who does each item.
 3. `docs/CURRENT_STATE.md` — dated, verified repository/branch/CI state.
 4. `docs/FRIDGE_TABLET_PROGRAM.md` — approved unified product direction and programme.
 5. `docs/PRODUCT_PROGRAM.md` — existing release/security/beta gates that the fridge programme must preserve.
