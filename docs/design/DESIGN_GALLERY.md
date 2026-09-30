@@ -68,11 +68,7 @@ Overlays that use `position: fixed` (toasts, the calm display) render inside a `
 
 ## Known findings
 
-The gallery surfaced one serious axe result in a production component. `e2e/design-gallery.spec.ts` lists it in `KNOWN_FINDINGS` (matched by rule and element, so anything else still fails). Remove the entry when the component is fixed:
-
-| Rule | Component | Finding |
-|---|---|---|
-| `target-size` (WCAG 2.5.8) | `src/components/ui/search-field.tsx` (used by the command palette) | The clear button is 20×20 CSS px; the minimum is 24×24. |
+`e2e/design-gallery.spec.ts` keeps a `KNOWN_FINDINGS` list for serious axe results in production components that the gallery surfaces (matched by rule and element, so anything else still fails). Remove an entry when the component is fixed. The list is empty: the one finding it started with, the `SearchField` clear button at 20×20 CSS px (WCAG 2.5.8 `target-size`), was fixed by giving the button a 24×24 hit target around the 20px circle.
 
 Also visible in the gallery, not failing axe: `LongPressRow` has no keyboard route to its menu.
 
