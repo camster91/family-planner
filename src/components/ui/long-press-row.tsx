@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
-import { X } from 'lucide-react'
 
 interface Action {
   label: string
@@ -17,36 +15,104 @@ interface LongPressRowProps {
   children: React.ReactNode
   actions: Action[]
   className?: string
+  /** Visible text of the keyboard route to the menu (shown only on focus). */
+  menuLabel?: string
+  /** What the row is, for screen readers: "More actions for <itemName>". */
+  itemName?: string
 }
 
 const HOLD_DURATION = 500 // ms
 
-export function LongPressRow({ children, actions, className }: LongPressRowProps) {
+/**
+ * A row whose actions open in a bottom action sheet on press and hold.
+ *
+ * The same menu is reachable without a pointer: a "More actions" button that
+ * is visually hidden until it has keyboard focus, the ContextMenu key or
+ * Shift+F10 from anything focused inside the row, and a right click. The
+ * sheet is a modal dialog: focus moves to its first action, Escape or Cancel
+ * closes it, and focus returns to where it was.
+ */
+export function LongPressRow({ children, actions, className, menuLabel = 'More actions', itemName }: LongPressRowProps) {
   const [open, setOpen] = React.useState(false)
   const holdTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const returnFocusRef = React.useRef<HTMLElement | null>(null)
+  const sheetRef = React.useRef<HTMLDivElement | null>(null)
+  const accessibleName = itemName ? `${menuLabel} for ${itemName}` : menuLabel
+
+  const clearHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+  }
+
+  React.useEffect(() => clearHold, [])
+
+  const openMenu = () => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setOpen(true)
+  }
+
+  const closeMenu = React.useCallback(() => {
+    setOpen(false)
+    const target = returnFocusRef.current
+    returnFocusRef.current = null
+    // After the sheet unmounts, put focus back where it was.
+    if (target && target.isConnected) setTimeout(() => target.focus(), 0)
+  }, [])
+
+  React.useEffect(() => {
+    if (!open) return
+    const sheet = sheetRef.current
+    const first = sheet?.querySelector<HTMLButtonElement>('button:not([disabled])')
+    first?.focus()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeMenu()
+        return
+      }
+      if (e.key !== 'Tab' || !sheet) return
+      // Keep focus inside the modal sheet.
+      const buttons = Array.from(sheet.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
+      if (buttons.length === 0) return
+      const firstButton = buttons[0]
+      const lastButton = buttons[buttons.length - 1]
+      if (e.shiftKey && document.activeElement === firstButton) {
+        e.preventDefault()
+        lastButton.focus()
+      } else if (!e.shiftKey && document.activeElement === lastButton) {
+        e.preventDefault()
+        firstButton.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open, closeMenu])
 
   const handlePointerDown = () => {
+    clearHold()
     holdTimerRef.current = setTimeout(() => {
-      setOpen(true)
+      holdTimerRef.current = null
+      openMenu()
     }, HOLD_DURATION)
   }
 
-  const handlePointerUp = () => {
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current)
-      holdTimerRef.current = null
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      e.preventDefault()
+      openMenu()
     }
   }
 
-  const handlePointerLeave = () => {
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current)
-      holdTimerRef.current = null
-    }
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    clearHold()
+    openMenu()
   }
 
   const handleActionClick = (action: Action) => {
-    setOpen(false)
+    closeMenu()
     action.onClick()
   }
 
@@ -54,24 +120,42 @@ export function LongPressRow({ children, actions, className }: LongPressRowProps
     <>
       <div
         onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
-        className={className}
+        onPointerUp={clearHold}
+        onPointerLeave={clearHold}
+        onPointerCancel={clearHold}
+        onKeyDown={handleKeyDown}
+        onContextMenu={handleContextMenu}
+        className={cn('relative', className)}
       >
         {children}
+        <button
+          type="button"
+          onClick={openMenu}
+          aria-label={accessibleName}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className={cn(
+            'sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:right-2 focus-visible:top-1/2',
+            'focus-visible:-translate-y-1/2 focus-visible:min-h-[44px] focus-visible:px-3 focus-visible:rounded-xl',
+            'focus-visible:bg-[var(--surface-elevated)] focus-visible:text-[var(--accent)] focus-visible:text-subhead'
+          )}
+        >
+          {menuLabel}
+        </button>
       </div>
 
       {/* Action sheet + scrim */}
       {open && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           {/* Scrim */}
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={closeMenu} aria-hidden="true" />
 
           {/* Action sheet */}
           <div
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={accessibleName}
             className={cn(
               'relative z-10 mx-4 mb-6 rounded-2xl overflow-hidden',
               'bg-[var(--surface-elevated)]',
@@ -105,7 +189,7 @@ export function LongPressRow({ children, actions, className }: LongPressRowProps
             <div className="p-2 border-t border-[var(--surface-border)]">
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
                 className={cn(
                   'w-full py-3.5 rounded-xl text-body font-semibold text-label-primary',
                   'bg-[var(--surface-fill)] active:bg-[var(--surface-fill-secondary)]',

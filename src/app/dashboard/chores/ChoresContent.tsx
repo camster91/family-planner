@@ -339,6 +339,7 @@ export default function ChoresContent({
               {todayChores.map((chore, i) => (
                 <LongPressRow
                   key={chore.id}
+                  itemName={chore.title}
                   actions={[
                     {
                       label: 'Snooze a day',

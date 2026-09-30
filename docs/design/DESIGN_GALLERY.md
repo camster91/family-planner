@@ -70,7 +70,7 @@ Overlays that use `position: fixed` (toasts, the calm display) render inside a `
 
 `e2e/design-gallery.spec.ts` keeps a `KNOWN_FINDINGS` list for serious axe results in production components that the gallery surfaces (matched by rule and element, so anything else still fails). Remove an entry when the component is fixed. The list is empty: the one finding it started with, the `SearchField` clear button at 20×20 CSS px (WCAG 2.5.8 `target-size`), was fixed by giving the button a 24×24 hit target around the 20px circle.
 
-Also visible in the gallery, not failing axe: `LongPressRow` has no keyboard route to its menu.
+`LongPressRow` used to have no keyboard route to its menu; it now opens from a "More actions" button shown on keyboard focus, the ContextMenu key, Shift+F10 and right click, as a modal dialog that returns focus on close.
 
 ## Tests
 

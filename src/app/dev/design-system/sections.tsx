@@ -434,10 +434,11 @@ export function OverlaysSection({ fx }: SectionProps) {
         <Specimen
           name="LongPressRow"
           source="src/components/ui/long-press-row.tsx"
-          note="Action sheet on press and hold (touch only; known gap: no keyboard route to the menu)."
+          note="Action sheet on press and hold, right click, the ContextMenu key or Shift+F10; Tab to the row to reveal its More actions button."
         >
           <InsetList className="max-w-xl">
             <LongPressRow
+              itemName={fx.listName}
               actions={[
                 { label: 'Edit', onClick: noop },
                 { label: 'Duplicate', onClick: noop },
