@@ -1,0 +1,47 @@
+# Daily PostgreSQL backup for Family Planner (#145).
+# Runs scripts/backup.sh once; family-planner-backup.timer starts it.
+#
+# NOT INSTALLED. Installing or enabling this unit on a host needs Cameron's
+# explicit approval for this scheduler (AGENTS.md). Steps, the restore test and
+# how to turn it off: docs/runbooks/BACKUPS.md.
+[Unit]
+Description=Family Planner database backup
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+
+# DB_CONTAINER, DB_USER, DB_NAME and optional retention settings
+# (BACKUP_KEEP_DAILY_DAYS, BACKUP_MAX_AGE_DAYS, BACKUP_PRUNE_DRY_RUN).
+# Root-owned, 0600, kept off the repository. No password is needed: pg_dump
+# runs inside the database container through `docker exec`.
+EnvironmentFile=/opt/family-planner/config/backup.env
+
+ExecStart=/opt/family-planner/scripts/backup.sh /data/backups/family-planner
+
+# Backups hold every household's data: never group- or world-readable.
+UMask=0077
+
+# Needs the docker socket. Membership of the docker group is root-equivalent on
+# the host, so a separate docker-group user would not add real isolation. The
+# sandbox below limits file writes to the backup directory.
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/backups/family-planner
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+# Lower priority than the app.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# Output goes to the journal: journalctl -u family-planner-backup
