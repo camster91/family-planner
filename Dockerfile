@@ -42,8 +42,15 @@ RUN cp -r /app/public /app/.next/standalone/public
 FROM base AS runner
 WORKDIR /app
 
+# Release identity for GET /api/version and the X-Release-Commit header on
+# GET /api/health (src/lib/build-info.ts). release.yml passes RELEASE_SHA.
+# Coolify passes SOURCE_COMMIT instead when its "include source commit in
+# build" option is on (docs/runbooks/COOLIFY_DEPLOY.md). RELEASE_SHA wins when
+# both are set. Declared in this last stage only, so a new commit does not
+# invalidate the cached dependency and build layers.
 ARG RELEASE_SHA
-ENV RELEASE_SHA=${RELEASE_SHA}
+ARG SOURCE_COMMIT
+ENV RELEASE_SHA=${RELEASE_SHA:-${SOURCE_COMMIT}}
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -55,9 +62,13 @@ RUN apk add --no-cache wget
 # Keep this pin in step with the `pg` version in package-lock.json.
 RUN npm install -g pg@8.23.0
 
-# Create necessary directories and set permissions
-RUN mkdir -p /app/.next/cache
-RUN chown -R nextjs:nodejs /app/.next
+# Create necessary directories and set permissions.
+# /data/family-planner-uploads is the default UPLOAD_DIR. Creating it here,
+# owned by the app user, means a fresh named Docker volume mounted on it (for
+# example Coolify persistent storage) starts writable by uid 1001. A host bind
+# mount (the VPS release path) replaces it and keeps the host's ownership.
+RUN mkdir -p /app/.next/cache /data/family-planner-uploads
+RUN chown -R nextjs:nodejs /app/.next /data/family-planner-uploads
 
 # Copy public files
 COPY --from=builder /app/public ./public

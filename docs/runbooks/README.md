@@ -1,6 +1,7 @@
 # Runbooks
 
 - `RELEASE_AND_ROLLBACK.md`
+- `COOLIFY_DEPLOY.md` — planned Coolify setup (build pack, database, health check, uploads volume, every environment variable, proxy hops, release-commit check, rollback); not the current production path, and setting it up needs Cameron's approval
 - `INCIDENT_RESPONSE.md`
 - `CALENDAR_SYNC.md` — register the Google/Microsoft OAuth apps, set secrets, verify, revoke and rotate for two-way calendar sync (#264); enabling it in production needs Cameron's approval
 - `EVENT_IMPORT.md` — Anthropic workspace, key, spend cap, enabling, privacy and rollback for the review-first event import from text, photo or PDF (#270); enabling it in production needs Cameron's approval

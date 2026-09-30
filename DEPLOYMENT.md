@@ -46,6 +46,6 @@ The production host must already have the Docker network, persistent upload stor
 
 ## Paths intentionally removed
 
-The old local SSH release helper and duplicate CI/GHCR image-publishing workflow were removed. There is one canonical CI workflow and one manually triggered production path. Coolify, Vercel, GHCR publication and Supabase are not part of the current deployment.
+The old local SSH release helper and duplicate CI/GHCR image-publishing workflow were removed. There is one canonical CI workflow and one manually triggered production path. Coolify, Vercel, GHCR publication and Supabase are not part of the current deployment. A possible future Coolify setup is prepared, not active, in `docs/runbooks/COOLIFY_DEPLOY.md`.
 
 `scripts/webhook-receiver.sh` and `scripts/family-planner-webhook.service` remain in the repository as a legacy, pull-based deploy trigger. They are not the supported production path. Do not install, enable or use them on a production host without Cameron's explicit approval for that exact action. See `docs/engineering/CI_AND_RELEASE.md`.
