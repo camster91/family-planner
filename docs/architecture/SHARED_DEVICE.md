@@ -4,8 +4,10 @@
 **implemented (behind `SHARED_DEVICE_ENABLED`, default off)**; see §18 for exactly what shipped and how the
 implementation resolved details this contract left open. The web UI (§7, §17.2, #241) is implemented behind the
 same switch; see §19. The §9.2 device writes and board setup under elevation (#274) are implemented behind the
-kill switch **and** a per-household opt-in that defaults off; see §20. The offline snapshot cache (§8 cache rules,
-#162) and Android work (§17.3) are not implemented. Decision record: ADR-0006
+kill switch **and** a per-household opt-in that defaults off; see §20. The Android code for §17.3 (#242: cookie
+flush on pause, Back on `/device/*`) is merged (#246); its device evidence is still open (`ANDROID.md`
+"Shared-device native behaviour"). The offline snapshot cache (§8 cache rules, #162) is not implemented.
+Decision record: ADR-0006
 (`adr/0006-shared-device-session-contract.md`), which implements ADR-0002.
 **Last grounded against source:** 2026-09-26.
 **Parent:** #127. **Related:** #120 (Android appliance), #131 (Figma), #136 (security), #159 (Today board),
