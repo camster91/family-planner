@@ -30,6 +30,10 @@ The `production` GitHub Environment must contain:
 
 The SSH account can control Docker and is therefore privileged. Treat its key accordingly, keep it limited to the production environment, and rotate it through the normal owner-controlled credential process.
 
+## Planned Coolify path (not active)
+
+`docs/runbooks/COOLIFY_DEPLOY.md` prepares an owner-run Coolify setup: Dockerfile build pack, Coolify-managed Postgres, `/api/health` health check, uploads volume, the full environment variable table, `TRUSTED_PROXY_HOPS` for Coolify's Traefik, release-commit verification and Coolify rollback. It is not the current production path and changes nothing in `release.yml`. The `Dockerfile` accepts Coolify's `SOURCE_COMMIT` build argument as a fallback when `RELEASE_SHA` is not passed, so `X-Release-Commit` and `/api/version` still name the deployed commit. Switching production to Coolify needs Cameron's approval, and only one of `Release to VPS` or Coolify may own the production hostname; update this document in the same change that switches.
+
 ## Android release signing
 
 `android/app/build.gradle` applies a release signing config only when all of `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` are set. In `apk.yml` these come from repository secrets `ANDROID_KEYSTORE_BASE64` (the base64-encoded keystore, decoded to a temporary file on the runner), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. Without them the release build is unsigned, uploaded only as a workflow artifact, and the tag `release` job fails instead of publishing it. Whether these secrets exist has not been verified; creating them is an owner-controlled credential change.
