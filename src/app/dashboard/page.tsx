@@ -1,18 +1,27 @@
 import { after } from 'next/server'
+import { redirect } from 'next/navigation'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { normalizeFeatures } from '@/lib/features'
-import { utcMonthRange } from '@/lib/dates'
-import { canRoleAccessPath } from '@/lib/kid-access'
-import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
+import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
+import { omitChorePoints, omitUserGamification } from '@/lib/gamification-visibility'
+import { isKidRole } from '@/lib/kid-access'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
-import DashboardHome, { type BudgetSnapshot } from '@/components/dashboard/DashboardHome'
 import KidHome from '@/components/dashboard/KidHome'
 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
-import AdminControlsWrapper from '@/components/admin/AdminControlsWrapper'
 
-
+/**
+ * `/dashboard` (#269 "one home").
+ *
+ * - No household yet: onboarding.
+ * - Parents: the home is the Today board, `/dashboard/today`, on every
+ *   viewport. This route redirects there so old links, the login redirect and
+ *   installed Android bundles keep working.
+ * - Children and teens: the kid home stays here (their own missions, and
+ *   level/rewards when Points & streaks is on). It differs from the board on
+ *   purpose; their Today tab points here and the board stays one tap away in
+ *   the user menu. See docs/product/NAVIGATION.md.
+ */
 export default async function DashboardPage() {
   const sessionUser = await getServerUser()
 
@@ -30,19 +39,7 @@ export default async function DashboardPage() {
       avatar_url: true,
       xp: true,
       level: true,
-      family: {
-        select: {
-          id: true,
-          name: true,
-          invite_code: true,
-          subscription_tier: true,
-          features: true,
-          travel_mode_active: true,
-          travel_start_date: true,
-          travel_end_date: true,
-          travel_destination: true,
-        },
-      },
+      family: { select: { features: true } },
     },
   })
 
@@ -55,176 +52,60 @@ export default async function DashboardPage() {
     )
   }
 
-  const familyId = user.family_id
-
-  // Subscribed calendars (#232): refresh any not fetched in 15 minutes AFTER
-  // the response is sent, so the dashboard never waits on a third party. A
-  // per-subscription lease in refreshStaleSubscriptions prevents stampedes.
-  after(() => refreshStaleSubscriptions(familyId))
-  const isKid = user.role === 'child' || user.role === 'teen'
-  const now = new Date()
-  const inOneWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-
-  // Get chores (own for kids, all family for parents) + photo-verify queue
-  const choresWhere = isKid
-    ? { family_id: familyId, assigned_to: sessionUser.id }
-    : { family_id: familyId }
-  const [chores, events, messages, familyMembers, pickups, allowancePending, anniversaries, photoVerifyQueue, rewards] =
-    await Promise.all([
-      // Explicit, total order: without it rows come back in physical order, which
-      // changes whenever a row is updated (flaky UI order and visual baselines, #155).
-      prisma!.chore.findMany({ where: choresWhere, orderBy: [{ due_date: 'asc' }, { id: 'asc' }] }),
-      prisma!.event.findMany({
-        where: { family_id: familyId, start_time: { gte: now } },
-        orderBy: { start_time: 'asc' },
-        take: 5,
-      }),
-      prisma!.message.findMany({
-        where: {
-          family_id: familyId,
-          NOT: { read_by: { has: sessionUser.id } },
-        },
-        take: 10,
-      }),
-      prisma!.user.findMany({
-        where: { family_id: familyId },
-        // Tie-break equal XP by id so the family row does not reshuffle between loads.
-        orderBy: [{ xp: 'desc' }, { id: 'asc' }],
-        select: { id: true, name: true, xp: true, level: true, streak: true, best_streak: true, avatar_url: true, role: true },
-      }),
-      prisma!.pickup.findMany({
-        where: { family_id: familyId, completed: false, pickup_time: { gte: now } },
-        include: { assignee: { select: { id: true, name: true, avatar_url: true } } },
-        orderBy: { pickup_time: 'asc' },
-        take: 5,
-      }),
-      prisma!.allowance.findMany({
-        where: { family_id: familyId, status: 'pending' },
-        include: { to_user: { select: { id: true, name: true, avatar_url: true } } },
-        orderBy: { created_at: 'desc' },
-        take: 3,
-      }),
-      prisma!.anniversary.findMany({
-        where: { family_id: familyId },
-        orderBy: { date: 'asc' },
-        take: 10,
-      }),
-      isKid ? Promise.resolve([]) : prisma!.chore.findMany({
-        where: { family_id: familyId, status: 'completed', photo_verified: false },
-        include: { assignee: { select: { id: true, name: true, avatar_url: true } } },
-        orderBy: { completed_at: 'desc' },
-        take: 5,
-      }),
-      isKid
-        ? prisma!.reward.findMany({
-            where: { family_id: familyId, status: 'available' },
-            orderBy: { created_at: 'desc' },
-            take: 5,
-          })
-        : Promise.resolve([]),
-    ])
-
-  const leaderboard = familyMembers.map((m, i) => ({
-    rank: i + 1,
-    id: m.id,
-    name: m.name,
-    xp: m.xp || 0,
-    level: m.level || 1,
-    streak: m.streak || 0,
-    bestStreak: m.best_streak || 0,
-    avatar: m.avatar_url,
-    role: m.role,
-  }))
-
-  // Chore progress ("X of Y done today", "My chores") is derived in DashboardHome
-  // from `chores`, against the viewer's local calendar day.
-  const stats = {
-    upcomingEvents: events?.length || 0,
-    unreadMessages: messages?.length || 0,
+  if (!isKidRole(user.role)) {
+    redirect('/dashboard/today')
   }
 
-  // Anniversaries coming up in the next 90 days (parent only — kids don't need this)
-  const upcomingAnniversaries = !isKid
-    ? anniversaries
-        .map((a) => {
-          const thisYear = new Date(now.getFullYear(), a.date.getMonth(), a.date.getDate())
-          const next = thisYear < now
-            ? new Date(now.getFullYear() + 1, a.date.getMonth(), a.date.getDate())
-            : thisYear
-          const days = Math.ceil((next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-          return { ...a, _days: days }
-        })
-        .filter((a) => a._days <= 90)
-    : []
-
-  // With the rewards feature off, the claim endpoint 403s — suppress the card
-  // instead of rendering an action that can only fail.
+  const familyId = user.family_id
   const features = normalizeFeatures(user.family?.features)
-  const rewardsForKid = features.rewards
-    ? rewards.map(r => ({
+  // Points & streaks (#248). When off, no XP / level / chore-points value is
+  // put into the client props below, so none reaches the HTML or RSC payload.
+  const gamification = features.gamification
+  const rewardsOn = isFeatureEnabled(features, 'rewards')
+
+  // Subscribed calendars (#232): refresh stale feeds after the response is sent.
+  after(() => refreshStaleSubscriptions(familyId))
+  const now = new Date()
+
+  const [chores, events, rewards] = await Promise.all([
+    // Own chores only. Explicit, total order (#155).
+    prisma!.chore.findMany({
+      where: { family_id: familyId, assigned_to: sessionUser.id },
+      orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+    }),
+    prisma!.event.findMany({
+      where: { family_id: familyId, start_time: { gte: now } },
+      orderBy: { start_time: 'asc' },
+      take: 5,
+    }),
+    // With Rewards off (or Points & streaks off, which it needs) the claim
+    // endpoint 403s, so no card is offered.
+    rewardsOn
+      ? prisma!.reward.findMany({
+          where: { family_id: familyId, status: 'available' },
+          orderBy: { created_at: 'desc' },
+          take: 5,
+        })
+      : Promise.resolve([]),
+  ])
+
+  // Only what KidHome draws; the household's feature blob stays on the server.
+  const kid = { id: user.id, name: user.name, role: user.role, avatar_url: user.avatar_url, family_id: familyId, xp: user.xp, level: user.level }
+  const viewer = gamification ? kid : omitUserGamification(kid)
+  const visibleChores = gamification ? chores : chores.map(omitChorePoints)
+
+  return (
+    <KidHome
+      user={viewer as any}
+      chores={visibleChores as any}
+      events={events as any}
+      rewards={rewards.map((r) => ({
         id: r.id,
         name: r.name,
         cost: r.cost,
         description: r.description || undefined,
         status: r.status as 'available' | 'claimed' | 'approved' | 'redeemed',
-      }))
-    : []
-
-  // Budget snapshot: parents only, and only with the budget feature on (the
-  // same gates as /api/budget/stats). Same source as that route: this UTC
-  // month's expense total against the sum of expense category limits.
-  let budget: BudgetSnapshot | null = null
-  if (user.role === 'parent' && features.budget) {
-    const { start: monthStart, end: monthEnd } = utcMonthRange(now.getUTCFullYear(), now.getUTCMonth() + 1)
-    const [expenses, limits] = await Promise.all([
-      prisma!.transaction.aggregate({
-        where: { family_id: familyId, type: 'expense', date: { gte: monthStart, lt: monthEnd } },
-        _sum: { amount: true },
-      }),
-      prisma!.budgetCategory.aggregate({
-        where: { family_id: familyId, type: 'expense' },
-        _sum: { budget_limit: true },
-      }),
-    ])
-    budget = {
-      spent: Math.round((expenses._sum.amount ?? 0) * 100) / 100,
-      limit: Math.round((limits._sum.budget_limit ?? 0) * 100) / 100,
-    }
-  }
-
-  // Shopping card: real open items from the family's grocery/shopping lists.
-  // Only for roles that may open /dashboard/lists (kids are bounced from it).
-  const shopping: ShoppingSnapshot | null = canRoleAccessPath(user.role, '/dashboard/lists')
-    ? await getOpenShoppingItems(prisma!, familyId)
-    : null
-
-  if (isKid) {
-    return (
-      <KidHome
-        user={user as any}
-        chores={chores as any}
-        events={events as any}
-        rewards={rewardsForKid}
-      />
-    )
-  }
-
-  return (
-    <>
-      <DashboardHome
-        user={user as any}
-        chores={chores as any}
-        events={events as any}
-        stats={stats}
-        leaderboard={leaderboard}
-        pickups={pickups}
-        allowancePending={allowancePending}
-        anniversaries={upcomingAnniversaries}
-        photoVerifyQueue={photoVerifyQueue}
-        budget={budget}
-        shopping={shopping}
-      />
-      <AdminControlsWrapper />
-    </>
+      }))}
+    />
   )
 }

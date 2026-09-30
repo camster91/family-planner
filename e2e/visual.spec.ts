@@ -37,19 +37,23 @@ test.describe("@visual Family A parent", () => {
   for (const theme of ["light", "dark"] as const) {
     test(`dashboard (${theme})`, async ({ page }) => {
       await useStoredTheme(page, theme);
+      // One home (#269): /dashboard is the Today board with the parent's
+      // summary sentence above it.
       await page.goto("/dashboard");
+      await expect(page).toHaveURL(/\/dashboard\/today$/);
       if (theme === "dark")
         await expect(page.locator("html")).toHaveClass(/\bdark\b/);
       const main = page.locator("#main-content");
-      await expect(main.getByText("Dentist (Casey)")).toBeVisible();
+      await expect(main.getByText("Dentist (Casey)").first()).toBeVisible();
+      await expect(main.getByTestId("home-summary-sentence")).toBeVisible();
       await ready(page);
       await expect(page).toHaveScreenshot(`dashboard-parent-${theme}.png`, {
-        // Clock-derived text. It is pinned today, but it is the first thing to
-        // drift if FIXTURES_ANCHOR_DATE or the zone changes, and it is covered by
-        // the text assertion in journeys.spec.ts instead.
+        // Clock-derived text: the date (asserted as text in journeys.spec.ts),
+        // the ticking clock and the "Updated" time.
         mask: [
-          main.getByText("Monday, January 5"),
-          main.getByText(/^Good (morning|afternoon|evening)/),
+          main.getByTestId("board-date"),
+          main.getByTestId("board-clock"),
+          main.getByTestId("board-updated"),
         ],
       });
     });

@@ -13,6 +13,19 @@ export interface User {
   created_at: string
 }
 
+/**
+ * What the dashboard nav (DashboardNav, TabBar) receives. Deliberately no
+ * email, age, family id, XP, level or streak: the layout serialises this into
+ * every dashboard page's RSC payload, including the fridge-mode Today board
+ * (#241, SHARED_DEVICE.md §1).
+ */
+export interface NavUser {
+  id: string
+  name: string
+  role: UserRole
+  avatar_url: string | null
+}
+
 // Partial user type for queries that don't return all fields
 export interface BasicUser {
   id: string
@@ -55,6 +68,10 @@ export interface Chore {
   completed_at?: string
   created_at: string
   streak?: number
+  /** Picture routines (#272): icon key (src/lib/routine-icons.ts), routine label and step. */
+  icon?: string | null
+  routine?: string | null
+  routine_order?: number | null
 }
 
 // Event type

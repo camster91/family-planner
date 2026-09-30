@@ -6,6 +6,8 @@ import { ArrowLeft, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
+import { useFeatureEnabled } from '@/components/providers/features-provider'
+import { RoutineFields, RoutineIconPicker, routineRequestFields } from '@/components/chores/RoutineIconPicker'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -26,7 +28,10 @@ const frequencyOptions: { value: Frequency; label: string }[] = [
 function EditChoreForm() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [points, setPoints] = useState(10)
+  // undefined when the chore API omits points (Points & streaks off, #248):
+  // the PATCH then leaves the stored value alone.
+  const [points, setPoints] = useState<number | undefined>(10)
+  const gamification = useFeatureEnabled('gamification')
   const [assignedTo, setAssignedTo] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
@@ -42,6 +47,10 @@ function EditChoreForm() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  // Picture routines (#272).
+  const [icon, setIcon] = useState<string | null>(null)
+  const [routine, setRoutine] = useState('')
+  const [routineOrder, setRoutineOrder] = useState('')
 
   useEffect(() => {
     if (!choreId) {
@@ -63,12 +72,15 @@ function EditChoreForm() {
           if (chore) {
             setTitle(chore.title)
             setDescription(chore.description || '')
-            setPoints(chore.points)
+            setPoints(typeof chore.points === 'number' ? chore.points : undefined)
             setAssignedTo(chore.assigned_to)
             const d = new Date(chore.due_date)
             setDueDate(d.toISOString().split('T')[0])
             setDifficulty(chore.difficulty || 'medium')
             setFrequency(chore.frequency || 'once')
+            setIcon(typeof chore.icon === 'string' ? chore.icon : null)
+            setRoutine(chore.routine ?? '')
+            setRoutineOrder(typeof chore.routine_order === 'number' ? String(chore.routine_order) : '')
             if (chore.photo_url) {
               setPhotoUrl(chore.photo_url)
               setPhotoPreview(chore.photo_url)
@@ -116,6 +128,8 @@ function EditChoreForm() {
           difficulty,
           frequency,
           photo_url: photoUrl,
+          icon,
+          ...routineRequestFields(routine, routineOrder),
         }),
       })
 
@@ -205,20 +219,22 @@ function EditChoreForm() {
           />
         </div>
 
-        {/* Points + Assignee row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label-apple" htmlFor="points">Points</label>
-            <input
-              id="points"
-              type="number"
-              min="1"
-              max="1000"
-              value={points}
-              onChange={(e) => setPoints(parseInt(e.target.value) || 10)}
-              className="input-apple"
-            />
-          </div>
+        {/* Points + Assignee row (points only with Points & streaks on) */}
+        <div className={cn(gamification && 'grid grid-cols-2 gap-3')}>
+          {gamification && (
+            <div>
+              <label className="label-apple" htmlFor="points">Points</label>
+              <input
+                id="points"
+                type="number"
+                min="1"
+                max="1000"
+                value={points ?? 10}
+                onChange={(e) => setPoints(parseInt(e.target.value) || 10)}
+                className="input-apple"
+              />
+            </div>
+          )}
           <div>
             <label className="label-apple" htmlFor="assignedTo">Assign To</label>
             <select
@@ -294,6 +310,15 @@ function EditChoreForm() {
             ))}
           </div>
         </div>
+
+        {/* Picture routines (#272): picture, routine and step */}
+        <RoutineIconPicker value={icon} onChange={setIcon} />
+        <RoutineFields
+          routine={routine}
+          onRoutineChange={setRoutine}
+          order={routineOrder}
+          onOrderChange={setRoutineOrder}
+        />
 
         {/* Photo attach */}
         <div>

@@ -63,7 +63,7 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Welcome to Family Planner!</h2>
           <p className="text-gray-600 max-w-md mx-auto">
-            Let&apos;s get your family set up in 3 simple steps. You&apos;ll be organizing chores and earning XP in minutes.
+            Let&apos;s get your family set up in 3 simple steps. You&apos;ll be organizing chores and plans in minutes.
           </p>
           <button
             onClick={() => setStep(2)}

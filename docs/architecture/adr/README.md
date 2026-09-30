@@ -5,5 +5,10 @@ Accepted/proposed ADRs capture decisions that should not be rediscovered by ever
 - `0001-modular-monolith.md` — keep one modular application/backend until measured extraction triggers.
 - `0002-shared-device-session.md` — fridge tablet uses a dedicated revocable shared-device identity/session.
 - `0003-design-system-and-adaptive-ui.md` — one Figma-first adaptive design system across phone/tablet.
+- `0004-api-compatibility.md` — server changes preserve a supported installed Android client window.
+- `0005-canonical-data-before-new-writes.md` — canonicalize overlapping meal/list models before broad new writes. Its provisional "exact canonical models pending" clause is superseded by the ADR-0007 proposal, once accepted; the constraint itself stays.
+- `0006-shared-device-session-contract.md` — (Proposed) shared-device pairing, token rotation, elevation and revocation contract for ADR-0002.
+- `0007-canonical-meal-recipe-grocery-models.md` — (Accepted 2026-09-27, #149) `FamilyMeal` + `Recipe`/`Ingredient`/`RecipeIngredient` + `List`/`ListItem` are canonical; `MealPlan*`/`Shopping*` are frozen import/archive tables; idempotent recipe → grocery add. Detail: `../MEALS_AND_GROCERIES.md`.
+- `0008-household-audit-history.md` — (Proposed, #285 / PR101 D-4) parent-visible `AuditLog` written in the same transaction as each audited household change; fixed vocabulary, names-only summaries, 12-month retention pruned on read; `DeviceAuditEvent` stays the separate best-effort tablet security trail.
 
 Use `../ADR_TEMPLATE.md` for new decisions. A new ADR is appropriate when changing canonical data models, auth/device boundaries, offline conflict policy, API compatibility, deployment architecture or another durable cross-cutting contract.

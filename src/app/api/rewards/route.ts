@@ -4,6 +4,8 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { createRewardSchema, updateRewardSchema } from '@/lib/validations'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ rewards })
   } catch (error) {
-    console.error('Error fetching rewards:', error)
+    logRouteError('GET /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -94,12 +96,12 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (err) {
-      console.error('Error sending reward notification:', err)
+      logRouteError('POST /api/rewards (notification)', err, getRequestId(request))
     }
 
     return NextResponse.json({ reward })
   } catch (error) {
-    console.error('Error creating reward:', error)
+    logRouteError('POST /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -159,7 +161,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ reward: updated })
   } catch (error) {
-    console.error('Error updating reward:', error)
+    logRouteError('PATCH /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

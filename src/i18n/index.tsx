@@ -387,6 +387,14 @@ const messages = {
       loading: 'Loading...',
       errorLoad: 'Could not load',
     },
+    routeState: {
+      loading: 'Loading…',
+      errorTitle: 'This page did not load',
+      errorBody: 'Something went wrong while loading it. Try again, or come back in a minute.',
+      tabletErrorBody: 'Something went wrong while loading the board. Try again in a moment.',
+      tryAgain: 'Try again',
+      backToToday: 'Back to Today',
+    },
   },
   es: {
     nav: {
@@ -769,6 +777,14 @@ const messages = {
       quickSitterBrief: 'Resumen rapido para la niñera',
       loading: 'Cargando...',
       errorLoad: 'No se pudo cargar',
+    },
+    routeState: {
+      loading: 'Cargando…',
+      errorTitle: 'Esta pagina no se cargo',
+      errorBody: 'Algo salio mal al cargarla. Intentalo de nuevo o vuelve en un minuto.',
+      tabletErrorBody: 'Algo salio mal al cargar el tablero. Intentalo de nuevo en un momento.',
+      tryAgain: 'Intentar de nuevo',
+      backToToday: 'Volver a Hoy',
     },
   },
 } as const

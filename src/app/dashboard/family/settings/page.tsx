@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Users, AlertTriangle, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
+import BoardSettings from '@/components/fridge/BoardSettings'
+import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 
 export default function FamilySettingsPage() {
   const [familyName, setFamilyName] = useState('')
@@ -16,10 +17,9 @@ export default function FamilySettingsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [userRole, setUserRole] = useState('')
   const [familyId, setFamilyId] = useState('')
-  const router = useRouter()
 
   useEffect(() => {
     loadFamilyData()
@@ -73,53 +73,6 @@ export default function FamilySettingsPage() {
       }
 
       setSuccess('Family settings updated successfully!')
-    } catch (err) {
-      setError('An unexpected error occurred')
-      console.error(err)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDeleteFamily = async () => {
-    if (!confirm('Are you absolutely sure? This will delete the entire family and all associated data. This action cannot be undone.')) {
-      return
-    }
-
-    setSaving(true)
-    try {
-      const res = await fetch('/api/family', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ familyId }),
-      })
-      if (!res.ok) throw new Error('Failed to delete family')
-      router.push('/dashboard')
-      router.refresh()
-    } catch (err) {
-      setError('An unexpected error occurred')
-      console.error(err)
-    } finally {
-      setSaving(false)
-      setShowDeleteConfirm(false)
-    }
-  }
-
-  const handleLeaveFamily = async () => {
-    if (!confirm('Are you sure you want to leave this family? You will lose access to all family data.')) {
-      return
-    }
-
-    setSaving(true)
-    try {
-      const res = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ family_id: null }),
-      })
-      if (!res.ok) throw new Error('Failed to leave family')
-      router.push('/dashboard')
-      router.refresh()
     } catch (err) {
       setError('An unexpected error occurred')
       console.error(err)
@@ -255,6 +208,9 @@ export default function FamilySettingsPage() {
           </div>
         </form>
 
+        {/* Today board: member colours and opt-in weather (#262). Parents only; the API enforces it too. */}
+        {userRole === 'parent' && <BoardSettings />}
+
         {/* Danger zone */}
         <div className="card-apple overflow-hidden border border-red-500/20">
           <div className="p-4">
@@ -263,75 +219,29 @@ export default function FamilySettingsPage() {
               <h2 className="text-title-3 text-label-primary font-semibold">Danger Zone</h2>
             </div>
 
-            <div className="space-y-3">
-              {/* Leave family */}
-              <div className="flex items-center justify-between p-3 bg-surface-fill rounded-xl">
-                <div>
-                  <p className="text-subhead font-medium text-label-primary">Leave Family</p>
-                  <p className="text-caption-1 text-label-secondary mt-0.5">
-                    Remove yourself from this family. You will lose access to all family data.
-                  </p>
-                </div>
-                <button
-                  onClick={handleLeaveFamily}
-                  disabled={saving}
-                  className="btn-secondary shrink-0"
-                >
-                  Leave
-                </button>
+            {/* Account and household deletion (docs/product/ACCOUNT_DELETION.md).
+                One dialog decides what this member may delete: their own
+                account, or, for the only parent, the whole household. It asks
+                for the password and a typed confirmation in the page. */}
+            <div className="flex items-center justify-between gap-3 p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
+              <div>
+                <p className="text-subhead font-medium text-label-primary">Delete account or household</p>
+                <p className="text-caption-1 text-label-secondary mt-0.5">
+                  Permanently delete your account. The only parent can delete the whole household.
+                </p>
               </div>
-
-              {/* Delete family (admin only) */}
-              {userRole === 'parent' && (
-                <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-subhead font-medium text-label-primary">Delete Family</p>
-                        <span className="px-2 py-0.5 bg-red-500/10 text-red-500 rounded text-caption-1 font-medium">Admin only</span>
-                      </div>
-                      <p className="text-caption-1 text-label-secondary mt-0.5">
-                        Permanently delete this family and all associated data.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      disabled={saving}
-                      className="btn-secondary shrink-0 border-red-500/30 text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-
-                  {showDeleteConfirm && (
-                    <div className="mt-3 p-3 bg-surface-base border border-red-500/20 rounded-xl">
-                      <p className="text-footnote text-label-primary mb-3">
-                        Are you absolutely sure you want to delete <strong>{familyName}</strong>?
-                        This will permanently delete all chores, events, messages, and rewards.
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setShowDeleteConfirm(false)}
-                          className="btn-secondary flex-1"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleDeleteFamily}
-                          disabled={saving}
-                          className="btn-primary bg-red-500 hover:bg-red-600 flex-1"
-                        >
-                          {saving ? 'Deleting…' : 'Yes, Delete'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowDeleteDialog(true)}
+                className="btn-secondary shrink-0 min-h-[44px] border-red-500/30 text-red-500 hover:bg-red-500/10"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                <span>Delete…</span>
+              </button>
             </div>
           </div>
         </div>
+        <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} />
       </div>
     </div>
   )

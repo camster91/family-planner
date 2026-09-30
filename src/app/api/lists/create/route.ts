@@ -1,8 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { createListSchema } from '@/lib/validations'
 import { canCreateList } from '@/lib/role-capabilities'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +13,10 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    // O-11 (ADR-0007): lists are feature-gated server-side like every other domain.
+    const gate = await featureGate(auth.user.family_id, 'lists')
+    if (gate) return gate
 
     // D9 (#102): parents and teens may create a list. A child can add and tick
     // items on existing lists but not create one.
@@ -42,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, list })
   } catch (error) {
-    console.error('Error creating list:', error)
+    logRouteError('POST /api/lists/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

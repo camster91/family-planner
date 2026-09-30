@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendMail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
 import { hashPassword } from '@/lib/auth'
 import { attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { registerSchema } from '@/lib/validations'
+import { lockHouseholdForJoin } from '@/lib/household-lock'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { recordBetaMetric } from '@/lib/beta-metrics'
 import { hashInviteToken, normalizeEmail, normalizeInviteToken } from '@/lib/family-invite'
+import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
+import { isPairedDeviceRequest } from '@/lib/device-session'
+import { logRouteError, logRouteWarning } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
@@ -22,6 +29,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Shared tablet (#240, O-13): registration can issue a person session
+    // (invite branch), so a paired device is refused exactly like login.
+    if (await isPairedDeviceRequest(prisma!, request, deviceClock.now(), isSharedDeviceEnabled())) {
+      return deviceError(409, 'DEVICE_MODE_LOGIN_BLOCKED')
+    }
+
     let body: any
     try {
       body = await request.json()
@@ -80,29 +93,54 @@ export async function POST(request: NextRequest) {
       createData.family_id = invite.family_id
     }
     let user
-    try {
-      createData.email_verified = Boolean(invite)
-      user = await prisma!.user.create({ data: createData as any })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (msg.includes('email_verified') || msg.includes('does not exist')) {
-        delete createData.email_verified
+    if (invite) {
+      // Invite path: create the member and consume the invite in one
+      // transaction under the household membership lock, so the account can
+      // never be created into a household that a concurrent deletion is
+      // removing (src/lib/household-lock.ts, ACCOUNT_DELETION.md).
+      const inviteId = invite.id
+      const familyId = invite.family_id
+      user = await prisma!.$transaction(async (tx) => {
+        if (!(await lockHouseholdForJoin(tx, familyId))) return null
+        const consumed = await tx.familyInvite.updateMany({
+          where: { id: inviteId, accepted_at: null, expires_at: { gt: new Date() } },
+          data: { accepted_at: new Date() },
+        })
+        if (consumed.count === 0) return null
+        const created = await tx.user.create({ data: { ...createData, email_verified: true } as any })
+        // Household audit history (#285): the new member and their role, in this locked transaction.
+        await writeAuditLog(tx, {
+          familyId,
+          actorUserId: created.id,
+          actorKind: 'person',
+          action: 'member.joined',
+          targetType: 'member',
+          targetId: created.id,
+          summary: auditSummary.memberJoined(created.name, created.role),
+        })
+        return created
+      })
+      if (!user) {
+        return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
+      }
+      // Beta usage counts (#287): after the commit; never fails the request.
+      await recordBetaMetric(prisma!, familyId, 'member_joined')
+    } else {
+      try {
+        createData.email_verified = false
         user = await prisma!.user.create({ data: createData as any })
-      } else {
-        throw e
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('email_verified') || msg.includes('does not exist')) {
+          delete createData.email_verified
+          user = await prisma!.user.create({ data: createData as any })
+        } else {
+          throw e
+        }
       }
     }
 
     if (invite) {
-      const consumed = await prisma!.familyInvite.updateMany({
-        where: { id: invite.id, accepted_at: null, expires_at: { gt: new Date() } },
-        data: { accepted_at: new Date() },
-      })
-      if (consumed.count === 0) {
-        await prisma!.user.delete({ where: { id: user.id } }).catch(() => undefined)
-        return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
-      }
-
       const { password: _pw, reset_token, reset_token_expires, verify_token, verify_token_expires, token_version, ...safeUser } = user as typeof user & {
         reset_token?: string | null
         reset_token_expires?: Date | null
@@ -142,7 +180,7 @@ export async function POST(request: NextRequest) {
       ].join('\n')
 
       try {
-        await sendMail({
+        await sendAccountMail('email_verification', {
           to: email,
           subject: 'Verify Your Family Planner Email',
           html,
@@ -150,13 +188,13 @@ export async function POST(request: NextRequest) {
         })
       } catch (e) {
         // Registration must not fail if email delivery fails; surface it in logs.
-        console.warn('Verification email failed:', e)
+        logRouteWarning('POST /api/auth/register (verification email)', e, getRequestId(request))
       }
     } catch (e) {
       // Token creation failed (e.g. old deploy without verify_token column)
       // Log but don't fail registration — the user can request a new verify
       // email later via /api/auth/resend-verification (TODO: implement)
-      console.warn('Verification token creation failed:', e)
+      logRouteWarning('POST /api/auth/register (verification token)', e, getRequestId(request))
     }
 
     // NOTE: We deliberately do NOT issue a session token here. The user must
@@ -178,7 +216,7 @@ export async function POST(request: NextRequest) {
     })
     return response
   } catch (error) {
-    console.error('Register error:', error)
+    logRouteError('POST /api/auth/register', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

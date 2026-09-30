@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ items: serialized })
   } catch (err) {
-    console.error('GET /api/wishlist error:', err)
+    logRouteError('GET /api/wishlist', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (err) {
-    console.error('POST /api/wishlist error:', err)
+    logRouteError('POST /api/wishlist', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

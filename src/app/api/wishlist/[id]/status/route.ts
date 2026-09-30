@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,7 +68,7 @@ export async function PATCH(
       item: { ...updated, approx_price: updated.approx_price ? updated.approx_price.toString() : null },
     })
   } catch (err) {
-    console.error('PATCH /api/wishlist/[id]/status error:', err)
+    logRouteError('PATCH /api/wishlist/[id]/status', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

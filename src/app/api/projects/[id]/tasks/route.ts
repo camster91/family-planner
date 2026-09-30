@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
+import { authenticateWithFamily } from '@/lib/api-auth'
 import { createProjectTaskSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,10 +30,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       )
     }
 
-    // Verify the project exists and belongs to the user's family
-    const project = await prisma!.project.findUnique({
-      where: { id: projectId },
-      select: { family_id: true },
+    // The project is looked up with the caller's household: another
+    // household's project is the same 404 as a missing one (#289).
+    const project = await prisma!.project.findFirst({
+      where: { id: projectId, family_id: auth.user.family_id },
+      select: { id: true },
     })
 
     if (!project) {
@@ -40,12 +43,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
         { status: 404 }
       )
     }
-
-    const familyError = requireFamilyMatch(
-      project.family_id,
-      auth.user.family_id
-    )
-    if (familyError) return familyError
 
     const { searchParams } = new URL(request.url)
     const filterCompleted = searchParams.get('completed')
@@ -70,7 +67,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ tasks })
   } catch (error) {
-    console.error('Error fetching project tasks:', error)
+    logRouteError('GET /api/projects/[id]/tasks', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -78,7 +75,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-// POST — Create a new task within a project
+// POST — Create a new task within a project. Any household member (parent,
+// teen, child); the "Add task" form on /dashboard/projects/[id] calls it
+// (route inventory F-5, #289). Active projects only.
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -110,10 +109,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       )
     }
 
-    // Verify the project exists and belongs to the user's family
-    const project = await prisma!.project.findUnique({
-      where: { id: projectId },
-      select: { family_id: true, status: true },
+    // Household-scoped lookup: another household's project is the same 404
+    // as a missing one (#289).
+    const project = await prisma!.project.findFirst({
+      where: { id: projectId, family_id: auth.user.family_id },
+      select: { status: true },
     })
 
     if (!project) {
@@ -122,12 +122,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 404 }
       )
     }
-
-    const familyError = requireFamilyMatch(
-      project.family_id,
-      auth.user.family_id
-    )
-    if (familyError) return familyError
 
     // Prevent adding tasks to completed or archived projects
     if (project.status !== 'active') {
@@ -139,24 +133,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { title, description, assigned_to, due_date } = parsed.data
 
-    // If assigned_to is provided, verify the user belongs to the same family
+    // An assignee must be a member of the caller's household; a member of
+    // another household is the same 404 as an unknown id (#289).
     if (assigned_to) {
-      const assignee = await prisma!.user.findUnique({
-        where: { id: assigned_to },
-        select: { family_id: true },
+      const assignee = await prisma!.user.findFirst({
+        where: { id: assigned_to, family_id: auth.user.family_id },
+        select: { id: true },
       })
 
       if (!assignee) {
         return NextResponse.json(
           { error: 'Assigned user not found' },
           { status: 404 }
-        )
-      }
-
-      if (assignee.family_id !== auth.user.family_id) {
-        return NextResponse.json(
-          { error: 'Cannot assign task to a user outside your family' },
-          { status: 403 }
         )
       }
     }
@@ -192,7 +180,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ task }, { status: 201 })
   } catch (error) {
-    console.error('Error creating project task:', error)
+    logRouteError('POST /api/projects/[id]/tasks', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

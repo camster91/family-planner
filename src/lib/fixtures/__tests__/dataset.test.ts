@@ -5,6 +5,7 @@ import {
   FIXTURE_EMAILS,
   FIXTURE_ID_PREFIX,
   FIXTURE_IDS,
+  FIXTURE_LEGACY_MEAL_IDS,
   FIXTURE_PASSWORD,
   fixtureIdsByTable,
   resolveFixtureAnchor,
@@ -156,8 +157,72 @@ describe('fixture dataset', () => {
     )
   })
 
-  it('seeds no meal-plan lists (deferred to #149)', () => {
+  it('seeds no meal-plan lists (the meal_plan list type is retired by ADR-0007)', () => {
     for (const l of ds.lists) expect(['todo', 'grocery', 'shopping']).toContain(l.type)
+  })
+
+  describe('meals/recipes and legacy rows (ADR-0007 backfill rehearsal, #250)', () => {
+    const L = FIXTURE_LEGACY_MEAL_IDS
+    const A = FIXTURE_IDS.familyA.family
+    const B = FIXTURE_IDS.familyB.family
+
+    it('exports ids that all exist in the dataset', () => {
+      const ids = new Set(allIds())
+      for (const group of Object.values(L)) for (const id of Object.values(group)) expect(ids.has(id)).toBe(true)
+    })
+
+    it('keeps every meal/legacy row eight weeks before the anchor (outside every E2E view)', () => {
+      const cutoff = new Date(DEFAULT_FIXTURE_ANCHOR).getTime() - 7 * 24 * 60 * 60 * 1000
+      const dates = [
+        ...ds.familyMeals.map((m) => m.date),
+        ...ds.mealPlans.flatMap((p) => [p.start_date, p.end_date]),
+        ...ds.mealPlanEntries.map((e) => e.date),
+        ...ds.shoppingLists.map((s) => s.created_at),
+      ]
+      for (const d of dates) expect((d as Date).getTime()).toBeLessThan(cutoff)
+    })
+
+    it('stays household-disjoint except for the two documented injection rows', () => {
+      const userFamily = new Map(ds.users.map((u) => [u.id, u.family_id]))
+      const recipeFamily = new Map(ds.recipes.map((r) => [r.id, r.family_id]))
+      const planFamily = new Map(ds.mealPlans.map((p) => [p.id, p.family_id]))
+      const shopFamily = new Map(ds.shoppingLists.map((s) => [s.id, s.family_id]))
+      const ingredientFamily = new Map(ds.ingredients.map((i) => [i.id, i.family_id]))
+      for (const r of ds.recipes) expect(userFamily.get(r.created_by)).toBe(r.family_id)
+      for (const m of ds.familyMeals) expect(userFamily.get(m.created_by)).toBe(m.family_id)
+      const creatorCrossing = [
+        ...ds.mealPlans.filter((p) => userFamily.get(p.created_by) !== p.family_id).map((p) => p.id),
+        ...ds.shoppingLists.filter((s) => userFamily.get(s.created_by) !== s.family_id).map((s) => s.id),
+      ]
+      expect(creatorCrossing.sort()).toEqual([L.familyA.mealPlanForeignCreator, L.familyA.shoppingListForeignCreator].sort())
+      for (const id of creatorCrossing) {
+        const row = ds.mealPlans.find((p) => p.id === id) ?? ds.shoppingLists.find((s) => s.id === id)!
+        expect(row.family_id).toBe(A)
+        expect(userFamily.get(row.created_by)).toBe(B)
+      }
+      for (const ri of ds.recipeIngredients) expect(ingredientFamily.get(ri.ingredient_id)).toBe(recipeFamily.get(ri.recipe_id))
+
+      const crossing = [
+        ...ds.mealPlanEntries.filter((e) => recipeFamily.get(e.recipe_id) !== planFamily.get(e.meal_plan_id)).map((e) => e.id),
+        ...ds.shoppingItems
+          .filter((i) => i.recipe_id && recipeFamily.get(i.recipe_id) !== shopFamily.get(i.shopping_list_id))
+          .map((i) => i.id),
+      ]
+      expect(crossing.sort()).toEqual([L.familyB.entryForeignRecipe, L.familyB.itemForeignRecipe].sort())
+    })
+
+    it('covers every section 6 rehearsal case', () => {
+      const entries = (fam: string) => ds.mealPlanEntries.filter((e) => ds.mealPlans.find((p) => p.id === e.meal_plan_id)?.family_id === fam)
+      expect(entries(A)).toHaveLength(5)
+      expect(entries(A).map((e) => e.meal_type)).toContain('Brunch')
+      expect(entries(B)).toHaveLength(1)
+      const items = (fam: string) =>
+        ds.shoppingItems.filter((i) => ds.shoppingLists.find((s) => s.id === i.shopping_list_id)?.family_id === fam)
+      expect(items(A)).toHaveLength(3)
+      expect(items(A).some((i) => i.checked)).toBe(true)
+      expect(items(B).some((i) => i.ingredient_name.trim() === '')).toBe(true)
+      expect(ds.familyMeals.every((m) => m.recipe_id === null)).toBe(true)
+    })
   })
 
   describe('grocery/shopping lists (dashboard Shopping card)', () => {

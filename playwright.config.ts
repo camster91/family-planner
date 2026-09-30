@@ -138,6 +138,24 @@ export default defineConfig({
       TZ: E2E_TIMEZONE,
       JWT_SECRET: process.env.JWT_SECRET || E2E_DEFAULT_JWT_SECRET,
       NEXT_TELEMETRY_DISABLED: "1",
+      // Shared-device mode (#241, e2e/device.spec.ts). Only requests that
+      // carry device cookies behave differently, and no other spec sends one.
+      SHARED_DEVICE_ENABLED: "1",
+      // Fridge photo scan (#265) stays off in E2E: no provider is ever called.
+      // Blank overrides a key that might be set in the developer's shell.
+      INVENTORY_SCAN_ANTHROPIC_API_KEY: "",
+      // Board weather (#262). The kill switch is off unless set, so it is set
+      // here; no household has weather on unless a spec turns it on with a
+      // fresh WeatherCache row, so the server never calls Open-Meteo
+      // (e2e/fridge.spec.ts).
+      WEATHER_ENABLED: "1",
+      // Event import (#270) stays off in E2E: no provider is ever called.
+      // Blank overrides a key that might be set in the developer's shell.
+      EVENT_IMPORT_ANTHROPIC_API_KEY: "",
+      // Design gallery (#156, e2e/design-gallery.spec.ts). The production
+      // build answers 404 on /dev/design-system unless this opt-in is set; it
+      // renders fixture props only and never reads the database.
+      DESIGN_GALLERY_ENABLED: "1",
     },
   },
 });

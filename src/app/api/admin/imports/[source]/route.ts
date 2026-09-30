@@ -6,6 +6,8 @@ import {
   runFamilyImport,
 } from "@/lib/imports/run-family-import";
 import { prisma } from "@/lib/prisma";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
@@ -101,7 +103,11 @@ export async function POST(
         { status: 400 },
       );
     }
-    console.error(`Failed ${source} import:`, error);
+    logRouteError(
+      "POST /api/admin/imports/[source]",
+      error,
+      getRequestId(request),
+    );
     return NextResponse.json({ error: "Import failed" }, { status: 500 });
   }
 }

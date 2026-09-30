@@ -92,6 +92,9 @@ export async function expandSeriesInTx(
       assigned_to: true,
       created_by: true,
       due_date: true,
+      icon: true,
+      routine: true,
+      routine_order: true,
     },
   })
 
@@ -154,6 +157,10 @@ export async function expandSeriesInTx(
     frequency: 'once',
     assigned_to: original.assigned_to,
     created_by: original.created_by,
+    // Picture routines (#272): every occurrence keeps the template's picture and step.
+    icon: original.icon,
+    routine: original.routine,
+    routine_order: original.routine_order,
     due_date,
     status: 'pending',
     recurrence_id: seriesId,

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ contacts })
   } catch (err) {
-    console.error('Error fetching emergency contacts:', err)
+    logRouteError('GET /api/emergency-contacts', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ contact: created }, { status: 201 })
   } catch (err) {
-    console.error('Error creating emergency contact:', err)
+    logRouteError('POST /api/emergency-contacts', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

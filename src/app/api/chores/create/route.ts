@@ -6,6 +6,10 @@ import { createChoreSchema } from '@/lib/validations'
 import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
+import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
+import { recordChoreAssigned } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url } = parsed.data
+    const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url, icon, routine, routine_order } =
+      parsed.data
 
     // due_date is a date-only value: store the UTC calendar day at midnight.
     const dueDate = normalizeDateOnlyInput(due_date)
@@ -67,12 +72,19 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         created_by: auth.user.id,
         photo_url: photo.value ?? null,
+        // Picture routines (#272); recurring generation copies them.
+        icon: icon ?? null,
+        routine: routine ?? null,
+        routine_order: routine_order ?? null,
       },
       include: {
         assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
         creator: { select: { id: true, name: true, avatar_url: true, role: true } },
       },
     })
+
+    // Beta usage counts (#287): after the write; never fails the request.
+    await recordChoreAssigned(prisma!, auth.user.family_id, newChore)
 
     // Send notification to assigned user
     if (newChore.assignee && newChore.creator) {
@@ -83,7 +95,7 @@ export async function POST(request: NextRequest) {
           newChore.creator
         )
       } catch (err) {
-        console.error('Error sending chore assignment notification:', err)
+        logRouteError('POST /api/chores/create (assignment notification)', err, getRequestId(request))
       }
     }
 
@@ -100,13 +112,18 @@ export async function POST(request: NextRequest) {
           auth.user.family_id
         )
       } catch (err) {
-        console.error('Error expanding recurring chores:', err)
+        logRouteError('POST /api/chores/create (recurring expansion)', err, getRequestId(request))
       }
+    }
+
+    // Points & streaks off (#248): the points value is stored but not echoed.
+    if (!(await isGamificationOn(auth.user.family_id))) {
+      return NextResponse.json({ chore: omitChorePoints(newChore) })
     }
 
     return NextResponse.json({ chore: newChore })
   } catch (error) {
-    console.error('Error creating chore:', error)
+    logRouteError('POST /api/chores/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

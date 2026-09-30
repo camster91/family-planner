@@ -3,17 +3,24 @@
 --       FamilyLocation, Pickup, Allowance tables.
 
 -- 1. Per-family feature flags
--- Default mirrors src/lib/features.ts FEATURES (20 keys). Old rows keep
--- whatever they have; normalizeFeatures fills any missing keys at read time.
+-- Old rows keep whatever they have; normalizeFeatures fills any missing keys
+-- at read time. The ADD COLUMN default below is deliberately the 20-key blob
+-- WITHOUT "gamification": ADD COLUMN writes it into every existing row, and an
+-- existing household must not be stamped gamification=false (#248). The
+-- ALTER ... SET DEFAULT that follows gives NEW rows the full default
+-- (mirrors src/lib/features.ts defaultFeatures()), and scripts/migrate.js
+-- (POST_FEATURE_SQL) then sets gamification=true on rows lacking the key.
+-- "inventory" (#263) is off for new and existing households alike, so a
+-- stored blob without the key already reads as off and needs no stamp.
 ALTER TABLE "Family"
   ADD COLUMN IF NOT EXISTS "features" JSONB
   DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false}'::jsonb;
 
 -- Upgraded deployments already have the column, so the ADD COLUMN IF NOT
 -- EXISTS above is skipped in its entirety (default included). Re-assert the
--- 20-key default on the existing column; existing row values are untouched.
+-- full default on the existing column; existing row values are untouched.
 ALTER TABLE "Family"
-  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false}'::jsonb;
+  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false,"gamification":false,"inventory":false}'::jsonb;
 
 -- 2. Family meals (the meal planning feature)
 CREATE TABLE IF NOT EXISTS "FamilyMeal" (

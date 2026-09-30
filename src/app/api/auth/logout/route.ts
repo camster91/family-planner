@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifySessionToken } from '@/lib/session'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 /**
  * Sign out. Besides clearing the cookie, bump `User.token_version` so the JWT
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (error) {
-      console.error('Error revoking session on logout:', error)
+      logRouteError('POST /api/auth/logout', error, getRequestId(request))
     }
   }
 

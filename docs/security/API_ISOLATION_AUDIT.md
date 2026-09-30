@@ -17,6 +17,242 @@ file stored by `/api/upload`; chore create, update and complete accept a photo o
 the caller's family. `Anniversary.created_by` (nullable) lets teens and children edit anniversaries they
 created. See [D3 legacy path and contract step](#d3-legacy-path-and-contract-step).
 
+**Update 2026-09-26 (#240): shared-device routes.** 19 handlers in 16 new route files (`/api/device/*`,
+`/api/family/devices/*`, `/api/users/elevation-pin`), all `implemented (behind SHARED_DEVICE_ENABLED)` and 404 while
+the switch is off (the default). New auth values: `device` = the `fp_device` access cookie resolved by
+`src/lib/device-session.ts` (never `session_token`); `device + elevation` = additionally `X-Device-Elevation`
+bound to that device; `session (person only)` = `authenticateRequest`, which never reads device cookies. Every
+device route's household is the device's own `family_id` from the database. The route-allowlist test is the
+guard that no other route accepts a device cookie. Contract: `docs/architecture/SHARED_DEVICE.md` §12 and §18.
+
+**Update 2026-09-26 (#162): idempotency.** `PATCH /api/lists/items/update` accepts an optional
+`Idempotency-Key` header through `src/lib/idempotency.ts`. The new `IdempotencyRecord` table is keyed by
+`(scope, key)` with `scope = user:<userId>` and carries `family_id` (FK, cascade) and `user_id` (FK, cascade).
+Authentication and household checks run before any record is read; a record is replayed only to the same scope
+and household, and only 2xx outcomes are stored, so a denied or foreign-item request leaves no record. Tests:
+`src/app/api/lists/__tests__/idempotency.test.ts`, `src/lib/__tests__/idempotency.test.ts` and the opt-in
+`src/lib/__tests__/idempotency.integration.test.ts`. Contract: `docs/architecture/OFFLINE_SYNC.md`.
+
+**Update 2026-09-28 (#264): calendar sync routes.** 7 handlers in 6 new route files (`/api/calendar/connections`,
+`/api/calendar/connections/[provider]/start|callback`, `/api/calendar/sync-connections/[id]`, `…/calendars`,
+`…/sync`), **dormant**: all 404 until calendar sync is configured (`src/lib/calendar-sync/config.ts`). Person
+session only (a device cookie gets 401; asserted with sync configured in the route-allowlist test), parent only.
+Every connection lookup is `where { id, family_id }` (another household's id = 404, identical to missing); the
+engine scopes every event and link statement by `family_id` and connection id. OAuth `state` is single use,
+10-minute, and bound to member + household + provider. Tokens are AES-256-GCM encrypted with household-bound AAD
+and never returned. Tests: `src/app/api/calendar/connections/__tests__/routes.test.ts`,
+`src/lib/calendar-sync/__tests__/*.test.ts`, opt-in `sync.integration.test.ts`.
+
+**Update 2026-09-29 (#274): tablet writes and board setup on the tablet.** 7 handlers in 6 new route files
+under `/api/device/*`, all behind `SHARED_DEVICE_ENABLED` and added to `DEVICE_ALLOWED_ROUTES`. The four write
+routes (`PATCH /api/device/lists/items/[id]`, `POST /api/device/lists/[id]/items`, `POST
+/api/device/chores/[id]/complete`, `POST /api/device/chores/[id]/uncomplete`) additionally require the household
+opt-in `Family.device_writes_enabled` (default off, 403 `DEVICE_WRITES_OFF`), a required `Idempotency-Key` scoped
+`device:<deviceId>`, and an `actingMemberId` verified to be a member of the device's household (400
+`ACTING_MEMBER_INVALID`, identical for a foreign and an unknown id). Every item, list and chore lookup is scoped by
+the device's `family_id` (a foreign id is the same 404 as a missing one); items must be on a grocery/shopping list;
+chores must be due today; the Undo route accepts only this device's own completion from the last 2 minutes. The
+elevated board-settings routes (`GET`/`PATCH /api/device/elevated/board-settings`, `GET …/places`) need
+`X-Device-Elevation` bound to the device, share `src/lib/board-settings.ts` with `/api/family/board-settings`, never
+read or accept photo ids, and return the weather place label without coordinates. Every changed row is audited
+(`device.member_action` / `device.elevated_action`). Tests: `src/app/api/device/__tests__/device-writes.test.ts`
+(D1/D1b/D2, revoked tablet, kill switch, flag off, foreign member/list/item/chore, not due today, idempotent
+replay, per-tablet keys, rate limit, audit rows, Undo window, elevation missing/expired, token bound to its tablet),
+the opt-in `device-writes.integration.test.ts`, and the route-allowlist test.
+
+**Update 2026-09-28 (#271): visible sync and calm display.** 2 handlers in 2 new route files, both read-only
+and returning only `{ version }` (an opaque hash of the caller's own Today board, built by `loadTodayBoard` from the
+same `family_id`-scoped reads as the board): `GET /api/family/board-version` (person session only, every role, own
+household and role; a device cookie gets 401, asserted by the route-allowlist test) and `GET
+/api/device/today/version` (device cookie only, device's household only, 404 with the kill switch off; added to
+`DEVICE_ALLOWED_ROUTES`). Both rate limited (1200 per member / per tablet per hour). `PATCH
+/api/family/board-settings` gains `display` (idle minutes, night hours, photo ids); photo ids must each be a
+displayable `Upload` of the caller's household (400 `Unknown photo`, identical for another household's upload and a
+missing id). Photos appear only in the person board DTO; the device audience never reads the photo ids. Tests:
+`src/app/api/family/board-version/__tests__/board-version.test.ts` (two households, parent/teen/child, device
+D1/D2, revoked tablet, kill switch, rate limits, photos person-only),
+`src/app/api/family/board-settings/__tests__/display.test.ts`, the opt-in
+`src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts`.
+
+**Update 2026-09-28 (#251): canonical meal, recipe and grocery APIs (ADR-0007).** New family-scoped
+`/api/recipes` and `/api/recipes/[id]` (every lookup `where { id, family_id }`, so another household's recipe is a
+404 identical to a missing one); `recipe_id` on `/api/meals` and `ingredient_id` on `/api/lists/items/create|update`
+are verified in the caller's household (400, the same answer for a foreign and a missing id, so existence is not
+revealed); nested recipe ingredients are resolved in the household only (a name never matches another household's
+ingredient). Every `/api/lists/**` handler now has `featureGate('lists')` (O-11). The meal-planner importer writes
+`FamilyMeal`/`List`/`ListItem` and resolves every reference inside the importing household. Tests:
+`recipes/__tests__/isolation.test.ts`, `meals/__tests__/recipe-link.test.ts`, `lists/__tests__/provenance.test.ts`,
+`users/export/__tests__/canonical.test.ts`, and the opt-in `recipes/__tests__/recipes.integration.test.ts`,
+`src/lib/__tests__/list-item-provenance.integration.test.ts` and
+`src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts`.
+
+**Update 2026-09-28 (#253): recipe → grocery add (ADR-0007 child D).** `POST /api/lists/items/from-recipe`,
+`POST /api/lists/items/undo-add` and `POST /api/lists/default-grocery`. The recipe, meal and list are each looked up
+`where { id, family_id }`, so another household's id is a 404 identical to a missing one; ingredient rows come from the
+household's recipe, never from the body. A paired shared device is refused with 403 `DEVICE_WRITE_NOT_ALLOWED`
+before person auth (`refusePairedDevice`), and the route-allowlist test lists both routes. Undo is limited to the
+original caller's own request (idempotency record `user_id`), their own unticked rows and a 10-minute window. Tests:
+`src/app/api/lists/__tests__/from-recipe.test.ts` and the opt-in `from-recipe.integration.test.ts`.
+
+**Update 2026-09-28 (#263): food inventory.** New family-owned `InventoryItem` with `/api/inventory`,
+`/api/inventory/[id]`, `/api/inventory/use-soon` and `/api/inventory/cook`, all behind `featureGate('inventory')`
+(cook also `meals`). Every lookup is `where { id, family_id }` (another household's item is a 404 identical to a
+missing one); the optional `ingredient_id` is verified in the caller's household (400, same answer for a foreign and
+a missing id), and the automatic link by name only considers the household's own ingredients. Writes are parent and
+teen; a paired shared device is refused with 403 `DEVICE_WRITE_NOT_ALLOWED` before person auth and the three write
+handlers are listed in the route-allowlist test. The export adds the household's items. Tests:
+`src/app/api/inventory/__tests__/isolation.test.ts` (two-household harness, which now seeds an `inventoryItem` per
+household) and the opt-in `inventory.integration.test.ts`.
+
+**Update 2026-09-29 (#158/#121): inventory consume, discard, undo and history.** New family-owned
+`InventoryAdjustment` (FK `family_id` cascade, `item_id` cascade, `actor_id`/`undone_by` SET NULL) and routes
+`POST /api/inventory/[id]/consume`, `POST /api/inventory/[id]/discard`, `POST /api/inventory/adjustments/[id]/undo` and
+`GET /api/inventory/adjustments`, all behind `featureGate('inventory')`. Items and adjustments are looked up with
+`where { id, family_id }` (another household's id is a 404 identical to a missing one); every write is a
+compare-and-set that repeats `family_id`; the adjustment's `family_id` comes from the session, never the body (strict
+bodies). Writes are parent and teen (child 403 `INVENTORY_WRITE_FORBIDDEN`); a paired device is refused with 403
+`DEVICE_WRITE_NOT_ALLOWED` before person auth, and the three write routes are in the route-allowlist test. PATCH,
+DELETE, consume, discard and undo accept an optional `Idempotency-Key` scoped `user:<id>` whose record carries the
+family, so a key is never replayed into another household. History and the export never return `family_id` or the
+idempotency record id. Tests: `src/app/api/inventory/__tests__/adjustments.test.ts` (two households, roles, device,
+retries) and the opt-in `adjustments.integration.test.ts` (in release.yml).
+
+**Update 2026-09-28 (#265): fridge photo scan.** `POST /api/inventory/scan` reads and writes no household rows: it
+returns model suggestions for one uploaded photo, and the page adds reviewed items through `POST /api/inventory`
+(above). A paired device is refused (403, listed in the route-allowlist test) before person auth; then a session, the
+kill switch (404 without `INVENTORY_SCAN_ANTHROPIC_API_KEY`), `featureGate('inventory')` and parent role. Rate-limit
+keys are `inventory-scan:user:<userId>`, `inventory-scan:family:<familyId>` and
+`inventory-scan:day:<familyId>:<UTC day>`, all from the session, so one household's use never counts against another's.
+The provider host is a constant and the key is server env only (no user-supplied URL, key or model). The image is
+never stored; logs are metadata only. Tests: `src/app/api/inventory/__tests__/scan.test.ts` (mocked provider; parent,
+teen, child, device, two households, limits, sizes, types, malformed output) and `src/lib/__tests__/inventory-scan.test.ts`.
+
+**Update 2026-09-28 (#270): review-first event import.** `POST /api/calendar/import-suggestions` reads and writes no
+household rows: it returns model suggestions for pasted text or one photo/PDF; the page adds the reviewed events
+through the commit route below. A paired device is refused (403, listed in the route-allowlist test) before
+person auth; then a session, the kill switch (404 without `EVENT_IMPORT_ANTHROPIC_API_KEY`),
+`featureGate('calendar')` and parent/teen role. Rate-limit keys are `event-import:user:<userId>`,
+`event-import:family:<familyId>` and `event-import:day:<familyId>:<UTC day>`, all from the session. The provider host
+is a constant and the key is server env only (no user-supplied URL, key or model; not the per-family capture
+config). Input is never stored; logs are metadata only. The reviewed events are created by `POST /api/calendar/import-suggestions/commit` in one transaction with the
+session `family_id` and `created_by` (strict body, `POST /api/events` field rules), under a required `Idempotency-Key`
+(records scoped to `user:<id>`, replay checked against the household). `POST /api/calendar/import-suggestions/undo`
+accepts only the commit's HMAC undo token (user, household, ids, time; key derived from `JWT_SECRET` with a purpose
+label), so a caller cannot name arbitrary event ids: a teen cannot use it to delete an event made by hand (#277 review
+P1). It then deletes with `where { id in token ids, family_id: session, created_by: session user, source_* null }`.
+Tests: `src/app/api/calendar/import-suggestions/__tests__/route.test.ts` (mocked provider; parent, teen, child, device,
+two households, limits, sizes, types, malformed output), `…/commit.test.ts` (commit and undo: roles, device, two
+households, replay, forged/edited/foreign/expired tokens, the hand-made event case) and
+`src/lib/__tests__/event-import.test.ts`.
+
+**Update 2026-09-28 (#273): grocery store sections.** New family-owned `GrocerySectionPreference` (unique
+`(family_id, name_key)`) and `GroceryShoppingSession`, plus `Ingredient.section` and `List.sort_by_section`. New
+`PATCH /api/lists/items/section` looks the item up `where { id, list: { family_id } }` (another household's item is a
+404 identical to a missing one), keys the override by the caller's `family_id` (never from the body; strict body), and
+updates `Ingredient.section` only `where { id, family_id }`. New `PATCH /api/lists/section-sort` looks the list up
+`where { id, family_id }` (404) and is parent and teen. Both refuse a paired shared device with 403
+`DEVICE_WRITE_NOT_ALLOWED` before person auth and are listed in the route-allowlist test. `GET /api/lists/items`,
+`POST /api/lists/items/create` and the list page read overrides only for the caller's household and only for names on
+the list; the walking order reads only the household's trips. A tick records its trip under the item's household. The
+export adds the household's preferences and trips. Tests: `src/app/api/lists/__tests__/sections.test.ts`
+(two-household harness, same name in both households) and the opt-in `sections.integration.test.ts`.
+
+**Update 2026-09-29 (route inventory F-3, #101 D-2): household search.** New `GET /api/search?q=` replaces the
+placeholder `/dashboard/search`. It reads no new table and writes nothing. A paired shared device is refused (403
+`DEVICE_WRITE_NOT_ALLOWED`, listed in the route-allowlist test's refused routes, not its allowlist) before person auth;
+then `authenticateWithFamily`. Every query filters on the session `family_id` (list items through their list) and
+reads only ADR-0007 canonical tables, never a legacy meal/shopping table (F-7). Each type is searched only while the
+household has its feature on (`calendar`, `chores`, `lists`, `family`, `meals`, `notes`, `inventory`) and only
+when the caller's role may open the page the result links to (`src/lib/search-result-href.ts`, the kid allowlist):
+teens and children get lists, list items and inventory only. Budget, messages, medical, locations, handoff,
+allowance, projects, rewards and wishlist are never searched. Results carry type, id, title, an optional plain
+subtitle, the link and (events/chores) a time; note bodies are matched but never returned, and members never carry
+an email. `%`, `_` and `\` in the words are escaped, because Prisma's `contains` does not escape LIKE wildcards
+(checked against Postgres). Tests: `src/app/api/search/__tests__/search.test.ts` (two households, roles, features,
+validation, limits, device) and the opt-in `search.integration.test.ts`.
+
+**Update 2026-09-29 (route inventory F-4): ICS calendar subscriptions (#232).** 5 handlers in 3 route files
+(`/api/calendar/subscriptions`, `…/[id]`, `…/[id]/refresh`) were missing from this table and are added below, read
+from source. All use `authenticateWithFamily` (person session only; a device cookie is refused, and the
+route-allowlist test enumerates these files). Every lookup is `where { id, family_id }`, so another household's id
+is a 404 identical to a missing one; the role check runs first, so a role refusal (403) is the same for an own and a
+foreign id. `GET` is parent and teen (child 403); only parents see the host-only `url_hint`. `POST`, `PATCH` and
+`DELETE` are parent only. `POST …/refresh` is parent and teen. The feed URL is write-only (AES-256-GCM encrypted,
+never returned or logged), `PATCH` cannot change it (strict body), and `DELETE` removes only events with
+`source_subscription_id` = that subscription in the caller's household. No `featureGate`: subscriptions belong to
+the core calendar. Tests: `src/app/api/calendar/subscriptions/__tests__/isolation.test.ts` (two-household
+harness: 401 on every handler, teen/child 403s, cross-household 404 both ways, household-less 400, URL never
+echoed, SSRF-shaped URLs rejected).
+
+**Update 2026-09-29 (#286, PR101 D-5): notification preferences.** New `GET` and `PATCH /api/users/preferences`
+read and change three booleans on the caller's own `User` row (`notify_chores`, `notify_events`,
+`notify_messages`, default true). A paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in the
+route-allowlist test's refused routes) before person auth; then `authenticateWithUser`. Both handlers read and
+write `where: { id: session user }` only; the PATCH body is strict (`chores`/`events`/`messages` booleans), so a
+`userId` or any other key is a 400 and no member can read or change another member's switches, in or outside their
+household. Responses carry only the three booleans and `Cache-Control: private, no-store`. `Idempotency-Key` is
+scoped `user:<id>` and the caller's household. Enforcement: every `Notification` row is now created by
+`src/lib/notification-delivery.ts`, which reads only the recipient's own switch; `POST /api/notifications` keeps
+its same-household check (403) and now also rejects a type outside the policy table (400). Account email
+(password reset, email verification, invites) and `system` notices are always sent. Tests:
+`src/app/api/users/__tests__/preferences.test.ts` (two households, every role, strict body, device, idempotency),
+`src/lib/__tests__/notification-delivery.test.ts`, `notification-policy.test.ts` and the opt-in
+`preferences.integration.test.ts`.
+
+**Update 2026-09-29 (#285, PR101 D-4): household audit history.** New household-scoped table `AuditLog`
+(`family_id` NOT NULL, `ON DELETE CASCADE`; `actor_user_id` `ON DELETE SET NULL`) and `GET /api/audit`. Read: a
+paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in the route-allowlist test's refused routes) before
+person auth; then `authenticateWithFamily` and `requireParent` (teen/child 403); every query and the 12-month prune
+filter on the session `family_id`; a cursor from another household only moves the position inside the caller's own
+rows; an actor is named only while they are still a member of the caller's household. No `family_id` or email
+leaves the server; `Cache-Control: private, no-store`. Writes: each audited route writes its row with the household id
+it already authorised, inside the same transaction as the change (`src/lib/household-audit.ts`): `PATCH
+/api/family/features`, `POST /api/family/join`, both board-settings `PATCH` routes, tablet pairing issue
+(`POST /api/device/pair/status`), `PATCH /api/family/devices/[id]`, `POST /api/family/devices/[id]/revoke`,
+`PATCH /api/device/label`, `POST /api/device/revoke-self`, `POST /api/family/invites`, `DELETE
+/api/family/invites/[id]`. Also the invite branch of `POST /api/auth/register` (`member.joined`, inside its locked join
+transaction) and member account deletion (`member.left`, role word only; the member's `member.joined` line loses
+their name; `auditLog` is a step of `HOUSEHOLD_DELETION_PLAN`). Summaries are fixed templates plus names; never emails, codes, tokens, places or colours. Review follow-up: feature toggles re-read the flags under a `Family` row lock inside the transaction
+(concurrent toggles of different features both persist); board settings are recorded only for sections whose stored
+values changed.
+The account export adds the last 12 months (parent: all rows; teen/child: own rows). Tests:
+`src/app/api/audit/__tests__/audit.test.ts` (two households, roles, device, paging, retention),
+`audit-writes.test.ts` (every write path, refused and foreign requests write nothing), the opt-in
+`src/lib/__tests__/household-audit.integration.test.ts` (atomic commit/rollback, household deletion) and
+`users/export/__tests__/canonical.test.ts`.
+
+**Update 2026-09-29 (#289, route inventory F-5/F-6): unused and duplicate routes.** New `DELETE
+/api/lists/items/[id]`: a paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in the route-allowlist
+test's refused routes) before person auth; then `authenticateWithFamily`, `featureGate('lists')`, `requireParent`,
+and `deleteHouseholdListItem` (`src/lib/list-item-delete.ts`), which looks the item up `where { id, list: {
+family_id } }` and deletes by id only after that match, so another household's item is the same 404 as a missing
+one and is never written. The deprecated `DELETE /api/lists/items/delete?itemId=` (kept for installed Android
+builds) uses the same helper, so its foreign-id answer changes from 403 to that 404; its roles and gates are
+unchanged. `GET/POST /api/projects/[id]/tasks` now look the project up `where { id, family_id }` and a new
+assignee `where { id, family_id }` (both 404, foreign and missing alike; were 403). `GET /api/lists/items` and the
+old delete add a `Deprecation` header only. The chores status routes are unchanged (one path through
+`completeChore` / `reopenCompletedChoreInTx`; `PATCH /api/chores` never writes status). Tests:
+`src/app/api/lists/__tests__/item-delete.test.ts`, `src/app/api/projects/__tests__/isolation.test.ts`,
+`src/app/api/chores/__tests__/status-single-path.test.ts`, the route allowlist and the opt-in
+`src/lib/__tests__/list-item-delete.integration.test.ts`.
+
+**Update 2026-09-29 (#287, PR101 D-6): beta usage counts.** New household-scoped table `BetaMetricDaily`
+(`family_id` NOT NULL, `ON DELETE CASCADE`; columns `family_id`, `day`, `metric`, `count` only: no user id, text or
+content) and `PATCH /api/family/beta-metrics`. A paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in
+the route-allowlist test's refused routes) before person auth; then `authenticateWithFamily` and `requireParent`
+(teen/child 403); the body is strict (`enabled` only, so no household id can be named) and the update and the
+delete are `where` the session `family_id`, under a `Family` row lock. Writes to the table: only
+`src/lib/beta-metrics.ts` (source-scan test), with the household id each calling route already authorised, after
+its own write committed: `POST /api/chores/create`, `completeChore` (`POST /api/chores/complete` and the tablet's
+`POST /api/device/chores/[id]/complete`), `POST /api/chores/verify` (approve), `POST /api/rewards/claim`,
+`POST /api/events`, `POST /api/meals`, `POST /api/family/join` and the invite branch of `POST /api/auth/register`.
+The recorder's statement is a no-op unless that household opted in. The account export adds the household's counts
+(no `family_id`). `npm run beta:scorecard` reads every household's counts but numbers households inside the
+database, so no id or name leaves it. Tests: `src/app/api/family/__tests__/beta-metrics.test.ts` (two households,
+roles, device, strict body, off deletes only the caller's household), `src/lib/__tests__/beta-metrics.test.ts`,
+`beta-scorecard.test.ts`, the opt-in `beta-metrics.integration.test.ts` (concurrent increments, opt-out race,
+cascade) and `users/export/__tests__/canonical.test.ts`.
+
 When this audit was first written the matrix did not exist, so the audit used the documents above, plus intent
 recorded in route comments, as the de facto matrix.
 
@@ -46,8 +282,9 @@ recorded in route comments, as the de facto matrix.
 | Route | Method | Auth | Family scope | Role gate | Foreign-id checks | Test | Status |
 |---|---|---|---|---|---|---|---|
 | /api/activity | GET | family | where | all | none | activity/iso | ok |
+| /api/audit | GET | device refused (403) + family | where `family_id` (session); prune `where family_id` + older than 12 months; cursor positions within own rows only; actor named only if still a member | P (teen/child 403) | `limit` 1–50, opaque `cursor` (400 otherwise) | audit/__tests__/audit.test.ts, household-audit.integration, device-route-allowlist | implemented (#285) |
 | /api/admin/imports | GET | family | where | P | none | admin/imports/iso | ok |
-| /api/admin/imports/[source] | POST | family | familyId from session | P | identityMap user ids verified in family | admin/imports/iso | ok |
+| /api/admin/imports/[source] | POST | family | familyId from session | P | identityMap user ids verified in family | admin/imports/iso, imports/meal-planner-canonical.integration | ok; meal-planner (#251) writes only canonical `FamilyMeal`/`List`/`ListItem` (+ `Recipe*`); recipe links and ingredient matches resolved in the importing family; existing mappings honoured whatever their `target_model` |
 | /api/allowance | GET | jwt | where | P; teen/child own (`to_user_id = self`) | none | allowance/iso | implemented (D5) |
 | /api/allowance | POST | jwt | session family | P | to_user_id verified in family | allowance/iso | ok |
 | /api/allowance/[id] | PATCH | jwt | match (404) | P | none | allowance/[id]/route.test.ts | ok |
@@ -59,12 +296,12 @@ recorded in route comments, as the de facto matrix.
 | /api/anniversaries/[id] | DELETE | family | match (403) | P | none | anniversaries/iso | implemented (D9) |
 | /api/auth/change-password | POST | session | n/a (self) | all | none | — | ok |
 | /api/auth/forgot-password | POST | public | n/a | n/a | none | — | ok |
-| /api/auth/login | POST | public | n/a | n/a | none | — | ok |
+| /api/auth/login | POST | public | n/a | n/a | none | src/app/api/auth/login/__tests__/device-guard.test.ts | ok; 409 `DEVICE_MODE_LOGIN_BLOCKED` while a live device credential is present (#240, switch on only) |
 | /api/auth/logout | POST | cookie clear | n/a | n/a | none | — | ok |
 | /api/auth/me | GET | session | n/a (self) | all | none | — | ok |
-| /api/auth/register | POST | public | invite binds family | n/a | invite token + email match | — | ok |
+| /api/auth/register | POST | public | invite binds family; invite path runs in one transaction under the household membership lock (400 if the household was deleted meanwhile, D-3) | n/a | invite token + email match; 409 `DEVICE_MODE_LOGIN_BLOCKED` on a paired device (#240) | family/__tests__/join-vs-deletion.integration.test.ts | ok |
 | /api/auth/resend-verification | POST | public | n/a | n/a | none | — | ok |
-| /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |
+| /api/auth/reset-password | POST | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts, device/__tests__/device-routes.test.ts | ok; also deletes the parent's `ParentElevationPin` (#240) |
 | /api/auth/verify-email | GET | token | n/a | n/a | none | src/__tests__/auth-tokens.test.ts | ok |
 | /api/budget/categories | GET | family | where | P | none | budget/iso | ok |
 | /api/budget/categories | POST | family | session family | P | none | budget/iso | ok |
@@ -76,6 +313,21 @@ recorded in route comments, as the de facto matrix.
 | /api/budget/transactions/[id] | PATCH | family | match (403) | P | category_id verified | budget/iso | ok |
 | /api/budget/transactions/[id] | DELETE | family | match (403) | P | none | budget/iso | ok |
 | /api/calendar/feed | GET | token (feed_token) | where family = token's family | n/a | none | calendar/feed/__tests__/route.test.ts | ok |
+| /api/calendar/connections | GET | family (404 while sync off) | where | P | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/connections/[provider]/start | POST | family (404 while off / provider unconfigured) | session family + user bound into OAuth state | P | provider allowlisted | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/connections/[provider]/callback | GET | family (404 while off) | state must match session user, family and provider (single use, 10 min); commit under the household lock, refused if the household or member is gone, and any grant not stored is revoked (D-3) | P | state hash lookup only | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/oauth-state.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id] | PATCH | family (404 while off) | where (404) | P, connecting member only (403) | calendar_id must be one of the member's writable provider calendars | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id] | DELETE | family (404 while off) | where (404) | P | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id]/calendars | GET | family (404 while off) | where (404) | P, connecting member only (403) | none | calendar/connections/__tests__/routes.test.ts | implemented (dormant, #264) |
+| /api/calendar/sync-connections/[id]/sync | POST | family (404 while off) | where (404); engine scopes by family + connection | P | none | calendar/connections/__tests__/routes.test.ts, calendar-sync/__tests__/sync.test.ts | implemented (dormant, #264) |
+| /api/calendar/import-suggestions | POST | device refused (403) + family + kill switch (404) + `featureGate('calendar')` | none read or written; rate-limit keys from session user/family | P+T | JSON text ≤ 20k chars or multipart file: Content-Length bound, 8 MB photo / 10 MB PDF, magic-byte type (JPEG/PNG/WebP/PDF); model output zod-validated and cleaned; fixed provider host, server-only key | calendar/import-suggestions/__tests__/route.test.ts, lib/event-import, device-route-allowlist | implemented (#270) |
+| /api/calendar/import-suggestions/commit | POST | device refused (403) + family + `featureGate('calendar')` + `Idempotency-Key` required | creates events + one activity with session `family_id` and `created_by`; idempotency records scoped `user:<id>` and checked against the household | P+T | strict body, 1–30 events, `POST /api/events` field and range rules; unknown keys (e.g. `family_id`) 400 | calendar/import-suggestions/__tests__/commit.test.ts, device-route-allowlist | implemented (#270, #277 review) |
+| /api/calendar/import-suggestions/undo | POST | device refused (403) + family + `featureGate('calendar')` | HMAC undo token must name the session user and household (403) and be ≤ 10 min old (409); then deleteMany where id in token ids + family + created_by self + not imported | P+T (own import only) | strict `{ token }`; ids never accepted directly; constant-time MAC compare; key derived from JWT_SECRET with a purpose label | calendar/import-suggestions/__tests__/commit.test.ts, device-route-allowlist | implemented (#270, #277 review) |
+| /api/calendar/subscriptions | GET | family | where | P+T (child 403); `url_hint` parent only | none | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions | POST | family + rate limit (10/h per household) | session family; max per household (409) | P | feed URL shape + public-address check (400); name/colour validated, a body `family_id` is ignored; URL encrypted, never echoed | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions/[id] | PATCH | family | where (404) | P | strict body: name/colour only, URL cannot change (400) | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions/[id] | DELETE | family | where (404); deletes only its imported events `where { family_id, source_subscription_id }` | P | none | calendar/subscriptions/iso | ok (F-4, #232) |
+| /api/calendar/subscriptions/[id]/refresh | POST | family + rate limit (6 per 10 min per subscription) | where (404); imports into the session family only | P+T | none; returns counts and status, no event content | calendar/subscriptions/iso | ok (F-4, #232) |
 | /api/capture | GET | family | caller family's config | all; returns `allowed` (false for child) | none | capture/iso | implemented (D4) |
 | /api/capture | POST | family | caller family's config | P+T (child 403 "Ask a parent to add this.") | none | capture/iso, capture/route.test.ts | implemented (D4) |
 | /api/chores | GET | family | where | all | assigned_to filter cannot widen | chores/iso | ok |
@@ -83,8 +335,26 @@ recorded in route comments, as the de facto matrix.
 | /api/chores | DELETE | family | match (403) | P or assignee | none | chores/iso | ok |
 | /api/chores/complete | POST | family | match (403) | all (any family chore, by design) | photoUrl must be an `Upload` of the caller's family (400), or the chore's unchanged current value | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/chores/create | POST | family | session family | P | assigned_to verified; photo_url must be an `Upload` of the caller's family (400) | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
-| /api/chores/verify | POST | family | match (403) | P | none | chores/iso | ok |
+| /api/chores/uncomplete | POST | family | match (403) | P or assignee (403); only from `completed` (verified: 409 `CHORE_ALREADY_VERIFIED`) | none; removes only the pending one-off successor that completion recorded in `Chore.successor_id` (same household, by id; never inferred); a verify racing the Undo is re-read and returns 409 | chores/iso | implemented (#268) |
+| /api/chores/verify | POST | family | match (403) | P (approve and reject) | none; reject only from `completed` (verified: 409 `CHORE_ALREADY_VERIFIED`) and removes the recorded `successor_id` like uncomplete; a racing verify is re-read and returns 409 | chores/iso | ok (reject added with the chores-page check fix) |
 | /api/cron/recurring-chores | POST | cron | per-family expansion | n/a | none | src/__tests__/recurring-chores.test.ts | ok |
+| /api/device/elevation | POST | device | device's family | target must be a `parent` of the device's family (DB); PIN or password; every failure the same 401 | `userId` verified in device family; foreign/teen/child ids = uniform 401 and never touch that account's lockout | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/elevation | DELETE | device | this device only | n/a | elevation header must match this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/label | PATCH | device + elevation | this device only | elevated parent (role, family, token_version re-read) | elevation token bound to this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED); #285 `device.renamed` row (`actor_kind: device`) in the same transaction |
+| /api/device/me | GET | device | where (device's family) | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/pair/claim | POST | public (pairing code) | household from the code only; body family/member ids ignored | n/a | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/pair/status | POST | token (claim token, body) | the claimed pairing's family | n/a | none | family/devices/__tests__/devices.test.ts, src/lib/__tests__/device.integration.test.ts | implemented (behind SHARED_DEVICE_ENABLED); #285 `device.paired` (and the replaced tablet's `device.removed`) rows in the issue transaction |
+| /api/device/revoke-self | POST | device + elevation | this device only | elevated parent | elevation token bound to this device | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED); #285 `device.removed` row (`actor_kind: device`) in the revoke transaction |
+| /api/device/session/refresh | POST | device (refresh cookie) | session's device/family | n/a | none | device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts, src/lib/__tests__/device-session.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/today | GET | device | where (device's family); device-audience DTO; weather (#262) from the device household's own settings and `WeatherCache` row only; `display` (#271) idle minutes and night hours only, photo ids never read | n/a | none | device/__tests__/device-routes.test.ts, family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/device/lists/items/[id] | PATCH | device | item where list.family_id = device's family and list type grocery/shopping (404) | n/a (household opt-in `device_writes_enabled`) | `actingMemberId` verified in device family (400); `Idempotency-Key` required, scope `device:<id>`; rate limit `device-write:<deviceId>` 300/h | device-writes.test.ts, device-writes.integration.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED and the opt-in) |
+| /api/device/lists/[id]/items | POST | device | list where id + device's family, grocery/shopping only (404) | n/a (opt-in) | as above | device-writes.test.ts, device-writes.integration.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED and the opt-in) |
+| /api/device/chores/[id]/complete | POST | device | chore where id + device's family (404); due today (409) | n/a (opt-in) | as above | device-writes.test.ts, device-writes.integration.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED and the opt-in) |
+| /api/device/chores/[id]/uncomplete | POST | device | chore where id + device's family (404); this device's own `chore_complete` audit row within 2 min (403) | n/a (opt-in) | as above | device-writes.test.ts, device-writes.integration.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED and the opt-in) |
+| /api/device/elevated/board-settings | GET | device + elevation | own (device's) family; no photo ids, no coordinates | elevated parent | elevation token bound to this device | device-writes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED) |
+| /api/device/elevated/board-settings | PATCH | device + elevation | own family; `memberColors` ids verified in the household (400); `display.photoIds` refused | elevated parent | as above; audited `update_board_settings` | device-writes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED); #285 `board_settings.changed` row (`actor_kind: device`) in the same transaction |
+| /api/device/elevated/board-settings/places | GET | device + elevation | n/a (fixed Open-Meteo host only) | elevated parent | rate limit `weather-places:device:<deviceId>` | device-writes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#274, behind SHARED_DEVICE_ENABLED) |
+| /api/device/today/version | GET | device | the device-audience board of the device's family; returns only `{ version }` | n/a | none; rate limit `device-board-version:<deviceId>` 1200/h | family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#271, behind SHARED_DEVICE_ENABLED) |
 | /api/emergency-contacts | GET | family | where | all (kid-readable by design, kid-access.ts) | none | emergency-contacts/iso | ok |
 | /api/emergency-contacts | POST | family | session family | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
 | /api/emergency-contacts/[id] | PATCH | family | match (403) | P | person_id **now** verified | emergency-contacts/iso | fixed; implemented (D1) |
@@ -93,21 +363,34 @@ recorded in route comments, as the de facto matrix.
 | /api/events | POST | family | session family | all | none | events/iso | ok |
 | /api/events | PATCH | family | match (403) | P | none | events/iso | ok |
 | /api/events | DELETE | family | match (403) | P | none | events/iso | ok |
-| /api/family | POST | session | creates own family | n/a (rejects if already in a family) | none | family/iso | ok |
+| /api/family | POST | session | creates own family; under the caller's user lock, re-checked (D-3) | n/a (rejects if already in a family) | none | family/iso, lib/__tests__/membership-locks.integration.test.ts | ok |
 | /api/family | GET | family | own family; invite_code parent-only | all | none | family/iso | ok |
 | /api/family | PATCH | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
-| /api/family | DELETE | family | familyId must equal session family (403) | P | familyId verified | family/iso | ok |
+| /api/family | DELETE | family (person only; device 403 before auth) | familyId must equal session family (403); deletes only that household's rows and its members (explicit plan, `src/lib/account-deletion.ts`) | P, only parent (409 `OTHER_PARENTS_EXIST`); current password + household name (D-3) | familyId verified | family/iso, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion.test.ts, lib/__tests__/account-deletion.integration.test.ts | ok (D-3: re-auth, only-parent rule, explicit sequence) |
 | /api/family/ai-settings | GET | family | own family | P | none | family/iso | ok |
 | /api/family/ai-settings | POST | family | own family | P | none | family/iso | ok |
+| /api/family/beta-metrics | PATCH | device refused (403) + family | update and count delete `where` session `family_id` under a `Family` row lock; strict body (`enabled` only) | P (teen/child 403) | none (no ids accepted) | family/__tests__/beta-metrics.test.ts, beta-metrics.integration, device-route-allowlist | implemented (#287) |
+| /api/family/board-settings | GET | family | where (own family; members `family_id`) | P | none | family/board-settings/__tests__/board-settings.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#262) |
+| /api/family/board-settings | PATCH | family | own family; `WeatherCache` delete where `family_id`; #274 `deviceWrites.enabled` sets the own household's opt-in | P | `memberColors` ids verified in the household (400, same answer for foreign and missing); updates `where id + family_id`; `display.photoIds` (#271) must each be a displayable `Upload` of the household (400 `Unknown photo`, same answer for foreign, missing and HEIC) | family/board-settings/__tests__/board-settings.test.ts, family/board-settings/__tests__/display.test.ts | implemented (#262, #271); #285 `board_settings.changed` row (section names) in the same transaction |
+| /api/family/board-version | GET | family (person session only) | the caller's own board, built from `family_id`-scoped reads with the caller's role; returns only `{ version }` (an opaque hash) | all (P, T, C) | none; rate limit `board-version:<userId>` 1200/h | family/board-version/__tests__/board-version.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (#271) |
+| /api/family/board-settings/places | GET | family | n/a (no household data read or stored; outbound to a fixed Open-Meteo host only) | P | none | family/board-settings/__tests__/board-settings.test.ts | implemented (#262) |
+| /api/family/devices | GET | session (person only) | where | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/[id] | PATCH | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED); #285 `device.renamed` row in the same transaction |
+| /api/family/devices/[id]/events | GET | session (person only) | where id + family (404); actor names only for current members | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/[id]/revoke | POST | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts, device/__tests__/device-routes.test.ts, src/app/api/__tests__/device-route-allowlist.test.ts | implemented (behind SHARED_DEVICE_ENABLED); #285 `device.removed` row in the revoke transaction |
+| /api/family/devices/pairings | POST | session (person only) | session family; `replacesDeviceId` where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings/[id] | GET | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings/[id] | DELETE | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/family/devices/pairings/[id]/confirm | POST | session (person only) | where id + family (404) | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
 | /api/family/features | GET | jwt | own family | all | none | family/iso | ok |
-| /api/family/features | PATCH | jwt | own family | P | none | family/iso | ok |
+| /api/family/features | PATCH | jwt | own family | P | none | family/iso, audit/__tests__/audit-writes.test.ts | ok; #285 writes one `AuditLog` row per changed feature in the same transaction |
 | /api/family/feed-token | GET | family | own family | P | none | family/iso | ok |
 | /api/family/feed-token | POST | family | own family | P | none | family/iso | ok |
 | /api/family/invites | GET | family | where | P | none | family/iso | ok |
-| /api/family/invites | POST | family | session family | P | none | family/iso | ok |
-| /api/family/invites/[id] | DELETE | family | where id + family (404) | P | none | family/iso | ok |
+| /api/family/invites | POST | family | session family | P | none | family/iso, audit-writes.test.ts | ok; #285 `invite.created` row (role only, no email) in the invite's transaction, removed with the invite if the email fails; a still-valid pending invite to the same address that it replaces gets an `invite.revoked` row |
+| /api/family/invites/[id] | DELETE | family | where id + family (404) | P | none | family/iso, audit-writes.test.ts | ok; #285 `invite.revoked` row in the same transaction |
 | /api/family/invites/preview | GET | token | token's family only | n/a | none | family/membership.test.ts | ok |
-| /api/family/join | POST | session | token/code's family; refuses if already in a family | n/a | invite email must match | family/membership.test.ts | ok |
+| /api/family/join | POST | session | token/code's family; refuses if already in a family; joins in one transaction under the household membership lock, 404 if the household was deleted meanwhile (D-3) | n/a | invite email must match | family/membership.test.ts, family/__tests__/join-vs-deletion.integration.test.ts, audit/__tests__/audit-writes.test.ts | ok; #285 `member.joined` row (name and role) inside the locked join transaction |
 | /api/family/lookup | GET | session | code lookup (name only) | n/a | none | family/lookup/__tests__/route.test.ts | ok |
 | /api/family/members | GET | jwt | where | all | none | family/iso | ok |
 | /api/family/travel | GET | jwt (**now** 401 when signed out; was 400) | own family | P (was all) | none | family/iso | fixed |
@@ -122,19 +405,38 @@ recorded in route comments, as the de facto matrix.
 | /api/handoff/share/[token] | GET | token (rate-limited, expiring) | token's handoff only; allowlisted fields | n/a | none | handoff/share/[token]/__tests__/route.test.ts | ok |
 | /api/health | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
 | /api/health/live | GET | public | n/a | n/a | none | src/__tests__/health.test.ts | ok |
-| /api/lists | GET | family | where | all | none | lists/iso | ok |
-| /api/lists | DELETE | family | match (403) | P | none | lists/iso | ok |
-| /api/lists/create | POST | family | session family | P+T | none | lists/iso | implemented (D9) |
-| /api/lists/items | GET | family | list match (403) | all | none | lists/iso | ok |
-| /api/lists/items/create | POST | family | list match (403) | all | listId verified | lists/iso | ok |
-| /api/lists/items/update | PATCH | family | item's list match (403) | all | none | lists/iso | ok |
-| /api/lists/items/delete | DELETE | family | item's list match (403) | P | none | lists/iso | ok |
+| /api/version | GET | public (build identity only, #161) | n/a | n/a | none | src/app/api/version/__tests__/version.test.ts | ok |
+| /api/inventory | GET | family + `featureGate('inventory')` | where family_id + status active (+ location / category / name search / expiry filters); paginated (limit ≤ 500) | all | none | inventory/iso, inventory/adjustments, inventory.integration | implemented (#263, #158) |
+| /api/inventory | POST | device refused (403) + family + `featureGate('inventory')` | session family | P+T | `ingredient_id` verified in family (400, no existence leak); name link only to a same-family ingredient; strict body (no `family_id`/`added_by`); optional `Idempotency-Key` scoped `user:<id>`, record carries the family (#265) | inventory/iso, inventory/create-idempotency, inventory.integration, device-route-allowlist | implemented (#263) |
+| /api/inventory/[id] | GET | family + `featureGate('inventory')` | where id + family (404, same as missing) | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory/[id] | PATCH | device refused (403) + family + `featureGate('inventory')` | where id + family (404); compare-and-set update scoped by family, status and version (409 finished / retryable conflict) | P+T | same as POST; optional `Idempotency-Key` (#158) | inventory/iso, inventory/adjustments, inventory.integration, adjustments.integration, device-route-allowlist | implemented (#263, #158) |
+| /api/inventory/[id] | DELETE | device refused (403) + family + `featureGate('inventory')` | `deleteMany where id + family` (404 when 0); history cascades | P+T | optional `Idempotency-Key` (#158) | inventory/iso, inventory/adjustments, inventory.integration, adjustments.integration, device-route-allowlist | implemented (#263, #158) |
+| /api/inventory/[id]/consume | POST | device refused (403) + family + `featureGate('inventory')` | item where id + family (404); compare-and-set scoped by family; adjustment family from session | P+T | strict `{ amount? }`; optional `Idempotency-Key`, adjustment `request_id` unique | inventory/adjustments, adjustments.integration, device-route-allowlist | implemented (#158) |
+| /api/inventory/[id]/discard | POST | device refused (403) + family + `featureGate('inventory')` | as consume | P+T | strict `{}`; optional `Idempotency-Key` | inventory/adjustments, adjustments.integration, device-route-allowlist | implemented (#158) |
+| /api/inventory/adjustments/[id]/undo | POST | device refused (403) + family + `featureGate('inventory')` | adjustment where id + family (404); item compare-and-set scoped by family | P+T | optional `Idempotency-Key` | inventory/adjustments, adjustments.integration, device-route-allowlist | implemented (#158) |
+| /api/inventory/adjustments | GET | family + `featureGate('inventory')` | where family_id (+ item id); paginated (limit ≤ 100); no `family_id`/`request_id` out | all | none | inventory/adjustments, adjustments.integration | implemented (#158) |
+| /api/inventory/use-soon | GET | family + `featureGate('inventory')` | where family_id; board-safe fields only; limit ≤ 100 | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory/cook | GET | family + `featureGate('inventory')` + `featureGate('meals')` | recipes and items where family_id; ingredients owned through the recipe | all | none | inventory/iso, inventory.integration | implemented (#263) |
+| /api/inventory/scan | POST | device refused (403) + family + kill switch (404) + `featureGate('inventory')` | none read or written; rate-limit keys from session user/family | P | multipart image: Content-Length bound, 8 MB, magic-byte type (JPEG/PNG/WebP); model output zod-validated and cleaned; fixed provider host, server-only key | inventory/scan, lib/inventory-scan, device-route-allowlist | implemented (#265) |
+| /api/lists | GET | family + `featureGate('lists')` (#251) | where | all | none | lists/iso, lists/provenance | ok |
+| /api/lists | DELETE | family + `featureGate('lists')` (#251) | match (403) | P | none | lists/iso, lists/provenance | ok |
+| /api/lists/create | POST | family + `featureGate('lists')` (#251) | session family | P+T | none; type `meal_plan` hidden in the UI, still accepted for old clients (O-8) | lists/iso, lists/provenance | implemented (D9) |
+| /api/lists/items | GET | family + `featureGate('lists')` (#251) | list match (403) | all | none | lists/iso, lists/provenance, lists/item-delete | ok; grocery rows add the resolved `section` from the household's own overrides (#273, lists/sections); deprecated (#289, `Deprecation` header, no in-app caller) |
+| /api/lists/items/create | POST | family + `featureGate('lists')` (#251) | list match (403) | all | listId verified; `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/provenance | ok; grocery rows add `section` (#273) |
+| /api/lists/items/update | PATCH | family + `featureGate('lists')` (#251) | item's list match (403) | all | `ingredient_id` **now** verified in family (400, no existence leak) | lists/iso, lists/idempotency, lists/provenance, list-item-provenance.integration | ok; optional `Idempotency-Key` (#162): records scoped to `user:<id>` + `family_id`, never replayed across users or households, 401 before any lookup; `P2002` on `ListItem_open_recipe_source_key` → 409 `DUPLICATE_OPEN_ITEM` (not stored) |
+| /api/lists/items/delete | DELETE | family + `featureGate('lists')` (#251) | item `where { id, list: { family_id } }` via `deleteHouseholdListItem` (404, no existence leak; was 403 before #289) | P | none | lists/iso, lists/provenance, lists/item-delete, list-item-delete.integration | ok; deprecated (#289, `Deprecation` header), kept for installed Android builds |
+| /api/lists/items/[id] | DELETE | shared device refused first (403); family + `featureGate('lists')` | item `where { id, list: { family_id } }` via `deleteHouseholdListItem` (404, no existence leak) | P | none | lists/item-delete, list-item-delete.integration, device-route-allowlist | implemented (#289) |
+| /api/lists/items/from-recipe | POST | shared device refused first (403); family + `featureGate('meals')` + `featureGate('lists')` (#253) | recipe, meal, list each `where { id, family_id }` (404, no existence leak) | all | `ingredientIds` must belong to the recipe (400); ingredient rows come from the recipe, never from the body; `mealId` must use the recipe (400) | lists/from-recipe, lists/from-recipe.integration, device-route-allowlist | ok; `Idempotency-Key` required, records scoped to `user:<id>` + `family_id`; refusals not stored |
+| /api/lists/items/undo-add | POST | shared device refused first (403); family + `featureGate('lists')` (#253) | `IdempotencyRecord` `where { id, family_id, action }` (404); same user (403); rows filtered by `source_request_id`, `added_by`, list `family_id` | all (own request) | none | lists/from-recipe, lists/from-recipe.integration, device-route-allowlist | ok; 10-minute window (409) |
+| /api/lists/default-grocery | POST | family + `featureGate('lists')` (#253) | session family | P+T | none | lists/from-recipe, lists/from-recipe.integration | ok; advisory lock per household |
+| /api/lists/items/section | PATCH | shared device refused first (403); family + `featureGate('lists')` (#273) | item `where { id, list: { family_id } }` (404, no existence leak); override keyed by session family; `Ingredient` update `where { id, family_id }` | all | strict body (`itemId`, `section` enum or null); non-grocery list 400 | lists/sections, lists/sections.integration, device-route-allowlist | implemented (#273) |
+| /api/lists/section-sort | PATCH | shared device refused first (403); family + `featureGate('lists')` (#273) | list `where { id, family_id }` (404, no existence leak); update scoped by family | P+T | strict body (`listId`, `sortBySection`); non-grocery list 400 | lists/sections, lists/sections.integration, device-route-allowlist | implemented (#273) |
 | /api/locations | GET | jwt | where | P (was all) | none | locations/iso | fixed |
 | /api/locations | POST | jwt | session family | P | none | locations/iso | ok |
 | /api/locations/[id] | DELETE | jwt | match (404) | P | none | locations/iso | ok |
-| /api/meals | GET | family | where | all | none | meals/iso | ok |
-| /api/meals | POST | family | session family | all | cook_id **now** verified | meals/iso | fixed |
-| /api/meals/[id] | PATCH | family | match (403) | all | cook_id **now** verified | meals/iso | fixed |
+| /api/meals | GET | family | where; `recipe` summary via the meal's own FK (id, title, prep/cook time, servings) | all | none | meals/iso, meals/recipe-link | ok |
+| /api/meals | POST | family | session family | all | cook_id **now** verified; `recipe_id` verified in family (400, no existence leak, #251) | meals/iso, meals/recipe-link | fixed |
+| /api/meals/[id] | PATCH | family | match (403) | all | cook_id **now** verified; `recipe_id` verified in family (400, no existence leak, #251) | meals/iso, meals/recipe-link | fixed |
 | /api/meals/[id] | DELETE | family | match (403) | all | none | meals/iso | ok |
 | /api/medications | GET | jwt | where | P; teen/child own (`person_id = self`) | none | medications/iso | implemented (D1) |
 | /api/medications | POST | jwt | session family | P | person_id + sick_day_id verified | medications/route.test.ts | ok |
@@ -148,7 +450,7 @@ recorded in route comments, as the de facto matrix.
 | /api/notes/[id] | PATCH | family | match (403) | P; teen/child own (`created_by = self`) | none | notes/iso | implemented (D9) |
 | /api/notes/[id] | DELETE | family | match (403) | P | none | notes/iso | implemented (D9) |
 | /api/notifications | GET | session | own user | all | none | notifications/iso | ok |
-| /api/notifications | POST | family | target user must share caller's family (403) | P | userId verified | notifications/iso | ok |
+| /api/notifications | POST | family | target user must share caller's family (403); type must be in the policy table (400); recipient's preferences apply (#286) | P | userId verified | notifications/iso, lib/__tests__/notification-delivery.test.ts | ok |
 | /api/notifications | PATCH | session | own user (404) | all | none | notifications/iso | ok |
 | /api/notifications | DELETE | session | own user (404) | all | none | notifications/iso | ok |
 | /api/pickups | GET | jwt | where | all | none | pickups/iso | ok |
@@ -161,8 +463,8 @@ recorded in route comments, as the de facto matrix.
 | /api/projects/[id] | PATCH | family | match (403) | P | none | projects/iso | ok |
 | /api/projects/[id] | DELETE | family | match (403) | P | none | projects/iso | ok |
 | /api/projects/[id]/send-to-calendar | POST | family | match (403) | all | none | projects/iso | ok |
-| /api/projects/[id]/tasks | GET | family | project match (403) | all | none | projects/iso | ok |
-| /api/projects/[id]/tasks | POST | family | project match (403) | all | assigned_to verified | projects/iso | ok |
+| /api/projects/[id]/tasks | GET | family | project `where { id, family_id }` (404, no existence leak; #289) | all | none | projects/iso | ok |
+| /api/projects/[id]/tasks | POST | family | project `where { id, family_id }` (404, no existence leak; #289) | all | assigned_to `where { id, family_id }` (404, foreign and missing alike; #289) | projects/iso | ok; caller: "Add task" on the project page (#289) |
 | /api/projects/[id]/tasks/[taskId] | PATCH | family | task∈project + match (403/404) | P | assigned_to verified | projects/iso | ok |
 | /api/projects/[id]/tasks/[taskId] | DELETE | family | task∈project + match (403/404) | P | none | projects/iso | ok |
 | /api/rewards | GET | family | where | all | none | rewards/iso | ok |
@@ -170,22 +472,33 @@ recorded in route comments, as the de facto matrix.
 | /api/rewards | PATCH | family | match (403) | P | none | rewards/iso | ok |
 | /api/rewards/claim | POST | family | match (403) + conditional write on family | all | none | rewards/iso | ok |
 | /api/rewards/approve | POST | family | match (403) | P | none | rewards/iso | ok |
+| /api/recipes | GET | family + `featureGate('meals')` | where family_id; paginated (limit ≤ 200) | all | none | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes | POST | family + `featureGate('meals')` | session family | P+T (O-7) | nested `ingredient_id`s verified in family (400, no existence leak); names upserted in family only; strict body (no `family_id`/`created_by`) | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes/[id] | GET | family + `featureGate('meals')` | where id + family (404, same as missing) | all | none | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes/[id] | PATCH | family + `featureGate('meals')` | where id + family (404) | P+T (O-7) | same as POST; `ingredients` replaces the set | recipes/iso, recipes.integration | implemented (#251) |
+| /api/recipes/[id] | DELETE | family + `featureGate('meals')` | where id + family (404) | P (O-7) | 409 `RECIPE_IN_ARCHIVED_PLAN` while a legacy `MealPlanEntry` references it | recipes/iso, recipes.integration | implemented (#251) |
+| /api/search | GET | device refused (403) + family + per-type feature flags | every query `where family_id` (list items `where list.family_id`); canonical tables only (members, events, chores, lists, list items, recipes, notes, active inventory); ≤ 5 per type, ≤ 30 in all; no `family_id`, email or note body out | all, by type: P gets every type; teen/child only types whose page is on the kid allowlist (lists, list items, inventory) | none (query text only; 2–100 characters; LIKE wildcards escaped) | search/__tests__/search.test.ts, search.integration, device-route-allowlist | implemented (F-3) |
 | /api/sick-days | GET | jwt | where | P; teen/child own (`person_id = self`) | none | sick-days/iso | implemented (D1) |
 | /api/sick-days | POST | jwt | session family | P; teen/child own (report self only) | person_id verified | sick-days/route.test.ts, sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | PATCH | jwt | match (404); raw SQL also filters family_id | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
 | /api/sick-days/[id] | DELETE | jwt | match (404) | P (kid: own 403, sibling 404) | none | sick-days/iso | implemented (D1) |
-| /api/upload | POST | family | records an `Upload` row (caller's family, uploader); filename namespaced per family | all | none | src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
+| /api/upload | POST | family | records an `Upload` row (caller's family, uploader); filename namespaced per family; file written first, row under the household lock after re-checking the household, file removed if refused (D-3) | all | none | src/__tests__/chore-photo-ownership.test.ts, lib/__tests__/membership-locks.integration.test.ts | implemented (D3) |
 | /api/users | GET | session | self | all | none | users/__tests__/route.test.ts | ok |
 | /api/users | PATCH | session | self (id/family_id/role not writable) | all | none | users/__tests__/route.test.ts | ok |
-| /api/users | DELETE | session | self; last-parent guard | all | none | users/__tests__/route.test.ts | ok |
-| /api/users/export | GET | session | self + own family; travel fields **now** parent-only | all | none | users/export/__tests__/route.test.ts | fixed |
+| /api/users | DELETE | session (person only; device 403 before auth) | self; last-parent guard (409 `LAST_PARENT`); hand-over to a parent of the same household only | all; current password + `DELETE` (D-3) | none | users/__tests__/route.test.ts, users/__tests__/deletion.test.ts, lib/__tests__/account-deletion*.test.ts | ok (D-3) |
+| /api/users/deletion | GET | session; paired device refused (403) before person auth | self + own household (name, counts) | all | none | users/__tests__/deletion.test.ts | ok (D-3) |
+| /api/users/preferences | GET | device refused (403) + session | self only (`where id = session user`); only the three booleans out | all | none | users/__tests__/preferences.test.ts, preferences.integration, device-route-allowlist | implemented (#286) |
+| /api/users/preferences | PATCH | device refused (403) + session | self only; strict body (`userId` or any unknown key 400); optional Idempotency-Key scoped `user:<id>` | all | none | users/__tests__/preferences.test.ts, preferences.integration, device-route-allowlist | implemented (#286) |
+| /api/users/elevation-pin | PUT | session (person only) | self; PIN row carries the caller's family | P (requires current password) | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/users/elevation-pin | DELETE | session (person only) | self | P | none | family/devices/__tests__/devices.test.ts | implemented (behind SHARED_DEVICE_ENABLED) |
+| /api/users/export | GET | session | self + own family; travel fields **now** parent-only; `meals` (FamilyMeal) and `mealBackfillJobs` (ADR-0007 backfill summaries) scoped by membership (#251); `inventory` (InventoryItem) and `inventoryAdjustments` (InventoryAdjustment, #158) scoped by membership (#263); `grocerySectionPreferences` and `groceryShoppingSessions` scoped by membership (#273); the caller's own `notificationPreferences` (#286) | all | none | users/export/__tests__/route.test.ts, users/export/__tests__/canonical.test.ts | fixed; #285 `auditLog` (last 12 months; parent all rows, teen/child own rows) |
 | /api/wishlist | GET | family | where | all | none | wishlist/iso | ok |
 | /api/wishlist | POST | family | session family | all | none | wishlist/iso | ok |
 | /api/wishlist/[id] | PATCH | family | match (403) | requester or P | none | wishlist/iso | ok |
 | /api/wishlist/[id] | DELETE | family | match (403) | requester or P | none | wishlist/iso | ok |
 | /api/wishlist/[id]/status | PATCH | family | match (403) | P | none | wishlist/iso | ok |
 
-Totals: 139 handlers. After the #102 decisions: 28 rows carry `implemented (Dn)` (some alongside `fixed`),
+Totals: 139 handlers before #240, plus the 19 shared-device handlers above (158). After the #102 decisions: 28 rows carry `implemented (Dn)` (some alongside `fixed`),
 including the five D3 chore/upload/file rows; no row is `gap-needs-decision`, and every other row is `ok` or
 `fixed`. D6 changed the auth
 helper rather than individual rows: every `jwt` and `family` row now resolves role and family from the
@@ -226,7 +539,7 @@ Cameron's decisions on issue #102, as implemented. The per-role result is in
 | D4 | Capture spend | decided, implemented | Parents and teens may use `POST /api/capture`. Children get 403 `Ask a parent to add this.` before any provider call. `GET /api/capture` returns `allowed`, and the capture box shows the same message to a child. |
 | D5 | A kid's own allowance | decided, implemented | Teens and children `GET` only rows paid to them (`to_user_id = self`), read-only. `POST`/`PATCH` stay parent-only. `/dashboard/allowance` is kid-reachable with the write controls hidden. |
 | D6 | `getServerUser()` trusted JWT claims | decided, implemented | `resolveSession` (`src/lib/session.ts`) reads `token_version`, `role` and `family_id` in one query; `verifySessionToken` returns the database values. That covers `authenticateRequest`, `getServerUser()` and so all 14 `jwt` route files without per-file changes. The middleware kid gate uses the same lookup's role. |
-| D7 | Shared-device sessions | deferred (#157) | No device-session concept yet. The matrix marks the shared-device column deferred. |
+| D7 | Shared-device sessions | implemented behind `SHARED_DEVICE_ENABLED` (#157 contract, #240) | Device identity, pairing, sessions, elevation and revocation ship as the `/api/device/*`, `/api/family/devices/*` and `/api/users/elevation-pin` rows above, default off. Existing routes stay person-only; `src/app/api/__tests__/device-route-allowlist.test.ts` calls every handler with only a device cookie and requires 401/404 outside the allowlist. The UI (#241) and the §9.2 device writes (#274, behind a per-household opt-in, default off) are implemented; Android integration is not. |
 | D8 | Write the matrix | done | `docs/ROLE_AND_ISOLATION_MATRIX.md`, linked from `AUTHORIZATION.md`. |
 | D9 | Child/teen writes in low-sensitivity domains | decided, implemented | Lists: every member reads, adds and ticks items; parents and teens create lists; deleting a list or item is parent-only. `/dashboard/lists` is kid-reachable and in the kid nav. Notes: every member creates; teens and children edit only notes they created; delete is parent-only. Anniversaries: every member creates; delete is parent-only; teens and children edit only anniversaries they created (`Anniversary.created_by = self`, set on create, not writable by PATCH). Rows created before the column existed have `created_by` NULL and stay parent-edit-only. Pickups: delete is parent-only. The other D9 domains (meals, events create, projects and tasks create, messages, wishlist create, chore completion) stay open to every member, as confirmed in the matrix. |
 

@@ -38,8 +38,18 @@ describe("/api/users — own account only", () => {
   });
 
   it("DELETE refuses to remove the only parent, and never touches another user", async () => {
-    expect((await users.DELETE(req({ as: "parentA" }))).status).toBe(400);
-    expect((await users.DELETE(req({ as: "childA" }))).status).toBe(200);
-    expect(writesTo("user")).toEqual([expect.objectContaining({ op: "delete", args: { where: { id: "child-a" } } })]);
+    // Full deletion behaviour: deletion.test.ts and src/lib/__tests__/account-deletion.test.ts.
+    const bcrypt = require("bcryptjs");
+    for (const id of ["parent-a", "child-a"]) db.find("user", id)!.password = bcrypt.hashSync("pw-123456", 4);
+    const del = (as: "parentA" | "childA") =>
+      users.DELETE(req({ as, method: "DELETE", body: { password: "pw-123456", confirmation: "DELETE" } }));
+    const last = await del("parentA");
+    expect(last.status).toBe(409);
+    expect((await last.json()).code).toBe("LAST_PARENT");
+    expect(db.writes.filter((w) => w.model !== "rateLimitEntry")).toHaveLength(0);
+    expect((await del("childA")).status).toBe(200);
+    const userWrites = writesTo("user");
+    expect(userWrites.map((w) => w.args.where)).toEqual([{ id: "child-a" }, { id: "child-a" }]);
+    expect(db.find("user", "parent-b")).toBeDefined();
   });
 });

@@ -4,7 +4,11 @@ import { safeVerifyPassword, signToken } from '@/lib/auth'
 import { checkRateLimit, isRateLimited, resetRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { loginSchema } from '@/lib/validations'
-import { log } from '@/lib/logger'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
+import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
+import { isPairedDeviceRequest } from '@/lib/device-session'
+import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
 
 // Failed attempts allowed per account per window, independent of source IP, so
 // rotating addresses cannot brute-force one password.
@@ -21,6 +25,14 @@ export async function POST(request: NextRequest) {
         { error: 'Too many login attempts. Please try again later.' },
         { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
       )
+    }
+
+    // Shared tablet (#157/#240, O-13): a parent must not leave a persisted
+    // person session on a paired device. A valid access cookie, or a refresh
+    // cookie of a live session (looked up, never rotated here), blocks login;
+    // parents use elevation instead. Ignored while the kill switch is off.
+    if (await isPairedDeviceRequest(prisma!, request, deviceClock.now(), isSharedDeviceEnabled())) {
+      return deviceError(409, 'DEVICE_MODE_LOGIN_BLOCKED')
     }
 
     let body: any
@@ -97,7 +109,10 @@ export async function POST(request: NextRequest) {
 
     const { password: _pw, token_version: _tv, ...safeUser } = user
 
-    const response = NextResponse.json({ user: safeUser })
+    // Points & streaks off for this family (#248): no XP/level/streak values.
+    const response = NextResponse.json({
+      user: (await isGamificationOn(user.family_id)) ? safeUser : omitUserGamification(safeUser),
+    })
     response.cookies.set('session_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -108,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    log.error('auth.login', error instanceof Error ? error : new Error(String(error)), { ip })
+    logRouteError('POST /api/auth/login', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

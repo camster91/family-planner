@@ -10,45 +10,29 @@ Every private household-domain record must be traceable to exactly one household
 
 - `User` and `Family` remain the identity/household foundation.
 - Existing auth/family systems must be extended, not duplicated for the fridge tablet.
-- `Event` remains the existing calendar foundation until an accepted versioned migration changes it.
+- `Event` remains the existing calendar foundation until an accepted versioned migration changes it. Additive columns so far: `source_subscription_id`/`source_uid`/`source_occurrence_start` (ICS import, #232) and `source_connection_id`/`updated_at` (provider sync, #264). Provider sync adds `CalendarConnection`, `CalendarEventLink` and `CalendarOAuthState` ([`CALENDAR_SYNC.md`](CALENDAR_SYNC.md)).
 - Existing chore/task/reward models remain during vertical migration.
 
-## Unresolved overlapping generations
+## Overlapping meal/list generations (#149)
 
-The schema currently contains both:
+The schema contains both generations. [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Accepted 2026-09-27**) records the outcome. The detail (source inventory, mapping, backfill, recipe → grocery contract and child issues) is in [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md).
 
-| Domain | Existing/legacy path | Newer/foundation path | Current decision |
+| Domain | Live today (source-verified 2026-09-27) | Import-only today | Canonical role (ADR-0007) |
 | --- | --- | --- | --- |
-| Meals | `FamilyMeal` | `MealPlan` + `MealPlanEntry` linked to `Recipe` | Open in #149 |
-| Recipes | meal name/description fields in `FamilyMeal` | `Recipe`, `Ingredient`, `RecipeIngredient` | Open in #149 |
-| General lists | `List` + `ListItem` | No replacement for every generic-list use case | Preserve pending #149 |
-| Groceries | grocery-like generic `List` + `ListItem` usage | `ShoppingList` + `ShoppingItem` | Open in #149 |
+| Meal slots | `FamilyMeal` (`/api/meals`, `/dashboard/meals`, fridge Today board) | `MealPlan` + `MealPlanEntry` | **Canonical:** `FamilyMeal`, expanded with a nullable `recipe_id`/`servings` and `updated_at` (expand landed in #250). `MealPlan*` is frozen: backfilled into `FamilyMeal`, then archived. |
+| Recipes | none (`FamilyMeal.recipe_name` is free text) | `Recipe`, `Ingredient`, `RecipeIngredient` | **Canonical:** these three, with a new `/api/recipes`. |
+| Groceries | `List` (type `grocery`/`shopping`) + `ListItem` (lists UI, capture, fridge Shopping card, PR #247 offline tick) | `ShoppingList` + `ShoppingItem` | **Canonical:** `List`/`ListItem`, expanded with `ingredient_id`/`recipe_id`/`meal_id`/`amount`/`unit`/`source`/`source_key`/`source_request_id` (expand landed in #250). `Shopping*` is frozen: backfilled, then archived. |
+| General lists | `List` + `ListItem` | none | Unchanged. The `meal_plan` list type is no longer offered for new lists. |
 
-These are factual existence statements, not declarations that either generation is canonical for all future writes.
-
-## #149 required outcome
-
-Before inventory → meal → missing ingredient → grocery writes are implemented, #149 must record:
-
-- the canonical read/write model for each domain;
-- which models are legacy, compatibility-only or migration targets;
-- current UI/API consumers;
-- import and data-preservation requirements;
-- transition strategy, including any temporary dual read/write;
-- old-client/server compatibility;
-- household-ownership and authorization rules;
-- migration, rollback and test evidence;
-- follow-up issues for implementation.
-
-Do not create a third parallel model generation. Do not mark canonicalization complete until an ADR/decision and its accepted evidence exist.
+Until ADR-0007 is accepted, ADR-0005's constraint applies: no broad cross-domain inventory → meal → grocery writes, and no third model generation. After acceptance, new writes go only to the canonical models above. Legacy tables receive no new product writers and are dropped only through the gated contract step (child issue E). Do not mark canonicalization complete until ADR-0007 is accepted and its rehearsal evidence (backfill counts reconciled on synthetic fixtures, two-household negative tests, old-shape request fixtures) exists.
 
 ## Planned new domains
 
 Subject to ADR/schema review:
 
-- shared devices/sessions/preferences;
+- shared devices/sessions — implemented in #240 (tables unused while `SHARED_DEVICE_ENABLED` is off) as `HouseholdDevice`, `DevicePairing`, `DeviceSession`, `ParentElevationPin` and `DeviceAuditEvent` (additive only; sketches and `scripts/migrate.js` DDL notes in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §3, ADR-0006); dashboard preferences are not part of #157;
 - food inventory/locations/adjustments/expiry observations;
-- bounded sync mutations/conflict metadata;
+- bounded sync mutations/conflict metadata — server side implemented in #162 as `IdempotencyRecord` (additive: `(scope, key)` unique, `family_id` and nullable `user_id` FKs with cascade, 7-day `expires_at`, pruned opportunistically; DDL in `scripts/migrate.js`; contract in [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md)). The queued operations themselves live only on the client;
 - AI suggestions/action proposals;
 - integration connections;
 - leftovers only after product evidence.

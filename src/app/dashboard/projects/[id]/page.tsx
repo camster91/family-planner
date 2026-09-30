@@ -11,7 +11,10 @@ import { InsetList } from '@/components/ui/list-row'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { EmptyState } from '@/components/ui/empty-state'
+import { FeatureOffState } from '@/components/ui/feature-gate'
+import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import { ProjectDetailActions } from './ProjectDetailActions'
+import { AddProjectTaskForm } from '@/components/projects/AddProjectTaskForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,11 +28,16 @@ async function ProjectDetailContent({ id }: { id: string }) {
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { family_id: true, role: true },
+    select: { family_id: true, role: true, family: { select: { features: true } } },
   })
 
   const familyId = user?.family_id
   if (!familyId) return null
+
+  // Same server-side gate as the projects list (route inventory F-2).
+  if (!isFeatureEnabled(normalizeFeatures(user?.family?.features), 'projects')) {
+    return <FeatureOffState featureKey="projects" />
+  }
 
   const project = await prisma!.project.findUnique({
     where: { id },
@@ -137,7 +145,9 @@ async function ProjectDetailContent({ id }: { id: string }) {
               icon={CalendarPlus}
               glyphColor="projects"
               title="No tasks yet"
-              description="Break this project into actionable tasks."
+              description={
+                project.status === 'active' ? 'Break this project into tasks with Add task.' : 'This project has no tasks.'
+              }
             />
           ) : (
             <InsetList>
@@ -157,6 +167,13 @@ async function ProjectDetailContent({ id }: { id: string }) {
                 />
               ))}
             </InsetList>
+          )}
+          {/* Route inventory F-5 (#289): add a task to this project. The API
+              takes tasks only while the project is active. */}
+          {project.status === 'active' && (
+            <div className="mt-3">
+              <AddProjectTaskForm projectId={project.id} familyMembers={familyMembers} />
+            </div>
           )}
         </section>
 

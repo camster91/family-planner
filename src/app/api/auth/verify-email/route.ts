@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeEmailVerificationToken } from '@/lib/tokens'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(new URL('/login?verified=1', process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'))
   } catch (error) {
-    console.error('Verify email error:', error)
+    logRouteError('GET /api/auth/verify-email', error, getRequestId(request))
     return NextResponse.redirect(new URL('/login?error=server', process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'))
   }
 }

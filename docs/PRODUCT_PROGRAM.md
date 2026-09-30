@@ -92,6 +92,37 @@ photos, message content, financial descriptions, or child names.
 
 These are acceptance thresholds, not claims about current performance.
 
+### How the beta criteria are measured
+
+Decision D-6 (`decisions/PROVISIONAL_OWNER_DECISIONS.md`, #287): a separate,
+count-only store, not `src/lib/analytics.ts` (which keeps free-form metadata
+tied to a user). `BetaMetricDaily` holds one count per household, UTC day and
+metric name from the fixed list in `src/lib/beta-metrics.ts`; it has no user
+id, role, text or content. Counting is **off by default**: a parent turns on
+"Share beta usage counts" in Settings → Privacy & Security, and turning it off
+deletes the household's counts. Counts are kept 13 months and deleted with the
+household (privacy page, `product/ACCOUNT_DELETION.md`).
+
+`npm run beta:scorecard` (`scripts/beta-scorecard.mjs`, read-only) prints each
+criterion with its measured value and PASS / FAIL / INSUFFICIENT DATA.
+Households appear only as numbers. It reads local databases by default; any
+other target needs `BETA_SCORECARD_ALLOW_REMOTE=1`, and reading production
+needs Cameron's approval.
+
+| Metric                      | Counted (after the write commits)                                                                                                                                                     | Scorecard rule                                                                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activation                  | `member_joined` (join route and invite sign-up), `chore_assigned` (chore create). Family creation is implied by a household having counts.                                           | PASS when 5 households have both; INSUFFICIENT DATA while fewer than 5 households report; otherwise FAIL.                                                                      |
+| Weekly core-loop completion | Plans week: `event_created` or `meal_planned`; then `chore_assigned`, `chore_completed` (person and tablet), `chore_verified` (approve), `reward_claimed`.                           | For each of the last 4 complete ISO weeks (Monday, UTC), households with every step. PASS when every week has at least 3; INSUFFICIENT DATA until the counts cover those weeks. |
+| Reliability                 | Successful core mutations only (the counts above). Failures are deliberately not counted.                                                                                            | Always INSUFFICIENT DATA from counts: take the failure rate from server logs (5xx on the core routes); cross-family exposure is covered by the isolation tests.                |
+| Time to first value         | `first_chore_within_10m` or `first_chore_after_10m`, once per household, for its first chore: chore creation time minus the household's earliest member registration.               | The median is <=10 minutes exactly when more than half of the households are "within". INSUFFICIENT DATA below 5 households.                                                   |
+| Recovery                    | Not a usage count.                                                                                                                                                                    | INSUFFICIENT DATA; the evidence is the recovery rehearsal (`scripts/recovery-rehearsal.sh`, #288).                                                                              |
+
+A household that turns counting on after its first chore gets no time-to-first
+value bucket (an earlier chore exists), and counts from before it turned
+counting on are not reconstructed. Beta households should therefore turn it on
+right after creating the household. Recruiting households still needs
+Cameron's approval (AGENTS.md).
+
 ## Authoritative roadmap
 
 ### Now — prove a safe daily loop
@@ -115,6 +146,8 @@ These are acceptance thresholds, not claims about current performance.
    balances, then persist one module at a time.
 3. Add audit evidence and rollback instructions to every migration release.
 4. Recruit five design-partner households and instrument the beta criteria.
+   The instrumentation is built (#287, "How the beta criteria are measured"
+   above); recruiting needs Cameron's approval.
 
 ### Later — breadth and monetization
 

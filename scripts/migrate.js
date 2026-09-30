@@ -35,6 +35,25 @@ ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_key_enc" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_base_url" TEXT;
 ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "capture_ai_model" TEXT;
 
+-- Today board weather (#262; opt-in, default off; coarse place only)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_enabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_latitude" DOUBLE PRECISION;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_longitude" DOUBLE PRECISION;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_label" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "weather_unit" TEXT NOT NULL DEFAULT 'celsius';
+
+-- Fridge calm display (#271; additive: idle minutes, night hours off, no photos)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "ambient_idle_minutes" INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "night_start" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "night_end" TEXT;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "ambient_photo_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+-- Shared-device writes (#274; per-household opt-in, default off: SHARED_DEVICE.md §9.2)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "device_writes_enabled" BOOLEAN NOT NULL DEFAULT false;
+
+-- Beta usage counts (#287, D-6; per-household opt-in, default off)
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "beta_metrics_enabled" BOOLEAN NOT NULL DEFAULT false;
+
 -- ============ User ============
 CREATE TABLE IF NOT EXISTS "User" (
   "id" TEXT PRIMARY KEY,
@@ -71,6 +90,13 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "reset_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "verify_token_expires" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "token_version" INTEGER NOT NULL DEFAULT 0;
+-- Today board member colour (#262; palette key, NULL = fallback)
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "board_color" TEXT;
+-- Per-member notification preferences (#286, PR101 D-5). Additive, DEFAULT true:
+-- existing rows read as "everything on", which is today's behaviour.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_chores" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_events" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_messages" BOOLEAN NOT NULL DEFAULT true;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (
@@ -92,12 +118,21 @@ CREATE TABLE IF NOT EXISTS "Chore" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "created_by" TEXT NOT NULL,
   "recurrence_id" TEXT,
-  "is_template" BOOLEAN NOT NULL DEFAULT false
+  "is_template" BOOLEAN NOT NULL DEFAULT false,
+  "icon" TEXT,
+  "routine" TEXT,
+  "routine_order" INTEGER
 );
 
 -- Backfill the #184 recurrence columns for deployments whose Chore table predates them
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "recurrence_id" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "is_template" BOOLEAN NOT NULL DEFAULT false;
+-- #268 Undo: exact successor created by completing a legacy recurring one-off
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "successor_id" TEXT;
+-- Picture routines (#272): additive, nullable. Existing chores have no icon or routine.
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "icon" TEXT;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine" TEXT;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_order" INTEGER;
 
 -- ============ Event ============
 CREATE TABLE IF NOT EXISTS "Event" (
@@ -121,6 +156,9 @@ ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "project_id" TEXT;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_subscription_id" TEXT;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_uid" TEXT;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_occurrence_start" TIMESTAMP(3);
+-- #264 two-way provider sync (additive): origin connection + last local change
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "source_connection_id" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- ============ CalendarSubscription (#232; feed URL stored encrypted) ============
 CREATE TABLE IF NOT EXISTS "CalendarSubscription" (
@@ -139,6 +177,69 @@ CREATE TABLE IF NOT EXISTS "CalendarSubscription" (
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS "CalendarSubscription_family_id_idx" ON "CalendarSubscription"("family_id");
+
+-- ============ Two-way Google/Microsoft calendar sync (#264; additive, dormant unless configured) ============
+-- docs/architecture/CALENDAR_SYNC.md. OAuth tokens are encrypted with CALENDAR_TOKEN_KEY.
+CREATE TABLE IF NOT EXISTS "CalendarConnection" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "user_id" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "calendar_id" TEXT,
+  "calendar_name" TEXT,
+  "access_token_enc" TEXT,
+  "refresh_token_enc" TEXT,
+  "token_expires_at" TIMESTAMP(3),
+  "sync_cursor" TEXT,
+  "push_mode" TEXT NOT NULL DEFAULT 'linked',
+  "status" TEXT NOT NULL DEFAULT 'pending',
+  "last_synced_at" TIMESTAMP(3),
+  "last_error" TEXT,
+  "conflicts_count" INTEGER NOT NULL DEFAULT 0,
+  "last_conflict_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- Run generation: a sync writes only while the generation it started with is current (#264 review).
+ALTER TABLE "CalendarConnection" ADD COLUMN IF NOT EXISTS "generation" INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarConnection_family_id_user_id_provider_key" ON "CalendarConnection"("family_id", "user_id", "provider");
+CREATE INDEX IF NOT EXISTS "CalendarConnection_family_id_idx" ON "CalendarConnection"("family_id");
+
+CREATE TABLE IF NOT EXISTS "CalendarEventLink" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "connection_id" TEXT NOT NULL,
+  "event_id" TEXT,
+  "external_id" TEXT NOT NULL,
+  "external_etag" TEXT,
+  "external_updated_at" TIMESTAMP(3),
+  "synced_hash" TEXT,
+  "all_day" BOOLEAN NOT NULL DEFAULT false,
+  "synced_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- Idempotent import key: one local row per provider event per connection.
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarEventLink_connection_id_external_id_key" ON "CalendarEventLink"("connection_id", "external_id");
+-- One link per local event per connection. NULL event_id rows are delete tombstones (NULLs are distinct).
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarEventLink_connection_id_event_id_key" ON "CalendarEventLink"("connection_id", "event_id");
+CREATE INDEX IF NOT EXISTS "CalendarEventLink_family_id_idx" ON "CalendarEventLink"("family_id");
+CREATE INDEX IF NOT EXISTS "CalendarEventLink_event_id_idx" ON "CalendarEventLink"("event_id");
+
+CREATE TABLE IF NOT EXISTS "CalendarOAuthState" (
+  "id" TEXT PRIMARY KEY,
+  "state_hash" TEXT NOT NULL,
+  "family_id" TEXT NOT NULL,
+  "user_id" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "code_verifier_enc" TEXT NOT NULL,
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "used_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarOAuthState_state_hash_key" ON "CalendarOAuthState"("state_hash");
+CREATE INDEX IF NOT EXISTS "CalendarOAuthState_user_id_idx" ON "CalendarOAuthState"("user_id");
+CREATE INDEX IF NOT EXISTS "CalendarOAuthState_expires_at_idx" ON "CalendarOAuthState"("expires_at");
 
 -- ============ Message ============
 CREATE TABLE IF NOT EXISTS "Message" (
@@ -389,6 +490,135 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Upload_filename_key" ON "Upload"("filename");
 CREATE INDEX IF NOT EXISTS "Upload_family_id_idx" ON "Upload"("family_id");
 CREATE INDEX IF NOT EXISTS "Upload_uploaded_by_idx" ON "Upload"("uploaded_by");
 
+-- ============ Shared device (#157 contract, #240; additive) ============
+-- docs/architecture/SHARED_DEVICE.md §3. Tokens, codes, digits and PINs are
+-- stored as hashes only. Expand only: no backfill, nothing to contract.
+CREATE TABLE IF NOT EXISTS "HouseholdDevice" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "platform" TEXT NOT NULL,
+  "created_by" TEXT,
+  "confirmed_by" TEXT,
+  "paired_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "last_seen_at" TIMESTAMP(3),
+  "last_seen_app_version" TEXT,
+  "revoked_at" TIMESTAMP(3),
+  "revoked_by" TEXT,
+  "revoke_reason" TEXT,
+  "elevation_token_hash" TEXT,
+  "elevated_user_id" TEXT,
+  "elevated_token_version" INTEGER,
+  "elevation_method" TEXT,
+  "elevation_started_at" TIMESTAMP(3),
+  "elevation_last_used_at" TIMESTAMP(3),
+  "elevation_expires_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "HouseholdDevice_elevation_token_hash_key" ON "HouseholdDevice"("elevation_token_hash");
+CREATE INDEX IF NOT EXISTS "HouseholdDevice_family_id_revoked_at_idx" ON "HouseholdDevice"("family_id", "revoked_at");
+
+CREATE TABLE IF NOT EXISTS "DevicePairing" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "code_hash" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "created_by" TEXT NOT NULL,
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "claimed_at" TIMESTAMP(3),
+  "claim_token_hash" TEXT,
+  "confirm_digits_hash" TEXT,
+  "confirm_attempts" INTEGER NOT NULL DEFAULT 0,
+  "claim_platform" TEXT,
+  "claim_app_version" TEXT,
+  "confirmed_at" TIMESTAMP(3),
+  "confirmed_by" TEXT,
+  "cancelled_at" TIMESTAMP(3),
+  "device_id" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_code_hash_key" ON "DevicePairing"("code_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_claim_token_hash_key" ON "DevicePairing"("claim_token_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DevicePairing_device_id_key" ON "DevicePairing"("device_id");
+CREATE INDEX IF NOT EXISTS "DevicePairing_family_id_expires_at_idx" ON "DevicePairing"("family_id", "expires_at");
+-- #241 review: a pairing that replaces an existing tablet (additive, nullable).
+ALTER TABLE "DevicePairing" ADD COLUMN IF NOT EXISTS "replaces_device_id" TEXT;
+CREATE INDEX IF NOT EXISTS "DevicePairing_replaces_device_id_idx" ON "DevicePairing"("replaces_device_id");
+
+CREATE TABLE IF NOT EXISTS "DeviceSession" (
+  "id" TEXT PRIMARY KEY,
+  "device_id" TEXT NOT NULL,
+  "family_id" TEXT NOT NULL,
+  "access_token_hash" TEXT NOT NULL,
+  "access_expires_at" TIMESTAMP(3) NOT NULL,
+  "refresh_token_hash" TEXT NOT NULL,
+  "refresh_expires_at" TIMESTAMP(3) NOT NULL,
+  "first_used_at" TIMESTAMP(3),
+  "rotated_at" TIMESTAMP(3),
+  "replaced_by_id" TEXT,
+  "revoked_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "DeviceSession_access_token_hash_key" ON "DeviceSession"("access_token_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DeviceSession_refresh_token_hash_key" ON "DeviceSession"("refresh_token_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "DeviceSession_replaced_by_id_key" ON "DeviceSession"("replaced_by_id");
+CREATE INDEX IF NOT EXISTS "DeviceSession_device_id_revoked_at_idx" ON "DeviceSession"("device_id", "revoked_at");
+CREATE INDEX IF NOT EXISTS "DeviceSession_family_id_idx" ON "DeviceSession"("family_id");
+
+CREATE TABLE IF NOT EXISTS "ParentElevationPin" (
+  "user_id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "pin_hash" TEXT NOT NULL,
+  "locked_until" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "ParentElevationPin_family_id_idx" ON "ParentElevationPin"("family_id");
+
+CREATE TABLE IF NOT EXISTS "DeviceAuditEvent" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "device_id" TEXT,
+  "actor_user_id" TEXT,
+  "type" TEXT NOT NULL,
+  "metadata" JSONB,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_family_id_created_at_idx" ON "DeviceAuditEvent"("family_id", "created_at");
+CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_device_id_created_at_idx" ON "DeviceAuditEvent"("device_id", "created_at");
+
+-- ============ Idempotency records (#162 offline sync; additive) ============
+-- docs/architecture/OFFLINE_SYNC.md. Expand only: new table, no backfill.
+CREATE TABLE IF NOT EXISTS "IdempotencyRecord" (
+  "id" TEXT PRIMARY KEY,
+  "scope" TEXT NOT NULL,
+  "key" TEXT NOT NULL,
+  "family_id" TEXT NOT NULL,
+  "user_id" TEXT,
+  "action" TEXT NOT NULL,
+  "request_hash" TEXT NOT NULL,
+  "response_status" INTEGER,
+  "response_body" JSONB,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "expires_at" TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "IdempotencyRecord_scope_key_key" ON "IdempotencyRecord"("scope", "key");
+CREATE INDEX IF NOT EXISTS "IdempotencyRecord_expires_at_idx" ON "IdempotencyRecord"("expires_at");
+CREATE INDEX IF NOT EXISTS "IdempotencyRecord_family_id_idx" ON "IdempotencyRecord"("family_id");
+CREATE INDEX IF NOT EXISTS "IdempotencyRecord_user_id_idx" ON "IdempotencyRecord"("user_id");
+
+-- ============ Today board weather cache (#262; additive) ============
+CREATE TABLE IF NOT EXISTS "WeatherCache" (
+  "family_id" TEXT PRIMARY KEY,
+  "latitude" DOUBLE PRECISION NOT NULL,
+  "longitude" DOUBLE PRECISION NOT NULL,
+  "status" TEXT NOT NULL,
+  "payload" JSONB,
+  "fetched_at" TIMESTAMP(3) NOT NULL,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ============ Foreign keys (idempotent) ============
 DO $$ BEGIN
   ALTER TABLE "User" ADD CONSTRAINT "User_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -406,6 +636,52 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "Upload" ADD CONSTRAINT "Upload_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Shared device (#157, #240)
+DO $$ BEGIN
+  ALTER TABLE "HouseholdDevice" ADD CONSTRAINT "HouseholdDevice_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "HouseholdDevice" ADD CONSTRAINT "HouseholdDevice_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DevicePairing" ADD CONSTRAINT "DevicePairing_replaces_device_id_fkey" FOREIGN KEY ("replaces_device_id") REFERENCES "HouseholdDevice"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceSession" ADD CONSTRAINT "DeviceSession_device_id_fkey" FOREIGN KEY ("device_id") REFERENCES "HouseholdDevice"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ParentElevationPin" ADD CONSTRAINT "ParentElevationPin_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ParentElevationPin" ADD CONSTRAINT "ParentElevationPin_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_device_id_fkey" FOREIGN KEY ("device_id") REFERENCES "HouseholdDevice"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Today board weather cache (#262)
+DO $$ BEGIN
+  ALTER TABLE "WeatherCache" ADD CONSTRAINT "WeatherCache_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Idempotency records (#162)
+DO $$ BEGIN
+  ALTER TABLE "IdempotencyRecord" ADD CONSTRAINT "IdempotencyRecord_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "IdempotencyRecord" ADD CONSTRAINT "IdempotencyRecord_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -436,6 +712,32 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "CalendarSubscription" ADD CONSTRAINT "CalendarSubscription_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- #264 calendar sync
+DO $$ BEGIN
+  ALTER TABLE "Event" ADD CONSTRAINT "Event_source_connection_id_fkey" FOREIGN KEY ("source_connection_id") REFERENCES "CalendarConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarConnection" ADD CONSTRAINT "CalendarConnection_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarConnection" ADD CONSTRAINT "CalendarConnection_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarEventLink" ADD CONSTRAINT "CalendarEventLink_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarEventLink" ADD CONSTRAINT "CalendarEventLink_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "CalendarConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarEventLink" ADD CONSTRAINT "CalendarEventLink_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarOAuthState" ADD CONSTRAINT "CalendarOAuthState_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CalendarOAuthState" ADD CONSTRAINT "CalendarOAuthState_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -536,6 +838,7 @@ CREATE INDEX IF NOT EXISTS "Chore_status_idx" ON "Chore"("status");
 CREATE INDEX IF NOT EXISTS "Chore_due_date_idx" ON "Chore"("due_date");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_status_idx" ON "Chore"("family_id", "status");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_assigned_to_idx" ON "Chore"("family_id", "assigned_to");
+CREATE INDEX IF NOT EXISTS "Chore_family_id_due_date_idx" ON "Chore"("family_id", "due_date");
 CREATE INDEX IF NOT EXISTS "Chore_recurrence_id_idx" ON "Chore"("recurrence_id");
 -- Final concurrency guard for #184 series expansion: one occurrence per (series, date)
 CREATE UNIQUE INDEX IF NOT EXISTS "Chore_recurrence_id_due_date_key" ON "Chore"("recurrence_id", "due_date");
@@ -545,6 +848,7 @@ CREATE INDEX IF NOT EXISTS "Event_start_time_idx" ON "Event"("start_time");
 CREATE INDEX IF NOT EXISTS "Event_family_id_start_time_idx" ON "Event"("family_id", "start_time");
 CREATE INDEX IF NOT EXISTS "Event_project_id_idx" ON "Event"("project_id");
 CREATE INDEX IF NOT EXISTS "Event_source_subscription_id_start_time_idx" ON "Event"("source_subscription_id", "start_time");
+CREATE INDEX IF NOT EXISTS "Event_source_connection_id_idx" ON "Event"("source_connection_id");
 -- Idempotent import upsert key (#232). NULLs are distinct, so local events never collide.
 CREATE UNIQUE INDEX IF NOT EXISTS "Event_source_subscription_id_source_uid_source_occurrence_s_key" ON "Event"("source_subscription_id", "source_uid", "source_occurrence_start");
 
@@ -598,6 +902,221 @@ DO $$ BEGIN
   ALTER TABLE "Anniversary" ADD CONSTRAINT "Anniversary_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS "Anniversary_created_by_idx" ON "Anniversary"("created_by");
+
+-- ============ Family.features.gamification (#248) ============
+-- Points, streaks and the leaderboard became an opt-in family setting. New
+-- households get "gamification":false from the column default (see
+-- database/migration-features.sql) and from POST /api/family. Households that
+-- existed before the flag keep it ON: stamp true on every row whose blob lacks
+-- the key. Only rows WITHOUT the key are touched, so re-running is a no-op and
+-- a household a parent later turned off stays off. A NULL blob counts as
+-- "lacks the key" (normalizeFeatures fills the other keys with defaults).
+UPDATE "Family"
+SET "features" = COALESCE("features", '{}'::jsonb) || '{"gamification":true}'::jsonb
+WHERE "features" IS NULL
+   OR (jsonb_typeof("features") = 'object' AND NOT ("features" ? 'gamification'));
+
+-- ============ Canonical meal/grocery expand (ADR-0007, #250) ============
+-- Additive only: nullable or defaulted columns, SET NULL foreign keys and
+-- indexes. "FamilyMeal" comes from migration-features.sql and "Recipe" /
+-- "Ingredient" from migration-meal-planner-domains.sql, so this lives here.
+-- See docs/architecture/MEALS_AND_GROCERIES.md section 5.
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "recipe_id" TEXT;
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "servings" INTEGER;
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+DO $$ BEGIN
+  ALTER TABLE "FamilyMeal" ADD CONSTRAINT "FamilyMeal_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "Recipe"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "FamilyMeal_recipe_id_idx" ON "FamilyMeal"("recipe_id");
+
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "ingredient_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "recipe_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "meal_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "unit" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'manual';
+-- Immutable 'meal:<id>' | 'recipe:<id>'; never rewritten (see the partial index below).
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_key" TEXT;
+-- IdempotencyRecord.id of the from-recipe request that created the row. No FK: records expire.
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_request_id" TEXT;
+DO $$ BEGIN
+  ALTER TABLE "ListItem" ADD CONSTRAINT "ListItem_ingredient_id_fkey" FOREIGN KEY ("ingredient_id") REFERENCES "Ingredient"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ListItem" ADD CONSTRAINT "ListItem_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "Recipe"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ListItem" ADD CONSTRAINT "ListItem_meal_id_fkey" FOREIGN KEY ("meal_id") REFERENCES "FamilyMeal"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "ListItem_ingredient_id_idx" ON "ListItem"("ingredient_id");
+CREATE INDEX IF NOT EXISTS "ListItem_recipe_id_idx" ON "ListItem"("recipe_id");
+CREATE INDEX IF NOT EXISTS "ListItem_meal_id_idx" ON "ListItem"("meal_id");
+CREATE INDEX IF NOT EXISTS "ListItem_source_request_id_idx" ON "ListItem"("source_request_id");
+-- One open recipe-added row per (list, ingredient, source). Prisma cannot
+-- express a partial index, so this file owns it (schema.prisma points here).
+CREATE UNIQUE INDEX IF NOT EXISTS "ListItem_open_recipe_source_key"
+  ON "ListItem"("list_id", "ingredient_id", "source_key")
+  WHERE "checked" = false AND "source_key" IS NOT NULL AND "ingredient_id" IS NOT NULL;
+
+-- ============ Food inventory (#263; additive) ============
+-- New table only, no backfill. It references "Ingredient", which
+-- migration-meal-planner-domains.sql creates, so it lives here. The
+-- "inventory" feature is off by default for new and existing households
+-- (src/lib/features.ts), so no Family.features stamp is needed: a blob
+-- without the key already reads as off. See
+-- docs/architecture/MEALS_AND_GROCERIES.md "Food inventory".
+CREATE TABLE IF NOT EXISTS "InventoryItem" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "ingredient_id" TEXT,
+  "amount" DOUBLE PRECISION,
+  "unit" TEXT,
+  "location" TEXT NOT NULL DEFAULT 'fridge',
+  "expires_on" DATE,
+  "added_by" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_ingredient_id_fkey" FOREIGN KEY ("ingredient_id") REFERENCES "Ingredient"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_added_by_fkey" FOREIGN KEY ("added_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_location_idx" ON "InventoryItem"("family_id", "location");
+CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_expires_on_idx" ON "InventoryItem"("family_id", "expires_on");
+CREATE INDEX IF NOT EXISTS "InventoryItem_ingredient_id_idx" ON "InventoryItem"("ingredient_id");
+
+-- ============ Inventory foundation (#158/#121; additive) ============
+-- Nullable or defaulted columns and one new table, no backfill. Old rows read
+-- as best-before dates on active items, which is what they were. Finished
+-- (consumed/discarded) items keep their row so Undo can put them back; the
+-- adjustment row records who did what and what to restore. See
+-- docs/architecture/MEALS_AND_GROCERIES.md §10 "Consume, discard and undo".
+ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "date_kind" TEXT NOT NULL DEFAULT 'best_before';
+ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "category" TEXT;
+ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "purchased_on" DATE;
+ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "opened_on" DATE;
+ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "finished_at" TIMESTAMP(3);
+CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_status_expires_on_idx" ON "InventoryItem"("family_id", "status", "expires_on");
+CREATE TABLE IF NOT EXISTS "InventoryAdjustment" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "item_id" TEXT NOT NULL,
+  "kind" TEXT NOT NULL,
+  "amount_delta" DOUBLE PRECISION,
+  "amount_before" DOUBLE PRECISION,
+  "amount_after" DOUBLE PRECISION,
+  "status_before" TEXT NOT NULL,
+  "status_after" TEXT NOT NULL,
+  "actor_id" TEXT,
+  "request_id" TEXT,
+  "item_version" TIMESTAMP(3) NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "undone_at" TIMESTAMP(3),
+  "undone_by" TEXT
+);
+DO $$ BEGIN
+  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "InventoryItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_undone_by_fkey" FOREIGN KEY ("undone_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "InventoryAdjustment_request_id_key" ON "InventoryAdjustment"("request_id");
+CREATE INDEX IF NOT EXISTS "InventoryAdjustment_family_id_created_at_idx" ON "InventoryAdjustment"("family_id", "created_at");
+CREATE INDEX IF NOT EXISTS "InventoryAdjustment_item_id_created_at_idx" ON "InventoryAdjustment"("item_id", "created_at");
+
+-- ============ Grocery store sections (#273; additive) ============
+-- Nullable/defaulted columns and two new tables, no backfill. "Ingredient"
+-- comes from migration-meal-planner-domains.sql, so this lives here. A list
+-- without the column value sorts by section (default true); an ingredient
+-- without a section falls through to the keyword map. See
+-- docs/architecture/MEALS_AND_GROCERIES.md "Store sections".
+ALTER TABLE "Ingredient" ADD COLUMN IF NOT EXISTS "section" TEXT;
+ALTER TABLE "List" ADD COLUMN IF NOT EXISTS "sort_by_section" BOOLEAN NOT NULL DEFAULT true;
+CREATE TABLE IF NOT EXISTS "GrocerySectionPreference" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "name_key" TEXT NOT NULL,
+  "section" TEXT NOT NULL,
+  "updated_by" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "GrocerySectionPreference" ADD CONSTRAINT "GrocerySectionPreference_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "GrocerySectionPreference" ADD CONSTRAINT "GrocerySectionPreference_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "GrocerySectionPreference_family_id_name_key_key" ON "GrocerySectionPreference"("family_id", "name_key");
+CREATE TABLE IF NOT EXISTS "GroceryShoppingSession" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "list_id" TEXT NOT NULL,
+  "sections" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "last_tick_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "GroceryShoppingSession" ADD CONSTRAINT "GroceryShoppingSession_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "GroceryShoppingSession" ADD CONSTRAINT "GroceryShoppingSession_list_id_fkey" FOREIGN KEY ("list_id") REFERENCES "List"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "GroceryShoppingSession_family_id_last_tick_at_idx" ON "GroceryShoppingSession"("family_id", "last_tick_at");
+CREATE INDEX IF NOT EXISTS "GroceryShoppingSession_list_id_last_tick_at_idx" ON "GroceryShoppingSession"("list_id", "last_tick_at");
+
+-- ============ Household audit history (#285, PR101 D-4; additive) ============
+-- New table only, no backfill. Deleted with the household (ON DELETE CASCADE);
+-- a deleted member's rows keep their summary and lose the actor (SET NULL).
+-- Kept 12 months, pruned when a parent reads it (no scheduled job). ADR-0008.
+CREATE TABLE IF NOT EXISTS "AuditLog" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "actor_user_id" TEXT,
+  "actor_kind" TEXT NOT NULL,
+  "action" TEXT NOT NULL,
+  "target_type" TEXT NOT NULL,
+  "target_id" TEXT,
+  "summary" TEXT NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN
+  ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "AuditLog_family_id_created_at_idx" ON "AuditLog"("family_id", "created_at" DESC);
+
+-- ============ Beta usage counts (#287, PR101 D-6; additive) ============
+-- New table only, no backfill. One count per household, UTC day and fixed
+-- metric name (src/lib/beta-metrics.ts); no user ids, text or content.
+-- Deleted with the household (ON DELETE CASCADE) and when a parent turns the
+-- counts off. Kept 13 months, pruned by the recorder (no scheduled job).
+CREATE TABLE IF NOT EXISTS "BetaMetricDaily" (
+  "family_id" TEXT NOT NULL,
+  "day" DATE NOT NULL,
+  "metric" TEXT NOT NULL,
+  "count" INTEGER NOT NULL DEFAULT 0,
+  CONSTRAINT "BetaMetricDaily_pkey" PRIMARY KEY ("family_id", "day", "metric")
+);
+DO $$ BEGIN
+  ALTER TABLE "BetaMetricDaily" ADD CONSTRAINT "BetaMetricDaily_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "BetaMetricDaily_day_idx" ON "BetaMetricDaily"("day");
 `
 
 async function migrate() {

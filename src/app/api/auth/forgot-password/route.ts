@@ -3,8 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { createResetToken } from '@/lib/tokens'
-import { sendMail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
+import { logRouteError, logRouteWarning } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
     ].join('\n')
 
     try {
-      await sendMail({
+      await sendAccountMail('password_reset', {
         to: user.email,
         subject: 'Reset Your Family Planner Password',
         html,
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       // Never surface send failures to the caller (avoids enumeration/probing),
       // but make them visible in the logs.
-      console.warn('Failed to send reset email:', e)
+      logRouteWarning('POST /api/auth/forgot-password (reset email)', e, getRequestId(request))
     }
 
     return NextResponse.json({
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
       ...(process.env.NODE_ENV !== 'production' && { resetToken: token }),
     })
   } catch (error) {
-    console.error('Forgot password error:', error)
+    logRouteError('POST /api/auth/forgot-password', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

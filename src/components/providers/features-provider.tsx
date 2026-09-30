@@ -1,13 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { FEATURES, normalizeFeatures, type FeatureKey, type FamilyFeatures } from '@/lib/features'
+import { defaultFeatures, isFeatureEnabled, normalizeFeatures, type FeatureKey, type FamilyFeatures } from '@/lib/features'
 
 /**
  * useFeatures — client hook that returns the current family's feature flags.
- * Reads the initial set from a script tag rendered by the dashboard layout
- * (avoids an extra round-trip on every page load), and refreshes via the API
- * after the user toggles a flag.
+ * The dashboard layout passes the initial set as a prop (so the server render
+ * and hydration agree) and also renders it in a script tag; the API refreshes
+ * it after the user toggles a flag.
+ *
+ * `features` are the RAW stored flags (what the Features settings toggles
+ * show). To gate UI, use `useFeatureEnabled` / `isFeatureEnabled`, which also
+ * apply dependencies (Rewards and Analytics need Points & streaks, #248).
  */
 const Context = React.createContext<{
   features: FamilyFeatures
@@ -19,22 +23,28 @@ const Context = React.createContext<{
 /** Read the feature blob from the inline <script id="family-features"> tag. */
 function readInitial(): FamilyFeatures {
   if (typeof document === 'undefined') {
-    // SSR — fall back to defaults; client will hydrate with real values.
-    return FEATURES.reduce((acc, f) => ({ ...acc, [f.key]: f.defaultEnabled }), {} as FamilyFeatures)
+    // SSR without an `initial` prop — fall back to defaults.
+    return defaultFeatures()
   }
   const tag = document.getElementById('family-features')
-  if (!tag?.textContent) {
-    return FEATURES.reduce((acc, f) => ({ ...acc, [f.key]: f.defaultEnabled }), {} as FamilyFeatures)
-  }
+  if (!tag?.textContent) return defaultFeatures()
   try {
+    // A stored blob — normalize it exactly like the server does.
     return normalizeFeatures(JSON.parse(tag.textContent))
   } catch {
-    return FEATURES.reduce((acc, f) => ({ ...acc, [f.key]: f.defaultEnabled }), {} as FamilyFeatures)
+    return defaultFeatures()
   }
 }
 
-export function FeaturesProvider({ children }: { children: React.ReactNode }) {
-  const [features, setFeatures] = React.useState<FamilyFeatures>(() => readInitial())
+export function FeaturesProvider({
+  children,
+  initial,
+}: {
+  children: React.ReactNode
+  /** Normalized flags from the server; preferred over the script tag. */
+  initial?: FamilyFeatures
+}) {
+  const [features, setFeatures] = React.useState<FamilyFeatures>(() => initial ?? readInitial())
   const [loading, setLoading] = React.useState(false)
 
   const refresh = React.useCallback(async () => {
@@ -81,12 +91,8 @@ export function useFeatures() {
   if (!ctx) {
     // No provider? Return safe defaults. Pages should not be rendered without
     // the provider, but a missing context shouldn't crash the whole tree.
-    const defaults = FEATURES.reduce(
-      (acc, f) => ({ ...acc, [f.key]: f.defaultEnabled }),
-      {} as FamilyFeatures
-    )
     return {
-      features: defaults,
+      features: defaultFeatures(),
       setFeature: async () => undefined,
       refresh: async () => undefined,
       loading: false,
@@ -95,7 +101,8 @@ export function useFeatures() {
   return ctx
 }
 
+/** Whether a feature is effectively on (own flag AND any feature it requires). */
 export function useFeatureEnabled(key: FeatureKey): boolean {
   const { features } = useFeatures()
-  return features[key] === true
+  return isFeatureEnabled(features, key)
 }

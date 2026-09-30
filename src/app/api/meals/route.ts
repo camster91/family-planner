@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { addUTCDays, parseDateOnly, startOfTodayUTC } from '@/lib/dates'
+import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
+import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +16,9 @@ type MealType = typeof MEAL_TYPES[number]
 // GET - List meals for the current family.
 // Optional `start`/`end` (YYYY-MM-DD, end exclusive) select a date-only range;
 // otherwise returns the next 7 days starting from today (UTC).
+// Each meal carries `recipe` ({ id, title, prep_time, cook_time, servings })
+// when linked (ADR-0007), else null. Several meals may share a (date,
+// meal_type) slot (O-1); none is hidden or merged here.
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -54,21 +61,20 @@ export async function GET(request: NextRequest) {
           lt: rangeEnd,
         },
       },
-      include: {
-        cook: { select: { id: true, name: true } },
-        creator: { select: { id: true, name: true } },
-      },
-      orderBy: { date: 'asc' },
+      include: MEAL_INCLUDE,
+      orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
     })
 
     return NextResponse.json({ meals })
   } catch (err) {
-    console.error('Error fetching meals:', err)
+    logRouteError('GET /api/meals', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// POST - Create a meal slot
+// POST - Create a meal slot. More than one meal per (date, meal_type) is
+// allowed (ADR-0007 O-1). Optional `recipe_id` (same household) and `servings`;
+// without `recipe_name` a linked meal takes the recipe title as its snapshot.
 export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -84,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
-    const { date, meal_type, recipe_name, notes, cook_id } = body
+    const { date, meal_type, recipe_name, notes, cook_id, recipe_id, servings } = body
 
     if (!date || !meal_type) {
       return NextResponse.json({ error: 'date and meal_type are required' }, { status: 400 })
@@ -112,25 +118,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const link = await resolveMealLink(prisma!, auth.user.family_id, { recipe_id, servings })
+    if (!link.ok) {
+      return NextResponse.json({ error: link.error }, { status: 400 })
+    }
+
     const meal = await prisma!.familyMeal.create({
       data: {
         family_id: auth.user.family_id,
         date: mealDate,
         meal_type,
-        recipe_name: recipe_name ?? '',
+        recipe_name: recipe_name ?? link.recipeTitle ?? '',
         notes: notes ?? null,
         cook_id: cook_id ?? null,
+        recipe_id: link.recipeId ?? null,
+        servings: link.servings ?? null,
         created_by: auth.user.id,
       },
-      include: {
-        cook: { select: { id: true, name: true } },
-        creator: { select: { id: true, name: true } },
-      },
+      include: MEAL_INCLUDE,
     })
+
+    // Beta usage counts (#287): after the write; never fails the request.
+    await recordBetaMetric(prisma!, auth.user.family_id, 'meal_planned')
 
     return NextResponse.json({ meal }, { status: 201 })
   } catch (err) {
-    console.error('Error creating meal:', err)
+    logRouteError('POST /api/meals', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { createCategorySchema } from "@/lib/validations";
 import { featureGate } from '@/lib/feature-gate-server';
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ categories });
   } catch (error) {
-    console.error("Error fetching categories:", error);
+    logRouteError("GET /api/budget/categories", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ category }, { status: 201 });
   } catch (error) {
-    console.error("Error creating category:", error);
+    logRouteError("POST /api/budget/categories", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

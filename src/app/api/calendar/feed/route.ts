@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,7 +104,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Calendar feed error:', error)
+    logRouteError('GET /api/calendar/feed', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

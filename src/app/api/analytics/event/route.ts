@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/supabase/server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, id: activity.id })
   } catch (error) {
-    console.error('Analytics event error:', error)
+    logRouteError('POST /api/analytics/event', error, getRequestId(request))
     return NextResponse.json({ error: 'Failed to log event' }, { status: 500 })
   }
 }

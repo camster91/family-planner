@@ -142,24 +142,14 @@ export function CaptureBox() {
     setError(null)
     try {
       if (draft.kind === 'listitem') {
-        // Find (or create) a shopping list, then add the item to it.
-        const listRes = await fetch('/api/lists')
-        const listData = await listRes.json().catch(() => ({ lists: [] }))
-        const lists: Array<{ id: string; name: string; type: string }> = listData.lists || []
-        let list = lists.find((l) => l.type === 'grocery') || lists[0]
-
-        if (!list) {
-          const createRes = await fetch('/api/lists/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: 'Shopping', type: 'grocery' }),
-          })
-          const created = await createRes.json().catch(() => ({}))
-          if (!createRes.ok || !created.list) {
-            throw new Error(created.error || 'Could not create a shopping list')
-          }
-          list = created.list
+        // The household's default grocery list, found or created by the one
+        // server rule recipe adds use too (ADR-0007 O-4), then add the item.
+        const listRes = await fetch('/api/lists/default-grocery', { method: 'POST' })
+        const listData = await listRes.json().catch(() => ({}))
+        if (!listRes.ok || !listData.list) {
+          throw new Error(listData.error || 'Could not find a grocery list')
         }
+        const list: { id: string } = listData.list
 
         const itemRes = await fetch('/api/lists/items/create', {
           method: 'POST',

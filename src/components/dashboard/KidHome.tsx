@@ -11,6 +11,11 @@ import { cn } from '@/lib/utils'
 import { xpForNextLevel } from '@/lib/gamification'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
+import { useToast, useUndoToast } from '@/components/ui/toast'
+import { setChoreDone } from '@/lib/chore-tick-client'
+import { isDueToday } from '@/lib/dates'
+import { groupByRoutine, normalizeRoutineName } from '@/lib/routine-icons'
+import KidRoutines from './KidRoutines'
 
 interface Chore {
   id: string
@@ -18,6 +23,10 @@ interface Chore {
   due_date: string
   status: string
   points?: number
+  /** Picture routines (#272). */
+  icon?: string | null
+  routine?: string | null
+  routine_order?: number | null
 }
 
 interface Event {
@@ -80,7 +89,12 @@ export default function KidHome({
   const [celebratingReward, setCelebratingReward] = useState<string | null>(null)
   const [claimingReward, setClaimingReward] = useState(false)
   const rewardsEnabled = useFeatureEnabled('rewards')
+  // Points & streaks (#248). When off the server also omits xp/level and the
+  // chores' points, so this only decides what to draw.
+  const gamification = useFeatureEnabled('gamification')
   const [completedChores, setCompletedChores] = useState<Set<string>>(new Set())
+  const { addToast } = useToast()
+  const showUndo = useUndoToast()
 
   const userXp = user.xp ?? 0
   const userLevel = user.level ?? 1
@@ -88,9 +102,19 @@ export default function KidHome({
   const xpNextLevel = xpForLevel(userLevel)
   const xpProgress = Math.min(userXp / xpNextLevel, 1)
 
-  // Today's chores (pending + in_progress) — up to 3
+  // Picture routines (#272): the child's chores due today that belong to a
+  // routine, grouped and in step order. Done steps stay (shown ticked).
+  // Routine steps on other days (a daily routine's later occurrences, or
+  // yesterday's) are not shown: a routine is about today.
+  const inRoutine = (c: Chore) => normalizeRoutineName(c.routine) !== null
+  const routineChores = (chores ?? []).filter((c) => inRoutine(c) && isDueToday(c.due_date))
+  const { routines } = groupByRoutine(routineChores)
+
+  // Today's chores (pending + in_progress) — up to 3. Routine steps show above
+  // as picture cards, so they are never repeated here; a child with no routine
+  // chores sees exactly the list they always did.
   const todayChores = (chores ?? []).filter(
-    (c) => c.status === 'pending' || c.status === 'in_progress'
+    (c) => (c.status === 'pending' || c.status === 'in_progress') && !inRoutine(c)
   ).slice(0, 3)
 
   // Today's events — up to 2
@@ -138,10 +162,25 @@ export default function KidHome({
       })
       // fetch only rejects on network failure; a 4xx/5xx must also undo the
       // optimistic tick, or the chore looks done while the server disagrees.
-      if (!res.ok) rollback()
+      if (!res.ok) {
+        rollback()
+        return
+      }
     } catch {
       rollback()
+      return
     }
+    // Undo over confirm (#269): a mis-tap is one tap to reverse.
+    const title = (chores ?? []).find((c) => c.id === choreId)?.title
+    showUndo({
+      title: title ? `“${title}” done` : 'Done',
+      message: 'A parent will check it.',
+      onUndo: async () => {
+        const result = await setChoreDone(choreId, false)
+        if (result.ok) rollback()
+        else addToast({ type: 'error', title: "Couldn't undo", message: result.message })
+      },
+    })
   }
 
   return (
@@ -161,38 +200,52 @@ export default function KidHome({
 
       <div className="space-y-6 px-4">
 
-        {/* Stars card — XP + level progress */}
-        <div className="card-apple p-5 flex items-center gap-5">
-          <ProgressRing
-            progress={xpProgress}
-            size={88}
-            strokeWidth={9}
-            color="var(--accent)"
-          >
-            <div className="flex flex-col items-center leading-none">
-              <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
-              <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
-                {userXp}
-              </span>
-            </div>
-          </ProgressRing>
-          <div className="flex-1 min-w-0">
-            <p className="text-title-3 text-label-primary leading-tight font-semibold">
-              Level {userLevel}
-            </p>
-            <p className="text-subhead text-label-secondary mt-1">
-              {xpNextLevel - userXp} XP to go!
-            </p>
-            <div className="mt-3 flex items-center gap-1.5">
-              {[...Array(Math.min(userLevel, 5))].map((_, i) => (
-                <Sparkles key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
-              ))}
-              {userLevel > 5 && (
-                <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
-              )}
+        {/* Picture routines (#272): first, because they say what to do next. */}
+        {routines.length > 0 && (
+          <KidRoutines
+            routines={routines}
+            tickedIds={completedChores}
+            onComplete={(id) => {
+              const chore = routineChores.find((c) => c.id === id)
+              if (chore) handleChoreToggle(id, chore.status === 'completed' || chore.status === 'verified')
+            }}
+          />
+        )}
+
+        {/* Stars card — XP + level progress (only with Points & streaks on) */}
+        {gamification && (
+          <div className="card-apple p-5 flex items-center gap-5">
+            <ProgressRing
+              progress={xpProgress}
+              size={88}
+              strokeWidth={9}
+              color="var(--accent)"
+            >
+              <div className="flex flex-col items-center leading-none">
+                <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
+                <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
+                  {userXp}
+                </span>
+              </div>
+            </ProgressRing>
+            <div className="flex-1 min-w-0">
+              <p className="text-title-3 text-label-primary leading-tight font-semibold">
+                Level {userLevel}
+              </p>
+              <p className="text-subhead text-label-secondary mt-1">
+                {xpNextLevel - userXp} XP to go!
+              </p>
+              <div className="mt-3 flex items-center gap-1.5">
+                {[...Array(Math.min(userLevel, 5))].map((_, i) => (
+                  <Sparkles key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                ))}
+                {userLevel > 5 && (
+                  <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Today's Chores */}
         {todayChores.length > 0 && (
@@ -236,7 +289,7 @@ export default function KidHome({
                         )}>
                           {chore.title}
                         </div>
-                        {chore.points && (
+                        {gamification && chore.points && (
                           <div className="flex items-center gap-1 mt-1">
                             <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                             <span className="text-footnote text-label-secondary">{chore.points} XP</span>
@@ -256,8 +309,8 @@ export default function KidHome({
           </section>
         )}
 
-        {/* No chores state */}
-        {todayChores.length === 0 && (
+        {/* No chores state (a routine shows its own progress instead) */}
+        {todayChores.length === 0 && routines.length === 0 && (
           <div className="card-apple p-6 text-center">
             <div className="text-4xl mb-2">🎉</div>
             <p className="text-title-3 text-label-primary">All done for today!</p>

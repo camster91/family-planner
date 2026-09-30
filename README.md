@@ -6,13 +6,13 @@
 
 **Contributors and agents start here:** [`AGENTS.md`](AGENTS.md) and [`docs/START_HERE.md`](docs/START_HERE.md) (documentation authority). Release/security gates: [`docs/PRODUCT_PROGRAM.md`](docs/PRODUCT_PROGRAM.md).
 
-20 features, all gated by per-family opt-in flags. Built for parents managing households with kids of all ages.
+21 features, all gated by per-family flags. Built for parents managing households with kids of all ages.
 
 ## Features
 
 ### Core (always on)
 
-- **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly). XP points + streak tracking.
+- **Chore Tracking** — create, assign, complete, verify with photo. Recurring chores (daily/weekly/monthly).
 - **Family Calendar** — events with dates, times, locations. Shared across all family members.
 - **Shared Lists** — shopping, to-do, meal plan, wishlist. Real-time sync.
 - **Family Management** — create/join family, invite members, role-based access.
@@ -22,11 +22,12 @@
 - **Meal Planning** — weekly meal calendar with breakfast/lunch/dinner slots.
 - **Notes** — pinned family notes, color-coded.
 - **Birthdays & Anniversaries** — track important dates with countdown.
-- **Rewards** — XP-based reward catalog, one-tap claim for kids.
+- **Points & streaks** — opt-in per family (off for new households): XP, levels, streaks and the leaderboard.
+- **Rewards** — XP-based reward catalog, one-tap claim for kids (needs Points & streaks).
 - **Budget** — transaction tracking + budget categories.
 - **Projects** — trip planning, home projects, task breakdowns.
 - **Family Messaging** — real-time chat between family members.
-- **Analytics** — weekly completion stats, leaderboard, streaks.
+- **Analytics** — weekly completion stats, leaderboard, streaks (needs Points & streaks).
 
 ### Family Life (opt-in, off by default)
 
@@ -87,6 +88,7 @@ Templates: [`.env.example`](.env.example) (local) and [`.env.production.example`
 | `UPLOAD_DIR`                                              | Upload storage path (default `/data/family-planner-uploads`)                                | No                            |
 | `CAPTURE_AI_KEY`, `CAPTURE_AI_BASE_URL`, `CAPTURE_AI_MODEL` | Server-level fallback for AI capture; families normally configure this in Settings        | No                            |
 | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`     | Client analytics; disabled when unset                                                       | No                            |
+| `CALENDAR_TOKEN_KEY`, `APP_URL`, `GOOGLE_CLIENT_ID`/`_SECRET`, `MICROSOFT_CLIENT_ID`/`_SECRET`/`_TENANT` | Two-way calendar sync (#264); dormant unless set. See `docs/runbooks/CALENDAR_SYNC.md` | No |
 | `MIGRATE_FALLBACK_DB`                                     | Maintenance database `scripts/migrate.js` uses when `postgres` is unavailable               | No                            |
 
 ## User Roles
@@ -126,7 +128,7 @@ prisma/schema.prisma   # Canonical data model (Prisma client generation)
 scripts/migrate.js     # Idempotent schema migration, run at container start
 database/migration-*.sql  # Per-feature idempotent SQL applied by migrate.js
 android/               # Capacitor Android project
-.github/workflows/      # release.yml, apk.yml, auto-merge.yml, stale-issues.yml
+.github/workflows/      # release.yml, e2e.yml, apk.yml, auto-merge.yml, stale-issues.yml
 ```
 
 ## Testing

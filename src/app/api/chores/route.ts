@@ -4,10 +4,17 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
+import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
+import { apiError, logRouteError } from '@/lib/api-error'
+import { afterChoreCursor, encodeChoreCursor, parseChorePaging } from '@/lib/chore-paging'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
-// GET - List chores for the user's family
+// GET - List chores for the user's family.
+// Opt-in paging (O-19): `?limit=1..200[&cursor=]` returns `{ chores, nextCursor }`
+// ordered by due date then id. Without `limit` the response is unchanged: every
+// chore, ordered by due date, no `nextCursor` (installed Android builds).
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -16,28 +23,48 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const assigned_to = searchParams.get('assigned_to')
+    const paging = parseChorePaging(searchParams)
+    if (!paging.ok) return apiError(400, 'INVALID_QUERY', paging.error, { requestId: getRequestId(request) })
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
+    if (paging.paged && paging.cursor) where.AND = [afterChoreCursor(paging.cursor)]
 
-    const chores = await prisma!.chore.findMany({
+    const rows = await prisma!.chore.findMany({
       where,
       include: {
         assignee: { select: { id: true, name: true, avatar_url: true } },
         creator: { select: { id: true, name: true } },
       },
-      orderBy: { due_date: 'asc' },
+      orderBy: paging.paged ? [{ due_date: 'asc' }, { id: 'asc' }] : { due_date: 'asc' },
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
     })
 
-    return NextResponse.json({ chores })
+    const hasMore = paging.paged && rows.length > paging.limit
+    const chores = hasMore ? rows.slice(0, paging.limit) : rows
+    const page = paging.paged
+      ? { nextCursor: hasMore ? encodeChoreCursor(chores[chores.length - 1]) : null }
+      : {}
+
+    // Points & streaks off for this family (#248): the chore's points value is
+    // not sent. It is still stored, and verify still awards XP from it.
+    if (!(await isGamificationOn(auth.user.family_id))) {
+      return NextResponse.json({ chores: chores.map(omitChorePoints), ...page })
+    }
+
+    return NextResponse.json({ chores, ...page })
   } catch (error) {
-    console.error('Error fetching chores:', error)
+    logRouteError('GET /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PATCH - Update a chore (family-scoped, parent or assignee)
+// PATCH - Update a chore (family-scoped, parent or assignee). Details only:
+// `updateChoreSchema` drops `status` and the verify fields, so status changes
+// only through the shared helpers (`completeChore` behind /api/chores/complete,
+// `reopenCompletedChoreInTx` behind /uncomplete and the verify reject; route
+// inventory F-6, #289; pinned by __tests__/status-single-path.test.ts).
 export async function PATCH(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -137,6 +164,11 @@ export async function PATCH(request: NextRequest) {
     if (updates.difficulty !== undefined) data.difficulty = updates.difficulty
     if (updates.frequency !== undefined) data.frequency = updates.frequency
     if (photo.value !== undefined) data.photo_url = photo.value
+    // Picture routines (#272): null clears. Like the title, the assignee may
+    // change them; they carry no XP or privilege.
+    if (updates.icon !== undefined) data.icon = updates.icon
+    if (updates.routine !== undefined) data.routine = updates.routine
+    if (updates.routine_order !== undefined) data.routine_order = updates.routine_order
 
     const updated = await prisma!.chore.update({
       where: { id: choreId },
@@ -147,9 +179,13 @@ export async function PATCH(request: NextRequest) {
       },
     })
 
+    if (!(await isGamificationOn(auth.user.family_id))) {
+      return NextResponse.json({ chore: omitChorePoints(updated) })
+    }
+
     return NextResponse.json({ chore: updated })
   } catch (error) {
-    console.error('Error updating chore:', error)
+    logRouteError('PATCH /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -194,7 +230,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting chore:', error)
+    logRouteError('DELETE /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

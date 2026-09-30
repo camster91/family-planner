@@ -37,10 +37,13 @@ export function SearchField({
         <button
           type="button"
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-label-tertiary flex items-center justify-center"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
           aria-label="Clear"
         >
-          <X className="w-3 h-3 text-white" />
+          {/* 24px hit target (WCAG 2.5.8) around the 20px visible circle. */}
+          <span className="w-5 h-5 rounded-full bg-label-tertiary flex items-center justify-center" aria-hidden="true">
+            <X className="w-3 h-3 text-white" />
+          </span>
         </button>
       )}
     </div>

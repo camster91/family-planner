@@ -17,6 +17,16 @@ services:
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET (see .env.example)}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
       - CRON_SECRET=${CRON_SECRET:-}
+      - SHARED_DEVICE_ENABLED=${SHARED_DEVICE_ENABLED:-false}
+      # Two-way calendar sync (#264): dormant unless all of these are set.
+      - APP_URL=${APP_URL:-}
+      - CALENDAR_TOKEN_KEY=${CALENDAR_TOKEN_KEY:-}
+      - CALENDAR_TOKEN_KEY_PREVIOUS=${CALENDAR_TOKEN_KEY_PREVIOUS:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
+      - MICROSOFT_TENANT=${MICROSOFT_TENANT:-}
     depends_on:
       postgres:
         condition: service_healthy

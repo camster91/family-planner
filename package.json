@@ -25,7 +25,10 @@
     "verify:app": "prisma generate && npm run typecheck && npm run lint && npm test -- --runInBand && npm run build && npm audit --omit=dev --audit-level=high",
     "health": "curl -f http://localhost:3000/api/health || exit 1",
     "fixtures:seed": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs seed",
-    "fixtures:reset": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs reset"
+    "fixtures:reset": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs reset",
+    "perf:baseline": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/perf-baseline.mjs",
+    "backfill:meals-groceries": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/backfill-meals-groceries.mjs",
+    "beta:scorecard": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/beta-scorecard.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -67,6 +70,7 @@
     "autoprefixer": "^10.6.1",
     "eslint": "^9.15.0",
     "eslint-config-next": "^15.5.25",
+    "fake-indexeddb": "^6.2.5",
     "husky": "^8.0.3",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",

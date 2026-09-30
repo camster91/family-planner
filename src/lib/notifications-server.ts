@@ -1,11 +1,5 @@
-import { prisma } from '@/lib/prisma'
-
-interface NotificationData {
-  userId: string
-  title: string
-  message: string
-  type: 'chore' | 'event' | 'message' | 'reward' | 'system' | 'achievement' | 'streak'
-}
+import { deliverNotification, type NotificationInput } from '@/lib/notification-delivery'
+import { logRouteError } from '@/lib/api-error'
 
 interface ChoreInfo {
   id: string
@@ -18,21 +12,18 @@ interface UserInfo {
   name: string
 }
 
+/**
+ * Route-facing wrapper. Every send goes through deliverNotification, which
+ * honours the recipient's notification preferences (#286).
+ */
 export class NotificationServiceServer {
-  async sendNotification(data: NotificationData) {
+  /** True when a notification was created; false when muted or on error. Never throws. */
+  async sendNotification(data: NotificationInput) {
     try {
-      await prisma!.notification.create({
-        data: {
-          user_id: data.userId,
-          title: data.title,
-          message: data.message,
-          type: data.type,
-          read: false,
-        },
-      })
-      return true
+      const result = await deliverNotification(data)
+      return result.delivered
     } catch (error) {
-      console.error('Error in notification service:', error)
+      logRouteError('notification-service.send', error, undefined)
       return false
     }
   }

@@ -1,12 +1,13 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
+import { attachQueryTiming, queryTimingConfig } from '@/lib/db-query-timing'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-function initializePrisma() {
+function initializePrisma(): PrismaClient | undefined {
   const databaseUrl = process.env.DATABASE_URL || ''
   const hasDatabaseUrl = databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://')
 
@@ -18,9 +19,15 @@ function initializePrisma() {
   try {
     const pool = new pg.Pool({ connectionString: databaseUrl })
     const adapter = new PrismaPg(pool)
-    return new PrismaClient({ adapter })
+    // Opt-in, dev/test-only slow-query lines (#161, src/lib/db-query-timing.ts).
+    // Off by default, and always off with NODE_ENV=production.
+    const timing = queryTimingConfig()
+    if (!timing) return new PrismaClient({ adapter })
+    const client = new PrismaClient({ adapter, log: [{ emit: 'event', level: 'query' }] })
+    attachQueryTiming(client, timing)
+    return client as unknown as PrismaClient
   } catch (error) {
-    console.error('Failed to initialize Prisma client:', error)
+    console.error('Failed to initialize Prisma client:', error instanceof Error ? error.name : 'unknown error')
     return undefined
   }
 }

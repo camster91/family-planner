@@ -10,6 +10,11 @@ import {
   normalizeInviteCode,
   normalizeInviteToken,
 } from '@/lib/family-invite'
+import { lockHouseholdForJoin, lockUser } from '@/lib/household-lock'
+import { auditSummary, writeAuditLog } from '@/lib/household-audit'
+import { recordBetaMetric } from '@/lib/beta-metrics'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,7 +83,7 @@ export async function POST(request: NextRequest) {
     const joinRole = user?.role === 'teen' ? 'teen' : 'child'
     return finishJoin(payload.userId, family.id, family.name, joinRole)
   } catch (error) {
-    console.error('Error joining family:', error)
+    logRouteError('POST /api/family/join', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -100,23 +105,61 @@ async function acceptEmailInvite(userId: string, userEmail: string, token: strin
     )
   }
 
-  const accepted = await prisma!.familyInvite.updateMany({
-    where: { id: invite.id, accepted_at: null, expires_at: { gt: new Date() } },
-    data: { accepted_at: new Date() },
-  })
-  if (accepted.count === 0) {
-    return NextResponse.json({ error: 'Invite not found or expired' }, { status: 404 })
-  }
-
-  return finishJoin(userId, invite.family.id, invite.family.name, invite.role)
+  return finishJoin(userId, invite.family.id, invite.family.name, invite.role, invite.id)
 }
 
-async function finishJoin(userId: string, familyId: string, familyName: string, role: string) {
-  const updated = await prisma!.user.update({
-    where: { id: userId },
-    data: { family_id: familyId, role },
-    select: { id: true, email: true, role: true, family_id: true },
+/**
+ * Add the member in one transaction under the household membership lock
+ * (src/lib/household-lock.ts), so a join cannot interleave with a household
+ * deletion: it either finishes before the deletion starts, or waits and finds
+ * the household gone (404). An email invite is consumed in the same
+ * transaction, so a refused join leaves it unused. The household audit
+ * history row (#285, `member.joined` with the role the member gets) is
+ * written in this transaction too, under the same lock.
+ */
+async function finishJoin(userId: string, familyId: string, familyName: string, role: string, inviteId?: string) {
+  const outcome = await prisma!.$transaction(async (tx) => {
+    // Order: user lock, then household lock (src/lib/household-lock.ts).
+    await lockUser(tx, userId)
+    if (!(await lockHouseholdForJoin(tx, familyId))) return { error: 'Family not found' as const }
+    const current = await tx.user.findUnique({ where: { id: userId }, select: { family_id: true } })
+    if (!current) return { error: 'User not found' as const }
+    if (current.family_id) return { error: 'already' as const }
+    if (inviteId) {
+      const accepted = await tx.familyInvite.updateMany({
+        where: { id: inviteId, family_id: familyId, accepted_at: null, expires_at: { gt: new Date() } },
+        data: { accepted_at: new Date() },
+      })
+      if (accepted.count === 0) return { error: 'Invite not found or expired' as const }
+    }
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: { family_id: familyId, role },
+      select: { id: true, email: true, name: true, role: true, family_id: true },
+    })
+    await writeAuditLog(tx, {
+      familyId,
+      actorUserId: user.id,
+      actorKind: 'person',
+      action: 'member.joined',
+      targetType: 'member',
+      targetId: user.id,
+      summary: auditSummary.memberJoined(user.name, user.role),
+    })
+    return { user }
   })
+  if ('error' in outcome) {
+    if (outcome.error === 'already') {
+      return NextResponse.json(
+        { error: 'You already belong to a family. Leave your current family first.' },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json({ error: outcome.error }, { status: 404 })
+  }
+  const updated = outcome.user
+  // Beta usage counts (#287): after the commit; never fails the request.
+  await recordBetaMetric(prisma!, familyId, 'member_joined')
 
   const response = NextResponse.json({ success: true, familyName })
   await attachSessionCookie(response, {

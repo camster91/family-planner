@@ -1,6 +1,7 @@
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
+import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 
 export default async function ChoresPage() {
   const sessionUser = await getServerUser()
@@ -15,6 +16,9 @@ export default async function ChoresPage() {
   })
 
   const familyId = user?.family_id || undefined
+  // Points & streaks (#248). When off, no chore points or streaks are computed
+  // or sent to the client.
+  const gamification = await isGamificationOn(familyId)
 
   // Get all chores for the family
   const chores = familyId ? await prisma!.chore.findMany({
@@ -28,7 +32,7 @@ export default async function ChoresPage() {
 
   // Compute streak per assignee: count of consecutive days with completed chores in last 7 days
   const streakMap: Record<string, number> = {}
-  if (familyId) {
+  if (familyId && gamification) {
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     sevenDaysAgo.setHours(0, 0, 0, 0)
@@ -81,15 +85,18 @@ export default async function ChoresPage() {
     orderBy: { role: 'desc' }
   }) : []
 
-  const serializedChores = chores.map((c) => ({
-    ...c,
-    due_date: c.due_date.toISOString(),
-    created_at: c.created_at.toISOString(),
-    completed_at: c.completed_at?.toISOString() ?? null,
-    verified_at: c.verified_at?.toISOString() ?? null,
-    photo_url: c.photo_url ?? null,
-    streak: streakMap[c.assigned_to] ?? 0,
-  }))
+  const serializedChores = chores.map((c) => {
+    const row = {
+      ...c,
+      due_date: c.due_date.toISOString(),
+      created_at: c.created_at.toISOString(),
+      completed_at: c.completed_at?.toISOString() ?? null,
+      verified_at: c.verified_at?.toISOString() ?? null,
+      photo_url: c.photo_url ?? null,
+      streak: streakMap[c.assigned_to] ?? 0,
+    }
+    return gamification ? row : omitChorePoints(row)
+  })
 
   return (
     <ChoresContent

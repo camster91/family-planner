@@ -10,6 +10,8 @@ import {
   updateTransactionSchema,
   deleteTransactionSchema,
 } from "@/lib/validations";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +143,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ transaction: updated });
   } catch (error) {
-    console.error("Error updating transaction:", error);
+    logRouteError("PATCH /api/budget/transactions/[id]", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -193,7 +195,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting transaction:", error);
+    logRouteError("DELETE /api/budget/transactions/[id]", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

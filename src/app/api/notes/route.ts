@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ notes })
   } catch (err) {
-    console.error('Error fetching notes:', err)
+    logRouteError('GET /api/notes', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ note }, { status: 201 })
   } catch (err) {
-    console.error('Error creating note:', err)
+    logRouteError('POST /api/notes', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

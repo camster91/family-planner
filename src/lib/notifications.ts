@@ -1,8 +1,12 @@
+import type { InAppNotificationType } from '@/lib/notification-policy'
+
+// Browser helper: every send goes through POST /api/notifications, which
+// applies the recipient's notification preferences on the server (#286).
 interface NotificationData {
   userId: string
   title: string
   message: string
-  type: 'chore' | 'event' | 'message' | 'reward' | 'system'
+  type: InAppNotificationType
 }
 
 class NotificationService {
@@ -15,7 +19,7 @@ class NotificationService {
       })
       return res.ok
     } catch (err) {
-      console.error('Error in sendNotification:', err)
+      console.error('Error in sendNotification:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }
@@ -30,7 +34,7 @@ class NotificationService {
       )
       return results.every(Boolean)
     } catch (err) {
-      console.error('Error in sendNotificationsToUsers:', err)
+      console.error('Error in sendNotificationsToUsers:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }
@@ -45,7 +49,7 @@ class NotificationService {
       })
       return res.ok
     } catch (err) {
-      console.error('Error in sendNotificationToFamily:', err)
+      console.error('Error in sendNotificationToFamily:', err instanceof Error ? err.name : 'unknown error')
       return false
     }
   }

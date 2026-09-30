@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { expandAllRecurringChores } from '@/lib/recurringChores'
 import { timingSafeEqualStr } from '@/lib/constant-time'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
       details: results,
     })
   } catch (error) {
-    console.error('Error running recurring chores cron:', error)
+    logRouteError('POST /api/cron/recurring-chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

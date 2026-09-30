@@ -1,6 +1,10 @@
+import { after } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { attachEventSources } from '@/lib/calendar-import/source'
+import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
+import { refreshStaleConnections } from '@/lib/calendar-sync/sync'
+import { canImportEvents, isEventImportConfigured } from '@/lib/event-import'
 import CalendarPageClient from './CalendarPageClient'
 
 interface CalendarPageProps {
@@ -17,10 +21,18 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { family_id: true },
+    select: { family_id: true, role: true },
   })
 
   const familyId = user?.family_id || undefined
+
+  // Two-way Google/Microsoft sync (#264): opportunistic, after the response is
+  // sent, at most once per connection per 5 minutes (DB-backed lease). No
+  // scheduler (AGENTS.md). Dormant unless calendar sync is configured.
+  if (familyId && isCalendarSyncEnabled()) {
+    const syncFamilyId = familyId
+    after(() => refreshStaleConnections(syncFamilyId))
+  }
 
   // Parse month/year from searchParams or default to today
   const now = new Date()
@@ -55,6 +67,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     start_time: e.start_time.toISOString(),
     end_time: e.end_time.toISOString(),
     created_at: e.created_at.toISOString(),
+    updated_at: e.updated_at ? e.updated_at.toISOString() : null,
     source_occurrence_start: e.source_occurrence_start ? e.source_occurrence_start.toISOString() : null,
   }))
 
@@ -63,6 +76,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       events={serializedEvents as any}
       currentMonth={month}
       currentYear={year}
+      // Review-first import (#270): hidden unless the provider key is set and the viewer may import.
+      importEnabled={isEventImportConfigured() && canImportEvents(user?.role)}
     />
   )
 }

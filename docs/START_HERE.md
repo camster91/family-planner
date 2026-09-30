@@ -24,7 +24,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Existing release/security gate: `docs/PRODUCT_PROGRAM.md`
 - Master roadmap: #128
 - Repository foundation: #147 / PR #129
-- First implementation audit: #148
+- First implementation audit: #148 (`docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`)
 - Canonical meal/list decision: #149
 - Design/IA: #150–#153
 - Test foundations: #154–#156
@@ -41,6 +41,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Architecture: `docs/architecture/**`
 - Testing: `docs/testing/**`
 - Design: `design/**` and `BRAND.md`
+- Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
+- Chores (parent check, picture routines for young kids): `docs/product/CHORES.md`
 - Release/incident operations: `docs/runbooks/**`
 
 ## Historical/reference-only material

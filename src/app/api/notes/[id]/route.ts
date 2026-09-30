@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { canEditOwnedRecord } from '@/lib/role-capabilities'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,7 +61,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ note: updated })
   } catch (err) {
-    console.error('Error updating note:', err)
+    logRouteError('PATCH /api/notes/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -107,7 +109,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Error deleting note:', err)
+    logRouteError('DELETE /api/notes/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

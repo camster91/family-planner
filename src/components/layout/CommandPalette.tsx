@@ -7,6 +7,7 @@ import { SearchField } from '@/components/ui/search-field'
 import { navItems } from '@/lib/nav-items'
 import { useFeatures } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
+import { isFeatureEnabled } from '@/lib/features'
 import { canRoleAccessPath } from '@/lib/kid-access'
 
 interface CommandPaletteProps {
@@ -48,14 +49,20 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
   }, [open, onClose])
 
   // Filter by both query and the family's enabled features.
-  // Items without a featureKey are always visible (core surfaces).
+  // Items without a featureKey are always visible (core surfaces). Effective
+  // value: Rewards and Analytics also hide while Points & streaks is off (#248).
   const filteredNav = navItems.filter((item) => {
     if (!canRoleAccessPath(role, item.href)) return false
-    if (item.featureKey && features[item.featureKey as keyof typeof features] === false) {
+    if (item.featureKey && !isFeatureEnabled(features, item.featureKey)) {
       return false
     }
     return item.name.toLowerCase().includes(query.toLowerCase())
   })
+
+  // Household search (route inventory F-3): hand the words to /dashboard/search.
+  const searchWords = query.trim().replace(/\s+/g, ' ')
+  const offerSearch = searchWords.length >= 2 && canRoleAccessPath(role, '/dashboard/search')
+  const searchHref = `/dashboard/search?q=${encodeURIComponent(searchWords)}`
 
   const handleNavigate = (href: string) => {
     router.push(href)
@@ -89,6 +96,13 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && offerSearch && filteredNav.length === 0) {
+                e.preventDefault()
+                handleNavigate(searchHref)
+              }
+            }}
+            aria-label="Search or go to a page"
             placeholder="Search or type a command…"
             className="flex-1 text-body text-label-primary bg-transparent outline-none placeholder:text-label-tertiary"
           />
@@ -108,6 +122,21 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
 
         {/* Content */}
         <div className="max-h-[60vh] overflow-y-auto py-2">
+          {offerSearch && (
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 px-4 py-2.5 min-h-[44px] text-left active:bg-[var(--surface-fill-secondary)]"
+              onClick={() => handleNavigate(searchHref)}
+            >
+              <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--surface-fill)] flex items-center justify-center shrink-0">
+                <Search className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+              </div>
+              <span className="text-body text-label-primary flex-1 min-w-0 break-words">
+                Search the household for &ldquo;{searchWords}&rdquo;
+              </span>
+              <ChevronRight className="w-4 h-4 text-label-tertiary shrink-0" aria-hidden="true" />
+            </button>
+          )}
           {/* Navigation shortcuts */}
           <div>
             <div className="section-header px-4 py-1">
@@ -130,7 +159,7 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
                 </button>
               )
             })}
-            {filteredNav.length === 0 && query !== '' && (
+            {filteredNav.length === 0 && query !== '' && !offerSearch && (
               <div className="px-4 py-6 text-center text-subhead text-label-tertiary">
                 No results for &ldquo;{query}&rdquo;
               </div>

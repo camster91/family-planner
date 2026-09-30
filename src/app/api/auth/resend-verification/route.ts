@@ -4,8 +4,10 @@ import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
 import { createVerificationToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
-import { sendMail } from '@/lib/mail'
+import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
+import { logRouteError, logRouteWarning } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
           '<p>This link expires in 24 hours.</p>',
         ].join('\n')
 
-        await sendMail({
+        await sendAccountMail('email_verification', {
           to: email,
           subject: 'Verify Your Family Planner Email',
           html,
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
             data: { verify_token: oldToken, verify_token_expires: oldExpires },
           })
           .catch(() => undefined)
-        console.warn('Resend-verification mail failed:', e)
+        logRouteWarning('POST /api/auth/resend-verification (mail)', e, getRequestId(request))
       }
     }
 
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
       message: 'If that email belongs to an unverified account, a new verification link has been sent.',
     })
   } catch (error) {
-    console.error('Resend-verification error:', error)
+    logRouteError('POST /api/auth/resend-verification', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

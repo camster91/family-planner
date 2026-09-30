@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { updateProjectTaskSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,7 +132,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ task: updated })
   } catch (error) {
-    console.error('Error updating project task:', error)
+    logRouteError('PATCH /api/projects/[id]/tasks/[taskId]', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -201,7 +203,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting project task:', error)
+    logRouteError('DELETE /api/projects/[id]/tasks/[taskId]', error, getRequestId(request))
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

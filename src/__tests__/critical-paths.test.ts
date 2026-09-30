@@ -87,6 +87,17 @@ describe("Auth", () => {
       const { safeVerifyPassword } = await import("@/lib/auth");
       expect(await safeVerifyPassword("any", null)).toBe(false);
     });
+
+    it("the dummy hash is a well-formed cost-12 bcrypt hash, so a missing account costs a full compare", async () => {
+      const bcrypt = await import("bcryptjs");
+      const { DUMMY_HASH } = await import("@/lib/auth");
+      expect(DUMMY_HASH).toMatch(/^\$2[aby]\$12\$[./A-Za-z0-9]{53}$/);
+      expect(bcrypt.getRounds(DUMMY_HASH)).toBe(12);
+      // A malformed hash is rejected in ~1 ms; a real cost-12 compare takes far longer.
+      const started = Date.now();
+      expect(await bcrypt.compare("any", DUMMY_HASH)).toBe(false);
+      expect(Date.now() - started).toBeGreaterThan(20);
+    });
   });
 
   describe("checkRateLimit", () => {

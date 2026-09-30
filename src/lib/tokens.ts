@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { prisma } from './prisma'
+import { writeDeviceAudit } from './device-audit'
 
 // Tokens are stored as sha256(token). The plaintext is only ever held in the
 // email link we send and in the caller's local variable — never in the database.
@@ -14,22 +15,18 @@ export function generateToken(length = 32): string {
 }
 
 /**
- * Prisma filter matching a submitted token against a stored token column.
+ * Prisma filter matching a submitted token against a stored token column:
+ * only `sha256(token)`.
  *
- * New tokens are stored as `sha256(token)`. Rows written before that change
- * hold the PLAINTEXT token, and those have to keep working: registration is
- * email-unique and there is no resend-verification endpoint, so a user whose
- * `verify_token` predates the hashing change would be locked out permanently.
- * Matching both forms covers the rollout; the legacy arm closes itself because
- * verify tokens expire in 24h and reset tokens in 1h.
- *
- * Deliberately NOT a data migration: the two forms are indistinguishable by
- * shape (legacy plaintext is 64 hex chars, sha256 hex is also 64 hex chars),
- * so a rewrite of the column would double-hash on the next container start —
- * `scripts/migrate.js` runs on every boot, not just once.
+ * During the hashing rollout (#189, 2026-09-17) this also accepted the raw
+ * value so pre-hashing plaintext rows kept working. That arm let the STORED
+ * HASH itself be submitted as a token: anyone who could read the database
+ * during a live reset window could reset that password. Every pre-hashing
+ * token expired long ago (verify 24 h, reset 1 h, and both lookups require an
+ * unexpired row), so the arm is gone (PR #101 disposition D-1).
  */
 export function tokenMatch(token: string) {
-  return { in: [hashToken(token), token] }
+  return hashToken(token)
 }
 
 // Store password-reset token (1 hour expiry, separate from verify token).
@@ -86,6 +83,21 @@ export async function consumeResetToken(
   token: string,
   hashedPassword: string
 ): Promise<boolean> {
+  // A reset implies possible compromise, so it also removes the parent's
+  // tablet elevation PIN (SHARED_DEVICE.md §6.1). The PIN row is deleted
+  // BEFORE the claim: if the claim then loses a race, the winner is the same
+  // account and would delete it anyway, so this can only fail safe.
+  const target = await prisma!.user.findFirst({
+    where: {
+      reset_token: tokenMatch(token),
+      reset_token_expires: { gt: new Date() },
+    },
+    select: { id: true, family_id: true },
+  })
+  const pinsCleared = target
+    ? (await prisma!.parentElevationPin.deleteMany({ where: { user_id: target.id } })).count
+    : 0
+
   const { count } = await prisma!.user.updateMany({
     where: {
       reset_token: tokenMatch(token),
@@ -98,6 +110,15 @@ export async function consumeResetToken(
       token_version: { increment: 1 },
     },
   })
+
+  if (count === 1 && pinsCleared > 0 && target?.family_id) {
+    await writeDeviceAudit(prisma!, {
+      familyId: target.family_id,
+      actorUserId: target.id,
+      type: 'parent_pin.cleared_by_reset',
+      metadata: {},
+    })
+  }
 
   return count === 1
 }

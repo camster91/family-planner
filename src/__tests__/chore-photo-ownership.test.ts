@@ -16,6 +16,15 @@ jest.mock("fs/promises", () => ({
     mockFiles.set(p, Buffer.from(buf));
   },
   mkdir: async () => undefined,
+  rename: async (from: string, to: string) => {
+    const buf = mockFiles.get(from);
+    if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    mockFiles.delete(from);
+    mockFiles.set(to, buf);
+  },
+  unlink: async (p: string) => {
+    if (!mockFiles.delete(p)) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  },
   readFile: async (p: string) => {
     const buf = mockFiles.get(p);
     if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
@@ -101,6 +110,116 @@ describe("D3 chore photo ownership — two households", () => {
     const again = await uploadAs("parentA");
     expect(again.filename).toBe(filename);
     expect(db.rows("upload")).toHaveLength(1);
+  });
+
+  // D-3: an upload must not straddle a household deletion.
+  it("an upload into a household deleted meanwhile is refused and leaves no file and no row", async () => {
+    // The session still names family A (read before), but the household row is gone.
+    db.tables.family = db.rows("family").filter((f) => f.id !== "family-A");
+    const before = new Set(mockFiles.keys());
+    const res = await upload(uploadReq("parentA") as never);
+    expect(res.status).toBe(404);
+    expect(db.rows("upload")).toHaveLength(0);
+    expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+  });
+
+  it("a failed ownership insert removes the file it wrote", async () => {
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.create;
+    fakePrisma.upload.create = async () => {
+      throw new Error("db down");
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const before = new Set(mockFiles.keys());
+      const res = await upload(uploadReq("parentA") as never);
+      expect(res.status).toBe(500);
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+    } finally {
+      fakePrisma.upload.create = original;
+    }
+  });
+
+  it("never removes a file another request put in place, even when its own insert fails", async () => {
+    // A concurrent upload of the same bytes already moved the file into place
+    // and is about to commit its row; this request's insert then fails.
+    const { filename } = await uploadAs("parentA");
+    db.tables.upload = [];
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.create;
+    fakePrisma.upload.create = async () => {
+      throw new Error("db down");
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(500);
+      expect(mockFiles.has(path.join(UPLOAD_DIR, "chores", filename))).toBe(true);
+      expect([...mockFiles.keys()].filter((k) => k.endsWith(".tmp"))).toEqual([]);
+    } finally {
+      fakePrisma.upload.create = original;
+    }
+  });
+
+  it("leaves no file when the transaction fails after writing its row (commit lost)", async () => {
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.create;
+    fakePrisma.upload.create = async (args: unknown) => {
+      await original(args);
+      throw new Error("connection lost during commit");
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const before = new Set(mockFiles.keys());
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(500);
+      // The final file is only moved into place after a successful commit.
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+    } finally {
+      fakePrisma.upload.create = original;
+    }
+  });
+
+  it("removes the file it placed when a household deletion removed its row after commit", async () => {
+    const { fakePrisma } = require("@/__tests__/helpers/two-household");
+    const original = fakePrisma.upload.findUnique;
+    let calls = 0;
+    fakePrisma.upload.findUnique = async (args: unknown) => {
+      // The second read is the re-check after commit; the deletion has
+      // committed in between.
+      if (++calls === 2) db.tables.upload = [];
+      return original(args);
+    };
+    try {
+      const before = new Set(mockFiles.keys());
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(404);
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+    } finally {
+      fakePrisma.upload.findUnique = original;
+    }
+  });
+
+  it("removes its temporary file when moving it into place fails", async () => {
+    const fsp = jest.requireMock("fs/promises");
+    const original = fsp.rename;
+    fsp.rename = async () => {
+      throw Object.assign(new Error("EIO"), { code: "EIO" });
+    };
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const before = new Set(mockFiles.keys());
+      expect((await upload(uploadReq("parentA") as never)).status).toBe(500);
+      expect([...mockFiles.keys()].filter((k) => !before.has(k))).toEqual([]);
+      expect(db.rows("upload")).toHaveLength(0);
+    } finally {
+      fsp.rename = original;
+    }
+  });
+
+  it("does not remove an existing file when a re-upload is refused", async () => {
+    const { filename } = await uploadAs("parentA");
+    db.tables.family = db.rows("family").filter((f) => f.id !== "family-A");
+    expect((await upload(uploadReq("parentA") as never)).status).toBe(404);
+    // The earlier file is not this request's; a household deletion removes it.
+    expect(mockFiles.has(path.join(UPLOAD_DIR, "chores", filename))).toBe(true);
   });
 
   it("namespaces filenames per family, so identical images never share an owner row", async () => {

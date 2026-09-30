@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { shapeHandoffForRole } from '@/lib/role-capabilities'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
       handoffs: handoffs.map((h) => shapeHandoffForRole(h, auth.user.role)),
     })
   } catch (err) {
-    console.error('GET /api/handoff error:', err)
+    logRouteError('GET /api/handoff', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ handoff }, { status: 201 })
   } catch (err) {
-    console.error('POST /api/handoff error:', err)
+    logRouteError('POST /api/handoff', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

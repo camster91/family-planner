@@ -46,3 +46,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /e2e/.auth/
+
+# Recovery rehearsal output (#288, scripts/recovery-rehearsal.sh)
+/recovery-rehearsal-report/

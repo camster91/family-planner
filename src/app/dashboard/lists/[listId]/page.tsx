@@ -6,7 +6,15 @@ import { prisma } from '@/lib/prisma'
 import ListDetailClient from './ListDetailClient'
 import DeleteListButton from './DeleteListButton'
 import type { ListType } from '@/types'
-import { canDeleteListOrItem } from '@/lib/role-capabilities'
+import { canChangeListSectionSort, canDeleteListOrItem } from '@/lib/role-capabilities'
+import { isGroceryListType } from '@/lib/grocery-display'
+import {
+  SECTION_INGREDIENT_SELECT,
+  loadSectionOrder,
+  loadSectionOverrides,
+  sectionsFor,
+} from '@/lib/grocery-section-store'
+import { GROCERY_SECTIONS, type GrocerySectionId } from '@/lib/grocery-sections'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +35,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
 
   let list: any = null
   let items: any[] = []
+  // Store sections (#273): resolved server-side and delivered with the page,
+  // so grouping works offline on the client.
+  let sections: GrocerySectionId[] = []
+  let sectionOverrides: Record<string, GrocerySectionId> = {}
+  let sectionOrder: { order: GrocerySectionId[]; learned: boolean } = { order: [...GROCERY_SECTIONS], learned: false }
 
   try {
     // Scope by household: an id from another family must read as "not found"
@@ -43,9 +56,17 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
         include: {
           adder: { select: { name: true, avatar_url: true } },
           checker: { select: { name: true } },
+          // Grocery provenance (ADR-0007): names only, household-owned through the list.
+          recipe: { select: { title: true } },
+          ingredient: SECTION_INGREDIENT_SELECT,
         },
         orderBy: { position: 'asc' },
       })
+      if (isGroceryListType(list.type)) {
+        sectionOverrides = await loadSectionOverrides(prisma!, list.family_id, items)
+        sections = sectionsFor(items, sectionOverrides)
+        sectionOrder = await loadSectionOrder(prisma!, list.family_id)
+      }
     }
   } catch (error) {
     console.error('Error fetching list:', error)
@@ -65,7 +86,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     )
   }
 
-  const mappedItems = items.map((item: any) => ({
+  const mappedItems = items.map((item: any, i: number) => ({
     id: item.id,
     content: item.content,
     checked: item.checked,
@@ -74,6 +95,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     added_by: item.adder ?? { name: 'Unknown' },
     checked_by: item.checker ?? undefined,
     checked_at: item.checked_at ?? undefined,
+    amount: item.amount ?? null,
+    unit: item.unit ?? null,
+    ingredient_id: item.ingredient_id ?? null,
+    ingredient_name: item.ingredient?.name ?? null,
+    recipe_title: item.recipe?.title ?? null,
+    section: sections[i] ?? null,
   }))
 
   return (
@@ -94,6 +121,13 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
         items={mappedItems}
         userId={user.id}
         canDeleteItems={canDelete}
+        sectionSort={{
+          enabled: list.sort_by_section !== false,
+          order: sectionOrder.order,
+          learned: sectionOrder.learned,
+          overrides: sectionOverrides,
+          canChange: canChangeListSectionSort(sessionUser.role),
+        }}
       />
     </div>
   )

@@ -1,0 +1,601 @@
+# Meals, recipes and groceries: canonical models and migration
+
+Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Accepted 2026-09-27**, issue #149). If this file and the ADR disagree, the ADR wins. `prisma/schema.prisma` and the route source remain authoritative for what exists today.
+
+## 1. Evidence base
+
+- Inspected on `master` @ `2fd6cc5` on 2026-09-27. Static source inspection only. No production data was read, and no row counts in this document come from a live database.
+- #148 (route/domain inventory) was not available when this was written, so this document includes its own inventory of the meal/list slice (§2). **Update 2026-09-29:** the inventory now exists at [`docs/refactor/ROUTE_AND_DOMAIN_INVENTORY.md`](../refactor/ROUTE_AND_DOMAIN_INVENTORY.md) (inspected at `cbef026`). Its "Meal and list overlap" section reconciles with §2: no route writes a legacy table, the only live legacy reads are `GET /api/users/export` and `DELETE /api/recipes/[id]` (both for #254), and no new live path triggers the ADR's revisit clause.
+- The idempotency primitive (`src/lib/idempotency.ts`, `IdempotencyRecord`, `Idempotency-Key`) is on `master` (merged in #247 for #162). Child D builds on it.
+
+## 2. Source inventory
+
+### 2.1 Prisma delegate usage (non-test source)
+
+Command: `grep -rnoE "(prisma!?|\(prisma as any\)|tx|db|client)\.(<model>)\b" src scripts`, with test files excluded from the "live" column.
+
+| Model | Non-test call sites | Files | Classification |
+| --- | --- | --- | --- |
+| `familyMeal` | 7 | `api/meals/route.ts` (2), `api/meals/[id]/route.ts` (4), `dashboard/today/today-board-data.ts` (1) | Live: UI + fridge board |
+| `list` | 13 | `api/lists/{route,create,items,items/create}`, `dashboard/lists/{page,[listId]/page,type/[type]/page}`, `api/users/export`, `lib/fixtures/seed.ts` | Live |
+| `listItem` | 12 | `api/lists/items/{route,create,update,delete}`, `dashboard/lists/[listId]/page`, `lib/shopping-snapshot.ts`, `lib/fixtures/seed.ts` | Live: UI + fridge Shopping card + fixtures |
+| `recipe` | 2 | `imports/persist-meal-planner.ts`, `api/users/export` | Import + export only |
+| `ingredient` | 1 | `imports/persist-meal-planner.ts` | Import only |
+| `recipeIngredient` | 1 | `imports/persist-meal-planner.ts` | Import only |
+| `mealPlan` | 2 | `imports/persist-meal-planner.ts`, `api/users/export` | Import + export only |
+| `mealPlanEntry` | 1 | `imports/persist-meal-planner.ts` | Import only (exported nested under `mealPlan`) |
+| `shoppingList` | 2 | `imports/persist-meal-planner.ts`, `api/users/export` | Import + export only |
+| `shoppingItem` | 1 | `imports/persist-meal-planner.ts` | Import only (exported nested) |
+| `importJob` / `importedRecord` | 11 / 6 | the three `persist-*.ts` importers, `api/admin/imports`, export | Import provenance (keep) |
+
+`fetch('/api/…')` callers outside `src/app/api`:
+- `/api/meals` is called only by `src/app/dashboard/meals/page.tsx`.
+- `/api/lists*` is called by `dashboard/lists/[listId]/ListDetailClient.tsx`, `dashboard/lists/create/page.tsx`, `[listId]/DeleteListButton.tsx` and `components/capture/CaptureBox.tsx`.
+- Nothing calls a recipe, meal-plan or shopping-list endpoint, because none exists.
+
+### 2.2 Live paths
+
+| Journey | UI | API | Tables |
+| --- | --- | --- | --- |
+| Plan a meal for a day and slot | `/dashboard/meals` (client, 7-day grid) | `GET/POST /api/meals`, `PATCH/DELETE /api/meals/[id]` (`featureGate('meals')`, `cook_id` family check) | `FamilyMeal` |
+| Tonight's dinner on the fridge | `/dashboard/today`, `/device/*` board | `today-board-data.ts` (dinners in window, `recipe_name`, cook name; no `notes`) | `FamilyMeal` |
+| Grocery and generic lists | `/dashboard/lists`, `/lists/[listId]`, `/lists/type/[type]` (redirects to the `?type=` filter, #289), `/lists/create` | `/api/lists` GET/DELETE, `/api/lists/create`, `/api/lists/items{,/create,/update,/delete,/[id]}` (`GET /api/lists/items` and `/delete` deprecated, #289) | `List`, `ListItem` |
+| Quick capture "something to buy" | `CaptureBox` | first `grocery` list (or `lists[0]`, or creates `Shopping`/`grocery`) → `/api/lists/items/create` | `List`, `ListItem` |
+| Groceries on the fridge | Today board Shopping card | `shopping-snapshot.ts` (unchecked items on `grocery`/`shopping` lists) | `ListItem` via `List` |
+| Offline grocery tick (PR #247, open) | list page | `POST /api/lists/items/update` + `Idempotency-Key`; queue op `list-item.set-checked {itemId}` | `ListItem`, `IdempotencyRecord` |
+| Import from the Meal Planner app | `/dashboard/settings/imports` | `POST /api/admin/imports/meal-planner` (parent, dry-run default) | `Recipe`, `Ingredient`, `RecipeIngredient`, `MealPlan`, `MealPlanEntry`, `ShoppingList`, `ShoppingItem`, `ImportJob`, `ImportedRecord` |
+| Data export | settings | `GET /api/users/export` | `List`+items, `Recipe`+ingredients, `MealPlan`+entries, `ShoppingList`+items. **`FamilyMeal` is missing.** |
+
+### 2.3 Dead or unused code found
+
+- **Removed in #252.** `src/components/lists/{ShoppingListView,ListItemRow,ListItems,DeleteListButton,ListsFilterTabs}.tsx` were imported by nothing in `src/app` (confirmed by grep across `src/` and `e2e/`). They are the only code that reads `ListItem.price`/`purchased` and `List.is_repeatable`/`last_purchased_at`, and no live API writes those columns (`updateListItemSchema` does not accept them).
+- The `meal_plan` list type (`createListSchema`, `lists/create` picker) is a third, free-text meal representation with no link to meals. **#251/#252:** it is no longer offered in the create picker, the lists overview shows its card only while a household still has such lists, and the `meal_plan` type page offers no "create". Existing lists still open and stay editable.
+
+### 2.4 Gaps found (fixed by child issues, not here)
+
+1. ~~`/dashboard/meals` `buildDayPlans` keeps only the first meal per (day, type) (`dayMeals.find(...)`). The API allows several, so any extra rows are invisible and cannot be edited → child C.~~ **Fixed in #252:** `src/lib/meal-slots.ts` `buildDayPlans` keeps every meal of a slot in API order; each has its own row, and the slot has an "Add another …" control.
+2. The user export omits `FamilyMeal` → child B.
+3. `/api/lists/**` has no server `featureGate('lists')`. Every other domain route uses `featureGate` (40 route files) → child B (O-11).
+4. `ShoppingItem.recipe_id` is a bare column with no FK or relation, so it can reference a missing or foreign recipe → handled in the backfill (§6).
+5. `MealPlanEntry`, `ShoppingItem` and `RecipeIngredient` have no `family_id`. Ownership is nested (plan, list, recipe).
+
+## 3. Canonical path per user journey
+
+| Journey | Canonical write path | Canonical read path |
+| --- | --- | --- |
+| Plan/edit/delete a meal slot | `POST /api/meals`, `PATCH/DELETE /api/meals/[id]` → `FamilyMeal` | `GET /api/meals` |
+| Link a meal to a recipe | the same routes with optional `recipe_id` (validated to be in the household) | `GET /api/meals` includes `recipe {id,title,prep_time,cook_time,servings}` when linked |
+| Tonight card | none (read-only board) | `today-board-data.ts` → `FamilyMeal` (+ recipe title/prep when linked) |
+| Create/edit a recipe with ingredients | new `POST/PATCH/DELETE /api/recipes[/id]` → `Recipe`, `RecipeIngredient`, `Ingredient` (upsert by family + name) | `GET /api/recipes[/id]` |
+| Grocery list add/tick/edit/delete | `/api/lists/items/{create,update,delete}` → `ListItem` on a `grocery`/`shopping` `List` | `/api/lists/items`, `shopping-snapshot.ts` |
+| Add a recipe's (missing) ingredients to groceries | new `POST /api/lists/items/from-recipe` (Idempotency-Key) → `ListItem` with `source='recipe'` | as above |
+| Inventory (#121/#158) → missing ingredients | new inventory models reference `Ingredient.id`. The client passes the missing `ingredientIds` to `from-recipe`. | inventory API (future) |
+| Generic to-do, wishlist and other lists | `/api/lists/**` → `List`/`ListItem` (unchanged) | unchanged |
+| Import from Meal Planner | `POST /api/admin/imports/meal-planner`, retargeted to write `Recipe*`, `FamilyMeal`, `List`/`ListItem`, with provenance in `ImportedRecord` | admin imports list |
+| Legacy `MealPlan*`/`Shopping*` rows | none (frozen) | export only, until contract |
+
+## 4. Legacy → canonical field mapping
+
+### `MealPlanEntry` (+ parent `MealPlan`) → `FamilyMeal`
+
+| Canonical | Source | Rule |
+| --- | --- | --- |
+| `family_id` | `MealPlan.family_id` | always the plan's family |
+| `date` | `MealPlanEntry.date` (DATE) | UTC midnight timestamp, the same convention as `parseDateOnly` |
+| `meal_type` | `MealPlanEntry.meal_type` | `lower(trim())`. Values outside `breakfast\|lunch\|dinner\|snack` are **skipped and reported**, never coerced. |
+| `recipe_id` | `MealPlanEntry.recipe_id` | only if the recipe's `family_id` matches. Otherwise the entry is **skipped, archived and reported** (`foreign_recipe`): its only content is the recipe reference, so a copy would be an empty slot or would carry another household's title (implemented in #250). |
+| `recipe_name` | `Recipe.title` | snapshot for old clients and the board |
+| `servings` (new) | `MealPlanEntry.servings` | |
+| `notes`, `cook_id` | none | null |
+| `created_by` | `MealPlan.created_by` | kept only if that user is a member of the plan's family. Otherwise (a user in another household, or missing) it becomes the **in-family fallback actor** (`--started-by` if given, else the family's oldest parent), reported as a creator remap; with no such actor the entry is skipped and archived (`no_in_family_actor`). The foreign id is never copied (#256 review). |
+| provenance | `ImportedRecord(source_app='fp-canonical-149', source_model='MealPlanEntry', source_id, target_model='FamilyMeal', target_id)` | also stores `MealPlan.name` and range in the `ImportJob.summary` |
+
+**`MealPlan` itself has no canonical row** (O-2: archive only). Its canonical target is the backfill `ImportJob` that archives its name and range: the backfill records `ImportedRecord(source_model='MealPlan', source_id, target_model='ImportJob', target_id=<that job>)`. Existing importer mappings `ImportedRecord(target_model='MealPlan')` are rewritten to the same `ImportJob` target in child E step 1, never deleted, so re-importing the same meal-planner export still recognizes the plan and creates 0 rows. The retargeted importer (child B) treats any existing mapping for a source `MealPlan` id as "already imported", whatever its `target_model`.
+
+**Collision** (a `FamilyMeal` already exists for the same family, date and type):
+- Same name (case-insensitive, trimmed) → **link**: set `recipe_id` only if it is null, record the mapping, and create no row.
+- Different name → **insert as an additional meal** (O-1 = allow). If Cameron chooses O-1 = one meal per slot, the rule becomes **skip and report** instead.
+
+### `ShoppingList` → `List`; `ShoppingItem` → `ListItem`
+
+| Canonical | Source | Rule |
+| --- | --- | --- |
+| `List.family_id/name/created_by/created_at` | same fields | `type='grocery'`, `description='Imported from Meal Planner'`. One `List` per `ShoppingList`; not merged into an existing list. `created_by` follows the same membership rule as `FamilyMeal.created_by` (remap to the in-family fallback actor, or skip + archive the list and its items as `no_in_family_actor`). |
+| `ListItem.content` | `ingredient_name` | trimmed; empty → skip and report |
+| `ListItem.amount`, `unit`, `category` (new/existing) | same | |
+| `ListItem.quantity` | none | 1 |
+| `ListItem.checked` | `checked` | `checked_by`/`checked_at` null (unknown) |
+| `ListItem.added_by` | `ShoppingList.created_by` | same membership rule (remap or `no_in_family_actor`). `checked_by`/`checked_at` and `FamilyMeal.cook_id` stay null, so no other user id is copied. The inserts re-check membership in SQL. Archived rows in `ImportJob.summary` (`mealPlans[]`, `skipped[]`) have a foreign or missing `created_by` replaced by `null` with `created_by_redacted`, so no other household's user id lands in this family's exportable data; `summary.remapped[]` lists each remapped source row and column. |
+| `ListItem.recipe_id` | `recipe_id` | kept only if the recipe exists **and** is in the same family, otherwise null + reported |
+| `ListItem.ingredient_id` | none | set when an `Ingredient` in the same family has the normalized name, otherwise null |
+| `ListItem.source` / `source_key` | none | `'import'` / null (import rows never take part in the recipe dedupe index) |
+| `ListItem.position` | none | source order within the list |
+| provenance | `ImportedRecord(source_app='fp-canonical-149', source_model='ShoppingList'\|'ShoppingItem', …, target_model='List'\|'ListItem')` | |
+
+`Recipe`, `Ingredient` and `RecipeIngredient` need no copying. They are already canonical.
+
+## 5. Schema expand sketch (child A)
+
+This is additive only. Prisma cannot express the partial unique index, so `scripts/migrate.js` `POST_FEATURE_SQL` owns it, and a schema comment points to it.
+
+```sql
+-- FamilyMeal: recipe link (ADR-0007)
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "recipe_id" TEXT;
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "servings" INTEGER;
+ALTER TABLE "FamilyMeal" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+DO $$ BEGIN ALTER TABLE "FamilyMeal" ADD CONSTRAINT "FamilyMeal_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "Recipe"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "FamilyMeal_recipe_id_idx" ON "FamilyMeal"("recipe_id");
+
+-- ListItem: grocery provenance (ADR-0007)
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "ingredient_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "recipe_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "meal_id" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "unit" TEXT;
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_key" TEXT; -- immutable 'meal:<id>' | 'recipe:<id>'
+ALTER TABLE "ListItem" ADD COLUMN IF NOT EXISTS "source_request_id" TEXT; -- IdempotencyRecord.id of the from-recipe request that created the row (undo + replay provenance)
+CREATE INDEX IF NOT EXISTS "ListItem_source_request_id_idx" ON "ListItem"("source_request_id");
+-- FKs: ingredient_id -> Ingredient, recipe_id -> Recipe, meal_id -> FamilyMeal, all ON DELETE SET NULL
+CREATE INDEX IF NOT EXISTS "ListItem_ingredient_id_idx" ON "ListItem"("ingredient_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "ListItem_open_recipe_source_key"
+  ON "ListItem"("list_id", "ingredient_id", "source_key")
+  WHERE "checked" = false AND "source_key" IS NOT NULL AND "ingredient_id" IS NOT NULL;
+```
+
+Why `source_key` is a text column and not `COALESCE(meal_id, recipe_id)`: the FKs are `SET NULL`. With an expression index, deleting a meal would null `meal_id` and could turn two distinct open rows into a unique-index collision, which would make the meal `DELETE` fail. A text key that is never rewritten avoids that.
+
+Edge case: unticking a recipe item whose (list, ingredient, source) now has another open row violates the index. `PATCH /api/lists/items/update` must map that `P2002` to 409 `DUPLICATE_OPEN_ITEM`. The #247 queue already surfaces 409 as `conflict`, with Retry/Discard.
+
+## 6. Backfill (child A tool, production run gated)
+
+Script: `scripts/backfill-meals-groceries.mjs` (name indicative). It uses the same target guard style as `fixtures.mjs` for rehearsal databases, and needs `BACKFILL_ALLOW_PRODUCTION=1` plus Cameron's approval for production.
+
+- **Default dry-run.** It prints, for each family, the counts of source rows, rows that would be created, linked, skipped (with reasons) and foreign references nulled. It writes nothing.
+- **Apply mode.** It processes one family per transaction. It creates one `ImportJob(source_app='fp-canonical-149', dry_run=false, started_by=<--started-by or the family's oldest parent>)` and records every mapping in `ImportedRecord`. Before creating anything it checks `ImportedRecord`, so a re-run or a resume after a crash creates 0 duplicates. This is the same pattern as `persist-meal-planner.ts`.
+- **Skipped rows are archived, never dropped.** Every skipped source row (unrecognized `meal_type`, empty `ingredient_name`, or any other skip reason) is written verbatim (all columns, as JSON) with its reason into `ImportJob.summary.skipped[]` of that family's backfill job. The user export includes backfill `ImportJob` summaries, so the last exportable copy of a skipped row survives the contract step. Each run prints the skipped count per family.
+- **Never** updates or deletes legacy rows. The only change to a live canonical row is the collision "link", which sets `FamilyMeal.recipe_id` only where it is null.
+- **Reverse mode** (rehearsal and emergency): deletes canonical rows created by a given job only while they are unmodified (`FamilyMeal.updated_at = created_at`; `ListItem.updated_at = created_at`). It reports anything it had to keep.
+
+### Read-only rehearsal/audit queries
+
+Run these on a rehearsal copy, or on production only by Cameron or with his approval. They output counts only, no content.
+
+```sql
+-- Legacy volume per family
+SELECT f.id,
+  (SELECT count(*) FROM "MealPlan" p WHERE p.family_id = f.id)                        AS meal_plans,
+  (SELECT count(*) FROM "MealPlanEntry" e JOIN "MealPlan" p ON p.id = e.meal_plan_id WHERE p.family_id = f.id) AS entries,
+  (SELECT count(*) FROM "ShoppingList" s WHERE s.family_id = f.id)                    AS shopping_lists,
+  (SELECT count(*) FROM "ShoppingItem" i JOIN "ShoppingList" s ON s.id = i.shopping_list_id WHERE s.family_id = f.id) AS shopping_items
+FROM "Family" f;
+
+-- Unmappable meal types
+SELECT lower(trim(meal_type)) AS t, count(*) FROM "MealPlanEntry"
+WHERE lower(trim(meal_type)) NOT IN ('breakfast','lunch','dinner','snack') GROUP BY 1;
+
+-- Slot collisions with live meals
+SELECT count(*) FROM "MealPlanEntry" e JOIN "MealPlan" p ON p.id = e.meal_plan_id
+JOIN "FamilyMeal" m ON m.family_id = p.family_id AND m.date = e.date::timestamp AND m.meal_type = lower(trim(e.meal_type));
+
+-- ShoppingItem.recipe_id pointing at a missing or foreign recipe
+SELECT count(*) FROM "ShoppingItem" i JOIN "ShoppingList" s ON s.id = i.shopping_list_id
+LEFT JOIN "Recipe" r ON r.id = i.recipe_id
+WHERE i.recipe_id IS NOT NULL AND (r.id IS NULL OR r.family_id <> s.family_id);
+
+-- Slots holding more than one meal (hidden by the one-per-slot UI before #252, gap 2.4.1)
+SELECT count(*) FROM (SELECT family_id, date, meal_type FROM "FamilyMeal" GROUP BY 1,2,3 HAVING count(*) > 1) d;
+```
+
+### Synthetic rehearsal (fixtures)
+
+Extend `src/lib/fixtures/dataset.ts` (#154) with legacy rows in both fixture households:
+- Family A: a `MealPlan` with 3 entries (dinner that collides by name with an `fx_` `FamilyMeal`, dinner that collides with a different name, lunch with no collision), one `MealPlanEntry` with `meal_type='Brunch'`, and a `ShoppingList` with 2 items (one checked, one linked to an A recipe).
+- Family B: a `ShoppingItem.recipe_id` pointing at a Family A recipe (foreign injection), plus a `ShoppingItem` with an empty name.
+- Canonical `fx_` `Recipe`/`Ingredient`/`RecipeIngredient` rows so the fixtures' meal and recipe data follow the canonical model (TEST_DATA.md).
+
+Expected results:
+- A: 2 `FamilyMeal` created, 1 linked, 1 skipped (`Brunch`); 1 `List` + 2 `ListItem` created.
+- B: the foreign `recipe_id` is nulled and reported; 1 item skipped.
+- A second apply creates 0 rows.
+- Reverse removes exactly the created rows.
+
+## 7. Recipe → grocery contract (child D)
+
+**Status (2026-09-28): implemented in #253** (`src/lib/grocery-from-recipe.ts`, `src/app/api/lists/items/{from-recipe,undo-add}/route.ts`, `src/app/api/lists/default-grocery/route.ts`). Implementation notes, where the code is more specific than the plan below:
+- A paired shared device is detected before person auth (`refusePairedDevice`, `src/lib/device-route.ts`) and gets 403 `DEVICE_WRITE_NOT_ALLOWED` from both routes, even with a stray `session_token` beside the device credential.
+- `withIdempotency` hands the effect its `IdempotencyRecord.id` (`EffectRun.recordId`); that id is the `requestId` in the response and each row's `source_request_id`. A missing key is 400 `IDEMPOTENCY_KEY_REQUIRED`. `ingredientIds` is de-duplicated and sorted before hashing, so order does not make the same request look different.
+- Errors use the target envelope `{ error: { code, message, retryable } }`: 404 `RECIPE_NOT_FOUND` / `MEAL_NOT_FOUND` / `LIST_NOT_FOUND` (foreign and missing alike), 400 `MEAL_RECIPE_MISMATCH` / `LIST_NOT_GROCERY` / `INGREDIENT_NOT_IN_RECIPE` / `RECIPE_HAS_NO_INGREDIENTS`. None is stored for replay.
+- `createdCount` is read back from the rows carrying the request id (not from `createMany`'s count), so a takeover after a crash reports the rows the first attempt wrote. The response also carries `listName` for the toast. `possibleDuplicates` compares the created ingredients' names with open free-text rows on that list (`normalizeName`: NFC, trimmed, whitespace collapsed, case-insensitive).
+- `resolveDefaultGroceryList` picks the most recently updated `grocery` list, else the most recently updated `shopping` list (both are grocery lists, ADR decision 3), else creates "Groceries", under `pg_advisory_xact_lock(hashtext('default-grocery-list:' || family_id))`. A child's first `from-recipe` may therefore create the list (ADR: every role may add from a recipe). `CaptureBox` calls it through `POST /api/lists/default-grocery` (parent and teen, like list creation); it previously fell back to the household's first list of any type and created a list named "Shopping".
+- Undo checks the `IdempotencyRecord` (same household and action → else 404; same user → else 403; finished → else 409 `UNDO_IN_PROGRESS`; `created_at` within 10 minutes → else 409 `UNDO_WINDOW_EXPIRED`), then deletes rows with that `source_request_id`, `added_by` the caller, unchecked, created within the window, on a list of the household. 200 `{ requestId, removedCount, keptCheckedCount }`; a repeated undo removes 0.
+- No schema change was needed.
+
+`POST /api/lists/items/from-recipe`
+- Auth: `authenticateWithFamily`; `featureGate('meals')` and `featureGate('lists')`; roles parent, teen and child; device sessions refused (403) until #157 device writes exist.
+- Header `Idempotency-Key` is **required** (400 `IDEMPOTENCY_KEY_REQUIRED` if missing). Wrapped in `withIdempotency` (PR #247) with action `grocery.add-from-recipe` and scope `user:<id>`.
+- Body (Zod): `{ recipeId: string; mealId?: string; listId?: string; servings?: int 1..50; ingredientIds?: string[] (max 100, subset of the recipe's) }`.
+- Validation: the recipe is in the household. The meal, if given, is in the household and has `recipe_id === recipeId` (otherwise 400). The list, if given, is in the household and has type `grocery` or `shopping` (otherwise 400/404 without revealing foreign existence). Without `listId`, the server resolves the default list per O-4 using `resolveDefaultGroceryList(familyId)`, under `pg_advisory_xact_lock(hashtext(family_id))`, so concurrent first adds create a single "Groceries" list. `CaptureBox` moves to the same helper.
+- Scaling: `amount = RecipeIngredient.amount × (servings ?? meal.servings ?? recipe.servings) / recipe.servings`, rounded to 2 decimal places. `unit = RecipeIngredient.unit ?? Ingredient.unit`.
+- Write: one `createMany({ skipDuplicates: true })` of rows with `source='recipe'`, `source_key = mealId ? 'meal:'+mealId : 'recipe:'+recipeId`, `source_request_id` = the request's `IdempotencyRecord.id`, `ingredient_id`, `recipe_id`, `meal_id`, `content = Ingredient.name`, `quantity=1`, `amount`, `unit`, `added_by`. The partial unique index turns a race into a skip.
+- Response 201 is **compact and bounded** so it always fits the #247 replay cap (`IDEMPOTENCY_MAX_BODY_CHARS`, 8 KiB) even at the 100-ingredient maximum: `{ listId, requestId, createdCount, alreadyOnListCount, possibleDuplicates: [{ ingredientId, matchedItemId }] (at most 20, plus possibleDuplicatesTruncated) }`. No per-row id arrays; the client refetches the list to render. A test asserts the serialized body stays under the cap for 100 ingredients with maximal-length ids. The same body is replayed with `Idempotency-Replayed: true`.
+- Undo (O-5): `POST /api/lists/items/undo-add { requestId }` deletes only still-unchecked rows with `source_request_id = requestId` created by the same user within 10 minutes. It relies on row provenance, not on the stored replay body; everything else returns 403 or 409.
+- Not offline-queueable in v1 (O-10). The `OFFLINE_SYNC.md` allowlist is unchanged.
+
+## 8. Compatibility and rollback summary
+
+| Step | Old WebView bundle / queued #247 ops | App rollback | Data rollback |
+| --- | --- | --- | --- |
+| A expand | unaffected (new columns nullable/defaulted) | safe; columns unused | not needed; columns may stay |
+| B API | additive response fields; old request bodies still valid | safe | none |
+| C UI | old bundle keeps working against the same routes | safe | none |
+| D from-recipe | new route only | route disappears; created rows stay as normal items | undo endpoint / manual |
+| Production backfill | no ID changes to existing rows | safe | reverse mode while rows are unmodified; partial after edits; legacy rows untouched |
+| E contract | none (legacy never read by clients) | **unsafe after drop** | backup restore only |
+
+## 9. Child issues (ready to file)
+
+### A. [Data] Expand meal/grocery canonical schema and add a dry-run backfill (ADR-0007)
+
+**Outcome:** The canonical tables can hold recipe links and grocery provenance, and there is a rehearsed, resumable tool that copies legacy `MealPlanEntry`/`ShoppingList`/`ShoppingItem` rows into `FamilyMeal`/`List`/`ListItem` without losing any.
+
+**Scope**
+- `prisma/schema.prisma` and `scripts/migrate.js` `POST_FEATURE_SQL`: the additive columns, FKs (`SET NULL`), indexes and partial unique index in §5. Idempotent DDL.
+- `scripts/backfill-meals-groceries.mjs`: dry-run default, per-family apply, reverse mode, and target guard (§6). Skipped rows archived verbatim in `ImportJob.summary.skipped[]`; `MealPlan` → `ImportJob` mappings recorded (§4).
+- Fixture extensions in `src/lib/fixtures/dataset.ts`/`seed.ts` (§6 synthetic rehearsal).
+- A `docs/runbooks/` entry for the gated production run.
+
+**Acceptance criteria**
+- [ ] `node scripts/migrate.js` runs twice on a fresh database and twice on a copy of the pre-change schema without error.
+- [ ] Dry-run on the fixtures prints the expected §6 counts and writes nothing.
+- [ ] Apply matches the expected counts; a second apply creates 0 rows; reverse removes exactly the created rows.
+- [ ] A foreign `recipe_id` is nulled and reported, and no cross-household row is created.
+- [ ] Legacy tables are byte-identical before and after apply.
+- [ ] No production run in this issue.
+
+**Tests:** a DB integration test (the same CI Postgres pattern as `fixtures.integration.test.ts`) covering dry-run, apply, re-apply, reverse and two-household isolation; unit tests for the mapping and normalization functions.
+
+**Boundary:** additive schema and tooling only. Running against production requires Cameron's explicit approval for that run. No drops, no updates to legacy rows.
+
+### B. [API] Unify meal, recipe and grocery APIs on the canonical models (ADR-0007)
+
+**Status (2026-09-28):** implemented in #251. Contracts: `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Gaps 2.4.2 (export) and 2.4.3 (lists gate) are closed. Implementation notes: `DELETE /api/recipes/[id]` refuses (409 `RECIPE_IN_ARCHIVED_PLAN`) while a legacy `MealPlanEntry` references the recipe, because that FK cascades; the importer reports (does not write) a new item for a list that an earlier import put in the legacy `ShoppingList` table; `ImportJob` rows are still created per apply run (as for every importer) even when the run creates 0 domain rows.
+
+**Outcome:** Recipes have a live family-scoped API, meals can link to recipes, list items carry provenance, and the importer writes canonical rows.
+
+**Scope**
+- `GET/POST /api/recipes`, `GET/PATCH/DELETE /api/recipes/[id]` with nested ingredients (upsert `Ingredient` by family + normalized name). `featureGate('meals')`. Roles per O-7.
+- `/api/meals` POST/PATCH accept optional `recipe_id` and `servings`; GET includes `recipe` summary. If `recipe_name` is omitted and `recipe_id` is set, `recipe_name` is filled from the recipe title.
+- `/api/lists/items/create|update` accept optional `amount`, `unit` and `ingredient_id` (household-validated); responses include the new fields; `featureGate('lists')` on all `/api/lists/**` (O-11); 409 `DUPLICATE_OPEN_ITEM` mapping (§5).
+- `GET /api/users/export` adds `FamilyMeal` and keeps the legacy tables.
+- `persist-meal-planner.ts`: `MealPlanEntry` → `FamilyMeal`, `ShoppingList`/`Item` → `List`/`ListItem` (`source='import'`), existing mappings still honoured.
+- Shared-device board DTO: optional recipe title and prep time for tonight; no notes.
+
+**Acceptance criteria**
+- [ ] Two-household negative tests: foreign `recipe_id` on a meal, foreign `ingredient_id` on a list item, foreign recipe/ingredient ids in recipe bodies, and cross-family recipe reads all return 404/400 without revealing existence.
+- [ ] Old-shape request fixtures for `/api/meals` and `/api/lists/items/*` still pass unchanged.
+- [ ] Re-importing the same meal-planner export after the retarget creates 0 rows; a new export writes only canonical tables.
+- [ ] A code search shows no product writer of `MealPlan*` or `Shopping*`.
+- [ ] `ROLE_AND_ISOLATION_MATRIX.md`, `API_CONTRACTS.md` and `docs/security/API_ISOLATION_AUDIT.md` are updated.
+
+**Tests:** route tests (happy path, validation, role, feature-gate, isolation); importer integration test; export test that includes `FamilyMeal`.
+
+**Boundary:** no UI rework beyond what the API needs, no destructive migration, no device writes.
+
+### C. [UI] Move meals and grocery UI onto the canonical models (ADR-0007)
+
+**Status (2026-09-28):** implemented in #252 (PR #259). **Design reference:** Cameron chose the Everblog 13.4" FridgeCal (https://everblog.com/products/everblog-13-4-inch-fridgecal-calendar) as the design reference for the fridge surface, recorded in #262 and `design/REFERENCES.md`; it is the reference for #252's meal, recipe and grocery views too. The views that shipped in #252 have not yet been reviewed against it (see "Not done here" below), and no Figma frames exist (#150–#153). What shipped:
+
+- `/dashboard/meals` renders every meal per slot (gap 2.4.1 closed). Each meal row opens the edit modal; a slot with meals has an "Add another <type>, <day>" button; an empty slot is one "Add <type>, <day>" row. The meal type is always written out (not icon-only), rows wrap long names, and every target is at least 44px.
+- The meal modal has a recipe picker (`GET /api/recipes`, following `nextOffset` so every recipe is listed) with "No recipe (just a name)" as the default and an inline "New recipe" panel (`POST /api/recipes`: title, prep/cook minutes, ingredient lines of amount, unit and name). Picking a recipe fills an empty name with its title. A free-text meal sends exactly the pre-#252 body; `recipe_id` is sent only when a recipe is picked (add) or the link changes (edit, `null` unlinks). A linked meal shows "View recipe" and its row says "<Type> · Recipe · N min prep".
+- Recipe detail is a route, `/dashboard/meals/recipes/[id]` (title, description, prep, cook, servings, ingredients with amounts, method; loading, not-found and error states). Its `actions` slot holds #253's `AddToGroceriesButton` (recipe-level add, source `recipe:<id>`) when the recipe has ingredients.
+- Grocery list rows show `amount unit` when `amount` is set, else "× n" for a quantity above one (O-6), plus "from <recipe title>" when the row has a `recipe_id`. Open rows sharing an `ingredient_id` are shown together as one labelled group ("Tomatoes · 2 entries") at the position of the first row, one row per source (O-3); checked rows are never grouped. Rules: `src/lib/grocery-display.ts`.
+- `meal_plan`: see §2.3. The unused `src/components/lists/*` are deleted.
+- Fridge/Today board: the dinner shows the linked recipe title when it differs from the meal name, and "Prep N min" when known (`dinnerRecipeLine` in `src/components/fridge/regions.tsx`); a free-text dinner looks as before.
+- Roles: `/dashboard/meals` and the recipe detail route stay parent-only in the UI (they are not on the kid allowlist, `src/lib/kid-access.ts`), so teen and child views are unchanged; the recipes API still gives every role read access and parent/teen write access (O-7), and the picker hides "New recipe" when told the role cannot create.
+- Tests: component tests (`src/app/dashboard/meals/__tests__`, `src/components/meals/__tests__`, `src/app/dashboard/lists/[listId]/__tests__`, `src/components/fridge/__tests__/dinner-region.test.tsx`) and `e2e/meals.spec.ts`. No visual baseline changed: the fixture meals are dated 8 weeks back and the grocery rows are spec-owned.
+- Not done here: the meal and recipe views reuse the existing meals page composition and design tokens; they have not been reviewed against the FridgeCal reference, and there are no Figma frames (#150–#153). Follow-up on #252: review the views against `design/REFERENCES.md` "Everblog FridgeCal" (or record Cameron's acceptance of this composition). The Today board's dinner tile was reworked with the rest of the board in #262.
+
+**Outcome:** People can see every planned meal, pick or create a recipe for a meal, and see amounts and provenance on grocery items. The informal `meal_plan` list type stops growing.
+
+**Scope**
+- `/dashboard/meals`: render every meal per slot (fixes gap 2.4.1); recipe picker and create in the meal modal; recipe detail view (ingredients, prep/cook time).
+- Grocery list rows: show `amount unit` when present, and "from <recipe>" provenance; group open rows by `ingredient_id`.
+- Remove `meal_plan` from the create-list picker (O-8); existing ones still open.
+- Delete the unused `src/components/lists/*` components after confirming no imports (§2.3).
+- Figma/spec reference per #150–#153 for the meal and recipe views.
+
+**Acceptance criteria**
+- [ ] Two meals in one slot are both visible, editable and deletable.
+- [ ] Meals without a recipe (free text) behave exactly as today.
+- [ ] Responsive QA at 390×844, 800×1280 and 1280×800; empty, loading, error and long-text states; ≥44px targets; no colour-only meaning.
+- [ ] Kid/teen role views match the matrix.
+
+**Tests:** component tests; Playwright journeys for meals (add free text, add with recipe, two meals per slot) and grocery provenance display; visual baselines updated deliberately.
+
+**Boundary:** no tablet write flows (device writes stay off), no inventory UI.
+
+### D. [Meals→Groceries] Add recipe ingredients to groceries idempotently (ADR-0007, #122)
+
+**Status (2026-09-28):** implemented in #253 (API, undo, default-list helper, meal-modal action; with #252 the same `AddToGroceriesButton` is also mounted on the recipe detail route). Contracts: §7 and `API_CONTRACTS.md` "Meals, recipes and groceries"; roles: `ROLE_AND_ISOLATION_MATRIX.md` "Meals and recipes". Tests: `src/app/api/lists/__tests__/from-recipe.test.ts` (fake DB), `from-recipe.integration.test.ts` (Postgres races, advisory lock, undo window; in the release workflow), `e2e/groceries.spec.ts` (add → replay → undo).
+
+**Outcome:** From a meal or recipe, a family member can add all or selected ingredients to the grocery list once, even with retries, double taps or two devices, and can undo it.
+
+**Scope:** `POST /api/lists/items/from-recipe` and `POST /api/lists/items/undo-add` per §7; the `resolveDefaultGroceryList` helper, adopted by `CaptureBox`; UI actions on the meal modal and recipe detail with a result toast (added / already on list / possible duplicates) and Undo.
+
+**Depends on:** PR #247 (`withIdempotency`, `IdempotencyRecord`) merged; A and B.
+
+**Acceptance criteria**
+- [ ] Same key replays with no new rows; the same key with a different body returns 422.
+- [ ] 8 concurrent requests with one key produce one set of rows; two different keys for the same meal produce one open row per ingredient.
+- [ ] Checked items don't block; a different meal adds its own rows; a free-text lookalike is flagged, not merged.
+- [ ] Two-household negative tests for the recipe, meal and list ids.
+- [ ] Device session gets 403; child role allowed.
+- [ ] Undo removes only that request's unchecked rows, only for the same user, within 10 minutes.
+
+**Tests:** route unit tests, a real-Postgres concurrency test (as in #247), and an E2E add → replay → undo.
+
+**Boundary:** no inventory matching (the client passes `ingredientIds`), no offline queueing, no purchasing or provider integrations.
+
+### E. [Data] Contract legacy meal/shopping tables (ADR-0007) — gated
+
+**Outcome:** The legacy `MealPlan`, `MealPlanEntry`, `ShoppingList` and `ShoppingItem` tables are retired only after evidence shows nothing depends on them.
+
+**Preconditions (all required):** ADR-0007 accepted; A–D merged and deployed; the production backfill run approved and completed with a reconciled report; at least one release cycle with zero legacy reads or writes; a verified backup/restore (`docs/runbooks/`) taken immediately before; every skipped legacy row archived in a backfill `ImportJob.summary.skipped[]` (the reconciliation report shows source count = created + linked + archived-skipped per family, and any unarchived skip blocks the drop); the user export includes backfill `ImportJob` summaries; **Cameron's explicit approval for the drop.**
+
+**Scope**
+1. Rewrite `ImportedRecord` rows whose `target_model` is a legacy table to their canonical target, using the backfill mappings. `MealPlan` mappings are rewritten to the backfill `ImportJob` that archives the plan (§4); no mapping is deleted.
+2. Remove the legacy tables from the export (their content is now exported via canonical tables).
+3. Remove the models from `schema.prisma` and drop the tables in `migrate.js`, guarded.
+4. Remove `database/migration-meal-planner-domains.sql` statements for the dropped tables, or make them no-ops.
+
+**Acceptance criteria**
+- [ ] Rehearsed on a restored production-shaped copy; canonical counts are unchanged by the drop.
+- [ ] Re-importing an old meal-planner export creates 0 rows after step 1.
+- [ ] Rollback documented as backup restore only.
+
+**Tests:** migration rehearsal twice; importer re-run test against the post-contract schema.
+
+**Boundary:** destructive. Nothing in this issue runs in production without that exact approval.
+
+## 10. Food inventory (#263)
+
+**Status (2026-09-28): implemented in #263; 2026-09-29: foundation completed in #158/#121** (best-before vs use-by,
+category, bought/opened days, "Used it" / "Throw away" with history and Undo, idempotent edits, search and filters,
+offline and stale states). FridgeCal-style inventory without AI: what the household has in the fridge, freezer and pantry, what to use soon, and which saved recipes it covers. No push notifications and no scheduled job: "use soon" is computed when a page or tile asks. Photo recognition was added later, off until configured: see "Fridge photo scan (#265)" below.
+
+### Model (additive)
+
+`InventoryItem` (`prisma/schema.prisma`; idempotent DDL in `scripts/migrate.js` `POST_FEATURE_SQL`, because it references `Ingredient`, which `database/migration-meal-planner-domains.sql` creates):
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text PK | cuid |
+| `family_id` | text, FK `Family` `ON DELETE CASCADE` | household ownership; every query filters on it |
+| `name` | text | display name, NFC-trimmed with inner whitespace collapsed |
+| `ingredient_id` | text null, FK `Ingredient` `ON DELETE SET NULL` | optional link to the household's canonical ingredient (ADR-0007); proven same-household before every write |
+| `amount`, `unit` | float null, text null | presence and display only; no unit arithmetic (O-3 spirit) |
+| `location` | text, default `fridge` | `fridge` \| `freezer` \| `pantry` (validated in the API) |
+| `expires_on` | `DATE` null | date-only, like `FamilyMeal.date` semantics |
+| `date_kind` | text, default `best_before` (#158) | `best_before` \| `use_by`: what `expires_on` means. Every older row reads as best before |
+| `category` | text null (#158) | `INVENTORY_CATEGORIES`: produce, dairy_eggs, meat_fish, bakery, leftovers, dry_goods, snacks_drinks, condiments, other. Separate from grocery store sections (§11): an inventory needs "Leftovers", not "Household" |
+| `purchased_on`, `opened_on` | `DATE` null (#158) | optional, date-only |
+| `status` | text, default `active` (#158) | `active` \| `consumed` \| `discarded` |
+| `finished_at` | timestamp null (#158) | when it was used up or thrown away |
+| `added_by` | text null, FK `User` `ON DELETE SET NULL` | nullable so deleting a member's account keeps the household's food |
+| `created_at`, `updated_at` | timestamp | `updated_at` is also the item's version for compare-and-set; every write moves it strictly forward |
+
+Indexes: `(family_id, location)`, `(family_id, expires_on)`, `(family_id, status, expires_on)` (#158), `(ingredient_id)`.
+
+`InventoryAdjustment` (#158/#121; same idempotent DDL block): one row per "Used it" or "Throw away".
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text PK | cuid |
+| `family_id` | text, FK `Family` `ON DELETE CASCADE` | from the session, never the body |
+| `item_id` | text, FK `InventoryItem` `ON DELETE CASCADE` | deleting an item (added by mistake) deletes its history |
+| `kind` | text | `consume` \| `discard` |
+| `amount_delta` | float null | negative change; null when the item had no amount |
+| `amount_before`, `amount_after` | float null | what Undo restores / what was left |
+| `status_before`, `status_after` | text | |
+| `actor_id` | text null, FK `User` `ON DELETE SET NULL` | who did it |
+| `request_id` | text null, **unique** | the `IdempotencyRecord` id of the request that wrote it |
+| `item_version` | timestamp | the item's `updated_at` this change set; Undo needs the item to still have it |
+| `created_at` | timestamp | wall-clock time of the change (history order) |
+| `undone_at`, `undone_by` | timestamp null, text null (FK `User` SET NULL) | set by Undo; the row stays as history |
+
+Indexes: `(family_id, created_at)`, `(item_id, created_at)`, unique `(request_id)`.
+
+Expand only; rolling back the app leaves unused tables and columns (older code does not filter on `status`, so it
+would show consumed and discarded items again; nothing is lost). Rehearsed on a database migrated by the previous
+`scripts/migrate.js` with an existing item: the item reads as an active best-before item, and a second run is a
+no-op. It is not a new recipe, meal or grocery generation (ADR-0005/0007): it is a new domain that references the
+canonical `Ingredient`.
+
+### Ingredient link: link to an existing ingredient, never create one
+
+On create (and on a rename), when the client does not send `ingredient_id`, the server links the item to an existing ingredient **of the same household** whose normalized name (`normalizeName`: NFC, trimmed, whitespace collapsed, case-insensitive) equals the item's. If none exists the item stays free text; `ingredient_id: null` forces free text, and an explicit id must belong to the household (400 `INGREDIENT_NOT_FOUND`, identical for a foreign and a missing id).
+
+Why no ingredient is created from an item (so `lockFamilyIngredientNames` is not needed here): inventory names are often not recipe ingredients ("leftover lasagne", "ice pops", "kids' lunch yogurts"), and creating `Ingredient` rows for them would fill the recipe ingredient catalogue that `/api/recipes` reuses by name. It would also leave orphan ingredients when items are used up. Nothing is lost by not linking: "what can I cook" also matches an unlinked item by normalized name, so a recipe saved later matches existing stock without a relink. The per-household lock remains the only path that creates ingredients (recipes), so there is no new race. A concurrent recipe write that creates the matching ingredient just after an item is added leaves that item unlinked but still matched by name.
+
+### Use soon
+
+`getUseSoonItems(db, familyId, { today, days = 3, limit, useBySkewFrom })` in `src/lib/inventory.ts` is deterministic:
+
+- **Included:** active items whose date is on or before `today + days`, except a **use-by** day that has passed.
+- **A passed best-before day** stays in, most overdue first, labelled "Best before was N days ago" (quality: check
+  it). **A passed use-by day** is "Past use-by — don't eat" (safety) and is never "use soon"; the page lists those
+  separately under "Past use-by" with a Throw away action.
+- **Left out:** items without a date (they are "No date" in their location list), and consumed or discarded items.
+- **Order:** date ascending, use-by before best-before on the same day, then name, then id.
+
+Each entry carries only board-safe fields (`id`, `name`, `location`, `expiresOn`, `dateKind`, `daysLeft`, `status`,
+`label`), so the fridge board (#262) builds its tile from its own DTO with the household it has already proven (a
+person's `family_id` or a device's). It is exposed as `GET /api/inventory/use-soon`. Labels are words and never
+conflate the two kinds: best before "Best before was yesterday", "Best before today", "Best before tomorrow", "Best
+before in 3 days"; use by "Past use-by — don't eat", "Use by today", "Use by tomorrow", "Use within 3 days". Colour only
+reinforces them.
+
+"Today" is the viewer's calendar day: the page sends `today=YYYY-MM-DD` (browser local date) and the server accepts it
+only within one day of its UTC date; without it the server's UTC day is used. Dates are date-only (UTC-midnight days),
+so days left are whole calendar days whatever the clock does: the America/Toronto spring-forward (2026-03-08, a 23-hour
+day) and fall-back (2026-11-01, a 25-hour day) fixtures in `src/lib/__tests__/inventory.test.ts` check that the
+viewer's day never skips or repeats and that days left stay whole on both sides of each change, for both kinds. The
+Today board anchors its query one UTC day ahead (so every zone's local today is inside the window). Use-by days
+between one UTC day behind and that anchor may be "Use by today" for a viewer behind UTC or already past for one
+ahead of it; they are read as a separate use-by set (`useBySkewFrom`, newest first, capped on its own), so however
+many of them there are they never crowd rows that are valid for every viewer out of the main 50-row set. The client
+drops rows that are not yet due or already past use-by for its own day.
+
+### What can I cook
+
+`GET /api/inventory/cook` (`getCookSuggestions` → pure `rankCookableRecipes`) ranks the household's saved recipes against its non-expired inventory. Inputs are read up to 1000 recipes and 5000 non-expired items (expired rows are filtered in SQL, so they never use up the cap); one row past each cap is fetched, and when either cap is hit the response carries `inputsTruncated: true` and the page says the list may be incomplete instead of "no saved recipe uses what you have".
+
+- An ingredient is in stock when a **non-expired** item links to it by `ingredient_id`, or an **unlinked** non-expired item has the same normalized name as the ingredient. A linked item never matches another ingredient by name. Expired items never count (food safety beats optimism): neither a passed best-before nor a passed use-by day, and (#158) neither do consumed or discarded items.
+- Presence only: amounts are not compared (no cross-unit arithmetic).
+- Recipes without ingredients or with nothing in stock are left out.
+- Order: coverage (in stock / total) descending, then in-stock count, then how many in-stock ingredients are in the use-soon window, then fewer missing, then title.
+- Each suggestion returns `have` and `missing` as `{ ingredientId, name }`. The page's "Add N missing to groceries" is `AddToGroceriesButton` with `recipeId` and `ingredientIds` = the missing ids, i.e. `POST /api/lists/items/from-recipe` (§7) with its idempotency, duplicate and undo rules unchanged. Needs `meals` (recipes) as well as `inventory`.
+
+### Roles, gate, device, export
+
+- Parent and teen create, edit, move, use up, throw away, undo and delete; child reads (403 `INVENTORY_WRITE_FORBIDDEN`). `/dashboard/inventory` is on the kid allowlist; the page hides write controls for a child.
+- Navigation: the user menu (top bar, every viewport and role) has a "Food inventory" link while the feature is on, so the page is reachable by touch; the command palette entry stays for keyboards, and `/dashboard/meals` links to it ("What's in the fridge"). The page follows the list's `nextOffset` (500 per request) for up to 20 pages and says "Showing the first 10,000 items" beyond that.
+- Feature `inventory` (`src/lib/features.ts`, group "planning", `defaultEnabled: false`, no `legacyDefault`): off for new and existing households, because the feature needs data entry to be useful and adds a nav entry. A stored blob without the key reads as off, so `scripts/migrate.js` stamps nothing (compare `gamification`, which needed a stamp). The column default in `database/migration-features.sql` and `schema.prisma` carries `"inventory":false`. A parent turns it on in Features.
+- Paired shared device: writes refused (403 `DEVICE_WRITE_NOT_ALLOWED`, `refusePairedDevice`, listed in the route-allowlist test), including consume, discard and undo; no device read route yet. The board tile (#262) is the intended device read path, through `getUseSoonItems` fields only.
+- Export: `GET /api/users/export` adds `inventory` (every member; no `family_id`; every status) and, since #158,
+  `inventoryAdjustments` (every member; no `family_id`, no `request_id`). Both are deleted with the household (FK
+  cascade); an adjustment is deleted with its item; deleting a member keeps the history with `actor_id` null.
+- Not offline-queued. Create accepts an optional `Idempotency-Key` since #265 (the fridge scan sends one per row);
+  since #158 edit, delete, consume, discard and undo accept one too, and the page sends one per logical change
+  (reused for a retry of the same body, new when the body changes).
+- Telemetry: none. #121 asks for privacy-safe telemetry of creation, correction, consume/discard and abandonment, but
+  the only client event helper (`src/lib/analytics.ts` → `POST /api/analytics/event`) stores free-form metadata in
+  `Activity` with the user and is not a privacy-reviewed telemetry module. Left for #161 (observability), which should
+  provide a content-minimal event path first; no inventory events are sent.
+
+### Consume, discard and undo (#158/#121)
+
+- **"Used it"** (`POST /api/inventory/[id]/consume`, body `{ amount? }`): without an amount, or with at least the
+  item's amount, the item becomes `consumed` (its amount is kept for the record); a smaller positive amount reduces
+  it and the item stays active. A partial amount on an item without an amount is 400 (use all of it, or set an amount).
+- **"Throw away"** (`POST /api/inventory/[id]/discard`): the whole item becomes `discarded`.
+- Both write one `InventoryAdjustment` and move the item's `updated_at` (its version) forward, recording the new
+  version as the adjustment's `item_version`, in one transaction, as a compare-and-set on the item's previous `updated_at` (and `status = 'active'`, `family_id`). A lost
+  race is 409 `INVENTORY_ITEM_FINISHED` (another member finished it) or retryable 409 `INVENTORY_CONFLICT`.
+- **Undo** (`POST /api/inventory/adjustments/[id]/undo`) restores `status_before` and `amount_before`, clears
+  `finished_at` and marks the adjustment undone (kept as history). It is allowed only while the item's `updated_at`
+  still equals the adjustment's `item_version`, i.e. for the latest change to that item; an edit, another use or an
+  earlier undo in between is 409 `INVENTORY_UNDO_CONFLICT` ("edit the item instead"). Every write moves `updated_at`
+  strictly forward (`nextItemVersion`), so two changes in the same millisecond cannot fool the check.
+- **Finished items** leave `GET /api/inventory`, "use soon", "what can I cook" and the Today board tile; they stay
+  readable by id and in the export, so Undo and history keep working.
+- **Retries:** with an `Idempotency-Key` a retry replays the stored response. The adjustment carries the idempotency
+  record id in the unique `request_id`, so even a re-run after a crash (after the 30 s lock timeout) finds the row it
+  already wrote and converges instead of adding a second adjustment.
+- **Page:** "Used it" and "Throw away" on each "Use soon" row, "Throw away" on each "Past use-by" row, and "Used it"
+  (with "How much did you use?" when the item has an amount) and "Throw away" in the item dialog. Each runs at once and
+  offers Undo in a toast (`useUndoToast`, docs/product/NAVIGATION.md); "Recently used or thrown away" (the last 10
+  changes, `GET /api/inventory/adjustments`) keeps Undo available after the toast has gone, on the rows the API marks
+  `undoable` only (the latest change to its item, not undone, item still at that change's version); the list and the
+  history are fetched again after every undo attempt. "Remove" in the dialog still deletes the item and its history,
+  behind a confirm, for an item added by mistake. A keyed Remove deletes the item and completes its idempotency record
+  in one transaction, so a retry after a lost response replays the 200 instead of answering 404.
+
+### Search, filters and page states (#121)
+
+- Search by name, and filter by where (fridge, freezer, pantry) and category, on the page (client-side over the
+  loaded list, with "Showing N of M items" and "Clear search"). `GET /api/inventory` takes the same `q` and `category`
+  for other clients.
+- Loading: skeletons. Empty: "Nothing tracked yet". Validation and server errors: in words in the dialog or the notice.
+- Offline: nothing is queued. The page says "You're offline. Showing what was loaded at … Changes need a connection",
+  keeps the loaded list, refuses writes with "You're offline. Connect to the internet to change the inventory." and
+  reloads when the connection returns (`useOnline`, shared with the Today board).
+- Stale: a failed refresh keeps the last list and says "Couldn't refresh. Showing what was loaded at …, which may be
+  out of date" with Try again.
+- The subtitle says the list is "as far as the family has noted it": the inventory is approximate by design.
+
+### Fridge photo scan (#265)
+
+**Status (2026-09-28): implemented, off until configured.** A parent photographs the fridge, freezer or pantry; a vision model suggests items; the parent reviews and edits them; the ticked ones are added through the ordinary `POST /api/inventory`. The scan never writes anything itself.
+
+- **Route:** `POST /api/inventory/scan` (`src/app/api/inventory/scan/route.ts`, helpers in `src/lib/inventory-scan.ts`). Multipart body with one `image` field. Returns `{ items: [{ name, amount, unit, location, confidence }], dropped }`: `name` ≤ 80 characters, `amount` a positive number or null, `unit` ≤ 32 characters or null, `location` `fridge` | `freezer` | `pantry` or null (the page defaults it to the fridge), `confidence` 0–1. At most 50 items; `dropped` counts entries that were unusable or duplicates.
+- **Order of checks:** paired shared device refused (403 `DEVICE_WRITE_NOT_ALLOWED`) → person session (401) → kill switch (404 `INVENTORY_SCAN_DISABLED` when no key is configured) → `featureGate('inventory')` (403) → parent only (403 `INVENTORY_SCAN_FORBIDDEN`) → body checks → rate limits → provider.
+- **Roles — parent only (decision).** Teens may add, edit and delete inventory items by hand, but a scan spends the deployment's paid provider quota, which is shared by the whole household under one daily cap, so it follows the other spend-bearing controls and stays with parents. Children and paired tablets are refused. The page shows "Scan fridge" only to a parent and only when the deployment has a key.
+- **Upload limits:** `Content-Length` is required (411) and must fit 8 MB plus 64 KB of multipart framing (413) before the body is read; the file itself must be 1 byte to 8 MB (413). The type comes from the magic bytes (`sniffImageType`, shared with `/api/upload`), never the declared MIME: JPEG, PNG and WebP only (415). HEIC/HEIF and GIF are refused because the provider does not accept them; iOS converts camera captures from `<input type="file">` to JPEG, and the page re-encodes to JPEG whenever the browser can decode the photo. Downscaling happens in the browser (canvas, longest edge 1568 px), so the server needs no image library.
+- **Rate limits and spend cap** (`checkRateLimit`, Postgres-backed): 5 scans per user per hour, 10 per household per hour, and `INVENTORY_SCAN_DAILY_LIMIT` (default 20, 0–500; `0` blocks every scan) per household per UTC calendar day. 429 `RATE_LIMITED` or `SCAN_DAILY_LIMIT` with `Retry-After`. Body checks run first so a wrong file does not use up quota; every request that passes the limits is one provider call.
+- **Provider:** Anthropic Messages API at the fixed `https://api.anthropic.com/v1/messages` (redirects not followed, 45 s timeout), key `INVENTORY_SCAN_ANTHROPIC_API_KEY` from the server environment only, model `INVENTORY_SCAN_MODEL` (default `claude-sonnet-5`; must look like a model id, otherwise the default is used). One user message with a base64 image block and a JSON-schema structured output (`output_config.format`), effort `low`. There is no per-household key, URL or model, so the text-capture configuration (`src/lib/capture.ts`, per-family OpenAI-compatible endpoint) is deliberately not reused. Raw `fetch` rather than the Anthropic SDK keeps the dependency set unchanged and the host fixed.
+- **Untrusted output:** the model's JSON is validated with zod and cleaned item by item (NFC, control/bidi/zero-width characters and angle brackets removed, whitespace collapsed, lengths bounded, amounts clamped, unknown locations → null, confidence clamped to 0–1, names without a letter dropped, duplicates by name and location merged). A top level that is not `{ items: [...] }`, non-JSON text or a refusal is 502 `SCAN_UNREADABLE`; an upstream error, timeout or network failure is 502 `SCAN_PROVIDER_UNAVAILABLE` (both `retryable: true`); upstream bodies are never read into responses or logs. The page renders suggestions only as React text and input values, never HTML, and the edited values go through the create route's own validation.
+- **Privacy:** when enabled, the photo is sent to Anthropic for this one request. It is held in memory only: never written to disk, the database or logs, and nothing about it is stored after the response. Logs carry the byte size, sniffed type, item and dropped counts, duration and upstream status, never the image, the model text or item names. The dialog tells the parent before they pick a photo that it is sent to the AI provider and not saved. Anthropic's handling of API inputs is governed by the deployment's Anthropic account terms (see the runbook).
+- **Review and add (UI):** `/dashboard/inventory` → "Scan fridge" → "Take or choose a photo" (`<input type="file" accept="image/*" capture="environment">`) → loading → one editable row per suggestion (tick box, name, amount, unit, where, use-by date, and "Likely" / "Check this" / "Unsure" in words; suggestions under 0.5 start unticked) → "Add N items". Items are posted one at a time (there is no batch create). Each row sends one `Idempotency-Key` for its whole life, so a create that committed but lost its response is replayed on retry instead of adding a second row; each added row leaves the list, so after a partial failure "Add" sends only what is left. If an in-doubt row is edited before the retry, the server answers 422 `IDEMPOTENCY_KEY_REUSED`; the dialog then unticks the row, says it was probably added already and gives it a fresh key, so adding it again is deliberate. The dialog is the shared `Dialog` (focus moved in and to each new step, Tab kept inside, focus returned to "Scan fridge"); Escape and Close both report items already added, so the page reloads with a notice. Errors (feature off, rate limited, daily cap, provider down, unreadable photo, network) are shown in words with "Try another photo".
+- **Operations:** enabling, the key, the spend cap and turning it off are in `docs/runbooks/INVENTORY_SCAN.md`.
+
+### Follow-ups (not in #263 or #265)
+
+- Move ticked grocery items into the inventory (optional in the issue).
+- ~~A "use soon" tile on the fridge board (#262), using `getUseSoonItems`.~~ **Done in #262:** the Today board DTO carries `useSoon` (id, name, location, expiry day) when `inventory` is on, for person boards and the paired tablet; tile in `src/components/fridge/use-soon-region.tsx` (`docs/FRIDGE_TABLET_PROGRAM.md` §31).
+- Any reminder delivery (needs an approved scheduler or an event-driven design).
+- A batch inventory create if scans commonly add many items at once.
+
+## 11. Store sections (#273)
+
+**Status (2026-09-28): implemented in #273.** On a `grocery` or `shopping` list, rows are grouped under store-section headers in a fixed store order, so a shopper walks the store once. A household can move an item to another section, switch sorting off per list, and, after a few trips, sections follow the order the household actually shops in. No scheduled job and no provider.
+
+### Sections and resolution
+
+Fixed ids, in store order (`GROCERY_SECTIONS`, `src/lib/grocery-sections.ts`): `produce` Produce, `bakery` Bakery, `dairy_eggs` Dairy & eggs, `meat_fish` Meat & fish, `frozen` Frozen, `pantry` Pantry, `snacks_drinks` Snacks & drinks, `household` Household, `personal_care` Personal care, `other` Other. The ids are what the API stores and returns; the labels live in the same module (`GROCERY_SECTION_LABELS`) because the list pages do not use `src/i18n` yet, so a locale table can replace them without touching data.
+
+A row's section, first match wins (`resolveGrocerySection`, pure, used by the server and the page):
+
+1. the household's override for the row's normalized `content` (`GrocerySectionPreference`; key = `normalizeName`: NFC, trimmed, whitespace collapsed, lower-case; `sectionNameKey` repeats that rule so the module stays import-free for the client bundle, and a test keeps the two equal);
+2. the linked `Ingredient.section`;
+3. the built-in English keyword map (`sectionForName`) on the row text, then on the linked ingredient's name;
+4. `other`.
+
+The keyword map holds several hundred common grocery words and phrases (the test requires at least 300). Matching folds case and accents, ignores digits and punctuation ("2 lb chicken thighs"), tries the singular forms of the last word of a phrase ("berries", "tomatoes", "loaves", "knives", "peaches"), prefers the longest phrase ("ice cream" over "cream", "peanut butter" over "butter"), and among equally long matches takes the rightmost, the English head noun ("chocolate milk" is dairy, "chicken broth" is pantry, "banana bread" is bakery). "frozen", "canned", "tinned" and "dried" decide first. Unknown names are `other`; "Move to…" fixes them for the household.
+
+Every row of a grocery/shopping list gets a section, ticked rows included, so ticking a row never moves it (ticked rows stay where they were, as before #273, and are never grouped by ingredient).
+
+### Model (additive)
+
+`scripts/migrate.js` `POST_FEATURE_SQL` (idempotent; `Ingredient` comes from `database/migration-meal-planner-domains.sql`) and `prisma/schema.prisma`:
+
+| Change | Notes |
+| --- | --- |
+| `GrocerySectionPreference` (`id`, `family_id` FK `Family` cascade, `name_key`, `section`, `updated_by` FK `User` SET NULL, `created_at`, `updated_at`), unique `(family_id, name_key)` | One household choice per normalized name. Upserted, so concurrent moves leave one row (last write wins). |
+| `Ingredient.section` text null | Set with the override when the moved row is linked to an ingredient, so a later recipe row whose text differs (for example "Roma" linked to Tomatoes) lands in the same section; cleared with it. Only "Move to…" writes it. |
+| `List.sort_by_section` boolean not null default `true` | Per list, so a family can keep its own order on one list and sort another. |
+| `GroceryShoppingSession` (`id`, `family_id` FK cascade, `list_id` FK `List` cascade, `sections text[]`, `started_at`, `last_tick_at`); indexes `(family_id, last_tick_at)`, `(list_id, last_tick_at)` | Walking order (below). Section ids and times only. |
+
+Expand only; rolling the app back leaves unused columns and tables.
+
+### API
+
+`GET /api/lists/items` and `POST /api/lists/items/create` add `section` to grocery/shopping rows; `GET` also returns `sectionSort: { enabled, order, learned }`. `PATCH /api/lists/items/section` ("Move to…", `{ itemId, section | null }`) and `PATCH /api/lists/section-sort` (`{ listId, sortBySection }`) are new. Full contract: `API_CONTRACTS.md` "Grocery store sections".
+
+- **Roles:** "Move to…" is every member (it is item editing, D9). The sorting switch is parent and teen (it changes the list for the whole household, like creating a list); a child sees the setting as text.
+- **Paired shared device:** both writes answer 403 `DEVICE_WRITE_NOT_ALLOWED` before person auth (`refusePairedDevice`; listed in the route-allowlist test). `SHARED_DEVICE.md` has no device write routes before #157, so none is opened here; the board keeps reading open grocery items through its own DTO.
+- **Isolation:** the item and list are looked up with the caller's household (404 for a foreign or missing id), the override is keyed by the caller's household, never the body, and `Ingredient.section` is updated `where { id, family_id }`. Overrides are read only for the names on the list being shown.
+
+### Page and offline
+
+The list page resolves sections on the server and passes them with the rows, together with the overrides for the names on the list, the section order and the switch state. Grouping (`buildGrocerySections` with a `sectionOf`/`order`) runs on the client from that data, so a tick queued offline (#162) re-renders in place with no request. A row added on the page gets its section from the create response, or from `storeSectionOf` (overrides + keyword map) if it has none. Section headers are text (`SectionHeader`, and each section is a labelled region), not colour. Within a section, #252's ingredient groups ("Tomatoes · 2 entries") and "from <recipe>" provenance are unchanged.
+
+"Move" (a 44px text button on each open row, only while sorting is on) opens a bottom sheet (the shared `Dialog`) with one 48px button per section, the current one marked "Current" in text, and "Use the automatic section" when the household chose it. Moving needs a connection: offline, the sheet says so and sends nothing (the #162 queue allowlist is unchanged). The switch ("Sort by store section", `role="switch"`, state written as "On"/"Off") saves immediately and reverts with a message on failure. With sorting off the page shows the pre-#273 category grouping in list order.
+
+### Walking order
+
+When a person's `PATCH /api/lists/items/update` changes a grocery/shopping row from open to ticked (not a no-op re-tick that keeps an older attribution), the row's section is appended to the list's current trip: the most recent `GroceryShoppingSession` of that list whose last tick is within 2 hours, else a new one. The write runs inside the idempotency effect (a replay records nothing), under `pg_advisory_xact_lock(hashtext('grocery-walk:' || list_id))` so parallel ticks cannot start two trips, and is best effort: a failure is logged without content and never fails the tick. Trips older than 180 days are deleted when a new trip starts (no scheduler). A queued offline tick is recorded when it reaches the server, in queue order, so the order is kept even though the time is the sync time.
+
+`loadSectionOrder` reads the household's 20 most recent trips. With at least 3 trips of two or more sections (`WALKING_ORDER_MIN_SESSIONS`), each section scores its mean relative position in the trips it appears in (0 first, 1 last); sections never ticked keep their fixed relative position; ties fall back to the fixed order; `other` is always last (`sectionOrder`). Otherwise the fixed order is used. The page says "Sections follow the order your household usually shops." when the learned order is in use.
+
+### Export and tests
+
+`GET /api/users/export` adds `grocerySectionPreferences` and `groceryShoppingSessions` (household, every member, no `family_id`). Tests: `src/lib/__tests__/grocery-sections.test.ts` (keyword map incl. plurals, case, multi-word, modifiers; resolution order; walking order), `src/lib/__tests__/grocery-display.test.ts`, `src/app/api/lists/__tests__/sections.test.ts` (two-household fake: DTOs, roles, isolation, device refusal, trips), `sections.integration.test.ts` (Postgres: concurrent upsert, unique index, isolation, advisory lock, cascades; in the release workflow), `src/app/dashboard/lists/[listId]/__tests__/store-sections.test.tsx` (grouping, Move to…, switch, child view, offline tick) and `e2e/aisles.spec.ts`.
+
+### Follow-ups (not in #273)
+
+- Localised section labels once the list pages adopt `src/i18n`, and keyword maps for other languages.
+- Per-store layouts (a household that shops at two stores with different walking orders); today there is one learned order per household.
+- Editing `Ingredient.section` from the recipe screen, and a way to review or reset all of a household's section choices at once.
+- A design reference for the section headers, the "Move" sheet and the switch (#150–#153), as for #252.

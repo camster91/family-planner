@@ -1,17 +1,18 @@
 # CI and Release Workflow Map
 
-**Last reconciled:** 2026-09-24
+**Last reconciled:** 2026-09-24 (workflow states re-checked through the GitHub API on 2026-09-29)
 **Default branch:** `master` (verify the live repository setting before changing it)
 
 ## Workflow ownership
 
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
-| `release.yml` — `Build & Test` | Locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import integration test, production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
+| `release.yml` — `Build & Test` | Locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
 | `release.yml` — `Release to VPS` | Transfer and promote the verified image for the exact workflow SHA | Manual dispatch on the actual default branch only | Production deployment after `production` environment credentials are configured |
-| `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise |
-| `auto-merge.yml` | Merge a pull request carrying the explicit `auto-merge` label | `pull_request_target` label/change events | Can merge; does not deploy |
-| `stale-issues.yml` | Apply the repository's stale-issue policy to issues | Manual dispatch only (no schedule, per AGENTS.md) | Labels and closes inactive issues; never touches pull requests |
+| `e2e.yml` | Playwright journeys, accessibility smoke and visual snapshots (`docs/testing/E2E.md`) | Pull request, `main`/`master` push, manual dispatch | Validation only; informational, not a required check |
+| `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise. **Disabled in GitHub (`disabled_manually`) as of 2026-09-29; last run 2026-09-08.** |
+| `auto-merge.yml` | Merge a pull request carrying the explicit `auto-merge` label | `pull_request_target` label/change events | Can merge; does not deploy. Disabled in GitHub (`disabled_manually`) as of 2026-09-29 |
+| `stale-issues.yml` | Apply the repository's stale-issue policy to issues | Manual dispatch only (no schedule, per AGENTS.md) | Labels and closes inactive issues; never touches pull requests. Disabled in GitHub (`disabled_manually`) as of 2026-09-29 |
 
 The required check name remains exactly `Build & Test`. The former duplicate `ci.yml` validation and unused `build-push.yml` GHCR publication path were removed to keep one owner for application validation and avoid publishing a second, unused release artifact.
 
@@ -39,7 +40,7 @@ The SSH account can control Docker and is therefore privileged. Treat its key ac
 
 ## Live repository settings observed on 2026-09-24
 
-- The GitHub Actions setting requires live verification. The PR description records it as disabled, while this document previously recorded it as enabled.
+- The GitHub Actions setting requires live verification. The PR description records it as disabled, while this document previously recorded it as enabled. (Update 2026-09-29: `release.yml` and `e2e.yml` runs on `master` through `cbef026` show Actions is enabled.)
 - The repository default workflow token permission was read-only.
 - Branch protection requires the strict `Build & Test` check and enforces it for administrators; required pull-request approvals are zero.
 - The `production` environment has no required reviewers or deployment-branch restrictions.
@@ -50,3 +51,16 @@ Do not bypass the required `Build & Test` check; it must pass on the exact PR he
 ## Release limitations
 
 The current production image contains application code and is identified by its exact image ID and source SHA. Database backups, isolated restore evidence, schema rollback compatibility, Android signing/release evidence, and a production rollback drill remain separate release gates tracked by issues #84, #85, #102–#110, and #145.
+
+**Closed in CI by #288 (automated, synthetic data):**
+
+- *Isolated restore evidence for the scripts and schema.* Every `Build & Test` run backs up a migrated, fixture-seeded throwaway database with the unchanged `scripts/backup.sh`, restores it with the unchanged `scripts/restore.sh` into a second throwaway database, and requires identical per-table row counts, per-table checksums and schema. The evidence is uploaded as the `recovery-rehearsal-report-<sha>` artifact (runbook: `docs/runbooks/RELEASE_AND_ROLLBACK.md`, "Recovery rehearsal").
+- *Rollback-forward drill.* The same run applies `scripts/migrate.js` twice to the restored copy, requires data and schema to be unchanged, and reads the copy through the app's Prisma client (readiness query, both households, a fixture login, household isolation).
+- *Import reconciliation.* `src/lib/imports/__tests__/reconciliation.integration.test.ts` requires that, for every supported import source, each source record ends as exactly one provenance row with a live target in the household or one recorded skip, and that each completed `ImportJob`'s stored counts add up.
+
+**Still open, owner-side (not provable in CI):**
+
+- A restore of a *real, current production backup* into an isolated database on or next to the VPS, with row counts compared against production, recorded before any risky data change (#254 contract, production backfill). CI proves the scripts and schema, not that production backups exist, are fresh or restore.
+- Backup scheduling and retention on the host. `backup.sh` is not installed on a timer, and any scheduler needs Cameron's explicit approval (AGENTS.md).
+- A production rollback drill: redeploying the previous image through `Release to VPS` and verifying health. This needs the production environment credentials and approval.
+- Schema *down*-migration. `migrate.js` is forward-only (idempotent, mostly additive; a few guarded column and index drops), so rollback means redeploying the previous image against the expanded schema, or restoring a backup. There is no automated down path.

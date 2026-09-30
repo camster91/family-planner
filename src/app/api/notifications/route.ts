@@ -2,6 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { updateNotificationSchema, deleteNotificationSchema } from '@/lib/validations'
+import { deliverNotification } from '@/lib/notification-delivery'
+import { isInAppNotificationType } from '@/lib/notification-policy'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ notifications })
   } catch (error) {
-    console.error('Error fetching notifications:', error)
+    logRouteError('GET /api/notifications', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -54,6 +58,11 @@ export async function POST(request: NextRequest) {
     if (!userId || !title || !message || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    // Only types in the notification policy table (#286), so every row has a
+    // category or is explicitly always-send.
+    if (!isInAppNotificationType(type)) {
+      return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 })
+    }
 
     // Verify the caller and target user are in the same family
     const [caller, target] = await Promise.all([
@@ -65,19 +74,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const notification = await prisma!.notification.create({
-      data: {
-        user_id: userId,
-        title,
-        message,
-        type,
-        read: false,
-      },
-    })
+    // The recipient's notification preferences apply (#286): a muted category
+    // creates nothing and answers `delivered: false`. `system` is always sent.
+    const result = await deliverNotification({ userId, title, message, type })
 
-    return NextResponse.json({ success: true, notification })
+    return NextResponse.json({ success: true, delivered: result.delivered, notification: result.notification })
   } catch (error) {
-    console.error('Error creating notification:', error)
+    logRouteError('POST /api/notifications', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -124,7 +127,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error updating notification:', error)
+    logRouteError('PATCH /api/notifications', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -169,7 +172,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting notification:', error)
+    logRouteError('DELETE /api/notifications', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -30,6 +30,10 @@ jest.mock("@/lib/prisma", () => ({
     user: {
       findFirst: jest.fn(),
     },
+    // The PATCH response reads the family's Points & streaks flag (#248).
+    family: {
+      findUnique: jest.fn(async () => ({ features: { gamification: true } })),
+    },
   },
 }));
 

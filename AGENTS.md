@@ -86,6 +86,17 @@ npm run build
 ```
 Also run migration, E2E, visual, accessibility, Android and security/isolation gates when the change touches those areas.
 
+Android gate, when a change touches `android/**`, `capacitor.config.ts` or Capacitor plugins (JDK 21 and an Android SDK with `platforms;android-36`; details in `docs/architecture/ANDROID.md`):
+```bash
+npx cap sync android
+cd android
+./gradlew testDebugUnitTest                    # JVM tests, no device
+./gradlew compileDebugAndroidTestJavaWithJavac # compile instrumented tests
+./gradlew connectedDebugAndroidTest            # needs a device or emulator
+./gradlew assembleRelease bundleRelease        # APK + AAB; unsigned without ANDROID_KEYSTORE_* / ANDROID_KEY_* env
+```
+Do not change `versionCode`/`versionName` outside a version-bump PR that follows the versioning policy in `docs/architecture/ANDROID.md` (ADR-0004).
+
 ## Responsive QA baseline
 Representative sizes:
 - phone: 390x844, 430x932

@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ activities })
   } catch (error) {
-    console.error('Error fetching activities:', error)
+    logRouteError('GET /api/activity', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

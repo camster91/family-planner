@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-12 px-4">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm p-8 md:p-12">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-500 mb-8">Last updated: June 2026</p>
+        <p className="text-sm text-gray-500 mb-8">Last updated: September 2026</p>
 
         <div className="prose prose-gray max-w-none space-y-6 text-gray-700">
           <section>
@@ -37,11 +37,100 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Food inventory</h2>
+            <p>
+              If your family turns on the food inventory, we store the items you add (name, amount,
+              where it is kept, category, best-before or use-by date, and when it was bought or
+              opened) and a short history of what was used up or thrown away, with who did it and
+              when, so it can be undone. Every member of the household can see it, and it is part
+              of every member&apos;s data export. It is deleted with the household; removing an item
+              also removes its history.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Fridge photo scan</h2>
+            <p>
+              If the fridge photo scan is turned on, a parent can photograph the fridge,
+              freezer or pantry to get suggested food items. That photo is sent to our AI
+              provider, Anthropic, only to read it, and is not saved by Family Planner. You
+              review the suggestions and choose what to add. The feature is off unless it
+              has been set up, and you can always add items by hand instead.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Weather on the Today board (optional)</h2>
+            <p>
+              Weather is off unless a parent turns it on in Family settings. When it is on, our server
+              sends the place the parent chose, as an approximate location rounded to about 1 km, to
+              Open-Meteo (open-meteo.com) to get the forecast, and sends the place name a parent types
+              when searching for a town. No names, accounts or other household information are sent.
+              Turning weather off or removing the place stops these requests and deletes the cached
+              forecast.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Family photos on the fridge board (optional)</h2>
+            <p>
+              A parent can choose photos your household has already uploaded to show on the calm screen
+              of the fridge board when it is left alone. They are shown only to signed-in members of your
+              household, never on a paired shared tablet, and never sent to anyone else. No photos are
+              chosen unless a parent picks them, and the calm screen never shows ads.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Household change history</h2>
+            <p>
+              When someone changes household settings (turns a feature on or off, sends or cancels an
+              invite, joins the household or deletes their account, changes the Today board, turns beta usage counts on or off, or pairs, renames or removes a family
+              tablet), we record a short line saying what changed, who did it and when. It holds names
+              (of a feature, a member or a tablet) but never email addresses, codes, places or messages.
+              Only parents can see it, under Settings, Recent changes. It is kept for 12 months and then
+              deleted, and it is deleted with the household. It is part of a parent&apos;s data export;
+              a teen&apos;s or child&apos;s export has only the lines about their own changes.
+            </p>
+          </section>
+
+          <section id="beta-usage-counts">
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Beta usage counts (optional)</h2>
+            <p>
+              While Family Planner is in a small beta, a parent can choose to share usage counts so we can check the
+              app is working for families. They are off unless a parent turns them on under Settings, Privacy &amp;
+              Security, &quot;Share beta usage counts&quot;. When they are on, we keep one number per day for your
+              household for each of these: events added, meals planned, chores assigned, chores completed, chores
+              checked by a parent, rewards claimed, members who joined, and whether the household&apos;s first chore
+              was assigned within 10 minutes of signing up. That is all: no names, no user accounts, no roles, no
+              chore, event, meal or reward titles, no messages or photos, and nothing about which member did what.
+            </p>
+            <p>
+              The counts are kept for 13 months: older days are never used, and are deleted the next time your
+              household&apos;s counts change. Turning the setting off deletes all
+              of your household&apos;s counts straight away, and they are deleted with the household. They are part
+              of every member&apos;s data export. They are never sold or shared with anyone, and they are separate
+              from any other analytics.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>
-              <li><strong>Export</strong>: GET <code>/api/users/export</code> returns a JSON file with all your data.</li>
-              <li><strong>Delete</strong>: DELETE <code>/api/users</code> removes your account and all associated data (GDPR Article 17).</li>
+              <li><strong>Export</strong>: Settings → Data Export (GET <code>/api/users/export</code>) downloads a JSON file with all your data.</li>
+              <li>
+                <strong>Delete your account</strong>: Settings → Delete Account. You confirm with your password. Your
+                account, sign-ins, messages, notifications and your own chores are deleted; things you added for the
+                household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.
+              </li>
+              <li>
+                <strong>Delete the household</strong>: the only parent can delete the whole household from the same
+                place. Every member account, all household data, uploaded photos, paired tablets, invitations and
+                calendar connections are deleted, and old links (calendar feed, sitter share link) stop working.
+                Short-lived security counters (rate limits) expire on their own. Database backups, where kept,
+                still hold deleted data until they are rotated out (up to about five weeks).
+              </li>
               <li><strong>Rectify</strong>: PATCH <code>/api/users</code> to update your name/age.</li>
             </ul>
           </section>
@@ -53,6 +142,19 @@ export default function PrivacyPage() {
               accounts (under 13) must be created by a parent. We do not knowingly
               collect data from children directly. If you believe a child account was
               created without parental consent, contact us to remove it.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Importing events from text, photos or PDFs</h2>
+            <p>
+              If event import is turned on, a parent can paste the text of a school email or
+              flyer, or choose a photo or PDF of it, to get suggested calendar events. That
+              text or file is sent to our AI provider, Anthropic, only to read it, and is not
+              saved by Family Planner. Nothing is added to your calendar until you review the
+              suggestions and choose what to add, and you can undo an import for a few minutes
+              afterwards. The feature is off unless it has been set up, and you can always add
+              events by hand instead.
             </p>
           </section>
 

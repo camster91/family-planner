@@ -32,6 +32,13 @@ export function canDeleteListOrItem(role: string | undefined | null): boolean {
   return isParentRole(role)
 }
 
+// #273 — Store sections. Every member may "Move to…" an item (like editing an
+// item); switching a grocery list's section sorting on or off changes the
+// list for everyone, so it follows list creation (parent and teen).
+export function canChangeListSectionSort(role: string | undefined | null): boolean {
+  return canCreateList(role)
+}
+
 // D9 — Notes and anniversaries: every member may create; a teen or child may
 // edit only the rows they created; delete is parent-only.
 export function canEditOwnedRecord(

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ feedToken: token, regenerated: Boolean(family?.feed_token) })
   } catch (error) {
-    console.error('Feed token error:', error)
+    logRouteError('POST /api/family/feed-token', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

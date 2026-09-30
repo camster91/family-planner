@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ROUTINE_ICON_KEYS, ROUTINE_NAME_MAX, ROUTINE_ORDER_MAX, normalizeRoutineName } from '@/lib/routine-icons'
 
 // Auth
 export const loginSchema = z.object({
@@ -15,6 +16,22 @@ export const registerSchema = z.object({
 })
 
 // Chores
+// Picture routines (#272). `icon` is a key of the built-in set; `routine` a
+// short label (empty clears); `routine_order` the step number. null clears.
+const choreIconSchema = z.enum(ROUTINE_ICON_KEYS, {
+  errorMap: () => ({ message: 'Choose a picture from the list' }),
+})
+const choreRoutineSchema = z
+  .string()
+  .max(200, `Routine name must be ${ROUTINE_NAME_MAX} characters or fewer`)
+  .transform((v) => normalizeRoutineName(v))
+  .refine((v) => v === null || v.length <= ROUTINE_NAME_MAX, `Routine name must be ${ROUTINE_NAME_MAX} characters or fewer`)
+const choreRoutineOrderSchema = z
+  .number()
+  .int('Step must be a whole number')
+  .min(1, 'Step must be 1 or more')
+  .max(ROUTINE_ORDER_MAX, `Step must be ${ROUTINE_ORDER_MAX} or less`)
+
 export const createChoreSchema = z.object({
   title: z.string().min(1).max(200).trim(),
   // The chore forms send null for an empty description.
@@ -26,6 +43,9 @@ export const createChoreSchema = z.object({
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
   // An /api/upload result owned by the caller's family (D3); checked in the route.
   photo_url: z.string().max(500).nullable().optional(),
+  icon: choreIconSchema.nullable().optional(),
+  routine: choreRoutineSchema.nullable().optional(),
+  routine_order: choreRoutineOrderSchema.nullable().optional(),
 })
 
 export const completeChoreSchema = z.object({
@@ -34,9 +54,18 @@ export const completeChoreSchema = z.object({
   photoUrl: z.string().max(500).nullable().optional(),
 })
 
+// Undo a completion (#268/#269): the chore goes back to pending.
+export const uncompleteChoreSchema = z.object({
+  choreId: z.string().min(1),
+})
+
+// A parent checks a completed chore. `decision` defaults to 'approve' so older
+// clients that send only { choreId } keep working; 'reject' sends the chore
+// back to the child (status 'pending') with the optional note as the reason.
 export const verifyChoreSchema = z.object({
   choreId: z.string().min(1),
-  verificationNotes: z.string().max(500).optional(),
+  decision: z.enum(['approve', 'reject']).default('approve'),
+  verificationNotes: z.string().max(500).trim().optional(),
 })
 
 export const deleteChoreSchema = z.object({
@@ -134,10 +163,16 @@ export const deleteNotificationSchema = z.object({
 // Lists
 export const createListSchema = z.object({
   name: z.string().min(1).max(200).trim(),
+  // O-8 (ADR-0007): the UI no longer offers 'meal_plan' for new lists; meals
+  // live in FamilyMeal. The server still accepts it so installed Android
+  // bundles that show the old picker keep working until a version gate exists.
   type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping']),
   // Accept null too (clients sometimes send null for optional fields); treat as undefined.
   description: z.union([z.string().max(500).trim(), z.null()]).optional().transform(v => v ?? undefined),
 })
+
+const listItemAmount = z.number().finite().min(0).max(100000)
+const listItemUnit = z.string().trim().min(1).max(32)
 
 export const createListItemSchema = z.object({
   listId: z.string().min(1),
@@ -145,6 +180,11 @@ export const createListItemSchema = z.object({
   quantity: z.number().int().min(1).max(9999).default(1),
   category: z.string().max(100).trim().optional(),
   notes: z.string().max(500).trim().optional(),
+  // Grocery provenance (ADR-0007, O-6). Optional; old clients never send them.
+  // `ingredient_id` must be an Ingredient of the list's household (checked in the route).
+  amount: listItemAmount.optional(),
+  unit: listItemUnit.optional(),
+  ingredient_id: z.string().min(1).max(128).optional(),
 })
 
 export const updateListItemSchema = z.object({
@@ -154,11 +194,16 @@ export const updateListItemSchema = z.object({
   quantity: z.number().int().min(1).max(9999).optional(),
   category: z.string().max(100).trim().optional(),
   notes: z.string().max(500).trim().optional(),
+  // null clears. `ingredient_id` is household-validated in src/lib/list-item-update.ts.
+  amount: listItemAmount.nullable().optional(),
+  unit: listItemUnit.nullable().optional(),
+  ingredient_id: z.string().min(1).max(128).nullable().optional(),
 })
 
 // Chores (update)
 // These fields are set only by dedicated endpoints:
-//   - status, photo_verified, verified_at, verified_notes → POST /api/chores/verify (parent)
+//   - status, photo_verified, verified_at, verified_notes → POST /api/chores/verify (parent;
+//     `decision: 'approve'` verifies, `decision: 'reject'` sends it back to pending)
 //   - status (completed), photo_url, photo_verified (false) → POST /api/chores/complete (any member)
 // Children/teens may NOT set them via PATCH.
 export const updateChoreSchema = z.object({
@@ -174,6 +219,10 @@ export const updateChoreSchema = z.object({
   // An /api/upload result owned by the caller's family (D3), or null to clear;
   // checked in the route.
   photo_url: z.string().max(500).nullable().optional(),
+  // Picture routines (#272); null clears.
+  icon: choreIconSchema.nullable().optional(),
+  routine: choreRoutineSchema.nullable().optional(),
+  routine_order: choreRoutineOrderSchema.nullable().optional(),
 })
 
 // Events (update + delete)

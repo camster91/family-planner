@@ -91,6 +91,7 @@ jobs:
           npm run fixtures:seed
           npm run fixtures:seed
           npx jest src/lib/fixtures/__tests__/fixtures.integration.test.ts --ci --runInBand --no-watchman --forceExit
+          npx jest src/lib/backfill/__tests__/meals-groceries.integration.test.ts --ci --runInBand --no-watchman --forceExit
           npm run fixtures:reset
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
@@ -98,10 +99,67 @@ jobs:
           RUN_DB_INTEGRATION: "1"
 
       - name: Test persisted family imports
-        run: npx jest src/lib/imports/__tests__/persistence.integration.test.ts --ci --runInBand --no-watchman --forceExit
+        run: >-
+          npx jest --ci --runInBand --no-watchman --forceExit
+          src/lib/imports/__tests__/persistence.integration.test.ts
+          src/lib/imports/__tests__/reconciliation.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
           RUN_DB_INTEGRATION: "1"
+
+      - name: Test database-backed routes and libraries
+        run: >-
+          npx jest --ci --runInBand --no-watchman --forceExit
+          src/app/api/calendar/import-suggestions/__tests__/commit.integration.test.ts
+          src/app/api/chores/__tests__/paging.integration.test.ts
+          src/app/api/device/__tests__/device-writes.integration.test.ts
+          src/app/api/family/__tests__/join-vs-deletion.integration.test.ts
+          src/app/api/inventory/__tests__/adjustments.integration.test.ts
+          src/app/api/inventory/__tests__/inventory.integration.test.ts
+          src/app/api/lists/__tests__/from-recipe.integration.test.ts
+          src/app/api/lists/__tests__/sections.integration.test.ts
+          src/app/api/recipes/__tests__/recipes.integration.test.ts
+          src/app/api/search/__tests__/search.integration.test.ts
+          src/app/api/users/__tests__/preferences.integration.test.ts
+          src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts
+          src/lib/__tests__/account-deletion.integration.test.ts
+          src/lib/__tests__/beta-metrics.integration.test.ts
+          src/lib/__tests__/device.integration.test.ts
+          src/lib/__tests__/household-audit.integration.test.ts
+          src/lib/__tests__/idempotency.integration.test.ts
+          src/lib/__tests__/list-item-delete.integration.test.ts
+          src/lib/__tests__/list-item-provenance.integration.test.ts
+          src/lib/__tests__/list-item-update.integration.test.ts
+          src/lib/__tests__/membership-locks.integration.test.ts
+          src/lib/calendar-import/__tests__/sync.integration.test.ts
+          src/lib/calendar-sync/__tests__/sync.integration.test.ts
+          src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts
+          src/lib/weather/__tests__/board-weather.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+          RUN_DB_INTEGRATION: "1"
+
+      # Backup -> restore -> compare -> migrate twice -> Prisma smoke on throwaway
+      # fp_rehearsal_* databases in the CI service (#288). backup.sh/restore.sh
+      # run through `docker exec` into the service container, as in production.
+      - name: Rehearse backup restore and rollback-forward
+        run: bash scripts/recovery-rehearsal.sh
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: postgres
+          REHEARSAL_DB_CONTAINER: ${{ job.services.postgres.id }}
+          REHEARSAL_RUN_ID: ci_${{ github.run_id }}_${{ github.run_attempt }}
+          REHEARSAL_REPORT_DIR: ${{ runner.temp }}/recovery-rehearsal-report
+
+      - name: Upload recovery rehearsal report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: recovery-rehearsal-report-${{ github.sha }}
+          path: ${{ runner.temp }}/recovery-rehearsal-report
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high

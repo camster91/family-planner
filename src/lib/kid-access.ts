@@ -12,6 +12,9 @@
 // so the check always fell through and the gate never fired. It is now driven by
 // this list instead.
 
+// Deliberately absent: /dashboard/settings and everything under it, including
+// shared-tablet management at /dashboard/settings/devices and the Tablet PIN
+// (#241, SHARED_DEVICE.md §7). Teens and children must never see those.
 export const KID_ALLOWED_PREFIXES = [
   // Their own wishlist — harmless, and how they engage with the app.
   '/dashboard/wishlist',
@@ -32,6 +35,16 @@ export const KID_ALLOWED_PREFIXES = [
   // Their own sick days and medications (D1, #102): report themselves sick and
   // log a dose of their own medication. Everything else stays with parents.
   '/dashboard/sick-days',
+  // Today board (#119 / #159): the shared household view for the fridge
+  // tablet. It reads only shared-surface fields every member may already read
+  // (schedule, chores, dinner, groceries); see
+  // src/app/dashboard/today/today-board-data.ts.
+  '/dashboard/today',
+  // Food inventory (#263): teens add, edit and remove items; children read
+  // (what's in the fridge, what to use soon, what we can cook). The API
+  // enforces the roles and the page hides the controls a child cannot use.
+  // Gated by the `inventory` feature like every other gated page.
+  '/dashboard/inventory',
 ] as const
 
 export function isKidAllowedPath(pathname: string): boolean {

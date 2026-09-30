@@ -46,6 +46,8 @@ export const USER_IDS: Record<UserKey, string> = {
 const T0 = new Date('2026-09-01T00:00:00Z')
 const SOON = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
 const LATER = new Date(Date.now() + 6 * 60 * 60 * 1000)
+// Date-only (UTC midnight), two days after today's UTC date.
+const SOON_DAY = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2))
 
 function user(id: string, name: string, role: string, family_id: string | null): Row {
   return {
@@ -65,6 +67,10 @@ function user(id: string, name: string, role: string, family_id: string | null):
     created_at: T0,
     password: 'hash',
     token_version: 0,
+    // Notification preferences (#286): NOT NULL DEFAULT true in the schema.
+    notify_chores: true,
+    notify_events: true,
+    notify_messages: true,
   }
 }
 
@@ -130,6 +136,27 @@ function seed(): Tables {
     familyMeal: perFamily((f, family_id, tag) => ({
       id: `meal-${f}`, family_id, date: SOON, meal_type: 'dinner', recipe_name: `${tag} pasta`,
       notes: null, cook_id: `parent-${f}`, created_by: `parent-${f}`, created_at: T0,
+      recipe_id: null, servings: null, updated_at: T0,
+    })),
+    // Canonical recipes (ADR-0007, #251).
+    recipe: perFamily((f, family_id, tag) => ({
+      id: `recipe-${f}`, family_id, title: `${tag} lasagne`, description: `${tag} family favourite`,
+      instructions: `${tag} bake it`, prep_time: 20, cook_time: 45, servings: 4, image_url: null,
+      created_by: `parent-${f}`, created_at: T0, updated_at: T0,
+    })),
+    ingredient: perFamily((f, family_id, tag) => ({
+      id: `ingredient-${f}`, family_id, name: `${tag} Tomato`, unit: 'g',
+    })),
+    recipeIngredient: perFamily((f) => ({
+      id: `ri-${f}`, recipe_id: `recipe-${f}`, ingredient_id: `ingredient-${f}`, amount: 400, unit: 'g', note: null,
+    })),
+    mealPlanEntry: [],
+    // Food inventory (#263). Family A's item links to its own ingredient and
+    // expires within the use-soon window; family B's carries FOREIGN.
+    inventoryItem: perFamily((f, family_id, tag) => ({
+      id: `inv-${f}`, family_id, name: `${tag} Tomato`, ingredient_id: `ingredient-${f}`, amount: 3,
+      unit: null, location: 'fridge', expires_on: SOON_DAY, added_by: `parent-${f}`,
+      created_at: T0, updated_at: T0,
     })),
     pinnedNote: perFamily((f, family_id, tag) => ({
       id: `note-${f}`, family_id, title: `${tag} wifi`, body: `${tag} password`, color: 'yellow',
@@ -239,14 +266,61 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     creator: { model: 'user', fk: 'created_by' },
     family: { model: 'family', fk: 'family_id' },
   },
-  event: { creator: { model: 'user', fk: 'created_by' } },
+  event: {
+    creator: { model: 'user', fk: 'created_by' },
+    sync_links: { model: 'calendarEventLink', fk: 'event_id', many: true },
+  },
   list: {
     creator: { model: 'user', fk: 'created_by' },
     items: { model: 'listItem', fk: 'list_id', many: true },
     family: { model: 'family', fk: 'family_id' },
   },
-  listItem: { list: { model: 'list', fk: 'list_id' } },
-  familyMeal: { cook: { model: 'user', fk: 'cook_id' }, creator: { model: 'user', fk: 'created_by' } },
+  listItem: {
+    list: { model: 'list', fk: 'list_id' },
+    ingredient: { model: 'ingredient', fk: 'ingredient_id' },
+    recipe: { model: 'recipe', fk: 'recipe_id' },
+  },
+  // Grocery store sections (#273)
+  grocerySectionPreference: { family: { model: 'family', fk: 'family_id' }, updater: { model: 'user', fk: 'updated_by' } },
+  groceryShoppingSession: { family: { model: 'family', fk: 'family_id' }, list: { model: 'list', fk: 'list_id' } },
+  familyMeal: {
+    cook: { model: 'user', fk: 'cook_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    recipe: { model: 'recipe', fk: 'recipe_id' },
+    family: { model: 'family', fk: 'family_id' },
+  },
+  recipe: {
+    family: { model: 'family', fk: 'family_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    ingredients: { model: 'recipeIngredient', fk: 'recipe_id', many: true },
+  },
+  recipeIngredient: {
+    recipe: { model: 'recipe', fk: 'recipe_id' },
+    ingredient: { model: 'ingredient', fk: 'ingredient_id' },
+  },
+  ingredient: { family: { model: 'family', fk: 'family_id' } },
+  inventoryItem: {
+    family: { model: 'family', fk: 'family_id' },
+    ingredient: { model: 'ingredient', fk: 'ingredient_id' },
+    adder: { model: 'user', fk: 'added_by' },
+    adjustments: { model: 'inventoryAdjustment', fk: 'item_id', many: true },
+  },
+  // Inventory consume/discard history (#158/#121)
+  inventoryAdjustment: {
+    family: { model: 'family', fk: 'family_id' },
+    item: { model: 'inventoryItem', fk: 'item_id' },
+    actor: { model: 'user', fk: 'actor_id' },
+    undoer: { model: 'user', fk: 'undone_by' },
+  },
+  importJob: { family: { model: 'family', fk: 'family_id' } },
+  mealPlan: {
+    family: { model: 'family', fk: 'family_id' },
+    entries: { model: 'mealPlanEntry', fk: 'meal_plan_id', many: true },
+  },
+  shoppingList: {
+    family: { model: 'family', fk: 'family_id' },
+    items: { model: 'shoppingItem', fk: 'shopping_list_id', many: true },
+  },
   pickup: { assignee: { model: 'user', fk: 'assigned_to' } },
   allowance: { from_user: { model: 'user', fk: 'from_user_id' }, to_user: { model: 'user', fk: 'to_user_id' } },
   familyLocation: { user: { model: 'user', fk: 'user_id' } },
@@ -267,7 +341,11 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     family: { model: 'family', fk: 'family_id' },
   },
   projectTask: { assignee: { model: 'user', fk: 'assigned_to' }, project: { model: 'project', fk: 'project_id' } },
-  reward: { creator: { model: 'user', fk: 'created_by' }, claimer: { model: 'user', fk: 'claimed_by' } },
+  reward: {
+    creator: { model: 'user', fk: 'created_by' },
+    claimer: { model: 'user', fk: 'claimed_by' },
+    family: { model: 'family', fk: 'family_id' },
+  },
   wishlistItem: {
     requester: { model: 'user', fk: 'requested_by' },
     status_changer: { model: 'user', fk: 'status_changed_by' },
@@ -275,12 +353,41 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
   message: { sender: { model: 'user', fk: 'sender_id' } },
   activity: { user: { model: 'user', fk: 'user_id' }, family: { model: 'family', fk: 'family_id' } },
   familyInvite: { family: { model: 'family', fk: 'family_id' } },
+  // Calendar sync (#264)
+  calendarConnection: { family: { model: 'family', fk: 'family_id' }, user: { model: 'user', fk: 'user_id' } },
+  calendarEventLink: { connection: { model: 'calendarConnection', fk: 'connection_id' }, event: { model: 'event', fk: 'event_id' } },
+  // Shared device (#240)
+  householdDevice: {
+    family: { model: 'family', fk: 'family_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    sessions: { model: 'deviceSession', fk: 'device_id', many: true },
+    events: { model: 'deviceAuditEvent', fk: 'device_id', many: true },
+  },
+  deviceSession: { device: { model: 'householdDevice', fk: 'device_id' } },
+  devicePairing: { family: { model: 'family', fk: 'family_id' }, creator: { model: 'user', fk: 'created_by' } },
+  parentElevationPin: { user: { model: 'user', fk: 'user_id' }, family: { model: 'family', fk: 'family_id' } },
+  deviceAuditEvent: {
+    family: { model: 'family', fk: 'family_id' },
+    device: { model: 'householdDevice', fk: 'device_id' },
+    actor: { model: 'user', fk: 'actor_user_id' },
+  },
+  // Household audit history (#285)
+  auditLog: { family: { model: 'family', fk: 'family_id' }, actor: { model: 'user', fk: 'actor_user_id' } },
+  betaMetricDaily: { family: { model: 'family', fk: 'family_id' } },
 }
 
 // ---------------------------------------------------------------------------
 // The in-memory database.
 
 export type Write = { model: string; op: string; args: any }
+
+/** Non-null column defaults of newer columns (applied on read and create). */
+const COLUMN_DEFAULTS: Record<string, Record<string, unknown>> = {
+  // Inventory foundation (#158/#121)
+  inventoryItem: { date_kind: 'best_before', status: 'active' },
+  // Beta usage counts (#287): per-household opt-in, default off.
+  family: { beta_metrics_enabled: false },
+}
 
 class FakeDb {
   tables: Tables = seed()
@@ -295,6 +402,14 @@ class FakeDb {
 
   rows(model: string): Row[] {
     if (!this.tables[model]) this.tables[model] = []
+    const defaults = COLUMN_DEFAULTS[model]
+    if (defaults) {
+      // Column defaults, as the database applies them to rows a test pushes
+      // without the newer columns.
+      for (const row of this.tables[model]) {
+        for (const [col, value] of Object.entries(defaults)) if (row[col] === undefined) row[col] = value
+      }
+    }
     return this.tables[model]
   }
 
@@ -322,8 +437,9 @@ class FakeDb {
 export const db = new FakeDb()
 
 function cmp(a: any, b: any): number {
-  const av = a instanceof Date ? a.getTime() : a
-  const bv = b instanceof Date ? b.getTime() : b
+  // A column never written reads as NULL, as in the database.
+  const av = a instanceof Date ? a.getTime() : a === undefined ? null : a
+  const bv = b instanceof Date ? b.getTime() : b === undefined ? null : b
   if (av === bv) return 0
   if (av == null) return -1
   if (bv == null) return 1
@@ -367,7 +483,10 @@ function matchValue(value: any, cond: any): boolean {
         if (value == null || cmp(value, arg) < 0) return false
         break
       case 'contains':
-        if (typeof value !== 'string' || !value.includes(arg as string)) return false
+        if (typeof value !== 'string') return false
+        if (cond.mode === 'insensitive' ? !value.toLowerCase().includes(String(arg).toLowerCase()) : !value.includes(arg as string)) {
+          return false
+        }
         break
       case 'startsWith':
         if (typeof value !== 'string' || !value.startsWith(arg as string)) return false
@@ -396,6 +515,12 @@ export function matches(model: string, row: Row, where: any): boolean {
     }
     if (key === 'NOT') {
       if ((Array.isArray(cond) ? cond : [cond]).some((w) => matches(model, row, w))) return false
+      continue
+    }
+    // Compound unique selector, e.g. `family_id_name: { family_id, name }`.
+    const compound = COMPOUND_KEYS[model]?.[key]
+    if (compound) {
+      if (!compound.every((col) => cmp(row[col], (cond as any)[col]) === 0)) return false
       continue
     }
     const relation = db.related(model, row, key)
@@ -513,6 +638,55 @@ function notFound(model: string): Error {
   return err
 }
 
+// Composite unique indexes the fake enforces (create throws P2002 like Prisma).
+const UNIQUE: Record<string, string[][]> = {
+  idempotencyRecord: [['scope', 'key']],
+  ingredient: [['family_id', 'name']],
+  recipeIngredient: [['recipe_id', 'ingredient_id']],
+  grocerySectionPreference: [['family_id', 'name_key']],
+  // Calendar sync (#264)
+  calendarConnection: [['family_id', 'user_id', 'provider']],
+  calendarEventLink: [['connection_id', 'external_id']],
+  calendarOAuthState: [['state_hash']],
+}
+
+// Partial unique indexes Prisma cannot express, enforced by the fake like
+// Postgres does (create throws P2002; createMany skipDuplicates skips).
+// "ListItem_open_recipe_source_key" (ADR-0007, scripts/migrate.js).
+const PARTIAL_UNIQUE: Record<string, Array<{ cols: string[]; where: (r: Row) => boolean }>> = {
+  listItem: [
+    {
+      cols: ['list_id', 'ingredient_id', 'source_key'],
+      where: (r) => r.checked !== true && r.source_key != null && r.ingredient_id != null,
+    },
+  ],
+  // "InventoryAdjustment_request_id_key" (#158): NULLs are distinct in Postgres.
+  inventoryAdjustment: [{ cols: ['request_id'], where: (r) => r.request_id != null }],
+  // NULL event_id rows are delete tombstones; NULLs are distinct in Postgres.
+  calendarEventLink: [{ cols: ['connection_id', 'event_id'], where: (r) => r.event_id != null }],
+}
+
+function violatesUnique(model: string, rows: Row[], row: Row): boolean {
+  const full = (UNIQUE[model] ?? []).some((cols) => rows.some((r) => cols.every((c) => cmp(r[c], row[c]) === 0)))
+  if (full) return true
+  return (PARTIAL_UNIQUE[model] ?? []).some(
+    (idx) => idx.where(row) && rows.some((r) => idx.where(r) && idx.cols.every((c) => cmp(r[c], row[c]) === 0))
+  )
+}
+
+// Prisma compound-unique selector names -> their columns.
+const COMPOUND_KEYS: Record<string, Record<string, string[]>> = {
+  ingredient: { family_id_name: ['family_id', 'name'] },
+  recipeIngredient: { recipe_id_ingredient_id: ['recipe_id', 'ingredient_id'] },
+  grocerySectionPreference: { family_id_name_key: ['family_id', 'name_key'] },
+}
+
+function uniqueViolation(model: string): Error {
+  const err = new Error(`fake prisma: unique constraint failed on ${model}`) as Error & { code: string }
+  err.code = 'P2002'
+  return err
+}
+
 function delegate(model: string) {
   const all = () => db.rows(model)
   const log = (op: string, args: any) => db.writes.push({ model, op, args })
@@ -531,8 +705,25 @@ function delegate(model: string) {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
       applyData(model, row, args.data)
+      if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
       return project(model, row, args)
+    },
+    createMany: async (args: any) => {
+      log('createMany', args)
+      const data: Row[] = Array.isArray(args.data) ? args.data : [args.data]
+      let count = 0
+      for (const d of data) {
+        const row: Row = { id: db.nextId(model), created_at: new Date() }
+        applyData(model, row, d)
+        if (violatesUnique(model, all(), row)) {
+          if (args.skipDuplicates) continue
+          throw uniqueViolation(model)
+        }
+        all().push(row)
+        count += 1
+      }
+      return { count }
     },
     update: async (args: any) => {
       log('update', args)
@@ -540,6 +731,18 @@ function delegate(model: string) {
       if (!row) throw notFound(model)
       applyData(model, row, args.data)
       return project(model, row, args)
+    },
+    upsert: async (args: any) => {
+      log('upsert', args)
+      const row = all().find((r) => matches(model, r, args.where))
+      if (row) {
+        applyData(model, row, args.update)
+        return project(model, row, args)
+      }
+      const created: Row = { id: db.nextId(model), created_at: new Date() }
+      applyData(model, created, args.create)
+      all().push(created)
+      return project(model, created, args)
     },
     updateMany: async (args: any) => {
       log('updateMany', args)
@@ -653,11 +856,20 @@ export const nextHeadersMock = {
 // ---------------------------------------------------------------------------
 // next/server + requests.
 
+export type SetCookie = { name: string; value: string; options: Record<string, unknown> }
+
 class MockNextResponse {
   status: number
   headers: Headers
   body: unknown
-  cookies = { set: () => undefined, get: () => undefined }
+  /** Every `cookies.set` call, in order, so tests can assert Set-Cookie behaviour. */
+  setCookies: SetCookie[] = []
+  cookies = {
+    set: (name: string, value: string, options: Record<string, unknown> = {}) => {
+      this.setCookies.push({ name, value, options })
+    },
+    get: () => undefined,
+  }
   constructor(body?: unknown, init?: { status?: number; headers?: Record<string, string> }) {
     this.body = body
     this.status = init?.status ?? 200
@@ -688,6 +900,8 @@ export type RequestOptions = {
   path?: string
   query?: Record<string, string>
   body?: unknown
+  /** Extra request headers, e.g. `Idempotency-Key`. */
+  headers?: Record<string, string>
 }
 
 /**
@@ -702,7 +916,7 @@ export function req(opts: RequestOptions = {}): any {
     method: opts.method ?? 'GET',
     url: url.toString(),
     nextUrl: url,
-    headers: new Headers({ 'x-forwarded-for': '198.51.100.7' }),
+    headers: new Headers({ 'x-forwarded-for': '198.51.100.7', ...(opts.headers ?? {}) }),
     cookies: { get: (name: string) => (name === 'session_token' && token ? { value: token } : undefined) },
     json: async () => {
       if (opts.body === undefined) throw new SyntaxError('Unexpected end of JSON input')

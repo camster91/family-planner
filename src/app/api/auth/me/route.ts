@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
+import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,9 +42,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null }, { status: 401 })
     }
 
+    // Points & streaks off for this family (#248): no XP/level/streak values.
+    if (!(await isGamificationOn(user.family_id))) {
+      return NextResponse.json({ user: omitUserGamification(user) })
+    }
+
     return NextResponse.json({ user })
   } catch (error) {
-    console.error('Auth me error:', error)
+    logRouteError('GET /api/auth/me', error, getRequestId(request))
     return NextResponse.json({ user: null }, { status: 500 })
   }
 }

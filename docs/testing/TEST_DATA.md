@@ -14,7 +14,7 @@ Each should include:
 - pending/completed/verified chores;
 - rewards;
 - grocery/list data;
-- meal/recipe data using whichever models #134 declares canonical;
+- meal/recipe data using the canonical models decided in #149 (ADR-0007, accepted: `FamilyMeal` + `Recipe`/`Ingredient`/`RecipeIngredient`; groceries on `List`/`ListItem`), plus legacy `MealPlan`/`ShoppingList` rows for the backfill rehearsal (`docs/architecture/MEALS_AND_GROCERIES.md` §6);
 - inventory/use-soon data once implemented;
 - empty-state variants.
 
@@ -70,7 +70,7 @@ Rule 5 is stricter than "a docker service name is fine" because production uses 
 - Every fixture row id starts with `fx_` (for example `fx_family_a`, `fx_user_a_parent`). Invite codes are `fx-invite-*`.
 - **Seed** upserts every dataset row by id, restores anything a test changed (titles, statuses, the password), and prunes stale `fx_` rows from an older dataset version inside fixture families. It never updates or deletes a non-`fx_` row, except that a non-`fx_` chore occurrence on the same `(recurrence_id, due_date)` as a fixture series occurrence is replaced. Passwords are only rehashed when the stored hash no longer verifies, so a second run leaves the rows byte-identical.
 - Before writing anything, seed refuses when a non-fixture user already has a fixture email or a non-fixture family has a fixture invite code.
-- **Reset** deletes `fx_` families and `fx_` users. Household rows inside those families, including rows the app created during tests, go with them via `ON DELETE CASCADE`. Before deleting anything, reset refuses if a non-fixture user belongs to a fixture family, or if chores, events, lists, list items or rewards in a non-fixture family reference a fixture user.
+- **Reset** deletes `fx_` families and `fx_` users. Household rows inside those families, including rows the app (or the ADR-0007 backfill) created during tests, go with them via `ON DELETE CASCADE`. Before deleting anything, reset refuses if a non-fixture user belongs to a fixture family, or if chores, events, lists, list items, rewards, meals, recipes, meal plans, shopping lists or import jobs in a non-fixture family reference a fixture user.
 - The ownership test is done in code (`isFixtureId`), not with SQL `LIKE 'fx_%'`: `_` is a LIKE wildcard, and Prisma's `startsWith` does not escape it.
 - CI (`.github/workflows/release.yml`, Build & Test job) seeds twice against the job's disposable Postgres after migrations, runs the DB integration test (`src/lib/fixtures/__tests__/fixtures.integration.test.ts` checks for byte-identical rows, drift repair, refusals and a scoped reset), then resets.
 
@@ -90,6 +90,9 @@ Shared password for every fixture account: **`Fixture-Only-Passw0rd!`** (`FIXTUR
 
 Roles come from `User.role` (`parent` / `teen` / `child`) plus `User.age`. All accounts have `email_verified = true`.
 
+### Feature flags
+Every fixture household stores `features = {"gamification": true}` (`FIXTURE_FEATURES` in `src/lib/fixtures/dataset.ts`); every other flag reads as its default. Fixtures model households that existed before #248, which keep Points & streaks on, so the existing dashboard visual baselines (family row "N XP") are unchanged. The seed rewrites the blob on every run, so a test that toggles a flag is reset. A test that needs the new-household state (Points & streaks off) turns it off itself; `e2e/gamification.spec.ts` does, and restores `FIXTURE_FEATURES` afterwards.
+
 ### Scenarios
 - **Busy (Family A):** 14 events: today (school drop-off, stand-up, dentist, practice, long title), tomorrow, one crossing midnight UTC, a task event, a weekly RRULE event, a multi-day event, next week and yesterday. 11 chores covering every status (`pending`, `in_progress`, `completed`, `verified`, `overdue`), including one weekly recurring series (template `fx_chore_a_weekly_tpl` plus 3 occurrences, following the #184 `recurrence_id` / `is_template` model). 4 rewards (available, claimed, redeemed, inactive). 4 to-do lists (8-item list with 3 checked, a short list, a long-text list, an empty list). One `type: 'grocery'` list (see below).
 - **Sparse (Family B):** one each of event, chore (teen), reward, to-do list and list item, plus one small `type: 'shopping'` list (see below). B's child has no chores (empty per-user state). These exist so negative tests have real foreign ids.
@@ -106,6 +109,16 @@ These use the existing `List` / `ListItem` model. The capture flow creates lists
 
 Family A has 6 open items, so its card shows the first 5 and "1 more to buy" (Dish soap is the hidden one). Family B's card shows its single open item and no overflow row. Family B item texts are unique to Family B so leak checks can search for them.
 
+### Meals, recipes and the ADR-0007 backfill rehearsal (#250)
+Ids are exported as `FIXTURE_LEGACY_MEAL_IDS`. Every row is dated eight weeks before the anchor (`legacyDay(n)` = anchor day - 56 + n days), so no week view, fridge board or dashboard card shown by the E2E baselines includes it. Lists are still only `todo`, `grocery` and `shopping` (the `meal_plan` list type is retired by ADR-0007).
+
+| Household | Canonical rows | Legacy (import-generation) rows | Expected backfill result |
+|---|---|---|---|
+| Family A | `Recipe` x3 (`fx_recipe_a_lasagna` "Veggie lasagna", `fx_recipe_a_tomato_soup`, `fx_recipe_a_stir_fry`), `Ingredient` x3 (Tomatoes, Lasagna sheets, Tofu), `RecipeIngredient` x4; `FamilyMeal` `fx_meal_a_legacy_lasagna` (dinner, day 0, name "  veggie Lasagna ") and `fx_meal_a_legacy_pizza` (dinner, day 1, "Takeout pizza") | `MealPlan` `fx_mealplan_a_legacy` with 4 entries: day 0 dinner lasagna (same-name collision), day 1 "Dinner" soup (different-name collision), day 2 lunch stir-fry (no collision), day 3 "Brunch"; `ShoppingList` `fx_shoplist_a_legacy` with "Lasagna sheets" (checked) and " tomatoes " (`recipe_id` = soup). Creator injection: `MealPlan` `fx_mealplan_a_foreign_creator` (one day-4 dinner entry) and `ShoppingList` `fx_shoplist_a_foreign_creator` (one item, "Rice"), both `created_by` = `fx_user_b_parent` | `FamilyMeal` 3 created + 1 linked (recipe set on `fx_meal_a_legacy_lasagna`) + 1 skipped (Brunch, archived); `MealPlan` 2 archived; `List` 2 + `ListItem` 3 created, ingredient ids matched; 3 creators remapped to `fx_user_a_parent` (never the Family B id) |
+| Family B | none | `MealPlan` `fx_mealplan_b_legacy` with one entry pointing at a Family A recipe; `ShoppingList` `fx_shoplist_b_legacy` with "Paper towels (Family B)" (`recipe_id` = a Family A recipe) and an item whose name is only spaces | entry skipped (`foreign_recipe`, archived); `List` 1 + `ListItem` 1 created with `recipe_id` nulled and reported; empty-name item skipped (archived) |
+
+The two Family B foreign recipe references and the two Family A rows created by a Family B user are the only deliberate cross-household rows in the dataset (asserted in `dataset.test.ts`). A re-seed resets `FamilyMeal.recipe_id` to null, undoing a backfill link. Reset removes rows the backfill created in fixture families through the family cascade. The rehearsal itself is `src/lib/backfill/__tests__/meals-groceries.integration.test.ts`; the production procedure is `docs/runbooks/MEALS_GROCERIES_BACKFILL.md`.
+
 ### Cross-family ids for negative tests
 `FIXTURE_CROSS_FAMILY.aToB` / `.bToA` give `{ actor, foreign }` id sets (`family`, `parent`, `teen`, `child`, `event`, `chore`, `list`, `listItem`, `reward`). Example:
 ```ts
@@ -115,8 +128,7 @@ const { actor, foreign } = FIXTURE_CROSS_FAMILY.aToB
 ```
 
 ### Not yet covered (deferred)
-- **Meal / recipe fixtures:** deferred until #149 settles the canonical meal model. Lists are seeded with `type` `todo`, `grocery` and `shopping` only; no `meal_plan` lists and no `ShoppingList`, `Recipe` or `MealPlan` rows.
-- **Shared-device (tablet) fixtures:** deferred because the paired-device schema does not exist yet.
+- **Shared-device (tablet) fixtures:** not seeded. The schema exists (#240); `e2e/device.spec.ts` (#241) pairs tablets per test through the real pairing flow and deletes them afterwards.
 - Inventory/use-soon, offline/pending/conflict mock data, and DST-specific event edges beyond the midnight-UTC crossing. Use `FIXTURES_ANCHOR_DATE` near a DST change if you need that today.
 - Tables without a foreign key to `Family` are not swept by reset. Rows the app writes there for fixture users could be left orphaned; none are seeded.
 
