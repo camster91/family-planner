@@ -2,15 +2,19 @@ import { z } from 'zod'
 import { ROUTINE_ICON_KEYS, ROUTINE_NAME_MAX, ROUTINE_ORDER_MAX, normalizeRoutineName } from '@/lib/routine-icons'
 
 // Auth
+// Trimmed before the format check, so an autofilled trailing space does not
+// fail a correct sign-in. The login route also matches the lower-cased form
+// (new accounts are stored lower-cased; a phone keyboard capitalises the
+// first letter).
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email format').max(255),
+  email: z.string().trim().email('Invalid email format').max(255),
   password: z.string().min(1, 'Password is required').max(128),
 })
 
 export const registerSchema = z.object({
-  email: z.string().email('Invalid email format').max(255),
+  email: z.string().trim().toLowerCase().email('Invalid email format').max(255),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
-  name: z.string().min(1, 'Name is required').max(100).trim(),
+  name: z.string().trim().min(1, 'Name is required').max(100),
   role: z.enum(['parent', 'child', 'teen']).default('parent'),
   inviteToken: z.string().length(64).optional(),
 })
@@ -33,7 +37,7 @@ const choreRoutineOrderSchema = z
   .max(ROUTINE_ORDER_MAX, `Step must be ${ROUTINE_ORDER_MAX} or less`)
 
 export const createChoreSchema = z.object({
-  title: z.string().min(1).max(200).trim(),
+  title: z.string().trim().min(1).max(200),
   // The chore forms send null for an empty description.
   description: z.string().max(1000).trim().nullable().optional(),
   points: z.number().int().min(0).max(1000).default(10),
@@ -86,7 +90,7 @@ export const recurrenceSchema = z
   .optional()
 
 export const createEventSchema = z.object({
-  title: z.string().min(1).max(200).trim(),
+  title: z.string().trim().min(1).max(200),
   description: z.string().max(1000).trim().nullable().optional(),
   start_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start time'),
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
@@ -97,12 +101,12 @@ export const createEventSchema = z.object({
 
 // Family
 export const createFamilySchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: z.string().trim().min(1).max(100),
 })
 
 export const updateFamilySchema = z.object({
   familyId: z.string().min(1),
-  name: z.string().min(1).max(100).trim().optional(),
+  name: z.string().trim().min(1).max(100).optional(),
   subscription_tier: z.enum(['free', 'premium', 'family']).optional(),
 })
 
@@ -126,13 +130,13 @@ export const createEmailInviteSchema = z.object({
 
 // Messages
 export const sendMessageSchema = z.object({
-  content: z.string().min(1).max(5000).trim(),
+  content: z.string().trim().min(1).max(5000),
   type: z.enum(['text', 'image', 'voice', 'announcement']).default('text'),
 })
 
 // Rewards
 export const createRewardSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
+  name: z.string().trim().min(1).max(200),
   description: z.string().max(500).trim().optional(),
   cost: z.number().int().min(1).max(100000),
   icon: z.string().max(50).default('gift'),
@@ -162,7 +166,7 @@ export const deleteNotificationSchema = z.object({
 
 // Lists
 export const createListSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
+  name: z.string().trim().min(1).max(200),
   // O-8 (ADR-0007): the UI no longer offers 'meal_plan' for new lists; meals
   // live in FamilyMeal. The server still accepts it so installed Android
   // bundles that show the old picker keep working until a version gate exists.
@@ -176,7 +180,7 @@ const listItemUnit = z.string().trim().min(1).max(32)
 
 export const createListItemSchema = z.object({
   listId: z.string().min(1),
-  content: z.string().min(1).max(500).trim(),
+  content: z.string().trim().min(1).max(500),
   quantity: z.number().int().min(1).max(9999).default(1),
   category: z.string().max(100).trim().optional(),
   notes: z.string().max(500).trim().optional(),
@@ -190,7 +194,7 @@ export const createListItemSchema = z.object({
 export const updateListItemSchema = z.object({
   itemId: z.string().min(1),
   checked: z.boolean().optional(),
-  content: z.string().min(1).max(500).trim().optional(),
+  content: z.string().trim().min(1).max(500).optional(),
   quantity: z.number().int().min(1).max(9999).optional(),
   category: z.string().max(100).trim().optional(),
   notes: z.string().max(500).trim().optional(),
@@ -208,7 +212,7 @@ export const updateListItemSchema = z.object({
 // Children/teens may NOT set them via PATCH.
 export const updateChoreSchema = z.object({
   choreId: z.string().min(1),
-  title: z.string().min(1).max(200).trim().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
   // null clears the description (the edit form sends null when emptied).
   description: z.string().max(1000).trim().nullable().optional(),
   points: z.number().int().min(0).max(1000).optional(),
@@ -228,7 +232,7 @@ export const updateChoreSchema = z.object({
 // Events (update + delete)
 export const updateEventSchema = z.object({
   eventId: z.string().min(1),
-  title: z.string().min(1).max(200).trim().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(1000).trim().nullable().optional(),
   start_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start time').optional(),
   end_time: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid end time').optional(),
@@ -244,7 +248,7 @@ export const deleteEventSchema = z.object({
 // Rewards (update + delete)
 export const updateRewardSchema = z.object({
   rewardId: z.string().min(1),
-  name: z.string().min(1).max(200).trim().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(500).trim().optional(),
   cost: z.number().int().min(1).max(100000).optional(),
   icon: z.string().max(50).optional(),
@@ -273,8 +277,19 @@ export const changePasswordSchema = z.object({
 
 // Users
 export const updateUserSchema = z.object({
-  name: z.string().min(1).max(100).trim().optional(),
-  age: z.union([z.number().int().min(1).max(150), z.string(), z.null()]).optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  // A string form must be digits (empty clears): "abc" or "1e9" used to reach
+  // the database as NaN / out-of-range and answer 500.
+  age: z
+    .union([
+      z.number().int().min(1).max(150),
+      z
+        .string()
+        .trim()
+        .refine((v) => v === '' || (/^\d{1,3}$/.test(v) && Number(v) >= 1 && Number(v) <= 150), 'Age must be between 1 and 150'),
+      z.null(),
+    ])
+    .optional(),
 })
 
 // Budget - Transactions
@@ -318,7 +333,7 @@ export const deleteTransactionSchema = z.object({
 
 // Budget - Categories
 export const createCategorySchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: z.string().trim().min(1).max(100),
   icon: z.string().max(10).default('📦'),
   color: z.string().max(20).default('#6B7280'),
   type: z.enum(['income', 'expense']).default('expense'),
@@ -327,7 +342,7 @@ export const createCategorySchema = z.object({
 
 export const updateCategorySchema = z.object({
   categoryId: z.string().min(1),
-  name: z.string().min(1).max(100).trim().optional(),
+  name: z.string().trim().min(1).max(100).optional(),
   icon: z.string().max(10).optional(),
   color: z.string().max(20).optional(),
   type: z.enum(['income', 'expense']).optional(),
@@ -340,14 +355,14 @@ export const deleteCategorySchema = z.object({
 
 // Projects
 export const createProjectSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
+  name: z.string().trim().min(1).max(200),
   description: z.string().max(1000).trim().optional(),
   color: z.string().max(20).default('#3B82F6'),
   status: z.enum(['active', 'completed', 'archived']).default('active'),
 })
 
 export const updateProjectSchema = z.object({
-  name: z.string().min(1).max(200).trim().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(1000).trim().optional(),
   color: z.string().max(20).optional(),
   status: z.enum(['active', 'completed', 'archived']).optional(),
@@ -355,14 +370,14 @@ export const updateProjectSchema = z.object({
 
 // Project Tasks
 export const createProjectTaskSchema = z.object({
-  title: z.string().min(1).max(200).trim(),
+  title: z.string().trim().min(1).max(200),
   description: z.string().max(1000).trim().optional(),
   assigned_to: z.string().min(1).optional().nullable(),
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional().nullable(),
 })
 
 export const updateProjectTaskSchema = z.object({
-  title: z.string().min(1).max(200).trim().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(1000).trim().optional().nullable(),
   completed: z.boolean().optional(),
   assigned_to: z.string().min(1).optional().nullable(),
