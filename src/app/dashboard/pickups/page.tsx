@@ -8,6 +8,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
+import { useToast } from '@/components/ui/toast'
+import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 
 interface Pickup {
   id: string
@@ -37,19 +39,34 @@ function PickupsPageInner() {
   const [draft, setDraft] = React.useState({ title: '', location: '', pickup_time: '', assigned_to: '', notes: '' })
   const [saving, setSaving] = React.useState(false)
 
+  // KidHome pattern: a refused or failed request says so in a toast instead
+  // of doing nothing (or leaving an unhandled rejection when offline).
+  const { addToast } = useToast()
+  const failed = React.useCallback(
+    async (title: string, res?: Response) => {
+      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+    },
+    [addToast]
+  )
+
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
       const [p, f] = await Promise.all([
-        fetch('/api/pickups', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/pickups', { cache: 'no-store' }).then((r) => {
+          if (!r.ok) throw new Error('pickups load failed')
+          return r.json()
+        }),
         fetch('/api/family/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ members: [] })),
       ])
       setPickups(p.pickups || [])
       setMembers(f.members || [])
+    } catch {
+      await failed("Couldn't load pickups")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [failed])
 
   React.useEffect(() => { load() }, [load])
 
@@ -73,7 +90,11 @@ function PickupsPageInner() {
         setDraft({ title: '', location: '', pickup_time: '', assigned_to: '', notes: '' })
         setAdding(false)
         load()
+      } else {
+        await failed("Couldn't add the pickup", res)
       }
+    } catch {
+      await failed("Couldn't add the pickup")
     } finally {
       setSaving(false)
     }
@@ -81,11 +102,22 @@ function PickupsPageInner() {
 
   async function toggle(id: string, completed: boolean) {
     setPickups((prev) => prev.map((p) => p.id === id ? { ...p, completed } : p))
-    await fetch(`/api/pickups/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completed }),
-    })
+    // Put the tick back if the server did not take it.
+    const rollback = () => setPickups((prev) => prev.map((p) => p.id === id ? { ...p, completed: !completed } : p))
+    try {
+      const res = await fetch(`/api/pickups/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed }),
+      })
+      if (!res.ok) {
+        rollback()
+        await failed("Couldn't update the pickup", res)
+      }
+    } catch {
+      rollback()
+      await failed("Couldn't update the pickup")
+    }
   }
 
   function formatTime(iso: string) {

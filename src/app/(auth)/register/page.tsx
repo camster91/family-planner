@@ -277,7 +277,7 @@ export default function RegisterPage() {
             {t('auth.bySigningUp')}
           </p>
           <p className="mt-1 text-[12px] text-[var(--label-quaternary)]">
-            {t('auth.freeTrial')} &middot; {t('auth.noCreditCard')}
+            {t('auth.freeDuringBeta')} &middot; {t('auth.noPaymentDetails')}
           </p>
         </div>
       </div>

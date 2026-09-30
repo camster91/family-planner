@@ -192,7 +192,7 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/auth/register` | POST | POST: n/a | no | — | — | — |
 | `/api/auth/resend-verification` | POST | POST: n/a | no | — | — | — |
 | `/api/auth/reset-password` | POST | POST: n/a | no | — | — | — |
-| `/api/auth/verify-email` | GET | GET: n/a | no | — | — | — |
+| `/api/auth/verify-email` | GET, POST | GET: n/a; POST: n/a | no | — | — | — |
 | `/api/budget/categories/[id]` | PATCH, DELETE | PATCH: P ; DELETE: P | no | budget | — | — |
 | `/api/budget/categories` | GET, POST | GET: P ; POST: P | no | budget | — | — |
 | `/api/budget/stats` | GET | GET: P | no | budget | — | — |

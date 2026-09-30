@@ -70,7 +70,7 @@ export default function Home() {
                 href="/register"
                 className="btn-filled"
               >
-                {t('landing.startFreeTrial')}
+                {t('landing.getStartedFree')}
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link

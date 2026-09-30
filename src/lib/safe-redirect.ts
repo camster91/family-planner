@@ -18,9 +18,9 @@ export function safeRedirectPath(raw: string | null | undefined): string | null 
 }
 
 /**
- * Notices for the query parameters /api/auth/verify-email redirects to.
- * A mail scanner that opens the link first consumes the token, so an
- * "invalid" link may well mean the address is already verified.
+ * Notices for the query parameters the email verification flow sends to
+ * /login: `verified=1` from the /verify-email confirm page, and the error
+ * codes older /api/auth/verify-email redirects used.
  */
 export function loginNoticeFor(params: URLSearchParams): { kind: 'success' | 'error'; text: string } | null {
   if (params.get('verified') === '1') {
