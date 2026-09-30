@@ -230,7 +230,7 @@ Explicit and minimal:
 
 | What | Why it stays | How long |
 | --- | --- | --- |
-| Database backups (`scripts/backup.sh`) | Restores need them | Until rotated out: the script keeps 14 daily and 4 weekly copies (about five weeks), where backups are scheduled |
+| Database backups (`scripts/backup.sh`) | Restores need them | Until rotated out: every copy from the last 14 days, then one a week, none older than 35 days (`scripts/backup-prune.sh`, `docs/runbooks/BACKUPS.md`), where backups are scheduled |
 | `RateLimitEntry` counters | Abuse protection; keys hold an IP or an opaque id (e.g. `account-delete:<userId>`), never content | Until the window ends (at most a day) |
 | Server logs | Operational; deletion logs carry role and counts only, no names or content | The host's log retention |
 | Provider-side copies | Events already pushed to a member's Google/Outlook calendar stay in that calendar (as on a normal disconnect); a provider grant whose revoke failed | Controlled by the member at the provider |

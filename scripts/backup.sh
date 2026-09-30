@@ -12,10 +12,12 @@
 #   DB_NAME       database to dump
 #
 # Scheduling: do not install this on a cron/timer without Cameron's explicit
-# approval for that specific scheduler (AGENTS.md). Example invocation:
+# approval for that specific scheduler (AGENTS.md). A ready-to-install systemd
+# timer is in deploy/systemd/ (docs/runbooks/BACKUPS.md). Example invocation:
 #   DB_CONTAINER=... DB_USER=... DB_NAME=... /opt/family-planner/scripts/backup.sh
 #
-# Retention: keeps the last 14 daily backups + 4 weekly. Older are deleted.
+# Retention: every backup from the last 14 days, then one per ISO week, nothing
+# older than 35 days (scripts/backup-prune.sh; configurable by env).
 
 set -euo pipefail
 
@@ -26,8 +28,6 @@ set -euo pipefail
 BACKUP_DIR="${1:-/data/backups/family-planner}"
 TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
 BACKUP_FILE="${BACKUP_DIR}/familyplanner-${TIMESTAMP}.sql.gz"
-KEEP_DAILY=14
-KEEP_WEEKLY=4
 
 # --- Pre-flight ---
 mkdir -p "$BACKUP_DIR"
@@ -39,26 +39,12 @@ docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exi
 SIZE=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || stat -f%z "$BACKUP_FILE")
 echo "[$(date -u +%FT%TZ)] Backup complete: $BACKUP_FILE ($SIZE bytes)"
 
-# --- Retention: keep last N daily + M weekly ---
-# Daily: delete backups older than KEEP_DAILY days, except weekly ones
-# Weekly: keep the 1st backup of each ISO week, for the last KEEP_WEEKLY weeks
-find "$BACKUP_DIR" -name "familyplanner-*.sql.gz" -mtime +${KEEP_DAILY} -type f | while read -r old; do
-  # Keep the 1st backup of each week (those serve as weekly snapshots)
-  iso_week=$(date -d "@$(stat -c%Y "$old")" -u +%G-W%V)
-  has_weekly=$(find "$BACKUP_DIR" -name "familyplanner-*.sql.gz" -newer "$old" \
-    -exec sh -c 'date -d "@$(stat -c%Y "$0")" -u +%G-W%V' {} \; 2>/dev/null | grep -c "$iso_week" || true)
-  if [ "$has_weekly" -eq 0 ]; then
-    echo "[$(date -u +%FT%TZ)] Keeping weekly: $old (week $iso_week)"
-  else
-    echo "[$(date -u +%FT%TZ)] Deleting old backup: $old"
-    rm -f "$old"
-  fi
-done
-
-# Hard cap: keep at most 30 backups total
-ls -1t "$BACKUP_DIR"/familyplanner-*.sql.gz 2>/dev/null | tail -n +31 | xargs -r rm -f
-REMAINING=$(ls -1 "$BACKUP_DIR"/familyplanner-*.sql.gz 2>/dev/null | wc -l | tr -d ' ')
-echo "[$(date -u +%FT%TZ)] Retention OK. $REMAINING backups in $BACKUP_DIR"
+# --- Retention (scripts/backup-prune.sh) ---
+# Keeps every backup from the last BACKUP_KEEP_DAILY_DAYS (14) days, then the
+# newest one of each ISO week, and nothing older than BACKUP_MAX_AGE_DAYS (35).
+# BACKUP_PRUNE_DRY_RUN=1 reports without deleting. Only this directory's
+# familyplanner-*.sql.gz files are ever touched.
+bash "$(dirname "$0")/backup-prune.sh" "$(cd "$BACKUP_DIR" && pwd -P)"
 
 # --- Test restore (sample-only, not full) ---
 # This is the most important line in this whole file. A backup you

@@ -1,0 +1,17 @@
+# Starts family-planner-backup.service once a day (#145).
+#
+# NOT INSTALLED. Enabling this timer needs Cameron's explicit approval for this
+# scheduler (AGENTS.md). See docs/runbooks/BACKUPS.md.
+[Unit]
+Description=Daily Family Planner database backup
+
+[Timer]
+# 03:15 host time, plus up to 30 minutes of random delay.
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=30min
+# If the host was off at the scheduled time, run once at the next boot.
+Persistent=true
+Unit=family-planner-backup.service
+
+[Install]
+WantedBy=timers.target

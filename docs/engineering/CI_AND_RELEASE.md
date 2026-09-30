@@ -65,6 +65,6 @@ The current production image contains application code and is identified by its 
 **Still open, owner-side (not provable in CI):**
 
 - A restore of a *real, current production backup* into an isolated database on or next to the VPS, with row counts compared against production, recorded before any risky data change (#254 contract, production backfill). CI proves the scripts and schema, not that production backups exist, are fresh or restore.
-- Backup scheduling and retention on the host. `backup.sh` is not installed on a timer, and any scheduler needs Cameron's explicit approval (AGENTS.md).
+- Backup scheduling on the host. A daily systemd timer and retention are ready in `deploy/systemd/` and `scripts/backup-prune.sh` but not installed; installing them needs Cameron's explicit approval (AGENTS.md). Steps: `docs/runbooks/BACKUPS.md`.
 - A production rollback drill: redeploying the previous image through `Release to VPS` and verifying health. This needs the production environment credentials and approval.
 - Schema *down*-migration. `migrate.js` is forward-only (idempotent, mostly additive; a few guarded column and index drops), so rollback means redeploying the previous image against the expanded schema, or restoring a backup. There is no automated down path.
