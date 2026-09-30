@@ -120,7 +120,7 @@ The Today board (`/dashboard/today`, `GET /api/family/board-version` polled ever
 | `family.findUnique` (settings) | 1 row | primary key |
 | `user.findMany` members | household size | `User(family_id)` |
 | `event.findMany` not finished, starting before window end | `take: MAX_EVENTS` | `Event(family_id, start_time)` |
-| `chore.findMany` due in window | `take: MAX_CHORES` | `Chore(family_id)`; no `(family_id, due_date)` composite |
+| `chore.findMany` due in window | `take: MAX_CHORES` | `Chore(family_id, due_date)` (added in #306, decision O-19) |
 | `familyMeal.findMany` dinners in window (meals on) | window days | `FamilyMeal(family_id, date)` |
 | `listItem.findMany` + `count` open shopping items | `take: 5` + count | `ListItem(list_id, checked)` via `List(family_id, type)` |
 | use-soon inventory (inventory on) | `limit` | see `src/lib/inventory.ts` |
@@ -128,8 +128,8 @@ The Today board (`/dashboard/today`, `GET /api/family/board-version` polled ever
 | `upload.findMany` ambient photos | `MAX_AMBIENT_PHOTOS` | primary key |
 
 Findings, not fixed here:
-- `GET /api/chores` and `GET /api/lists` return every row of the household with no `take`/pagination (API_CONTRACTS.md requires pagination for potentially unbounded collections). Chores grow with recurring series, so this is the first scale risk. Fix: an additive cursor/limit that installed clients can ignore.
-- The Today-board chore query filters `family_id` + `due_date`; at scale a `Chore(family_id, due_date)` index would replace the `family_id` scan plus sort. Add it (expand-only migration) when the slow-query hook or `EXPLAIN` on a realistic household shows the need; with fixture data every table is small enough that Postgres scans sequentially.
+- `GET /api/chores` supports opt-in `?limit=1..200&cursor=` paging (#307, decision O-19); without `limit` it still returns every chore of the household so installed clients keep working, and moving the web and Android clients onto paging is the remaining step. `GET /api/lists` returns one row per list (with item counts), which stays small per household, so it has no paging (O-19).
+- The Today-board and `GET /api/chores` queries filter `family_id` and order by `due_date`; the `Chore(family_id, due_date)` index (expand-only, #306) serves both. With fixture data every table is small enough that Postgres may still scan sequentially; confirm with the slow-query hook or `EXPLAIN` on a realistic household.
 - `board-version` recomputes the whole board to hash it on every poll (rate limit 1200/hour per member). It is the hottest path; watch its p95 in `docs/testing/PERFORMANCE_BASELINE.md` before adding tiles.
 
 Plan: run `npm run perf:baseline` against a local server started with `PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0` on the fixtures (and later a larger synthetic household), record the slowest statements, `EXPLAIN (ANALYZE, BUFFERS)` them on a disposable database, and propose indexes or limits in the domain's own issue. No polling or background job is added for this.

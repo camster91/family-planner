@@ -5,12 +5,16 @@ import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
-import { logRouteError } from '@/lib/api-error'
+import { apiError, logRouteError } from '@/lib/api-error'
+import { afterChoreCursor, encodeChoreCursor, parseChorePaging } from '@/lib/chore-paging'
 import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
-// GET - List chores for the user's family
+// GET - List chores for the user's family.
+// Opt-in paging (O-19): `?limit=1..200[&cursor=]` returns `{ chores, nextCursor }`
+// ordered by due date then id. Without `limit` the response is unchanged: every
+// chore, ordered by due date, no `nextCursor` (installed Android builds).
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -19,27 +23,37 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const assigned_to = searchParams.get('assigned_to')
+    const paging = parseChorePaging(searchParams)
+    if (!paging.ok) return apiError(400, 'INVALID_QUERY', paging.error, { requestId: getRequestId(request) })
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
+    if (paging.paged && paging.cursor) where.AND = [afterChoreCursor(paging.cursor)]
 
-    const chores = await prisma!.chore.findMany({
+    const rows = await prisma!.chore.findMany({
       where,
       include: {
         assignee: { select: { id: true, name: true, avatar_url: true } },
         creator: { select: { id: true, name: true } },
       },
-      orderBy: { due_date: 'asc' },
+      orderBy: paging.paged ? [{ due_date: 'asc' }, { id: 'asc' }] : { due_date: 'asc' },
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
     })
+
+    const hasMore = paging.paged && rows.length > paging.limit
+    const chores = hasMore ? rows.slice(0, paging.limit) : rows
+    const page = paging.paged
+      ? { nextCursor: hasMore ? encodeChoreCursor(chores[chores.length - 1]) : null }
+      : {}
 
     // Points & streaks off for this family (#248): the chore's points value is
     // not sent. It is still stored, and verify still awards XP from it.
     if (!(await isGamificationOn(auth.user.family_id))) {
-      return NextResponse.json({ chores: chores.map(omitChorePoints) })
+      return NextResponse.json({ chores: chores.map(omitChorePoints), ...page })
     }
 
-    return NextResponse.json({ chores })
+    return NextResponse.json({ chores, ...page })
   } catch (error) {
     logRouteError('GET /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
