@@ -437,6 +437,7 @@ model Chore {
   @@index([due_date])
   @@index([family_id, status])
   @@index([family_id, assigned_to])
+  @@index([family_id, due_date])
   @@index([recurrence_id])
 }
 

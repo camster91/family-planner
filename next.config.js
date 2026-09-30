@@ -66,6 +66,9 @@ if (process.env.NODE_ENV === 'production') {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Stop `next dev` from writing its managed agent-rules block into AGENTS.md
+  // and CLAUDE.md; AGENTS.md is the repository's own operating contract.
+  agentRules: false,
   output: 'standalone',
   // Build identity (#161, src/lib/build-info.ts): when this bundle was
   // compiled, served by GET /api/version. Inlined at build time, so it is not

@@ -838,6 +838,7 @@ CREATE INDEX IF NOT EXISTS "Chore_status_idx" ON "Chore"("status");
 CREATE INDEX IF NOT EXISTS "Chore_due_date_idx" ON "Chore"("due_date");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_status_idx" ON "Chore"("family_id", "status");
 CREATE INDEX IF NOT EXISTS "Chore_family_id_assigned_to_idx" ON "Chore"("family_id", "assigned_to");
+CREATE INDEX IF NOT EXISTS "Chore_family_id_due_date_idx" ON "Chore"("family_id", "due_date");
 CREATE INDEX IF NOT EXISTS "Chore_recurrence_id_idx" ON "Chore"("recurrence_id");
 -- Final concurrency guard for #184 series expansion: one occurrence per (series, date)
 CREATE UNIQUE INDEX IF NOT EXISTS "Chore_recurrence_id_due_date_key" ON "Chore"("recurrence_id", "due_date");

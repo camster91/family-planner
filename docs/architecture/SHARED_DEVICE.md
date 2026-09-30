@@ -619,8 +619,8 @@ user agents.
 | `parent_pin.set` / `parent_pin.removed` / `parent_pin.cleared_by_reset` | parent             | `{}`                                                                                                                                                                                                                                                                                          |
 
 Per-request activity (access, refresh, reads) is **not** audited; it only moves `last_seen_at`. Failed pairing
-claims cannot be tied to a household and go to the structured log (`log.warn('device.pair_claim_throttled',
-{ ipBucket })`) only when a rate limit trips. Privacy-safe analytics (FRIDGE_TABLET_PROGRAM.md §20
+claims cannot be tied to a household and go to the structured log (`log.warn('device.pair_claim_throttled')`, with no IP or IP-derived field) only
+when a rate limit trips. Privacy-safe analytics (FRIDGE_TABLET_PROGRAM.md §20
 "device paired / revoked") may mirror `device.paired` and `device.revoked` with no identifiers beyond the event
 name.
 

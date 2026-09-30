@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -17,11 +16,6 @@ import {
 } from '@/lib/device-http'
 import { getRequestId } from '@/lib/request-id'
 
-/** Coarse, non-reversible source label for alert logs; never the raw IP. */
-function ipBucket(ip: string): string {
-  return crypto.createHash('sha256').update(ip).digest('hex').slice(0, 8)
-}
-
 /**
  * POST /api/device/pair/claim { code, platform, appVersion } — public (no
  * session), CSRF-protected. Unknown, expired, used and cancelled codes all get
@@ -35,7 +29,9 @@ export async function POST(request: NextRequest) {
     const ip = getClientIp(request)
     const limit = await checkRateLimit(`device-pair-claim:${ip}`, 10, 15 * 60 * 1000)
     if (!limit.allowed) {
-      log.warn('device.pair_claim_throttled', { ipBucket: ipBucket(ip) })
+      // No IP-derived field: a short unsalted hash of an IPv4 address is
+      // reversible by brute force (OBSERVABILITY.md logger field rules).
+      log.warn('device.pair_claim_throttled')
       return rateLimited(limit)
     }
 
