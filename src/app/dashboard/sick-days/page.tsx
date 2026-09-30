@@ -7,6 +7,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { Avatar } from '@/components/ui/avatar'
 import { useTranslation } from '@/i18n'
+import { useToast } from '@/components/ui/toast'
+import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 
 interface TemperatureEntry {
   value: number
@@ -127,6 +129,9 @@ function SickDaysPageInner() {
   const [sickDays, setSickDays] = React.useState<SickDay[]>([])
   const [members, setMembers] = React.useState<FamilyMember[]>([])
   const [loading, setLoading] = React.useState(true)
+  // The list could not be loaded: show that, not "no sick days".
+  const [loadFailed, setLoadFailed] = React.useState(false)
+  const { addToast } = useToast()
   const [showStartModal, setShowStartModal] = React.useState(false)
   const [selectedSickDay, setSelectedSickDay] = React.useState<SickDay | null>(null)
   const [showAddTempModal, setShowAddTempModal] = React.useState(false)
@@ -148,10 +153,14 @@ function SickDaysPageInner() {
     setLoading(true)
     try {
       const [sd, fm, me] = await Promise.all([
-        fetch('/api/sick-days', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/sick-days', { cache: 'no-store' }).then((r) => {
+          if (!r.ok) throw new Error('sick-days load failed')
+          return r.json()
+        }),
         fetch('/api/family/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ members: [] })),
         fetch('/api/medications', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ medications: [] })),
       ])
+      setLoadFailed(false)
       setSickDays(sd.sickDays || [])
       setMembers(fm.members || [])
       // Merge medications into sick days
@@ -162,11 +171,20 @@ function SickDaysPageInner() {
         })))
       }
     } catch {
-      // keep loading false
+      setLoadFailed(true)
     } finally {
       setLoading(false)
     }
   }, [])
+
+  // KidHome pattern: a refused or failed request says so in a toast instead
+  // of doing nothing (or leaving an unhandled rejection when offline).
+  const failed = React.useCallback(
+    async (title: string, res?: Response) => {
+      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+    },
+    [addToast]
+  )
 
   React.useEffect(() => {
     load()
@@ -191,7 +209,11 @@ function SickDaysPageInner() {
         setShowStartModal(false)
         setStartForm({ person_id: '', severity: 'mild', symptoms: '' })
         load()
+      } else {
+        await failed("Couldn't start the sick day", res)
       }
+    } catch {
+      await failed("Couldn't start the sick day")
     } finally {
       setSaving(false)
     }
@@ -216,7 +238,11 @@ function SickDaysPageInner() {
           const updated = sickDays.find((sd) => sd.id === selectedSickDay.id)
           if (updated) setSelectedSickDay({ ...updated })
         })
+      } else {
+        await failed("Couldn't save the temperature", res)
       }
+    } catch {
+      await failed("Couldn't save the temperature")
     } finally {
       setSaving(false)
     }
@@ -234,7 +260,11 @@ function SickDaysPageInner() {
       if (res.ok) {
         setSelectedSickDay(null)
         load()
+      } else {
+        await failed("Couldn't end the sick day", res)
       }
+    } catch {
+      await failed("Couldn't end the sick day")
     } finally {
       setSaving(false)
     }
@@ -254,18 +284,31 @@ function SickDaysPageInner() {
         setShowAddMedModal(false)
         setMedForm({ person_id: '', name: '', dosage: '', schedule: '', notes: '' })
         load()
+      } else {
+        await failed("Couldn't add the medication", res)
       }
+    } catch {
+      await failed("Couldn't add the medication")
     } finally {
       setSaving(false)
     }
   }
 
   async function markDoseTaken(medId: string) {
-    await fetch(`/api/medications/${medId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markDoseTaken: true }),
-    })
+    try {
+      const res = await fetch(`/api/medications/${medId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markDoseTaken: true }),
+      })
+      if (!res.ok) {
+        await failed("Couldn't log the dose", res)
+        return
+      }
+    } catch {
+      await failed("Couldn't log the dose")
+      return
+    }
     load()
   }
 
@@ -320,7 +363,14 @@ function SickDaysPageInner() {
       </div>
 
       {/* Active sickness list */}
-      {sickDays.length === 0 ? (
+      {loadFailed ? (
+        <div role="alert" className="card-apple p-6 text-center space-y-3">
+          <p className="text-subhead text-label-primary">Couldn&apos;t load sick days. Check your connection and try again.</p>
+          <button type="button" onClick={() => load()} className="btn-tinted">
+            Try again
+          </button>
+        </div>
+      ) : sickDays.length === 0 ? (
         <EmptyState
           icon={Thermometer}
           glyphColor="family"

@@ -6,6 +6,8 @@ import { FeatureGate } from '@/components/ui/feature-gate'
 import { LargeHeader } from '@/components/ui/large-header'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
+import { useToast } from '@/components/ui/toast'
+import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 
 interface TravelState {
   travel_mode_active: boolean
@@ -40,6 +42,16 @@ function TravelPageInner() {
   const [endDate, setEndDate] = React.useState('')
   const [pendingChores, setPendingChores] = React.useState<Chore[]>([])
 
+  // KidHome pattern: a refused or failed request says so in a toast instead
+  // of doing nothing (or leaving an unhandled rejection when offline).
+  const { addToast } = useToast()
+  const failed = React.useCallback(
+    async (title: string, res?: Response) => {
+      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+    },
+    [addToast]
+  )
+
   const fetchTravel = React.useCallback(async () => {
     try {
       const res = await fetch('/api/family/travel')
@@ -49,11 +61,15 @@ function TravelPageInner() {
         setDestination(data.travel_destination ?? '')
         setStartDate(data.travel_start_date ? data.travel_start_date.split('T')[0] : '')
         setEndDate(data.travel_end_date ? data.travel_end_date.split('T')[0] : '')
+      } else {
+        await failed("Couldn't load travel mode", res)
       }
+    } catch {
+      await failed("Couldn't load travel mode")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [failed])
 
   const fetchChores = React.useCallback(async () => {
     try {
@@ -87,7 +103,11 @@ function TravelPageInner() {
       if (res.ok) {
         const data = await res.json()
         setTravel(data)
+      } else {
+        await failed("Couldn't change travel mode", res)
       }
+    } catch {
+      await failed("Couldn't change travel mode")
     } finally {
       setSaving(false)
     }
@@ -108,7 +128,11 @@ function TravelPageInner() {
       if (res.ok) {
         const data = await res.json()
         setTravel(data)
+      } else {
+        await failed("Couldn't save the trip details", res)
       }
+    } catch {
+      await failed("Couldn't save the trip details")
     } finally {
       setSaving(false)
     }

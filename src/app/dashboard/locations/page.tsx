@@ -8,6 +8,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { MapPin as MapPinIcon } from 'lucide-react'
+import { useToast } from '@/components/ui/toast'
+import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 
 interface Location {
   id: string
@@ -41,6 +43,16 @@ function LocationsPageInner() {
   const [newAddress, setNewAddress] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
+  // KidHome pattern: a refused or failed request says so in a toast instead
+  // of doing nothing (or leaving an unhandled rejection when offline).
+  const { addToast } = useToast()
+  const failed = React.useCallback(
+    async (title: string, res?: Response) => {
+      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+    },
+    [addToast]
+  )
+
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
@@ -48,11 +60,15 @@ function LocationsPageInner() {
       if (res.ok) {
         const data = await res.json()
         setLocations(data.locations || [])
+      } else {
+        await failed("Couldn't load locations", res)
       }
+    } catch {
+      await failed("Couldn't load locations")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [failed])
 
   React.useEffect(() => {
     load()
@@ -73,7 +89,11 @@ function LocationsPageInner() {
         setNewAddress('')
         setAdding(false)
         load()
+      } else {
+        await failed("Couldn't add the location", res)
       }
+    } catch {
+      await failed("Couldn't add the location")
     } finally {
       setSaving(false)
     }
@@ -81,8 +101,13 @@ function LocationsPageInner() {
 
   async function remove(id: string) {
     if (!confirm('Remove this location?')) return
-    const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' })
-    if (res.ok) load()
+    try {
+      const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' })
+      if (res.ok) load()
+      else await failed("Couldn't remove the location", res)
+    } catch {
+      await failed("Couldn't remove the location")
+    }
   }
 
   const primary = locations.filter((l) => l.is_primary)

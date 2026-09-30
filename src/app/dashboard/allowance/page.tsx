@@ -7,6 +7,8 @@ import { FeatureGate } from '@/components/ui/feature-gate'
 import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
+import { useToast } from '@/components/ui/toast'
+import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 
 interface AllowanceItem {
   id: string
@@ -44,6 +46,16 @@ function AllowancePageInner() {
   const [role, setRole] = React.useState<string | null>(null)
   const isParent = role === 'parent'
 
+  // KidHome pattern: a refused or failed request says so in a toast instead
+  // of doing nothing (or leaving an unhandled rejection when offline).
+  const { addToast } = useToast()
+  const failed = React.useCallback(
+    async (title: string, res?: Response) => {
+      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+    },
+    [addToast]
+  )
+
   React.useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
@@ -55,15 +67,20 @@ function AllowancePageInner() {
     setLoading(true)
     try {
       const [a, f] = await Promise.all([
-        fetch('/api/allowance', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/allowance', { cache: 'no-store' }).then((r) => {
+          if (!r.ok) throw new Error('allowance load failed')
+          return r.json()
+        }),
         fetch('/api/family/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ members: [] })),
       ])
       setItems(a.items || [])
       setMembers(f.members || [])
+    } catch {
+      await failed("Couldn't load allowance")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [failed])
 
   React.useEffect(() => { load() }, [load])
 
@@ -82,29 +99,41 @@ function AllowancePageInner() {
         setDraft({ to_user_id: '', amount: '', reason: '' })
         setAdding(false)
         load()
+      } else {
+        await failed("Couldn't add the allowance", res)
       }
+    } catch {
+      await failed("Couldn't add the allowance")
     } finally {
       setSaving(false)
     }
   }
 
-  async function markPaid(id: string) {
-    await fetch(`/api/allowance/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'paid' }),
-    })
+  async function setStatus(id: string, status: 'paid' | 'cancelled', failure: string) {
+    try {
+      const res = await fetch(`/api/allowance/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        await failed(failure, res)
+        return
+      }
+    } catch {
+      await failed(failure)
+      return
+    }
     load()
+  }
+
+  async function markPaid(id: string) {
+    await setStatus(id, 'paid', "Couldn't mark it paid")
   }
 
   async function cancel(id: string) {
     if (!confirm('Cancel this allowance?')) return
-    await fetch(`/api/allowance/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'cancelled' }),
-    })
-    load()
+    await setStatus(id, 'cancelled', "Couldn't cancel the allowance")
   }
 
   const pending = items.filter((i) => i.status === 'pending')
