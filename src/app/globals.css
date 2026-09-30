@@ -346,6 +346,26 @@
   .input-apple::placeholder { color: var(--label-tertiary); }
   .input-apple:focus { outline: none; background: var(--surface-fill-secondary); box-shadow: var(--shadow-focus); }
 
+  /* Older pages (join, forgot/reset password, some settings sections) use
+     .input-field and .card; they were never defined, so those inputs and
+     panels rendered unstyled. Alias them to the current styles. */
+  .input-field {
+    width: 100%;
+    border-radius: var(--radius-md);
+    background: var(--surface-fill);
+    padding: 0.75rem 1rem;
+    font-size: 17px;
+    color: var(--label-primary);
+    min-height: 44px;
+  }
+  .input-field::placeholder { color: var(--label-tertiary); }
+  .input-field:focus { outline: none; background: var(--surface-fill-secondary); box-shadow: var(--shadow-focus); }
+  .card {
+    background: var(--surface-elevated);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
   .input-apple-grouped {
     width: 100%;
     background: transparent;

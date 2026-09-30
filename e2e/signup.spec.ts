@@ -9,12 +9,13 @@
  * 2. Email verification. The E2E server has no mail provider, and only
  *    sha256(token) is stored (src/lib/tokens.ts), so the spec cannot read the
  *    link. Instead it replaces the stored hash with the hash of a token it
- *    generated (expiry untouched), then opens the REAL
- *    GET /api/auth/verify-email?token=… . That route marks the account
- *    verified and redirects to `<NEXT_PUBLIC_APP_URL>/login?verified=1`; the
- *    redirect is not followed (the app URL is baked in at build time), the
- *    spec opens /login?verified=1 on the E2E server and checks the notice. No
- *    app code or test-only switch is involved.
+ *    generated (expiry untouched). Opening the emailed link
+ *    (GET /api/auth/verify-email?token=…) must NOT use the token: it redirects
+ *    to the /verify-email confirm page (the redirect is not followed, because
+ *    the app URL is baked in at build time). The spec opens
+ *    /verify-email?token=… on the E2E server, checks the account is still
+ *    unverified, presses "Confirm my email" and lands on /login?verified=1.
+ *    No app code or test-only switch is involved.
  * 3. The parent signs in, lands on onboarding, creates the household and is
  *    sent to the Today board (empty chores region).
  * 4. Settings → Invite → "In person instead" shows the family code (the one
@@ -171,7 +172,7 @@ async function registerViaUi(page: Page, who: { name: string; email: string }) {
 /**
  * Verifies the address through the real verification link. Only the hash is
  * stored, so the spec swaps in the hash of a token it knows (same expiry) and
- * opens GET /api/auth/verify-email with the plaintext, like the email link.
+ * follows the emailed link to the confirm page and presses the button.
  */
 async function verifyEmailViaLink(page: Page, email: string) {
   const token = crypto.randomBytes(32).toString("hex");
@@ -195,23 +196,36 @@ async function verifyEmailViaLink(page: Page, email: string) {
   });
   expect(updated.rowCount).toBe(1);
 
+  // The emailed link only forwards to the confirm page; it never uses the token.
   const res = await page.request.get(`/api/auth/verify-email?token=${token}`, {
     maxRedirects: 0,
   });
   expect(res.status()).toBeGreaterThanOrEqual(300);
   expect(res.status()).toBeLessThan(400);
-  expect(res.headers()["location"]).toMatch(/\/login\?verified=1$/);
+  expect(res.headers()["location"]).toContain(`/verify-email?token=${token}`);
+
+  const stillPending = await withDb((db) =>
+    db.query(`SELECT email_verified FROM "User" WHERE email = $1`, [email]),
+  );
+  expect(stillPending.rows[0]).toEqual({ email_verified: false });
+
+  // The confirm page does nothing until the person presses the button.
+  await page.goto(`/verify-email?token=${token}`);
+  await expectNoHorizontalOverflow(page, "/verify-email");
+  await page.getByRole("button", { name: "Confirm my email" }).click();
+  await page.waitForURL(/\/login\?verified=1$/, { timeout: 15_000 });
 
   const after = await withDb((db) =>
     db.query(
-      `SELECT email_verified, verify_token FROM "User" WHERE email = $1`,
+      `SELECT email_verified, verify_token_expires FROM "User" WHERE email = $1`,
       [email],
     ),
   );
-  expect(after.rows[0]).toEqual({ email_verified: true, verify_token: null });
+  expect(after.rows[0]).toEqual({
+    email_verified: true,
+    verify_token_expires: null,
+  });
 
-  // Where the redirect lands, on this server.
-  await page.goto("/login?verified=1");
   await expect(
     page
       .getByRole("status")
