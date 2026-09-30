@@ -8,7 +8,6 @@ import {
   Search,
   Bell,
   ChevronDown,
-  User,
   Users2,
   Settings,
   LogOut,
@@ -79,9 +78,14 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   }, [])
 
   const handleSignOut = async () => {
-    // Offline changes belong to this session; sign-out drops them (#162).
-    await clearAllPersonQueues()
-    await fetch('/api/auth/logout', { method: 'POST' })
+    try {
+      // Offline changes belong to this session; sign-out drops them (#162).
+      await clearAllPersonQueues()
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // Offline or the request failed: still leave the signed-in UI. The
+      // middleware sends a still-valid session straight back from /login.
+    }
     router.push('/login')
     router.refresh()
   }
@@ -242,16 +246,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       >
                         <Refrigerator className="w-4 h-4 text-label-secondary" aria-hidden="true" />
                         Food inventory
-                      </Link>
-                    )}
-                    {canSee('/dashboard/profile') && (
-                      <Link
-                        href="/dashboard/profile"
-                        className="flex items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
-                        onClick={() => setAvatarOpen(false)}
-                      >
-                        <User className="w-4 h-4 text-label-secondary" />
-                        Profile
                       </Link>
                     )}
                     {messagesOn && canSee('/dashboard/messages') && (
