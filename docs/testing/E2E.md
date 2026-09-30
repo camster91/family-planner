@@ -43,7 +43,7 @@ All projects use device scale factor 1, locale `en-US`, zone `America/Toronto`, 
 
 ## Run it locally
 
-Prerequisites: Node 22 (`.nvmrc`), a local PostgreSQL, and Chromium for Playwright 1.56.1 (`npx playwright install chromium`, or set `PLAYWRIGHT_BROWSERS_PATH` to a directory that already holds `chromium-1194`).
+Prerequisites: Node 22 (`.nvmrc`), a local PostgreSQL, and Chromium for Playwright 1.63.0 (`npx playwright install chromium`, or set `PLAYWRIGHT_BROWSERS_PATH` to a directory that already holds `chromium-1243`).
 
 ```bash
 # 1. A disposable database the fixture guard accepts (loopback host, or a name with e2e/test/dev/ci)
@@ -101,8 +101,8 @@ Other sources of noise are also removed: reduced motion, `animations: 'disabled'
 ## Visual baselines
 
 - Stored in `e2e/__screenshots__/<spec>/<name>-<project>-linux.png`: 31 images (login + parent home light + parent home dark, × 6 viewports; the fridge-mode Today board at 1280×800, 1920×1200 and 800×1280, and the board with the weather tile at 1280×800 and 1920×1200 (#262), full page; and, at 1280×800 and 800×1280, the tablet pair and removed screens (full page), the parent-mode banner and the device list (element screenshots)).
-- **Baselines are specific to Linux + Chromium.** Font rasterisation differs between operating systems and font sets, so macOS/Windows runs will not match. They also depend on the Playwright/Chromium version (1.56.1 / chromium-1194). Upgrading Playwright is a baseline review event.
-- The committed baselines were generated in a Linux container (Chromium 1194, DejaVu Sans as the system UI font). They were verified stable across three consecutive runs and after a full fixture reset + reseed. If the hosted `ubuntu-24.04` runner renders fonts differently, the CI visual step fails with a diff. Regenerate on CI instead of locally: run the **E2E (Playwright)** workflow manually with `update_snapshots: true`, download the `e2e-baselines-<sha>` artifact, review every image, and commit them in a PR that says so.
+- **Baselines are specific to Linux + Chromium.** Font rasterisation differs between operating systems and font sets, so macOS/Windows runs will not match. They also depend on the Playwright/Chromium version (1.63.0 / chromium-1243). Upgrading Playwright is a baseline review event.
+- The committed baselines were generated in a Linux container (Chromium 1194, DejaVu Sans as the system UI font). They were verified stable across three consecutive runs and after a full fixture reset + reseed, and they still matched on CI after the upgrade to Playwright 1.63.0 / chromium-1243 (#261), so they were not regenerated. If the hosted `ubuntu-24.04` runner renders fonts differently, the CI visual step fails with a diff. Regenerate on CI instead of locally: run the **E2E (Playwright)** workflow manually with `update_snapshots: true`, download the `e2e-baselines-<sha>` artifact, review every image, and commit them in a PR that says so.
 - Masked regions: on the parent home (the Today board since #269) the board date, clock and "Updated" time (clock-derived; the date is asserted as text in `journeys.spec.ts`); on the fridge-mode board, the clock and the "Updated" time (the date is asserted as text).
 - #269 regenerated the 12 `dashboard-parent-*` baselines on purpose: `/dashboard` is now the Today board with the parent's summary sentence, and the top bar shows the five tabs from `md` up (plus a tab bar of five on phones). The login, fridge-mode and shared-tablet baselines were not changed. The board layout is being reworked for #262, which will regenerate these again. Keep masks minimal. A mask hides regressions too.
 - Policy (`VISUAL_REGRESSION.md`): a diff must be inspected and explained in the PR. `npm run test:e2e:update` rewrites baselines. Never run it just to make CI green, and never update baselines for unrelated routes without an explanation.
