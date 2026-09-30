@@ -119,8 +119,13 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
 
   // Protected routes
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard')
-  // Auth routes (login/register/join) - redirect to dashboard if already logged in
-  const isAuthRoute = ['/login', '/register', '/join'].includes(request.nextUrl.pathname)
+  // Auth routes (login/register) - redirect to dashboard if already logged in.
+  // `/join` is deliberately NOT one of them: a signed-in member without a
+  // household must reach it to accept an email invite or enter a family code
+  // (the login page sends them there after sign-in, and onboarding links to
+  // it). The page itself handles both signed-in and signed-out visitors, and
+  // POST /api/family/join refuses anyone already in a household.
+  const isAuthRoute = ['/login', '/register'].includes(request.nextUrl.pathname)
 
   // A JWT stays cryptographically valid for its full 7 days, so signature and
   // expiry alone cannot express "this session was revoked" — `token_version` is
@@ -183,7 +188,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // from the built middleware.
   void KID_ALLOWED_PREFIXES
 
-  // Auth routes (login/register/join) - redirect to dashboard if already logged in
+  // Auth routes (login/register) - redirect to dashboard if already logged in
   if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
