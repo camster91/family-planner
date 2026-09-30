@@ -54,6 +54,22 @@ describe("chores — two households", () => {
     expect(foreign.chores).toEqual([]);
   });
 
+  it("opt-in paging (O-19): unchanged without limit, paged and household-scoped with it", async () => {
+    const plain = await (await chores.GET(req({ as: "parentA" }))).json();
+    expect(plain).not.toHaveProperty("nextCursor");
+
+    const paged = await expectNoForeignData(await chores.GET(req({ as: "parentA", query: { limit: "1" } })));
+    expect(paged.chores.map((c: any) => c.id)).toEqual(["chore-a"]);
+    expect(paged.nextCursor).toBeNull();
+
+    const bad: Array<Record<string, string>> = [{ limit: "0" }, { limit: "201" }, { limit: "x" }, { cursor: "abc" }, { limit: "5", cursor: "%%" }];
+    for (const query of bad) {
+      const res = await chores.GET(req({ as: "parentA", query }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_QUERY");
+    }
+  });
+
   it("refuses to update, delete, complete or verify another family's chore", async () => {
     await expectDenied(await chores.PATCH(req({ as: "parentA", body: { choreId: "chore-b", title: "x" } })));
     await expectDenied(await chores.DELETE(req({ as: "parentA", body: { choreId: "chore-b" } })));
