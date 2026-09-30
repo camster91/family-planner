@@ -177,7 +177,9 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : ''
     if (message.includes('MAILGUN_API_KEY')) {
       return NextResponse.json(
-        { error: 'Email is not configured. Set MAILGUN_API_KEY on the server.' },
+        // Shown to the parent: no server variable names. The operator sees
+        // the cause in the route error log.
+        { error: 'Email invites are not available right now. Share the family code or link below instead.' },
         { status: 503 }
       )
     }

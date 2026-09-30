@@ -9,6 +9,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import KidHome from '../KidHome'
 import { ToastProvider } from '@/components/ui/toast'
+import { FeaturesProvider } from '@/components/providers/features-provider'
+import { defaultFeatures } from '@/lib/features'
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }),
@@ -136,6 +138,34 @@ describe('KidHome picture routines', () => {
     await userEvent.click(steps(morning)[0])
     await waitFor(() => expect(steps(morning)[0].getAttribute('data-state')).toBe('next'))
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+    // The child is told, instead of the tick silently disappearing.
+    expect(await screen.findByText("Couldn't mark it done")).toBeTruthy()
+    expect(screen.getByText('nope')).toBeTruthy()
+  })
+
+  it('says so when the tap cannot reach the server', async () => {
+    replies['/api/chores/complete'] = ['network']
+    renderHome(MORNING)
+    await userEvent.click(steps(routineByName('Morning'))[0])
+    expect(await screen.findByText('Check your connection and try again.')).toBeTruthy()
+  })
+
+  it('a failed reward claim shows an error instead of an unhandled rejection', async () => {
+    replies['/api/rewards/claim'] = ['network']
+    render(
+      <FeaturesProvider initial={{ ...defaultFeatures(), gamification: true, rewards: true }}>
+        <ToastProvider>
+          <KidHome
+            user={user}
+            chores={[]}
+            events={[]}
+            rewards={[{ id: 'r1', name: 'Movie night', cost: 10, status: 'available' }]}
+          />
+        </ToastProvider>
+      </FeaturesProvider>
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    expect(await screen.findByText("Couldn't claim that")).toBeTruthy()
   })
 
   it('shows done and checked steps from the server, and "All done" when the routine is finished', () => {
