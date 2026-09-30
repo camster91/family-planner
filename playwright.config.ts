@@ -152,6 +152,10 @@ export default defineConfig({
       // Event import (#270) stays off in E2E: no provider is ever called.
       // Blank overrides a key that might be set in the developer's shell.
       EVENT_IMPORT_ANTHROPIC_API_KEY: "",
+      // Design gallery (#156, e2e/design-gallery.spec.ts). The production
+      // build answers 404 on /dev/design-system unless this opt-in is set; it
+      // renders fixture props only and never reads the database.
+      DESIGN_GALLERY_ENABLED: "1",
     },
   },
 });

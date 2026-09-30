@@ -592,14 +592,15 @@ function SectionSortControl({
 
 // -----------------------------------------------------------------------
 // Sync status (#162). Text, not colour only; failed and conflict stay
-// visible until the person retries or discards.
+// visible until the person retries or discards. Exported for the design
+// gallery (/dev/design-system, #156), which renders these states from fixtures.
 // -----------------------------------------------------------------------
 
 function needsAction(op: QueuedOperation | undefined): boolean {
   return op?.state === 'failed' || op?.state === 'conflict'
 }
 
-function syncStatusText(op: QueuedOperation | undefined, recentlySynced: boolean): string | undefined {
+export function syncStatusText(op: QueuedOperation | undefined, recentlySynced: boolean): string | undefined {
   if (!op) return recentlySynced ? 'Synced' : undefined
   switch (op.state) {
     case 'pending':
@@ -617,7 +618,7 @@ function syncStatusText(op: QueuedOperation | undefined, recentlySynced: boolean
   }
 }
 
-function SyncBanner({
+export function SyncBanner({
   online,
   durable,
   pendingCount,

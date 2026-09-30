@@ -20,7 +20,7 @@
 
 | | Count |
 |---|---|
-| Page routes | 58 (48 under `/dashboard`, including `/dashboard/settings/activity` from #285; 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`) |
+| Page routes | 59 (48 under `/dashboard`, including `/dashboard/settings/activity` from #285; 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`, and the development-only `/dev/design-system` from #156) |
 | API route files | 147 (the 131 above; 10 added by #283 and #284: `/api/device/chores/[id]/complete`, `…/uncomplete`, `/api/device/elevated/board-settings`, `…/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `…/discard`, `/api/inventory/adjustments`, `…/adjustments/[id]/undo`, which have no row in the generated API table yet; `/api/search`, F-3; `/api/users/deletion`, D-3; `/api/users/preferences`, #286; `/api/audit`, #285; `/api/lists/items/[id]`, F-6; and `/api/family/beta-metrics`, #287) |
 | API handlers (file × method) | 215 (197 + 11 from #283/#284 + `GET /api/search` + `GET /api/users/deletion` + `GET`/`PATCH /api/users/preferences` + `GET /api/audit` + `DELETE /api/lists/items/[id]` + `PATCH /api/family/beta-metrics`) |
 | API handlers missing from the isolation audit | 0 (the 5 `/api/calendar/subscriptions/**` handlers were added for finding F-4) |
@@ -86,6 +86,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/device/pair` | none (pairing) | pairing | `SHARED_DEVICE_ENABLED` | Hidden (device flow) | `/api/device/pair/*` | 7 |
 | `/device/today` | device (+ parent elevation) | device only | `SHARED_DEVICE_ENABLED` | Hidden (device home) | `GET /api/device/today` (same board loader as `/dashboard/today`) | 7 |
 | `/device/removed` | none | after revoke | `SHARED_DEVICE_ENABLED` | Hidden | — | 7 |
+| `/dev/design-system` | none (not a product page) | no | 404 in a production build unless `DESIGN_GALLERY_ENABLED=1` (E2E server only) | Hidden (development and QA tool, `noindex`) | none: fixture props only (`src/app/dev/design-system/fixtures.ts`), no session, Prisma or API (#156, `design/DESIGN_GALLERY.md`) | 7 |
 
 ## Feature flags (`src/lib/features.ts`)
 
