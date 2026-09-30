@@ -60,27 +60,33 @@ export async function POST(request: NextRequest) {
     // Explicit select — never widen this to a whole-row fetch. Returning the row
     // and stripping `password` leaked any live reset_token / verify_token to the
     // browser, and would leak the session generation too.
-    const user = await prisma!.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        age: true,
-        family_id: true,
-        avatar_url: true,
-        email_verified: true,
-        xp: true,
-        level: true,
-        streak: true,
-        best_streak: true,
-        last_chore_date: true,
-        created_at: true,
-        password: true,
-        token_version: true,
-      },
-    })
+    const userSelect = {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      age: true,
+      family_id: true,
+      avatar_url: true,
+      email_verified: true,
+      xp: true,
+      level: true,
+      streak: true,
+      best_streak: true,
+      last_chore_date: true,
+      created_at: true,
+      password: true,
+      token_version: true,
+    } as const
+    // Accounts are stored with a lower-cased email (register, invites), but a
+    // phone keyboard capitalises the first letter. Look up the lower-cased
+    // form first; fall back to the address as typed for any older account
+    // stored with capitals.
+    const lowered = email.toLowerCase()
+    let user = await prisma!.user.findUnique({ where: { email: lowered }, select: userSelect })
+    if (!user && lowered !== email) {
+      user = await prisma!.user.findUnique({ where: { email }, select: userSelect })
+    }
 
     // Always run bcrypt to prevent timing-based email enumeration
     const valid = await safeVerifyPassword(password, user?.password ?? null)
