@@ -43,8 +43,9 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Design: `design/**` and `BRAND.md`
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
 - Chores (parent check, picture routines for young kids): `docs/product/CHORES.md`
-- Release/incident operations: `docs/runbooks/**`
+- Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md` and `TRANSACTIONAL_EMAIL.md`)
 - Planned Coolify deployment (not the current production path): `docs/runbooks/COOLIFY_DEPLOY.md`
+- Design-partner beta operations (#107, #108): `docs/product/BETA_OPERATIONS.md`
 
 ## Historical/reference-only material
 
