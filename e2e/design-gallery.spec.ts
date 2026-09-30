@@ -55,14 +55,8 @@ async function expectNoHorizontalOverflow(page: Page) {
  * anywhere else still fails. Remove an entry when its component is fixed
  * (docs/design/DESIGN_GALLERY.md, "Known findings").
  */
-const KNOWN_FINDINGS: Array<{ rule: string; html: RegExp; reason: string }> = [
-  {
-    rule: "target-size",
-    html: /<button[^>]*aria-label="Clear"/,
-    reason:
-      "SearchField clear button is 20x20 CSS px (WCAG 2.5.8 needs 24); src/components/ui/search-field.tsx, used by the command palette",
-  },
-];
+const KNOWN_FINDINGS: Array<{ rule: string; html: RegExp; reason: string }> =
+  [];
 
 async function expectNoSeriousAxeViolations(page: Page, testInfo: TestInfo) {
   const results = await new AxeBuilder({ page })
