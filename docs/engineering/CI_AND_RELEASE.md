@@ -7,12 +7,20 @@
 
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
-| `release.yml` — `Build & Test` | Locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
+| `release.yml` — `Build & Test` | Secret scan (gitleaks, see below), locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
 | `release.yml` — `Release to VPS` | Transfer and promote the verified image for the exact workflow SHA | Manual dispatch on the actual default branch only | Production deployment after `production` environment credentials are configured |
 | `e2e.yml` | Playwright journeys, accessibility smoke and visual snapshots (`docs/testing/E2E.md`) | Pull request, `main`/`master` push, manual dispatch | Validation only; informational, not a required check |
 | `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise. **Disabled in GitHub (`disabled_manually`) as of 2026-09-29; last run 2026-09-08.** |
 | `auto-merge.yml` | Merge a pull request carrying the explicit `auto-merge` label | `pull_request_target` label/change events | Can merge; does not deploy. Disabled in GitHub (`disabled_manually`) as of 2026-09-29 |
 | `stale-issues.yml` | Apply the repository's stale-issue policy to issues | Manual dispatch only (no schedule, per AGENTS.md) | Labels and closes inactive issues; never touches pull requests. Disabled in GitHub (`disabled_manually`) as of 2026-09-29 |
+
+### Secret scanning (#136)
+
+The first step after checkout in `Build & Test` runs gitleaks and fails the check on any finding:
+
+- It scans the checked-out tree, then the commits the run adds (pull request: base..head; push: before..after), so a secret added and removed again inside a pull request still fails. The checkout uses `fetch-depth: 0` for this.
+- gitleaks is built from source with the runner's Go toolchain: version pinned (`v8.30.1`, tag commit `8d1f98c7`), module content hash compared with the pinned `GITLEAKS_MODULE_SUM` and checked by the Go checksum database. No third-party action, no token, no licence key, no SARIF/report artifact, no PR comment. Output uses `--redact`, so a finding shows the rule, file, line and commit but never the value.
+- Config: `.gitleaks.toml` (default rules plus one narrow allowlist for fake `Idempotency-Key` values in test files). Run it locally with `gitleaks dir . --redact --verbose`. A finding on a real credential means rotating it (owner action), not allowlisting it.
 
 The required check name remains exactly `Build & Test`. The former duplicate `ci.yml` validation and unused `build-push.yml` GHCR publication path were removed to keep one owner for application validation and avoid publishing a second, unused release artifact.
 

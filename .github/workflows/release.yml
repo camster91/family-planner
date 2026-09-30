@@ -45,6 +45,55 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history, so the secret scan below can read the commits of a PR or push.
+          fetch-depth: 0
+
+      # Secret scanning (#136). gitleaks is built from source with the runner's Go
+      # toolchain: the module version is pinned and its content hash must equal
+      # GITLEAKS_MODULE_SUM (the Go checksum database verifies it too). No token, no
+      # licence key (the CLI never needs one; only the gitleaks-action does, and only for
+      # organisation-owned repositories), no third-party action, no report or artifact
+      # upload. Findings are printed with the secret redacted. Config and the narrow
+      # test-fixture allowlist: .gitleaks.toml.
+      - name: Scan for secrets
+        env:
+          GITLEAKS_MODULE: github.com/zricethezav/gitleaks/v8
+          GITLEAKS_VERSION: v8.30.1 # tag commit 8d1f98c7967eb1e79cb44ac6241a124e145d2165
+          GITLEAKS_MODULE_SUM: h1:PmEvCfVI7ti9dV3s5aMZUY7sS2GxRvG3yzih7E+cS3w=
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          sum=$(go mod download -json "$GITLEAKS_MODULE@$GITLEAKS_VERSION" | jq -r .Sum)
+          if [ "$sum" != "$GITLEAKS_MODULE_SUM" ]; then
+            echo "::error::gitleaks module hash mismatch"
+            exit 1
+          fi
+          GOBIN="$RUNNER_TEMP/gitleaks-bin" go install "$GITLEAKS_MODULE@$GITLEAKS_VERSION"
+          scanner="$RUNNER_TEMP/gitleaks-bin/gitleaks"
+          cd "$GITHUB_WORKSPACE"
+
+          # 1. The checked-out tree.
+          "$scanner" dir . --config .gitleaks.toml --redact --verbose --no-banner
+
+          # 2. The commits this run adds: a secret added and then removed in a PR still leaks.
+          range=""
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # Both are ancestors of the checked-out merge commit; fail rather than skip.
+            git cat-file -e "$PR_BASE_SHA^{commit}"
+            git cat-file -e "$PR_HEAD_SHA^{commit}"
+            range="$PR_BASE_SHA..$PR_HEAD_SHA"
+          elif [ "$EVENT_NAME" = "push" ] && [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] \
+            && ! [[ "$PUSH_BEFORE_SHA" =~ ^0+$ ]] \
+            && git cat-file -e "$PUSH_BEFORE_SHA^{commit}" 2>/dev/null; then
+            range="$PUSH_BEFORE_SHA..$GITHUB_SHA"
+          fi
+          if [ -n "$range" ]; then
+            "$scanner" git . --config .gitleaks.toml --redact --verbose --no-banner --log-opts="$range"
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -127,6 +176,7 @@ jobs:
           src/lib/__tests__/device.integration.test.ts
           src/lib/__tests__/household-audit.integration.test.ts
           src/lib/__tests__/idempotency.integration.test.ts
+          src/lib/__tests__/legacy-analytics.integration.test.ts
           src/lib/__tests__/list-item-delete.integration.test.ts
           src/lib/__tests__/list-item-provenance.integration.test.ts
           src/lib/__tests__/list-item-update.integration.test.ts
