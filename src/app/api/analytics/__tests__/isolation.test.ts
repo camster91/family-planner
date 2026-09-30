@@ -29,10 +29,13 @@ describe("analytics — two households", () => {
     expect(writesTo()).toHaveLength(0);
   });
 
-  it("event POST writes to the caller's own family, ignoring a smuggled family", async () => {
+  it("event POST stores nothing and never touches another family, even with a smuggled family", async () => {
     const res = await track(req({ as: "childA", body: { event: "page_view", family_id: "family-B" } }));
     expect(res.status).toBe(200);
-    const row = db.rows("activity").find((a) => a.type === "event_page_view");
-    expect(row).toMatchObject({ family_id: "family-A", user_id: "child-a" });
+    expect(db.rows("activity").some((a) => a.type === "event_page_view")).toBe(false);
+    for (const w of writesTo("activity")) {
+      expect(w.op).toBe("deleteMany");
+      expect(w.args.where.family_id).toBe("family-A");
+    }
   });
 });

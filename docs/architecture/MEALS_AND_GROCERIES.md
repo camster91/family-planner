@@ -470,10 +470,10 @@ drops rows that are not yet due or already past use-by for its own day.
 - Not offline-queued. Create accepts an optional `Idempotency-Key` since #265 (the fridge scan sends one per row);
   since #158 edit, delete, consume, discard and undo accept one too, and the page sends one per logical change
   (reused for a retry of the same body, new when the body changes).
-- Telemetry: none. #121 asks for privacy-safe telemetry of creation, correction, consume/discard and abandonment, but
-  the only client event helper (`src/lib/analytics.ts` → `POST /api/analytics/event`) stores free-form metadata in
-  `Activity` with the user and is not a privacy-reviewed telemetry module. Left for #161 (observability), which should
-  provide a content-minimal event path first; no inventory events are sent.
+- Telemetry: none. #121 asks for privacy-safe telemetry of creation, correction, consume/discard and abandonment. The
+  old client event helper (`src/lib/analytics.ts` → `POST /api/analytics/event`) is removed and that endpoint stores
+  nothing since #136/#140. Left for #161 (observability), which should provide a content-minimal event path first; no
+  inventory events are sent.
 
 ### Consume, discard and undo (#158/#121)
 

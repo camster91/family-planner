@@ -4,6 +4,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { legacyAnalyticsTypeFilter } from '@/lib/legacy-analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
         orderBy: { completed_at: 'desc' },
       }),
       prisma!.activity.findMany({
-        where: { family_id: familyId },
+        // Legacy page-view/click rows are not household activity (#136).
+        where: { family_id: familyId, NOT: { type: legacyAnalyticsTypeFilter() } },
         include: { user: { select: { name: true } } },
         orderBy: { created_at: 'desc' },
         take: 10,

@@ -450,6 +450,23 @@ function isPlainObject(v: any): boolean {
   return v !== null && typeof v === 'object' && !(v instanceof Date) && !Array.isArray(v)
 }
 
+/**
+ * Prisma sends `contains`/`startsWith` to Postgres as (I)LIKE without escaping
+ * the pattern, so `_` and `%` are wildcards and a backslash escapes the next
+ * character. Mirror that, so a test sees what the database would match.
+ */
+function likePattern(arg: string, kind: 'contains' | 'startsWith', insensitive: boolean): RegExp {
+  let body = ''
+  for (let i = 0; i < arg.length; i++) {
+    const c = arg[i]
+    if (c === '\\' && i + 1 < arg.length) body += arg[++i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    else if (c === '_') body += '.'
+    else if (c === '%') body += '.*'
+    else body += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+  return new RegExp((kind === 'startsWith' ? '^' : '') + body, insensitive ? 'is' : 's')
+}
+
 function matchValue(value: any, cond: any): boolean {
   if (!isPlainObject(cond)) return cmp(value, cond) === 0
   for (const [op, arg] of Object.entries(cond)) {
@@ -484,12 +501,12 @@ function matchValue(value: any, cond: any): boolean {
         break
       case 'contains':
         if (typeof value !== 'string') return false
-        if (cond.mode === 'insensitive' ? !value.toLowerCase().includes(String(arg).toLowerCase()) : !value.includes(arg as string)) {
-          return false
-        }
+        if (!likePattern(String(arg), 'contains', cond.mode === 'insensitive').test(value)) return false
         break
       case 'startsWith':
-        if (typeof value !== 'string' || !value.startsWith(arg as string)) return false
+        if (typeof value !== 'string' || !likePattern(String(arg), 'startsWith', cond.mode === 'insensitive').test(value)) {
+          return false
+        }
         break
       case 'has':
         if (!Array.isArray(value) || !value.includes(arg)) return false

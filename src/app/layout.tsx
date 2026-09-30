@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
-import { AnalyticsProvider } from '@/components/providers/analytics-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
@@ -83,11 +82,9 @@ export default function RootLayout({
           <PostHogProvider>
             <ToastProvider>
               <I18nProvider locale="en">
-                <AnalyticsProvider>
-                  <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
-                    {children}
-                  </div>
-                </AnalyticsProvider>
+                <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
+                  {children}
+                </div>
               </I18nProvider>
             </ToastProvider>
           </PostHogProvider>

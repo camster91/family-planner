@@ -26,11 +26,12 @@ This document is the engineering source for privacy review and future Play Data 
 | Device | device/session/last seen | parent/admin + server | minimal local identifiers | pair/revoke/status |
 | AI | authorized context and proposals | scoped to requesting context | no broad transcript cache by default | cost/latency/outcome, not prompt content |
 | Beta usage counts (#287) | per household, UTC day and fixed metric name: a count (`BetaMetricDaily`) | not shown in the app; account export; `npm run beta:scorecard` (households as numbers) | No | the counts are the telemetry: no user id, role, text or content; per-household opt-in, default off; 13 months; deleted on opt-out and with the household |
+| Legacy page views/clicks (#136, #140) | `Activity` rows `event_page_view`/`event_cta_click` written before this change: raw browser path (could include record ids) and client metadata, tied to a user | not shown in the app (feed and analytics page exclude them); the member's own account export until pruned | No | **no longer collected**: `POST /api/analytics/event` stores nothing; existing rows are deleted 90 days after they were written (pruned per household on that endpoint and on the activity feed read, `src/lib/legacy-analytics.ts`) and with the member or household |
 
 ## Rules
 - Collect/store only what the product needs.
 - Shared tablet receives the minimum fields needed for its purpose.
-- Beta criteria are measured only through `src/lib/beta-metrics.ts` (fixed metric names, counts only), not `src/lib/analytics.ts` (decision D-6).
+- Beta criteria are measured only through `src/lib/beta-metrics.ts` (fixed metric names, counts only) (decision D-6). The old page-view helper `src/lib/analytics.ts` is removed and the app records no page views (#136, #140).
 - Logs/analytics must not contain passwords/tokens, child names, message bodies, precise addresses, medical notes, private event descriptions, finance descriptions or arbitrary AI prompts.
 - Provider integrations require a processor/data-flow entry before production.
 - Export/deletion/retention must be defined per domain before broad launch.

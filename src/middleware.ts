@@ -71,8 +71,8 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // except for the auth endpoints listed above (where credentials are the second factor).
   //
   // /api/analytics/event is exempt only while the caller is anonymous. A signed-in
-  // caller still causes a database write (an Activity row), so it must keep the CSRF
-  // check — otherwise a forged same-origin POST could inject analytics for that user.
+  // caller's request still reaches the database (it prunes old legacy analytics rows),
+  // so it keeps the CSRF check like every other state-changing request.
   // Anonymous callers are no-ops, and have no csrf_token cookie yet, so requiring one
   // there is what produced the console noise this exemption exists to remove.
   const isAnalyticsEvent = request.nextUrl.pathname === '/api/analytics/event'

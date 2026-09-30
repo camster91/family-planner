@@ -241,8 +241,9 @@ Explicit and minimal:
 The audit stores are the device audit (`DeviceAuditEvent`) and the household audit history (`AuditLog`, #285, 12
 months, pruned on a parent's read); both are deleted with the household and a deleted member's actor references are
 cleared. The only usage store is the opt-in beta usage counts (`BetaMetricDaily`, #287): counts per household and
-day with no user reference, 13 months, deleted when turned off and with the household. `src/lib/analytics.ts` rows
-live in the `Activity` table and follow its deletion rules above.
+day with no user reference, 13 months, deleted when turned off and with the household. Page views are no longer
+recorded (#136, #140); the legacy page-view/click rows (`Activity` types `event_page_view`, `event_cta_click`) follow
+the `Activity` deletion rules above and are also pruned 90 days after they were written (`src/lib/legacy-analytics.ts`).
 
 ### Not implemented (open)
 
