@@ -10,6 +10,9 @@
  */
 export const CHORE_PAGE_MAX = 200
 
+/** Page size the web chores page uses for verified-chore history ("Load more"). */
+export const CHORE_HISTORY_PAGE_SIZE = 50
+
 export type ChoreCursor = { dueDate: Date; id: string }
 
 export type ChorePaging =
@@ -57,4 +60,14 @@ export function afterChoreCursor(cursor: ChoreCursor) {
   return {
     OR: [{ due_date: { gt: cursor.dueDate } }, { due_date: cursor.dueDate, id: { gt: cursor.id } }],
   }
+}
+
+/** Sort comparator matching the paged order: due date, then id. Accepts Date or ISO string. */
+export function compareChoreOrder(
+  a: { due_date: Date | string; id: string },
+  b: { due_date: Date | string; id: string }
+): number {
+  const byDue = new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+  if (byDue !== 0) return byDue
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
