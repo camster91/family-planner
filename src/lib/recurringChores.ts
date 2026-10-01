@@ -17,20 +17,24 @@ const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: n
  * advanced by `setMonth(+1)`; across a month boundary those disagree (#184).
  */
 export function nextDueDate(from: Date, frequency: string): Date | null {
-  const d = new Date(from)
-  d.setHours(0, 0, 0, 0)
+  // UTC throughout: due dates are stored as UTC midnight (the date pickers
+  // send `YYYY-MM-DD`), so the result must not depend on the server's time
+  // zone. Local `setHours`/`setDate` moved a UTC-midnight date to the
+  // previous local day, and the next date landed on local midnight.
+  const d = startOfDay(from)
 
   switch (frequency) {
     case 'daily':
-      d.setDate(d.getDate() + 1)
+      d.setUTCDate(d.getUTCDate() + 1)
       return d
     case 'weekly':
-      d.setDate(d.getDate() + 7)
+      d.setUTCDate(d.getUTCDate() + 7)
       return d
     case 'monthly':
-      // Calendar month, not a fixed 30 days. `setMonth` handles short-month
-      // rollover (Jan 31 -> Feb 28/29) consistently everywhere.
-      d.setMonth(d.getMonth() + 1)
+      // Calendar month, not a fixed 30 days. A day the next month lacks
+      // overflows the way `Date` always has (Jan 31 -> Mar 3, or Mar 2 in a
+      // leap year), the same rule everywhere this is used.
+      d.setUTCMonth(d.getUTCMonth() + 1)
       return d
     default:
       return null
@@ -43,9 +47,10 @@ const WINDOW_SIZE: Record<Exclude<ChoreFrequency, 'once'>, number> = {
   monthly: 3,
 }
 
-function startOfDay(d: Date): Date {
+/** Midnight UTC of the same UTC calendar day. Due dates are stored at UTC midnight. */
+export function startOfDay(d: Date): Date {
   const out = new Date(d)
-  out.setHours(0, 0, 0, 0)
+  out.setUTCHours(0, 0, 0, 0)
   return out
 }
 
@@ -192,19 +197,6 @@ export async function expandRecurringChores(
 }
 
 /**
- * Mark a newly created chore as the template of its own series.
- *
- * Called once, when a user creates a recurring chore. Until this runs the row
- * has no `recurrence_id`, so no series exists yet and the cron cannot expand it.
- */
-export async function markAsTemplate(choreId: string): Promise<void> {
-  await prisma!.chore.update({
-    where: { id: choreId },
-    data: { recurrence_id: choreId, is_template: true },
-  })
-}
-
-/**
  * Expand recurring TEMPLATES for a family. Used by the daily cron.
  *
  * Only rows flagged `is_template` are expanded — not "any row whose frequency
@@ -287,7 +279,8 @@ export type FrequencyEditChore = {
  *
  * - A chore with no series that becomes daily/weekly/monthly becomes the
  *   template of its own series and is expanded, exactly like a recurring
- *   chore created that way (`markAsTemplate` + expansion).
+ *   chore created that way (POST /api/chores/create: mark as template +
+ *   expansion, in one transaction).
  * - A template set to `once` stops its series (O-33): the template keeps its
  *   `recurrence_id` but is no longer `is_template`, so nothing extends it
  *   again, and the series' copies that are still `pending` and due after
@@ -363,7 +356,7 @@ async function changeSeriesFrequencyInTx(
     data: { frequency: repeating ? newFrequency : 'once', is_template: repeating },
   })
   const tomorrow = startOfDay(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
   await tx.chore.deleteMany({
     where: {
       family_id: familyId,

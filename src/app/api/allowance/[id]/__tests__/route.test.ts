@@ -137,7 +137,7 @@ describe("PATCH /api/allowance/[id]", () => {
   });
 
   it.each([["pending"], ["cancelled"]])(
-    "lets a parent of the owning family set status %s without paid_at",
+    "lets a parent of the owning family set status %s and clears paid_at",
     async (status) => {
       mockGetServerUser.mockResolvedValue(USERS.parentA);
 
@@ -146,7 +146,8 @@ describe("PATCH /api/allowance/[id]", () => {
       expect(res.status).toBe(200);
       const { data } = mockUpdate.mock.calls[0][0];
       expect(data.status).toBe(status);
-      expect(data.paid_at).toBeUndefined();
+      // A paid allowance moved back keeps no stale payment date.
+      expect(data).toHaveProperty("paid_at", null);
       expect(data).not.toHaveProperty("family_id");
       expect(data).not.toHaveProperty("amount");
     }

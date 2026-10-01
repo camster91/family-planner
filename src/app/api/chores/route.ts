@@ -6,7 +6,13 @@ import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 import { apiError, logRouteError } from '@/lib/api-error'
-import { afterChoreCursor, encodeChoreCursor, parseChorePaging } from '@/lib/chore-paging'
+import {
+  CHORE_UNPAGED_MAX,
+  afterChoreCursor,
+  encodeChoreCursor,
+  parseChoreDateRange,
+  parseChorePaging,
+} from '@/lib/chore-paging'
 import { getRequestId } from '@/lib/request-id'
 import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 
@@ -14,33 +20,60 @@ export const dynamic = 'force-dynamic'
 
 // GET - List chores for the user's family.
 // Opt-in paging (O-19): `?limit=1..200[&cursor=]` returns `{ chores, nextCursor }`
-// ordered by due date then id. Without `limit` the response is unchanged: every
-// chore, ordered by due date, no `nextCursor` (installed Android builds).
+// ordered by due date then id. Without `limit` the response shape is unchanged
+// (installed Android builds): chores ordered by due date, no `nextCursor`, but
+// capped at the latest CHORE_UNPAGED_MAX by due date.
+// Optional `from` / `to` (`YYYY-MM-DD`, inclusive) filter on the due date.
+// `?id=<id>` returns `{ chore, template }` for one chore of the household
+// (`template`: `{ id, frequency }` of its series' template when the chore is a
+// generated copy, else null), or 404.
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
     const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (id !== null) return getOneChore(id, auth.user.family_id)
+
     const status = searchParams.get('status')
     const assigned_to = searchParams.get('assigned_to')
     const paging = parseChorePaging(searchParams)
     if (!paging.ok) return apiError(400, 'INVALID_QUERY', paging.error, { requestId: getRequestId(request) })
+    const range = parseChoreDateRange(searchParams)
+    if (!range.ok) return apiError(400, 'INVALID_QUERY', range.error, { requestId: getRequestId(request) })
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
+    if (range.from || range.toExclusive) {
+      where.due_date = {
+        ...(range.from ? { gte: range.from } : {}),
+        ...(range.toExclusive ? { lt: range.toExclusive } : {}),
+      }
+    }
     if (paging.paged && paging.cursor) where.AND = [afterChoreCursor(paging.cursor)]
 
-    const rows = await prisma!.chore.findMany({
-      where,
-      include: {
-        assignee: { select: { id: true, name: true, avatar_url: true } },
-        creator: { select: { id: true, name: true } },
-      },
-      orderBy: paging.paged ? [{ due_date: 'asc' }, { id: 'asc' }] : { due_date: 'asc' },
-      ...(paging.paged ? { take: paging.limit + 1 } : {}),
-    })
+    const include = {
+      assignee: { select: { id: true, name: true, avatar_url: true } },
+      creator: { select: { id: true, name: true } },
+    }
+    const rows = paging.paged
+      ? await prisma!.chore.findMany({
+          where,
+          include,
+          orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+          take: paging.limit + 1,
+        })
+      : // Unpaged: the latest CHORE_UNPAGED_MAX by due date, returned oldest first.
+        (
+          await prisma!.chore.findMany({
+            where,
+            include,
+            orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
+            take: CHORE_UNPAGED_MAX,
+          })
+        ).reverse()
 
     const hasMore = paging.paged && rows.length > paging.limit
     const chores = hasMore ? rows.slice(0, paging.limit) : rows
@@ -59,6 +92,28 @@ export async function GET(request: NextRequest) {
     logRouteError('GET /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+/** `GET /api/chores?id=`: one chore of the caller's household (another household's reads as missing). */
+async function getOneChore(id: string, familyId: string) {
+  const chore = await prisma!.chore.findFirst({
+    where: { id, family_id: familyId },
+    include: {
+      assignee: { select: { id: true, name: true, avatar_url: true } },
+      creator: { select: { id: true, name: true } },
+    },
+  })
+  if (!chore) return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+  // A generated copy is stored as 'once'; the edit form shows its series' frequency.
+  const template =
+    chore.recurrence_id && chore.recurrence_id !== chore.id
+      ? await prisma!.chore.findFirst({
+          where: { id: chore.recurrence_id, family_id: familyId },
+          select: { id: true, frequency: true },
+        })
+      : null
+  const gamified = await isGamificationOn(familyId)
+  return NextResponse.json({ chore: gamified ? chore : omitChorePoints(chore), template: template ?? null })
 }
 
 // PATCH - Update a chore (family-scoped, parent or assignee). Details only:

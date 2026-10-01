@@ -120,10 +120,10 @@ import { completeChore, type CompletableChore } from '@/lib/chore-complete'
 
 const FAM = 'fam-A'
 
-// Local-time dates, because the expander normalises to local midnight (the
-// same rule nextDueDate uses), so the tests hold in any TZ.
-const day = (d: number) => new Date(2026, 8, d) // 2026-09-<d>, local midnight
-const NOW = new Date(2026, 8, 1, 12) // midday on the template's first due date
+// UTC dates: due dates are stored at UTC midnight and the expander works in
+// UTC (nextDueDate, startOfDay), so the results do not depend on the TZ.
+const day = (d: number) => new Date(Date.UTC(2026, 8, d)) // 2026-09-<d>, UTC midnight
+const NOW = new Date(Date.UTC(2026, 8, 1, 12)) // midday on the template's first due date
 const DAY_MS = 24 * 60 * 60 * 1000
 
 function seriesRows(id: string) {
@@ -234,8 +234,8 @@ describe('#184 recurring chores', () => {
     await expandRecurringChores({ id: t.id, frequency: 'daily' }, FAM, NOW)
 
     // The cron has not run for weeks.
-    const muchLater = new Date(2026, 9, 1, 9) // 2026-10-01 09:00 local
-    const today = new Date(2026, 9, 1).getTime()
+    const muchLater = new Date(Date.UTC(2026, 9, 1, 9)) // 2026-10-01 09:00 UTC
+    const today = new Date(Date.UTC(2026, 9, 1)).getTime()
     const before = rows.length
     const inserted = await expandRecurringChores({ id: t.id, frequency: 'daily' }, FAM, muchLater)
 
@@ -252,7 +252,7 @@ describe('#184 recurring chores', () => {
     const inserted = await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
     expect(inserted).toBe(3)
     expect(seriesRows(t.id).map((r) => r.due_date.getTime()).sort()).toEqual(
-      [day(20), day(27), new Date(2026, 9, 4), new Date(2026, 9, 11)].map((d) => d.getTime())
+      [day(20), day(27), new Date(Date.UTC(2026, 9, 4)), new Date(Date.UTC(2026, 9, 11))].map((d) => d.getTime())
     )
   })
 
@@ -347,14 +347,14 @@ describe('series keep going after the first window (no scheduler)', () => {
     await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
     expect(seriesRows(t.id)).toHaveLength(4) // Sep 1, 8, 15, 22
 
-    const later = new Date(2026, 8, 16, 12) // Sep 16: only Sep 22 is still upcoming
+    const later = new Date(Date.UTC(2026, 8, 16, 12)) // Sep 16: only Sep 22 is still upcoming
     const copy = seriesRows(t.id).find((r) => r.due_date.getTime() === day(15).getTime())!
     expect(copy.frequency).toBe('once')
 
     expect(await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: later })).toBe(true)
     const dates = seriesRows(t.id).map((r) => r.due_date.getTime())
     expect(dates).toHaveLength(7)
-    expect(dates).toContain(new Date(2026, 9, 13).getTime()) // Oct 13
+    expect(dates).toContain(new Date(Date.UTC(2026, 9, 13)).getTime()) // Oct 13
 
     // Repeat completes add nothing.
     expect(await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: later })).toBe(false)
@@ -369,21 +369,21 @@ describe('series keep going after the first window (no scheduler)', () => {
     t.frequency = 'once'
     t.is_template = false
     const copy = seriesRows(t.id).find((r) => r.id !== t.id)!
-    await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: new Date(2026, 8, 30, 12) })
+    await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: new Date(Date.UTC(2026, 8, 30, 12)) })
     expect(seriesRows(t.id)).toHaveLength(4)
   })
 
   it('the read-time top-up is idempotent', async () => {
     const t = weeklySeries()
     await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
-    const later = new Date(2026, 8, 30, 12)
+    const later = new Date(Date.UTC(2026, 8, 30, 12))
     const first = await topUpHouseholdSeries(FAM, later)
     expect(first).toBeGreaterThan(0)
     const size = seriesRows(t.id).length
     expect(await topUpHouseholdSeries(FAM, later)).toBe(0)
     expect(seriesRows(t.id)).toHaveLength(size)
     // Another household's top-up never touches this series.
-    expect(await topUpHouseholdSeries('fam-B', new Date(2026, 10, 30, 12))).toBe(0)
+    expect(await topUpHouseholdSeries('fam-B', new Date(Date.UTC(2026, 10, 30, 12)))).toBe(0)
     expect(seriesRows(t.id)).toHaveLength(size)
   })
 })

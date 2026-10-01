@@ -2,7 +2,7 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
-import { CHORE_HISTORY_PAGE_SIZE, compareChoreOrder, encodeChoreCursor } from '@/lib/chore-paging'
+import { CHORE_HISTORY_PAGE_SIZE, compareChoreOrder, currentChoreQueries, encodeChoreCursor } from '@/lib/chore-paging'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 
 export default async function ChoresPage() {
@@ -26,34 +26,32 @@ export default async function ChoresPage() {
   // nobody ticks still shows its next weeks. Bounded, idempotent, never throws.
   if (familyId) await topUpHouseholdSeries(familyId)
 
-  // Chores for the family (O-19 paging). Everything still open, and every
-  // chore due from yesterday (UTC) on, loads in full: the Today and Week views,
-  // the pending count and the verification queue need all of it. Only older
-  // verified chores (history, seen under "All") are paged, in the same
-  // (due_date, id) order as `GET /api/chores?limit=&cursor=`, so the client's
-  // "Load more" carries on from `historyCursor`.
+  // Chores for the family (O-19 paging), bounded (`currentChoreQueries`):
+  // open chores due in the last 60 days or later, verified chores due from
+  // yesterday (UTC) on, and every chore waiting for a parent's check load in
+  // full: the Today and Week views, the pending count and the verification
+  // queue need them. Each of those reads is capped and drops the oldest rows
+  // first. Older verified chores (history, seen under "All") are paged, in the
+  // same (due_date, id) order as `GET /api/chores?limit=&cursor=`, so the
+  // client's "Load more" carries on from `historyCursor`.
   const include = {
     assignee: { select: { name: true } },
     creator: { select: { name: true } },
   }
-  const historyBefore = new Date()
-  historyBefore.setUTCHours(0, 0, 0, 0)
-  historyBefore.setUTCDate(historyBefore.getUTCDate() - 1)
-  const [current, history] = familyId
+  const queries = familyId ? currentChoreQueries(familyId) : null
+  const [open, awaitingCheck, history] = queries
     ? await Promise.all([
+        prisma!.chore.findMany({ ...queries.open, include }),
+        prisma!.chore.findMany({ ...queries.awaitingCheck, include }),
         prisma!.chore.findMany({
-          where: { family_id: familyId, OR: [{ status: { not: 'verified' } }, { due_date: { gte: historyBefore } }] },
-          include,
-          orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
-        }),
-        prisma!.chore.findMany({
-          where: { family_id: familyId, status: 'verified', due_date: { lt: historyBefore } },
+          where: { family_id: familyId, status: 'verified', due_date: { lt: queries.historyBefore } },
           include,
           orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
           take: CHORE_HISTORY_PAGE_SIZE + 1,
         }),
       ])
-    : [[], []]
+    : [[], [], []]
+  const current = [...open, ...awaitingCheck]
   const historyHasMore = history.length > CHORE_HISTORY_PAGE_SIZE
   const historyPage = historyHasMore ? history.slice(0, CHORE_HISTORY_PAGE_SIZE) : history
   const historyCursor = historyHasMore ? encodeChoreCursor(historyPage[historyPage.length - 1]) : null

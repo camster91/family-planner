@@ -48,7 +48,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       where: { id },
       data: {
         status,
-        paid_at: status === 'paid' ? new Date() : undefined,
+        // Paid now, or not paid: moving a paid allowance back to pending or
+        // cancelled clears the old payment date instead of leaving it behind.
+        paid_at: status === 'paid' ? new Date() : null,
       },
     })
     return NextResponse.json({ allowance: updated })

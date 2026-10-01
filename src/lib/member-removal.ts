@@ -25,10 +25,13 @@
  *   is handed to the removing parent, the same column list account deletion
  *   uses (`HOUSEHOLD_HANDOVER_COLUMNS`), and nullable references to them are
  *   cleared (`HOUSEHOLD_CLEARED_REFERENCES`).
- * - Their open chores (not completed or verified) are reassigned to the
- *   removing parent, to hand on (`Chore.assigned_to` is NOT NULL, so a chore
- *   cannot be left unassigned); their open chore occurrences are deleted.
- *   Finished chores keep their name as history.
+ * - Their open chores, and done chores still waiting for a parent's check
+ *   (`completed`), are reassigned to the removing parent, to hand on
+ *   (`Chore.assigned_to` is NOT NULL, so a chore cannot be left unassigned);
+ *   their open chore occurrences are deleted. Checked chores (`verified`,
+ *   `approved`) keep their name as history. Verifying never pays XP or sends
+ *   a notification to someone outside the chore's household
+ *   (`POST /api/chores/verify`).
  * - Messages they sent stay as written. Rows about them (allowance, sick
  *   days, medication, wishlist, reward requests, habit logs, badges) stay for
  *   the parents, who can delete them.
@@ -77,8 +80,15 @@ export interface MemberRemovalResult {
   tabletsRevoked: number
 }
 
-/** Chore and chore-occurrence statuses that count as finished history. */
+/**
+ * Chore and chore-occurrence statuses that count as finished history. A
+ * `completed` chore is not history yet: it still waits for a parent's check,
+ * and verifying it awards XP and notifies the assignee. A `completed` chore
+ * is therefore handed to the removing parent too (status kept, so it stays in
+ * the parent-check queue); a `completed` occurrence row stays as a record.
+ */
 const FINISHED_STATUSES = ['completed', 'verified', 'approved']
+const CHECKED_CHORE_STATUSES = ['verified', 'approved']
 
 export async function removeHouseholdMember(
   args: { actorId: string; familyId: string; targetId: string },
@@ -165,12 +175,14 @@ export async function removeHouseholdMember(
       await tx.notification.deleteMany({ where: { user_id: target.id } })
       await tx.activity.deleteMany({ where: { user_id: target.id, family_id: familyId } })
 
-      // Chores: open ones go to the removing parent to hand on.
+      // Chores: open ones, and done ones still waiting for a parent's check,
+      // go to the removing parent to hand on. Only checked chores keep the
+      // removed member's name as history.
       await tx.choreAssignment.deleteMany({
         where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
       })
       await tx.chore.updateMany({
-        where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
+        where: { family_id: familyId, assigned_to: target.id, status: { notIn: CHECKED_CHORE_STATUSES } },
         data: { assigned_to: actorId },
       })
 

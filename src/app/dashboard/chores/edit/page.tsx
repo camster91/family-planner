@@ -67,13 +67,13 @@ function EditChoreForm() {
     const fetchData = async () => {
       try {
         const [choreRes, membersRes] = await Promise.all([
-          fetch('/api/chores'),
+          fetch(`/api/chores?id=${encodeURIComponent(choreId)}`),
           fetch('/api/family/members'),
         ])
 
         if (choreRes.ok) {
           const choresData = await choreRes.json()
-          const chore = choresData.chores?.find((c: any) => c.id === choreId)
+          const chore = choresData.chore
           if (chore) {
             setTitle(chore.title)
             setDescription(chore.description || '')
@@ -82,10 +82,7 @@ function EditChoreForm() {
             const d = new Date(chore.due_date)
             setDueDate(d.toISOString().split('T')[0])
             setDifficulty(chore.difficulty || 'medium')
-            const template =
-              chore.recurrence_id && chore.recurrence_id !== chore.id
-                ? choresData.chores.find((c: any) => c.id === chore.recurrence_id)
-                : null
+            const template = choresData.template
             const shownFrequency: Frequency = (template ? template.frequency : chore.frequency) || 'once'
             setSeriesCopy(Boolean(template))
             setFrequency(shownFrequency)
@@ -100,6 +97,8 @@ function EditChoreForm() {
           } else {
             setError('Chore not found')
           }
+        } else {
+          setError('Chore not found')
         }
 
         if (membersRes.ok) {
