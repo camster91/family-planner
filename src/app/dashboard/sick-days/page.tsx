@@ -149,6 +149,11 @@ function SickDaysPageInner() {
   // Add medication form
   const [medForm, setMedForm] = React.useState({ person_id: '', name: '', dosage: '', schedule: '', notes: '' })
 
+  // After a parent logs a dose, offer to set the next dose time. The app never
+  // guesses it from the free-text schedule ("Every 4-6 hours").
+  const [nextDoseFor, setNextDoseFor] = React.useState<string | null>(null)
+  const [nextDoseHours, setNextDoseHours] = React.useState('')
+
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
@@ -294,6 +299,22 @@ function SickDaysPageInner() {
     }
   }
 
+  // The open sick day is a snapshot taken when it was opened; show the saved
+  // dose times straight away instead of waiting for it to be reopened.
+  function applyMedication(updated: Pick<Medication, 'id' | 'last_dose_at' | 'next_dose_at'> | undefined) {
+    if (!updated) return
+    setSelectedSickDay((prev) =>
+      prev
+        ? {
+            ...prev,
+            medications: prev.medications.map((m) =>
+              m.id === updated.id ? { ...m, last_dose_at: updated.last_dose_at, next_dose_at: updated.next_dose_at } : m
+            ),
+          }
+        : prev
+    )
+  }
+
   async function markDoseTaken(medId: string) {
     try {
       const res = await fetch(`/api/medications/${medId}`, {
@@ -305,11 +326,43 @@ function SickDaysPageInner() {
         await failed("Couldn't log the dose", res)
         return
       }
+      const data = await res.json().catch(() => null)
+      applyMedication(data?.medication)
+      if (userRole === 'parent') {
+        setNextDoseFor(medId)
+        setNextDoseHours('')
+      }
     } catch {
       await failed("Couldn't log the dose")
       return
     }
     load()
+  }
+
+  async function setNextDose(med: Medication) {
+    const hours = Number(nextDoseHours)
+    if (!med.last_dose_at || !Number.isFinite(hours) || hours < 1 || hours > 48) return
+    const nextAt = new Date(new Date(med.last_dose_at).getTime() + hours * 60 * 60 * 1000)
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/medications/${med.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ next_dose_at: nextAt.toISOString() }),
+      })
+      if (!res.ok) {
+        await failed("Couldn't set the next dose", res)
+        return
+      }
+      const data = await res.json().catch(() => null)
+      applyMedication(data?.medication)
+      setNextDoseFor(null)
+      load()
+    } catch {
+      await failed("Couldn't set the next dose")
+    } finally {
+      setSaving(false)
+    }
   }
 
   function getLatestTemp(log: TemperatureEntry[] | null): string {
@@ -531,22 +584,63 @@ function SickDaysPageInner() {
               {selectedSickDay.medications.length > 0 ? (
                 <div className="space-y-2">
                   {selectedSickDay.medications.map((med) => (
-                    <div key={med.id} className="flex items-center justify-between bg-[var(--surface-secondary)] rounded-lg px-3 py-2">
-                      <div>
-                        <p className="text-subhead text-label-primary font-medium">{med.name}</p>
-                        <p className="text-caption-1 text-label-secondary">{med.dosage} · {med.schedule}</p>
-                        {med.next_dose_at && (
-                          <p className="text-caption-1 text-label-tertiary">{t('sickDays.nextDose')}: {new Date(med.next_dose_at).toLocaleString()}</p>
-                        )}
+                    <div key={med.id} className="bg-[var(--surface-secondary)] rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-subhead text-label-primary font-medium">{med.name}</p>
+                          <p className="text-caption-1 text-label-secondary">{med.dosage} · {med.schedule}</p>
+                          {med.last_dose_at && (
+                            <p className="text-caption-1 text-label-tertiary">
+                              {t('sickDays.lastDoseAt')} {new Date(med.last_dose_at).toLocaleString()}
+                            </p>
+                          )}
+                          {med.next_dose_at && (
+                            <p className="text-caption-1 text-label-tertiary">
+                              {t('sickDays.nextDoseSetFor')} {new Date(med.next_dose_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => markDoseTaken(med.id)}
+                          className="btn-tinted text-caption-1"
+                        >
+                          <Check className="w-3 h-3" />
+                          {t('sickDays.markDoseTaken')}
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => markDoseTaken(med.id)}
-                        className="btn-tinted text-caption-1"
-                      >
-                        <Check className="w-3 h-3" />
-                        {t('sickDays.markDoseTaken')}
-                      </button>
+                      {isParent && nextDoseFor === med.id && med.last_dose_at && (
+                        <form
+                          className="mt-2 flex items-end gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault()
+                            setNextDose(med)
+                          }}
+                        >
+                          <div className="flex-1">
+                            <label htmlFor={`next-dose-${med.id}`} className="block text-caption-1 text-label-secondary mb-1">
+                              {t('sickDays.nextDoseInHours')}
+                            </label>
+                            <input
+                              id={`next-dose-${med.id}`}
+                              type="number"
+                              inputMode="decimal"
+                              min={1}
+                              max={48}
+                              step="0.5"
+                              value={nextDoseHours}
+                              onChange={(e) => setNextDoseHours(e.target.value)}
+                              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-elevated)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                            />
+                          </div>
+                          <button type="submit" disabled={saving || !nextDoseHours} className="btn-tinted text-caption-1">
+                            {t('sickDays.setNextDose')}
+                          </button>
+                          <button type="button" onClick={() => setNextDoseFor(null)} className="btn-ghost text-caption-1">
+                            {t('sickDays.skipNextDose')}
+                          </button>
+                        </form>
+                      )}
                     </div>
                   ))}
                 </div>

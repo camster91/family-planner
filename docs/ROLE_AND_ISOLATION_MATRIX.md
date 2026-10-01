@@ -54,7 +54,7 @@ Columns: R = read/list, C = create, U = update, D = delete.
 |---|---|---|---|---|---|---|
 | Medications | R | yes | own | own | no | `person_id = self`. |
 | Medications | C | yes | no | no | no | |
-| Medications | U: log a dose | yes | own | own | no | `PATCH /api/medications/[id]` with `markDoseTaken`. A sibling's medication is 404. |
+| Medications | U: log a dose | yes | own | own | no | `PATCH /api/medications/[id]` with `markDoseTaken`. A sibling's medication is 404. A logged dose clears `next_dose_at`; only a parent's explicit `next_dose_at` or `interval_hours` (1–48) sets the next one — it is never guessed from the schedule. |
 | Medications | U: prescription fields | yes | no | no | no | A kid request without `markDoseTaken` is 403; prescription fields sent with a dose log are ignored. |
 | Medications | D | yes | no | no | no | |
 | Sick days | R | yes | own | own | no | `person_id = self`. Nested medications are also own-only. |

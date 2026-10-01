@@ -88,6 +88,18 @@ describe("joinFamilySchema", () => {
 });
 
 describe("createEmailInviteSchema", () => {
+  it("trims and lower-cases the email before checking its format", () => {
+    const parsed = createEmailInviteSchema.safeParse({
+      email: "  Alex@Example.COM ",
+      role: "teen",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.email).toBe("alex@example.com");
+    expect(
+      createEmailInviteSchema.safeParse({ email: "   ", role: "teen" }).success,
+    ).toBe(false);
+  });
+
   it("requires a role and email", () => {
     expect(
       createEmailInviteSchema.safeParse({ email: "a@b.co" }).success,

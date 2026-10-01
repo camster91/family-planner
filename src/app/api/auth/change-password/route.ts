@@ -54,9 +54,16 @@ export async function POST(request: NextRequest) {
     // Bumping token_version revokes every session issued before this change —
     // a stolen cookie stops working. The device making the change gets a fresh
     // cookie below so the user is not signed out of the session they just used.
+    // Any outstanding reset link is cleared too: a link requested before the
+    // change must not be able to override the new password.
     await prisma!.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword, token_version: { increment: 1 } },
+      data: {
+        password: hashedPassword,
+        token_version: { increment: 1 },
+        reset_token: null,
+        reset_token_expires: null,
+      },
     })
 
     const response = NextResponse.json({ message: 'Password changed successfully' })

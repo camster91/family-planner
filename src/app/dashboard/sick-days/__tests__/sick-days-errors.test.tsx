@@ -153,4 +153,42 @@ describe('sick days page errors', () => {
     expect(unhandled).toEqual([])
     expect(calls.filter((c) => c.url === '/api/medications/m1' && c.method === 'PATCH')).toHaveLength(1)
   })
+
+  it('a logged dose shows the last dose time, never a guessed next dose, and a parent may set one', async () => {
+    const takenAt = '2026-10-01T10:00:00.000Z'
+    const bodies: unknown[] = []
+    routes['/api/auth/me'] = () => ok({ user: { id: 'p1', role: 'parent' } })
+    routes['/api/medications/m1'] = (_method, body) => {
+      bodies.push(body)
+      const b = body as { next_dose_at?: string }
+      return ok({ medication: { ...MED, last_dose_at: takenAt, next_dose_at: b.next_dose_at ?? null } })
+    }
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByText('Sam'))
+    await user.click(screen.getByRole('button', { name: /sickDays.markDoseTaken/ }))
+
+    expect(await screen.findByText(/sickDays.lastDoseAt/)).toBeTruthy()
+    expect(screen.queryByText(/sickDays.nextDoseSetFor/)).toBeNull()
+    expect(bodies[0]).toEqual({ markDoseTaken: true })
+
+    await user.type(screen.getByLabelText('sickDays.nextDoseInHours'), '6')
+    await user.click(screen.getByRole('button', { name: 'sickDays.setNextDose' }))
+
+    expect(await screen.findByText(/sickDays.nextDoseSetFor/)).toBeTruthy()
+    expect(bodies[1]).toEqual({ next_dose_at: '2026-10-01T16:00:00.000Z' })
+    expect(screen.queryByLabelText('sickDays.nextDoseInHours')).toBeNull()
+  })
+
+  it('a child logging a dose is not offered a next dose time', async () => {
+    routes['/api/medications/m1'] = () =>
+      ok({ medication: { ...MED, last_dose_at: '2026-10-01T10:00:00.000Z', next_dose_at: null } })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByText('Sam'))
+    await user.click(screen.getByRole('button', { name: /sickDays.markDoseTaken/ }))
+
+    expect(await screen.findByText(/sickDays.lastDoseAt/)).toBeTruthy()
+    expect(screen.queryByLabelText('sickDays.nextDoseInHours')).toBeNull()
+  })
 })

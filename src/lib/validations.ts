@@ -124,7 +124,9 @@ export const joinFamilySchema = z
   })
 
 export const createEmailInviteSchema = z.object({
-  email: z.string().email('Valid email is required').max(255),
+  // Trim before the format check (a pasted " a@b.com " is valid) and store the
+  // lower-cased address, as registration does.
+  email: z.string().trim().toLowerCase().email('Valid email is required').max(255),
   role: z.enum(['parent', 'teen', 'child']),
 })
 
@@ -384,3 +386,80 @@ export const updateProjectTaskSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional().nullable(),
   position: z.number().int().min(0).optional(),
 })
+
+// Shared: a string that parses to a real date (`new Date(x)` is not Invalid Date).
+const validDateString = (message: string) =>
+  z.string({ required_error: message, invalid_type_error: message }).refine((val) => !isNaN(Date.parse(val)), message)
+
+// Anniversaries
+const anniversaryType = z.enum(['birthday', 'anniversary', 'custom'], {
+  errorMap: () => ({ message: 'Invalid type' }),
+})
+
+export const createAnniversarySchema = z.object(
+  {
+    name: z
+      .string({ required_error: 'name, type, and date are required', invalid_type_error: 'name must be a string' })
+      .trim()
+      .min(1, 'name, type, and date are required')
+      .max(200),
+    type: anniversaryType,
+    date: validDateString('date must be a valid date'),
+    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+    person_id: z.string({ invalid_type_error: 'person_id must be a string' }).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+export const updateAnniversarySchema = z.object(
+  {
+    name: z
+      .string({ invalid_type_error: 'name must be a string' })
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(200)
+      .optional(),
+    type: anniversaryType.optional(),
+    date: validDateString('date must be a valid date').optional(),
+    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+    person_id: z.string({ invalid_type_error: 'person_id must be a string' }).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+// Pickups
+export const createPickupSchema = z.object(
+  {
+    title: z
+      .string({ required_error: 'title and pickup_time required', invalid_type_error: 'title must be a string' })
+      .trim()
+      .min(1, 'title and pickup_time required')
+      .max(200),
+    location: z.string({ invalid_type_error: 'location must be a string' }).max(500).nullable().optional(),
+    pickup_time: validDateString('pickup_time must be a valid date-time'),
+    assigned_to: z.string({ invalid_type_error: 'assigned_to must be a string' }).nullable().optional(),
+    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+// Allowance
+export const createAllowanceSchema = z.object(
+  {
+    to_user_id: z
+      .string({
+        required_error: 'to_user_id and positive amount required',
+        invalid_type_error: 'to_user_id and positive amount required',
+      })
+      .min(1, 'to_user_id and positive amount required'),
+    amount: z
+      .number({
+        required_error: 'to_user_id and positive amount required',
+        invalid_type_error: 'to_user_id and positive amount required',
+      })
+      .finite('to_user_id and positive amount required')
+      .positive('to_user_id and positive amount required'),
+    reason: z.string({ invalid_type_error: 'reason must be a string' }).max(500).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
