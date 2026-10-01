@@ -10,6 +10,7 @@ import tarfile
 
 REPOSITORY = "camster91/family-planner"
 KIND = "runtime"
+REGISTRY = "ghcr.io/camster91/family-planner"
 
 
 
@@ -120,6 +121,33 @@ def comparable_configuration(settings):
     return result
 
 
+def publication_tag(receipt):
+    run, attempt = receipt.get("workflow_run_id", ""), receipt.get("workflow_run_attempt", "")
+    if not re.fullmatch(r"[0-9]+", run or "") or not re.fullmatch(r"[0-9]+", attempt or ""):
+        raise ValueError("Publishing requires a complete workflow identity")
+    return REGISTRY + ":" + receipt["revision"] + "-run-" + run + "-attempt-" + attempt
+
+
+def publish(directory):
+    if os.environ.get("GITHUB_EVENT_NAME") != "push" or os.environ.get("GITHUB_REF") != "refs/heads/main" or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
+        raise ValueError("Only checked main pushes from this repository can publish")
+    receipt = verify(directory)
+    tag = publication_tag(receipt)
+    subprocess.run(["docker", "image", "load", "--input", str(directory / "runtime-image.tar")], check=True)
+    image = verify_loaded(directory, receipt)
+    subprocess.run(["docker", "image", "tag", image["Id"], tag], check=True)
+    subprocess.run(["docker", "image", "push", tag], check=True)
+    pushed = json.loads(subprocess.check_output(["docker", "image", "inspect", tag], text=True))[0]
+    if pushed["Id"] != image["Id"]:
+        raise ValueError("Published tag changed image identity")
+    digests = [value for value in pushed.get("RepoDigests", []) if re.fullmatch(re.escape(REGISTRY) + r"@sha256:[a-f0-9]{64}", value)]
+    if len(digests) != 1:
+        raise ValueError("Published immutable registry digest is unavailable")
+    release = {**receipt, "registry_image":digests[0]}
+    (directory / "release-receipt.json").write_text(json.dumps(release, sort_keys=True) + "\n")
+    return release
+
+
 def verify_loaded(directory, receipt):
     tag = import_tag(receipt["revision"])
     image = json.loads(subprocess.check_output(["docker", "image", "inspect", tag], text=True))[0]
@@ -139,11 +167,11 @@ def verify_loaded(directory, receipt):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["export", "verify", "load"])
+    parser.add_argument("action", choices=["export", "verify", "load", "publish"])
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--image")
     args = parser.parse_args()
-    receipt = export(args.image, args.directory) if args.action == "export" else verify(args.directory)
+    receipt = export(args.image, args.directory) if args.action == "export" else publish(args.directory) if args.action == "publish" else verify(args.directory)
     if args.action == "load":
         subprocess.run(["docker", "image", "load", "--input", str(args.directory / "runtime-image.tar")], check=True)
         verify_loaded(args.directory, receipt)

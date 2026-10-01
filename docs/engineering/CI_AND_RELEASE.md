@@ -35,6 +35,18 @@ Production backup, restored persistent uploads, authenticated acceptance on the
 actual adopted staging resource, routing ownership and registry access remain
 separate handoff gates.
 
+`Publish checked image` is a separate, initially disabled publisher: only a push
+to `main` with `FP_IMMUTABLE_RELEASE_ENABLED=true` can run it after both the full
+build and imported-image security gate pass. It loads and verifies the saved
+image, publishes to `ghcr.io/camster91/family-planner` with a source/run/attempt
+tag, and records the immutable registry digest. It never runs a Docker build.
+Its validated receipt is saved as a draft GitHub release asset and downloaded
+again to compare bytes, preserving metadata beyond the Actions rerun lifecycle.
+Existing assets must match; they are not overwritten. This publisher has no VPS
+credentials and does not deploy or change package visibility. Its flag, actual
+registry publication, registry access and production ownership remain separate
+activation/handoff steps. The default branch currently remains `master`.
+
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
 | `release.yml` — `Build & Test` | Secret scan (gitleaks, see below), locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |

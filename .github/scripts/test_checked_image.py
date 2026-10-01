@@ -47,4 +47,28 @@ class CheckedImage(unittest.TestCase):
   settings={'Volumes':None,'OnBuild':None,'Cmd':[],'Labels':{},'WorkingDir':''}
   self.assertEqual(module.comparable_configuration(settings),{})
   self.assertEqual(module.comparable_configuration({'Volumes':{'/data':{}},'OnBuild':['RUN evil'],'Cmd':['sh']}),{'Volumes':{'/data':{}},'OnBuild':['RUN evil'],'Cmd':['sh']})
+ def test_publication_rejects_untrusted_event_and_source_before_docker(self):
+  self.fixture()
+  for changes in [{},{'GITHUB_EVENT_NAME':'pull_request','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/master','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':'foreign/repo'}]:
+   with patch.dict(os.environ,changes),patch.object(module.subprocess,'run') as run:
+    self.assertRaises(ValueError,module.publish,self.directory);run.assert_not_called()
+ def test_publication_tags_preserve_each_build_attempt(self):
+  receipt,_=self.fixture();first=module.publication_tag(receipt);receipt['workflow_run_attempt']='2';second=module.publication_tag(receipt)
+  self.assertNotEqual(first,second);self.assertTrue(first.endswith('-run-42-attempt-1'));self.assertTrue(second.endswith('-run-42-attempt-2'))
+  receipt['workflow_run_id']='foreign';self.assertRaises(ValueError,module.publication_tag,receipt)
+ def test_publication_loads_verified_contents_and_never_rebuilds(self):
+  receipt,config=self.fixture()
+  loaded={'Id':'sha256:'+'b'*64,'Config':config['config'],'RootFS':{'Layers':config['rootfs']['diff_ids']},'Architecture':'amd64','Os':'linux'}
+  pushed={**loaded,'RepoDigests':[module.REGISTRY+'@sha256:'+'d'*64]}
+  with patch.dict(os.environ,{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':module.REPOSITORY}),patch.object(module.subprocess,'check_output',side_effect=[json.dumps([loaded]),json.dumps([pushed])]),patch.object(module.subprocess,'run') as run:
+   result=module.publish(self.directory)
+   self.assertEqual(result['registry_image'],pushed['RepoDigests'][0])
+   commands=[call.args[0][2] for call in run.call_args_list]
+   self.assertEqual(commands,['load','tag','push'])
+   self.assertEqual(json.loads((self.directory/'release-receipt.json').read_text()),result)
+ def test_changed_import_cannot_reach_registry_push(self):
+  receipt,config=self.fixture();loaded={'Id':'sha256:'+'b'*64,'Config':{**config['config'],'User':'root'},'RootFS':{'Layers':config['rootfs']['diff_ids']},'Architecture':'amd64','Os':'linux'}
+  with patch.dict(os.environ,{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':module.REPOSITORY}),patch.object(module.subprocess,'check_output',return_value=json.dumps([loaded])),patch.object(module.subprocess,'run') as run:
+   self.assertRaises(ValueError,module.publish,self.directory)
+   self.assertEqual([call.args[0][2] for call in run.call_args_list],['load'])
 if __name__=='__main__':unittest.main()

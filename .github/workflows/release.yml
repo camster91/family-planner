@@ -229,7 +229,9 @@ jobs:
           FP_CHECKED_IMAGE="family-planner:${GITHUB_SHA}" bash .github/scripts/smoke-checked-image.sh
 
       - name: Verify checked-image transport guards
-        run: python3 .github/scripts/test_checked_image.py
+        run: |
+          python3 .github/scripts/test_checked_image.py
+          node --test .github/scripts/test_preserve_image_receipt.mjs
 
       - name: Preserve the checked image for a fresh runner
         env:
@@ -336,6 +338,54 @@ jobs:
             test-results/checked-image/
           if-no-files-found: ignore
           retention-days: 7
+
+  publish-image:
+    name: Publish checked image
+    needs: [build, checked-image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FP_IMMUTABLE_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup receipt verifier
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Download the checked image
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: family-planner-checked-image-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked-image/
+      - name: Authenticate registry publication
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+      - name: Publish the tested image without rebuilding
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/checked-image.py publish --directory "$RUNNER_TEMP/checked-image"
+      - name: Preserve and refetch durable draft receipt
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CHECKED_IMAGE_DIRECTORY: ${{ runner.temp }}/checked-image
+        run: node .github/scripts/preserve-image-receipt.mjs
+      - name: Upload the published receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: family-planner-release-receipt-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked-image/release-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+      - if: always()
+        run: docker logout ghcr.io
 
   release:
     name: Release to VPS
