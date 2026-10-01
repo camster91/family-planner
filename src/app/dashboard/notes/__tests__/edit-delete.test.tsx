@@ -18,9 +18,12 @@ import NotesPage from '../page'
 
 type Call = { url: string; method: string; body: unknown }
 let calls: Call[] = []
+// What a save/delete answers: a status + body, or a thrown network error.
+let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   calls = []
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
@@ -32,7 +35,7 @@ beforeEach(() => {
         json: async () => ({ notes: [{ id: 'n 1', title: 'Wifi code', body: 'abc', color: 'yellow', created_at: '2026-09-01T00:00:00Z' }] }),
       } as Response
     }
-    return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    return mutationReply()
   }) as unknown as typeof fetch
 })
 
@@ -54,4 +57,45 @@ it('deleting DELETEs /api/notes/<id>', async () => {
   await user.click(screen.getByRole('button', { name: 'notes.delete' }))
   await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))
   expect(calls.find((c) => c.method === 'DELETE')!.url).toBe('/api/notes/n%201')
+})
+
+describe('failures are shown in the modal, which stays open with the text', () => {
+  it("a failed save shows the server's error", async () => {
+    mutationReply = async () => ({ ok: false, status: 400, json: async () => ({ error: 'Title is too long' }) }) as Response
+    const user = userEvent.setup()
+    render(<NotesPage />)
+    await user.click(await screen.findByText('Wifi code'))
+    await user.clear(screen.getByLabelText('notes.noteTitle'))
+    await user.type(screen.getByLabelText('notes.noteTitle'), 'Guest wifi')
+    await user.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorSave Title is too long')
+    expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Guest wifi')
+    expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('a save that cannot reach the server says to check the connection', async () => {
+    mutationReply = async () => {
+      throw new TypeError('Failed to fetch')
+    }
+    const user = userEvent.setup()
+    render(<NotesPage />)
+    await user.click(await screen.findByRole('button', { name: 'notes.addNote' }))
+    await user.type(screen.getByLabelText('notes.noteTitle'), 'Dentist')
+    await user.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorSave common.networkError')
+    expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Dentist')
+  })
+
+  it('a failed delete shows an error and keeps the note open', async () => {
+    mutationReply = async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response
+    const user = userEvent.setup()
+    render(<NotesPage />)
+    await user.click(await screen.findByText('Wifi code'))
+    await user.click(screen.getByRole('button', { name: 'notes.delete' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorDelete common.tryAgain')
+    expect((screen.getByRole('button', { name: 'notes.delete' }) as HTMLButtonElement).disabled).toBe(false)
+  })
 })
