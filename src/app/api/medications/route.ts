@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
 import { isKidRole } from '@/lib/kid-access'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
@@ -42,78 +44,83 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = (await getServerUser()) as SessionUser | null
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await featureGate(user.family_id, 'sick-days')
-  if (gate) return gate
-  if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
-  if (user.role !== 'parent') return NextResponse.json({ error: 'Parents only' }, { status: 403 })
-
-  let body: {
-    sick_day_id?: string
-    person_id?: string
-    name?: string
-    dosage?: string
-    schedule?: string
-    next_dose_at?: string
-    notes?: string
-  }
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
-  if (!body || typeof body !== 'object') {
-    return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
-  }
-  if (!body.person_id || !body.name || !body.dosage || !body.schedule) {
-    return NextResponse.json({ error: 'person_id, name, dosage, and schedule required' }, { status: 400 })
-  }
-  if (
-    typeof body.person_id !== 'string' ||
-    typeof body.name !== 'string' ||
-    typeof body.dosage !== 'string' ||
-    typeof body.schedule !== 'string' ||
-    (body.notes != null && typeof body.notes !== 'string') ||
-    (body.sick_day_id != null && typeof body.sick_day_id !== 'string')
-  ) {
-    return NextResponse.json({ error: 'person_id, name, dosage, schedule and notes must be strings' }, { status: 400 })
-  }
-  if (body.next_dose_at && (typeof body.next_dose_at !== 'string' || Number.isNaN(Date.parse(body.next_dose_at)))) {
-    return NextResponse.json({ error: 'next_dose_at must be an ISO date-time' }, { status: 400 })
-  }
+    const user = (await getServerUser()) as SessionUser | null
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gate = await featureGate(user.family_id, 'sick-days')
+    if (gate) return gate
+    if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
+    if (user.role !== 'parent') return NextResponse.json({ error: 'Parents only' }, { status: 403 })
 
-  // The person and (optional) sick day must belong to the caller's family;
-  // otherwise a parent could attach records to another household's rows.
-  const person = await prisma!.user.findFirst({
-    where: { id: body.person_id, family_id: user.family_id },
-    select: { id: true },
-  })
-  if (!person) {
-    return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
-  }
-  if (body.sick_day_id) {
-    const sickDay = await prisma!.sickDay.findFirst({
-      where: { id: body.sick_day_id, family_id: user.family_id },
+    let body: {
+      sick_day_id?: string
+      person_id?: string
+      name?: string
+      dosage?: string
+      schedule?: string
+      next_dose_at?: string
+      notes?: string
+    }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
+    }
+    if (!body.person_id || !body.name || !body.dosage || !body.schedule) {
+      return NextResponse.json({ error: 'person_id, name, dosage, and schedule required' }, { status: 400 })
+    }
+    if (
+      typeof body.person_id !== 'string' ||
+      typeof body.name !== 'string' ||
+      typeof body.dosage !== 'string' ||
+      typeof body.schedule !== 'string' ||
+      (body.notes != null && typeof body.notes !== 'string') ||
+      (body.sick_day_id != null && typeof body.sick_day_id !== 'string')
+    ) {
+      return NextResponse.json({ error: 'person_id, name, dosage, schedule and notes must be strings' }, { status: 400 })
+    }
+    if (body.next_dose_at && (typeof body.next_dose_at !== 'string' || Number.isNaN(Date.parse(body.next_dose_at)))) {
+      return NextResponse.json({ error: 'next_dose_at must be an ISO date-time' }, { status: 400 })
+    }
+
+    // The person and (optional) sick day must belong to the caller's family;
+    // otherwise a parent could attach records to another household's rows.
+    const person = await prisma!.user.findFirst({
+      where: { id: body.person_id, family_id: user.family_id },
       select: { id: true },
     })
-    if (!sickDay) {
-      return NextResponse.json({ error: 'Sick day not found' }, { status: 400 })
+    if (!person) {
+      return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
     }
-  }
+    if (body.sick_day_id) {
+      const sickDay = await prisma!.sickDay.findFirst({
+        where: { id: body.sick_day_id, family_id: user.family_id },
+        select: { id: true },
+      })
+      if (!sickDay) {
+        return NextResponse.json({ error: 'Sick day not found' }, { status: 400 })
+      }
+    }
 
-  const created = await prisma!.medication.create({
-    data: {
-      family_id: user.family_id,
-      sick_day_id: body.sick_day_id || null,
-      person_id: body.person_id,
-      name: body.name.trim(),
-      dosage: body.dosage.trim(),
-      schedule: body.schedule.trim(),
-      next_dose_at: body.next_dose_at ? new Date(body.next_dose_at) : null,
-      notes: body.notes?.trim() || null,
-      created_by: user.id,
-    },
-  })
-  return NextResponse.json({ medication: created }, { status: 201 })
+    const created = await prisma!.medication.create({
+      data: {
+        family_id: user.family_id,
+        sick_day_id: body.sick_day_id || null,
+        person_id: body.person_id,
+        name: body.name.trim(),
+        dosage: body.dosage.trim(),
+        schedule: body.schedule.trim(),
+        next_dose_at: body.next_dose_at ? new Date(body.next_dose_at) : null,
+        notes: body.notes?.trim() || null,
+        created_by: user.id,
+      },
+    })
+    return NextResponse.json({ medication: created }, { status: 201 })
+  } catch (err) {
+    logRouteError('POST /api/medications', err, getRequestId(request))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

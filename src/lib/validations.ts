@@ -686,3 +686,72 @@ export const createEmergencyContactSchema = z.object(emergencyContactFields, bod
 // relationship cannot be cleared (NOT NULL); the other fields clear with "" or
 // null.
 export const updateEmergencyContactSchema = createEmergencyContactSchema.partial()
+
+// Pinned notes. `color` is not type-checked here: an unknown colour has always
+// fallen back to yellow in the route. `body` may be null (stored as "").
+const noteTitle = z
+  .string({ required_error: 'Title is required', invalid_type_error: 'Title is required' })
+  .trim()
+  .min(1, 'Title is required')
+  .max(200, 'Title must be 200 characters or fewer')
+const noteBody = optionalText('body', 10000)
+
+export const createNoteSchema = z.object({ title: noteTitle, body: noteBody, color: z.unknown().optional() }, bodyObject)
+
+export const updateNoteSchema = z.object(
+  {
+    id: z
+      .string({ required_error: 'Note ID is required', invalid_type_error: 'Note ID is required' })
+      .min(1, 'Note ID is required'),
+    title: noteTitle.optional(),
+    body: noteBody,
+    color: z.unknown().optional(),
+  },
+  bodyObject
+)
+
+export const deleteNoteSchema = updateNoteSchema.pick({ id: true })
+
+// Sitter handoffs. Free-text fields: a string or null (null, "" and blank
+// clear to null in the route). The date-times keep the route's own checks and
+// messages, so they pass through untyped here.
+const handoffText = (field: string) => optionalText(field, 5000)
+
+const handoffFields = {
+  sitter_name: z
+    .string({ required_error: 'Sitter name is required', invalid_type_error: 'Sitter name is required' })
+    .trim()
+    .min(1, 'Sitter name is required')
+    .max(200, 'Sitter name must be 200 characters or fewer'),
+  sitter_phone: optionalText('sitter_phone', 50),
+  arrival_time: z.unknown().optional(),
+  departure_time: z.unknown().optional(),
+  kids_bedtimes: handoffText('kids_bedtimes'),
+  where_snacks: handoffText('where_snacks'),
+  pickup_authorized: handoffText('pickup_authorized'),
+  code_words: handoffText('code_words'),
+  pet_care: handoffText('pet_care'),
+  emergency_notes: handoffText('emergency_notes'),
+  house_notes: handoffText('house_notes'),
+  general_notes: handoffText('general_notes'),
+}
+
+export const createHandoffSchema = z.object(handoffFields, bodyObject)
+
+// PATCH: every field optional; sitter_name cannot be cleared (NOT NULL).
+export const updateHandoffSchema = createHandoffSchema.partial()
+
+// Wishlist status (parent only). A denial needs a non-blank reason.
+export const WISHLIST_STATUSES = ['idle', 'on_the_way', 'received', 'denied'] as const
+
+export const wishlistStatusSchema = z
+  .object(
+    {
+      status: z.enum(WISHLIST_STATUSES, { errorMap: () => ({ message: 'Invalid status' }) }),
+      denied_reason: optionalText('denied_reason', 500),
+    },
+    bodyObject
+  )
+  .refine((b) => b.status !== 'denied' || !!b.denied_reason?.trim(), {
+    message: 'Denial reason required when denying',
+  })

@@ -4,8 +4,11 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { createNoteSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
+
+const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple']
 
 // GET - List all pinned notes for the user's family
 export async function GET(request: NextRequest) {
@@ -37,25 +40,24 @@ export async function POST(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'notes')
     if (gate) return gate
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { title, body: noteBody, color = 'yellow' } = body
-
-    if (!title || typeof title !== 'string' || !title.trim()) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+    const parsed = createNoteSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const { title, body: noteBody, color } = parsed.data
 
-    const validColors = ['yellow', 'pink', 'blue', 'green', 'purple']
-    const noteColor = validColors.includes(color) ? color : 'yellow'
+    const noteColor = typeof color === 'string' && NOTE_COLORS.includes(color) ? color : 'yellow'
 
     const note = await prisma!.pinnedNote.create({
       data: {
         family_id: auth.user.family_id,
-        title: title.trim(),
+        title,
         body: (noteBody || '').trim(),
         color: noteColor,
         created_by: auth.user.id,

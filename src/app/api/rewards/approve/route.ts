@@ -21,13 +21,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only parents can approve rewards' }, { status: 403 })
     }
 
-    let body: any
+    let body: unknown
     try {
       body = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { rewardId } = body
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
+    }
+    const { rewardId } = body as { rewardId?: unknown }
     if (!rewardId || typeof rewardId !== 'string') {
       return NextResponse.json({ error: 'rewardId is required' }, { status: 400 })
     }

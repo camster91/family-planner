@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { updateHandoffSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,11 +33,15 @@ export async function PATCH(
     const matchError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (matchError) return matchError
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    const parsed = updateHandoffSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
     const {
       sitter_name,
@@ -51,7 +56,7 @@ export async function PATCH(
       emergency_notes,
       house_notes,
       general_notes,
-    } = body
+    } = parsed.data
 
     // Same datetime validation as POST — see POST handler for the rationale.
     const parseDate = (v: unknown): Date | null => {
@@ -73,7 +78,7 @@ export async function PATCH(
     const handoff = await prisma!.handoff.update({
       where: { id },
       data: {
-        ...(sitter_name !== undefined && { sitter_name: sitter_name.trim() }),
+        ...(sitter_name !== undefined && { sitter_name }),
         ...(sitter_phone !== undefined && { sitter_phone: sitter_phone?.trim() || null }),
         ...(arrival_time !== undefined && { arrival_time: parseDate(arrival_time) }),
         ...(departure_time !== undefined && { departure_time: parseDate(departure_time) }),
