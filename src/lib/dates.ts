@@ -227,6 +227,13 @@ export function calendarMonthQueryWindow(year: number, month: number): { start: 
 }
 
 /** Whether an instant falls in a 1-based `year`/`month` in the runtime's local time zone (client-side use). */
+/** True when `value` falls in the given 1-based month of `year`, read in UTC. */
+export function isInUtcMonth(value: Date | string, year: number, month: number): boolean {
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return false
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
+}
+
 export function isInLocalMonth(value: Date | string, year: number, month: number): boolean {
   const date = new Date(value)
   if (isNaN(date.getTime())) return false

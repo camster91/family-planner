@@ -10,7 +10,7 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
-import { isInLocalMonth, shiftMonth } from '@/lib/dates'
+import { isInLocalMonth, isInUtcMonth, shiftMonth } from '@/lib/dates'
 import { IMPORT_UNDO_WINDOW_MS, type ImportCommitResult } from '@/lib/event-import-client'
 import { ImportEventsDialog } from './ImportEventsDialog'
 import { SyncNotice, UpdatedLine, useNow } from '@/components/fridge/sync-status'
@@ -237,8 +237,14 @@ export default function CalendarPageClient({
   }
 
   // The server sends the UTC month plus a day each side; keep the viewer's
-  // local month only.
-  const monthEvents = events.filter((e) => isInLocalMonth(e.start_time, currentYear, currentMonth))
+  // local month only. The server renders in UTC, so the first render keeps the
+  // UTC month too and the local filter applies after hydration; otherwise the
+  // server and browser lists could differ near a month edge.
+  const [hydrated, setHydrated] = React.useState(false)
+  React.useEffect(() => setHydrated(true), [])
+  const monthEvents = events.filter((e) =>
+    hydrated ? isInLocalMonth(e.start_time, currentYear, currentMonth) : isInUtcMonth(e.start_time, currentYear, currentMonth)
+  )
   const grouped = groupEventsByDay(monthEvents)
   const sortedDays = Array.from(grouped.keys()).sort(
     (a, b) => new Date(a).getTime() - new Date(b).getTime()
