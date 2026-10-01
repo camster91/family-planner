@@ -2,7 +2,7 @@
 
 **Last reconciled:** 2026-09-29, against `master` at `32f10d00221aff9959ad7365492b5ce4a498370b` (#281)
 **Repository:** `camster91/family-planner`
-**Protected default branch:** `master`
+**Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
 This is a dated snapshot. Inspect GitHub and executable source again before changing code or reporting status. Sources used: `git log --first-parent origin/master`, the `.env*.example` files, `.github/workflows/*.yml`, `android/`, and the GitHub API (pull requests, issues and workflow state) on 2026-09-29. Live repository settings, secrets and production health were **not** re-verified.
 
