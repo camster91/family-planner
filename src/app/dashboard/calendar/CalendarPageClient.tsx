@@ -10,7 +10,8 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
-import { isInLocalMonth, isInUtcMonth, shiftMonth } from '@/lib/dates'
+import { isInLocalMonth, isInUtcMonth, shiftMonth, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { useLocalNow } from '@/components/ui/use-hydrated'
 import { IMPORT_UNDO_WINDOW_MS, type ImportCommitResult } from '@/lib/event-import-client'
 import { ImportEventsDialog } from './ImportEventsDialog'
 import { SyncNotice, UpdatedLine, useNow } from '@/components/fridge/sync-status'
@@ -84,13 +85,11 @@ function MonthNav({ year, month }: { year: number; month: number }) {
   )
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+// Times, day keys and day labels depend on the viewer's zone, which the server
+// (UTC) does not know (O-31). `now` is null before hydration: days are then
+// grouped and labelled by UTC date, with no "Today"/"Tomorrow" and no times, so
+// the server HTML and the first client render match. After hydration they
+// switch to the viewer's local day and time.
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString('en-US', {
@@ -99,24 +98,27 @@ function formatTime(dateStr: string): string {
   })
 }
 
-function formatDayLabel(dateStr: string): string {
+const DAY_LABEL: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
+
+function formatDayLabel(dateStr: string, now: Date | null): string {
   const d = new Date(dateStr)
-  const today = new Date()
-  const tomorrow = new Date(today)
-  tomorrow.setDate(today.getDate() + 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
+  if (!now) return d.toLocaleDateString('en-US', { ...DAY_LABEL, timeZone: 'UTC' })
+  const tomorrow = new Date(now)
+  tomorrow.setDate(now.getDate() + 1)
+  if (d.toDateString() === now.toDateString()) return 'Today'
   if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', DAY_LABEL)
 }
 
-function getDateKey(dateStr: string): string {
-  return new Date(dateStr).toDateString()
+/** `YYYY-MM-DD` of the event's day: local once hydrated, UTC before. Sorts as text. */
+function getDateKey(dateStr: string, local: boolean): string {
+  return local ? toDateOnlyLocal(new Date(dateStr)) : toDateOnlyUTC(new Date(dateStr))
 }
 
-function groupEventsByDay(events: EventData[]): Map<string, EventData[]> {
+function groupEventsByDay(events: EventData[], local: boolean): Map<string, EventData[]> {
   const map = new Map<string, EventData[]>()
   for (const event of events) {
-    const key = getDateKey(event.start_time)
+    const key = getDateKey(event.start_time, local)
     const group = map.get(key) || []
     group.push(event)
     map.set(key, group)
@@ -240,15 +242,14 @@ export default function CalendarPageClient({
   // local month only. The server renders in UTC, so the first render keeps the
   // UTC month too and the local filter applies after hydration; otherwise the
   // server and browser lists could differ near a month edge.
-  const [hydrated, setHydrated] = React.useState(false)
-  React.useEffect(() => setHydrated(true), [])
+  // Day headers and times follow the same rule (see formatDayLabel).
+  const now = useLocalNow()
+  const hydrated = now !== null
   const monthEvents = events.filter((e) =>
     hydrated ? isInLocalMonth(e.start_time, currentYear, currentMonth) : isInUtcMonth(e.start_time, currentYear, currentMonth)
   )
-  const grouped = groupEventsByDay(monthEvents)
-  const sortedDays = Array.from(grouped.keys()).sort(
-    (a, b) => new Date(a).getTime() - new Date(b).getTime()
-  )
+  const grouped = groupEventsByDay(monthEvents, hydrated)
+  const sortedDays = Array.from(grouped.keys()).sort()
 
   return (
     <div className="pb-20">
@@ -257,7 +258,7 @@ export default function CalendarPageClient({
         subtitle={monthLabel(currentYear, currentMonth)}
         trailing={
           <Link href="/dashboard/calendar/create" className="btn-filled shrink-0" aria-label="Add event">
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden="true" />
           </Link>
         }
         className="px-4"
@@ -311,12 +312,11 @@ export default function CalendarPageClient({
             const dayEvents = grouped.get(dayKey) || []
             return (
               <section key={dayKey}>
-                <p className="section-header">{formatDayLabel(dayEvents[0].start_time)}</p>
+                <p className="section-header">{formatDayLabel(dayEvents[0].start_time, now)}</p>
                 <div className="list-inset stagger">
                   {dayEvents.map((event, i) => {
-                    const subtitle = event.location
-                      ? `${formatTime(event.start_time)} · ${event.location}`
-                      : formatTime(event.start_time)
+                    const time = now ? formatTime(event.start_time) : null
+                    const subtitle = [time, event.location].filter(Boolean).join(' · ') || undefined
                     // Imported events are read-only: no edit link, and a text
                     // badge naming the source (not colour alone).
                     if (event.source) {

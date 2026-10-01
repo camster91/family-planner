@@ -13,6 +13,8 @@ import { Glyph } from '@/components/ui/glyph'
 import { useToast, useUndoToast } from '@/components/ui/toast'
 import { checkChore, setChoreDone, type CheckedChoreState } from '@/lib/chore-tick-client'
 import { LongPressRow } from '@/components/ui/long-press-row'
+import { Dialog } from '@/components/ui/dialog'
+import { useLocalNow } from '@/components/ui/use-hydrated'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays, snoozedDueDate } from '@/lib/dates'
@@ -36,7 +38,8 @@ function routineLabel(chore: { routine?: string | null; routine_order?: number |
   return chore.routine_order ? `${chore.routine}, step ${chore.routine_order}` : chore.routine
 }
 
-// Reassign modal
+// Reassign dialog: the shared Dialog gives it role="dialog", a label,
+// Escape to close and focus kept inside.
 function ReassignModal({
   familyMembers,
   onConfirm,
@@ -48,53 +51,51 @@ function ReassignModal({
 }) {
   const [selectedId, setSelectedId] = React.useState('')
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative z-10 w-72 rounded-2xl overflow-hidden bg-[var(--surface-elevated)] shadow-xl">
-        <div className="px-4 py-4 border-b border-[var(--surface-border)]">
-          <p className="text-subhead font-semibold text-label-primary">Reassign chore</p>
-        </div>
-        <div className="p-4 space-y-2 max-h-60 overflow-y-auto">
-          {familyMembers.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setSelectedId(m.id)}
-              className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
-                'transition-colors duration-150',
-                selectedId === m.id
-                  ? 'bg-[var(--accent-fill)] text-white'
-                  : 'active:bg-[var(--surface-fill-secondary)] text-label-primary'
-              )}
+    <Dialog open onClose={onCancel} title="Reassign chore" testId="reassign-dialog">
+      <div role="group" aria-label="Assign to" className="space-y-2 max-h-60 overflow-y-auto">
+        {familyMembers.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            aria-pressed={selectedId === m.id}
+            onClick={() => setSelectedId(m.id)}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-left',
+              'transition-colors duration-150',
+              selectedId === m.id
+                ? 'bg-[var(--accent-fill)] text-white'
+                : 'active:bg-[var(--surface-fill-secondary)] text-label-primary'
+            )}
+          >
+            <div
+              aria-hidden="true"
+              className="w-7 h-7 rounded-full bg-[var(--surface-fill-secondary)] flex items-center justify-center text-label-secondary text-footnote font-medium"
             >
-              <div className="w-7 h-7 rounded-full bg-[var(--surface-fill-secondary)] flex items-center justify-center text-label-secondary text-footnote font-medium">
-                {m.name[0].toUpperCase()}
-              </div>
-              <span className="text-body">{m.name}</span>
-              <span className="ml-auto text-footnote text-label-tertiary capitalize">{m.role}</span>
-            </button>
-          ))}
-        </div>
-        <div className="p-3 border-t border-[var(--surface-border)] flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl text-body font-medium text-label-secondary active:bg-[var(--surface-fill-secondary)] transition-colors"
-          >
-            Cancel
+              {m.name[0].toUpperCase()}
+            </div>
+            <span className="text-body">{m.name}</span>
+            <span className="ml-auto text-footnote text-label-tertiary capitalize">{m.role}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => selectedId && onConfirm(selectedId)}
-            disabled={!selectedId}
-            className="flex-1 py-2.5 rounded-xl text-body font-medium bg-[var(--accent-fill)] text-white disabled:opacity-40 active:scale-95 transition-all"
-          >
-            Confirm
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+      <div className="mt-4 flex gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 py-2.5 min-h-[44px] rounded-xl text-body font-medium text-label-secondary active:bg-[var(--surface-fill-secondary)] transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => selectedId && onConfirm(selectedId)}
+          disabled={!selectedId}
+          className="flex-1 py-2.5 min-h-[44px] rounded-xl text-body font-medium bg-[var(--accent-fill)] text-white disabled:opacity-40 active:scale-95 transition-all"
+        >
+          Confirm
+        </button>
+      </div>
+    </Dialog>
   )
 }
 
@@ -324,11 +325,17 @@ export default function ChoresContent({
     }
   }, [addToast])
 
-  const filtered = localChores.filter(c => {
-    if (filter === 'today') return isDueToday(c.due_date)
-    if (filter === 'week') return isDueWithinDays(c.due_date, 7)
-    return true
-  })
+  // "Today" and "Week" are the viewer's local days, unknown on the server
+  // (O-31). Until hydration the day-based list is a placeholder, so the server
+  // HTML and the first client render match; then the local filter applies.
+  const now = useLocalNow()
+  const filtered = now
+    ? localChores.filter(c => {
+        if (filter === 'today') return isDueToday(c.due_date, now)
+        if (filter === 'week') return isDueWithinDays(c.due_date, 7, now)
+        return true
+      })
+    : []
 
   const todayChores = filtered.filter(c => c.status === 'pending' || c.status === 'in_progress')
   const doneChores = filtered.filter(c => c.status === 'completed' || c.status === 'verified')
@@ -357,10 +364,10 @@ export default function ChoresContent({
     <div className="pb-20">
       <LargeHeader
         title="Chores"
-        subtitle={`${todayChores.length} pending`}
+        subtitle={now ? `${todayChores.length} pending` : undefined}
         trailing={
           <Link href="/dashboard/chores/create" className="btn-filled shrink-0" aria-label="Add chore">
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden="true" />
           </Link>
         }
         className="px-4"
@@ -371,7 +378,11 @@ export default function ChoresContent({
       </div>
 
       <div className="space-y-6 px-4">
-        {todayChores.length > 0 ? (
+        {!now ? (
+          <section aria-label="Chores" aria-busy="true" data-testid="chores-pending">
+            <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
+          </section>
+        ) : todayChores.length > 0 ? (
           <section>
             <p className="section-header">Today</p>
             <div className="list-inset stagger">
@@ -390,7 +401,10 @@ export default function ChoresContent({
                     },
                     {
                       label: 'Reassign',
-                      onClick: () => setReassignTarget(chore.id),
+                      // The action sheet hands focus back to its trigger on a
+                      // 0 ms timer; open the dialog after that, so the dialog
+                      // takes focus (and returns it to the trigger on close).
+                      onClick: () => window.setTimeout(() => setReassignTarget(chore.id), 0),
                     },
                     {
                       label: 'Mark complete',
@@ -409,7 +423,7 @@ export default function ChoresContent({
                     title={chore.title}
                     subtitle={[
                       chore.assignee?.name,
-                      formatRelativeDueDate(chore.due_date),
+                      formatRelativeDueDate(chore.due_date, now),
                       routineLabel(chore),
                     ].filter(Boolean).join(' · ')}
                     glyph={
