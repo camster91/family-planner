@@ -388,6 +388,8 @@ function EmergencyPageInner() {
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
+  // previewContact: the card shown on the right. editContact: the card open in the edit dialog.
+  const [previewContact, setPreviewContact] = React.useState<EmergencyContact | null>(null)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
   // D1 (#102): every member can read the cards (a child home alone must find
@@ -431,6 +433,8 @@ function EmergencyPageInner() {
           body: JSON.stringify(form),
         })
         if (!res.ok) throw new Error('Failed to update')
+        const edited = editContact
+        setPreviewContact((prev) => (prev && prev.id === edited.id ? { ...prev, ...form } : prev))
       } else {
         const res = await fetch('/api/emergency-contacts', {
           method: 'POST',
@@ -459,6 +463,7 @@ function EmergencyPageInner() {
       const res = await fetch(`/api/emergency-contacts/${editContact.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setEditContact(null)
+      setPreviewContact(null)
       await fetchContacts()
     } catch {
       setModalError(t('common.error'))
@@ -561,7 +566,7 @@ function EmergencyPageInner() {
                     subtitle={t(`emergency.relationships.${c.relationship}`)}
                     showChevron
                     last={i === contacts.length - 1}
-                    onClick={() => setEditContact(c)}
+                    onClick={() => setPreviewContact(c)}
                   />
                 ))}
               </InsetList>
@@ -569,24 +574,24 @@ function EmergencyPageInner() {
 
             {/* Right: active card preview */}
             <div className="print-card">
-              {editContact ? (
+              {previewContact ? (
                 <div className="card-apple overflow-hidden">
                   <div className="px-4 py-3 border-b border-[var(--surface-separator)] flex items-center justify-between no-print">
-                    <p className="text-subhead font-semibold text-label-primary">{editContact.person_name}</p>
+                    <p className="text-subhead font-semibold text-label-primary">{previewContact.person_name}</p>
                     <button
                       type="button"
-                      onClick={() => setEditContact(null)}
+                      onClick={() => setPreviewContact(null)}
                       aria-label="Close preview"
                       className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-secondary)]"
                     >
                       <X className="w-4 h-4 text-label-secondary" aria-hidden="true" />
                     </button>
                   </div>
-                  <EmergencyCardPrint contact={editContact} t={t} />
+                  <EmergencyCardPrint contact={previewContact} t={t} />
                   <div className="px-4 py-3 border-t border-[var(--surface-separator)] flex gap-2 no-print">
                     {isParent && (
                       <button
-                        onClick={() => { setEditContact(null); setShowAdd(true) }}
+                        onClick={() => setEditContact(previewContact)}
                         className="px-3 py-1.5 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
                       >
                         {t('emergency.editCard')}
