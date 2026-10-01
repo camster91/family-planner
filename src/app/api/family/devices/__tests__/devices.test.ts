@@ -560,6 +560,10 @@ describe('shared-device pairing and management', () => {
   })
 
   describe('PUT/DELETE /api/users/elevation-pin', () => {
+    // Each PUT runs a real cost-12 bcrypt compare and hash (bcryptjs, pure JS).
+    // The longer tests do up to ten of them, which can pass Jest's 5 s default
+    // when the full suite is running in parallel.
+    jest.setTimeout(30_000)
     beforeEach(() => setPassword('parentA', 'parent-a-password'))
 
     const put = (body: unknown) => elevationPin.PUT(deviceReq({ method: 'PUT', as: 'parentA', body }))
