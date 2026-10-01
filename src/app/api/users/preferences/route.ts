@@ -10,24 +10,60 @@ import {
   preferencesFromRow,
   preferencesToColumns,
 } from '@/lib/notification-policy'
+import { isClockTime } from '@/lib/ambient'
+import {
+  MAX_TIME_ZONE_LENGTH,
+  QUIET_HOURS_SELECT,
+  isValidTimeZone,
+  quietHoursFromRow,
+  quietHoursToColumns,
+} from '@/lib/quiet-hours'
 import { apiError, logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 
 export const dynamic = 'force-dynamic'
 
+const clockTime = z.string().refine(isClockTime, { message: 'Use a 24-hour time like 22:00' })
+
+// Quiet hours (#141, O-32): the whole setting at once. Times are "HH:MM" and
+// may wrap past midnight; they must differ. `timeZone` is the browser's IANA
+// zone (null or missing = UTC).
+const quietHoursSchema = z
+  .object({
+    enabled: z.boolean(),
+    start: clockTime,
+    end: clockTime,
+    timeZone: z
+      .string()
+      .max(MAX_TIME_ZONE_LENGTH)
+      .refine(isValidTimeZone, { message: 'Unknown time zone' })
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .refine((q) => q.start !== q.end, { message: 'Quiet hours need different start and end times' })
+
 // Strict: an unknown key (including any attempt to name another member, e.g.
-// `userId`) is a 400. At least one switch must be present.
+// `userId`) is a 400. At least one setting must be present.
 const patchSchema = z
   .object({
     chores: z.boolean().optional(),
     events: z.boolean().optional(),
     messages: z.boolean().optional(),
+    quietHours: quietHoursSchema.optional(),
   })
   .strict()
-  .refine((v) => v.chores !== undefined || v.events !== undefined || v.messages !== undefined, {
-    message: 'Send at least one of chores, events or messages',
-  })
+  .refine(
+    (v) => v.chores !== undefined || v.events !== undefined || v.messages !== undefined || v.quietHours !== undefined,
+    { message: 'Send at least one of chores, events, messages or quietHours' }
+  )
+
+const SELECT = { ...NOTIFICATION_PREFERENCE_SELECT, ...QUIET_HOURS_SELECT } as const
+
+function body(row: Parameters<typeof preferencesFromRow>[0] & Parameters<typeof quietHoursFromRow>[0]) {
+  return { preferences: preferencesFromRow(row), quietHours: quietHoursFromRow(row) }
+}
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
@@ -38,7 +74,8 @@ function error(status: number, code: string, message: string, requestId: string)
 }
 
 // GET /api/users/preferences — the caller's own notification preferences
-// (#286, PR101 D-5). Any role; there is no way to name another member.
+// (#286, PR101 D-5) and quiet hours (#141, O-32). Any role; there is no way to
+// name another member.
 async function getPreferences(request: NextRequest) {
   const requestId = getRequestId(request)
   try {
@@ -50,9 +87,9 @@ async function getPreferences(request: NextRequest) {
 
     const row = await prisma!.user.findUnique({
       where: { id: auth.user.id },
-      select: NOTIFICATION_PREFERENCE_SELECT,
+      select: SELECT,
     })
-    return NextResponse.json({ preferences: preferencesFromRow(row) }, { headers: NO_STORE })
+    return NextResponse.json(body(row), { headers: NO_STORE })
   } catch (err) {
     logRouteError('GET /api/users/preferences', err, requestId)
     return error(500, 'INTERNAL_ERROR', 'Internal server error', requestId)
@@ -61,8 +98,8 @@ async function getPreferences(request: NextRequest) {
 
 export const GET = withRouteTelemetry('/api/users/preferences', getPreferences)
 
-// PATCH /api/users/preferences { chores?, events?, messages? } — change the
-// caller's own switches. Any role. Optional `Idempotency-Key`: the update sets
+// PATCH /api/users/preferences { chores?, events?, messages?, quietHours? } —
+// change the caller's own switches and quiet hours. Any role. Optional `Idempotency-Key`: the update sets
 // explicit values, so a replay or a re-run converges. A member without a
 // household has no idempotency scope (records belong to a household), so their
 // key is ignored and the same explicit update simply runs again.
@@ -78,23 +115,27 @@ async function patchPreferences(request: NextRequest) {
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
 
-    let body: unknown
+    let input: unknown
     try {
-      body = await request.json()
+      input = await request.json()
     } catch {
       return error(400, 'INVALID_JSON', 'Invalid JSON', requestId)
     }
-    const parsed = patchSchema.safeParse(body)
+    const parsed = patchSchema.safeParse(input)
     if (!parsed.success) return error(400, 'VALIDATION_ERROR', parsed.error.issues[0].message, requestId)
 
     const userId = auth.user.id
     const effect = async (): Promise<EffectResult> => {
+      const { quietHours, ...switches } = parsed.data
       const row = await prisma!.user.update({
         where: { id: userId },
-        data: preferencesToColumns(parsed.data),
-        select: NOTIFICATION_PREFERENCE_SELECT,
+        data: {
+          ...preferencesToColumns(switches),
+          ...(quietHours ? quietHoursToColumns({ ...quietHours, timeZone: quietHours.timeZone ?? null }) : {}),
+        },
+        select: SELECT,
       })
-      return { status: 200, body: { preferences: preferencesFromRow(row) } }
+      return { status: 200, body: body(row) }
     }
 
     const familyId = auth.user.family_id

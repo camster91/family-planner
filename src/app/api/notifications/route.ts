@@ -76,9 +76,19 @@ export async function POST(request: NextRequest) {
 
     // The recipient's notification preferences apply (#286): a muted category
     // creates nothing and answers `delivered: false`. `system` is always sent.
+    // A delivered notification adds `quiet` (#141, O-32): true when it was
+    // stored during the recipient's quiet hours and must not interrupt them.
     const result = await deliverNotification({ userId, title, message, type })
 
-    return NextResponse.json({ success: true, delivered: result.delivered, notification: result.notification })
+    if (!result.delivered) {
+      return NextResponse.json({ success: true, delivered: false, notification: null })
+    }
+    return NextResponse.json({
+      success: true,
+      delivered: true,
+      notification: result.notification,
+      quiet: result.quiet,
+    })
   } catch (error) {
     logRouteError('POST /api/notifications', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

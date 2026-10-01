@@ -370,6 +370,31 @@ email (`sendAccountMail`). `src/lib/notifications-server.ts` (used by the chore 
 creates a `Notification` row or calls `sendMail`, or if a source file sends a type that is not in the table. There
 is no push channel today; a future one must go through the same helper.
 
+### Quiet hours (#141, decision O-32)
+
+Each member can set quiet hours for themselves. Stored on `User` as `quiet_hours_enabled` (Boolean,
+`NOT NULL DEFAULT false`), `quiet_hours_start` / `quiet_hours_end` (Text `"HH:MM"`, `NOT NULL DEFAULT '22:00'` /
+`'07:00'`) and `quiet_hours_time_zone` (Text, nullable: an IANA zone, NULL = UTC), added by `scripts/migrate.js`
+with `ADD COLUMN IF NOT EXISTS`. Additive and off by default, so existing rows and old clients behave as before.
+
+Quiet hours never drop or delay storing a notification: the row is created exactly as before, so nothing is lost.
+`deliverNotification` adds `quiet: true` when the recipient is inside their window (start inclusive, end exclusive,
+may wrap past midnight, read in the saved zone with its daylight-saving offset; `src/lib/quiet-hours.ts`). Every
+interruptive channel (push, sound, toast, reminder email) must hold its interruption when `quiet` is true. **The app
+has no such channel today** (the bell is a plain link with no badge, nothing polls for toasts, and the only email is
+always-sent account mail), so quiet hours are a stored preference that the first interruptive sender must honour.
+`quiet` applies to every in-app type, including `system` notices; account email is not in-app and is not held.
+
+| Route | Change | Old clients |
+| --- | --- | --- |
+| `GET /api/users/preferences` | Adds `quietHours: { enabled, start, end, timeZone }` beside `preferences`. | Extra key, ignored |
+| `PATCH /api/users/preferences` | Body may add `quietHours: { enabled, start, end, timeZone? }` (the whole setting; strict). `start`/`end` are 24-hour `"HH:MM"` and must differ; `timeZone` must be an IANA zone the server knows (max 64 characters) or null/missing (UTC). Any other shape is `400 VALIDATION_ERROR`. The response adds `quietHours`. | Unchanged bodies still valid |
+| `POST /api/notifications` | A delivered notification's body adds `quiet` (boolean). A muted one is unchanged. | Extra key, ignored |
+| `GET /api/users/export` | Adds `quietHours` (same shape as the GET) and the four `quiet_hours_*` columns on `user`. | unchanged |
+
+"Local" time: the Settings form saves the browser's own time zone with the times (O-31: dates use the browser's
+local time; there is no per-household zone yet). Moving to another zone needs a save from a browser there.
+
 ## Household audit history (#285, PR101 D-4)
 Additive: one new route and one new export key; no existing request or response changes. Roles:
 `docs/ROLE_AND_ISOLATION_MATRIX.md` "Household audit history"; decision: ADR-0008.

@@ -157,4 +157,77 @@ describe('NotificationPreferences', () => {
     await userEvent.click(retry)
     expect(await screen.findByRole('switch', { name: 'Family messages' })).toBeTruthy()
   })
+
+  describe('quiet hours (#141, O-32)', () => {
+    const QUIET_OFF = { enabled: false, start: '22:00', end: '07:00', timeZone: null }
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+    it('shows an Off switch and labelled From/Until times (old servers without quietHours read as off)', async () => {
+      mockFetch(() => ok({ preferences: ALL_ON }))
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Quiet hours' })
+      expect(sw.getAttribute('aria-checked')).toBe('false')
+      expect(sw.className).toContain('min-h-[44px]')
+      const from = screen.getByLabelText('Quiet from') as HTMLInputElement
+      const until = screen.getByLabelText('Quiet until') as HTMLInputElement
+      expect(from.type).toBe('time')
+      expect(from.value).toBe('22:00')
+      expect(until.value).toBe('07:00')
+      expect(from.className).toContain('min-h-[44px]')
+    })
+
+    it("turning it on saves the whole setting with this browser's time zone", async () => {
+      const calls = mockFetch((c) =>
+        c.method === 'GET'
+          ? ok({ preferences: ALL_ON, quietHours: QUIET_OFF })
+          : ok({ preferences: ALL_ON, quietHours: (c.body as { quietHours: unknown }).quietHours })
+      )
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Quiet hours' })
+      await userEvent.click(sw)
+      await waitFor(() => expect(screen.getByText('Quiet hours: on, 22:00 to 07:00.')).toBeTruthy())
+      expect(sw.getAttribute('aria-checked')).toBe('true')
+      const patch = calls.find((c) => c.method === 'PATCH')!
+      expect(patch.body).toEqual({ quietHours: { enabled: true, start: '22:00', end: '07:00', timeZone: zone } })
+      expect(patch.headers['Idempotency-Key']).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
+    })
+
+    it('Save times saves new times; equal times are refused with an alert and nothing is sent', async () => {
+      const calls = mockFetch((c) =>
+        c.method === 'GET'
+          ? ok({ preferences: ALL_ON, quietHours: { ...QUIET_OFF, enabled: true } })
+          : ok({ preferences: ALL_ON, quietHours: (c.body as { quietHours: unknown }).quietHours })
+      )
+      render(<NotificationPreferences />)
+      const from = (await screen.findByLabelText('Quiet from')) as HTMLInputElement
+      const until = screen.getByLabelText('Quiet until') as HTMLInputElement
+      const save = screen.getByRole('button', { name: 'Save times' }) as HTMLButtonElement
+      expect(save.disabled).toBe(true)
+
+      await userEvent.clear(until)
+      await userEvent.type(until, '22:00')
+      expect(save.disabled).toBe(false)
+      await userEvent.click(save)
+      expect(screen.getByRole('alert').textContent).toMatch(/must be different/)
+      expect(until.getAttribute('aria-invalid')).toBe('true')
+      expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(0)
+
+      await userEvent.clear(from)
+      await userEvent.type(from, '21:30')
+      await userEvent.click(save)
+      await waitFor(() => expect(screen.getByText('Quiet hours: on, 21:30 to 22:00.')).toBeTruthy())
+      expect(calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
+        { quietHours: { enabled: true, start: '21:30', end: '22:00', timeZone: zone } },
+      ])
+    })
+
+    it('puts the switch back and says so when the save fails', async () => {
+      mockFetch((c) => (c.method === 'GET' ? ok({ preferences: ALL_ON, quietHours: QUIET_OFF }) : fail(500)))
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Quiet hours' })
+      await userEvent.click(sw)
+      await waitFor(() => expect(screen.getByText(/Couldn't save quiet hours. They are back to off./)).toBeTruthy())
+      expect(sw.getAttribute('aria-checked')).toBe('false')
+    })
+  })
 })

@@ -83,6 +83,76 @@ describe('deliverNotification', () => {
   })
 })
 
+describe('deliverNotification and quiet hours (#141, O-32)', () => {
+  // 23:30 in Toronto (summer) is 03:30 UTC the next day.
+  const NIGHT = new Date('2026-06-02T03:30:00Z')
+  const NOON = new Date('2026-06-01T16:00:00Z')
+
+  function setQuiet(userId: string, enabled = true) {
+    Object.assign(db.find('user', userId)!, {
+      quiet_hours_enabled: enabled,
+      quiet_hours_start: '22:00',
+      quiet_hours_end: '07:00',
+      quiet_hours_time_zone: 'America/Toronto',
+    })
+  }
+
+  beforeEach(() => db.reset())
+
+  it('inside quiet hours the row is still stored (nothing lost) and marked quiet', async () => {
+    setQuiet(CHILD)
+    const result = await deliverNotification({ userId: CHILD, title: 'New chore', message: 'Dishes', type: 'chore' }, NIGHT)
+    expect(result.delivered).toBe(true)
+    expect(result.delivered && result.quiet).toBe(true)
+    expect(rowsFor(CHILD)).toHaveLength(1)
+    expect(rowsFor(CHILD)[0]).toMatchObject({ title: 'New chore', read: false })
+  })
+
+  it('outside quiet hours, or with quiet hours off (the default), it is not quiet', async () => {
+    setQuiet(CHILD)
+    const noon = await deliverNotification({ userId: CHILD, title: 't', message: 'm', type: 'event' }, NOON)
+    expect(noon.delivered && noon.quiet).toBe(false)
+    const other = await deliverNotification({ userId: USER_IDS.teenA, title: 't', message: 'm', type: 'event' }, NIGHT)
+    expect(other.delivered && other.quiet).toBe(false)
+    setQuiet(CHILD, false)
+    const off = await deliverNotification({ userId: CHILD, title: 't', message: 'm', type: 'event' }, NIGHT)
+    expect(off.delivered && off.quiet).toBe(false)
+  })
+
+  it("reads the recipient's quiet hours, not the sender's", async () => {
+    setQuiet(USER_IDS.parentA)
+    const result = await deliverNotification({ userId: CHILD, title: 't', message: 'm', type: 'message' }, NIGHT)
+    expect(result.delivered && result.quiet).toBe(false)
+  })
+
+  it('system notices are stored and marked quiet too; a muted category is still not stored', async () => {
+    setQuiet(CHILD)
+    mute(CHILD, ALL_OFF)
+    const notice = await deliverNotification({ userId: CHILD, title: 'Notice', message: 'm', type: 'system' }, NIGHT)
+    expect(notice.delivered && notice.quiet).toBe(true)
+    expect(await deliverNotification({ userId: CHILD, title: 't', message: 'm', type: 'chore' }, NIGHT)).toEqual({
+      delivered: false,
+      notification: null,
+    })
+    expect(rowsFor(CHILD).map((n) => n.type)).toEqual(['system'])
+  })
+
+  it('POST /api/notifications answers quiet for a delivered notification', async () => {
+    const res = await POST(
+      req({
+        as: 'parentA',
+        path: '/api/notifications',
+        method: 'POST',
+        body: { userId: CHILD, title: 'Soon', message: 'Dentist', type: 'event' },
+      })
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toMatchObject({ success: true, delivered: true, quiet: false })
+    expect(body.notification).toMatchObject({ title: 'Soon' })
+  })
+})
+
 describe('sendAccountMail', () => {
   beforeEach(() => {
     db.reset()

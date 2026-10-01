@@ -35,6 +35,7 @@ describeWithDatabase('notification preferences against Postgres', () => {
   const TEEN = 'prefint-teen'
   const OTHER = 'prefint-other'
   const ALL_ON = { chores: true, events: true, messages: true }
+  const QUIET_OFF = { enabled: false, start: '22:00', end: '07:00', timeZone: null }
 
   function request(as: string, method: 'GET' | 'PATCH', body?: unknown, headers: Record<string, string> = {}): any {
     const url = new URL('http://localhost/api/users/preferences')
@@ -102,20 +103,20 @@ describeWithDatabase('notification preferences against Postgres', () => {
     const res = await route.GET(request(TEEN, 'GET'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(await res.json()).toEqual({ preferences: ALL_ON })
+    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, preferences: ALL_ON })
   })
 
   it("PATCH persists the caller's own switches and nobody else's", async () => {
     const res = await route.PATCH(request(TEEN, 'PATCH', { chores: false, messages: false }))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ preferences: { chores: false, events: true, messages: false } })
+    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: false, events: true, messages: false } })
     expect(await columns(TEEN)).toEqual({ chores: false, events: true, messages: false })
     expect(await columns(PARENT)).toEqual(ALL_ON)
     expect(await columns(OTHER)).toEqual(ALL_ON)
 
     // A fresh read (new request) sees the stored values.
     const read = await route.GET(request(TEEN, 'GET'))
-    expect(await read.json()).toEqual({ preferences: { chores: false, events: true, messages: false } })
+    expect(await read.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: false, events: true, messages: false } })
   })
 
   it('an unknown key is refused before anything is written', async () => {
@@ -150,5 +151,35 @@ describeWithDatabase('notification preferences against Postgres', () => {
     expect(always.delivered).toBe(true)
     const rows = await prisma.notification.findMany({ where: { user_id: TEEN }, orderBy: { created_at: 'asc' } })
     expect(rows.map((r) => r.type).sort()).toEqual(['event', 'system'])
+  })
+
+  it('quiet hours (#141, O-32): an old row reads as off; PATCH persists; delivery stores the row and marks it quiet', async () => {
+    const before = await prisma.user.findUniqueOrThrow({
+      where: { id: OTHER },
+      select: { quiet_hours_enabled: true, quiet_hours_start: true, quiet_hours_end: true, quiet_hours_time_zone: true },
+    })
+    expect(before).toEqual({
+      quiet_hours_enabled: false,
+      quiet_hours_start: '22:00',
+      quiet_hours_end: '07:00',
+      quiet_hours_time_zone: null,
+    })
+
+    const night = { enabled: true, start: '22:00', end: '07:00', timeZone: 'America/Toronto' }
+    const res = await route.PATCH(request(OTHER, 'PATCH', { quietHours: night }))
+    expect(res.status).toBe(200)
+    expect((await res.json()).quietHours).toEqual(night)
+    const read = await route.GET(request(OTHER, 'GET'))
+    expect(await read.json()).toEqual({ preferences: ALL_ON, quietHours: night })
+
+    // 23:30 in Toronto (summer).
+    const result = await delivery.deliverNotification(
+      { userId: OTHER, title: 'Late', message: 'm', type: 'event' },
+      new Date('2026-06-02T03:30:00Z')
+    )
+    expect(result.delivered).toBe(true)
+    expect(result.delivered && result.quiet).toBe(true)
+    expect(await prisma.notification.count({ where: { user_id: OTHER } })).toBe(1)
+    await prisma.notification.deleteMany({ where: { user_id: OTHER } })
   })
 })
