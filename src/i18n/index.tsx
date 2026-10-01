@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { Locale } from './types'
 
 // Inline messages — no external library needed
@@ -127,6 +127,7 @@ const messages = {
       getStarted: 'Get started by creating or joining a family.',
       noFamilyYet: 'No Family Yet',
       noFamilyDesc: 'Create a new family or join an existing one to start using Family Planner.',
+      noFamilyMembers: 'No family members yet',
       createFamily: 'Create Family',
       joinFamily: 'Join Family',
       completionRate: 'Completion Rate',
@@ -254,6 +255,10 @@ const messages = {
       errorSave: "Couldn't save the wish.",
       errorDelete: "Couldn't delete the wish.",
       errorStatus: "Couldn't change the status.",
+      edit: 'Edit wish',
+      delete: 'Delete wish',
+      cancel: 'Cancel',
+      save: 'Save',
     },
     travel: {
       title: 'Travel Mode',
@@ -428,6 +433,7 @@ const messages = {
       getStarted: 'Comienza creando o uniendo a una familia.',
       noFamilyYet: 'Sin familia todavia',
       noFamilyDesc: 'Crea una nueva familia o unete a una existente para comenzar a usar Family Planner.',
+      noFamilyMembers: 'Todavia no hay miembros en la familia',
       createFamily: 'Crear familia',
       joinFamily: 'Unirse a familia',
       completionRate: 'Tasa de completado',
@@ -658,6 +664,10 @@ const messages = {
       errorSave: 'No se pudo guardar el deseo.',
       errorDelete: 'No se pudo eliminar el deseo.',
       errorStatus: 'No se pudo cambiar el estado.',
+      edit: 'Editar deseo',
+      delete: 'Eliminar deseo',
+      cancel: 'Cancelar',
+      save: 'Guardar',
     },
     travel: {
       title: 'Modo Viaje',
@@ -829,8 +839,68 @@ const I18nContext = createContext<I18nContextType>({
   setLocale: () => {},
 })
 
-export function I18nProvider({ children, locale = 'en' }: { children: React.ReactNode; locale?: Locale }) {
+// The language picked in Settings. Per device (browser storage), not per account.
+export const LOCALE_STORAGE_KEY = 'familyPlanner_language'
+
+export const SUPPORTED_LOCALES: readonly Locale[] = ['en', 'es']
+
+export function isLocale(value: unknown): value is Locale {
+  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
+}
+
+function readStoredLocale(): Locale | null {
+  try {
+    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY)
+    return isLocale(stored) ? stored : null
+  } catch {
+    // Storage blocked (private mode, policy): stay on the default.
+    return null
+  }
+}
+
+function writeStoredLocale(locale: Locale) {
+  try {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+  } catch {
+    // Storage blocked: the choice still applies for this visit.
+  }
+}
+
+/**
+ * `persistLocale` (root layout only): after mount, switch to the language saved
+ * on this device, keep `<html lang>` in sync, and save changes made through
+ * `setLocale`. The server always renders `locale` (English) so hydration
+ * matches; the saved language applies right after mount.
+ */
+export function I18nProvider({
+  children,
+  locale = 'en',
+  persistLocale = false,
+}: {
+  children: React.ReactNode
+  locale?: Locale
+  persistLocale?: boolean
+}) {
   const [currentLocale, setCurrentLocale] = useState<Locale>(locale)
+
+  useEffect(() => {
+    if (!persistLocale) return
+    const stored = readStoredLocale()
+    if (stored) setCurrentLocale(stored)
+  }, [persistLocale])
+
+  useEffect(() => {
+    if (!persistLocale) return
+    document.documentElement.lang = currentLocale
+  }, [persistLocale, currentLocale])
+
+  const setLocale = useCallback(
+    (next: Locale) => {
+      setCurrentLocale(next)
+      if (persistLocale) writeStoredLocale(next)
+    },
+    [persistLocale]
+  )
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>): string => {
@@ -851,7 +921,7 @@ export function I18nProvider({ children, locale = 'en' }: { children: React.Reac
   )
 
   return (
-    <I18nContext.Provider value={{ locale: currentLocale, t, setLocale: setCurrentLocale }}>
+    <I18nContext.Provider value={{ locale: currentLocale, t, setLocale }}>
       {children}
     </I18nContext.Provider>
   )
@@ -862,4 +932,5 @@ export function useTranslation() {
   return context
 }
 
+export { messages }
 export type { Locale, Messages }

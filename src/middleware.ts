@@ -197,6 +197,13 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // dropping any inbound header.
   const forwardedHeaders = new Headers(request.headers)
   forwardedHeaders.set(REQUEST_ID_HEADER, requestId)
+  // Expose the request pathname to server components/layouts. The dashboard
+  // layout reads it for its kid-access check. Next.js does not provide the
+  // pathname to layouts on its own, and only REQUEST headers reach headers()
+  // in a layout, so this must be set on the forwarded request (a response
+  // header never reaches it). Always overwrite: a client-sent x-pathname must
+  // not be trusted.
+  forwardedHeaders.set('x-pathname', request.nextUrl.pathname)
   const response = NextResponse.next({ request: { headers: forwardedHeaders } })
 
   // Kill switch off: device cookies are ignored above, and expired here so a
@@ -209,12 +216,6 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   ) {
     clearDeviceCookies(response)
   }
-
-  // Expose the request pathname to server components/layouts via a request
-  // header. The dashboard layout uses this for its kid-access check. Next.js
-  // does NOT provide x-pathname or x-invoke-path to layouts on its own, which
-  // is why the layout's earlier gate always fell through and never fired.
-  response.headers.set('x-pathname', request.nextUrl.pathname)
 
   // Security headers
   response.headers.set('X-Content-Type-Options', 'nosniff')

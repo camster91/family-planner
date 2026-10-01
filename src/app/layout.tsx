@@ -81,7 +81,7 @@ export default function RootLayout({
         <ThemeProvider>
           <PostHogProvider>
             <ToastProvider>
-              <I18nProvider locale="en">
+              <I18nProvider locale="en" persistLocale>
                 <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
                   {children}
                 </div>

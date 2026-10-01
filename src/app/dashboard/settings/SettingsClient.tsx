@@ -7,6 +7,7 @@ import CalendarSyncSection from './CalendarSyncSection'
 import SharedDeviceSettings from './SharedDeviceSettings'
 import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 import { downloadMyData } from '@/lib/data-export-client'
+import { isLocale, useTranslation } from '@/i18n'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
 import BetaMetricsSwitch from '@/components/account/BetaMetricsSwitch'
 import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
@@ -54,7 +55,7 @@ export default function SettingsClient({
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }
-  const [language, setLanguage] = useState('en')
+  const { locale, setLocale } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
@@ -104,6 +105,20 @@ export default function SettingsClient({
   // Load user data
   useEffect(() => {
     loadUserData()
+  }, [])
+
+  // Which server build is running (GET /api/version: { version, commit, builtAt }).
+  // Purely informational, so any failure just leaves the line out.
+  const [build, setBuild] = useState<string | null>(null)
+  useEffect(() => {
+    fetch('/api/version')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || typeof d.version !== 'string' || !d.version || d.version === 'unknown') return
+        const commit = typeof d.commit === 'string' && d.commit !== 'unknown' ? d.commit.slice(0, 7) : ''
+        setBuild(commit ? `${d.version} (${commit})` : d.version)
+      })
+      .catch(() => {})
   }, [])
 
   // Load the family's calendar feed token, if one exists. Parents only — the
@@ -637,24 +652,15 @@ export default function SettingsClient({
             <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
             <select
               id="preferredLanguage"
-              value={language}
+              value={locale}
               onChange={(e) => {
-                // Was saved by the old notifications "Save Preferences" button,
-                // which is gone now that notification switches save themselves (#286).
-                setLanguage(e.target.value)
-                try {
-                  localStorage.setItem('familyPlanner_language', e.target.value)
-                } catch {
-                  // Storage blocked: the choice still applies for this visit.
-                }
+                // Saved on this device by the root I18nProvider; applies at once.
+                if (isLocale(e.target.value)) setLocale(e.target.value)
               }}
               className="input-field w-full"
             >
               <option value="en">English</option>
               <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-              <option value="zh">中文</option>
             </select>
           </div>
 
@@ -744,7 +750,7 @@ export default function SettingsClient({
         <div className="flex flex-col md:flex-row md:items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Family Planner</h3>
-            <p className="text-gray-600">Version 1.0.0 • Phase 1 MVP</p>
+            {build && <p className="text-gray-600">Version {build}</p>}
           </div>
           <div className="mt-4 md:mt-0 text-sm text-gray-500">
             <p>&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>

@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       // Token creation failed (e.g. old deploy without verify_token column)
       // Log but don't fail registration — the user can request a new verify
-      // email later via /api/auth/resend-verification (TODO: implement)
+      // email later via POST /api/auth/resend-verification.
       logRouteWarning('POST /api/auth/register (verification token)', e, getRequestId(request))
     }
 

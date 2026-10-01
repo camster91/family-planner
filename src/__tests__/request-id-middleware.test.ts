@@ -89,8 +89,24 @@ describe('middleware request id', () => {
     expect(res.headers.get('location')).toBeNull()
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(res.headers.get('X-Frame-Options')).toBe('DENY')
-    expect(res.headers.get('x-pathname')).toBe('/dashboard/today')
     expect(res.setCookies.map((c: any) => c.name)).toContain('csrf_token')
     expect(res.headers.get('X-Request-Id')).toMatch(UUID_RE)
+  })
+
+  // The dashboard layout's kid gate reads x-pathname via headers(), which only
+  // sees REQUEST headers, so it must be on the forwarded request.
+  it('forwards the pathname to layouts as a request header', async () => {
+    const token = signToken({ userId: 'parent-a', email: 'p@x.test', tv: 0 })
+    await middleware(request('/dashboard/wishlist', { cookies: { session_token: token } }))
+    expect(nextCalls).toHaveLength(1)
+    expect(nextCalls[0].request.headers.get('x-pathname')).toBe('/dashboard/wishlist')
+  })
+
+  it('overwrites a client-sent x-pathname', async () => {
+    const token = signToken({ userId: 'parent-a', email: 'p@x.test', tv: 0 })
+    await middleware(
+      request('/dashboard/settings', { cookies: { session_token: token }, headers: { 'x-pathname': '/dashboard' } })
+    )
+    expect(nextCalls[0].request.headers.get('x-pathname')).toBe('/dashboard/settings')
   })
 })

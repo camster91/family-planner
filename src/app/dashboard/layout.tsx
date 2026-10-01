@@ -58,21 +58,16 @@ export default async function DashboardLayout({
   // sends to layouts — so the check always fell through and the gate never fired.
   // That is why kids could reach sub-routes the comment claimed were blocked.
   //
-  // The pathname now comes from the `x-pathname` header the middleware sets on
-  // every request, falling back to the referer.
+  // The pathname comes from the `x-pathname` request header the middleware
+  // sets (and overwrites) on every request it forwards. There is no Referer
+  // fallback: the Referer is the PREVIOUS page (or another site), so guessing
+  // from it bounced kids to /dashboard after login or from external links.
   if (isKidRole(role)) {
     const hdrs = await headers()
-    const pathname = hdrs.get('x-pathname') || ''
-    const referer = hdrs.get('referer') || ''
-    let route = pathname
-    if (!route) {
-      try {
-        route = new URL(referer).pathname
-      } catch { /* ignore */ }
-    }
-    // If we genuinely cannot determine the route, allow it: the middleware ran
-    // first and already enforced the allowlist. Failing closed here would lock
-    // kids out of their own dashboard.
+    const route = hdrs.get('x-pathname') || ''
+    // If we cannot determine the route, allow it: the middleware ran first and
+    // already enforced the allowlist. Failing closed here would lock kids out
+    // of their own dashboard.
     if (route && !isDashboardRoot(route) && !isKidAllowedPath(route)) {
       redirect('/dashboard')
     }
