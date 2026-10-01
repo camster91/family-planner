@@ -6,9 +6,15 @@ import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import { omitChorePoints, omitUserGamification } from '@/lib/gamification-visibility'
 import { isKidRole } from '@/lib/kid-access'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
+import { addUTCDays, startOfTodayUTC } from '@/lib/dates'
 import KidHome from '@/components/dashboard/KidHome'
 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
+
+/** Cap on the kid's chores in the yesterday..day-after-tomorrow window. */
+const MAX_WINDOW_CHORES = 60
+/** Open chores from before that window: KidHome shows a few of these. */
+const MAX_OLDER_CHORES = 3
 
 /**
  * `/dashboard` (#269 "one home").
@@ -67,11 +73,32 @@ export default async function DashboardPage() {
   after(() => refreshStaleSubscriptions(familyId))
   const now = new Date()
 
-  const [chores, events, rewards] = await Promise.all([
+  // Due dates are UTC-midnight date-only values (O-31). Yesterday..the day
+  // after tomorrow (UTC) covers the viewer's local today and tomorrow in every
+  // zone; KidHome picks the local day. Recurring chores keep future copies, so
+  // this must stay bounded: no week of tomorrows posing as today's missions.
+  const todayUTC = startOfTodayUTC(now)
+  const windowStart = addUTCDays(todayUTC, -1)
+  const windowEnd = addUTCDays(todayUTC, 2)
+
+  const [windowChores, olderOpenChores, events, rewards] = await Promise.all([
     // Own chores only. Explicit, total order (#155).
     prisma!.chore.findMany({
-      where: { family_id: familyId, assigned_to: sessionUser.id },
+      where: { family_id: familyId, assigned_to: sessionUser.id, due_date: { gte: windowStart, lte: windowEnd } },
       orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+      take: MAX_WINDOW_CHORES,
+    }),
+    // A few still-open chores from before the window, most recent first; the
+    // kid home shows at most KID_OLDER_CHORES of them.
+    prisma!.chore.findMany({
+      where: {
+        family_id: familyId,
+        assigned_to: sessionUser.id,
+        due_date: { lt: windowStart },
+        status: { in: ['pending', 'in_progress', 'overdue'] },
+      },
+      orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
+      take: MAX_OLDER_CHORES,
     }),
     prisma!.event.findMany({
       where: { family_id: familyId, start_time: { gte: now } },
@@ -92,6 +119,7 @@ export default async function DashboardPage() {
   // Only what KidHome draws; the household's feature blob stays on the server.
   const kid = { id: user.id, name: user.name, role: user.role, avatar_url: user.avatar_url, family_id: familyId, xp: user.xp, level: user.level }
   const viewer = gamification ? kid : omitUserGamification(kid)
+  const chores = [...olderOpenChores.reverse(), ...windowChores]
   const visibleChores = gamification ? chores : chores.map(omitChorePoints)
 
   return (

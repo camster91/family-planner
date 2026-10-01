@@ -45,7 +45,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [avatarOpen, setAvatarOpen] = useState(false)
-  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false)
   // Teens and children cannot open Settings (kid-access.ts), so their
   // "Delete my account" (D-3, ACCOUNT_DELETION.md) and their notification
   // switches (#286) live in this menu. Own account only.
@@ -71,7 +70,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     function handleClickOutside(e: MouseEvent) {
       if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
         setAvatarOpen(false)
-        setRoleSwitcherOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -89,12 +87,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     }
     router.push('/login')
     router.refresh()
-  }
-
-  const handleRoleSwitch = async (role: UserRole) => {
-    // In a real app this would call an API — for now just toggle UI state
-    setRoleSwitcherOpen(false)
-    // Could refresh or show a toast; the role affects surface rendering via props
   }
 
   return (
@@ -202,29 +194,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-[var(--surface-secondary)] text-label-secondary">
                       {ROLE_LABELS[user?.role ?? 'child']}
                     </span>
-                  </div>
-
-                  {/* Role switcher — shown for all roles so parents can preview */}
-                  <div className="px-3 py-2 border-b border-[var(--surface-separator)]">
-                    <p className="text-[11px] font-semibold text-label-tertiary uppercase tracking-wider px-1 mb-1.5">
-                      Switch View
-                    </p>
-                    <div className="flex gap-1">
-                      {(['parent', 'teen', 'child'] as UserRole[]).map((role) => (
-                        <button
-                          key={role}
-                          onClick={() => handleRoleSwitch(role)}
-                          className={cn(
-                            'flex-1 py-1.5 rounded-md text-[13px] font-medium transition-colors',
-                            user?.role === role
-                              ? 'bg-accent-fill text-white'
-                              : 'bg-[var(--surface-secondary)] text-label-secondary hover:text-label-primary'
-                          )}
-                        >
-                          {ROLE_LABELS[role]}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   {/* Menu items */}
