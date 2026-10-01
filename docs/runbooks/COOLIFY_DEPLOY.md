@@ -131,6 +131,10 @@ Coolify's proxy is Traefik. By default Traefik does not trust incoming `X-Forwar
 
 `1` is only correct when Traefik is the only proxy and the app port is not published on the host (section 4). A published port lets anyone connect directly and send a forged `X-Forwarded-For`, whose right-most value the app would then trust.
 
+**The origin must only be reachable through the declared proxy chain.** Every client-address header is forgeable by anyone who can connect to the app container directly, so do not publish the app port on the host, do not expose it on a public network, and (if a CDN sits in front) restrict Traefik to the CDN's address ranges.
+
+`X-Real-IP` is a fallback for requests with no `X-Forwarded-For`. It is read **only when `TRUSTED_PROXY_HOPS` is explicitly set** (a whole number of at least `1`), because then a declared proxy is expected to overwrite it. When the variable is unset, a request without `X-Forwarded-For` is rate-limited under the shared `unknown` key instead, so a direct caller cannot pick a fresh key per request by sending a new `X-Real-IP`.
+
 How to confirm the hop count (owner action, on a throwaway hostname): deploy the `traefik/whoami` image behind the same Coolify proxy and DNS setup, open it from a phone on mobile data, and read the `X-Forwarded-For` line. Count the addresses added by proxies you run (not the one your client sent). Set `TRUSTED_PROXY_HOPS` to that count. Delete the whoami service afterwards.
 
 ## 9. Release commit, `/api/health` and `/api/version`

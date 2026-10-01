@@ -26,6 +26,16 @@ export class CaptureError extends Error {
   }
 }
 
+// Upper bound for one provider call (headers and body). Without it a slow or
+// hostile endpoint could hold the request, and its server resources, open
+// indefinitely.
+export const CAPTURE_TIMEOUT_MS = 30_000
+
+// Longest accepted base64 image string: about 7 MB of base64, roughly a 5 MB
+// photo. Generous for a flyer and keeps the model call bounded.
+export const MAX_IMAGE_BASE64_LENGTH = 7_000_000
+export const IMAGE_TOO_LARGE_MESSAGE = 'Image is too large (max about 5 MB)'
+
 const DEFAULT_MODEL = 'deepseek-chat'
 const DEFAULT_BASE_URL = 'https://api.deepseek.com'
 
@@ -169,6 +179,17 @@ Rules:
 - Keep titles short and human.
 - Set confidence honestly: "low" if the image was hard to read or the dates ambiguous.`
 
+const TIMEOUT_MESSAGE = 'The AI provider took too long to answer. Try again shortly.'
+
+// Turn an abort caused by our own deadline into a user-safe 504.
+function throwIfTimedOut(err: unknown, signal: AbortSignal): void {
+  // DOMException is not always an `instanceof Error` across realms, so read the name directly.
+  const name = typeof err === 'object' && err !== null ? (err as { name?: unknown }).name : undefined
+  if (signal.aborted || name === 'TimeoutError' || name === 'AbortError') {
+    throw new CaptureError(TIMEOUT_MESSAGE, 504)
+  }
+}
+
 async function callModel(
   config: CaptureConfig,
   userContent: Array<Record<string, unknown>>,
@@ -184,35 +205,50 @@ async function callModel(
     }
   }
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    // Never follow redirects: a provider could bounce the request (and the
-    // Authorization header) to an internal address.
-    redirect: 'manual',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent },
-      ],
-      temperature: 0,
-      // Ask for JSON where the provider supports it; harmless where it does not.
-      response_format: { type: 'json_object' },
-    }),
-  })
+  // One deadline covers the connection, the headers and reading the body.
+  const signal = AbortSignal.timeout(CAPTURE_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      // Never follow redirects: a provider could bounce the request (and the
+      // Authorization header) to an internal address.
+      redirect: 'manual',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+        temperature: 0,
+        // Ask for JSON where the provider supports it; harmless where it does not.
+        response_format: { type: 'json_object' },
+      }),
+    })
+  } catch (err) {
+    throwIfTimedOut(err, signal)
+    throw err
+  }
 
   if (!res.ok) {
     // Log the status only: the provider's error body can echo the prompt.
     console.warn('Capture model failed', { status: res.status })
+    await res.body?.cancel().catch(() => undefined)
     throw new CaptureError(`The AI provider returned an error (${res.status}). Check the key and provider in Settings.`)
   }
 
-  const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>
+  let data: { choices?: Array<{ message?: { content?: string } }> }
+  try {
+    data = (await res.json()) as typeof data
+  } catch (err) {
+    throwIfTimedOut(err, signal)
+    throw new CaptureError('The AI provider returned an unreadable answer')
   }
   const raw = data.choices?.[0]?.message?.content
   if (!raw) throw new CaptureError('The AI provider returned no content')
@@ -285,9 +321,8 @@ export async function draftFromImage(
 ): Promise<ImageCaptureResult> {
   if (!base64) throw new CaptureError('No image provided', 400)
 
-  // Guard the payload size. ~6MB of base64 is roughly a 4.5MB image, which is
-  // generous for a photo of a flyer and keeps the model call bounded.
-  if (base64.length > 6_000_000) throw new CaptureError('Image is too large (max ~4.5MB)', 400)
+  // Guard the payload size (the route checks this too, before any provider work).
+  if (base64.length > MAX_IMAGE_BASE64_LENGTH) throw new CaptureError(IMAGE_TOO_LARGE_MESSAGE, 413)
 
   const parsed = await callModel(
     config,
