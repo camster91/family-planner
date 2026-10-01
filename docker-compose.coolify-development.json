@@ -1,0 +1,39 @@
+{
+  "services": {
+    "app": {
+      "build": {
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "args": {
+          "SOURCE_COMMIT": "${SOURCE_COMMIT}"
+        }
+      },
+      "env_file": [
+        ".env"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/opt/family-planner/uploads",
+          "target": "/data/family-planner-uploads",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "networks": [
+        "retained-database"
+      ],
+      "restart": "unless-stopped",
+      "expose": [
+        "3000"
+      ]
+    }
+  },
+  "networks": {
+    "retained-database": {
+      "external": true,
+      "name": "family-planner-internal"
+    }
+  }
+}
