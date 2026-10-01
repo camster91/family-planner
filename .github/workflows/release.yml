@@ -294,6 +294,7 @@ jobs:
       - name: Exercise imported runtime on disposable database
         env:
           FP_CHECKED_IMAGE: family-planner-checked-runtime:${{ github.sha }}
+          FP_TEST_POSTGRES_IMAGE: postgres:16-alpine
         run: bash .github/scripts/smoke-checked-image.sh
 
   release:

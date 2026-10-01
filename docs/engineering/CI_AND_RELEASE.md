@@ -13,7 +13,9 @@ workflow run/attempt, image configuration ID and archive checksum. The separate
 `Checked image on fresh runner` job downloads that artifact, verifies it before
 import, and compares the loaded image configuration, filesystem layer identities
 and platform with the saved image. It then runs the imported container against a
-throwaway database and requires readiness, the baked release header and writable
+throwaway PostgreSQL 16 database (the existing VPS major version inspected on
+October 1, 2026), complementing the original PostgreSQL 17 CI smoke, and requires
+readiness, the baked release header and writable
 image-owned uploads directory. The manual `Release to VPS` job also waits for this
 transport gate. It continues to transfer the original checked image bundle.
 

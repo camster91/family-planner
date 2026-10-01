@@ -4,6 +4,11 @@ set -euo pipefail
 : "${GITHUB_RUN_ID:?}"
 : "${GITHUB_RUN_ATTEMPT:?}"
 : "${FP_CHECKED_IMAGE:?}"
+postgres_image="${FP_TEST_POSTGRES_IMAGE:-postgres:17-alpine}"
+case "$postgres_image" in
+  postgres:16-alpine|postgres:17-alpine) ;;
+  *) echo "Unsupported disposable test database image" >&2; exit 1 ;;
+esac
 
 network="fp-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 database="fp-smoke-db-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -22,7 +27,7 @@ docker run --detach \
   --env POSTGRES_USER=postgres \
   --env POSTGRES_HOST_AUTH_METHOD=trust \
   --env POSTGRES_DB=familyplanner_ci \
-  postgres:17-alpine >/dev/null
+  "$postgres_image" >/dev/null
 
 ready=0
 for _ in $(seq 1 60); do
