@@ -92,10 +92,14 @@ was created without a parent; a worry about what a child can see.
    `docs/product/BETA_OPERATIONS.md` ("Incidents") and
    [INCIDENT_RESPONSE.md "Cross-household exposure"](INCIDENT_RESPONSE.md#cross-household-exposure). Tell Cameron at
    once.
-3. **Unknown member in the household:** the app has no "remove member" button yet. Ask a parent to cancel any
-   pending invites (Family → Invite) and to change their password if someone else may know it. Tell Cameron at
-   once: treat it as a possible account takeover (SEV0) until you know how they got in. Removing the member from the
-   operator side needs Cameron's explicit approval.
+3. **Unknown member in the household:** ask a parent to (a) remove them on the Family tab (the remove button on
+   their row, "Remove from household"; this signs them out everywhere and cuts their access), (b) get a new family
+   code (Family → Add Member → "In person instead" → "Get a new family code"; the old code stops working at once),
+   (c) cancel any pending invites on the same page, and (d) change their password if someone else may know it.
+   Recent changes in Settings shows who joined and who removed whom. Tell Cameron at once: treat it as a possible
+   account takeover (SEV0) until you know how they got in. Agents and support never remove a member from the
+   operator side; that needs Cameron's explicit approval. Rules (decision O-34): only a parent can remove, never
+   themselves and never the last parent.
 4. **Child account without parental consent:** follow the privacy page ("Children's data"). Removing it is done by
    the parent in the app, or by Cameron with explicit approval.
 5. **Lost or stolen fridge tablet:** a parent removes it in Settings → Devices. See

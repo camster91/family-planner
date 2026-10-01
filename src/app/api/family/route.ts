@@ -8,6 +8,7 @@ import { readIdempotencyKey } from '@/lib/idempotency'
 import { deleteHousehold } from '@/lib/account-deletion'
 import { checkFreshAuthorization, runDeletion } from '@/lib/account-deletion-http'
 import { lockUser } from '@/lib/household-lock'
+import { createFamilyInviteCode } from '@/lib/family-invite'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       // Explicit new-household flags (#248): Points & streaks start OFF. A blob
       // without the `gamification` key would read as an existing household.
       const newFamily = await tx.family.create({
-        data: { name: parsed.data.name, features: defaultFeatures() },
+        data: { name: parsed.data.name, features: defaultFeatures(), invite_code: createFamilyInviteCode() },
       })
       await tx.user.update({
         where: { id: payload.userId },

@@ -23,6 +23,9 @@ export const AUDIT_ACTIONS = [
   'feature.turned_off',
   'member.joined',
   'member.left',
+  // O-34: a parent removed a member; a parent got a new family code.
+  'member.removed',
+  'invite_code.rotated',
   'board_settings.changed',
   'device.paired',
   'device.renamed',
@@ -160,6 +163,11 @@ export const auditSummary = {
     `Renamed the tablet “${auditName(from, 'Family tablet')}” to “${auditName(to, 'Family tablet')}”`,
   deviceRemoved: (label: string | null | undefined, reason: string) =>
     `Removed the tablet “${auditName(label, 'Family tablet')}”${REMOVE_REASON[reason] ?? ''}`,
+  /** O-34: the removed member's name and role word (they keep their account). */
+  memberRemoved: (name: string | null | undefined, role: string) =>
+    `Removed ${auditName(name, 'a member')} (${roleWord(role)}) from the household`,
+  /** O-34: never the code itself. */
+  inviteCodeRotated: () => 'Got a new family code; the old code no longer works',
   inviteCreated: (role: string) => `Sent an invite to join as ${roleWord(role)}`,
   inviteRevoked: (role: string) => `Cancelled an invite to join as ${roleWord(role)}`,
   /** Beta usage counts (#287). Off also deleted the stored counts. */

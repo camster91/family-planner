@@ -321,7 +321,7 @@ export interface CalendarGrant {
  * then delete each one's links, the events imported through it, and the row.
  * Nothing about a connection changes unless the whole deletion commits.
  */
-async function takeCalendarConnections(tx: any, where: Record<string, unknown>): Promise<CalendarGrant[]> {
+export async function takeCalendarConnections(tx: any, where: Record<string, unknown>): Promise<CalendarGrant[]> {
   // Row-lock the connections before reading their tokens. A sync that is
   // refreshing a token at the same moment then waits to write the rotated
   // token until this transaction commits, finds no row, and revokes the new
@@ -353,7 +353,7 @@ async function takeCalendarConnections(tx: any, where: Record<string, unknown>):
  * the provider (the stored tokens are gone either way), which is the retention
  * exception documented in ACCOUNT_DELETION.md.
  */
-async function revokeGrantsAfterCommit(grants: CalendarGrant[], deps: DeletionDeps): Promise<void> {
+export async function revokeGrantsAfterCommit(grants: CalendarGrant[], deps: DeletionDeps): Promise<void> {
   const revoke =
     deps.revokeCalendarGrant ?? ((grant: CalendarGrant, familyId: string) => revokeProviderGrant(grant, familyId))
   for (const grant of grants) {
@@ -364,6 +364,60 @@ async function revokeGrantsAfterCommit(grants: CalendarGrant[], deps: DeletionDe
     }
   }
 }
+
+/**
+ * Household content a leaving member created: handed to a successor so the
+ * household keeps it (NOT NULL creator columns, several of them RESTRICT/NO
+ * ACTION in the database). Shared with member removal (src/lib/member-removal.ts).
+ */
+export const HOUSEHOLD_HANDOVER_COLUMNS: ReadonlyArray<readonly [string, string]> = [
+  ['chore', 'created_by'],
+  ['event', 'created_by'],
+  ['list', 'created_by'],
+  ['listItem', 'added_by'],
+  ['reward', 'created_by'],
+  ['transaction', 'user_id'],
+  ['budgetCategory', 'created_by'],
+  ['project', 'created_by'],
+  ['familyMeal', 'created_by'],
+  ['pinnedNote', 'created_by'],
+  ['familyLocation', 'user_id'],
+  ['pickup', 'created_by'],
+  ['allowance', 'from_user_id'],
+  ['handoff', 'created_by'],
+  ['sickDay', 'created_by'],
+  ['medication', 'created_by'],
+  ['calendarSubscription', 'created_by'],
+  ['importJob', 'started_by'],
+  ['recipe', 'created_by'],
+  ['mealPlan', 'created_by'],
+  ['shoppingList', 'created_by'],
+  ['habit', 'created_by'],
+  ['familyGoal', 'created_by'],
+]
+
+/** Nullable references to a leaving member: cleared. Shared with member removal. */
+export const HOUSEHOLD_CLEARED_REFERENCES: ReadonlyArray<readonly [string, string]> = [
+  ['listItem', 'checked_by'],
+  ['reward', 'claimed_by'],
+  ['reward', 'approved_by'],
+  ['projectTask', 'assigned_to'],
+  ['familyMeal', 'cook_id'],
+  ['anniversary', 'person_id'],
+  ['anniversary', 'created_by'],
+  ['emergencyContact', 'person_id'],
+  ['pickup', 'assigned_to'],
+  ['wishlistItem', 'status_changed_by'],
+  ['choreAssignment', 'completed_by'],
+  ['choreAssignment', 'approved_by'],
+  ['rewardRedemption', 'approved_by'],
+  ['inventoryItem', 'added_by'],
+  ['inventoryAdjustment', 'actor_id'],
+  ['inventoryAdjustment', 'undone_by'],
+  ['grocerySectionPreference', 'updated_by'],
+  ['deviceAuditEvent', 'actor_user_id'],
+  ['auditLog', 'actor_user_id'],
+]
 
 /**
  * Member path, inside the transaction: hand household content to the
@@ -438,56 +492,6 @@ async function handOverAndDetach(
     await tx.importedRecord.deleteMany({ where: { ...inFamily, target_id: { in: removedTargets } } })
   }
 
-  // Household content: hand over to the successor (NOT NULL creator columns,
-  // several of them RESTRICT/NO ACTION in the database).
-  const handOver: Array<[string, string]> = [
-    ['chore', 'created_by'],
-    ['event', 'created_by'],
-    ['list', 'created_by'],
-    ['listItem', 'added_by'],
-    ['reward', 'created_by'],
-    ['transaction', 'user_id'],
-    ['budgetCategory', 'created_by'],
-    ['project', 'created_by'],
-    ['familyMeal', 'created_by'],
-    ['pinnedNote', 'created_by'],
-    ['familyLocation', 'user_id'],
-    ['pickup', 'created_by'],
-    ['allowance', 'from_user_id'],
-    ['handoff', 'created_by'],
-    ['sickDay', 'created_by'],
-    ['medication', 'created_by'],
-    ['calendarSubscription', 'created_by'],
-    ['importJob', 'started_by'],
-    ['recipe', 'created_by'],
-    ['mealPlan', 'created_by'],
-    ['shoppingList', 'created_by'],
-    ['habit', 'created_by'],
-    ['familyGoal', 'created_by'],
-  ]
-  // Nullable references: cleared.
-  const clear: Array<[string, string]> = [
-    ['listItem', 'checked_by'],
-    ['reward', 'claimed_by'],
-    ['reward', 'approved_by'],
-    ['projectTask', 'assigned_to'],
-    ['familyMeal', 'cook_id'],
-    ['anniversary', 'person_id'],
-    ['anniversary', 'created_by'],
-    ['emergencyContact', 'person_id'],
-    ['pickup', 'assigned_to'],
-    ['wishlistItem', 'status_changed_by'],
-    ['choreAssignment', 'completed_by'],
-    ['choreAssignment', 'approved_by'],
-    ['rewardRedemption', 'approved_by'],
-    ['inventoryItem', 'added_by'],
-    ['inventoryAdjustment', 'actor_id'],
-    ['inventoryAdjustment', 'undone_by'],
-    ['grocerySectionPreference', 'updated_by'],
-    ['deviceAuditEvent', 'actor_user_id'],
-    ['auditLog', 'actor_user_id'],
-  ]
-
   // Delete what was only about this member before handing anything over, so
   // a chore they both created and were assigned is deleted, not handed over.
   await tx.choreAssignment.deleteMany({ where: { id: { in: ownAssignments.map((a: { id: string }) => a.id) } } })
@@ -498,10 +502,10 @@ async function handOverAndDetach(
   await tx.wishlistItem.deleteMany({ where: { requested_by: userId } })
   await tx.rewardRedemption.deleteMany({ where: { requested_by: userId } })
 
-  for (const [model, column] of handOver) {
+  for (const [model, column] of HOUSEHOLD_HANDOVER_COLUMNS) {
     await tx[model].updateMany({ where: { [column]: userId }, data: { [column]: to } })
   }
-  for (const [model, column] of clear) {
+  for (const [model, column] of HOUSEHOLD_CLEARED_REFERENCES) {
     await tx[model].updateMany({ where: { [column]: userId }, data: { [column]: null } })
   }
   await tx.$executeRaw`

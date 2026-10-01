@@ -52,10 +52,10 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/dashboard/lists/[listId]` | all (delete P) | no | core | Sub-page | `/api/lists/items/*` (item delete: `DELETE /api/lists/items/[id]`, F-6), `/api/lists/section-sort` → `List`, `ListItem`, `Ingredient` | 1 |
 | `/dashboard/lists/type/[type]` | all | no | core | Hidden (redirect only, F-6 fixed) | none: redirects to `/dashboard/lists?type=<type>` (unknown type: `/dashboard/lists`); the type cards filter `/dashboard/lists` in place | 3 (kept for old links and bookmarks) |
 | `/dashboard/lists/create` | all (API: P+T) | no | core | Sub-page | `/api/lists/create` | 1 |
-| `/dashboard/family` | P | no | core | Tab | `/api/family/members`, `/api/auth/me` | 4 |
+| `/dashboard/family` | P | no | core | Tab | `/api/family/members`, `/api/family/members/[id]` (remove, O-34), `/api/auth/me` | 4 |
 | `/dashboard/family/more` | P | no | — (lists enabled features) | Tab (Family → More) | `src/lib/nav-items.ts` | 4 |
 | `/dashboard/family/settings` | P | no | — | Settings | `/api/family`; the D-3 deletion dialog (`/api/users/deletion`, `DELETE /api/users`, `DELETE /api/family`); board settings component → `/api/family/board-settings` | 4 |
-| `/dashboard/family/invite` | P | no | — | Settings (Family) | `/api/family/invites*` | 4 |
+| `/dashboard/family/invite` | P | no | — | Settings (Family) | `/api/family/invites*`, `/api/family/invite-code` (new code, O-34) | 4 |
 | `/dashboard/family/create` | P (no family yet) | no | — | Settings / onboarding | `POST /api/family` | 4 |
 | `/dashboard/features` | P | no | — | Settings (More, Settings) | `/api/family/features` (via provider) | 4 |
 | `/dashboard/settings` | P | no | sections by env: calendar sync, shared device | Utility (user menu) | `/api/users` (incl. `DELETE`, D-3), `/api/users/deletion`, `/api/users/export`, `/api/family` (`DELETE`, only parent), `/api/auth/change-password`, `/api/family/ai-settings`, `/api/family/feed-token`, `/api/calendar/*`, `/api/users/elevation-pin`, `/api/users/preferences` (#286; teens and children reach it from the user menu) | 4 |
@@ -244,11 +244,13 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/family/devices` | GET | GET: P | no | — | SHARED_DEVICE_ENABLED | — |
 | `/api/family/features` | GET, PATCH | GET: all ; PATCH: P | no | — | — | — |
 | `/api/family/feed-token` | GET, POST | GET: P ; POST: P | no | — | — | — |
+| `/api/family/invite-code` | POST | POST: P (teen/child 403; "Get a new family code", O-34) | refused | — | — | — |
 | `/api/family/invites/[id]` | DELETE | DELETE: P | no | — | — | — |
 | `/api/family/invites/preview` | GET | GET: n/a | no | — | — | — |
 | `/api/family/invites` | GET, POST | GET: P ; POST: P | no | — | — | — |
 | `/api/family/join` | POST | POST: n/a | no | — | — | — |
 | `/api/family/lookup` | GET | GET: n/a | no | — | — | — |
+| `/api/family/members/[id]` | DELETE | DELETE: P, own household only, not self, never the last parent ("Remove from household", O-34) | refused | — | — | — |
 | `/api/family/members` | GET | GET: all | no | — | — | — |
 | `/api/family` | POST, GET, PATCH, DELETE | POST: n/a (rejects if already in a family) ; GET: all ; PATCH: P ; DELETE: P, only parent, password + household name (D-3) | refused (DELETE) | — | — | — |
 | `/api/family/travel` | GET, PATCH | GET: P (was all) ; PATCH: P | no | travel | — | — |

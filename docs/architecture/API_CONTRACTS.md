@@ -330,6 +330,18 @@ records (and, for a household, all of them) with everything else, so a retry aft
 authentication with 401: the account no longer exists. The Settings dialog retries once with the same key after a
 network error and treats that 401 as "already deleted".
 
+## Household member controls (O-34)
+Additive: two new routes; no existing request or response changes, except that households created from now on get
+a 24-character code (lowercase letters and digits) instead of a cuid; both formats keep working with
+`POST /api/family/join` and `GET /api/family/lookup`. Decision: `docs/decisions/PROVISIONAL_OWNER_DECISIONS.md`
+O-34; roles: `docs/ROLE_AND_ISOLATION_MATRIX.md`. Both routes refuse a paired shared device with 403
+`DEVICE_WRITE_NOT_ALLOWED` before person auth; CSRF is checked by the middleware.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `POST /api/family/invite-code` | Parent only. No body. Replaces the household's family code with a new random one (`createFamilyInviteCode`, the generator used at household creation); the old code is refused at once. Emailed invites and current members are not affected. Writes an `invite_code.rotated` audit row (never the code). 200 `{ inviteCode }`, `Cache-Control: private, no-store`. | 400 no household; 401; 403 teen/child, device; 404; 429 (10 an hour per parent) |
+| `DELETE /api/family/members/[id]` | Parent only, on another member of their own household. The member keeps their account; `family_id` is cleared and `token_version` bumped (every session ends). Their tablet elevation, PIN, unfinished pairings, tablets they paired or confirmed (revoked), unaccepted invites, calendar connections, idempotency records, push subscriptions, notifications and activity rows go. Household content they created is handed to the removing parent; their open chores are reassigned to the removing parent; finished chores and messages stay. Writes `member.removed` (and `device.removed` per revoked tablet). 200 `{ success: true, removedId, tabletsRevoked }`. Errors are `{ error, code, requestId }`. | 400 `CANNOT_REMOVE_SELF`, no household; 401; 403 teen/child, device; 404 `MEMBER_NOT_FOUND` (missing id and another household's member alike); 409 `LAST_PARENT`; 429 `RATE_LIMITED` (30 an hour per parent) |
+
 ## Notification preferences (#286, PR101 D-5)
 
 Each member switches three categories of notifications on or off for themselves. Stored on `User` as
@@ -402,7 +414,7 @@ Additive: one new route and one new export key; no existing request or response 
 
 | Route | Contract | Errors |
 | --- | --- | --- |
-| `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, `beta_metrics.turned_on`, `beta_metrics.turned_off` (#287); clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
+| `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, `beta_metrics.turned_on`, `beta_metrics.turned_off` (#287), `member.removed`, `invite_code.rotated` (O-34); clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
 | `GET /api/users/export` (#285) | Adds `auditLog: [{ id, action, actor_kind, actor_user_id, target_type, target_id, summary, created_at }]`, last 12 months: every household row for a parent, only rows the caller acted in for a teen or child. | unchanged |
 
 ## Deprecated, duplicate and operator routes (#289, route inventory F-5/F-6)
