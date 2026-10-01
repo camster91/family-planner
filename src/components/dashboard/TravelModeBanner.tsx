@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Plane } from 'lucide-react'
 import { useTranslation } from '@/i18n'
+import { formatDateOnly } from '@/lib/dates'
 
 interface TravelBannerProps {
   className?: string
@@ -26,9 +27,9 @@ export function TravelModeBanner({ className }: TravelBannerProps) {
 
   if (!travel?.travel_mode_active) return null
 
-  const endDate = travel.travel_end_date
-    ? new Date(travel.travel_end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : null
+  // travel_end_date is a date-only value stored as UTC midnight: format it in
+  // UTC, or viewers west of UTC see the day before.
+  const endDate = travel.travel_end_date ? formatDateOnly(travel.travel_end_date) : null
 
   return (
     <div className={`bg-[var(--accent-tint)] px-4 py-2 flex items-center gap-2 ${className ?? ''}`}>
