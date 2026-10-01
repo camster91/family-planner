@@ -104,6 +104,8 @@ describe('ChoresContent history paging', () => {
     expect(url.searchParams.get('status')).toBe('verified')
     expect(url.searchParams.get('limit')).toBe('50')
     expect(url.searchParams.get('cursor')).toBe('cur1')
+    // History pages newest first, continuing the server's first page.
+    expect(url.searchParams.get('order')).toBe('desc')
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull())
   })
 
@@ -130,6 +132,39 @@ describe('ChoresContent history paging', () => {
     expect(urls.map((u) => new URL(u, 'http://x').searchParams.get('cursor'))).toEqual(['cur1', 'cur1'])
     // More pages remain.
     expect(screen.getByRole('button', { name: 'Load more' })).toBeTruthy()
+  })
+
+  it('lists Done newest first, with older pages appended at the bottom', async () => {
+    const user = userEvent.setup()
+    replies.push({
+      status: 200,
+      body: {
+        chores: [verifiedChore('z1', 'Older sweep', '2025-12-30'), verifiedChore('z0', 'Oldest sweep', '2025-12-01')],
+        nextCursor: null,
+      },
+    })
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[verifiedChore('a', 'Old dishes', '2026-01-02'), verifiedChore('c', 'Newer dishes', '2026-01-09')]}
+          familyMembers={[{ id: 'kid', name: 'Casey', role: 'child' }]}
+          currentUserId="parent"
+          userRole="parent"
+          historyCursor="cur1"
+        />
+      </ToastProvider>,
+    )
+    await openAllDone(user)
+    const titles = () =>
+      ['Newer dishes', 'Old dishes', 'Older sweep', 'Oldest sweep']
+        .map((t) => ({ t, el: screen.queryByText(t) }))
+        .filter((x) => x.el)
+        .sort((x, y) => (x.el!.compareDocumentPosition(y.el!) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+        .map((x) => x.t)
+    expect(titles()).toEqual(['Newer dishes', 'Old dishes'])
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Oldest sweep')
+    expect(titles()).toEqual(['Newer dishes', 'Old dishes', 'Older sweep', 'Oldest sweep'])
   })
 
   it('shows no button when everything is loaded', async () => {

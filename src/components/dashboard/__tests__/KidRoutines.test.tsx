@@ -156,7 +156,7 @@ describe('KidHome picture routines', () => {
       <FeaturesProvider initial={{ ...defaultFeatures(), gamification: true, rewards: true }}>
         <ToastProvider>
           <KidHome
-            user={user}
+            user={{ ...user, xp: 20 }}
             chores={[]}
             events={[]}
             rewards={[{ id: 'r1', name: 'Movie night', cost: 10, status: 'available' }]}

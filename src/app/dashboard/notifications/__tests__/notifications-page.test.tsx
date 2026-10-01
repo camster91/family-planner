@@ -144,4 +144,52 @@ describe('/dashboard/notifications', () => {
     unmount()
     expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.body)).toEqual([{ notificationId: 'n2' }])
   })
+
+  const deleteInits = () =>
+    (global.fetch as jest.Mock).mock.calls
+      .map(([, init]) => init as RequestInit | undefined)
+      .filter((init) => init?.method === 'DELETE')
+
+  it('sends a waiting delete (keepalive) when the page is reloaded or closed, once', async () => {
+    const user = userEvent.setup()
+    const calls = mockFetch((method) => (method === 'DELETE' ? { status: 200, body: { success: true } } : list()))
+    const { unmount } = renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Delete "Swim lesson"' }))
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.body)).toEqual([{ notificationId: 'n2' }])
+    expect(deleteInits().map((init) => init?.keepalive)).toEqual([true])
+
+    // Nothing is left waiting, so leaving later sends nothing more.
+    unmount()
+    expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1)
+  })
+
+  it('sends a waiting delete when the app goes to the background', async () => {
+    const user = userEvent.setup()
+    const calls = mockFetch((method) => (method === 'DELETE' ? { status: 200, body: { success: true } } : list()))
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Delete "Swim lesson"' }))
+
+    const visibility = jest.spyOn(document, 'visibilityState', 'get')
+    try {
+      visibility.mockReturnValue('visible')
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+
+      visibility.mockReturnValue('hidden')
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.body)).toEqual([{ notificationId: 'n2' }])
+      expect(deleteInits().map((init) => init?.keepalive)).toEqual([true])
+    } finally {
+      visibility.mockRestore()
+    }
+  })
 })

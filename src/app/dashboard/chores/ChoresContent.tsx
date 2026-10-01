@@ -18,7 +18,7 @@ import { useLocalNow } from '@/components/ui/use-hydrated'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays, snoozedDueDate } from '@/lib/dates'
-import { CHORE_HISTORY_PAGE_SIZE, compareChoreOrder } from '@/lib/chore-paging'
+import { CHORE_HISTORY_ORDER, CHORE_HISTORY_PAGE_SIZE, compareChoreOrder } from '@/lib/chore-paging'
 import type { Chore } from '@/types'
 
 type FilterMode = 'today' | 'week' | 'all'
@@ -126,7 +126,8 @@ export default function ChoresContent({
     setLoadMoreError(null)
   }, [chores, historyCursor])
 
-  // Older verified chores, one page at a time (opt-in paging, O-19). Rows
+  // Older verified chores, one page at a time, newest first (opt-in paging,
+  // O-19, `order=desc`). Rows
   // already on the page (and any local edits to them) win over the fetched copy.
   const handleLoadMore = React.useCallback(async () => {
     if (!nextCursor) return
@@ -137,6 +138,7 @@ export default function ChoresContent({
         status: 'verified',
         limit: String(CHORE_HISTORY_PAGE_SIZE),
         cursor: nextCursor,
+        order: CHORE_HISTORY_ORDER,
       })
       const response = await fetch(`/api/chores?${params}`)
       const data = await response.json().catch(() => ({}))
@@ -338,7 +340,10 @@ export default function ChoresContent({
     : []
 
   const todayChores = filtered.filter(c => c.status === 'pending' || c.status === 'in_progress')
-  const doneChores = filtered.filter(c => c.status === 'completed' || c.status === 'verified')
+  // Newest first, so "Load more" (older history) continues at the bottom.
+  const doneChores = filtered
+    .filter(c => c.status === 'completed' || c.status === 'verified')
+    .sort((a, b) => compareChoreOrder(b, a))
 
   const SegmentedControl = ({ value, onChange }: { value: FilterMode; onChange: (v: FilterMode) => void }) => (
     <div className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">

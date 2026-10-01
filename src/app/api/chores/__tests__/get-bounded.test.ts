@@ -95,6 +95,53 @@ describe('GET /api/chores without limit', () => {
   })
 })
 
+describe('GET /api/chores?order=desc (chores page history)', () => {
+  it('walks pages newest first, each chore once, ties broken by id', async () => {
+    // Dates far from the fixture's chores; from/to keeps only these.
+    for (const [id, due] of [
+      ['h-1', '2001-01-01'],
+      ['h-2', '2001-01-02'],
+      ['h-3a', '2001-01-03'],
+      ['h-3b', '2001-01-03'],
+      ['h-4', '2001-01-04'],
+    ]) {
+      addChore(id, due, { status: 'verified' })
+    }
+    const seen: string[] = []
+    let cursor: string | null = null
+    for (let pages = 0; pages < 5; pages++) {
+      const query: Record<string, string> = {
+        status: 'verified',
+        limit: '2',
+        order: 'desc',
+        from: '2001-01-01',
+        to: '2001-01-31',
+      }
+      if (cursor) query.cursor = cursor
+      const body = await bodyOf(await GET(req({ as: 'parentA', query })))
+      seen.push(...body.chores.map((c: { id: string }) => c.id))
+      cursor = body.nextCursor
+      if (!cursor) break
+    }
+    expect(seen).toEqual(['h-4', 'h-3b', 'h-3a', 'h-2', 'h-1'])
+  })
+
+  it('keeps the oldest-first default without order', async () => {
+    addChore('o-2', '2001-01-02')
+    addChore('o-1', '2001-01-01')
+    const body = await bodyOf(
+      await GET(req({ as: 'parentA', query: { limit: '5', from: '2001-01-01', to: '2001-01-31' } }))
+    )
+    expect(body.chores.map((c: { id: string }) => c.id)).toEqual(['o-1', 'o-2'])
+  })
+
+  it('rejects a bad order with 400 INVALID_QUERY', async () => {
+    const res = await GET(req({ as: 'parentA', query: { limit: '5', order: 'sideways' } }))
+    expect(res.status).toBe(400)
+    expect((await bodyOf(res)).code).toBe('INVALID_QUERY')
+  })
+})
+
 describe('currentChoreQueries (web chores page)', () => {
   it('bounds open chores to 60 days back, keeps every chore awaiting a check, caps both', () => {
     const q = currentChoreQueries(FAMILY_A, new Date('2026-10-01T15:00:00Z'))

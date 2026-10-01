@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useId } from 'react'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { Calendar, Repeat, Loader2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
@@ -88,6 +88,18 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
 
   const filteredCategories = categories.filter((c) => c.type === type)
 
+  // A category belongs to one type, so switching Expense/Income drops the
+  // chosen category rather than saving an expense under an income category.
+  const changeType = (next: 'income' | 'expense') => {
+    if (next === type) return
+    setType(next)
+    setCategoryId('')
+  }
+
+  // The Dialog focuses its first control (Close) on open; a new transaction
+  // starts in Amount instead.
+  const amountRef = useRef<HTMLInputElement>(null)
+
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     // Allow only numbers and one decimal point
@@ -169,14 +181,20 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
   const busy = isSubmitting || isDeleting
 
   return (
-    <Dialog open onClose={onClose} title={isEditing ? 'Edit Transaction' : 'Add Transaction'} testId="transaction-form">
+    <Dialog
+      open
+      onClose={onClose}
+      title={isEditing ? 'Edit Transaction' : 'Add Transaction'}
+      testId="transaction-form"
+      initialFocusRef={isEditing ? undefined : amountRef}
+    >
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Type Toggle */}
         <div className="flex gap-2" role="group" aria-label="Type">
           <button
             type="button"
             aria-pressed={type === 'expense'}
-            onClick={() => setType('expense')}
+            onClick={() => changeType('expense')}
             className={cn(
               'flex-1 min-h-[44px] py-2.5 px-4 rounded-xl text-subhead font-medium transition-all border-2',
               type === 'expense'
@@ -189,7 +207,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
           <button
             type="button"
             aria-pressed={type === 'income'}
-            onClick={() => setType('income')}
+            onClick={() => changeType('income')}
             className={cn(
               'flex-1 min-h-[44px] py-2.5 px-4 rounded-xl text-subhead font-medium transition-all border-2',
               type === 'income'
@@ -220,7 +238,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
               value={amount}
               onChange={handleAmountChange}
               placeholder="0.00"
-              autoFocus={!isEditing}
+              ref={amountRef}
               className="w-full pl-10 pr-4 py-3.5 text-3xl font-bold text-label-primary bg-[var(--surface-secondary)] border border-[var(--surface-separator)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all placeholder:text-label-tertiary"
             />
           </div>

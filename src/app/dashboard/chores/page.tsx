@@ -2,7 +2,14 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
-import { CHORE_HISTORY_PAGE_SIZE, compareChoreOrder, currentChoreQueries, encodeChoreCursor } from '@/lib/chore-paging'
+import {
+  CHORE_HISTORY_ORDER,
+  CHORE_HISTORY_PAGE_SIZE,
+  choreOrderBy,
+  compareChoreOrder,
+  currentChoreQueries,
+  encodeChoreCursor,
+} from '@/lib/chore-paging'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 
 export default async function ChoresPage() {
@@ -31,9 +38,11 @@ export default async function ChoresPage() {
   // yesterday (UTC) on, and every chore waiting for a parent's check load in
   // full: the Today and Week views, the pending count and the verification
   // queue need them. Each of those reads is capped and drops the oldest rows
-  // first. Older verified chores (history, seen under "All") are paged, in the
-  // same (due_date, id) order as `GET /api/chores?limit=&cursor=`, so the
-  // client's "Load more" carries on from `historyCursor`.
+  // first. Older verified chores (history, seen under "All") are paged newest
+  // first, in the same (due_date, id) order as
+  // `GET /api/chores?limit=&cursor=&order=desc`, so the first page is the most
+  // recent history and the client's "Load more" carries on, further back, from
+  // `historyCursor`.
   const include = {
     assignee: { select: { name: true } },
     creator: { select: { name: true } },
@@ -46,7 +55,7 @@ export default async function ChoresPage() {
         prisma!.chore.findMany({
           where: { family_id: familyId, status: 'verified', due_date: { lt: queries.historyBefore } },
           include,
-          orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+          orderBy: choreOrderBy(CHORE_HISTORY_ORDER),
           take: CHORE_HISTORY_PAGE_SIZE + 1,
         }),
       ])

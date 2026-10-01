@@ -9,6 +9,7 @@ import { apiError, logRouteError } from '@/lib/api-error'
 import {
   CHORE_UNPAGED_MAX,
   afterChoreCursor,
+  choreOrderBy,
   encodeChoreCursor,
   parseChoreDateRange,
   parseChorePaging,
@@ -19,8 +20,9 @@ import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 export const dynamic = 'force-dynamic'
 
 // GET - List chores for the user's family.
-// Opt-in paging (O-19): `?limit=1..200[&cursor=]` returns `{ chores, nextCursor }`
-// ordered by due date then id. Without `limit` the response shape is unchanged
+// Opt-in paging (O-19): `?limit=1..200[&cursor=][&order=asc|desc]` returns
+// `{ chores, nextCursor }` ordered by due date then id (`desc`: newest first;
+// default `asc`). Without `limit` the response shape is unchanged
 // (installed Android builds): chores ordered by due date, no `nextCursor`, but
 // capped at the latest CHORE_UNPAGED_MAX by due date.
 // Optional `from` / `to` (`YYYY-MM-DD`, inclusive) filter on the due date.
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
         ...(range.toExclusive ? { lt: range.toExclusive } : {}),
       }
     }
-    if (paging.paged && paging.cursor) where.AND = [afterChoreCursor(paging.cursor)]
+    if (paging.paged && paging.cursor) where.AND = [afterChoreCursor(paging.cursor, paging.order)]
 
     const include = {
       assignee: { select: { id: true, name: true, avatar_url: true } },
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
       ? await prisma!.chore.findMany({
           where,
           include,
-          orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+          orderBy: choreOrderBy(paging.order),
           take: paging.limit + 1,
         })
       : // Unpaged: the latest CHORE_UNPAGED_MAX by due date, returned oldest first.

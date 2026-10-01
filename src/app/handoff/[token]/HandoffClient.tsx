@@ -42,7 +42,8 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 
 function HandoffView({ handoff, t }: { handoff: HandoffData; t: (key: string, params?: Record<string, string | number>) => string }) {
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    // `print-card` is what the page's print stylesheet keeps visible.
+    <div className="print-card max-w-xl mx-auto space-y-6" data-testid="handoff-print-card">
       {/* Header */}
       <div className="text-center">
         <h1 className="text-large-title font-display text-label-primary">
@@ -123,8 +124,9 @@ function HandoffView({ handoff, t }: { handoff: HandoffData; t: (key: string, pa
       {/* Print button */}
       <div className="text-center no-print">
         <button
+          type="button"
           onClick={() => window.print()}
-          className="btn-filled px-6 py-2.5 rounded-lg text-subhead font-semibold inline-flex items-center gap-2"
+          className="btn-filled min-h-[44px] px-6 py-2.5 rounded-lg text-subhead font-semibold inline-flex items-center gap-2"
         >
           <Printer className="w-4 h-4" />
           {t('handoff.print')}

@@ -82,6 +82,8 @@ function Input({
   type = 'text',
   placeholder,
   className,
+  step,
+  inputMode,
 }: {
   id?: string
   value: string
@@ -89,6 +91,8 @@ function Input({
   type?: string
   placeholder?: string
   className?: string
+  step?: string
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
 }) {
   return (
     <input
@@ -97,6 +101,8 @@ function Input({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      step={step}
+      inputMode={inputMode}
       className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
     />
   )
@@ -688,6 +694,8 @@ function SickDaysPageInner() {
                     value={tempForm.value}
                     onChange={(v) => setTempForm({ ...tempForm, value: v })}
                     type="number"
+                    step="0.1"
+                    inputMode="decimal"
                     placeholder="98.6"
                   />
                 )}

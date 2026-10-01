@@ -504,7 +504,7 @@ function EmergencyPageInner() {
           @page { margin: 0.5in; size: letter; }
           body * { visibility: hidden; }
           .print-card, .print-card * { visibility: visible; }
-          .print-card { position: fixed; left: 0; top: 0; width: 100%; }
+          .print-card { position: absolute; left: 0; top: 0; width: 100%; }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -518,8 +518,9 @@ function EmergencyPageInner() {
           <div className="flex items-center gap-2">
             {contacts.length > 0 && (
               <button
+                type="button"
                 onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--surface-fill)] text-label-primary text-subhead font-medium hover:bg-[var(--surface-fill-secondary)]"
+                className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--surface-fill)] text-label-primary text-subhead font-medium hover:bg-[var(--surface-fill-secondary)]"
               >
                 <Printer className="w-4 h-4" />
                 {t('emergency.print')}
@@ -572,8 +573,9 @@ function EmergencyPageInner() {
               </InsetList>
             </div>
 
-            {/* Right: active card preview */}
-            <div className="print-card">
+            {/* Right: active card preview. Print shows the previewed card, or
+                every card (the print-only block below) when none is previewed. */}
+            <div className={previewContact ? 'print-card' : undefined} data-testid="emergency-preview">
               {previewContact ? (
                 <div className="card-apple overflow-hidden">
                   <div className="px-4 py-3 border-b border-[var(--surface-separator)] flex items-center justify-between no-print">
@@ -607,12 +609,22 @@ function EmergencyPageInner() {
                   </div>
                 </div>
               ) : (
-                <div className="card-apple p-8 text-center">
+                <div className="card-apple p-8 text-center no-print">
                   <Heart className="w-8 h-8 text-label-tertiary mx-auto mb-2" />
                   <p className="text-subhead text-label-secondary">Select a card to preview</p>
                 </div>
               )}
             </div>
+
+            {!previewContact && (
+              <div className="print-card hidden print:block" data-testid="emergency-print-all">
+                {contacts.map((c) => (
+                  <div key={c.id} className="break-inside-avoid">
+                    <EmergencyCardPrint contact={c} t={t} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -5,6 +5,8 @@
  * Android builds are unaffected. With `?limit=N` (1–200) it returns at most N
  * chores ordered by due date then id, plus `nextCursor` (an opaque string to
  * pass back as `?cursor=` for the next page, or null on the last page).
+ * `?order=desc` (with `limit`) walks newest first instead; the default `asc`
+ * keeps existing callers unchanged. Send the same `order` with every page.
  * The cursor encodes only a due date and a chore id; the route still filters
  * by the caller's household, so a cursor can never reveal another household.
  */
@@ -15,11 +17,22 @@ export const CHORE_PAGE_MAX = 200
 /** Page size the web chores page uses for verified-chore history ("Load more"). */
 export const CHORE_HISTORY_PAGE_SIZE = 50
 
+/**
+ * History is paged newest first: the first page is the latest verified
+ * chores, and "Load more" goes further back. The server page's first page and
+ * the client's `GET /api/chores?order=` use this same value, so the cursor the
+ * server hands over continues the same walk.
+ */
+export const CHORE_HISTORY_ORDER = 'desc' as const
+
 export type ChoreCursor = { dueDate: Date; id: string }
+
+/** Paged order on (due_date, id): `asc` oldest first (default), `desc` newest first. */
+export type ChoreOrder = 'asc' | 'desc'
 
 export type ChorePaging =
   | { ok: true; paged: false }
-  | { ok: true; paged: true; limit: number; cursor: ChoreCursor | null }
+  | { ok: true; paged: true; limit: number; cursor: ChoreCursor | null; order: ChoreOrder }
   | { ok: false; error: string }
 
 export function encodeChoreCursor(row: { due_date: Date; id: string }): string {
@@ -42,10 +55,17 @@ const LIMIT_ERROR = `limit must be a whole number from 1 to ${CHORE_PAGE_MAX}`
 export function parseChorePaging(params: URLSearchParams): ChorePaging {
   const rawLimit = params.get('limit')
   const rawCursor = params.get('cursor')
+  const rawOrder = params.get('order')
   if (rawLimit === null) {
-    // A cursor only makes sense with a page size.
-    return rawCursor === null ? { ok: true, paged: false } : { ok: false, error: 'cursor requires limit' }
+    // A cursor or an order only makes sense with a page size.
+    if (rawCursor !== null) return { ok: false, error: 'cursor requires limit' }
+    if (rawOrder !== null) return { ok: false, error: 'order requires limit' }
+    return { ok: true, paged: false }
   }
+  if (rawOrder !== null && rawOrder !== 'asc' && rawOrder !== 'desc') {
+    return { ok: false, error: 'order must be asc or desc' }
+  }
+  const order: ChoreOrder = rawOrder ?? 'asc'
   if (!/^\d{1,3}$/.test(rawLimit)) return { ok: false, error: LIMIT_ERROR }
   const limit = Number(rawLimit)
   if (limit < 1 || limit > CHORE_PAGE_MAX) return { ok: false, error: LIMIT_ERROR }
@@ -54,14 +74,27 @@ export function parseChorePaging(params: URLSearchParams): ChorePaging {
     cursor = decodeChoreCursor(rawCursor)
     if (!cursor) return { ok: false, error: 'Invalid cursor' }
   }
-  return { ok: true, paged: true, limit, cursor }
+  return { ok: true, paged: true, limit, cursor, order }
 }
 
-/** Prisma `where` fragment for rows after the cursor in (due_date, id) order. */
-export function afterChoreCursor(cursor: ChoreCursor) {
+/**
+ * Prisma `where` fragment for rows after the cursor in (due_date, id) order,
+ * or before it (the next page of a newest-first walk) for `desc`.
+ */
+export function afterChoreCursor(cursor: ChoreCursor, order: ChoreOrder = 'asc') {
+  if (order === 'desc') {
+    return {
+      OR: [{ due_date: { lt: cursor.dueDate } }, { due_date: cursor.dueDate, id: { lt: cursor.id } }],
+    }
+  }
   return {
     OR: [{ due_date: { gt: cursor.dueDate } }, { due_date: cursor.dueDate, id: { gt: cursor.id } }],
   }
+}
+
+/** Prisma `orderBy` for a paged read in `order`. */
+export function choreOrderBy(order: ChoreOrder = 'asc'): [{ due_date: ChoreOrder }, { id: ChoreOrder }] {
+  return [{ due_date: order }, { id: order }]
 }
 
 /** Sort comparator matching the paged order: due date, then id. Accepts Date or ISO string. */
