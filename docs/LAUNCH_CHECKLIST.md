@@ -2,7 +2,7 @@
 
 What has to be true before the first real families use Family Planner, and who does it. The code side is done on `master` except where a row says otherwise. The rest needs the owner (Cameron).
 
-Snapshot: 2026-09-30. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
+Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
 
 ## Must do before the first family signs up
 
@@ -25,6 +25,9 @@ Snapshot: 2026-09-30. Keep this list short. When an item is done, mark it done w
 - Security: rate limits on sign-in and password routes, same-origin redirects only, secret scanning in CI, the server refuses to start without `JWT_SECRET` or `DATABASE_URL`.
 - Error, empty and offline states on the main pages; narrow screen and 200% zoom checks in CI.
 - Backup retention matches the privacy page (about five weeks).
+- In-app Help for parents and a support runbook (`runbooks/SUPPORT.md`); the support address is one constant in `src/lib/support.ts`.
+- A parent can remove a household member (their sessions end at once) and get a new family code if the old one leaked (O-34).
+- Three full code reviews of `master` on 2026-10-01; every finding was fixed in #320 to #324, except DNS-rebinding protection for outbound calls (needs a pinned-IP HTTP agent; noted in `architecture/CALENDAR_IMPORT.md`).
 
 ## Can wait until after the first families
 
