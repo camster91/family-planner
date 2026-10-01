@@ -484,6 +484,7 @@ function HandoffCard({
   onEdit,
   onShare,
   onPrint,
+  printing = false,
   t,
 }: {
   handoff: Handoff
@@ -492,10 +493,15 @@ function HandoffCard({
   onEdit: () => void
   onShare: () => void
   onPrint: () => void
+  /** This is the card being printed: the print stylesheet shows only it. */
+  printing?: boolean
   t: (key: string) => string
 }) {
   return (
-    <div className="card-apple overflow-hidden">
+    <div
+      className={`card-apple overflow-hidden${printing ? ' print-card' : ''}`}
+      data-testid={`handoff-card-${handoff.id}`}
+    >
       <div className="p-4 border-b border-[var(--surface-separator)]">
         <div className="flex items-start justify-between">
           <div>
@@ -504,7 +510,7 @@ function HandoffCard({
               <p className="text-subhead text-label-secondary mt-0.5">{handoff.sitter_phone}</p>
             )}
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 no-print">
             {canManage && (
               <button
                 type="button"
@@ -747,9 +753,20 @@ function HandoffPageInner() {
     }
   }
 
-  const handlePrint = () => {
+  // Printing marks the chosen card with `print-card` (the print stylesheet
+  // hides everything else), then opens the print dialog once that class is on
+  // the page. A fresh object per request lets the same card print twice even
+  // if a browser never fires `afterprint`.
+  const [printRequest, setPrintRequest] = React.useState<{ id: string } | null>(null)
+  const handlePrint = (id: string) => setPrintRequest({ id })
+
+  React.useEffect(() => {
+    if (!printRequest) return
+    const done = () => setPrintRequest(null)
+    window.addEventListener('afterprint', done)
     window.print()
-  }
+    return () => window.removeEventListener('afterprint', done)
+  }, [printRequest])
 
   const closeModal = () => {
     setShowAdd(false)
@@ -780,7 +797,7 @@ function HandoffPageInner() {
           @page { margin: 0.5in; size: letter; }
           body * { visibility: hidden; }
           .print-card, .print-card * { visibility: visible; }
-          .print-card { position: fixed; left: 0; top: 0; width: 100%; }
+          .print-card { position: absolute; left: 0; top: 0; width: 100%; }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -835,7 +852,8 @@ function HandoffPageInner() {
               canManage={isParent}
               onEdit={() => setEditHandoff(h)}
               onShare={() => setShareId(h.id)}
-              onPrint={handlePrint}
+              onPrint={() => handlePrint(h.id)}
+              printing={printRequest?.id === h.id}
               t={t}
             />
           ))}

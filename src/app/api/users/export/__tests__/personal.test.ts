@@ -213,6 +213,14 @@ describe('GET /api/users/export — per-person domains', () => {
     }
   )
 
+  it("a removed member's export has none of the old household's chores", async () => {
+    // Done chores stay assigned to a removed member (O-34); the export must not
+    // hand them back the old household's chore titles and notes.
+    db.find('user', 'child-a')!.family_id = null
+    const { body } = await exportAs('childA')
+    expect(body.chores).toEqual([])
+  })
+
   it('a member with no household gets empty per-person domains', async () => {
     db.find('user', 'child-a')!.family_id = null
     const { body } = await exportAs('childA')

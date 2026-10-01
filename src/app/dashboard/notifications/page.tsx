@@ -87,15 +87,29 @@ export default function NotificationsPage() {
     loadNotifications()
   }, [loadNotifications])
 
-  // Leaving the page: send any delete still waiting on its Undo window.
+  // Leaving the page: send any delete still waiting on its Undo window. That
+  // covers in-app navigation (unmount) and also a reload, tab close or the app
+  // going to the background (`pagehide` / hidden), where no unmount runs and
+  // the timer would otherwise be lost. `keepalive` lets the request outlive
+  // the page.
   useEffect(() => {
     const waiting = pending.current
-    return () => {
+    const flush = () => {
       waiting.forEach(({ timer }, id) => {
         clearTimeout(timer)
         sendDelete(id, true).catch(() => undefined)
       })
       waiting.clear()
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVisibility)
+      flush()
     }
   }, [])
 

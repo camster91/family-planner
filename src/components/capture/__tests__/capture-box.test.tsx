@@ -122,4 +122,28 @@ describe('CaptureBox', () => {
     expect(screen.getByRole('button', { name: 'Add 3' })).toBeTruthy()
     expect(onSaved).not.toHaveBeenCalled()
   })
+
+  it('sends a local wall-clock time from capture as the matching instant', async () => {
+    let posted: { start_time?: string } = {}
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url === '/api/capture' && method === 'GET') return json(200, { configured: true, allowed: true })
+      if (url === '/api/capture') {
+        return json(200, { draft: { kind: 'event', title: 'Soccer', start_time: '2026-10-06T15:00', confidence: 'high' } })
+      }
+      if (url === '/api/events' && method === 'POST') {
+        posted = JSON.parse(String(init?.body))
+        return json(201, { event: { id: 'e1' } })
+      }
+      throw new Error(`unexpected ${method} ${url}`)
+    }) as unknown as typeof fetch
+    const user = userEvent.setup()
+    render(<CaptureBox onSaved={jest.fn()} />)
+    await user.type(screen.getByRole('textbox'), 'Soccer Tuesday 3pm{Enter}')
+    await user.click(await screen.findByRole('button', { name: /add/i }))
+    await waitFor(() => expect(posted.start_time).toBeDefined())
+    // 15:00 in the browser's zone, as an instant (never stored as 15:00 UTC unless the browser is on UTC).
+    expect(posted.start_time).toBe(new Date('2026-10-06T15:00').toISOString())
+  })
 })

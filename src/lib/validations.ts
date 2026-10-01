@@ -472,6 +472,25 @@ export const createAllowanceSchema = z.object(
 const bodyObject = { invalid_type_error: 'Request body must be a JSON object' }
 
 // Optional free text: a string or null.
+// A web link the app will render as <a href>: only http(s), so a stored
+// `javascript:` or `data:` URL can never run in the app's origin. "" clears.
+const optionalHttpUrl = (field: string, max: number) =>
+  z
+    .string({ invalid_type_error: `${field} must be a string` })
+    .trim()
+    .max(max, `${field} must be ${max} characters or fewer`)
+    .refine((v) => {
+      if (v === '') return true
+      try {
+        const u = new URL(v)
+        return u.protocol === 'http:' || u.protocol === 'https:'
+      } catch {
+        return false
+      }
+    }, `${field} must be a web address starting with http:// or https://`)
+    .nullable()
+    .optional()
+
 const optionalText = (field: string, max: number) =>
   z
     .string({ invalid_type_error: `${field} must be a string` })
@@ -615,7 +634,7 @@ export const createWishlistItemSchema = z.object(
       .trim()
       .min(1, 'Title is required')
       .max(200, 'Title must be 200 characters or fewer'),
-    link: optionalText('link', 2000),
+    link: optionalHttpUrl('link', 2000),
     description: optionalText('description', 2000),
     approx_price: wishlistPrice,
   },

@@ -2,7 +2,8 @@
 // page with `limit`/`cursor` returns each of the household's chores exactly
 // once in (due_date, id) order, including chores that share a due date across
 // a page boundary, and never another household's. Without `limit` the route
-// still returns everything with no `nextCursor`. Opt-in like the other
+// still returns everything with no `nextCursor`. `order=desc` walks the same
+// way newest first (chores page history). Opt-in like the other
 // integration suites: RUN_DB_INTEGRATION=1 DATABASE_URL=... against a
 // disposable database that `node scripts/migrate.js` has prepared.
 
@@ -113,6 +114,50 @@ describeWithDatabase('chores paging against Postgres', () => {
     expect(pages).toBe(4)
     expect(seen).toEqual([0, 1, 2, 3, 4, 5, 6].map((i) => `chpgint-a-${i}`))
     expect(seen).not.toContain('chpgint-b-0')
+  })
+
+  async function walk(first: string | null, extra: Record<string, string>) {
+    const seen: string[] = []
+    let cursor = first
+    let pages = 0
+    do {
+      const query: Record<string, string> = { limit: '2', ...extra }
+      if (cursor) query.cursor = cursor
+      const res = await route.GET(request(PARENT, query))
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.chores.length).toBeLessThanOrEqual(2)
+      seen.push(...body.chores.map((c: { id: string }) => c.id))
+      cursor = body.nextCursor
+      pages += 1
+      expect(pages).toBeLessThan(10)
+    } while (cursor)
+    return { seen, pages }
+  }
+
+  it('walks newest first with order=desc, every chore once, household-scoped', async () => {
+    const { seen, pages } = await walk(null, { order: 'desc' })
+    expect(pages).toBe(4)
+    expect(seen).toEqual([6, 5, 4, 3, 2, 1, 0].map((i) => `chpgint-a-${i}`))
+    expect(seen).not.toContain('chpgint-b-0')
+  })
+
+  it("continues the chores page's newest-first first page from its cursor", async () => {
+    // What /dashboard/chores does for history: the first page straight from
+    // Prisma in CHORE_HISTORY_ORDER, then "Load more" through the API.
+    const { CHORE_HISTORY_ORDER, choreOrderBy, encodeChoreCursor } = await import('@/lib/chore-paging')
+    const firstPage = await prisma.chore.findMany({
+      where: { family_id: FAM },
+      orderBy: choreOrderBy(CHORE_HISTORY_ORDER),
+      take: 3,
+    })
+    const rest = await walk(encodeChoreCursor(firstPage[firstPage.length - 1]), { order: CHORE_HISTORY_ORDER })
+    expect([...firstPage.map((c) => c.id), ...rest.seen]).toEqual([6, 5, 4, 3, 2, 1, 0].map((i) => `chpgint-a-${i}`))
+  })
+
+  it('rejects an unknown order', async () => {
+    const res = await route.GET(request(PARENT, { limit: '2', order: 'sideways' }))
+    expect(res.status).toBe(400)
   })
 
   it('is unchanged without limit: every chore, no nextCursor', async () => {

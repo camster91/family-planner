@@ -114,14 +114,12 @@ export async function GET(request: NextRequest) {
             },
           })
         : null,
+      // Only the caller's current household: a removed member's done chores
+      // stay assigned to them in the old household (O-34) and must not leak.
       prisma!.chore.findMany({
-        where: {
-          OR: [
-            { created_by: userId },
-            { assigned_to: userId },
-            { family: { members: { some: { id: userId } } } },
-          ],
-        },
+        where: familyId
+          ? { family_id: familyId, OR: [{ created_by: userId }, { assigned_to: userId }, { family_id: familyId }] }
+          : { id: { in: [] } },
         include: {
           assignee: { select: { id: true, name: true } },
           creator: { select: { id: true, name: true } },

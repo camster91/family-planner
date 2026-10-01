@@ -156,8 +156,17 @@ export default function KidHome({
     ? (events ?? []).filter((e) => toDateOnlyLocal(new Date(e.start_time)) === todayKey).slice(0, 2)
     : []
 
-  // Most recent available reward to claim
-  const claimableReward = (rewards ?? []).find((r) => r.status === 'available' && !claimedRewards.has(r.id))
+  // The reward to offer: the one being celebrated (its cost is already spent,
+  // so it may no longer look affordable), else the first one the child can
+  // afford, else the first available one with "Need N more XP" (as on the
+  // Rewards board; the claim endpoint refuses a reward the XP cannot cover).
+  const availableRewards = (rewards ?? []).filter((r) => r.status === 'available' && !claimedRewards.has(r.id))
+  const claimableReward =
+    availableRewards.find((r) => r.id === celebratingReward) ??
+    availableRewards.find((r) => r.cost <= userXp) ??
+    availableRewards[0]
+  const celebratingThis = !!claimableReward && celebratingReward === claimableReward.id
+  const canClaimReward = !!claimableReward && (celebratingThis || claimableReward.cost <= userXp)
 
   async function handleClaimReward(rewardId: string) {
     if (claimingReward) return
@@ -473,17 +482,23 @@ export default function KidHome({
                 <button
                   type="button"
                   onClick={() => handleClaimReward(claimableReward.id)}
-                  disabled={claimingReward || celebratingReward === claimableReward.id}
+                  disabled={claimingReward || celebratingThis || !canClaimReward}
                   className={cn(
-                    'btn-primary px-4 py-2 text-body shrink-0 transition-all duration-200',
-                    celebratingReward === claimableReward.id
+                    'btn-primary min-h-[44px] px-4 py-2 text-body shrink-0 transition-all duration-200',
+                    celebratingThis
                       ? 'bg-success animate-check-pop'
+                      : !canClaimReward
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       : claimingReward
                       ? 'opacity-50'
                       : ''
                   )}
                 >
-                  {celebratingReward === claimableReward.id ? '🎉 Claimed!' : 'Claim'}
+                  {celebratingThis
+                    ? '🎉 Claimed!'
+                    : canClaimReward
+                    ? 'Claim'
+                    : `Need ${claimableReward.cost - userXp} more XP`}
                 </button>
               </div>
               {celebratingReward === claimableReward.id && (

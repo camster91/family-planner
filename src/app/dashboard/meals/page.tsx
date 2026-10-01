@@ -37,7 +37,8 @@ interface MealSaveData {
   date: string
   meal_type: MealType
   recipe_name: string
-  notes?: string
+  /** Edit sends null for blank notes so clearing them saves; add omits them. */
+  notes?: string | null
   /** Sent only when a recipe is picked (add) or the link changed (edit); null unlinks. */
   recipe_id?: string | null
 }
@@ -84,7 +85,7 @@ function MealModal({
       date,
       meal_type,
       recipe_name: recipe && !recipe_name.trim() ? recipe.title : recipe_name,
-      notes: notes || undefined,
+      notes: notes.trim() ? notes : mode === 'edit' ? null : undefined,
     }
     const recipeId = recipe?.id ?? null
     if (mode === 'add' ? recipeId !== null : recipeId !== initialRecipeId) data.recipe_id = recipeId

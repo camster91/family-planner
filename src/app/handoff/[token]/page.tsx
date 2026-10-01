@@ -6,7 +6,7 @@ const printStyles = `
   @page { margin: 0.5in; size: letter; }
   body * { visibility: hidden; }
   .print-card, .print-card * { visibility: visible; }
-  .print-card { position: fixed; left: 0; top: 0; width: 100%; }
+  .print-card { position: absolute; left: 0; top: 0; width: 100%; }
   .no-print { display: none !important; }
 }
 `

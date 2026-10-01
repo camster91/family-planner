@@ -116,7 +116,37 @@ describe('/dashboard/meals', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
     const patch = calls.find((c) => c.method === 'PATCH')!
     expect(patch.url).toBe('/api/meals/meal_b')
-    expect(patch.body).toEqual({ id: 'meal_b', date: today, meal_type: 'dinner', recipe_name: 'Caesar salad' })
+    expect(patch.body).toEqual({ id: 'meal_b', date: today, meal_type: 'dinner', recipe_name: 'Caesar salad', notes: null })
+  })
+
+  it('clears notes when they are emptied on edit (sends null, not nothing)', async () => {
+    const user = userEvent.setup()
+    const { calls } = setup({ meals: [{ ...dinnerA, notes: 'Extra cheese' }] })
+    const card = await todayCard()
+    await user.click(within(card).getAllByTestId('meal-row')[0])
+    const dialog = await screen.findByRole('dialog')
+    const notes = within(dialog).getByLabelText('Notes (optional)')
+    expect((notes as HTMLTextAreaElement).value).toBe('Extra cheese')
+    await user.clear(notes)
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual(
+      expect.objectContaining({ id: 'meal_a', notes: null })
+    )
+  })
+
+  it('keeps edited notes when they are changed', async () => {
+    const user = userEvent.setup()
+    const { calls } = setup({ meals: [{ ...dinnerA, notes: 'Extra cheese' }] })
+    const card = await todayCard()
+    await user.click(within(card).getAllByTestId('meal-row')[0])
+    const dialog = await screen.findByRole('dialog')
+    const notes = within(dialog).getByLabelText('Notes (optional)')
+    await user.clear(notes)
+    await user.type(notes, 'No onions')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual(expect.objectContaining({ notes: 'No onions' }))
   })
 
   it('adds a free-text meal from an empty slot exactly as before', async () => {

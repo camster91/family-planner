@@ -157,4 +157,36 @@ describe('KidHome reward claim', () => {
     expect(screen.getByText('Movie night')).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()
   })
+
+  it('offers an affordable reward before one the XP cannot cover', async () => {
+    replies['/api/rewards/claim'] = [{ status: 200, body: { reward: { id: 'r2' }, xp: 10 } }]
+    renderHome([], {
+      user: { name: 'Casey', role: 'child', xp: 30, level: 1 },
+      rewards: [
+        { id: 'r1', name: 'Movie night', cost: 50, status: 'available' },
+        { id: 'r2', name: 'Sticker', cost: 20, status: 'available' },
+      ],
+    })
+    expect(screen.queryByText('Movie night')).toBeNull()
+    expect(screen.getByText('Sticker')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    expect(await screen.findByText('You got it!')).toBeTruthy()
+    // Still celebrating the claimed one even though 10 XP no longer covers it.
+    expect(screen.getByText('Sticker')).toBeTruthy()
+    expect(calls.filter((u) => u === '/api/rewards/claim')).toHaveLength(1)
+  })
+
+  it('shows "Need N more XP", disabled, when no available reward is affordable', async () => {
+    renderHome([], {
+      user: { name: 'Casey', role: 'child', xp: 10, level: 1 },
+      rewards: [{ id: 'r1', name: 'Movie night', cost: 50, status: 'available' }],
+    })
+    expect(screen.getByText('Movie night')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Claim' })).toBeNull()
+    const button = screen.getByRole('button', { name: 'Need 40 more XP' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(button.className).toMatch(/min-h-\[44px\]/)
+    await userEvent.click(button)
+    expect(calls).not.toContain('/api/rewards/claim')
+  })
 })

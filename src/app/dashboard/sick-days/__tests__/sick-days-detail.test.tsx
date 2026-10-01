@@ -121,6 +121,31 @@ describe('sick day detail', () => {
     expect(within(detail).queryByText('sickDays.noTemps')).toBeNull()
   })
 
+  it('accepts a decimal temperature (the number field allows tenths)', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await openDetail(user)
+    await user.click(await screen.findByRole('button', { name: /sickDays.addTemperature/ }))
+    const form = await screen.findByRole('dialog', { name: 'sickDays.addTemperature' })
+    const field = within(form).getByLabelText('sickDays.temperature') as HTMLInputElement
+    expect(field.getAttribute('step')).toBe('0.1')
+    await user.selectOptions(within(form).getByLabelText('sickDays.unit'), 'C')
+    await user.type(field, '38.5')
+    expect(field.validity.stepMismatch).toBe(false)
+    expect(field.checkValidity()).toBe(true)
+    await user.click(within(form).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/sick-days/sd1',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ addTemperature: { value: 38.5, unit: 'C' } }),
+        })
+      )
+    )
+  })
+
   it('shows a new medication in the open sheet straight after it is added', async () => {
     const user = userEvent.setup()
     renderPage()
