@@ -37,6 +37,7 @@ function PickupsPageInner() {
   const [loading, setLoading] = React.useState(true)
   const [adding, setAdding] = React.useState(false)
   const [draft, setDraft] = React.useState({ title: '', location: '', pickup_time: '', assigned_to: '', notes: '' })
+  const formId = React.useId()
   const [saving, setSaving] = React.useState(false)
 
   // KidHome pattern: a refused or failed request says so in a toast instead
@@ -154,8 +155,9 @@ function PickupsPageInner() {
             <span className="text-headline">New pickup</span>
           </div>
           <div>
-            <label className="label-apple">Title</label>
+            <label htmlFor={`${formId}-title`} className="label-apple">Title</label>
             <input
+              id={`${formId}-title`}
               type="text"
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
@@ -165,8 +167,9 @@ function PickupsPageInner() {
             />
           </div>
           <div>
-            <label className="label-apple">When</label>
+            <label htmlFor={`${formId}-when`} className="label-apple">When</label>
             <input
+              id={`${formId}-when`}
               type="datetime-local"
               value={draft.pickup_time}
               onChange={(e) => setDraft({ ...draft, pickup_time: e.target.value })}
@@ -174,8 +177,9 @@ function PickupsPageInner() {
             />
           </div>
           <div>
-            <label className="label-apple">Location</label>
+            <label htmlFor={`${formId}-location`} className="label-apple">Location</label>
             <input
+              id={`${formId}-location`}
               type="text"
               value={draft.location}
               onChange={(e) => setDraft({ ...draft, location: e.target.value })}
@@ -184,8 +188,9 @@ function PickupsPageInner() {
             />
           </div>
           <div>
-            <label className="label-apple">Assigned to</label>
+            <label htmlFor={`${formId}-assigned`} className="label-apple">Assigned to</label>
             <select
+              id={`${formId}-assigned`}
               value={draft.assigned_to}
               onChange={(e) => setDraft({ ...draft, assigned_to: e.target.value })}
               className="input-apple"
@@ -197,8 +202,9 @@ function PickupsPageInner() {
             </select>
           </div>
           <div>
-            <label className="label-apple">Notes</label>
+            <label htmlFor={`${formId}-notes`} className="label-apple">Notes</label>
             <input
+              id={`${formId}-notes`}
               type="text"
               value={draft.notes}
               onChange={(e) => setDraft({ ...draft, notes: e.target.value })}

@@ -21,6 +21,7 @@ export function Dialog({
   className,
   testId,
   initialFocusRef,
+  role = 'dialog',
 }: {
   open: boolean
   /** Omit to make the dialog non-dismissible (no close button, no Escape). */
@@ -31,6 +32,8 @@ export function Dialog({
   className?: string
   testId?: string
   initialFocusRef?: React.RefObject<HTMLElement | null>
+  /** `alertdialog` for confirmations that interrupt (delete, discard). */
+  role?: 'dialog' | 'alertdialog'
 }) {
   const panelRef = React.useRef<HTMLDivElement>(null)
   const titleId = React.useId()
@@ -82,7 +85,7 @@ export function Dialog({
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
       <div
         ref={panelRef}
-        role="dialog"
+        role={role}
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}

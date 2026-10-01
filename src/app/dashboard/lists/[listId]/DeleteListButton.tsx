@@ -40,10 +40,10 @@ export default function DeleteListButton({ listId, listName }: { listId: string;
       type="button"
       onClick={handleDelete}
       disabled={deleting}
-      className="p-2 text-label-tertiary active:text-[var(--tint-rewards)] rounded-lg active:bg-[var(--surface-fill)] disabled:opacity-50"
+      className="inline-flex h-11 w-11 items-center justify-center text-label-tertiary active:text-[var(--tint-rewards)] rounded-lg active:bg-[var(--surface-fill)] disabled:opacity-50"
       aria-label={`Delete list ${listName}`}
     >
-      <Trash2 className="w-4 h-4" />
+      <Trash2 className="w-4 h-4" aria-hidden="true" />
     </button>
   )
 }

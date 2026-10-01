@@ -181,9 +181,9 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+        className="-my-3 -mr-3 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center text-gray-400 hover:text-gray-600"
       >
-        <X className="w-4 h-4" />
+        <X className="w-4 h-4" aria-hidden="true" />
       </button>
     </div>
   )

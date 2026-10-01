@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Camera } from 'lucide-react'
 import Link from 'next/link'
@@ -48,6 +48,7 @@ function EditChoreForm() {
   const searchParams = useSearchParams()
   const choreId = searchParams.get('id')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fieldId = useId()
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
@@ -285,13 +286,16 @@ function EditChoreForm() {
 
         {/* Difficulty picker */}
         <div>
-          <label className="label-apple">Difficulty</label>
-          <div className="grid grid-cols-3 gap-2">
+          <p id={`${fieldId}-difficulty`} className="label-apple">
+            Difficulty
+          </p>
+          <div role="group" aria-labelledby={`${fieldId}-difficulty`} className="grid grid-cols-3 gap-2">
             {difficultyOptions.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setDifficulty(opt.value)}
+                aria-pressed={difficulty === opt.value}
                 className={cn(
                   'py-3 rounded-[var(--radius-md)] border text-center transition-all duration-200',
                   difficulty === opt.value
@@ -308,18 +312,25 @@ function EditChoreForm() {
 
         {/* Frequency picker */}
         <div>
-          <label className="label-apple">Frequency</label>
+          <p id={`${fieldId}-frequency`} className="label-apple">
+            Frequency
+          </p>
           {seriesCopy && (
             <p className="text-caption-1 text-label-secondary mb-2">
               This chore is part of a repeating series. Changing how often changes the whole series.
             </p>
           )}
-          <div className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
+          <div
+            role="group"
+            aria-labelledby={`${fieldId}-frequency`}
+            className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1"
+          >
             {frequencyOptions.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setFrequency(opt.value)}
+                aria-pressed={frequency === opt.value}
                 className={cn(
                   'flex-1 py-2 rounded-md text-sm font-medium transition-all duration-200',
                   frequency === opt.value
@@ -344,9 +355,12 @@ function EditChoreForm() {
 
         {/* Photo attach */}
         <div>
-          <label className="label-apple">Photo</label>
+          <p id={`${fieldId}-photo`} className="label-apple">
+            Photo
+          </p>
           <input
             ref={fileInputRef}
+            aria-labelledby={`${fieldId}-photo`}
             type="file"
             accept="image/*"
             className="hidden"
@@ -374,6 +388,7 @@ function EditChoreForm() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={photoUploading}
+            aria-describedby={`${fieldId}-photo`}
             className={cn(
               'w-full py-3 rounded-[var(--radius-md)] border transition-all duration-200 text-center',
               photoPreview
@@ -399,9 +414,15 @@ function EditChoreForm() {
               <button
                 type="button"
                 onClick={() => { setPhotoUrl(null); setPhotoPreview(null) }}
-                className="absolute top-1 right-1 w-5 h-5 bg-[var(--danger)] rounded-full flex items-center justify-center"
+                aria-label="Remove photo"
+                className="absolute top-0 right-0 flex h-11 w-11 items-start justify-end p-1"
               >
-                <span className="text-white text-xs">✕</span>
+                <span
+                  aria-hidden="true"
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--danger)] text-xs text-white"
+                >
+                  ✕
+                </span>
               </button>
             </div>
           )}

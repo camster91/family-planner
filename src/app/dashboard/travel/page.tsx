@@ -217,11 +217,12 @@ function TravelPageInner() {
         {isActive && (
           <div className="space-y-4 pt-4 border-t border-[var(--surface-separator)]">
             <div>
-              <label className="text-subhead text-label-secondary mb-1.5 block">
-                <MapPin className="w-3.5 h-3.5 inline mr-1" />
+              <label htmlFor="travel-destination" className="text-subhead text-label-secondary mb-1.5 block">
+                <MapPin className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
                 {t('travel.destination')}
               </label>
               <input
+                id="travel-destination"
                 type="text"
                 value={destination}
                 onChange={e => setDestination(e.target.value)}

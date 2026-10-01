@@ -24,9 +24,14 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
   const { features } = useFeatures()
 
   React.useEffect(() => {
-    if (open) {
-      setQuery('')
-      setTimeout(() => inputRef.current?.focus(), 50)
+    if (!open) return
+    // Return focus to whatever opened the palette when it closes.
+    const previous = document.activeElement as HTMLElement | null
+    setQuery('')
+    const timer = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => {
+      clearTimeout(timer)
+      if (previous && document.contains(previous)) previous.focus()
     }
   }, [open])
 
@@ -77,10 +82,13 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-[var(--surface-overlay)]" />
+      <div className="absolute inset-0 bg-[var(--surface-overlay)]" aria-hidden="true" />
 
       {/* Palette */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         className={cn(
           'relative w-full max-w-lg mx-4',
           'card-elevated bg-[var(--surface-elevated)]',
@@ -90,7 +98,7 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
       >
         {/* Search */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--surface-separator)]">
-          <Search className="w-5 h-5 text-label-tertiary shrink-0" />
+          <Search className="w-5 h-5 text-label-tertiary shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
@@ -109,13 +117,19 @@ export default function CommandPalette({ open, onClose, role }: CommandPalettePr
           {query && (
             <button
               type="button"
-              onClick={() => setQuery('')}
-              className="p-1 rounded-full bg-[var(--surface-fill)]"
+              onClick={() => {
+                setQuery('')
+                inputRef.current?.focus()
+              }}
+              aria-label="Clear search"
+              className="-my-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
             >
-              <X className="w-3.5 h-3.5 text-label-tertiary" />
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-fill)]">
+                <X className="w-3.5 h-3.5 text-label-tertiary" aria-hidden="true" />
+              </span>
             </button>
           )}
-          <kbd className="text-caption-1 text-label-tertiary bg-[var(--surface-fill)] px-1.5 py-0.5 rounded shrink-0">
+          <kbd aria-hidden="true" className="text-caption-1 text-label-tertiary bg-[var(--surface-fill)] px-1.5 py-0.5 rounded shrink-0">
             esc
           </kbd>
         </div>

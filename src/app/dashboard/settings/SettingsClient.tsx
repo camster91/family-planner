@@ -7,11 +7,12 @@ import CalendarSubscriptionsSection from './CalendarSubscriptionsSection'
 import CalendarSyncSection from './CalendarSyncSection'
 import SharedDeviceSettings from './SharedDeviceSettings'
 import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
+import { Dialog } from '@/components/ui/dialog'
 import { downloadMyData } from '@/lib/data-export-client'
 import { isLocale, useTranslation } from '@/i18n'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
 import BetaMetricsSwitch from '@/components/account/BetaMetricsSwitch'
-import { Save, Bell, User, Shield, Moon, Globe, X, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
+import { Save, Bell, User, Shield, Moon, Globe, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
 
 /**
  * `sharedDevice` is decided on the server (./page.tsx): null unless the
@@ -771,28 +772,15 @@ export default function SettingsClient({
       <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} />
 
       {/* Change Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                  <KeyRound className="w-5 h-5 text-blue-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Change Password</h2>
-              </div>
-              <button
-                onClick={() => { setShowPasswordModal(false); setPasswordError(null); setPasswordSuccess(false) }}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      <Dialog
+        open={showPasswordModal}
+        onClose={() => { setShowPasswordModal(false); setPasswordError(null); setPasswordSuccess(false) }}
+        title="Change Password"
+      >
             {passwordSuccess ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <KeyRound className="w-8 h-8 text-green-600" />
+                  <KeyRound className="w-8 h-8 text-green-600" aria-hidden="true" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">Password Changed</h3>
                 <p className="text-gray-600 mt-2">Your password has been updated successfully.</p>
@@ -866,9 +854,7 @@ export default function SettingsClient({
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
+      </Dialog>
     </div>
   )
 }

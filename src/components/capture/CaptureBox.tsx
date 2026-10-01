@@ -313,7 +313,14 @@ export function CaptureBox({
           onClick={interpret}
           disabled={busy || !text.trim()}
         >
-          {busy && !draft ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Read it'}
+          {busy && !draft ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              <span className="sr-only">Reading…</span>
+            </>
+          ) : (
+            'Read it'
+          )}
         </button>
       </div>
 
@@ -336,7 +343,11 @@ export function CaptureBox({
           onClick={() => fileInputRef.current?.click()}
           disabled={busy || photoBusy}
         >
-          {photoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+          {photoBusy ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Camera className="w-3.5 h-3.5" aria-hidden="true" />
+          )}
           {photoBusy ? 'Reading the photo…' : 'Or take a photo of a flyer'}
         </button>
       </div>
@@ -374,14 +385,22 @@ export function CaptureBox({
 
           <div className="flex gap-2 mt-3">
             <button className="btn-filled px-4" onClick={confirm} disabled={busy}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add it'}
+              {busy ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  <span className="sr-only">Adding…</span>
+                </>
+              ) : (
+                'Add it'
+              )}
             </button>
             <button
-              className="btn-plain px-4"
+              className="btn-plain min-h-[44px] min-w-[44px] px-4"
               onClick={() => setDraft(null)}
               disabled={busy}
+              aria-label="Discard"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -401,13 +420,13 @@ export function CaptureBox({
               {photoEvents.map((ev, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <button
-                    className="btn-plain p-1 shrink-0"
+                    className="btn-plain -my-2 min-h-[44px] min-w-[44px] p-1 shrink-0"
                     aria-label={`Remove ${ev.title}`}
                     onClick={() =>
                       setPhotoEvents((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
                     }
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <div className="min-w-0">
                     <p className="text-body">{ev.title}</p>
@@ -429,7 +448,10 @@ export function CaptureBox({
             {photoEvents.length > 0 && (
               <button className="btn-filled px-4" onClick={confirmPhoto} disabled={photoBusy}>
                 {photoBusy ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    <span className="sr-only">Adding…</span>
+                  </>
                 ) : (
                   `Add ${photoEvents.length}`
                 )}

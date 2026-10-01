@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Archive, Trash2, MoreHorizontal, CheckCircle2, RotateCcw } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
@@ -20,6 +20,34 @@ export function ProjectDetailActions({
   const { addToast } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
+  const menuId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Menu keyboard support: focus the first item on open, Escape closes and
+  // returns focus to the trigger, arrow keys move between items.
+  useEffect(() => {
+    if (!menuOpen) return
+    const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [])
+    items()[0]?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setMenuOpen(false)
+        triggerRef.current?.focus()
+        return
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      const list = items()
+      if (list.length === 0) return
+      e.preventDefault()
+      const at = list.indexOf(document.activeElement as HTMLElement)
+      const next = e.key === 'ArrowDown' ? (at + 1) % list.length : (at - 1 + list.length) % list.length
+      list[next].focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
 
   const updateStatus = async (status: 'active' | 'completed' | 'archived') => {
     setLoading(status)
@@ -73,7 +101,7 @@ export function ProjectDetailActions({
 
   interface Action {
     label: string
-    icon: React.ComponentType<{ className?: string }>
+    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
     onClick: () => void
     loading: boolean
     className?: string
@@ -130,27 +158,38 @@ export function ProjectDetailActions({
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setMenuOpen(!menuOpen)}
-        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-controls={menuOpen ? menuId : undefined}
+        className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
       >
-        <MoreHorizontal className="w-4 h-4" />
+        <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
         Actions
       </button>
 
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-white border shadow-lg py-1 overflow-hidden">
+          <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setMenuOpen(false)} />
+          <div
+            ref={menuRef}
+            id={menuId}
+            role="menu"
+            aria-label="Project actions"
+            className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-white border shadow-lg py-1 overflow-hidden"
+          >
             {actions.map((action) => (
               <button
                 key={action.label}
                 type="button"
+                role="menuitem"
                 onClick={action.onClick}
                 disabled={!!action.loading}
-                className={`flex items-center gap-2 w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors disabled:opacity-50 ${action.className || ''}`}
+                className={`flex min-h-[44px] items-center gap-2 w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors disabled:opacity-50 ${action.className || ''}`}
               >
-                <action.icon className="w-4 h-4" />
+                <action.icon className="w-4 h-4" aria-hidden="true" />
                 {action.loading ? '...' : action.label}
               </button>
             ))}

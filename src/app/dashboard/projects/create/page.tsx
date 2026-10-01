@@ -127,8 +127,10 @@ function CreateProjectForm() {
 
             {/* Color picker */}
             <div className="space-y-2">
-              <label className="text-subhead text-label-secondary">Accent Color</label>
-              <div className="flex flex-wrap gap-2">
+              <p id="project-color-label" className="text-subhead text-label-secondary">
+                Accent Color
+              </p>
+              <div role="group" aria-labelledby="project-color-label" className="flex flex-wrap gap-2">
                 {PRESET_COLORS.map((c) => (
                   <button
                     key={c.value}
@@ -143,8 +145,9 @@ function CreateProjectForm() {
                     style={{ backgroundColor: c.value }}
                     title={c.label}
                     aria-label={`Color: ${c.label}`}
+                    aria-pressed={color === c.value}
                   >
-                    {color === c.value && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
+                    {color === c.value && <Check className="w-4 h-4 text-white" strokeWidth={3} aria-hidden="true" />}
                   </button>
                 ))}
               </div>
