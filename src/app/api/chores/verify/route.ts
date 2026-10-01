@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
       include: {
-        assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
+        assignee: { select: { id: true, name: true, avatar_url: true, role: true, family_id: true } },
         creator: { select: { id: true, name: true, avatar_url: true, role: true } },
       },
     })
@@ -77,8 +77,13 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
+    // XP and notifications go only to an assignee who is still in the chore's
+    // household. A member removed while their chore waited for a check (O-34)
+    // must not keep earning XP or reading household chore titles.
+    const assignee = chore.assignee && chore.assignee.family_id === chore.family_id ? chore.assignee : null
+
     if (decision === 'reject') {
-      return rejectChore(auth.user, chore, verificationNotes, getRequestId(request))
+      return rejectChore(auth.user, { ...chore, assignee }, verificationNotes, getRequestId(request))
     }
 
     // 'verified' is accepted so re-verifying is idempotent (the updateMany
@@ -120,8 +125,8 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      const xp = chore.assignee
-        ? await awardChoreXP(chore.assignee.id, chore.difficulty || 'medium', chore.points || 10, tx)
+      const xp = assignee
+        ? await awardChoreXP(assignee.id, chore.difficulty || 'medium', chore.points || 10, tx)
         : null
 
       return { verified: true as const, xp }
@@ -152,10 +157,10 @@ export async function POST(request: NextRequest) {
     // Notifications are sent only after the transaction commits, so a rolled-back
     // verify never tells the child it succeeded. A notification failure must not
     // turn a committed verify into a 500 (which would invite a pointless retry).
-    if (chore.assignee) {
+    if (assignee) {
       try {
         await notificationServiceServer.sendNotification({
-          userId: chore.assignee.id,
+          userId: assignee.id,
           title: 'Chore Verified!',
           message: `Your chore "${chore.title}" has been verified. Great job!`,
           type: 'reward',
@@ -165,7 +170,7 @@ export async function POST(request: NextRequest) {
         // Points & streaks off (#248), but the level-up message is not sent.
         if (outcome.xp?.levelUp && (await isGamificationOn(auth.user.family_id))) {
           await notificationServiceServer.sendNotification({
-            userId: chore.assignee.id,
+            userId: assignee.id,
             title: `Level Up! ${outcome.xp.newLevel}`,
             message: `You reached Level ${outcome.xp.newLevel}! Keep it up!`,
             // Earned by chores, so "Chores and rewards" mutes it (#286).
@@ -223,6 +228,9 @@ async function rejectChore(
       photo_verified: false,
       verified_at: null,
       verified_notes: reason,
+      // Sent back while its assignee is no longer in the household (O-34):
+      // hand the reopened chore to the parent who sent it back.
+      ...(chore.assignee ? {} : { assigned_to: caller.id }),
     })
     if (outcome !== 'reopened') return outcome
     await tx.activity.create({

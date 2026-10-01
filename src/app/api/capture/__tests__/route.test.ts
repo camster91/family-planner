@@ -31,17 +31,25 @@ jest.mock("@/lib/outbound-url", () => ({
   assertPublicProviderUrl: jest.fn(),
 }));
 
+jest.mock("@/lib/safe-fetch", () => {
+  const actual = jest.requireActual("@/lib/safe-fetch");
+  return { ...actual, safeFetch: jest.fn() };
+});
+
 import { POST } from "../route";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { assertPublicProviderUrl } from "@/lib/outbound-url";
 import { CAPTURE_TIMEOUT_MS, MAX_IMAGE_BASE64_LENGTH } from "@/lib/capture";
+import { safeFetch, UnsafeAddressError } from "@/lib/safe-fetch";
+import { encryptSecret } from "@/lib/secret-box";
 
 const mockAuth = authenticateWithFamily as jest.Mock;
 const mockFamilyFindUnique = (prisma as any).family.findUnique as jest.Mock;
 const mockCheckRateLimit = checkRateLimit as jest.Mock;
 const mockAssertPublic = assertPublicProviderUrl as jest.Mock;
+const mockSafeFetch = safeFetch as jest.Mock;
 
 const ENV_KEYS = ["CAPTURE_AI_KEY", "CAPTURE_AI_BASE_URL", "CAPTURE_AI_MODEL"] as const;
 const savedEnv: Record<string, string | undefined> = {};
@@ -235,5 +243,55 @@ describe("POST /api/capture — size cap and provider timeout", () => {
 
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("Capture failed. Try again shortly.");
+  });
+});
+
+describe("POST /api/capture — a family's own base URL is fetched with DNS pinning", () => {
+  const originalFetch3 = global.fetch;
+
+  beforeAll(() => {
+    global.fetch = mockFetch as unknown as typeof fetch;
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch3;
+    delete process.env.CAPTURE_AI_KEY;
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.CAPTURE_AI_KEY;
+    mockAuth.mockResolvedValue([{ payload: { userId: "parent-a" }, user: parentA }, null]);
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, retryAfterMs: 0, remaining: 29 });
+    mockFamilyFindUnique.mockResolvedValue({
+      capture_ai_key_enc: encryptSecret("sk-family-own-key"),
+      capture_ai_base_url: "https://llm.family.example/v1",
+      capture_ai_model: "family-model",
+    });
+    mockAssertPublic.mockResolvedValue(undefined);
+    mockSafeFetch.mockResolvedValue(modelReply({ kind: "event", title: "Dentist", confidence: "high" }));
+  });
+
+  it("vets the URL and then calls it through safeFetch, never the plain global fetch", async () => {
+    const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
+
+    expect(res.status).toBe(200);
+    expect(mockAssertPublic).toHaveBeenCalledWith("https://llm.family.example/v1");
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockSafeFetch.mock.calls[0];
+    expect(url).toBe("https://llm.family.example/v1/chat/completions");
+    expect(init.redirect).toBe("manual");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.headers.Authorization).toBe("Bearer sk-family-own-key");
+  });
+
+  it("turns a connect-time private address (DNS rebinding) into a 400", async () => {
+    mockSafeFetch.mockRejectedValue(new UnsafeAddressError());
+
+    const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/public address/i);
   });
 });

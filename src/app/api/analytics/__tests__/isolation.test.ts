@@ -18,6 +18,9 @@ describe("analytics — two households", () => {
   });
 
   it("GET aggregates only the caller's family", async () => {
+    // The seeded chores are due in a few days; rates only count chores that
+    // are already due, so make both households' chores due yesterday.
+    for (const c of db.rows("chore")) c.due_date = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const body = await expectNoForeignData(await GET(req({ as: "parentA" })));
     expect(body.memberParticipation.map((m: any) => m.id).sort()).toEqual(["child-a", "parent-a", "teen-a"]);
     expect(body.summary.totalChores).toBe(1);

@@ -135,6 +135,22 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
 
+      # scripts/migrate.js is the production schema; prisma/schema.prisma must
+      # describe exactly what it creates (referential actions, nullability,
+      # defaults, index names). Read-only: compares the migrated database with
+      # the schema file and fails on any difference, printing the SQL that would
+      # turn the database into the schema.
+      - name: Verify Prisma schema matches the migrated database
+        run: |
+          set -euo pipefail
+          if ! npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code; then
+            echo "::error::prisma/schema.prisma differs from the database scripts/migrate.js creates. Align the schema with migrate.js (or migrate.js with the schema, as a reviewed migration)."
+            npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script || true
+            exit 1
+          fi
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+
       - name: Verify fixture seed is idempotent
         run: |
           npm run fixtures:seed
@@ -343,7 +359,8 @@ jobs:
   publish-image:
     name: Publish checked image
     needs: [build, checked-image]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FP_IMMUTABLE_RELEASE_ENABLED == 'true'
+    # Only pushes to the repository's actual default branch (master today).
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.FP_IMMUTABLE_RELEASE_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -371,10 +388,12 @@ jobs:
       - name: Publish the tested image without rebuilding
         env:
           RELEASE_SHA: ${{ github.sha }}
+          FP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: python3 .github/scripts/checked-image.py publish --directory "$RUNNER_TEMP/checked-image"
       - name: Preserve and refetch durable draft receipt
         env:
           RELEASE_SHA: ${{ github.sha }}
+          FP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GITHUB_TOKEN: ${{ github.token }}
           CHECKED_IMAGE_DIRECTORY: ${{ runner.temp }}/checked-image
         run: node .github/scripts/preserve-image-receipt.mjs

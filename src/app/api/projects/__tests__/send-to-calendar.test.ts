@@ -13,6 +13,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 import { POST as sendToCalendar } from "../[id]/send-to-calendar/route";
 import { db, req, params, bodyOf, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
 import { DEFAULT_FAMILY_TIMEZONE } from "@/lib/calendar-import/timezone";
+import * as projectCalendar from "@/lib/project-calendar";
 
 const DUE = new Date("2026-10-15T00:00:00Z"); // picked "2026-10-15" in a date input
 
@@ -78,6 +79,17 @@ describe("send-to-calendar", () => {
     // Toronto is UTC-4 in October.
     expect(w.args.data.start_time.toISOString()).toBe("2026-10-15T04:00:00.000Z");
     expect(w.args.data.end_time.toISOString()).toBe("2026-10-16T03:59:00.000Z");
+  });
+
+  it("locks the project row before reading what is already sent (no double send)", async () => {
+    const lock = jest.spyOn(projectCalendar, "lockProjectRow");
+    try {
+      expect((await send({ timeZone: "UTC" })).status).toBe(200);
+      expect(lock).toHaveBeenCalledTimes(1);
+      expect(lock.mock.calls[0][1]).toBe("proj-a");
+    } finally {
+      lock.mockRestore();
+    }
   });
 
   it("does not send the same task twice, even after it is renamed", async () => {

@@ -210,10 +210,10 @@ export default function InviteMemberPage() {
                   <button
                     type="button"
                     onClick={() => handleRevoke(invite.id)}
-                    className="btn-plain shrink-0"
+                    className="btn-plain min-h-[44px] min-w-[44px] shrink-0"
                     aria-label={`Revoke invite for ${invite.email}`}
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </li>
               ))}

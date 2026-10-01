@@ -11,6 +11,9 @@ import userEvent from '@testing-library/user-event'
 import BetaMetricsSwitch from '../BetaMetricsSwitch'
 import SettingsClient from '@/app/dashboard/settings/SettingsClient'
 
+// SettingsClient refreshes the server layout after a profile save.
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }) }))
+
 jest.mock('next/link', () => ({
   __esModule: true,
   default: ({ href, children, ...rest }: any) => (

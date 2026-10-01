@@ -36,6 +36,7 @@ import { chorePhotoFilename, CHORE_PHOTO_FILENAME_RE } from '@/lib/chore-photos'
 import { clearConnectionData, revokeProviderGrant } from '@/lib/calendar-sync/sync'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { auditSummary, roleWord, writeAuditLog } from '@/lib/household-audit'
+import { resolveUploadDir } from '@/lib/upload-dir'
 import type { AccountDeletionCode, DeletionOptions } from '@/lib/account-deletion-shared'
 
 export class AccountDeletionError extends Error {
@@ -55,7 +56,7 @@ const LAST_PARENT_MESSAGE =
 export interface DeletionDeps {
   /** Prisma client (tests pass a fake). */
   db?: any
-  /** Upload root; defaults to UPLOAD_DIR like /api/upload. */
+  /** Upload root; defaults to resolveUploadDir() like /api/upload. */
   uploadDir?: string
   /** File removal; defaults to fs.unlink. A missing file counts as removed. */
   removeFile?: (absolutePath: string) => Promise<void>
@@ -92,7 +93,7 @@ function dbOf(deps: DeletionDeps): any {
 }
 
 function uploadRoot(deps: DeletionDeps): string {
-  return deps.uploadDir ?? process.env.UPLOAD_DIR ?? '/data/family-planner-uploads'
+  return deps.uploadDir ?? resolveUploadDir()
 }
 
 async function defaultRemoveFile(absolutePath: string): Promise<void> {

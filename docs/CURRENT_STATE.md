@@ -138,6 +138,17 @@ Merged on 2026-10-01:
   - AI capture calls time out after 30 seconds, and `X-Real-IP` is trusted only behind a declared proxy.
   - The kid page gate uses the real path, the English/Español switch works, and wishlist labels are fixed.
   - About 2,000 lines of unused code are gone, and more routes answer bad input with 400.
+- Fourth review pass (this PR):
+  - Outbound calls are now protected against DNS rebinding (the address that was checked is the address connected to).
+  - Rewards can be claimed and marked as given, and analytics shows real data.
+  - Budget transactions can be edited or deleted, and sick days update right away.
+  - Sharing a handoff no longer breaks the sitter's link.
+  - Screens no longer differ between server and browser, and dialogs, labels and touch targets are accessible.
+  - "Download my data" now includes every personal record, and a removed member gets no more points or notices.
+  - Repeating chores no longer depend on the server's time zone.
+  - Backups can't look valid when the dump failed, and a restore stops at the first error.
+  - The schema matches the database, with a check in CI.
+  - The Coolify image job now runs on `master`, and Android version numbers come from CI.
 
 What is left before real families use the app, and who does it: [`LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md).
 

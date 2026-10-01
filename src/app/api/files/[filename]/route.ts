@@ -5,11 +5,12 @@ import path from 'path'
 import crypto from 'crypto'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { resolveUploadDir } from '@/lib/upload-dir'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
+const UPLOAD_DIR = resolveUploadDir()
 const FILENAME_RE = /^[a-f0-9]{16}\.(jpg|jpeg|png|webp|heic)$/i
 
 // GET /api/files/[filename] — serve a legacy uploaded photo

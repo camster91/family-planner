@@ -15,7 +15,7 @@ model User {
   email                         String             @unique
   password                      String?
   name                          String
-  role                          String // 'parent', 'child', 'teen'
+  role                          String             @default("parent") // 'parent', 'child', 'teen'
   age                           Int?
   family_id                     String?
   avatar_url                    String?
@@ -123,6 +123,8 @@ model User {
   audit_log_entries             AuditLog[]         @relation("AuditLogActor")
 
   @@index([family_id])
+  // Created by scripts/migrate.js for password-reset token lookups.
+  @@index([reset_token])
 }
 
 model Family {
@@ -274,7 +276,7 @@ model CalendarSubscription {
   last_modified   String?
   created_by      String
   created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  updated_at      DateTime  @default(now()) @updatedAt
 
   family  Family  @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator User    @relation("CalendarSubscriptionCreator", fields: [created_by], references: [id], onDelete: Cascade)
@@ -308,7 +310,7 @@ model CalendarConnection {
   conflicts_count   Int       @default(0)
   last_conflict_at  DateTime?
   created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  updated_at        DateTime  @default(now()) @updatedAt
 
   family Family              @relation(fields: [family_id], references: [id], onDelete: Cascade)
   user   User                @relation("CalendarConnectionOwner", fields: [user_id], references: [id], onDelete: Cascade)
@@ -334,7 +336,7 @@ model CalendarEventLink {
   all_day             Boolean   @default(false)
   synced_at           DateTime?
   created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
+  updated_at          DateTime  @default(now()) @updatedAt
 
   family     Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
   connection CalendarConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade)
@@ -434,8 +436,8 @@ model Chore {
 
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id])
-  creator     User              @relation("CreatedChores", fields: [created_by], references: [id])
+  assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id], onDelete: Cascade)
+  creator     User              @relation("CreatedChores", fields: [created_by], references: [id], onDelete: Cascade)
   assignments ChoreAssignment[]
 
   @@unique([recurrence_id, due_date])
@@ -465,7 +467,7 @@ model ChoreAssignment {
   xp_awarded      Int       @default(0)
   idempotency_key String?   @unique
   created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  updated_at      DateTime  @default(now()) @updatedAt
 
   family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   chore     Chore  @relation(fields: [chore_id], references: [id], onDelete: Cascade)
@@ -473,9 +475,9 @@ model ChoreAssignment {
   completer User?  @relation("ChoreAssignmentCompleter", fields: [completed_by], references: [id], onDelete: SetNull)
   approver  User?  @relation("ChoreAssignmentApprover", fields: [approved_by], references: [id], onDelete: SetNull)
 
-  @@unique([chore_id, assigned_to, due_date])
-  @@index([family_id, status])
-  @@index([assigned_to, due_date])
+  @@unique([chore_id, assigned_to, due_date], map: "ChoreAssignment_chore_assignee_due_key")
+  @@index([family_id, status], map: "ChoreAssignment_family_status_idx")
+  @@index([assigned_to, due_date], map: "ChoreAssignment_assignee_due_idx")
   @@index([chore_id])
 }
 
@@ -496,7 +498,7 @@ model ImportJob {
   starter User             @relation("ImportJobStarter", fields: [started_by], references: [id], onDelete: Restrict)
   records ImportedRecord[]
 
-  @@index([family_id, source_app])
+  @@index([family_id, source_app], map: "ImportJob_family_source_idx")
   @@index([status])
 }
 
@@ -515,9 +517,9 @@ model ImportedRecord {
   family     Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
   import_job ImportJob @relation(fields: [import_job_id], references: [id], onDelete: Cascade)
 
-  @@unique([family_id, source_app, source_model, source_id])
-  @@index([import_job_id])
-  @@index([family_id, target_model, target_id])
+  @@unique([family_id, source_app, source_model, source_id], map: "ImportedRecord_source_key")
+  @@index([import_job_id], map: "ImportedRecord_job_idx")
+  @@index([family_id, target_model, target_id], map: "ImportedRecord_target_idx")
 }
 
 model Recipe {
@@ -532,7 +534,7 @@ model Recipe {
   image_url    String?
   created_by   String
   created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  updated_at   DateTime @default(now()) @updatedAt
 
   family       Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator      User               @relation("RecipeCreator", fields: [created_by], references: [id], onDelete: Restrict)
@@ -542,7 +544,7 @@ model Recipe {
   meals        FamilyMeal[]
   list_items   ListItem[]
 
-  @@index([family_id, title])
+  @@index([family_id, title], map: "Recipe_family_title_idx")
 }
 
 model Ingredient {
@@ -558,7 +560,7 @@ model Ingredient {
   list_items         ListItem[]
   inventory_items    InventoryItem[]
 
-  @@unique([family_id, name])
+  @@unique([family_id, name], map: "Ingredient_family_name_key")
 }
 
 model RecipeIngredient {
@@ -572,8 +574,8 @@ model RecipeIngredient {
   recipe     Recipe     @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
   ingredient Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
 
-  @@unique([recipe_id, ingredient_id])
-  @@index([ingredient_id])
+  @@unique([recipe_id, ingredient_id], map: "RecipeIngredient_recipe_ingredient_key")
+  @@index([ingredient_id], map: "RecipeIngredient_ingredient_idx")
 }
 
 model MealPlan {
@@ -589,7 +591,7 @@ model MealPlan {
   creator User            @relation("MealPlanCreator", fields: [created_by], references: [id], onDelete: Restrict)
   entries MealPlanEntry[]
 
-  @@index([family_id, start_date])
+  @@index([family_id, start_date], map: "MealPlan_family_start_idx")
 }
 
 model MealPlanEntry {
@@ -603,8 +605,8 @@ model MealPlanEntry {
   meal_plan MealPlan @relation(fields: [meal_plan_id], references: [id], onDelete: Cascade)
   recipe    Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
 
-  @@unique([meal_plan_id, date, meal_type])
-  @@index([recipe_id])
+  @@unique([meal_plan_id, date, meal_type], map: "MealPlanEntry_plan_date_type_key")
+  @@index([recipe_id], map: "MealPlanEntry_recipe_idx")
 }
 
 model ShoppingList {
@@ -613,13 +615,13 @@ model ShoppingList {
   name       String   @default("Shopping List")
   created_by String
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  updated_at DateTime @default(now()) @updatedAt
 
   family  Family         @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator User           @relation("ShoppingListCreator", fields: [created_by], references: [id], onDelete: Restrict)
   items   ShoppingItem[]
 
-  @@index([family_id, created_at])
+  @@index([family_id, created_at], map: "ShoppingList_family_created_idx")
 }
 
 model ShoppingItem {
@@ -634,7 +636,7 @@ model ShoppingItem {
 
   shopping_list ShoppingList @relation(fields: [shopping_list_id], references: [id], onDelete: Cascade)
 
-  @@index([shopping_list_id, checked])
+  @@index([shopping_list_id, checked], map: "ShoppingItem_list_checked_idx")
 }
 
 model FinancialArchiveRecord {
@@ -648,8 +650,8 @@ model FinancialArchiveRecord {
 
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
 
-  @@unique([family_id, source_app, source_model, source_id])
-  @@index([family_id, source_model])
+  @@unique([family_id, source_app, source_model, source_id], map: "FinancialArchiveRecord_source_key")
+  @@index([family_id, source_model], map: "FinancialArchiveRecord_family_model_idx")
 }
 
 model Habit {
@@ -662,13 +664,13 @@ model Habit {
   is_active   Boolean  @default(true)
   created_by  String
   created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  updated_at  DateTime @default(now()) @updatedAt
 
   family  Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator User       @relation("HabitCreator", fields: [created_by], references: [id], onDelete: Restrict)
   logs    HabitLog[]
 
-  @@index([family_id, is_active])
+  @@index([family_id, is_active], map: "Habit_family_active_idx")
 }
 
 model HabitLog {
@@ -684,9 +686,9 @@ model HabitLog {
   habit  Habit  @relation(fields: [habit_id], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([habit_id, user_id, logged_date])
-  @@index([family_id, logged_date])
-  @@index([user_id, logged_at])
+  @@unique([habit_id, user_id, logged_date], map: "HabitLog_habit_user_date_key")
+  @@index([family_id, logged_date], map: "HabitLog_family_date_idx")
+  @@index([user_id, logged_at], map: "HabitLog_user_logged_idx")
 }
 
 model BadgeDefinition {
@@ -701,8 +703,8 @@ model BadgeDefinition {
   family Family?       @relation(fields: [family_id], references: [id], onDelete: Cascade)
   earned EarnedBadge[]
 
-  @@unique([family_id, name])
-  @@index([family_id])
+  @@unique([family_id, name], map: "BadgeDefinition_family_name_key")
+  @@index([family_id], map: "BadgeDefinition_family_idx")
 }
 
 model EarnedBadge {
@@ -716,9 +718,9 @@ model EarnedBadge {
   badge  BadgeDefinition @relation(fields: [badge_id], references: [id], onDelete: Cascade)
   user   User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([badge_id, user_id])
-  @@index([family_id, earned_at])
-  @@index([user_id])
+  @@unique([badge_id, user_id], map: "EarnedBadge_badge_user_key")
+  @@index([family_id, earned_at], map: "EarnedBadge_family_earned_idx")
+  @@index([user_id], map: "EarnedBadge_user_idx")
 }
 
 model RewardRedemption {
@@ -739,9 +741,9 @@ model RewardRedemption {
   requester User   @relation("RewardRedemptionRequester", fields: [requested_by], references: [id], onDelete: Cascade)
   approver  User?  @relation("RewardRedemptionApprover", fields: [approved_by], references: [id], onDelete: SetNull)
 
-  @@index([family_id, status])
-  @@index([requested_by, requested_at])
-  @@index([reward_id])
+  @@index([family_id, status], map: "RewardRedemption_family_status_idx")
+  @@index([requested_by, requested_at], map: "RewardRedemption_requester_requested_idx")
+  @@index([reward_id], map: "RewardRedemption_reward_idx")
 }
 
 model FamilyGoal {
@@ -755,12 +757,12 @@ model FamilyGoal {
   is_active      Boolean  @default(true)
   created_by     String
   created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  updated_at     DateTime @default(now()) @updatedAt
 
   family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator User   @relation("FamilyGoalCreator", fields: [created_by], references: [id], onDelete: Restrict)
 
-  @@index([family_id, is_active])
+  @@index([family_id, is_active], map: "FamilyGoal_family_active_idx")
 }
 
 model PushSubscription {
@@ -770,13 +772,13 @@ model PushSubscription {
   endpoint   String
   keys       Json
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  updated_at DateTime @default(now()) @updatedAt
 
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([user_id, endpoint])
-  @@index([family_id])
+  @@unique([user_id, endpoint], map: "PushSubscription_user_endpoint_key")
+  @@index([family_id], map: "PushSubscription_family_idx")
 }
 
 model Event {
@@ -815,7 +817,7 @@ model Event {
 
   // Relations
   family              Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator             User                  @relation("CreatedEvents", fields: [created_by], references: [id])
+  creator             User                  @relation("CreatedEvents", fields: [created_by], references: [id], onDelete: Cascade)
   project             Project?              @relation(fields: [project_id], references: [id], onDelete: SetNull)
   source_subscription CalendarSubscription? @relation(fields: [source_subscription_id], references: [id], onDelete: Cascade)
   source_connection   CalendarConnection?   @relation("CalendarConnectionEvents", fields: [source_connection_id], references: [id], onDelete: Cascade)
@@ -836,13 +838,13 @@ model Message {
   sender_id   String
   content     String
   type        String   @default("text") // 'text', 'image', 'voice', 'announcement'
-  attachments String[] // Array of file URLs
-  read_by     String[] // Array of user_ids who have read the message
+  attachments String[] @default([]) // Array of file URLs
+  read_by     String[] @default([]) // Array of user_ids who have read the message
   created_at  DateTime @default(now())
 
   // Relations
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  sender User   @relation("SentMessages", fields: [sender_id], references: [id])
+  sender User   @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
 
   @@index([family_id])
   @@index([sender_id])
@@ -879,13 +881,13 @@ model List {
   last_purchased_at DateTime?
   created_by        String
   created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  updated_at        DateTime  @default(now()) @updatedAt
   /// Grocery/shopping lists group open rows by store section (#273) unless switched off. Additive, default on.
   sort_by_section   Boolean   @default(true)
 
   // Relations
   family  Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator User       @relation("CreatedLists", fields: [created_by], references: [id])
+  creator User       @relation("CreatedLists", fields: [created_by], references: [id], onDelete: Cascade)
   items   ListItem[]
   shopping_sessions GroceryShoppingSession[]
 
@@ -908,7 +910,7 @@ model ListItem {
   checked_at DateTime?
   position   Int       @default(0)
   created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
+  updated_at DateTime  @default(now()) @updatedAt
 
   // Grocery provenance (ADR-0007, #250). All nullable/defaulted and additive;
   // generic to-do lists leave them unset. Nested ownership: every reference
@@ -927,7 +929,7 @@ model ListItem {
 
   // Relations
   list       List        @relation(fields: [list_id], references: [id], onDelete: Cascade)
-  adder      User        @relation("AddedItems", fields: [added_by], references: [id])
+  adder      User        @relation("AddedItems", fields: [added_by], references: [id], onDelete: Cascade)
   checker    User?       @relation("CheckedItems", fields: [checked_by], references: [id])
   ingredient Ingredient? @relation(fields: [ingredient_id], references: [id], onDelete: SetNull)
   recipe     Recipe?     @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
@@ -970,7 +972,7 @@ model Reward {
   name        String
   description String?
   cost        Int       @default(10) // XP/points required to claim
-  icon        String? // emoji or icon identifier
+  icon        String             @default("gift") // emoji or icon identifier
   status      String    @default("available") // 'available', 'claimed', 'approved', 'redeemed'
   is_active   Boolean   @default(true)
   created_by  String
@@ -984,7 +986,7 @@ model Reward {
 
   // Relations
   family      Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator     User               @relation("CreatedRewards", fields: [created_by], references: [id])
+  creator     User               @relation("CreatedRewards", fields: [created_by], references: [id], onDelete: Cascade)
   claimer     User?              @relation("ClaimedRewards", fields: [claimed_by], references: [id])
   approver    User?              @relation("ApprovedRewards", fields: [approved_by], references: [id])
   redemptions RewardRedemption[]
@@ -1008,12 +1010,12 @@ model Transaction {
   recurring_interval String? // 'weekly', 'biweekly', 'monthly'
   list_item_id       String? // link to shopping list purchase
   created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
+  updated_at         DateTime @default(now()) @updatedAt
   import_metadata    Json?
 
   // Relations
   family   Family          @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  user     User            @relation("UserTransactions", fields: [user_id], references: [id])
+  user     User            @relation("UserTransactions", fields: [user_id], references: [id], onDelete: Cascade)
   category BudgetCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
 
   @@index([family_id])
@@ -1037,7 +1039,7 @@ model BudgetCategory {
 
   // Relations
   family       Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator      User          @relation("CreatedCategories", fields: [created_by], references: [id])
+  creator      User          @relation("CreatedCategories", fields: [created_by], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
   @@index([family_id])
@@ -1053,11 +1055,11 @@ model Project {
   color       String   @default("#3B82F6")
   created_by  String
   created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  updated_at  DateTime @default(now()) @updatedAt
 
   // Relations
   family  Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator User          @relation("CreatedProjects", fields: [created_by], references: [id])
+  creator User          @relation("CreatedProjects", fields: [created_by], references: [id], onDelete: Cascade)
   tasks   ProjectTask[]
   events  Event[]
 
@@ -1075,7 +1077,7 @@ model ProjectTask {
   due_date    DateTime?
   position    Int       @default(0)
   created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  updated_at  DateTime  @default(now()) @updatedAt
 
   project  Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
   assignee User?   @relation("AssignedProjectTasks", fields: [assigned_to], references: [id], onDelete: SetNull)
@@ -1093,7 +1095,7 @@ model RateLimitEntry {
   windowStart DateTime
   resetAt     DateTime
   created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  updated_at  DateTime @default(now()) @updatedAt
 
   @@index([resetAt])
 }
@@ -1116,9 +1118,9 @@ model FamilyMeal {
   servings    Int?
   updated_at  DateTime @default(now()) @updatedAt
 
-  family     Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  cook       User?      @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull)
-  creator    User       @relation("FamilyMealCreator", fields: [created_by], references: [id])
+  family     Family     @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cook       User?      @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  creator    User       @relation("FamilyMealCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   recipe     Recipe?    @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
   list_items ListItem[]
 
@@ -1136,10 +1138,10 @@ model PinnedNote {
   pinned     Boolean  @default(true)
   created_by String
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  updated_at DateTime @default(now()) @updatedAt
 
-  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator User   @relation("CreatedNotes", fields: [created_by], references: [id])
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator User   @relation("CreatedNotes", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([family_id])
 }
@@ -1157,8 +1159,8 @@ model Anniversary {
   created_by String?
   created_at DateTime @default(now())
 
-  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person  User?  @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull)
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person  User?  @relation("FamilyAnniversaries", fields: [person_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   creator User?  @relation("AnniversaryCreator", fields: [created_by], references: [id], onDelete: SetNull)
 
   @@index([family_id])
@@ -1176,10 +1178,10 @@ model FamilyLocation {
   longitude  Float?
   is_primary Boolean  @default(false) // home base
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  updated_at DateTime @default(now()) @updatedAt
 
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  user   User   @relation("UserLocations", fields: [user_id], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user   User   @relation("UserLocations", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([family_id])
   @@index([user_id])
@@ -1206,10 +1208,10 @@ model EmergencyContact {
   emergency_contact_relation String?
   notes                      String?
   created_at                 DateTime @default(now())
-  updated_at                 DateTime @updatedAt
+  updated_at                 DateTime @default(now()) @updatedAt
 
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  person User?  @relation("EmergencyCards", fields: [person_id], references: [id], onDelete: SetNull)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person User?  @relation("EmergencyCards", fields: [person_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([family_id])
 }
@@ -1226,11 +1228,11 @@ model Pickup {
   completed    Boolean   @default(false)
   completed_at DateTime?
   created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  updated_at   DateTime  @default(now()) @updatedAt
 
-  family   Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  assignee User?  @relation("AssignedPickups", fields: [assigned_to], references: [id], onDelete: SetNull)
-  creator  User   @relation("CreatedPickups", fields: [created_by], references: [id])
+  family   Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assignee User?  @relation("AssignedPickups", fields: [assigned_to], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  creator  User   @relation("CreatedPickups", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([family_id])
   @@index([family_id, pickup_time])
@@ -1248,11 +1250,11 @@ model Allowance {
   scheduled_for DateTime?
   paid_at       DateTime?
   created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  updated_at    DateTime  @default(now()) @updatedAt
 
-  family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  from_user User   @relation("AllowanceFrom", fields: [from_user_id], references: [id], onDelete: Cascade)
-  to_user   User   @relation("AllowanceTo", fields: [to_user_id], references: [id], onDelete: Cascade)
+  family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  from_user User   @relation("AllowanceFrom", fields: [from_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  to_user   User   @relation("AllowanceTo", fields: [to_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([family_id])
   @@index([to_user_id])
@@ -1272,11 +1274,11 @@ model WishlistItem {
   status_changed_at DateTime?
   status_changed_by String?
   created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  updated_at        DateTime  @default(now()) @updatedAt
 
-  family         Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  requester      User   @relation("WishlistRequester", fields: [requested_by], references: [id], onDelete: Cascade)
-  status_changer User?  @relation("WishlistStatusChanger", fields: [status_changed_by], references: [id], onDelete: SetNull)
+  family         Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  requester      User   @relation("WishlistRequester", fields: [requested_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  status_changer User?  @relation("WishlistStatusChanger", fields: [status_changed_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([family_id])
   @@index([requested_by])
@@ -1301,7 +1303,7 @@ model Handoff {
   share_expires_at  DateTime?
   created_by        String
   created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  updated_at        DateTime  @default(now()) @updatedAt
 
   family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator User   @relation("HandoffCreator", fields: [created_by], references: [id])
@@ -1322,7 +1324,7 @@ model SickDay {
   notes           String?
   created_by      String
   created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  updated_at      DateTime  @default(now()) @updatedAt
 
   family      Family       @relation(fields: [family_id], references: [id], onDelete: Cascade)
   person      User         @relation("SickDayPerson", fields: [person_id], references: [id], onDelete: Cascade)
@@ -1347,7 +1349,7 @@ model Medication {
   notes        String?
   created_by   String
   created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  updated_at   DateTime  @default(now()) @updatedAt
 
   family   Family   @relation(fields: [family_id], references: [id], onDelete: Cascade)
   person   User     @relation("MedicationPerson", fields: [person_id], references: [id], onDelete: Cascade)
@@ -1385,7 +1387,7 @@ model HouseholdDevice {
   elevation_last_used_at DateTime?
   elevation_expires_at   DateTime?
   created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
+  updated_at             DateTime  @default(now()) @updatedAt
 
   family   Family             @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator  User?              @relation("DeviceCreator", fields: [created_by], references: [id], onDelete: SetNull)
@@ -1452,7 +1454,7 @@ model ParentElevationPin {
   pin_hash     String // bcrypt cost 12
   locked_until DateTime?
   created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  updated_at   DateTime  @default(now()) @updatedAt
 
   user   User   @relation("ParentElevationPin", fields: [user_id], references: [id], onDelete: Cascade)
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
@@ -1538,7 +1540,7 @@ model InventoryItem {
   /// Nullable so deleting a member's account keeps the household's inventory.
   added_by      String?
   created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  updated_at    DateTime  @default(now()) @updatedAt
 
   family      Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
   ingredient  Ingredient?           @relation(fields: [ingredient_id], references: [id], onDelete: SetNull)
@@ -1619,7 +1621,7 @@ model GrocerySectionPreference {
   /// Who last moved it. Nullable so deleting a member keeps the household's choice.
   updated_by String?
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  updated_at DateTime @default(now()) @updatedAt
 
   family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   updater User?  @relation("GrocerySectionPreferenceSetter", fields: [updated_by], references: [id], onDelete: SetNull)

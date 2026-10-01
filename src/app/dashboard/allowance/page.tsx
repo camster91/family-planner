@@ -39,6 +39,7 @@ function AllowancePageInner() {
   const [loading, setLoading] = React.useState(true)
   const [adding, setAdding] = React.useState(false)
   const [draft, setDraft] = React.useState({ to_user_id: '', amount: '', reason: '' })
+  const formId = React.useId()
   const [saving, setSaving] = React.useState(false)
   // D5 (#102): teens and children see only their own allowance, read-only.
   // The API filters the rows; the page hides every control that would write.
@@ -168,8 +169,9 @@ function AllowancePageInner() {
             <span className="text-headline">New allowance</span>
           </div>
           <div>
-            <label className="label-apple">For</label>
+            <label htmlFor={`${formId}-for`} className="label-apple">For</label>
             <select
+              id={`${formId}-for`}
               value={draft.to_user_id}
               onChange={(e) => setDraft({ ...draft, to_user_id: e.target.value })}
               className="input-apple"
@@ -181,8 +183,9 @@ function AllowancePageInner() {
             </select>
           </div>
           <div>
-            <label className="label-apple">Amount</label>
+            <label htmlFor={`${formId}-amount`} className="label-apple">Amount</label>
             <input
+              id={`${formId}-amount`}
               type="number"
               step="0.01"
               min="0"
@@ -193,8 +196,9 @@ function AllowancePageInner() {
             />
           </div>
           <div>
-            <label className="label-apple">Reason</label>
+            <label htmlFor={`${formId}-reason`} className="label-apple">Reason</label>
             <input
+              id={`${formId}-reason`}
               type="text"
               value={draft.reason}
               onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
@@ -310,18 +314,18 @@ function AllowanceRow({
             <button
               type="button"
               onClick={() => onMarkPaid(item.id)}
-              className="p-2 text-[var(--success)] active:opacity-60"
+              className="inline-flex h-11 w-11 items-center justify-center text-[var(--success)] active:opacity-60"
               aria-label="Mark paid"
             >
-              <Check className="w-5 h-5" />
+              <Check className="w-5 h-5" aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => onCancel(item.id)}
-              className="p-2 text-label-tertiary active:text-[var(--danger-text)]"
+              className="inline-flex h-11 w-11 items-center justify-center text-label-tertiary active:text-[var(--danger-text)]"
               aria-label="Cancel"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         )}

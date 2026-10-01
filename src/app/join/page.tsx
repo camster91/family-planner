@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
@@ -22,6 +22,12 @@ export default function JoinFamilyPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [familyInfo, setFamilyInfo] = useState<{ name: string } | null>(null)
   const [loggedIn, setLoggedIn] = useState(false)
+  // Set once the page is leaving (joined, or sent to log in / register): the
+  // join button stays disabled through the success pause until the redirect,
+  // so a second tap cannot send a second join.
+  const [leaving, setLeaving] = useState(false)
+  const submittingRef = useRef(false)
+  const busy = loading || leaving || !!success
   const router = useRouter()
 
   useEffect(() => {
@@ -70,13 +76,15 @@ export default function JoinFamilyPage() {
   }
 
   const acceptEmailInvite = async () => {
-    if (!token) return
+    if (!token || submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError(null)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
       if (!meRes.ok || !meData.user) {
+        setLeaving(true)
         router.push(`/register?token=${encodeURIComponent(token)}`)
         return
       }
@@ -87,6 +95,7 @@ export default function JoinFamilyPage() {
       })
       const joinData = await joinRes.json()
       if (!joinRes.ok) {
+        submittingRef.current = false
         setError(joinData.error || 'Failed to join family')
         return
       }
@@ -96,6 +105,7 @@ export default function JoinFamilyPage() {
         router.refresh()
       }, 1500)
     } catch {
+      submittingRef.current = false
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -108,16 +118,20 @@ export default function JoinFamilyPage() {
       await acceptEmailInvite()
       return
     }
+    if (submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError(null)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
       if (!meRes.ok || !meData.user) {
+        setLeaving(true)
         router.push(`/login?redirect=${encodeURIComponent(`/join?code=${code}`)}`)
         return
       }
       if (!familyInfo) {
+        submittingRef.current = false
         setError('Please check the family code first')
         return
       }
@@ -128,6 +142,7 @@ export default function JoinFamilyPage() {
       })
       const joinData = await joinRes.json()
       if (!joinRes.ok) {
+        submittingRef.current = false
         setError(joinData.error || 'Failed to join family')
         return
       }
@@ -137,6 +152,7 @@ export default function JoinFamilyPage() {
         router.refresh()
       }, 2000)
     } catch {
+      submittingRef.current = false
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -157,10 +173,10 @@ export default function JoinFamilyPage() {
           </div>
           <div className="card space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">{error}</div>
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">{error}</div>
             )}
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+              <div role="status" className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
                 <div className="flex items-center">
                   <Check className="w-5 h-5 mr-2" />
                   {success}
@@ -177,10 +193,10 @@ export default function JoinFamilyPage() {
                   <button
                     type="button"
                     onClick={acceptEmailInvite}
-                    disabled={loading}
+                    disabled={busy}
                     className="btn-primary w-full py-3 inline-flex items-center justify-center"
                   >
-                    {loading ? 'Joining...' : 'Join family'}
+                    {busy ? 'Joining...' : 'Join family'}
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </button>
                 ) : (
@@ -230,7 +246,7 @@ export default function JoinFamilyPage() {
               </div>
             )}
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+              <div role="status" className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
                 <div className="flex items-center">
                   <Check className="w-5 h-5 mr-2" />
                   {success}
@@ -255,12 +271,12 @@ export default function JoinFamilyPage() {
                   placeholder="Invite code from a parent"
                   autoComplete="off"
                   spellCheck={false}
-                  disabled={loading}
+                  disabled={busy}
                 />
                 <button
                   type="button"
                   onClick={() => checkFamilyCode(code)}
-                  disabled={loading || !code.trim()}
+                  disabled={busy || !code.trim()}
                   className="btn-secondary whitespace-nowrap"
                 >
                   Check Code
@@ -275,10 +291,10 @@ export default function JoinFamilyPage() {
             )}
             <button
               type="submit"
-              disabled={loading || !code.trim() || !familyInfo}
+              disabled={busy || !code.trim() || !familyInfo}
               className="btn-primary w-full py-3 inline-flex items-center justify-center"
             >
-              {loading ? 'Joining...' : 'Join Family'}
+              {busy ? 'Joining...' : 'Join Family'}
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           </form>

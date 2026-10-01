@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Heart, Plus, X, Trash2, Printer } from 'lucide-react'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { FeatureGate } from '@/components/ui/feature-gate'
+import { Dialog } from '@/components/ui/dialog'
 import { useTranslation } from '@/i18n'
 
 interface EmergencyContact {
@@ -90,49 +91,34 @@ function contactToForm(c: EmergencyContact): ContactFormData {
   }
 }
 
-// Modal shell
-function Modal({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-[22rem] rounded-2xl overflow-hidden bg-[var(--surface-elevated)] shadow-xl max-h-[90vh] overflow-y-auto">
-        {children}
-      </div>
-    </div>
-  )
-}
-
 function FormField({
   label,
   children,
 }: {
   label: string
-  children: React.ReactNode
+  /** Render the control with the id the label points at. */
+  children: (id: string) => React.ReactNode
 }) {
+  const id = React.useId()
   return (
     <div>
-      <label className="block text-caption-1 text-label-secondary mb-1">{label}</label>
-      {children}
+      <label htmlFor={id} className="block text-caption-1 text-label-secondary mb-1">
+        {label}
+      </label>
+      {children(id)}
     </div>
   )
 }
 
 function Input({
+  id,
   value,
   onChange,
   type = 'text',
   placeholder,
   className,
 }: {
+  id?: string
   value: string
   onChange: (v: string) => void
   type?: string
@@ -140,7 +126,8 @@ function Input({
   className?: string
 }) {
   return (
-<input
+    <input
+      id={id}
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -154,7 +141,6 @@ function AddEditModal({
   mode,
   initial,
   onSave,
-  onCancel,
   onDelete,
   t,
   saving,
@@ -163,7 +149,6 @@ function AddEditModal({
   mode: 'add' | 'edit'
   initial?: EmergencyContact
   onSave: (data: ContactFormData) => void
-  onCancel: () => void
   onDelete?: () => void
   t: (key: string) => string
   saving: boolean
@@ -183,91 +168,89 @@ function AddEditModal({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="px-4 py-4 border-b border-[var(--surface-separator)] flex items-center justify-between">
-        <p className="text-subhead font-semibold text-label-primary">
-          {mode === 'add' ? t('emergency.addCard') : t('emergency.editCard')}
-        </p>
-        <button type="button" onClick={onCancel} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-          <X className="w-4 h-4 text-label-secondary" />
-        </button>
-      </div>
-      <div className="p-4 space-y-4">
+      <div className="space-y-4">
         {error && (
           <p role="alert" className="text-footnote text-label-destructive">
             {error}
           </p>
         )}
         <FormField label={t('emergency.personName')}>
-          <Input value={form.person_name} onChange={(v) => set('person_name', v)} placeholder="e.g. Emma Johnson" />
+          {(id) => <Input id={id} value={form.person_name} onChange={(v) => set('person_name', v)} placeholder="e.g. Emma Johnson" />}
         </FormField>
         <FormField label={t('emergency.relationship')}>
-          <select
-            value={form.relationship}
-            onChange={(e) => set('relationship', e.target.value as ContactFormData['relationship'])}
-            className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          >
-            {RELATIONSHIPS.map((r) => (
-              <option key={r} value={r}>{t(`emergency.relationships.${r}`)}</option>
-            ))}
-          </select>
+          {(id) => (
+            <select
+              id={id}
+              value={form.relationship}
+              onChange={(e) => set('relationship', e.target.value as ContactFormData['relationship'])}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            >
+              {RELATIONSHIPS.map((r) => (
+                <option key={r} value={r}>{t(`emergency.relationships.${r}`)}</option>
+              ))}
+            </select>
+          )}
         </FormField>
         <FormField label={t('emergency.bloodType')}>
-          <Input value={form.blood_type} onChange={(v) => set('blood_type', v)} placeholder="e.g. O+" />
+          {(id) => <Input id={id} value={form.blood_type} onChange={(v) => set('blood_type', v)} placeholder="e.g. O+" />}
         </FormField>
         <FormField label={t('emergency.allergies')}>
-          <Input value={form.allergies} onChange={(v) => set('allergies', v)} placeholder="e.g. Peanuts, penicillin" />
+          {(id) => <Input id={id} value={form.allergies} onChange={(v) => set('allergies', v)} placeholder="e.g. Peanuts, penicillin" />}
         </FormField>
         <FormField label={t('emergency.medications')}>
-          <Input value={form.medications} onChange={(v) => set('medications', v)} placeholder="e.g. Metformin 500mg" />
+          {(id) => <Input id={id} value={form.medications} onChange={(v) => set('medications', v)} placeholder="e.g. Metformin 500mg" />}
         </FormField>
         <FormField label={t('emergency.medicalConditions')}>
-          <Input value={form.medical_conditions} onChange={(v) => set('medical_conditions', v)} placeholder="e.g. Type 1 Diabetes" />
+          {(id) => <Input id={id} value={form.medical_conditions} onChange={(v) => set('medical_conditions', v)} placeholder="e.g. Type 1 Diabetes" />}
         </FormField>
         <FormField label={t('emergency.doctorName')}>
-          <Input value={form.doctor_name} onChange={(v) => set('doctor_name', v)} placeholder="e.g. Dr. Smith" />
+          {(id) => <Input id={id} value={form.doctor_name} onChange={(v) => set('doctor_name', v)} placeholder="e.g. Dr. Smith" />}
         </FormField>
         <FormField label={t('emergency.doctorPhone')}>
-          <Input value={form.doctor_phone} onChange={(v) => set('doctor_phone', v)} type="tel" placeholder="e.g. (555) 123-4567" />
+          {(id) => <Input id={id} value={form.doctor_phone} onChange={(v) => set('doctor_phone', v)} type="tel" placeholder="e.g. (555) 123-4567" />}
         </FormField>
         <FormField label={t('emergency.dentistName')}>
-          <Input value={form.dentist_name} onChange={(v) => set('dentist_name', v)} placeholder="e.g. Dr. Jones" />
+          {(id) => <Input id={id} value={form.dentist_name} onChange={(v) => set('dentist_name', v)} placeholder="e.g. Dr. Jones" />}
         </FormField>
         <FormField label={t('emergency.dentistPhone')}>
-          <Input value={form.dentist_phone} onChange={(v) => set('dentist_phone', v)} type="tel" placeholder="e.g. (555) 987-6543" />
+          {(id) => <Input id={id} value={form.dentist_phone} onChange={(v) => set('dentist_phone', v)} type="tel" placeholder="e.g. (555) 987-6543" />}
         </FormField>
         <FormField label={t('emergency.insuranceProvider')}>
-          <Input value={form.insurance_provider} onChange={(v) => set('insurance_provider', v)} placeholder="e.g. Blue Cross" />
+          {(id) => <Input id={id} value={form.insurance_provider} onChange={(v) => set('insurance_provider', v)} placeholder="e.g. Blue Cross" />}
         </FormField>
         <FormField label={t('emergency.insuranceId')}>
-          <Input value={form.insurance_id} onChange={(v) => set('insurance_id', v)} placeholder="e.g. BC-123456789" />
+          {(id) => <Input id={id} value={form.insurance_id} onChange={(v) => set('insurance_id', v)} placeholder="e.g. BC-123456789" />}
         </FormField>
         <FormField label={t('emergency.emergencyContactName')}>
-          <Input value={form.emergency_contact_name} onChange={(v) => set('emergency_contact_name', v)} placeholder="e.g. John Doe" />
+          {(id) => <Input id={id} value={form.emergency_contact_name} onChange={(v) => set('emergency_contact_name', v)} placeholder="e.g. John Doe" />}
         </FormField>
         <FormField label={t('emergency.emergencyContactPhone')}>
-          <Input value={form.emergency_contact_phone} onChange={(v) => set('emergency_contact_phone', v)} type="tel" placeholder="e.g. (555) 321-7890" />
+          {(id) => <Input id={id} value={form.emergency_contact_phone} onChange={(v) => set('emergency_contact_phone', v)} type="tel" placeholder="e.g. (555) 321-7890" />}
         </FormField>
         <FormField label={t('emergency.emergencyContactRelation')}>
-          <Input value={form.emergency_contact_relation} onChange={(v) => set('emergency_contact_relation', v)} placeholder="e.g. Spouse" />
+          {(id) => <Input id={id} value={form.emergency_contact_relation} onChange={(v) => set('emergency_contact_relation', v)} placeholder="e.g. Spouse" />}
         </FormField>
         <FormField label={t('emergency.notes')}>
-          <textarea
-            value={form.notes}
-            onChange={(e) => set('notes', e.target.value)}
-            rows={2}
-            placeholder="Additional notes..."
-            className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-          />
+          {(id) => (
+            <textarea
+              id={id}
+              value={form.notes}
+              onChange={(e) => set('notes', e.target.value)}
+              rows={2}
+              placeholder="Additional notes..."
+              className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
+            />
+          )}
         </FormField>
       </div>
-      <div className="px-4 pb-4 flex gap-2">
+      <div className="mt-6 flex gap-2">
         {mode === 'edit' && onDelete && (
           <button
             type="button"
             onClick={onDelete}
             className="px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-red-50"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
             {t('emergency.delete')}
           </button>
         )}
@@ -405,6 +388,8 @@ function EmergencyPageInner() {
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
+  // previewContact: the card shown on the right. editContact: the card open in the edit dialog.
+  const [previewContact, setPreviewContact] = React.useState<EmergencyContact | null>(null)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
   // D1 (#102): every member can read the cards (a child home alone must find
@@ -448,6 +433,8 @@ function EmergencyPageInner() {
           body: JSON.stringify(form),
         })
         if (!res.ok) throw new Error('Failed to update')
+        const edited = editContact
+        setPreviewContact((prev) => (prev && prev.id === edited.id ? { ...prev, ...form } : prev))
       } else {
         const res = await fetch('/api/emergency-contacts', {
           method: 'POST',
@@ -476,6 +463,7 @@ function EmergencyPageInner() {
       const res = await fetch(`/api/emergency-contacts/${editContact.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setEditContact(null)
+      setPreviewContact(null)
       await fetchContacts()
     } catch {
       setModalError(t('common.error'))
@@ -578,7 +566,7 @@ function EmergencyPageInner() {
                     subtitle={t(`emergency.relationships.${c.relationship}`)}
                     showChevron
                     last={i === contacts.length - 1}
-                    onClick={() => setEditContact(c)}
+                    onClick={() => setPreviewContact(c)}
                   />
                 ))}
               </InsetList>
@@ -586,22 +574,24 @@ function EmergencyPageInner() {
 
             {/* Right: active card preview */}
             <div className="print-card">
-              {editContact ? (
+              {previewContact ? (
                 <div className="card-apple overflow-hidden">
                   <div className="px-4 py-3 border-b border-[var(--surface-separator)] flex items-center justify-between no-print">
-                    <p className="text-subhead font-semibold text-label-primary">{editContact.person_name}</p>
+                    <p className="text-subhead font-semibold text-label-primary">{previewContact.person_name}</p>
                     <button
-                      onClick={() => setEditContact(null)}
-                      className="p-1 rounded-full hover:bg-[var(--surface-secondary)]"
+                      type="button"
+                      onClick={() => setPreviewContact(null)}
+                      aria-label="Close preview"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-secondary)]"
                     >
-                      <X className="w-4 h-4 text-label-secondary" />
+                      <X className="w-4 h-4 text-label-secondary" aria-hidden="true" />
                     </button>
                   </div>
-                  <EmergencyCardPrint contact={editContact} t={t} />
+                  <EmergencyCardPrint contact={previewContact} t={t} />
                   <div className="px-4 py-3 border-t border-[var(--surface-separator)] flex gap-2 no-print">
                     {isParent && (
                       <button
-                        onClick={() => { setEditContact(null); setShowAdd(true) }}
+                        onClick={() => setEditContact(previewContact)}
                         className="px-3 py-1.5 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
                       >
                         {t('emergency.editCard')}
@@ -627,32 +617,28 @@ function EmergencyPageInner() {
         )}
 
         {/* Add modal */}
-        <Modal open={isParent && showAdd && !editContact} onClose={closeModal}>
-          <AddEditModal
-            mode="add"
-            onSave={handleSave}
-            onCancel={closeModal}
-            t={t}
-            saving={saving}
-            error={modalError}
-          />
-        </Modal>
+        <Dialog
+          open={isParent && showAdd && !editContact}
+          onClose={closeModal}
+          title={t('emergency.addCard')}
+        >
+          <AddEditModal mode="add" onSave={handleSave} t={t} saving={saving} error={modalError} />
+        </Dialog>
 
         {/* Edit modal */}
-        <Modal open={isParent && !!editContact} onClose={closeModal}>
+        <Dialog open={isParent && !!editContact} onClose={closeModal} title={t('emergency.editCard')}>
           {isParent && editContact && (
             <AddEditModal
               mode="edit"
               initial={editContact}
               onSave={handleSave}
-              onCancel={closeModal}
               onDelete={handleDelete}
               t={t}
               saving={saving}
               error={modalError}
             />
           )}
-        </Modal>
+        </Dialog>
       </div>
     </>
   )

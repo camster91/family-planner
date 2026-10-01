@@ -17,6 +17,7 @@ import { setChoreDone } from '@/lib/chore-tick-client'
 import { formatRelativePastDate, isDueToday, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { groupByRoutine, normalizeRoutineName } from '@/lib/routine-icons'
 import KidRoutines from './KidRoutines'
+import { useLocalNow } from '@/components/ui/use-hydrated'
 
 interface Chore {
   id: string
@@ -59,13 +60,14 @@ interface KidHomeProps {
   rewards: Reward[]
 }
 
-function formatRelativeDate(dateStr: string): string {
+// Both helpers use the viewer's zone, so they are only called after hydration
+// (useLocalNow is non-null): the server renders in UTC (O-31).
+function formatRelativeDate(dateStr: string, now: Date): string {
   const date = new Date(dateStr)
-  const today = new Date()
-  const tomorrow = new Date(today)
+  const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
 
-  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === now.toDateString()) return 'Today'
   if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
@@ -124,7 +126,11 @@ export default function KidHome({
   // Routine steps on other days (a daily routine's later occurrences, or
   // yesterday's) are not shown: a routine is about today.
   const inRoutine = (c: Chore) => normalizeRoutineName(c.routine) !== null
-  const routineChores = (chores ?? []).filter((c) => inRoutine(c) && isDueToday(c.due_date))
+  // "Today" is the viewer's local day, unknown on the server (O-31): until
+  // hydration everything day-based is left out and a placeholder holds its
+  // place, so the server HTML and the first client render match.
+  const now = useLocalNow()
+  const routineChores = now ? (chores ?? []).filter((c) => inRoutine(c) && isDueToday(c.due_date, now)) : []
   const { routines } = groupByRoutine(routineChores)
 
   // Missions are the child's open chores due on their local today — up to 3.
@@ -132,26 +138,23 @@ export default function KidHome({
   // status. Routine steps show above as picture cards, so they are never
   // repeated here. Earlier open chores get their own small group, and
   // tomorrow's are a read-only peek; neither counts as today's missions.
-  const now = new Date()
-  const todayKey = toDateOnlyLocal(now)
-  const tomorrow = new Date(now.getTime())
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowKey = toDateOnlyLocal(tomorrow)
-  const openChores = (chores ?? []).filter((c) => isOpen(c) && !inRoutine(c))
+  const todayKey = now ? toDateOnlyLocal(now) : null
+  const tomorrow = now ? new Date(now.getTime()) : null
+  tomorrow?.setDate(tomorrow.getDate() + 1)
+  const tomorrowKey = tomorrow ? toDateOnlyLocal(tomorrow) : null
+  const openChores = todayKey ? (chores ?? []).filter((c) => isOpen(c) && !inRoutine(c)) : []
   const todayChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === todayKey).slice(0, 3)
   const earlierChores = openChores
-    .filter((c) => toDateOnlyUTC(c.due_date) < todayKey)
+    .filter((c) => toDateOnlyUTC(c.due_date) < (todayKey ?? ''))
     // Most recent first.
     .sort((a, b) => toDateOnlyUTC(b.due_date).localeCompare(toDateOnlyUTC(a.due_date)))
     .slice(0, 3)
   const tomorrowChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey).slice(0, 3)
 
-  // Today's events — up to 2
-  const todayEvents = (events ?? []).filter((e) => {
-    const eventDate = new Date(e.start_time)
-    const today = new Date()
-    return eventDate.toDateString() === today.toDateString()
-  }).slice(0, 2)
+  // Today's events (the viewer's local day) — up to 2
+  const todayEvents = todayKey
+    ? (events ?? []).filter((e) => toDateOnlyLocal(new Date(e.start_time)) === todayKey).slice(0, 2)
+    : []
 
   // Most recent available reward to claim
   const claimableReward = (rewards ?? []).find((r) => r.status === 'available' && !claimedRewards.has(r.id))
@@ -368,15 +371,22 @@ export default function KidHome({
             <div className="list-inset">
               {earlierChores.map((chore, i) => (
                 <div key={chore.id} className={cn(i === earlierChores.length - 1 && 'border-b-0')}>
-                  {renderMission(chore, wasDueLabel(chore.due_date, now))}
+                  {now && renderMission(chore, wasDueLabel(chore.due_date, now))}
                 </div>
               ))}
             </div>
           </section>
         )}
 
+        {/* Before hydration the local day is unknown: hold the missions' place. */}
+        {!now && (
+          <section aria-label="Today's chores" aria-busy="true" data-testid="kid-home-pending">
+            <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
+          </section>
+        )}
+
         {/* No chores state (a routine shows its own progress instead) */}
-        {todayChores.length === 0 && routines.length === 0 && (
+        {now && todayChores.length === 0 && routines.length === 0 && (
           <div className="card-apple p-6 text-center">
             <div className="text-4xl mb-2">🎉</div>
             <p className="text-title-3 text-label-primary">All done for today!</p>
@@ -423,7 +433,7 @@ export default function KidHome({
                   showChevron={false}
                   trailing={
                     <span className="text-footnote text-label-tertiary">
-                      {formatRelativeDate(event.start_time)}
+                      {now && formatRelativeDate(event.start_time, now)}
                     </span>
                   }
                   className={cn(i === todayEvents.length - 1 && 'border-b-0')}

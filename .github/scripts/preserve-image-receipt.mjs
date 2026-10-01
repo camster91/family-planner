@@ -14,7 +14,9 @@ const repository = 'camster91/family-planner';
 const assetName = 'family-planner-receipts.json';
 const receiptFields = ['schema', 'repository', 'revision', 'kind', 'image_id', 'archive_sha256', 'workflow_run_id', 'workflow_run_attempt', 'registry_image'];
 export async function preserve(env, { receipts, fetchImpl = fetch } = {}) {
-  if (env.GITHUB_REPOSITORY !== repository || env.GITHUB_EVENT_NAME !== 'push' || env.GITHUB_REF !== 'refs/heads/main' || !env.GITHUB_TOKEN) throw new Error('Only checked main publication can preserve receipts');
+  // FP_DEFAULT_BRANCH is github.event.repository.default_branch, set by the workflow.
+  const defaultBranch = env.FP_DEFAULT_BRANCH || '';
+  if (!/^[A-Za-z0-9._/-]+$/.test(defaultBranch) || env.GITHUB_REPOSITORY !== repository || env.GITHUB_EVENT_NAME !== 'push' || env.GITHUB_REF !== `refs/heads/${defaultBranch}` || !env.GITHUB_TOKEN) throw new Error('Only checked default-branch publication can preserve receipts');
   receipts ??= [JSON.parse(await readFile(`${env.CHECKED_IMAGE_DIRECTORY}/release-receipt.json`, 'utf8'))];
   const checked = { RELEASE_SHA: env.RELEASE_SHA, CHECKED_RUN_ID: env.GITHUB_RUN_ID, CHECKED_RUN_ATTEMPT: env.GITHUB_RUN_ATTEMPT };
   const images = validateReceipts(receipts, checked);

@@ -129,8 +129,10 @@ def publication_tag(receipt):
 
 
 def publish(directory):
-    if os.environ.get("GITHUB_EVENT_NAME") != "push" or os.environ.get("GITHUB_REF") != "refs/heads/main" or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
-        raise ValueError("Only checked main pushes from this repository can publish")
+    # FP_DEFAULT_BRANCH is github.event.repository.default_branch, set by the workflow.
+    default_branch = os.environ.get("FP_DEFAULT_BRANCH", "")
+    if not re.fullmatch(r"[A-Za-z0-9._/-]+", default_branch) or os.environ.get("GITHUB_EVENT_NAME") != "push" or os.environ.get("GITHUB_REF") != "refs/heads/" + default_branch or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
+        raise ValueError("Only checked default-branch pushes from this repository can publish")
     receipt = verify(directory)
     tag = publication_tag(receipt)
     subprocess.run(["docker", "image", "load", "--input", str(directory / "runtime-image.tar")], check=True)

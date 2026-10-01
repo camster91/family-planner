@@ -36,7 +36,9 @@ actual adopted staging resource, routing ownership and registry access remain
 separate handoff gates.
 
 `Publish checked image` is a separate, initially disabled publisher: only a push
-to `main` with `FP_IMMUTABLE_RELEASE_ENABLED=true` can run it after both the full
+to the repository's default branch (`github.ref_name ==
+github.event.repository.default_branch`, the same rule as `Release to VPS`; today
+`master`) with `FP_IMMUTABLE_RELEASE_ENABLED=true` can run it after both the full
 build and imported-image security gate pass. It loads and verifies the saved
 image, publishes to `ghcr.io/camster91/family-planner` with a source/run/attempt
 tag, and records the immutable registry digest. It never runs a Docker build.
@@ -45,11 +47,14 @@ again to compare bytes, preserving metadata beyond the Actions rerun lifecycle.
 Existing assets must match; they are not overwritten. This publisher has no VPS
 credentials and does not deploy or change package visibility. Its flag, actual
 registry publication, registry access and production ownership remain separate
-activation/handoff steps. The default branch currently remains `master`.
+activation/handoff steps. `checked-image.py publish` and
+`preserve-image-receipt.mjs` repeat the branch check themselves: they refuse
+unless `GITHUB_REF` is `refs/heads/$FP_DEFAULT_BRANCH`, which the workflow sets
+from `github.event.repository.default_branch`.
 
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
-| `release.yml` — `Build & Test` | Secret scan (gitleaks, see below), locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
+| `release.yml` — `Build & Test` | Secret scan (gitleaks, see below), locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, schema drift check (`prisma migrate diff` of the migrated database against `prisma/schema.prisma`, must be empty), persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
 | `release.yml` — `Release to VPS` | Transfer and promote the verified image for the exact workflow SHA | Manual dispatch on the actual default branch only | Production deployment after `production` environment credentials are configured |
 | `e2e.yml` | Playwright journeys, accessibility smoke and visual snapshots (`docs/testing/E2E.md`) | Pull request, `main`/`master` push, manual dispatch | Validation only; informational, not a required check |
 | `apk.yml` | Android APK build; signed release build and tagged GitHub Release upload | `main`/`master` push, `v*` tags, manual dispatch | Publishes a GitHub Release for version tags only when the APK is signed; fails the release job otherwise. **Disabled in GitHub (`disabled_manually`) as of 2026-09-29; last run 2026-09-08.** |

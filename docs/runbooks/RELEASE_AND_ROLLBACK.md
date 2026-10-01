@@ -56,8 +56,8 @@ What it does:
 
 1. Creates a fresh `fp_rehearsal_<run>_src` database and runs `scripts/migrate.js`.
 2. Seeds the deterministic two-household fixtures (`npm run fixtures:seed`, #154), then runs `migrate.js` again. Its backfills (default budget categories, chore assignments) put the database in the same steady state a production container restart leaves.
-3. Backs it up with `scripts/backup.sh` (unchanged).
-4. Restores that dump with `scripts/restore.sh` (unchanged) into a fresh `fp_rehearsal_<run>_dst`. Any `ERROR:` from `psql` fails the step, because `restore.sh` itself does not stop on SQL errors.
+3. Backs it up with `scripts/backup.sh` (unchanged; it publishes the dump only after checking it is complete).
+4. Restores that dump with `scripts/restore.sh` (unchanged) into a fresh `fp_rehearsal_<run>_dst`. `restore.sh` runs `psql` with `ON_ERROR_STOP=1 --single-transaction`, so any SQL error makes it exit non-zero and roll back; the step also fails on any `ERROR:` line as a second check.
 5. Compares every public table's row count and md5 checksum (rows ordered by their text form), plus a schema description (columns, types, defaults, indexes, constraints), between the source and the restored copy.
 6. Runs `migrate.js` twice on the restored copy. Data and schema must be unchanged after each run (idempotent rollback-forward onto a restored database).
 7. Reads the restored copy through the app's Prisma client (`scripts/recovery-rehearsal-smoke.mjs`). It runs the `/api/health` readiness query, reads both households and their members, checks that a fixture parent's password still verifies, checks that no Family A member is attached to Family B, and reads events, chores, lists and meals.

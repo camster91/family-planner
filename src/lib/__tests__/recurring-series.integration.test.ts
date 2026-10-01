@@ -19,6 +19,7 @@ jest.mock('@/lib/session', () => ({
   },
   getTokenVersion: async () => 0,
 }))
+jest.mock('@/lib/notifications-server', () => require('@/__tests__/helpers/two-household').notificationsMock)
 
 export {}
 
@@ -31,6 +32,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
   let recurring: typeof import('@/lib/recurringChores')
   let complete: typeof import('@/lib/chore-complete')
   let route: typeof import('@/app/api/chores/route')
+  let createRoute: typeof import('@/app/api/chores/create/route')
 
   const FAM = 'rsint-family'
   const FAM2 = 'rsint-family-2'
@@ -74,6 +76,17 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     return rows.map((r) => r.due_date.toISOString().slice(0, 10))
   }
 
+  function post(body: unknown): any {
+    return {
+      method: 'POST',
+      url: 'http://localhost/api/chores/create',
+      nextUrl: new URL('http://localhost/api/chores/create'),
+      headers: new Headers(),
+      cookies: { get: (n: string) => (n === 'session_token' ? { value: `session:${PARENT}` } : undefined) },
+      json: async () => body,
+    }
+  }
+
   function patch(body: unknown): any {
     return {
       method: 'PATCH',
@@ -92,6 +105,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     recurring = await import('@/lib/recurringChores')
     complete = await import('@/lib/chore-complete')
     route = await import('@/app/api/chores/route')
+    createRoute = await import('@/app/api/chores/create/route')
     await cleanup()
     await prisma.family.createMany({
       data: [
@@ -237,5 +251,37 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     // Template (today) and the kept copy (+14 days) count; one more (+21)
     // fits before the four-week horizon.
     expect(await prisma.chore.count({ where: { recurrence_id: 'rsint-p1' } })).toBe(3)
+  })
+
+  it('POST /api/chores/create writes the chore, its series link and copies together, or nothing', async () => {
+    const chore = {
+      title: 'Sweep porch',
+      points: 10,
+      assigned_to: PARENT,
+      due_date: '2099-10-05',
+      difficulty: 'easy',
+      frequency: 'weekly',
+    }
+    const res = await createRoute.POST(post(chore))
+    expect(res.status).toBe(200)
+    const { chore: created } = await res.json()
+    expect(await prisma.chore.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({
+      is_template: true,
+      recurrence_id: created.id,
+    })
+    expect(await seriesDays(created.id)).toEqual(['2099-10-05', '2099-10-12', '2099-10-19', '2099-10-26'])
+
+    // The expansion fails: the request fails and nothing is left behind (no
+    // "weekly" chore that would never repeat).
+    jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const expand = jest.spyOn(recurring, 'expandSeriesInTx').mockRejectedValueOnce(new Error('expansion failed'))
+    try {
+      const failed = await createRoute.POST(post({ ...chore, title: 'Sweep porch again' }))
+      expect(failed.status).toBe(500)
+      expect(expand).toHaveBeenCalledTimes(1)
+      expect(await prisma.chore.count({ where: { family_id: FAM, title: 'Sweep porch again' } })).toBe(0)
+    } finally {
+      jest.restoreAllMocks()
+    }
   })
 })

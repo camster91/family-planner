@@ -273,6 +273,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 44px;
     border-radius: var(--radius-md);
     padding: 0.5rem 1rem;
     background: var(--accent-tint);
@@ -284,6 +285,10 @@
   .btn-tinted:active { transform: scale(0.97); }
   .btn-tinted:hover { background: var(--accent-tint-strong); }
   .btn-tinted:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  /* Same dimming as .btn-filled; no hover/press feedback while unavailable. */
+  .btn-tinted:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-tinted:disabled:hover { background: var(--accent-tint); }
+  .btn-tinted:disabled:active { transform: none; }
 
   .btn-plain {
     display: inline-flex;

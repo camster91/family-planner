@@ -2,12 +2,13 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { cn } from '@/lib/utils'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
+import { Gift } from 'lucide-react'
+import RewardsBoard, { type RewardCard } from './RewardsBoard'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,9 +38,16 @@ async function RewardsContent({ userId, familyId }: { userId: string; familyId: 
   const userXp = user?.xp || 0
   const isParent = user?.role === 'parent'
 
-  // Split into claimable (available, not claimed by user) and family (all)
-  const claimableRewards = rewards.filter(r => r.status === 'available')
-  const familyRewards = rewards
+  const cards: RewardCard[] = rewards.map(r => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    icon: r.icon,
+    cost: r.cost,
+    status: r.status,
+    claimedById: r.claimed_by,
+    claimedByName: r.claimer?.name ?? null,
+  }))
 
   return (
     <div className="space-y-8">
@@ -47,95 +55,22 @@ async function RewardsContent({ userId, familyId }: { userId: string; familyId: 
       <div className="card-apple p-5 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Glyph color="rewards" size="lg">
-            <span className="text-2xl">⭐</span>
+            <span className="text-2xl" aria-hidden="true">⭐</span>
           </Glyph>
           <div>
             <p className="text-subhead text-label-secondary">Your XP Balance</p>
             <p className="text-title-2 text-label-primary font-bold">{userXp} XP</p>
           </div>
         </div>
-        <Link href="/dashboard/analytics" className="text-subhead text-rewards hover:text-rewards/80 font-medium">
+        <Link
+          href="/dashboard/analytics"
+          className="inline-flex min-h-[44px] items-center text-subhead text-rewards hover:text-rewards/80 font-medium"
+        >
           Leaderboard →
         </Link>
       </div>
 
-      {/* Your Claimable Rewards */}
-      {claimableRewards.length > 0 && (
-        <section>
-          <p className="section-header">Claimable Rewards</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {claimableRewards.map(reward => {
-              const canClaim = userXp >= reward.cost
-              return (
-                <div key={reward.id} className="card-apple p-5 flex flex-col gap-4">
-                  <Glyph color="rewards" size="lg">
-                    <span className="text-2xl">{reward.icon || '🎁'}</span>
-                  </Glyph>
-                  <div>
-                    <h3 className="text-title-3 text-label-primary font-semibold">{reward.name}</h3>
-                    {reward.description && (
-                      <p className="text-footnote text-label-secondary mt-1 line-clamp-2">{reward.description}</p>
-                    )}
-                    <p className="text-subhead text-rewards font-medium mt-2">{reward.cost} XP</p>
-                  </div>
-                  <button
-                    disabled={!canClaim}
-                    className={cn(
-                      'btn-tinted w-full py-2.5 text-base font-semibold',
-                      canClaim ? 'bg-rewards' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    )}
-                  >
-                    {userXp < reward.cost ? `Need ${reward.cost - userXp} more XP` : 'Claim Reward'}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* All Family Rewards */}
-      <section>
-        <p className="section-header">All Family Rewards</p>
-        {familyRewards.length === 0 ? (
-          <EmptyState
-            icon={Gift}
-            glyphColor="rewards"
-            title="No rewards yet"
-            description={isParent ? "Create your first reward for the family." : "Ask a parent to create rewards."}
-            action={isParent ? (
-              <Link href="/dashboard/rewards/create" className="btn-tinted bg-rewards px-5 py-2 text-base font-medium">
-                Create Reward
-              </Link>
-            ) : undefined}
-          />
-        ) : (
-          <div className="space-y-3">
-            {familyRewards.map(reward => {
-              const statusBadge = {
-                available: { label: 'Available', class: 'bg-green-100 text-green-700' },
-                claimed: { label: 'Claimed', class: 'bg-yellow-100 text-yellow-700' },
-                redeemed: { label: 'Redeemed', class: 'bg-blue-100 text-blue-700' },
-              }[reward.status] ?? { label: reward.status, class: 'bg-gray-100 text-gray-600' }
-
-              return (
-                <div key={reward.id} className="card-apple p-4 flex items-center gap-4">
-                  <Glyph color="rewards" size="md">
-                    <span className="text-lg">{reward.icon || '🎁'}</span>
-                  </Glyph>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body text-label-primary font-medium truncate">{reward.name}</p>
-                    <p className="text-footnote text-label-secondary">{reward.cost} XP</p>
-                  </div>
-                  <span className={cn('text-caption-1 px-2.5 py-1 rounded-full font-medium', statusBadge.class)}>
-                    {statusBadge.label}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
+      <RewardsBoard rewards={cards} userXp={userXp} isParent={isParent} currentUserId={userId} />
     </div>
   )
 }
@@ -155,8 +90,6 @@ function RewardsSkeleton() {
     </div>
   )
 }
-
-import { Gift } from 'lucide-react'
 
 export default async function RewardsPage({ searchParams }: RewardsPageProps) {
   const params = await searchParams

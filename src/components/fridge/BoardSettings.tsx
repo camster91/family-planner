@@ -530,7 +530,10 @@ export default function BoardSettings({
                     signed-in fridge board. They are not shown on a paired shared tablet, and the calm screen never
                     shows ads.
                   </p>
-                  <label className={`${buttonClass} w-fit cursor-pointer bg-[var(--surface-fill)] text-label-primary`}>
+                  {/* The file input is visually hidden, so the label shows its keyboard focus. */}
+                  <label
+                    className={`${buttonClass} w-fit cursor-pointer bg-[var(--surface-fill)] text-label-primary has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--accent-text)]`}
+                  >
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"

@@ -3,8 +3,8 @@ set -e
 
 echo "=== Family Planner Container Startup ==="
 
-# Set NODE_PATH to include global modules (for pg package)
-export NODE_PATH="/usr/lib/node_modules:$NODE_PATH"
+# scripts/migrate.js resolves `pg` from /app/node_modules (the standalone
+# output), so no NODE_PATH is needed.
 
 # Release identity fallback. The image normally bakes RELEASE_SHA in at build
 # time. If it is empty and the platform provides SOURCE_COMMIT at runtime

@@ -49,7 +49,7 @@ class CheckedImage(unittest.TestCase):
   self.assertEqual(module.comparable_configuration({'Volumes':{'/data':{}},'OnBuild':['RUN evil'],'Cmd':['sh']}),{'Volumes':{'/data':{}},'OnBuild':['RUN evil'],'Cmd':['sh']})
  def test_publication_rejects_untrusted_event_and_source_before_docker(self):
   self.fixture()
-  for changes in [{},{'GITHUB_EVENT_NAME':'pull_request','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/master','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':'foreign/repo'}]:
+  for changes in [{},{'GITHUB_EVENT_NAME':'pull_request','GITHUB_REF':'refs/heads/master','FP_DEFAULT_BRANCH':'master','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','FP_DEFAULT_BRANCH':'master','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/master','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/','FP_DEFAULT_BRANCH':'','GITHUB_REPOSITORY':module.REPOSITORY},{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/master','FP_DEFAULT_BRANCH':'master','GITHUB_REPOSITORY':'foreign/repo'}]:
    with patch.dict(os.environ,changes),patch.object(module.subprocess,'run') as run:
     self.assertRaises(ValueError,module.publish,self.directory);run.assert_not_called()
  def test_publication_tags_preserve_each_build_attempt(self):
@@ -60,7 +60,7 @@ class CheckedImage(unittest.TestCase):
   receipt,config=self.fixture()
   loaded={'Id':'sha256:'+'b'*64,'Config':config['config'],'RootFS':{'Layers':config['rootfs']['diff_ids']},'Architecture':'amd64','Os':'linux'}
   pushed={**loaded,'RepoDigests':[module.REGISTRY+'@sha256:'+'d'*64]}
-  with patch.dict(os.environ,{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':module.REPOSITORY}),patch.object(module.subprocess,'check_output',side_effect=[json.dumps([loaded]),json.dumps([pushed])]),patch.object(module.subprocess,'run') as run:
+  with patch.dict(os.environ,{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/master','FP_DEFAULT_BRANCH':'master','GITHUB_REPOSITORY':module.REPOSITORY}),patch.object(module.subprocess,'check_output',side_effect=[json.dumps([loaded]),json.dumps([pushed])]),patch.object(module.subprocess,'run') as run:
    result=module.publish(self.directory)
    self.assertEqual(result['registry_image'],pushed['RepoDigests'][0])
    commands=[call.args[0][2] for call in run.call_args_list]
@@ -68,7 +68,7 @@ class CheckedImage(unittest.TestCase):
    self.assertEqual(json.loads((self.directory/'release-receipt.json').read_text()),result)
  def test_changed_import_cannot_reach_registry_push(self):
   receipt,config=self.fixture();loaded={'Id':'sha256:'+'b'*64,'Config':{**config['config'],'User':'root'},'RootFS':{'Layers':config['rootfs']['diff_ids']},'Architecture':'amd64','Os':'linux'}
-  with patch.dict(os.environ,{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_REPOSITORY':module.REPOSITORY}),patch.object(module.subprocess,'check_output',return_value=json.dumps([loaded])),patch.object(module.subprocess,'run') as run:
+  with patch.dict(os.environ,{'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/master','FP_DEFAULT_BRANCH':'master','GITHUB_REPOSITORY':module.REPOSITORY}),patch.object(module.subprocess,'check_output',return_value=json.dumps([loaded])),patch.object(module.subprocess,'run') as run:
    self.assertRaises(ValueError,module.publish,self.directory)
    self.assertEqual([call.args[0][2] for call in run.call_args_list],['load'])
 if __name__=='__main__':unittest.main()

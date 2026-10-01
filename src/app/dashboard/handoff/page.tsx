@@ -1,10 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Printer, Link2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Printer, Link2, Copy, Share2, RefreshCw } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/i18n'
+import { Dialog } from '@/components/ui/dialog'
+import { useToast } from '@/components/ui/toast'
 import { isoToLocalDateTimeInput, localDateTimeToISO } from '@/lib/dates'
 
 // D2 (#102): the API returns every field to parents, everything except the
@@ -80,42 +82,31 @@ function handoffToForm(h: Handoff): HandoffFormData {
   }
 }
 
-function Modal({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-[22rem] rounded-2xl overflow-hidden bg-[var(--surface-elevated)] shadow-xl max-h-[90vh] overflow-y-auto">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * A labelled field. The label is tied to the control with `htmlFor`/`id`, so
+ * the control is passed as a render function that receives the id.
+ */
+function FormField({ label, children }: { label: string; children: (id: string) => React.ReactNode }) {
+  const id = React.useId()
   return (
     <div>
-      <label className="block text-caption-1 text-label-secondary mb-1">{label}</label>
-      {children}
+      <label htmlFor={id} className="block text-caption-1 text-label-secondary mb-1">
+        {label}
+      </label>
+      {children(id)}
     </div>
   )
 }
 
 function Input({
+  id,
   value,
   onChange,
   type = 'text',
   placeholder,
   className,
 }: {
+  id?: string
   value: string
   onChange: (v: string) => void
   type?: string
@@ -124,21 +115,24 @@ function Input({
 }) {
   return (
     <input
+      id={id}
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
+      className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
     />
   )
 }
 
 function Textarea({
+  id,
   value,
   onChange,
   placeholder,
   rows = 2,
 }: {
+  id?: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
@@ -146,6 +140,7 @@ function Textarea({
 }) {
   return (
     <textarea
+      id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
@@ -155,11 +150,10 @@ function Textarea({
   )
 }
 
-function HandoffModal({
+function HandoffForm({
   mode,
   initial,
   onSave,
-  onCancel,
   onDelete,
   t,
   saving,
@@ -168,18 +162,14 @@ function HandoffModal({
   mode: 'add' | 'edit'
   initial?: Handoff
   onSave: (data: HandoffFormData) => void
-  onCancel: () => void
   onDelete?: () => void
   t: (key: string) => string
   saving: boolean
   error?: string | null
 }) {
-  const [form, setForm] = React.useState<HandoffFormData>(
-    initial ? handoffToForm(initial) : emptyForm()
-  )
+  const [form, setForm] = React.useState<HandoffFormData>(initial ? handoffToForm(initial) : emptyForm())
 
-  const set = (key: keyof HandoffFormData, value: string) =>
-    setForm((f) => ({ ...f, [key]: value }))
+  const set = (key: keyof HandoffFormData, value: string) => setForm((f) => ({ ...f, [key]: value }))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -188,79 +178,305 @@ function HandoffModal({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="px-4 py-4 border-b border-[var(--surface-separator)] flex items-center justify-between">
-        <p className="text-subhead font-semibold text-label-primary">
-          {mode === 'add' ? t('handoff.createHandoff') : t('handoff.editHandoff')}
-        </p>
-        <button type="button" onClick={onCancel} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-          <X className="w-4 h-4 text-label-secondary" />
-        </button>
-      </div>
-      <div className="p-4 space-y-4">
+      <div className="space-y-4">
         {error && (
-          <div className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]">
+          <div
+            role="alert"
+            className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]"
+          >
             {error}
           </div>
         )}
         <FormField label={t('handoff.sitterName')}>
-          <Input value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />
+          {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />}
         </FormField>
         <FormField label={t('handoff.sitterPhone')}>
-          <Input value={form.sitter_phone} onChange={(v) => set('sitter_phone', v)} type="tel" placeholder="(555) 123-4567" />
+          {(id) => (
+            <Input
+              id={id}
+              value={form.sitter_phone}
+              onChange={(v) => set('sitter_phone', v)}
+              type="tel"
+              placeholder="(555) 123-4567"
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.arrivalTime')}>
-          <Input value={form.arrival_time} onChange={(v) => set('arrival_time', v)} type="datetime-local" />
+          {(id) => (
+            <Input id={id} value={form.arrival_time} onChange={(v) => set('arrival_time', v)} type="datetime-local" />
+          )}
         </FormField>
         <FormField label={t('handoff.departureTime')}>
-          <Input value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
+          {(id) => (
+            <Input id={id} value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
+          )}
         </FormField>
         <FormField label={t('handoff.kidsBedtimes')}>
-          <Textarea value={form.kids_bedtimes} onChange={(v) => set('kids_bedtimes', v)} placeholder="e.g. Emma: 8pm, Max: 8:30pm" rows={2} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.kids_bedtimes}
+              onChange={(v) => set('kids_bedtimes', v)}
+              placeholder="e.g. Emma: 8pm, Max: 8:30pm"
+              rows={2}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.whereSnacks')}>
-          <Textarea value={form.where_snacks} onChange={(v) => set('where_snacks', v)} placeholder="e.g. Snacks in the pantry, fruit in the fridge" rows={2} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.where_snacks}
+              onChange={(v) => set('where_snacks', v)}
+              placeholder="e.g. Snacks in the pantry, fruit in the fridge"
+              rows={2}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.pickupAuthorized')}>
-          <Textarea value={form.pickup_authorized} onChange={(v) => set('pickup_authorized', v)} placeholder="e.g. Grandma Jane, Uncle Bob" rows={2} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.pickup_authorized}
+              onChange={(v) => set('pickup_authorized', v)}
+              placeholder="e.g. Grandma Jane, Uncle Bob"
+              rows={2}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.codeWords')}>
-          <Textarea value={form.code_words} onChange={(v) => set('code_words', v)} placeholder="e.g. Code word for emergencies: PINEAPPLE" rows={2} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.code_words}
+              onChange={(v) => set('code_words', v)}
+              placeholder="e.g. Code word for emergencies: PINEAPPLE"
+              rows={2}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.petCare')}>
-          <Textarea value={form.pet_care} onChange={(v) => set('pet_care', v)} placeholder="e.g. Dog: walk at 7pm, cat: no special care" rows={2} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.pet_care}
+              onChange={(v) => set('pet_care', v)}
+              placeholder="e.g. Dog: walk at 7pm, cat: no special care"
+              rows={2}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.emergencyNotes')}>
-          <Textarea value={form.emergency_notes} onChange={(v) => set('emergency_notes', v)} placeholder="Allergies, medical info, emergency contacts..." rows={3} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.emergency_notes}
+              onChange={(v) => set('emergency_notes', v)}
+              placeholder="Allergies, medical info, emergency contacts..."
+              rows={3}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.houseNotes')}>
-          <Textarea value={form.house_notes} onChange={(v) => set('house_notes', v)} placeholder="e.g. Thermostat, TV codes, alarm code..." rows={3} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.house_notes}
+              onChange={(v) => set('house_notes', v)}
+              placeholder="e.g. Thermostat, TV codes, alarm code..."
+              rows={3}
+            />
+          )}
         </FormField>
         <FormField label={t('handoff.generalNotes')}>
-          <Textarea value={form.general_notes} onChange={(v) => set('general_notes', v)} placeholder="Any other notes for the sitter..." rows={3} />
+          {(id) => (
+            <Textarea
+              id={id}
+              value={form.general_notes}
+              onChange={(v) => set('general_notes', v)}
+              placeholder="Any other notes for the sitter..."
+              rows={3}
+            />
+          )}
         </FormField>
       </div>
-      <div className="px-4 pb-4 flex gap-2">
+      <div className="mt-4 flex gap-2">
         {mode === 'edit' && onDelete && (
           <button
             type="button"
             onClick={onDelete}
-            className="px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-red-50"
+            className="min-h-[44px] px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-red-50"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
             {t('handoff.deleteHandoff')}
           </button>
         )}
-        <button
-          type="submit"
-          disabled={saving}
-          className="ml-auto px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className="btn-filled ml-auto">
           {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </form>
   )
 }
+
+/** The sitter page link for a token. */
+function shareUrl(token: string): string {
+  return `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/handoff/${token}`
+}
+
+/** True while the stored share link still opens (the API fails closed on no expiry). */
+function isShareLinkLive(handoff: Pick<Handoff, 'share_token' | 'share_expires_at'>, now: number = Date.now()) {
+  if (!handoff.share_token || !handoff.share_expires_at) return false
+  const expires = new Date(handoff.share_expires_at).getTime()
+  return Number.isFinite(expires) && expires > now
+}
+
+/**
+ * Share with the sitter. Shows the current link instead of making a new one on
+ * every tap (a new link stops the one the sitter already has). Copy runs inside
+ * the tap with no network wait first, which iOS Safari requires. A new link is
+ * made only from an explicit "Make a new link" step that says the old one stops.
+ */
+function ShareLinkDialog({
+  handoff,
+  onClose,
+  onMakeNewLink,
+  making,
+}: {
+  handoff: Handoff | null
+  onClose: () => void
+  onMakeNewLink: () => void
+  making: boolean
+}) {
+  const { addToast } = useToast()
+  const [confirmingReset, setConfirmingReset] = React.useState(false)
+  const [canNativeShare, setCanNativeShare] = React.useState(false)
+  const urlId = React.useId()
+
+  React.useEffect(() => {
+    setCanNativeShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function')
+  }, [])
+
+  // A fresh start each time the dialog opens or a new link arrives.
+  const token = handoff?.share_token
+  React.useEffect(() => {
+    setConfirmingReset(false)
+  }, [handoff?.id, token])
+
+  if (!handoff) return null
+  const live = isShareLinkLive(handoff)
+  const url = live && token ? shareUrl(token) : null
+
+  const copy = () => {
+    if (!url) return
+    // Called straight from the click, before any await.
+    const write = navigator.clipboard?.writeText?.(url)
+    if (!write) {
+      addToast({ type: 'info', title: 'Copy the link from the box above' })
+      return
+    }
+    write.then(
+      () => addToast({ type: 'success', title: 'Link copied' }),
+      () => addToast({ type: 'error', title: "Couldn't copy the link", message: 'Select the link above and copy it.' })
+    )
+  }
+
+  const nativeShare = () => {
+    if (!url) return
+    navigator
+      .share({ title: `Handoff for ${handoff.sitter_name}`, url })
+      // Dismissing the share sheet rejects; that is not an error.
+      .catch(() => undefined)
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Share with sitter"
+      description={`Send this link to ${handoff.sitter_name}. It opens the handoff without signing in.`}
+      testId="handoff-share-dialog"
+    >
+      {url ? (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor={urlId} className="block text-caption-1 text-label-secondary mb-1">
+              Sitter link
+            </label>
+            <input
+              id={urlId}
+              readOnly
+              value={url}
+              onFocus={(e) => e.currentTarget.select()}
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
+            {handoff.share_expires_at && (
+              <p className="mt-1 text-caption-1 text-label-secondary">
+                Works until {new Date(handoff.share_expires_at).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={copy} className="btn-filled flex-1">
+              <Copy className="w-4 h-4" aria-hidden="true" />
+              Copy link
+            </button>
+            {canNativeShare && (
+              <button type="button" onClick={nativeShare} className="btn-tinted min-h-[44px] flex-1">
+                <Share2 className="w-4 h-4" aria-hidden="true" />
+                Share…
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="text-subhead text-label-secondary">
+          {handoff.share_token ? 'This link has expired.' : 'There is no link yet.'} Make a new link to share.
+        </p>
+      )}
+
+      <div className="mt-6 border-t border-[var(--surface-separator)] pt-4">
+        {url && !confirmingReset ? (
+          <button
+            type="button"
+            onClick={() => setConfirmingReset(true)}
+            className="btn-ghost min-h-[44px] w-full"
+          >
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+            Make a new link
+          </button>
+        ) : url && confirmingReset ? (
+          <div className="space-y-2" role="group" aria-label="Make a new link">
+            <p className="text-subhead text-label-primary">
+              The link you already sent will stop working. Make a new one?
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingReset(false)}
+                className="btn-ghost min-h-[44px] flex-1"
+              >
+                Keep current link
+              </button>
+              <button type="button" onClick={onMakeNewLink} disabled={making} className="btn-destructive flex-1 disabled:opacity-40">
+                {making ? 'Making…' : 'Make new link'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={onMakeNewLink} disabled={making} className="btn-filled w-full">
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+            {making ? 'Making…' : 'Make a new link'}
+          </button>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
+// Icon-only card actions: a 44px tap area around a 20px glyph.
+const ICON_BUTTON_CLASS =
+  'inline-flex h-11 w-11 items-center justify-center rounded-lg text-label-secondary hover:bg-[var(--surface-secondary)] focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]'
 
 function HandoffCard({
   handoff,
@@ -291,30 +507,33 @@ function HandoffCard({
           <div className="flex gap-1">
             {canManage && (
               <button
+                type="button"
                 onClick={onShare}
-                className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
+                className={ICON_BUTTON_CLASS}
                 title={t('handoff.shareWithSitter')}
                 aria-label={t('handoff.shareWithSitter')}
               >
-                <Link2 className="w-4 h-4" />
+                <Link2 className="w-5 h-5" aria-hidden="true" />
               </button>
             )}
             <button
+              type="button"
               onClick={onPrint}
-              className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
+              className={ICON_BUTTON_CLASS}
               title={t('handoff.print')}
               aria-label={t('handoff.print')}
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-5 h-5" aria-hidden="true" />
             </button>
             {canManage && (
               <button
+                type="button"
                 onClick={onEdit}
-                className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] text-label-secondary"
+                className={ICON_BUTTON_CLASS}
                 title={t('handoff.editHandoff')}
                 aria-label={t('handoff.editHandoff')}
               >
-                <Pencil className="w-4 h-4" />
+                <Pencil className="w-5 h-5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -405,6 +624,11 @@ function HandoffPageInner() {
   const [editHandoff, setEditHandoff] = React.useState<Handoff | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [userRole, setUserRole] = React.useState<string | null>(null)
+  // The handoff whose share dialog is open, by id so a new link shows at once.
+  const [shareId, setShareId] = React.useState<string | null>(null)
+  const [makingLink, setMakingLink] = React.useState(false)
+  const { addToast } = useToast()
+  const shareHandoff = shareId ? (handoffs.find((h) => h.id === shareId) ?? null) : null
 
   const fetchHandoffs = React.useCallback(async () => {
     try {
@@ -499,17 +723,27 @@ function HandoffPageInner() {
     }
   }
 
-  const handleShare = async (handoff: Handoff) => {
+  // Replaces the share token: the link the sitter already has stops working.
+  // Only reached from the share dialog's explicit "Make new link" step.
+  const handleMakeNewLink = async () => {
+    if (!shareHandoff) return
+    const id = shareHandoff.id
+    setMakingLink(true)
     try {
-      const res = await fetch(`/api/handoff/${handoff.id}/regenerate-token`, { method: 'POST' })
+      const res = await fetch(`/api/handoff/${id}/regenerate-token`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to regenerate')
       const data = await res.json()
-      const token = data.handoff.share_token
-      const url = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/handoff/${token}`
-      await navigator.clipboard.writeText(url)
-      alert(t('handoff.linkCopied') + ': ' + url)
+      const updated = data.handoff as Handoff
+      setHandoffs((prev) =>
+        prev.map((h) =>
+          h.id === id ? { ...h, share_token: updated.share_token, share_expires_at: updated.share_expires_at } : h
+        )
+      )
+      addToast({ type: 'success', title: 'New link made', message: 'Copy it and send it to your sitter.' })
     } catch {
-      alert(t('common.error'))
+      addToast({ type: 'error', title: "Couldn't make a new link", message: t('common.error') })
+    } finally {
+      setMakingLink(false)
     }
   }
 
@@ -600,7 +834,7 @@ function HandoffPageInner() {
               handoff={h}
               canManage={isParent}
               onEdit={() => setEditHandoff(h)}
-              onShare={() => handleShare(h)}
+              onShare={() => setShareId(h.id)}
               onPrint={handlePrint}
               t={t}
             />
@@ -608,33 +842,32 @@ function HandoffPageInner() {
         </div>
       </div>
 
-      {/* Add modal */}
-      <Modal open={isParent && showAdd} onClose={closeModal}>
-        <HandoffModal
-          mode="add"
-          onSave={handleSave}
-          onCancel={closeModal}
-          t={t}
-          saving={saving}
-          error={error}
-        />
-      </Modal>
+      <Dialog open={isParent && showAdd} onClose={closeModal} title={t('handoff.createHandoff')}>
+        <HandoffForm mode="add" onSave={handleSave} t={t} saving={saving} error={error} />
+      </Dialog>
 
-      {/* Edit modal */}
-      <Modal open={isParent && !!editHandoff} onClose={closeModal}>
+      <Dialog open={isParent && !!editHandoff} onClose={closeModal} title={t('handoff.editHandoff')}>
         {isParent && editHandoff && (
-          <HandoffModal
+          <HandoffForm
             mode="edit"
             initial={editHandoff}
             onSave={handleSave}
-            onCancel={closeModal}
             onDelete={handleDelete}
             t={t}
             saving={saving}
             error={error}
           />
         )}
-      </Modal>
+      </Dialog>
+
+      {isParent && (
+        <ShareLinkDialog
+          handoff={shareHandoff}
+          onClose={() => setShareId(null)}
+          onMakeNewLink={handleMakeNewLink}
+          making={makingLink}
+        />
+      )}
     </>
   )
 }

@@ -31,6 +31,16 @@ jest.mock("@/lib/outbound-url", () => {
   };
 });
 
+// No network in tests: the pinned-DNS fetch delegates to the mocked global fetch
+// (safe-fetch has its own connect-time tests in src/lib/__tests__/safe-fetch.test.ts).
+jest.mock("@/lib/safe-fetch", () => {
+  const actual = jest.requireActual("@/lib/safe-fetch");
+  return {
+    ...actual,
+    safeFetch: (url: string, init?: RequestInit) => global.fetch(url, init),
+  };
+});
+
 import * as collection from "../route";
 import * as item from "../[id]/route";
 import * as refresh from "../[id]/refresh/route";

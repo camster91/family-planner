@@ -28,3 +28,14 @@ export function allDayRange(dueDate: Date, timeZone: string): { start: Date; end
     end: zonedWallTimeToUtc({ year, month, day, hour: 23, minute: 59, second: 0 }, timeZone),
   }
 }
+
+/**
+ * Lock a project's row until the caller's transaction commits. Send to
+ * calendar reads which tasks are already on the calendar and then creates the
+ * rest; two sends at once (a double tap, two parents) used to both see none
+ * and create every event twice. Under this lock the second send waits and
+ * then finds the first one's events.
+ */
+export async function lockProjectRow(tx: any, projectId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId} FOR UPDATE`
+}

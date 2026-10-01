@@ -58,10 +58,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install wget for health checks and pg for migration script
+# Install wget for health checks
 RUN apk add --no-cache wget
-# Keep this pin in step with the `pg` version in package-lock.json.
-RUN npm install -g pg@8.23.0
 
 # Create necessary directories and set permissions.
 # /data/family-planner-uploads is the default UPLOAD_DIR. Creating it here,
@@ -81,6 +79,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy migration script
 COPY --from=builder /app/scripts/migrate.js /app/scripts/migrate.js
 COPY --from=builder /app/database /app/database
+
+# migrate.js needs `pg`. It resolves the copy in /app/node_modules that the
+# standalone output already ships (the app's Prisma driver adapter uses the same
+# locked version from package-lock.json), so nothing is downloaded at image
+# build time. Fail the build here, not at container start, if the standalone
+# output ever stops including it: then copy pg and its dependencies from the
+# builder's node_modules explicitly.
+RUN cd /app/scripts && node -e "const { Client } = require('pg'); if (typeof Client !== 'function') process.exit(1); console.log('pg for migrate.js:', require.resolve('pg'))"
 
 # Copy entrypoint script
 COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh

@@ -88,12 +88,18 @@ export async function POST(request: NextRequest) {
         return { ok: false as const, reason: 'Reward is no longer available' }
       }
 
+      // The cost is read here, after the claim above locked the reward row, not
+      // from the read before the transaction: a parent who changed the price
+      // in between is charged at the price that is stored now.
+      const claimed = await tx.reward.findUnique({ where: { id: rewardId }, select: { cost: true } })
+      const cost = claimed?.cost ?? reward.cost
+
       // Deduct XP only if the balance still covers it. `gte` makes the check and
       // the deduction one atomic operation; `increment` makes concurrent
       // deductions compose rather than overwrite.
       const deducted = await tx.user.updateMany({
-        where: { id: auth.user.id, xp: { gte: reward.cost } },
-        data: { xp: { decrement: reward.cost } },
+        where: { id: auth.user.id, xp: { gte: cost } },
+        data: { xp: { decrement: cost } },
       })
 
       if (deducted.count === 0) {
@@ -107,7 +113,7 @@ export async function POST(request: NextRequest) {
         select: { xp: true },
       })
 
-      return { ok: true as const, xp: fresh?.xp ?? 0 }
+      return { ok: true as const, xp: fresh?.xp ?? 0, cost }
     })
 
     if (!result.ok) {
@@ -135,7 +141,7 @@ export async function POST(request: NextRequest) {
         await notificationServiceServer.sendNotification({
           userId: parent.id,
           title: `${user?.name ?? 'Someone'} claimed a reward!`,
-          message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${reward.cost} XP.`,
+          message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${result.cost} XP.`,
           type: 'reward',
         })
       }

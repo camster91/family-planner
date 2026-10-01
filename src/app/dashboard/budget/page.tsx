@@ -235,7 +235,7 @@ export default async function BudgetPage() {
 
   return (
     <div>
-      <BudgetDashboard initialData={data} userId={user.id} />
+      <BudgetDashboard initialData={data} userId={user.id} canEdit={user.role === 'parent'} />
     </div>
   )
 }

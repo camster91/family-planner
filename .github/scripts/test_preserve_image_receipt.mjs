@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { preserve } from './preserve-image-receipt.mjs';
 function fixture() {
-  const env = { RELEASE_SHA: 'a'.repeat(40), GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '2', GITHUB_REPOSITORY: 'camster91/family-planner', GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main', GITHUB_TOKEN: 'test-secret' };
+  const env = { RELEASE_SHA: 'a'.repeat(40), GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '2', GITHUB_REPOSITORY: 'camster91/family-planner', GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/master', FP_DEFAULT_BRANCH: 'master', GITHUB_TOKEN: 'test-secret' };
   const receipts = ['runtime'].map((kind, index) => ({ schema: 1, repository: env.GITHUB_REPOSITORY, revision: env.RELEASE_SHA, kind, image_id: 'sha256:' + 'b'.repeat(64), archive_sha256: 'c'.repeat(64), workflow_run_id: '123', workflow_run_attempt: '2', registry_image: `ghcr.io/camster91/family-planner@sha256:${'d'.repeat(64)}`, privateExtra: 'must-not-be-recorded' }));
   const tag = `family-planner-build-${env.RELEASE_SHA}-run-123-attempt-2`, calls = [];
   let record, bytes;
@@ -33,7 +33,7 @@ test('idempotent retries verify the existing asset without overwriting it', asyn
   const f = fixture(), first = await preserve(f.env, f.options); f.calls.length = 0; const second = await preserve(f.env, f.options); assert.deepEqual(first, second); assert.equal(f.calls.filter(call => call.method === 'POST').length, 0);
 });
 test('wrong event, repository or build attempt cannot make any remote request', async () => {
-  for (const [key, value] of [['GITHUB_EVENT_NAME', 'pull_request'], ['GITHUB_REF', 'refs/heads/master'], ['GITHUB_REPOSITORY', 'foreign/repo'], ['GITHUB_RUN_ATTEMPT', '3']]) { const f = fixture(); f.env[key] = value; await assert.rejects(preserve(f.env, f.options)); assert.equal(f.calls.length, 0); }
+  for (const [key, value] of [['GITHUB_EVENT_NAME', 'pull_request'], ['GITHUB_REF', 'refs/heads/main'], ['FP_DEFAULT_BRANCH', ''], ['FP_DEFAULT_BRANCH', 'main'], ['GITHUB_REPOSITORY', 'foreign/repo'], ['GITHUB_RUN_ATTEMPT', '3']]) { const f = fixture(); f.env[key] = value; await assert.rejects(preserve(f.env, f.options)); assert.equal(f.calls.length, 0); }
 });
 test('conflicting draft identity and modified existing asset are rejected without overwriting', async () => {
   const f = fixture(); f.setRecord({ id: 1, draft: false, tag_name: f.tag, target_commitish: f.env.RELEASE_SHA, assets: [] }); await assert.rejects(preserve(f.env, f.options), /identity/); assert.equal(f.calls.filter(call => call.method === 'POST').length, 0);

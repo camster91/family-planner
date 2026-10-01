@@ -72,20 +72,28 @@ function TravelPageInner() {
     }
   }, [failed])
 
+  // Only the trip's chores: the due-date window, not every household chore.
+  const tripStart = travel?.travel_mode_active ? travel.travel_start_date : null
+  const tripEnd = travel?.travel_mode_active ? travel.travel_end_date : null
   const fetchChores = React.useCallback(async () => {
+    if (!tripStart || !tripEnd) return setPendingChores([])
     try {
-      const res = await fetch('/api/chores')
+      const range = new URLSearchParams({ from: toDateOnlyUTC(tripStart), to: toDateOnlyUTC(tripEnd) })
+      const res = await fetch(`/api/chores?${range}`)
       if (res.ok) {
         const data = await res.json()
         setPendingChores(data.chores ?? [])
       }
     } catch {}
-  }, [])
+  }, [tripStart, tripEnd])
 
   React.useEffect(() => {
     fetchTravel()
+  }, [fetchTravel])
+
+  React.useEffect(() => {
     fetchChores()
-  }, [fetchTravel, fetchChores])
+  }, [fetchChores])
 
   const handleToggle = async () => {
     if (!travel) return
@@ -217,11 +225,12 @@ function TravelPageInner() {
         {isActive && (
           <div className="space-y-4 pt-4 border-t border-[var(--surface-separator)]">
             <div>
-              <label className="text-subhead text-label-secondary mb-1.5 block">
-                <MapPin className="w-3.5 h-3.5 inline mr-1" />
+              <label htmlFor="travel-destination" className="text-subhead text-label-secondary mb-1.5 block">
+                <MapPin className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
                 {t('travel.destination')}
               </label>
               <input
+                id="travel-destination"
                 type="text"
                 value={destination}
                 onChange={e => setDestination(e.target.value)}

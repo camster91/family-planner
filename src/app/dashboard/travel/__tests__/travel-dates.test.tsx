@@ -38,6 +38,7 @@ const CHORES = [
 
 let travelState: typeof ACTIVE | typeof INACTIVE
 let patches: Record<string, unknown>[]
+let choreUrls: string[]
 
 // The runner's zone is not ours to pick, so simulate a viewer west of UTC:
 // any local-time formatting (no explicit timeZone) lands in Toronto.
@@ -51,8 +52,12 @@ beforeEach(() => {
       return realToLocaleDateString.call(this, locales, { timeZone: 'America/Toronto', ...options })
     })
   patches = []
+  choreUrls = []
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
-    if (url === '/api/chores') return { ok: true, json: async () => ({ chores: CHORES }) }
+    if (url.startsWith('/api/chores')) {
+      choreUrls.push(url)
+      return { ok: true, json: async () => ({ chores: CHORES }) }
+    }
     if (init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body))
       patches.push(body)
@@ -85,6 +90,8 @@ it('shows the stored trip end day and chore due days', async () => {
   expect(screen.queryByText('Take out bins')).toBeNull()
   expect((screen.getByLabelText('travel.startDate') as HTMLInputElement).value).toBe('2026-10-01')
   expect((screen.getByLabelText('travel.endDate') as HTMLInputElement).value).toBe('2026-10-05')
+  // Only the trip's chores are asked for, never the whole household's.
+  expect(choreUrls).toEqual(['/api/chores?from=2026-10-01&to=2026-10-05'])
 })
 
 it('starts the trip on the local today as a date-only value', async () => {
@@ -99,4 +106,6 @@ it('starts the trip on the local today as a date-only value', async () => {
     travel_end_date: null,
     travel_destination: '',
   })
+  // No trip dates yet when off: no chore list is downloaded.
+  expect(choreUrls).toEqual([])
 })

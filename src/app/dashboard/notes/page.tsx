@@ -1,9 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, StickyNote as NoteIcon, X } from 'lucide-react'
+import { Plus, StickyNote as NoteIcon } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Dialog } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
@@ -197,7 +198,7 @@ function NotesPageInner() {
           onClick={openAddModal}
           aria-label={t('notes.addNote')}
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" aria-hidden="true" />
           <span>{t('notes.addNote')}</span>
         </button>
       </div>
@@ -288,33 +289,14 @@ function NotesPageInner() {
       )}
 
       {/* Modal */}
-      {modalState && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={closeModal}
-          />
-
-          {/* Modal */}
-          <div className="relative bg-[var(--surface-primary)] rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-spring-up">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--surface-separator)]">
-              <h2 className="text-title-2 font-display">
-                {modalState === 'add' ? t('notes.newNote') : formTitle || t('notes.title')}
-              </h2>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="p-1 rounded-lg hover:bg-[var(--surface-fill)] transition-colors"
-                aria-label={t('common.cancel')}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      <Dialog
+        open={modalState !== null}
+        onClose={closeModal}
+        title={modalState === 'add' ? t('notes.newNote') : formTitle || t('notes.title')}
+      >
+        <div>
             {/* Form */}
-            <div className="p-5 space-y-4">
+            <div className="space-y-4">
               {/* Title */}
               <div>
                 <label htmlFor="note-title" className="block text-subhead font-medium text-label-primary mb-1.5">
@@ -346,10 +328,10 @@ function NotesPageInner() {
 
               {/* Color picker */}
               <div>
-                <label className="block text-subhead font-medium text-label-primary mb-2">
+                <p id="note-color-label" className="block text-subhead font-medium text-label-primary mb-2">
                   {t('notes.color')}
-                </label>
-                <div className="flex gap-3">
+                </p>
+                <div role="group" aria-labelledby="note-color-label" className="flex gap-3">
                   {colorOptions.map((opt) => (
                     <button
                       key={opt.key}
@@ -363,6 +345,7 @@ function NotesPageInner() {
                         backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : 'var(--tint-budget)',
                       }}
                       aria-label={opt.label}
+                      aria-pressed={formColor === opt.key}
                     />
                   ))}
                 </div>
@@ -376,7 +359,7 @@ function NotesPageInner() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-5 py-4 border-t border-[var(--surface-separator)]">
+            <div className="mt-5 flex items-center justify-between border-t border-[var(--surface-separator)] pt-4">
               {modalState === 'edit' ? (
                 <button
                   type="button"
@@ -408,9 +391,8 @@ function NotesPageInner() {
                 </button>
               </div>
             </div>
-          </div>
         </div>
-      )}
+      </Dialog>
     </div>
   )
 }

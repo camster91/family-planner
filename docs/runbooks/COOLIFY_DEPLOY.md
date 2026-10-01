@@ -9,7 +9,7 @@ Facts here come from the source on `master` (Dockerfile, `docker-entrypoint.sh`,
 ## 1. Decisions before you start
 
 1. **One owner for production.** Do not run `release.yml` `Release to VPS` and Coolify against the same hostname. Pick one. If Coolify takes over, stop dispatching `Release to VPS` (it would also fail: it looks for the old Traefik-labelled container). Update `DEPLOYMENT.md` and `CI_AND_RELEASE.md` in the same change that switches.
-2. **Consume the checked image.** Use the immutable GHCR digest recorded by the checked main publisher when that path is activated. Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The Dockerfile instructions below remain reference material for a separate source-build setup; they are not the selected automatic deployment path.
+2. **Consume the checked image.** Use the immutable GHCR digest recorded by the checked default-branch publisher when that path is activated. Prerequisites: the repository variable `FP_IMMUTABLE_RELEASE_ENABLED=true` (owner action) and a push to the default branch (`master` today; the job compares against `github.event.repository.default_branch`, so a rename needs no workflow change). Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The Dockerfile instructions below remain reference material for a separate source-build setup; they are not the selected automatic deployment path.
 3. **One proxy owner.** The current VPS already has Traefik serving ports80/443 and a Coolify installation. Keep the existing proxy owner until the reviewed routing handoff; do not start a competing proxy. Resource configuration, data/uploads adoption, private acceptance and rollback must precede public routing changes.
 
 ## 2. Reference source-build setup: Dockerfile
@@ -88,7 +88,7 @@ Verified in source:
 - `migrate.js` exits `1` and logs `Schema migration failed:` / `Migration script failed:` if the schema SQL, any `database/migration-*.sql` file or the post-feature SQL fails. With `set -e` the container then exits before the server starts, the health check never passes, and Coolify marks the deployment failed while the old container keeps serving.
 - It also exits `1` if the database name in `DATABASE_URL` is not `^[a-zA-Z0-9_]+$`.
 - Softer steps (warn and continue): if it cannot connect to the `postgres` maintenance database to check or create the target database, it logs a warning and continues. The next step then fails loudly if the target database really does not exist.
-- If `DATABASE_URL` is empty, the entrypoint prints `WARNING: DATABASE_URL not set, skipping migration` and starts the server anyway. `/api/health` then returns 503, so the deploy still fails the health check.
+- If `DATABASE_URL` is empty, the entrypoint prints `WARNING: DATABASE_URL not set, skipping migration` and runs `node server.js`, but the server refuses to start: with `NODE_ENV=production` the startup check (`src/instrumentation.ts` → `assertProductionEnv` in `src/lib/env-check.ts`) logs `[env] FATAL: DATABASE_URL is not set.` and throws `Refusing to start: ...`. The same happens for a missing or short `JWT_SECRET`. No server answers, the health check never passes, and Coolify marks the deployment failed while the old container keeps serving. Look for `[env] FATAL:` in the deployment log.
 - Migrations are forward-only and idempotent (CI runs them twice on every PR). There is no down-migration. During a rolling update the new container migrates while the old one still serves, so schema changes must stay expand/contract compatible (`AGENTS.md`, mobile/server compatibility).
 
 Read the deployment log for the lines `Schema migration completed successfully` and `Post-feature schema migration completed successfully` before trusting a deploy.
@@ -186,7 +186,6 @@ Set these in Coolify → Environment Variables. Mark only `NEXT_PUBLIC_APP_URL` 
 | `PORT` / `HOSTNAME` / `HOST` | `3000` / `0.0.0.0` / `0.0.0.0` | Must match "Ports Exposes" `3000`. |
 | `NEXT_TELEMETRY_DISABLED` | `1` | |
 | `RELEASE_SHA` | build arg, or `SOURCE_COMMIT` | Section 9. Do not set by hand. |
-| `NODE_PATH` | set by entrypoint | Lets `migrate.js` find the global `pg` module. |
 | `FP_BUILT_AT` | set at `next build` | Not a runtime variable. |
 | `SOURCE_COMMIT` | Coolify | Build arg (and possibly runtime); only used as the `RELEASE_SHA` fallback. |
 
@@ -235,7 +234,7 @@ Beta usage metrics have no environment switch. They are a per-household setting 
 Owner actions, each needing approval. Outline:
 
 1. Take a fresh backup of the current database (`scripts/backup.sh`) and copy the uploads directory (`/opt/family-planner/uploads` on the current host).
-2. Restore the dump into the Coolify database (`scripts/restore.sh` with `DB_CONTAINER` set to the Coolify database container) while the new app is stopped.
+2. Restore the dump into the Coolify database (`scripts/restore.sh` with `DB_CONTAINER` set to the Coolify database container) while the new app is stopped. The restore is all or nothing (`psql -v ON_ERROR_STOP=1 --single-transaction`): it must end with `Restore complete.` and exit code 0. On `ERROR: restore FAILED` nothing was changed; fix the cause and run it again. Do not start the app on a database whose restore did not finish.
 3. Copy uploads into the new volume, then `chown -R 1001:1001` inside it.
 4. Copy the current production environment values (`JWT_SECRET`, `MAILGUN_*`, and any others actually set there) into Coolify. Do not generate a new `JWT_SECRET`.
 5. Deploy on a test hostname, verify (section 13), then switch DNS.

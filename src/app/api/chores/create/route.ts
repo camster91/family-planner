@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
-import { expandRecurringChores, markAsTemplate } from '@/lib/recurringChores'
+import { expandSeriesInTx } from '@/lib/recurringChores'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
@@ -59,28 +59,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: photo.error }, { status: 400 })
     }
 
-    const newChore = await prisma!.chore.create({
-      data: {
-        family_id: auth.user.family_id,
-        title,
-        description: description || null,
-        points,
-        assigned_to,
-        due_date: dueDate,
-        difficulty,
-        frequency,
-        status: 'pending',
-        created_by: auth.user.id,
-        photo_url: photo.value ?? null,
-        // Picture routines (#272); recurring generation copies them.
-        icon: icon ?? null,
-        routine: routine ?? null,
-        routine_order: routine_order ?? null,
-      },
-      include: {
-        assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
-        creator: { select: { id: true, name: true, avatar_url: true, role: true } },
-      },
+    const include = {
+      assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
+      creator: { select: { id: true, name: true, avatar_url: true, role: true } },
+    } as const
+
+    // One transaction: the chore, its series link (a repeating chore is the
+    // template of its own series, so expansion and the top-up agree on which
+    // rows are templates, #184) and its first window of occurrences. Before,
+    // these were three writes and a failure after the first was only logged,
+    // so a "weekly" chore that never repeated was reported as created.
+    const newChore = await prisma!.$transaction(async (tx) => {
+      const created = await tx.chore.create({
+        data: {
+          family_id: auth.user.family_id,
+          title,
+          description: description || null,
+          points,
+          assigned_to,
+          due_date: dueDate,
+          difficulty,
+          frequency,
+          status: 'pending',
+          created_by: auth.user.id,
+          photo_url: photo.value ?? null,
+          // Picture routines (#272); recurring generation copies them.
+          icon: icon ?? null,
+          routine: routine ?? null,
+          routine_order: routine_order ?? null,
+        },
+        include,
+      })
+      if (frequency === 'once') return created
+      const template = await tx.chore.update({
+        where: { id: created.id },
+        data: { recurrence_id: created.id, is_template: true },
+        include,
+      })
+      await expandSeriesInTx(tx, created.id, auth.user.family_id)
+      return template
     })
 
     // Beta usage counts (#287): after the write; never fails the request.
@@ -96,23 +113,6 @@ export async function POST(request: NextRequest) {
         )
       } catch (err) {
         logRouteError('POST /api/chores/create (assignment notification)', err, getRequestId(request))
-      }
-    }
-
-    // Expand recurring occurrences for daily/weekly/monthly chores.
-    //
-    // The row becomes the template of its own series FIRST, so that expansion
-    // and the cron agree on which rows are series templates (#184). Without
-    // this the row has no recurrence_id and the cron cannot see it.
-    if (frequency !== 'once') {
-      try {
-        await markAsTemplate(newChore.id)
-        await expandRecurringChores(
-          { id: newChore.id, frequency },
-          auth.user.family_id
-        )
-      } catch (err) {
-        logRouteError('POST /api/chores/create (recurring expansion)', err, getRequestId(request))
       }
     }
 

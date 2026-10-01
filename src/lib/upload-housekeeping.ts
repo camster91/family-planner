@@ -12,10 +12,25 @@
 //   * Family.ambient_photo_ids (Upload ids picked for the fridge board).
 // An upload is only ever attachable by its own household (chore-photos.ts), so
 // only this household's rows are consulted. Cleanup never fails the upload.
+//
+// Concurrency: candidates are picked outside any lock, then removed in one
+// transaction that takes the household lock (orders it with household and
+// member deletion and with the upload transaction, household-lock.ts) and the
+// Family row lock that board-settings PATCH holds while it validates and saves
+// `ambient_photo_ids` (`lockBoardSettings`). Under those locks every
+// reference to the candidates is read again and anything referenced is kept,
+// so a photo picked for the board or attached to a chore after the candidate
+// read is not removed. A board pick is fully serialised with the delete. Chore
+// photo writes validate their Upload row without a lock, so a chore write that
+// validated before this transaction and saves after it can still name a removed
+// row; only an Upload older than STALE_UPLOAD_AGE_MS that nothing referenced is
+// exposed to that, and the photo then reads as missing (404), never another
+// household's file.
 
 import path from 'path'
 import { unlink } from 'fs/promises'
-import { CHORE_PHOTO_FILENAME_RE, chorePhotoFilename } from '@/lib/chore-photos'
+import { CHORE_PHOTO_FILENAME_RE, chorePhotoFilename, chorePhotoPath } from '@/lib/chore-photos'
+import { lockHouseholdForJoin } from '@/lib/household-lock'
 import { log } from '@/lib/logger'
 
 /** Most photos one user may upload per hour. */
@@ -44,6 +59,8 @@ type Db = {
   chore: any
   choreAssignment: any
   family: any
+  $transaction: (fn: (tx: any) => Promise<any>) => Promise<any>
+  $queryRaw: any
 }
 
 /** Bytes currently stored for a household. */
@@ -107,21 +124,53 @@ export async function pruneUnreferencedUploads(db: Db, familyId: string, options
     })
     if (stale.length === 0) return 0
 
-    // Re-state every condition on the delete so a row that changed in between
-    // (e.g. re-attached) is not removed by a stale read of the id alone.
     const ids = stale.map((u) => u.id)
-    const { count } = await db.upload.deleteMany({
-      where: { id: { in: ids }, family_id: familyId, created_at: { lt: cutoff } },
+    const removedIds: string[] = await db.$transaction(async (tx: any) => {
+      // Household lock first (household-lock.ts order), then the Family row
+      // lock board-settings PATCH holds while it saves ambient_photo_ids.
+      if (!(await lockHouseholdForJoin(tx, familyId))) return []
+      await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${familyId} FOR UPDATE`
+
+      // Re-read every reference to the candidates under the locks.
+      const spellings = stale.flatMap(({ filename }) => [chorePhotoPath(filename), `/api/files/${filename}`, filename])
+      const [choreRefs, assignmentRefs, lockedFamily] = await Promise.all([
+        tx.chore.findMany({ where: { family_id: familyId, photo_url: { in: spellings } }, select: { photo_url: true } }),
+        tx.choreAssignment.findMany({
+          where: { family_id: familyId, photo_url: { in: spellings } },
+          select: { photo_url: true },
+        }),
+        tx.family.findUnique({ where: { id: familyId }, select: { ambient_photo_ids: true } }),
+      ])
+      const nowReferenced = new Set<string>()
+      for (const row of [...choreRefs, ...assignmentRefs] as Array<{ photo_url: string | null }>) {
+        const name = row.photo_url ? referencedFilename(row.photo_url) : null
+        if (name) nowReferenced.add(name)
+      }
+      const onBoard = new Set<string>(Array.isArray(lockedFamily?.ambient_photo_ids) ? lockedFamily.ambient_photo_ids : [])
+      const deletable = stale.filter((u) => !nowReferenced.has(u.filename) && !onBoard.has(u.id)).map((u) => u.id)
+      if (deletable.length === 0) return []
+
+      // Re-state every condition on the delete so a row that changed in
+      // between is not removed by a stale read of the id alone.
+      const { count } = await tx.upload.deleteMany({
+        where: { id: { in: deletable }, family_id: familyId, created_at: { lt: cutoff } },
+      })
+      if (count === deletable.length) return deletable
+      const survivors: Array<{ id: string }> = await tx.upload.findMany({
+        where: { id: { in: deletable } },
+        select: { id: true },
+      })
+      const left = new Set(survivors.map((u) => u.id))
+      return deletable.filter((id) => !left.has(id))
     })
+    const count = removedIds.length
     // Only remove files whose row is really gone.
-    const survivors: Array<{ id: string }> =
-      count === ids.length ? [] : await db.upload.findMany({ where: { id: { in: ids } }, select: { id: true } })
-    const kept = new Set(survivors.map((u) => u.id))
+    const removed = new Set(removedIds)
 
     const remove = options.removeFile ?? ((p: string) => unlink(p))
     const root = path.resolve(options.uploadDir, 'chores')
     for (const { id, filename } of stale) {
-      if (kept.has(id)) continue
+      if (!removed.has(id)) continue
       if (!CHORE_PHOTO_FILENAME_RE.test(filename)) continue
       await remove(path.join(root, filename)).catch((error: unknown) => {
         // ENOENT is fine (already gone); anything else is logged, not thrown.

@@ -1,5 +1,24 @@
 apply plugin: 'com.android.application'
 
+// Versioning (docs/architecture/ANDROID.md, "Versioning policy", ADR-0004).
+// CI passes -PfpVersionCode / -PfpVersionName (or FP_VERSION_CODE /
+// FP_VERSION_NAME): apk.yml uses the workflow run number for the code and the
+// v<MAJOR.MINOR.PATCH> tag for the name. A local build without them gets the
+// defaults below and must never be distributed.
+def fpVersionInput = { String property, String envName, String fallback ->
+    def value = project.findProperty(property) ?: System.getenv(envName)
+    return value?.toString()?.trim() ? value.toString().trim() : fallback
+}
+def fpVersionCode = fpVersionInput('fpVersionCode', 'FP_VERSION_CODE', '1')
+def fpVersionName = fpVersionInput('fpVersionName', 'FP_VERSION_NAME', '1.0')
+// Play's ceiling for versionCode is 2100000000.
+if (!(fpVersionCode ==~ /[1-9][0-9]{0,9}/) || fpVersionCode.toLong() > 2100000000L) {
+    throw new GradleException("fpVersionCode must be an integer from 1 to 2100000000, got '${fpVersionCode}'")
+}
+if (!(fpVersionName ==~ /[0-9][0-9A-Za-z.+-]{0,31}/)) {
+    throw new GradleException("fpVersionName must be 1-32 characters [0-9A-Za-z.+-] starting with a digit, got '${fpVersionName}'")
+}
+
 android {
     namespace = "com.ashbi.familyplanner"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +26,8 @@ android {
         applicationId "com.ashbi.familyplanner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode fpVersionCode.toInteger()
+        versionName fpVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

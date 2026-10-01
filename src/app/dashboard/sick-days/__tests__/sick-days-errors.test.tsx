@@ -53,14 +53,18 @@ const MED = {
 
 const ok = (body: unknown) => ({ status: 200, body })
 
+// What the server has saved: a reload returns the saved dose times.
+let medState: Omit<typeof MED, 'last_dose_at' | 'next_dose_at'> & { last_dose_at: string | null; next_dose_at: string | null }
+
 beforeEach(() => {
+  medState = { ...MED }
   calls = []
   unhandled = []
   process.on('unhandledRejection', onUnhandled)
   routes = {
     '/api/sick-days': () => ok({ sickDays: [SICK_DAY] }),
     '/api/family/members': () => ok({ members: [{ id: 'kid1', name: 'Sam' }] }),
-    '/api/medications': () => ok({ medications: [MED] }),
+    '/api/medications': () => ok({ medications: [medState] }),
     '/api/auth/me': () => ok({ user: { id: 'kid1', role: 'child' } }),
   }
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -161,7 +165,8 @@ describe('sick days page errors', () => {
     routes['/api/medications/m1'] = (_method, body) => {
       bodies.push(body)
       const b = body as { next_dose_at?: string }
-      return ok({ medication: { ...MED, last_dose_at: takenAt, next_dose_at: b.next_dose_at ?? null } })
+      medState = { ...medState, last_dose_at: takenAt, next_dose_at: b.next_dose_at ?? null }
+      return ok({ medication: medState })
     }
     const user = userEvent.setup()
     renderPage()
@@ -181,8 +186,10 @@ describe('sick days page errors', () => {
   })
 
   it('a child logging a dose is not offered a next dose time', async () => {
-    routes['/api/medications/m1'] = () =>
-      ok({ medication: { ...MED, last_dose_at: '2026-10-01T10:00:00.000Z', next_dose_at: null } })
+    routes['/api/medications/m1'] = () => {
+      medState = { ...MED, last_dose_at: '2026-10-01T10:00:00.000Z', next_dose_at: null }
+      return ok({ medication: medState })
+    }
     const user = userEvent.setup()
     renderPage()
     await user.click(await screen.findByText('Sam'))

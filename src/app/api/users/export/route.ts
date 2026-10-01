@@ -7,6 +7,7 @@ import { QUIET_HOURS_SELECT, quietHoursFromRow } from '@/lib/quiet-hours'
 import { AUDIT_RETENTION_MS } from '@/lib/household-audit'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { isParentRole, shapeHandoffForRole } from '@/lib/role-capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,12 +39,37 @@ export const dynamic = 'force-dynamic'
 //   ADR-0007 backfill job summaries that archive legacy rows the backfill
 //   skipped (MEALS_AND_GROCERIES.md §6), so no archived row is lost when the
 //   legacy tables are later dropped
+// - The caller's own rows in per-person domains, current household only (no
+//   family_id, never another household's rows), with the role rules of the
+//   matching GET route and never a secret:
+//   `allowances` (paid to them; for a parent also those they gave),
+//   `wishlistItems` (they asked for), `sickDays` and `medications` (about them),
+//   `emergencyContacts` (their own card), `anniversaries` (about them or added
+//   by them), `pickups` (assigned to or added by them), `pinnedNotes` (they
+//   wrote), `choreAssignments` (assigned to, completed or approved by them; no
+//   idempotency key), `uploads` (metadata of photos they uploaded, no bytes),
+//   `handoffs` (they created; never the share token), `pushSubscriptions`
+//   (registration dates only: no endpoint, no keys). Parent-only:
+//   `familyLocations` (their own saved places), `budgetCategories` (they
+//   created), `calendarConnections` (their own; no tokens or sync cursor).
+//   Parent or teen: `calendarSubscriptions` (they added; no feed URL, no
+//   caching headers).
 export async function GET(request: NextRequest) {
   try {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
     const userId = payload.userId
+
+    // Household and role for the per-person domains below: each of them is
+    // filtered on the caller's current household as well as their own
+    // columns, so rows left behind in a previous household never leak.
+    const me = await prisma!.user.findUnique({ where: { id: userId }, select: { family_id: true, role: true } })
+    const familyId = me?.family_id ?? null
+    const isParent = isParentRole(me?.role)
+    const mayReadSubscriptions = isParent || me?.role === 'teen'
+    const own = familyId != null
+    const none = Promise.resolve([] as never[])
 
     // Fetch all data in parallel
     const [
@@ -52,6 +78,9 @@ export async function GET(request: NextRequest) {
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
       meals, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
       auditLog, betaMetrics,
+      allowances, wishlistItems, sickDays, medications, emergencyContacts, anniversaries, pickups, pinnedNotes,
+      familyLocations, handoffs, uploads, choreAssignments, calendarSubscriptions, calendarConnections,
+      pushSubscriptions, budgetCategories,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -67,26 +96,24 @@ export async function GET(request: NextRequest) {
           // Explicitly EXCLUDE password
         },
       }),
-      prisma!.user.findUnique({ where: { id: userId }, select: { family_id: true, role: true } }).then(u =>
-        // Explicit select: never export secrets (feed_token, invite_code,
-        // capture_ai_key_enc, capture_ai_base_url) — children can export too.
-        // Travel plans are parent-only (#102), so only a parent's export has them.
-        u?.family_id
-          ? prisma!.family.findUnique({
-              where: { id: u.family_id },
-              select: {
-                id: true, name: true, subscription_tier: true, features: true,
-                created_at: true, beta_metrics_enabled: true,
-                ...(u.role === 'parent'
-                  ? {
-                      travel_mode_active: true, travel_start_date: true,
-                      travel_end_date: true, travel_destination: true,
-                    }
-                  : {}),
-              },
-            })
-          : null
-      ),
+      // Explicit select: never export secrets (feed_token, invite_code,
+      // capture_ai_key_enc, capture_ai_base_url) — children can export too.
+      // Travel plans are parent-only (#102), so only a parent's export has them.
+      familyId
+        ? prisma!.family.findUnique({
+            where: { id: familyId },
+            select: {
+              id: true, name: true, subscription_tier: true, features: true,
+              created_at: true, beta_metrics_enabled: true,
+              ...(isParent
+                ? {
+                    travel_mode_active: true, travel_start_date: true,
+                    travel_end_date: true, travel_destination: true,
+                  }
+                : {}),
+            },
+          })
+        : null,
       prisma!.chore.findMany({
         where: {
           OR: [
@@ -259,6 +286,181 @@ export async function GET(request: NextRequest) {
         select: { day: true, metric: true, count: true },
         orderBy: [{ day: 'asc' }, { metric: 'asc' }],
       }),
+      // ---- Per-person domains (current household only, no family_id) ----
+      // Allowance (D5): a teen or child sees only rows paid to them.
+      own
+        ? prisma!.allowance.findMany({
+            where: {
+              family_id: familyId,
+              OR: isParent ? [{ to_user_id: userId }, { from_user_id: userId }] : [{ to_user_id: userId }],
+            },
+            select: {
+              id: true, from_user_id: true, to_user_id: true, amount: true, reason: true, status: true,
+              scheduled_for: true, paid_at: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      own
+        ? prisma!.wishlistItem.findMany({
+            where: { family_id: familyId, requested_by: userId },
+            select: {
+              id: true, title: true, link: true, description: true, approx_price: true, status: true,
+              denied_reason: true, status_changed_at: true, status_changed_by: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Sick days and medications (D1): only the ones about the caller.
+      own
+        ? prisma!.sickDay.findMany({
+            where: { family_id: familyId, person_id: userId },
+            select: {
+              id: true, started_at: true, ended_at: true, symptoms: true, severity: true, status: true,
+              temperature_log: true, notes: true, created_by: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ started_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      own
+        ? prisma!.medication.findMany({
+            where: { family_id: familyId, person_id: userId },
+            select: {
+              id: true, sick_day_id: true, name: true, dosage: true, schedule: true, next_dose_at: true,
+              last_dose_at: true, active: true, notes: true, created_by: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Emergency card (D1): only the caller's own card.
+      own
+        ? prisma!.emergencyContact.findMany({
+            where: { family_id: familyId, person_id: userId },
+            select: {
+              id: true, person_name: true, relationship: true, blood_type: true, allergies: true, medications: true,
+              medical_conditions: true, doctor_name: true, doctor_phone: true, dentist_name: true,
+              dentist_phone: true, insurance_provider: true, insurance_id: true, emergency_contact_name: true,
+              emergency_contact_phone: true, emergency_contact_relation: true, notes: true, created_at: true,
+              updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      own
+        ? prisma!.anniversary.findMany({
+            where: { family_id: familyId, OR: [{ person_id: userId }, { created_by: userId }] },
+            select: {
+              id: true, name: true, type: true, date: true, notes: true, person_id: true, created_by: true,
+              created_at: true,
+            },
+            orderBy: [{ date: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      own
+        ? prisma!.pickup.findMany({
+            where: { family_id: familyId, OR: [{ assigned_to: userId }, { created_by: userId }] },
+            select: {
+              id: true, title: true, location: true, pickup_time: true, assigned_to: true, created_by: true,
+              notes: true, completed: true, completed_at: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ pickup_time: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      own
+        ? prisma!.pinnedNote.findMany({
+            where: { family_id: familyId, created_by: userId },
+            select: { id: true, title: true, body: true, color: true, pinned: true, created_at: true, updated_at: true },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Saved places carry precise addresses: parent-only, like GET /api/locations.
+      own && isParent
+        ? prisma!.familyLocation.findMany({
+            where: { family_id: familyId, user_id: userId },
+            select: {
+              id: true, label: true, address: true, latitude: true, longitude: true, is_primary: true,
+              created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Handoffs (D2): never the share token (a bearer credential for the
+      // public sitter page); shaped for the caller's role like GET /api/handoff.
+      own
+        ? prisma!.handoff.findMany({
+            where: { family_id: familyId, created_by: userId },
+            select: {
+              id: true, sitter_name: true, sitter_phone: true, arrival_time: true, departure_time: true,
+              kids_bedtimes: true, where_snacks: true, pickup_authorized: true, code_words: true, pet_care: true,
+              emergency_notes: true, house_notes: true, general_notes: true, share_expires_at: true,
+              created_by: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Photo ownership records (D3): metadata only, never the file bytes.
+      own
+        ? prisma!.upload.findMany({
+            where: { family_id: familyId, uploaded_by: userId },
+            select: { id: true, filename: true, content_type: true, size_bytes: true, created_at: true },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      own
+        ? prisma!.choreAssignment.findMany({
+            where: {
+              family_id: familyId,
+              OR: [{ assigned_to: userId }, { completed_by: userId }, { approved_by: userId }],
+            },
+            select: {
+              id: true, chore_id: true, assigned_to: true, due_date: true, status: true, photo_url: true,
+              completed_at: true, completed_by: true, approved_at: true, approved_by: true, approval_notes: true,
+              xp_awarded: true, created_at: true, updated_at: true,
+            },
+            orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // ICS subscriptions (#232): parents and teens may read them. The feed URL
+      // is write-only (never exported); etag/last_modified are cache plumbing.
+      own && mayReadSubscriptions
+        ? prisma!.calendarSubscription.findMany({
+            where: { family_id: familyId, created_by: userId },
+            select: {
+              id: true, name: true, color: true, last_fetched_at: true, last_status: true, last_error: true,
+              created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Calendar sync (#264): parent-only; never tokens or the sync cursor.
+      own && isParent
+        ? prisma!.calendarConnection.findMany({
+            where: { family_id: familyId, user_id: userId },
+            select: {
+              id: true, provider: true, calendar_id: true, calendar_name: true, push_mode: true, status: true,
+              last_synced_at: true, last_error: true, conflicts_count: true, last_conflict_at: true,
+              created_at: true, updated_at: true,
+            },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Web push: the endpoint and keys let a server reach the device, so only
+      // the registration dates are exported.
+      own
+        ? prisma!.pushSubscription.findMany({
+            where: { family_id: familyId, user_id: userId },
+            select: { id: true, created_at: true, updated_at: true },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
+      // Budget (finance) is parent-only, like GET /api/budget/categories.
+      own && isParent
+        ? prisma!.budgetCategory.findMany({
+            where: { family_id: familyId, created_by: userId },
+            select: { id: true, name: true, icon: true, color: true, type: true, budget_limit: true, created_at: true },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
     ])
 
     const exportData = {
@@ -295,6 +497,22 @@ export async function GET(request: NextRequest) {
       importJobs,
       mealBackfillJobs,
       financeArchive,
+      allowances,
+      wishlistItems,
+      sickDays,
+      medications,
+      emergencyContacts,
+      anniversaries,
+      pickups,
+      pinnedNotes,
+      familyLocations,
+      handoffs: handoffs.map((h) => shapeHandoffForRole(h, me?.role)),
+      uploads,
+      choreAssignments,
+      calendarSubscriptions,
+      calendarConnections,
+      pushSubscriptions,
+      budgetCategories,
     }
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {

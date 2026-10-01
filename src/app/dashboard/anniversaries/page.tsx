@@ -1,9 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import { Gift, Cake, Heart, CalendarDays, Plus, X, Pencil, Trash2 } from 'lucide-react'
+import { Gift, Cake, Heart, CalendarDays, Plus, Pencil, Trash2 } from 'lucide-react'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { FeatureGate } from '@/components/ui/feature-gate'
+import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { formatDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
@@ -67,27 +68,6 @@ function DateSection({
   )
 }
 
-// Modal shell
-function Modal({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-80 rounded-2xl overflow-hidden bg-[var(--surface-elevated)] shadow-xl">
-        {children}
-      </div>
-    </div>
-  )
-}
-
 interface DateFormData {
   name: string
   type: 'birthday' | 'anniversary' | 'custom'
@@ -99,7 +79,6 @@ function AddEditModal({
   mode,
   initial,
   onSave,
-  onCancel,
   onDelete,
   t,
   saving,
@@ -108,7 +87,6 @@ function AddEditModal({
   mode: 'add' | 'edit'
   initial?: DateItem
   onSave: (data: DateFormData) => void
-  onCancel: () => void
   onDelete?: () => void
   t: (key: string) => string
   saving: boolean
@@ -121,6 +99,11 @@ function AddEditModal({
   const [date, setDate] = React.useState(() => (initial?.date ? toDateOnlyUTC(initial.date) : ''))
   const [notes, setNotes] = React.useState(initial?.notes ?? '')
 
+  const nameId = React.useId()
+  const typeId = React.useId()
+  const dateId = React.useId()
+  const notesId = React.useId()
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSave({ name, type, date, notes })
@@ -128,23 +111,18 @@ function AddEditModal({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="px-4 py-4 border-b border-[var(--surface-border)] flex items-center justify-between">
-        <p className="text-subhead font-semibold text-label-primary">
-          {mode === 'add' ? t('dates.addDate') : t('common.edit')}
-        </p>
-        <button type="button" onClick={onCancel} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-          <X className="w-4 h-4 text-label-secondary" />
-        </button>
-      </div>
-      <div className="p-4 space-y-4">
+      <div className="space-y-4">
         {error && (
           <p role="alert" className="text-footnote text-label-destructive">
             {error}
           </p>
         )}
         <div>
-          <label className="block text-caption-1 text-label-secondary mb-1">{t('dates.dateName')}</label>
+          <label htmlFor={nameId} className="block text-caption-1 text-label-secondary mb-1">
+            {t('dates.dateName')}
+          </label>
           <input
+            id={nameId}
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
@@ -154,8 +132,11 @@ function AddEditModal({
           />
         </div>
         <div>
-          <label className="block text-caption-1 text-label-secondary mb-1">{t('dates.dateType')}</label>
+          <label htmlFor={typeId} className="block text-caption-1 text-label-secondary mb-1">
+            {t('dates.dateType')}
+          </label>
           <select
+            id={typeId}
             value={type}
             onChange={e => setType(e.target.value as typeof type)}
             className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
@@ -166,8 +147,11 @@ function AddEditModal({
           </select>
         </div>
         <div>
-          <label className="block text-caption-1 text-label-secondary mb-1">{t('dates.dateDate')}</label>
+          <label htmlFor={dateId} className="block text-caption-1 text-label-secondary mb-1">
+            {t('dates.dateDate')}
+          </label>
           <input
+            id={dateId}
             type="date"
             value={date}
             onChange={e => setDate(e.target.value)}
@@ -176,8 +160,11 @@ function AddEditModal({
           />
         </div>
         <div>
-          <label className="block text-caption-1 text-label-secondary mb-1">{t('dates.dateNotes')}</label>
+          <label htmlFor={notesId} className="block text-caption-1 text-label-secondary mb-1">
+            {t('dates.dateNotes')}
+          </label>
           <input
+            id={notesId}
             type="text"
             value={notes}
             onChange={e => setNotes(e.target.value)}
@@ -185,14 +172,14 @@ function AddEditModal({
           />
         </div>
       </div>
-      <div className="px-4 pb-4 flex gap-2">
+      <div className="mt-6 flex gap-2">
         {mode === 'edit' && onDelete && (
           <button
             type="button"
             onClick={onDelete}
             className="px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-red-50"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
             {t('common.delete')}
           </button>
         )}
@@ -355,7 +342,7 @@ function AnniversariesPageInner() {
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent-fill)] text-white text-subhead font-semibold"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" aria-hidden="true" />
           {t('dates.addDate')}
         </button>
       </div>
@@ -426,32 +413,24 @@ function AnniversariesPageInner() {
       )}
 
       {/* Add modal */}
-      <Modal open={showAdd && !editItem} onClose={closeModal}>
-        <AddEditModal
-          mode="add"
-          onSave={handleSave}
-          onCancel={closeModal}
-          t={t}
-          saving={saving}
-          error={modalError}
-        />
-      </Modal>
+      <Dialog open={showAdd && !editItem} onClose={closeModal} title={t('dates.addDate')}>
+        <AddEditModal mode="add" onSave={handleSave} t={t} saving={saving} error={modalError} />
+      </Dialog>
 
       {/* Edit modal */}
-      <Modal open={!!editItem} onClose={closeModal}>
+      <Dialog open={!!editItem} onClose={closeModal} title={t('common.edit')}>
         {editItem && (
           <AddEditModal
             mode="edit"
             initial={editItem}
             onSave={handleSave}
-            onCancel={closeModal}
             onDelete={handleDelete}
             t={t}
             saving={saving}
             error={modalError}
           />
         )}
-      </Modal>
+      </Dialog>
     </div>
   )
 }
