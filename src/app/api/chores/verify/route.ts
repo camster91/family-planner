@@ -228,6 +228,9 @@ async function rejectChore(
       photo_verified: false,
       verified_at: null,
       verified_notes: reason,
+      // Sent back while its assignee is no longer in the household (O-34):
+      // hand the reopened chore to the parent who sent it back.
+      ...(chore.assignee ? {} : { assigned_to: caller.id }),
     })
     if (outcome !== 'reopened') return outcome
     await tx.activity.create({

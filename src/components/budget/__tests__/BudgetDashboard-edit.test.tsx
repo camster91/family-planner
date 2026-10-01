@@ -151,3 +151,13 @@ it('renders the plain date on the server and "Today" only after hydration', () =
   renderDashboard()
   expect(screen.getByText('Today')).toBeTruthy()
 })
+
+it('teens and children see rows but cannot open the edit form (the API is parent-only)', () => {
+  render(
+    <ToastProvider>
+      <BudgetDashboard initialData={pageData()} userId="u1" canEdit={false} />
+    </ToastProvider>
+  )
+  expect(screen.getByText('Groceries')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Groceries/ })).toBeNull()
+})

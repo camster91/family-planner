@@ -80,13 +80,15 @@ interface Transaction {
 interface BudgetDashboardProps {
   initialData: BudgetPageData
   userId: string
+  /** Only parents may edit or delete transactions (the API requires a parent). */
+  canEdit?: boolean
 }
 
 // -----------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------
 
-export default function BudgetDashboard({ initialData, userId }: BudgetDashboardProps) {
+export default function BudgetDashboard({ initialData, userId, canEdit = true }: BudgetDashboardProps) {
   const [data, setData] = React.useState(initialData)
   const [showForm, setShowForm] = React.useState(false)
   // The transaction open in the edit form.
@@ -246,8 +248,8 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
                         title={tx.description || tx.category?.name || (tx.type === 'income' ? 'Income' : 'Expense')}
                         subtitle={tx.category?.name || undefined}
                         glyphColor={tx.type === 'income' ? 'lists' : 'rewards'}
-                        showChevron
-                        onClick={() => setEditing(tx)}
+                        showChevron={canEdit}
+                        onClick={canEdit ? () => setEditing(tx) : undefined}
                         trailing={
                           <span
                             className={cn(

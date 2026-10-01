@@ -81,14 +81,13 @@ export interface MemberRemovalResult {
 }
 
 /**
- * Chore and chore-occurrence statuses that count as finished history. A
- * `completed` chore is not history yet: it still waits for a parent's check,
- * and verifying it awards XP and notifies the assignee. A `completed` chore
- * is therefore handed to the removing parent too (status kept, so it stays in
- * the parent-check queue); a `completed` occurrence row stays as a record.
+ * Chore and chore-occurrence statuses that count as done. Done chores keep the
+ * removed member's name: a `completed` chore still waits for a parent's check,
+ * and handing it to the removing parent would give that parent the XP for work
+ * the removed member did. Verify skips XP and notifications for an assignee
+ * who is no longer in the household, so leaving it assigned is safe.
  */
 const FINISHED_STATUSES = ['completed', 'verified', 'approved']
-const CHECKED_CHORE_STATUSES = ['verified', 'approved']
 
 export async function removeHouseholdMember(
   args: { actorId: string; familyId: string; targetId: string },
@@ -175,14 +174,14 @@ export async function removeHouseholdMember(
       await tx.notification.deleteMany({ where: { user_id: target.id } })
       await tx.activity.deleteMany({ where: { user_id: target.id, family_id: familyId } })
 
-      // Chores: open ones, and done ones still waiting for a parent's check,
-      // go to the removing parent to hand on. Only checked chores keep the
-      // removed member's name as history.
+      // Chores: open ones go to the removing parent to hand on. Done ones
+      // (including those still waiting for a check) keep the removed member's
+      // name; verify gives them no XP and sends them nothing.
       await tx.choreAssignment.deleteMany({
         where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
       })
       await tx.chore.updateMany({
-        where: { family_id: familyId, assigned_to: target.id, status: { notIn: CHECKED_CHORE_STATUSES } },
+        where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
         data: { assigned_to: actorId },
       })
 

@@ -32,7 +32,7 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks())
 
 describe('member removal and chores waiting for a check', () => {
-  it('hands a completed chore to the removing parent; checked chores keep the name', async () => {
+  it('hands open chores to the removing parent; done chores (even unchecked) keep the name', async () => {
     const base = db.find('chore', 'chore-a')!
     db.rows('chore').push({ ...base, id: 'chore-a-waiting', status: 'completed', completed_at: new Date() })
     db.rows('chore').push({ ...base, id: 'chore-a-checked', status: 'verified' })
@@ -41,7 +41,7 @@ describe('member removal and chores waiting for a check', () => {
     await removeHouseholdMember({ actorId: 'parent-a', familyId: FAMILY_A, targetId: 'child-a' })
 
     expect(db.find('chore', 'chore-a')!.assigned_to).toBe('parent-a')
-    expect(db.find('chore', 'chore-a-waiting')).toMatchObject({ assigned_to: 'parent-a', status: 'completed' })
+    expect(db.find('chore', 'chore-a-waiting')).toMatchObject({ assigned_to: 'child-a', status: 'completed' })
     expect(db.find('chore', 'chore-a-checked')).toMatchObject({ assigned_to: 'child-a', status: 'verified' })
     expect(db.find('chore', 'chore-a-approved')).toMatchObject({ assigned_to: 'child-a', status: 'approved' })
   })
@@ -69,6 +69,8 @@ describe('POST /api/chores/verify with an assignee outside the household', () =>
     const res = await verifyChore(req({ as: 'parentA', body: { choreId: 'chore-a', decision: 'reject' } }))
     expect(res.status).toBe(200)
     expect(db.find('chore', 'chore-a')!.status).toBe('pending')
+    // Reopened work goes to the parent who sent it back.
+    expect(db.find('chore', 'chore-a')!.assigned_to).toBe('parent-a')
     expect(send).not.toHaveBeenCalled()
   })
 

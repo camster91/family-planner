@@ -132,7 +132,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         )
       }
       return { kind: 'created' as const, events }
-    })
+    // Inserts run one by one inside the lock; allow more than Prisma's 5 s
+    // default for a project with many dated tasks.
+    }, { timeout: 30_000 })
 
     if (outcome.kind === 'no-tasks') {
       return NextResponse.json({

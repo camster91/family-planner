@@ -80,4 +80,16 @@ describe("GET /api/analytics — members and weekly completion", () => {
     const { body } = await analytics();
     expect(body.members.every((m: { id: string }) => !m.id.endsWith("-b"))).toBe(true);
   });
+
+  it("keys due dates by their calendar day, not the viewer's zone (Toronto)", async () => {
+    (isGamificationOn as jest.Mock).mockResolvedValue(false);
+    // NOW is 11:00 Toronto on 2026-10-01. Due today and due six days ago both
+    // fall inside "this week"; seven days ago does not.
+    chore("today", { status: "verified", completed_at: NOW, due_date: new Date("2026-10-01T00:00:00Z") });
+    chore("six", { status: "pending", due_date: new Date("2026-09-25T00:00:00Z") });
+    chore("seven", { status: "verified", completed_at: NOW, due_date: new Date("2026-09-24T00:00:00Z") });
+    const res = await GET(req({ as: "parentA", path: "/api/analytics", query: { tz: "America/Toronto" } }));
+    const body = await res.json();
+    expect(body.weeklyCompletion).toBe(50);
+  });
 });

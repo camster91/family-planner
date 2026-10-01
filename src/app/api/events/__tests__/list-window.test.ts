@@ -60,4 +60,13 @@ describe("GET /api/events — list window", () => {
 
     expect(await list({ upcoming: "true" })).toEqual(["tomorrow", "next-week"]);
   });
+
+  it("keeps a repeating event whose first occurrence ended long ago", async () => {
+    event("weekly-old", -60);
+    db.find("event", "weekly-old")!.recurrence = "FREQ=WEEKLY";
+    event("one-off-old", -60);
+    const ids = await list();
+    expect(ids).toContain("weekly-old");
+    expect(ids).not.toContain("one-off-old");
+  });
 });

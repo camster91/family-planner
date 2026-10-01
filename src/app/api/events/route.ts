@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
     if (upcoming) {
       where.start_time = { gte: new Date() }
     } else {
-      where.end_time = { gte: new Date(Date.now() - LIST_WINDOW_PAST_DAYS * 24 * 60 * 60 * 1000) }
+      // A repeating event is one row holding its first occurrence, so keep
+      // every repeating event regardless of when the first one ended.
+      where.OR = [
+        { end_time: { gte: new Date(Date.now() - LIST_WINDOW_PAST_DAYS * 24 * 60 * 60 * 1000) } },
+        { recurrence: { not: null } },
+      ]
     }
 
     const events = await prisma!.event.findMany({

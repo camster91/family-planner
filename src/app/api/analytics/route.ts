@@ -157,7 +157,9 @@ export async function GET(request: NextRequest) {
     const weekStart = addDaysToKey(today, -6)
     const dueThisWeek = allChores.filter((c) => {
       if (!c.due_date) return false
-      const key = dayKey(new Date(c.due_date))
+      // due_date is a date-only value stored as UTC midnight: key it by its
+      // UTC day, not the viewer's zone (that would move it a day back west of UTC).
+      const key = new Date(c.due_date).toISOString().slice(0, 10)
       return key >= weekStart && key <= today
     })
     const weeklyCompletion =
