@@ -4,7 +4,10 @@
 // lib/outbound-url.ts: https only, no credentials, no private/loopback/
 // link-local/metadata addresses (checked again after DNS resolution).
 // Redirects are followed manually (max MAX_REDIRECTS) so each Location is
-// re-validated. Responses are time- and size-bounded.
+// re-validated. Each request goes through safeFetch (lib/safe-fetch.ts), which
+// pins the connection to an address vetted at connect time, so DNS cannot be
+// rebound between the check and the connection. Responses are time- and
+// size-bounded.
 //
 // Errors carry a short fixed message and a code; never the URL or any body.
 
@@ -12,6 +15,7 @@ import {
   assertPublicProviderUrl,
   checkProviderUrlShape,
 } from "@/lib/outbound-url";
+import { isUnsafeAddressError, safeFetch } from "@/lib/safe-fetch";
 
 export const FETCH_TIMEOUT_MS = 10_000;
 export const MAX_FEED_BYTES = 2 * 1024 * 1024;
@@ -150,7 +154,7 @@ export async function fetchFeed(
   rawUrl: string,
   options: FetchFeedOptions = {},
 ): Promise<FetchFeedResult> {
-  const fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
+  const fetchImpl = options.fetchImpl ?? ((input, init) => safeFetch(input, init));
   const assertUrl = options.assertUrl ?? assertPublicProviderUrl;
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
   const maxBytes = options.maxBytes ?? MAX_FEED_BYTES;
@@ -184,8 +188,10 @@ export async function fetchFeed(
           signal: controller.signal,
           headers,
         });
-      } catch {
+      } catch (err) {
         if (controller.signal.aborted) throw new FeedFetchError("timeout");
+        if (isUnsafeAddressError(err))
+          throw new FeedFetchError("url_not_allowed");
         throw new FeedFetchError("network");
       }
 

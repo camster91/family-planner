@@ -17,6 +17,7 @@
 
 import { decryptSecret } from './secret-box'
 import { assertPublicProviderUrl } from './outbound-url'
+import { isUnsafeAddressError, safeFetch } from './safe-fetch'
 
 // Errors whose message is safe to show to the user. Anything else is reported
 // generically so upstream response bodies never reach the client.
@@ -208,9 +209,14 @@ async function callModel(
   // One deadline covers the connection, the headers and reading the body.
   const signal = AbortSignal.timeout(CAPTURE_TIMEOUT_MS)
 
+  // A family-supplied URL is fetched with the connecting address pinned to a
+  // vetted public IP (lib/safe-fetch.ts), so DNS cannot be rebound between the
+  // check above and the connection. The deployment endpoint is trusted.
+  const doFetch = config.userSuppliedUrl ? safeFetch : fetch
+
   let res: Response
   try {
-    res = await fetch(`${baseUrl}/chat/completions`, {
+    res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       // Never follow redirects: a provider could bounce the request (and the
       // Authorization header) to an internal address.
@@ -233,6 +239,7 @@ async function callModel(
     })
   } catch (err) {
     throwIfTimedOut(err, signal)
+    if (isUnsafeAddressError(err)) throw new CaptureError('The provider URL must be a public address', 400)
     throw err
   }
 

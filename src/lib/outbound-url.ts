@@ -130,14 +130,14 @@ export function checkProviderUrlShape(raw: string): string | null {
 }
 
 // Full check before connecting: shape plus DNS resolution, so a public-looking
-// hostname that resolves to a private address is refused too.
+// hostname that resolves to a private address is refused early with a clear
+// message (on save and before each request hop).
 //
-// Known gap (follow-up): this is a check-then-connect guard. fetch() resolves
-// the hostname again when it connects, so a DNS server that answers with a
-// public address here and a private one moments later (DNS rebinding) can
-// still steer the request. Closing that needs the resolved address pinned at
-// connect time (an undici Agent with a validating connect.lookup), which needs
-// the `undici` package as a direct dependency. See docs/architecture/CALENDAR_IMPORT.md.
+// This alone is a check-then-connect guard: a later fetch() resolves the
+// hostname again. The request itself must therefore go through safeFetch
+// (lib/safe-fetch.ts), which re-resolves and re-checks at connect time and
+// connects only to the vetted address, so DNS rebinding between this check and
+// the connection cannot steer the request to a private address.
 export async function assertPublicProviderUrl(raw: string): Promise<void> {
   const shapeError = checkProviderUrlShape(raw)
   if (shapeError) throw new Error(shapeError)

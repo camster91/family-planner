@@ -7,6 +7,7 @@ import {
   fetchFeed,
   normalizeFeedUrl,
 } from "../fetch";
+import { UnsafeAddressError } from "@/lib/safe-fetch";
 
 const ICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n";
 const allowAll = async () => undefined;
@@ -131,6 +132,21 @@ describe("fetchFeed", () => {
       await codeOf(fetchFeed("http://cal.example.com/a.ics", { fetchImpl })),
     ).toBe("url_not_allowed");
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("reports a connect-time private address (DNS rebinding) as url_not_allowed", async () => {
+    const fetchImpl = jest.fn(async () => {
+      throw new UnsafeAddressError();
+    });
+    expect(
+      await codeOf(
+        fetchFeed("https://cal.example.com/a.ics", {
+          fetchImpl,
+          assertUrl: allowAll,
+        }),
+      ),
+    ).toBe("url_not_allowed");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("re-validates every redirect hop and blocks a redirect to a private address", async () => {

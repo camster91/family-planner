@@ -70,6 +70,10 @@ const nextConfig = {
   // and CLAUDE.md; AGENTS.md is the repository's own operating contract.
   agentRules: false,
   output: 'standalone',
+  // undici (src/lib/safe-fetch.ts, DNS-pinned fetch for user-supplied URLs) is
+  // Node-only; load it from node_modules at runtime instead of bundling it.
+  // Standalone output traces it into the server build.
+  serverExternalPackages: ['undici'],
   // Build identity (#161, src/lib/build-info.ts): when this bundle was
   // compiled, served by GET /api/version. Inlined at build time, so it is not
   // a runtime variable and a deploy cannot inherit an older value.
