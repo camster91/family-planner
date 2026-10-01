@@ -4,6 +4,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { nextAnnualOccurrence, toDateOnlyUTC } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,21 +22,14 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'asc' },
     })
 
-    const today = new Date()
+    // Dates are stored as UTC midnight. Count whole calendar days from the
+    // server's UTC day (O-31), so a date falling today is 0 days away rather
+    // than rolling to next year. The client recounts from its local day.
+    const today = toDateOnlyUTC(new Date())
     const dates = anniversaries.map((a) => {
-      const date = new Date(a.date)
-      const thisYear = today.getFullYear()
-
-      // Determine next occurrence
-      const thisYearDate = new Date(thisYear, date.getMonth(), date.getDate())
-      const nextOccurrence =
-        thisYearDate >= today
-          ? thisYearDate
-          : new Date(thisYear + 1, date.getMonth(), date.getDate())
-
-      const daysUntil = Math.ceil(
-        (nextOccurrence.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      )
+      const next = nextAnnualOccurrence(a.date, today)
+      const nextOccurrence = next?.date ?? a.date
+      const daysUntil = next?.daysUntil ?? 0
 
       return {
         id: a.id,

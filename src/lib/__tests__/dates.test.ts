@@ -14,6 +14,9 @@ import {
   normalizeDateOnlyInput,
   snoozedDueDate,
   eventFormRange,
+  nextAnnualOccurrence,
+  isoToLocalDateTimeInput,
+  formatRelativePastDate,
 } from '../dates'
 
 describe('parseDateOnly', () => {
@@ -173,5 +176,52 @@ describe('snoozedDueDate west of UTC', () => {
   })
   it('falls back to tomorrow for a malformed stored value', () => {
     expect(snoozedDueDate('garbage', now)).toBe('2026-01-06')
+  })
+})
+
+describe('nextAnnualOccurrence', () => {
+  const birthday = '1990-03-15T00:00:00.000Z'
+
+  it('is 0 days away on the day itself, not next year', () => {
+    const next = nextAnnualOccurrence(birthday, '2026-03-15')
+    expect(next?.daysUntil).toBe(0)
+    expect(next?.date.toISOString()).toBe('2026-03-15T00:00:00.000Z')
+  })
+  it('counts whole calendar days to a later date this year', () => {
+    expect(nextAnnualOccurrence(birthday, '2026-03-14')?.daysUntil).toBe(1)
+    expect(nextAnnualOccurrence(birthday, '2026-03-01')?.daysUntil).toBe(14)
+  })
+  it('rolls a passed date to next year', () => {
+    const next = nextAnnualOccurrence(birthday, '2026-03-16')
+    expect(next?.daysUntil).toBe(364)
+    expect(next?.date.toISOString()).toBe('2027-03-15T00:00:00.000Z')
+  })
+  it('accepts a Date and rejects malformed input', () => {
+    expect(nextAnnualOccurrence(new Date(birthday), '2026-03-15')?.daysUntil).toBe(0)
+    expect(nextAnnualOccurrence('garbage', '2026-03-15')).toBeNull()
+    expect(nextAnnualOccurrence(birthday, 'today')).toBeNull()
+  })
+})
+
+// Jest workers ignore a runtime process.env.TZ change, so these hold in any
+// zone; run with TZ=America/Toronto to exercise a west-of-UTC offset.
+describe('local date/time helpers (runtime time zone)', () => {
+  it('round-trips a datetime-local value through the stored instant', () => {
+    const iso = localDateTimeToISO('2026-10-03T18:30')
+    expect(iso).toBe(new Date(2026, 9, 3, 18, 30).toISOString())
+    expect(isoToLocalDateTimeInput(iso as string)).toBe('2026-10-03T18:30')
+  })
+  it('pre-fills a stored instant in local time, not its UTC wall clock', () => {
+    // 21:00 local on Oct 3 is 01:00Z on Oct 4 in Toronto (UTC-4).
+    const stored = new Date(2026, 9, 3, 21, 0).toISOString()
+    expect(isoToLocalDateTimeInput(stored)).toBe('2026-10-03T21:00')
+    expect(isoToLocalDateTimeInput('nope')).toBe('')
+  })
+  it('labels a UTC-midnight date by its calendar day relative to local today', () => {
+    // Evening of Oct 1 local time (already Oct 2 in UTC west of UTC).
+    const now = new Date(2026, 9, 1, 21, 0)
+    expect(formatRelativePastDate('2026-10-01T00:00:00.000Z', now)).toBe('Today')
+    expect(formatRelativePastDate('2026-09-30T00:00:00.000Z', now)).toBe('Yesterday')
+    expect(formatRelativePastDate('2026-09-29T00:00:00.000Z', now)).toBe('Sep 29')
   })
 })

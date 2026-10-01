@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Printer, Link2, X } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/i18n'
+import { isoToLocalDateTimeInput, localDateTimeToISO } from '@/lib/dates'
 
 // D2 (#102): the API returns every field to parents, everything except the
 // share token to teens, and only id/sitter_name/arrival_time/departure_time to
@@ -65,8 +66,9 @@ function handoffToForm(h: Handoff): HandoffFormData {
   return {
     sitter_name: h.sitter_name,
     sitter_phone: h.sitter_phone ?? '',
-    arrival_time: h.arrival_time ? h.arrival_time.slice(0, 16) : '',
-    departure_time: h.departure_time ? h.departure_time.slice(0, 16) : '',
+    // Stored instants back to the parent's local wall-clock time (O-31).
+    arrival_time: h.arrival_time ? isoToLocalDateTimeInput(h.arrival_time) : '',
+    departure_time: h.departure_time ? isoToLocalDateTimeInput(h.departure_time) : '',
     kids_bedtimes: h.kids_bedtimes ?? '',
     where_snacks: h.where_snacks ?? '',
     pickup_authorized: h.pickup_authorized ?? '',
@@ -436,8 +438,13 @@ function HandoffPageInner() {
     try {
       const payload = {
         ...form,
-        arrival_time: form.arrival_time || null,
-        departure_time: form.departure_time || null,
+        // datetime-local values carry no offset, and a UTC server would read
+        // them as UTC. Send the instant instead (O-31); an unparseable value
+        // goes through as typed so the API rejects it.
+        arrival_time: form.arrival_time ? (localDateTimeToISO(form.arrival_time) ?? form.arrival_time) : null,
+        departure_time: form.departure_time
+          ? (localDateTimeToISO(form.departure_time) ?? form.departure_time)
+          : null,
       }
       if (editHandoff) {
         const res = await fetch(`/api/handoff/${editHandoff.id}`, {
@@ -474,12 +481,18 @@ function HandoffPageInner() {
     if (!editHandoff) return
     if (!confirm(t('common.confirm') + '?')) return
     setSaving(true)
+    setError(null)
     try {
       const res = await fetch(`/api/handoff/${editHandoff.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete handoff')
+      }
       setEditHandoff(null)
       await fetchHandoffs()
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete handoff')
+    } finally {
       setSaving(false)
     }
   }

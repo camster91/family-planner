@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, Calendar, Repeat, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 
 interface Category {
   id: string
@@ -43,10 +44,11 @@ export default function TransactionForm({ onClose, onSuccess, initialData }: Tra
   const [categoryId, setCategoryId] = useState(initialData?.category_id || initialData?.category?.id || '')
   const [description, setDescription] = useState(initialData?.description || '')
   const [notes, setNotes] = useState((initialData as any)?.notes || '')
+  // A stored date is UTC midnight, so edit its UTC day; a new transaction
+  // defaults to the viewer's local today (the UTC day is tomorrow in the
+  // evening west of UTC).
   const [date, setDate] = useState(
-    initialData?.date
-      ? new Date(initialData.date).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+    initialData?.date ? toDateOnlyUTC(initialData.date) : toDateOnlyLocal(new Date())
   )
   const [isRecurring, setIsRecurring] = useState(initialData?.is_recurring || false)
   const [recurringInterval, setRecurringInterval] = useState(
