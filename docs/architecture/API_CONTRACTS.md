@@ -323,7 +323,7 @@ today's behaviour, and an old client that never calls the routes keeps receiving
 | --- | --- | --- |
 | `GET /api/users/preferences` | New. `{ "preferences": { "chores", "events", "messages" } }` (booleans) for the caller only. Any role. | n/a |
 | `PATCH /api/users/preferences` | New. Body `{ chores?, events?, messages? }`, booleans, at least one. **Strict**: any other key (including `userId`) is `400 VALIDATION_ERROR`; there is no way to name another member. Returns the full `preferences` after the change. Optional `Idempotency-Key` (see Idempotency). | n/a |
-| `POST /api/notifications` | `type` must be a type from the policy table (`chore`, `reward`, `event`, `message`, `system`); anything else is `400`. The recipient's preferences apply: a muted category creates nothing and answers `{ success: true, delivered: false, notification: null }`. The success body adds `delivered`. | The app's own caller (`src/lib/notifications.ts`) only sends table types. |
+| `POST /api/notifications` | `type` must be a type from the policy table (`chore`, `reward`, `event`, `message`, `system`); anything else is `400`. The recipient's preferences apply: a muted category creates nothing and answers `{ success: true, delivered: false, notification: null }`. The success body adds `delivered`. | No browser code calls it today; server-side sends go through `src/lib/notifications-server.ts` and use table types only. |
 | `GET /api/users/export` | Adds `notificationPreferences` (same shape as the GET) and the three `notify_*` columns on `user`. | unchanged |
 
 Both preference routes: a paired shared device is refused with `403 DEVICE_WRITE_NOT_ALLOWED` before person auth,

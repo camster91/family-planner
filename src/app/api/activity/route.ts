@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
-import { pruneLegacyAnalytics } from '@/lib/legacy-analytics'
+import { legacyAnalyticsTypeFilter, pruneLegacyAnalytics } from '@/lib/legacy-analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       family_id: auth.user.family_id,
-      // Exclude analytics events (which share the Activity model)
-      type: { not: { startsWith: 'event_' } },
+      // Exclude legacy analytics rows (which share the Activity model). The
+      // shared filter escapes the LIKE wildcard so real rows such as
+      // `event_created` and `events_imported` stay in the feed.
+      type: { not: legacyAnalyticsTypeFilter() },
     }
     if (cursor) {
       where.created_at = { lt: new Date(cursor) }
