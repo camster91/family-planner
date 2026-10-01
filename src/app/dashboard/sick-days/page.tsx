@@ -1,13 +1,14 @@
 'use client'
 
 import * as React from 'react'
-import { Thermometer, Plus, X, Clock, Pill, Check } from 'lucide-react'
+import { Thermometer, Plus, Check } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { Avatar } from '@/components/ui/avatar'
 import { useTranslation } from '@/i18n'
 import { useToast } from '@/components/ui/toast'
+import { Dialog } from '@/components/ui/dialog'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 
 interface TemperatureEntry {
@@ -50,42 +51,39 @@ interface FamilyMember {
   avatar_url?: string | null
 }
 
-function Modal({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-[22rem] rounded-2xl overflow-hidden bg-[var(--surface-elevated)] shadow-xl max-h-[90vh] overflow-y-auto">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * A labelled field. The label is tied to the control with `htmlFor`/`id`, so
+ * the control is passed as a render function that receives the id.
+ */
+function FormField({ label, children }: { label: string; children: (id: string) => React.ReactNode }) {
+  const id = React.useId()
   return (
     <div>
-      <label className="block text-caption-1 text-label-secondary mb-1">{label}</label>
-      {children}
+      <label htmlFor={id} className="block text-caption-1 text-label-secondary mb-1">
+        {label}
+      </label>
+      {children(id)}
     </div>
   )
 }
 
+const SELECT_CLASS =
+  'w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
+const TEXTAREA_CLASS =
+  'w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none'
+// A text-style action ("+ Add temperature") with a 44px tap area.
+const TEXT_ACTION_CLASS =
+  'inline-flex min-h-[44px] items-center -mr-3 px-3 rounded-[var(--radius-md)] text-subhead font-medium text-[var(--accent-text)] focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]'
+
 function Input({
+  id,
   value,
   onChange,
   type = 'text',
   placeholder,
   className,
 }: {
+  id?: string
   value: string
   onChange: (v: string) => void
   type?: string
@@ -94,11 +92,12 @@ function Input({
 }) {
   return (
     <input
+      id={id}
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
+      className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
     />
   )
 }
@@ -129,11 +128,20 @@ function SickDaysPageInner() {
   const [sickDays, setSickDays] = React.useState<SickDay[]>([])
   const [members, setMembers] = React.useState<FamilyMember[]>([])
   const [loading, setLoading] = React.useState(true)
+  // Only the first load replaces the page with "Loading"; later reloads keep
+  // the list and any open sheet on screen.
+  const [loadedOnce, setLoadedOnce] = React.useState(false)
   // The list could not be loaded: show that, not "no sick days".
   const [loadFailed, setLoadFailed] = React.useState(false)
   const { addToast } = useToast()
   const [showStartModal, setShowStartModal] = React.useState(false)
-  const [selectedSickDay, setSelectedSickDay] = React.useState<SickDay | null>(null)
+  // The open sick day is kept by id and read from the current list, so a
+  // reload (after a temperature, medication or dose) shows the saved data.
+  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const selectedSickDay = React.useMemo(
+    () => (selectedId ? sickDays.find((sd) => sd.id === selectedId) ?? null : null),
+    [sickDays, selectedId]
+  )
   const [showAddTempModal, setShowAddTempModal] = React.useState(false)
   const [showAddMedModal, setShowAddMedModal] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
@@ -166,19 +174,22 @@ function SickDaysPageInner() {
         fetch('/api/medications', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ medications: [] })),
       ])
       setLoadFailed(false)
-      setSickDays(sd.sickDays || [])
       setMembers(fm.members || [])
       // Merge medications into sick days
-      if (sd.sickDays && me.medications) {
-        setSickDays(sd.sickDays.map((sd: SickDay) => ({
-          ...sd,
-          medications: me.medications.filter((m: Medication) => m.sick_day_id === sd.id || (!m.sick_day_id && m.person_id === sd.person_id)),
-        })))
-      }
+      const meds: Medication[] = me.medications || []
+      setSickDays(
+        ((sd.sickDays || []) as SickDay[]).map((day) => ({
+          ...day,
+          medications: meds.filter(
+            (m) => m.sick_day_id === day.id || (!m.sick_day_id && m.person_id === day.person_id)
+          ),
+        }))
+      )
     } catch {
       setLoadFailed(true)
     } finally {
       setLoading(false)
+      setLoadedOnce(true)
     }
   }, [])
 
@@ -239,10 +250,7 @@ function SickDaysPageInner() {
       if (res.ok) {
         setShowAddTempModal(false)
         setTempForm({ value: '', unit: 'F' })
-        load().then(() => {
-          const updated = sickDays.find((sd) => sd.id === selectedSickDay.id)
-          if (updated) setSelectedSickDay({ ...updated })
-        })
+        await load()
       } else {
         await failed("Couldn't save the temperature", res)
       }
@@ -263,7 +271,7 @@ function SickDaysPageInner() {
         body: JSON.stringify({ endedAt: new Date().toISOString() }),
       })
       if (res.ok) {
-        setSelectedSickDay(null)
+        setSelectedId(null)
         load()
       } else {
         await failed("Couldn't end the sick day", res)
@@ -288,7 +296,7 @@ function SickDaysPageInner() {
       if (res.ok) {
         setShowAddMedModal(false)
         setMedForm({ person_id: '', name: '', dosage: '', schedule: '', notes: '' })
-        load()
+        await load()
       } else {
         await failed("Couldn't add the medication", res)
       }
@@ -299,19 +307,16 @@ function SickDaysPageInner() {
     }
   }
 
-  // The open sick day is a snapshot taken when it was opened; show the saved
-  // dose times straight away instead of waiting for it to be reopened.
+  // Show the saved dose times straight away, before the reload finishes.
   function applyMedication(updated: Pick<Medication, 'id' | 'last_dose_at' | 'next_dose_at'> | undefined) {
     if (!updated) return
-    setSelectedSickDay((prev) =>
-      prev
-        ? {
-            ...prev,
-            medications: prev.medications.map((m) =>
-              m.id === updated.id ? { ...m, last_dose_at: updated.last_dose_at, next_dose_at: updated.next_dose_at } : m
-            ),
-          }
-        : prev
+    setSickDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        medications: day.medications.map((m) =>
+          m.id === updated.id ? { ...m, last_dose_at: updated.last_dose_at, next_dose_at: updated.next_dose_at } : m
+        ),
+      }))
     )
   }
 
@@ -384,7 +389,7 @@ function SickDaysPageInner() {
   // prescriptions stay with parents.
   const reportableMembers = isParent ? members : members.filter((m) => m.id === userId)
 
-  if (loading) {
+  if (loading && !loadedOnce) {
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
         <div>
@@ -449,7 +454,7 @@ function SickDaysPageInner() {
                       )}
                     </div>
                   }
-                  onClick={() => setSelectedSickDay(sd)}
+                  onClick={() => setSelectedId(sd.id)}
                 />
               </div>
             ))}
@@ -457,51 +462,54 @@ function SickDaysPageInner() {
         </section>
       )}
 
-      {/* Start sick day modal */}
-      <Modal open={showStartModal} onClose={() => setShowStartModal(false)}>
+      {/* Start sick day */}
+      <Dialog open={showStartModal} onClose={() => setShowStartModal(false)} title={t('sickDays.startSickDay')}>
         <form onSubmit={startSickDay}>
-          <div className="px-4 py-4 border-b border-[var(--surface-separator)] flex items-center justify-between">
-            <p className="text-subhead font-semibold text-label-primary">{t('sickDays.startSickDay')}</p>
-            <button type="button" onClick={() => setShowStartModal(false)} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-              <X className="w-4 h-4 text-label-secondary" />
-            </button>
-          </div>
-          <div className="p-4 space-y-4">
+          <div className="space-y-4">
             <FormField label={t('sickDays.person')}>
-              <select
-                value={startForm.person_id}
-                onChange={(e) => setStartForm({ ...startForm, person_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              >
-                <option value="">{t('sickDays.selectPerson')}</option>
-                {reportableMembers.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
+              {(id) => (
+                <select
+                  id={id}
+                  value={startForm.person_id}
+                  onChange={(e) => setStartForm({ ...startForm, person_id: e.target.value })}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">{t('sickDays.selectPerson')}</option>
+                  {reportableMembers.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
             </FormField>
             <FormField label={t('sickDays.severity.label')}>
-              <select
-                value={startForm.severity}
-                onChange={(e) => setStartForm({ ...startForm, severity: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              >
-                <option value="mild">{t('sickDays.severity.mild')}</option>
-                <option value="moderate">{t('sickDays.severity.moderate')}</option>
-                <option value="severe">{t('sickDays.severity.severe')}</option>
-              </select>
+              {(id) => (
+                <select
+                  id={id}
+                  value={startForm.severity}
+                  onChange={(e) => setStartForm({ ...startForm, severity: e.target.value })}
+                  className={SELECT_CLASS}
+                >
+                  <option value="mild">{t('sickDays.severity.mild')}</option>
+                  <option value="moderate">{t('sickDays.severity.moderate')}</option>
+                  <option value="severe">{t('sickDays.severity.severe')}</option>
+                </select>
+              )}
             </FormField>
             <FormField label={t('sickDays.symptoms')}>
-              <textarea
-                value={startForm.symptoms}
-                onChange={(e) => setStartForm({ ...startForm, symptoms: e.target.value })}
-                rows={3}
-                placeholder={t('sickDays.symptomsPlaceholder')}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-              />
+              {(id) => (
+                <textarea
+                  id={id}
+                  value={startForm.symptoms}
+                  onChange={(e) => setStartForm({ ...startForm, symptoms: e.target.value })}
+                  rows={3}
+                  placeholder={t('sickDays.symptomsPlaceholder')}
+                  className={TEXTAREA_CLASS}
+                />
+              )}
             </FormField>
           </div>
-          <div className="px-4 pb-4 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowStartModal(false)} className="btn-plain">
+          <div className="mt-4 flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowStartModal(false)} className="btn-plain min-h-[44px]">
               {t('common.cancel')}
             </button>
             <button type="submit" disabled={saving || !startForm.person_id} className="btn-filled">
@@ -509,28 +517,26 @@ function SickDaysPageInner() {
             </button>
           </div>
         </form>
-      </Modal>
+      </Dialog>
 
-      {/* Sick day detail modal */}
+      {/* Sick day detail. Hidden (not closed) while a form on top of it is open,
+          so only one dialog traps focus and handles Escape at a time. */}
       {selectedSickDay && (
-        <Modal open={true} onClose={() => setSelectedSickDay(null)}>
-          <div className="px-4 py-4 border-b border-[var(--surface-separator)] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Avatar name={selectedSickDay.person_name} src={selectedSickDay.person_avatar || undefined} size="sm" />
-              <div>
-                <p className="text-subhead font-semibold text-label-primary">{selectedSickDay.person_name}</p>
-                <SeverityBadge severity={selectedSickDay.severity} />
-              </div>
-            </div>
-            <button type="button" onClick={() => setSelectedSickDay(null)} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-              <X className="w-4 h-4 text-label-secondary" />
-            </button>
-          </div>
-
-          <div className="p-4 space-y-4">
+        <Dialog
+          open={!showAddTempModal && !showAddMedModal}
+          onClose={() => setSelectedId(null)}
+          title={selectedSickDay.person_name}
+          description={<SeverityBadge severity={selectedSickDay.severity} />}
+          testId="sick-day-detail"
+        >
+          <div className="space-y-4">
             {/* Duration + symptoms */}
-            <div className="text-footnote text-label-secondary">
-              {daysSince(selectedSickDay.started_at)} {t('sickDays.daysSince')} · {t('sickDays.startedOn')} {new Date(selectedSickDay.started_at).toLocaleDateString()}
+            <div className="flex items-center gap-2 text-footnote text-label-secondary">
+              <Avatar name={selectedSickDay.person_name} src={selectedSickDay.person_avatar || undefined} size="sm" />
+              <span>
+                {daysSince(selectedSickDay.started_at)} {t('sickDays.daysSince')} · {t('sickDays.startedOn')}{' '}
+                {new Date(selectedSickDay.started_at).toLocaleDateString()}
+              </span>
             </div>
             {selectedSickDay.symptoms && (
               <div>
@@ -544,24 +550,22 @@ function SickDaysPageInner() {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-caption-1 text-label-secondary uppercase tracking-wide">{t('sickDays.temperatureLog')}</p>
                 {isParent && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddTempModal(true)}
-                    className="text-caption-1 text-[var(--accent)] font-medium"
-                  >
+                  <button type="button" onClick={() => setShowAddTempModal(true)} className={TEXT_ACTION_CLASS}>
                     + {t('sickDays.addTemperature')}
                   </button>
                 )}
               </div>
               {selectedSickDay.temperature_log && selectedSickDay.temperature_log.length > 0 ? (
-                <div className="space-y-1">
+                <ul className="space-y-1" aria-label={t('sickDays.temperatureLog')}>
                   {selectedSickDay.temperature_log.map((entry, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-footnote">
+                    <li key={idx} className="flex items-center justify-between text-footnote">
                       <span className="text-label-secondary">{new Date(entry.at).toLocaleString()}</span>
-                      <span className="text-label-primary font-medium">{entry.value}°{entry.unit}</span>
-                    </div>
+                      <span className="text-label-primary font-medium">
+                        {entry.value}°{entry.unit}
+                      </span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : (
                 <p className="text-footnote text-label-tertiary">{t('sickDays.noTemps')}</p>
               )}
@@ -572,11 +576,7 @@ function SickDaysPageInner() {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-caption-1 text-label-secondary uppercase tracking-wide">{t('sickDays.medications')}</p>
                 {isParent && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddMedModal(true)}
-                    className="text-caption-1 text-[var(--accent)] font-medium"
-                  >
+                  <button type="button" onClick={() => setShowAddMedModal(true)} className={TEXT_ACTION_CLASS}>
                     + {t('sickDays.addMedication')}
                   </button>
                 )}
@@ -586,9 +586,11 @@ function SickDaysPageInner() {
                   {selectedSickDay.medications.map((med) => (
                     <div key={med.id} className="bg-[var(--surface-secondary)] rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-subhead text-label-primary font-medium">{med.name}</p>
-                          <p className="text-caption-1 text-label-secondary">{med.dosage} · {med.schedule}</p>
+                          <p className="text-caption-1 text-label-secondary">
+                            {med.dosage} · {med.schedule}
+                          </p>
                           {med.last_dose_at && (
                             <p className="text-caption-1 text-label-tertiary">
                               {t('sickDays.lastDoseAt')} {new Date(med.last_dose_at).toLocaleString()}
@@ -603,21 +605,21 @@ function SickDaysPageInner() {
                         <button
                           type="button"
                           onClick={() => markDoseTaken(med.id)}
-                          className="btn-tinted text-caption-1"
+                          className="btn-tinted min-h-[44px] shrink-0 text-subhead"
                         >
-                          <Check className="w-3 h-3" />
+                          <Check className="w-4 h-4" aria-hidden="true" />
                           {t('sickDays.markDoseTaken')}
                         </button>
                       </div>
                       {isParent && nextDoseFor === med.id && med.last_dose_at && (
                         <form
-                          className="mt-2 flex items-end gap-2"
+                          className="mt-2 flex flex-wrap items-end gap-2"
                           onSubmit={(e) => {
                             e.preventDefault()
                             setNextDose(med)
                           }}
                         >
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-[8rem]">
                             <label htmlFor={`next-dose-${med.id}`} className="block text-caption-1 text-label-secondary mb-1">
                               {t('sickDays.nextDoseInHours')}
                             </label>
@@ -633,10 +635,19 @@ function SickDaysPageInner() {
                               className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-elevated)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                             />
                           </div>
-                          <button type="submit" disabled={saving || !nextDoseHours} className="btn-tinted text-caption-1">
+                          {/* .btn-tinted has no disabled look of its own. */}
+                          <button
+                            type="submit"
+                            disabled={saving || !nextDoseHours}
+                            className="btn-tinted min-h-[44px] text-subhead disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
                             {t('sickDays.setNextDose')}
                           </button>
-                          <button type="button" onClick={() => setNextDoseFor(null)} className="btn-ghost text-caption-1">
+                          <button
+                            type="button"
+                            onClick={() => setNextDoseFor(null)}
+                            className="btn-ghost min-h-[44px] text-subhead"
+                          >
                             {t('sickDays.skipNextDose')}
                           </button>
                         </form>
@@ -651,110 +662,133 @@ function SickDaysPageInner() {
           </div>
 
           {isParent && (
-            <div className="px-4 pb-4">
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={endSickness}
                 disabled={saving}
-                className="w-full btn-ghost text-label-destructive"
+                className="w-full btn-ghost min-h-[44px] text-label-destructive disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {t('sickDays.endSickness')}
               </button>
             </div>
           )}
-        </Modal>
+        </Dialog>
       )}
 
-      {/* Add temperature modal */}
-      <Modal open={showAddTempModal} onClose={() => setShowAddTempModal(false)}>
+      {/* Add temperature */}
+      <Dialog open={showAddTempModal} onClose={() => setShowAddTempModal(false)} title={t('sickDays.addTemperature')}>
         <form onSubmit={addTemperature}>
-          <div className="px-4 py-4 border-b border-[var(--surface-separator)] flex items-center justify-between">
-            <p className="text-subhead font-semibold text-label-primary">{t('sickDays.addTemperature')}</p>
-            <button type="button" onClick={() => setShowAddTempModal(false)} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-              <X className="w-4 h-4 text-label-secondary" />
-            </button>
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="flex gap-2">
+          <div className="flex gap-2">
+            <div className="flex-1">
               <FormField label={t('sickDays.temperature')}>
-                <Input
-                  value={tempForm.value}
-                  onChange={(v) => setTempForm({ ...tempForm, value: v })}
-                  type="number"
-                  placeholder="98.6"
-                  className="flex-1"
-                />
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={tempForm.value}
+                    onChange={(v) => setTempForm({ ...tempForm, value: v })}
+                    type="number"
+                    placeholder="98.6"
+                  />
+                )}
               </FormField>
-              <FormField label={t('sickDays.unit')}>
+            </div>
+            <FormField label={t('sickDays.unit')}>
+              {(id) => (
                 <select
+                  id={id}
                   value={tempForm.unit}
                   onChange={(e) => setTempForm({ ...tempForm, unit: e.target.value })}
-                  className="px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  className="min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 >
                   <option value="F">°F</option>
                   <option value="C">°C</option>
                 </select>
-              </FormField>
-            </div>
+              )}
+            </FormField>
           </div>
-          <div className="px-4 pb-4 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowAddTempModal(false)} className="btn-plain">{t('common.cancel')}</button>
+          <div className="mt-4 flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowAddTempModal(false)} className="btn-plain min-h-[44px]">
+              {t('common.cancel')}
+            </button>
             <button type="submit" disabled={saving || !tempForm.value} className="btn-filled">
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </form>
-      </Modal>
+      </Dialog>
 
-      {/* Add medication modal */}
-      <Modal open={showAddMedModal} onClose={() => setShowAddMedModal(false)}>
+      {/* Add medication */}
+      <Dialog open={showAddMedModal} onClose={() => setShowAddMedModal(false)} title={t('sickDays.addMedication')}>
         <form onSubmit={addMedication}>
-          <div className="px-4 py-4 border-b border-[var(--surface-separator)] flex items-center justify-between">
-            <p className="text-subhead font-semibold text-label-primary">{t('sickDays.addMedication')}</p>
-            <button type="button" onClick={() => setShowAddMedModal(false)} className="p-1 rounded-full hover:bg-[var(--surface-secondary)]">
-              <X className="w-4 h-4 text-label-secondary" />
-            </button>
-          </div>
-          <div className="p-4 space-y-4">
+          <div className="space-y-4">
             <FormField label={t('sickDays.person')}>
-              <select
-                value={medForm.person_id}
-                onChange={(e) => setMedForm({ ...medForm, person_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              >
-                <option value="">{t('sickDays.selectPerson')}</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
+              {(id) => (
+                <select
+                  id={id}
+                  value={medForm.person_id}
+                  onChange={(e) => setMedForm({ ...medForm, person_id: e.target.value })}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">{t('sickDays.selectPerson')}</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
             </FormField>
             <FormField label={t('sickDays.name')}>
-              <Input value={medForm.name} onChange={(v) => setMedForm({ ...medForm, name: v })} placeholder={t('sickDays.namePlaceholder')} />
+              {(id) => (
+                <Input
+                  id={id}
+                  value={medForm.name}
+                  onChange={(v) => setMedForm({ ...medForm, name: v })}
+                  placeholder={t('sickDays.namePlaceholder')}
+                />
+              )}
             </FormField>
             <FormField label={t('sickDays.dosage')}>
-              <Input value={medForm.dosage} onChange={(v) => setMedForm({ ...medForm, dosage: v })} placeholder="500mg" />
+              {(id) => (
+                <Input id={id} value={medForm.dosage} onChange={(v) => setMedForm({ ...medForm, dosage: v })} placeholder="500mg" />
+              )}
             </FormField>
             <FormField label={t('sickDays.schedule')}>
-              <Input value={medForm.schedule} onChange={(v) => setMedForm({ ...medForm, schedule: v })} placeholder="Twice daily" />
+              {(id) => (
+                <Input
+                  id={id}
+                  value={medForm.schedule}
+                  onChange={(v) => setMedForm({ ...medForm, schedule: v })}
+                  placeholder="Twice daily"
+                />
+              )}
             </FormField>
             <FormField label={t('sickDays.notes')}>
-              <textarea
-                value={medForm.notes}
-                onChange={(e) => setMedForm({ ...medForm, notes: e.target.value })}
-                rows={2}
-                placeholder={t('sickDays.notesPlaceholder')}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-              />
+              {(id) => (
+                <textarea
+                  id={id}
+                  value={medForm.notes}
+                  onChange={(e) => setMedForm({ ...medForm, notes: e.target.value })}
+                  rows={2}
+                  placeholder={t('sickDays.notesPlaceholder')}
+                  className={TEXTAREA_CLASS}
+                />
+              )}
             </FormField>
           </div>
-          <div className="px-4 pb-4 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowAddMedModal(false)} className="btn-plain">{t('common.cancel')}</button>
-            <button type="submit" disabled={saving || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule} className="btn-filled">
+          <div className="mt-4 flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowAddMedModal(false)} className="btn-plain min-h-[44px]">
+              {t('common.cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule}
+              className="btn-filled"
+            >
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </form>
-      </Modal>
+      </Dialog>
     </div>
   )
 }

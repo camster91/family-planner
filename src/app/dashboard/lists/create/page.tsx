@@ -84,10 +84,15 @@ export default function CreateListPage() {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
+  // Stays set from the first submit until the redirect: a second tap during
+  // the request or the success pause must not create a second list.
+  const submittingRef = React.useRef(false)
+  const busy = loading || !!success
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim() || submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -111,6 +116,7 @@ export default function CreateListPage() {
         router.refresh()
       }, 1200)
     } catch (err) {
+      submittingRef.current = false
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -136,19 +142,19 @@ export default function CreateListPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]">
+            <div role="alert" className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]">
               {error}
             </div>
           )}
           {success && (
-            <div className="bg-[var(--tint-lists)]/20 border border-[var(--tint-lists)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-lists)]">
+            <div role="status" className="bg-[var(--tint-lists)]/20 border border-[var(--tint-lists)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-lists)]">
               {success}
             </div>
           )}
 
           {/* Name */}
           <div>
-            <label className="text-subhead text-label-secondary mb-2 block">Name</label>
+            <label htmlFor="name" className="text-subhead text-label-secondary mb-2 block">Name</label>
             <input
               id="name"
               type="text"
@@ -163,7 +169,7 @@ export default function CreateListPage() {
 
           {/* Description */}
           <div>
-            <label className="text-subhead text-label-secondary mb-2 block">Description <span className="text-label-tertiary">(optional)</span></label>
+            <label htmlFor="description" className="text-subhead text-label-secondary mb-2 block">Description <span className="text-label-tertiary">(optional)</span></label>
             <textarea
               id="description"
               value={description}
@@ -207,14 +213,18 @@ export default function CreateListPage() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading || !name.trim()}
+            disabled={busy || !name.trim()}
+            aria-busy={busy}
             className={cn(
               'btn-filled w-full justify-center py-3',
-              (loading || !name.trim()) && 'opacity-50 pointer-events-none'
+              (busy || !name.trim()) && 'opacity-50 pointer-events-none'
             )}
           >
-            {loading ? (
-              <span className="animate-spin">⟳</span>
+            {busy ? (
+              <>
+                <span className="motion-safe:animate-spin" aria-hidden="true">⟳</span>
+                <span className="sr-only">{success ? "List created" : "Creating list"}</span>
+              </>
             ) : (
               <>
                 <Plus className="w-4 h-4" />

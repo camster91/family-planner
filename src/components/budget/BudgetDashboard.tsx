@@ -9,7 +9,8 @@ import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import TransactionForm from './TransactionForm'
-import { formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { formatDateOnly, formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { useMaybeToast } from '@/components/ui/toast'
 import { budgetProgress } from '@/lib/budget'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
@@ -43,6 +44,21 @@ function groupByDate(transactions: Transaction[]): Record<string, Transaction[]>
   return groups
 }
 
+const noopSubscribe = () => () => {}
+
+/**
+ * False during the server render and hydration, true after. "Today" and
+ * "Yesterday" depend on the viewer's clock and time zone, so they are shown
+ * only once hydrated; before that the label is the plain (UTC-stable) date.
+ */
+function useHydrated(): boolean {
+  return React.useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  )
+}
+
 // -----------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------
@@ -52,6 +68,8 @@ interface Transaction {
   amount: number
   type: string
   description: string | null
+  notes?: string | null
+  category_id?: string | null
   date: string
   is_recurring: boolean
   recurring_interval: string | null
@@ -71,6 +89,10 @@ interface BudgetDashboardProps {
 export default function BudgetDashboard({ initialData, userId }: BudgetDashboardProps) {
   const [data, setData] = React.useState(initialData)
   const [showForm, setShowForm] = React.useState(false)
+  // The transaction open in the edit form.
+  const [editing, setEditing] = React.useState<Transaction | null>(null)
+  const hydrated = useHydrated()
+  const { addToast } = useMaybeToast()
   const [filter, setFilter] = React.useState<'all' | 'income' | 'expense'>('all')
   const [isLoading, setIsLoading] = React.useState(false)
 
@@ -122,10 +144,21 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
     if (initialData.month !== localYearMonth()) refreshData()
   }, [initialData.month, refreshData])
 
-  const handleSuccess = React.useCallback(() => {
+  const closeForm = React.useCallback(() => {
     setShowForm(false)
+    setEditing(null)
+  }, [])
+
+  const handleSuccess = React.useCallback(() => {
+    closeForm()
     refreshData()
-  }, [refreshData])
+  }, [closeForm, refreshData])
+
+  const handleDeleted = React.useCallback(() => {
+    closeForm()
+    addToast({ type: 'success', title: 'Transaction deleted' })
+    refreshData()
+  }, [closeForm, addToast, refreshData])
 
   return (
     <div className="pb-20">
@@ -134,8 +167,8 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
         title="Budget"
         subtitle={data.month}
         trailing={
-          <button onClick={refreshData} aria-label="Refresh budget" className={cn('btn-ghost p-2', isLoading && 'opacity-50')}>
-            <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+          <button onClick={refreshData} aria-label="Refresh budget" type="button" className={cn('btn-ghost h-11 w-11 p-0', isLoading && 'opacity-50')}>
+            <RefreshCw aria-hidden="true" className={cn('w-4 h-4', isLoading && 'motion-safe:animate-spin')} />
           </button>
         }
         className="px-4"
@@ -200,7 +233,7 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
         {sortedDates.length > 0 ? (
           sortedDates.map((dateKey) => {
             const txs = grouped[dateKey]
-            const dateLabel = formatRelativePastDate(dateKey)
+            const dateLabel = hydrated ? formatRelativePastDate(dateKey) : formatDateOnly(dateKey)
             return (
               <section key={dateKey}>
                 <SectionHeader>{dateLabel}</SectionHeader>
@@ -213,7 +246,8 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
                         title={tx.description || tx.category?.name || (tx.type === 'income' ? 'Income' : 'Expense')}
                         subtitle={tx.category?.name || undefined}
                         glyphColor={tx.type === 'income' ? 'lists' : 'rewards'}
-                        showChevron={false}
+                        showChevron
+                        onClick={() => setEditing(tx)}
                         trailing={
                           <span
                             className={cn(
@@ -249,10 +283,13 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
       </div>
 
       {/* Modal form */}
-      {showForm && (
+      {(showForm || editing) && (
         <TransactionForm
-          onClose={() => setShowForm(false)}
+          key={editing?.id ?? 'new'}
+          initialData={editing}
+          onClose={closeForm}
           onSuccess={handleSuccess}
+          onDeleted={handleDeleted}
         />
       )}
     </div>
