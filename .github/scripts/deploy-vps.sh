@@ -93,14 +93,57 @@ trap 'rm -f "${ENV_FILE}"' EXIT
 chmod 600 "${ENV_FILE}"
 
 # Never echoed anywhere: this is the app's full runtime environment, secrets included.
-# RELEASE_SHA is baked into each image; inheriting the old value would make
-# /api/health report the previous commit and fail post-swap verification.
-docker inspect "${OLD}" --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | { grep -v '^RELEASE_SHA=' || true; } > "${ENV_FILE}"
+#
+# A container's .Config.Env is the operator's runtime settings PLUS every ENV
+# baked into its image (PATH, NODE_VERSION, YARN_VERSION, NODE_ENV, PORT,
+# HOSTNAME, ...). Passing all of it to the new container would pin the OLD
+# image's values over the new image's (a Node upgrade would keep the old
+# NODE_VERSION, a changed PATH or PORT would be undone). So every key that the
+# new image or the old image bakes in is left to the new image. Only keys that
+# neither image defines (DATABASE_URL, JWT_SECRET, MAILGUN_*, ...) are carried.
+# RELEASE_SHA is one of the baked keys, and the new value is also passed
+# explicitly below; inheriting the old one would make /api/health report the
+# previous commit and fail post-swap verification.
+declare -A IMAGE_ENV_KEYS=([RELEASE_SHA]=1)
+OLD_IMAGE_ID="$(docker inspect --format '{{.Image}}' "${OLD}")"
+while IFS= read -r entry; do
+  if [ -n "${entry%%=*}" ]; then IMAGE_ENV_KEYS["${entry%%=*}"]=1; fi
+done < <(
+  docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${IMAGE}"
+  docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${OLD_IMAGE_ID}"
+)
+dropped_env=()
+while IFS= read -r entry; do
+  [ -n "${entry}" ] || continue
+  key="${entry%%=*}"
+  if [ -n "${key}" ] && [ -n "${IMAGE_ENV_KEYS[${key}]:-}" ]; then
+    dropped_env+=("${key}")
+  else
+    printf '%s\n' "${entry}" >> "${ENV_FILE}"
+  fi
+done < <(docker inspect "${OLD}" --format '{{range .Config.Env}}{{println .}}{{end}}')
+# Key names only, never values.
+if [ "${#dropped_env[@]}" -gt 0 ]; then
+  echo "left to the new image (not inherited): ${dropped_env[*]}"
+fi
 
+# Labels: routing (traefik.*) and any operator labels are inherited. Image
+# metadata labels are not: org.opencontainers.* (for example
+# org.opencontainers.image.revision) and anything the new image sets itself
+# must describe the new image, not the one being replaced.
+declare -A NEW_IMAGE_LABELS=()
+while IFS= read -r key; do
+  if [ -n "${key}" ]; then NEW_IMAGE_LABELS["${key}"]=1; fi
+done < <(docker image inspect --format '{{range $k, $v := .Config.Labels}}{{$k}}{{println}}{{end}}' "${IMAGE}")
 LABEL_ARGS=()
 while IFS= read -r label; do
-  [ -n "${label}" ] && LABEL_ARGS+=(--label "${label}")
+  [ -n "${label}" ] || continue
+  key="${label%%=*}"
+  case "${key}" in
+    "" | org.opencontainers.*) continue ;;
+  esac
+  if [ -n "${NEW_IMAGE_LABELS[${key}]:-}" ]; then continue; fi
+  LABEL_ARGS+=(--label "${label}")
 done < <(docker inspect "${OLD}" \
   --format '{{range $k, $v := .Config.Labels}}{{$k}}={{$v}}{{println}}{{end}}')
 

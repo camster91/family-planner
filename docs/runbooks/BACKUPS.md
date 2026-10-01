@@ -6,9 +6,9 @@ Owner runbook for #145. Everything here is **ready but not installed**. Installi
 
 | File                                           | What it does                                                                                     |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `scripts/backup.sh`                            | `pg_dump` inside the database container, gzip, prune, then an integrity check of the newest file |
+| `scripts/backup.sh`                            | `pg_dump` inside the database container, gzip, verify, publish, then prune                       |
 | `scripts/backup-prune.sh`                      | Retention (below). Called by `backup.sh`; can be run on its own                                  |
-| `scripts/restore.sh`                           | Restores one backup into a database. **Overwrites** that database                                |
+| `scripts/restore.sh`                           | Restores one backup into a database, all or nothing. **Overwrites** that database                |
 | `deploy/systemd/family-planner-backup.service` | Runs `backup.sh` once, as a sandboxed oneshot job                                                |
 | `deploy/systemd/family-planner-backup.timer`   | Starts the service daily at 03:15 host time plus up to 30 minutes of random delay                |
 
@@ -32,6 +32,16 @@ BACKUP_PRUNE_DRY_RUN=1 /opt/family-planner/scripts/backup-prune.sh /data/backups
 ```
 
 Tests: `src/__tests__/backup-prune.test.ts`.
+
+## How a backup is checked
+
+`backup.sh` writes the dump to `familyplanner-<time>.sql.gz.partial` first. It only renames it to the real name after three checks: `pg_dump` exited cleanly, the gzip file is valid, and the dump ends with pg_dump's `-- PostgreSQL database dump complete` line. If any check fails, the `.partial` file is deleted, the script exits non-zero and pruning does not run. So a dump that broke halfway can never become "the newest backup" that pruning keeps or `restore.sh` picks. It also warns (but still keeps the file) if the dump has fewer than 5 `CREATE TABLE` statements.
+
+Tests: `src/__tests__/backup-script.test.ts`.
+
+## How a restore behaves
+
+`restore.sh` refuses a file that is not valid gzip or has no `dump complete` line, before it touches the database. It then runs `psql -X -v ON_ERROR_STOP=1 --single-transaction`: the first SQL error stops the restore, everything is rolled back, and the script exits non-zero with `ERROR: restore FAILED`. The database is then exactly as it was before. `Restore complete.` is only printed when every statement succeeded.
 
 ## Install (owner step, needs approval)
 
@@ -72,7 +82,7 @@ On the production host, as root:
    ls -l /data/backups/family-planner
    ```
 
-   Expect `Backup complete`, a `prune:` line and `Backup integrity OK (N tables)`. The file should be `-rw-------`.
+   Expect `Backup complete`, `Backup integrity OK (N tables)` and a `prune:` line, and no `.partial` file left behind. The file should be `-rw-------`.
 
 5. Do the restore test below. Only then turn on the timer:
 
@@ -90,7 +100,8 @@ Restore into a **separate throwaway database**, never the live one. `restore.sh`
 LATEST=$(ls -1t /data/backups/family-planner/familyplanner-*.sql.gz | head -1)
 docker exec "$DB_CONTAINER" createdb -U "$DB_USER" fp_restore_test
 DB_CONTAINER="$DB_CONTAINER" DB_USER="$DB_USER" DB_NAME=fp_restore_test \
-  /opt/family-planner/scripts/restore.sh "$LATEST" --force 2>&1 | grep -c '^ERROR' || true
+  /opt/family-planner/scripts/restore.sh "$LATEST" --force
+echo "restore exit code: $?"
 ```
 
 Then compare a few row counts between the live database and the copy (counts only, no content):
@@ -103,7 +114,7 @@ done
 docker exec "$DB_CONTAINER" dropdb -U "$DB_USER" fp_restore_test
 ```
 
-Pass: no `ERROR` lines and matching counts (small differences are fine if people used the app since the backup). Record the date, backup file name, table count and PASS/FAIL in the release notes. Do not record household content.
+Pass: exit code 0, `Restore complete.` and matching counts (small differences are fine if people used the app since the backup). Record the date, backup file name, table count and PASS/FAIL in the release notes. Do not record household content.
 
 ## Turn it off
 

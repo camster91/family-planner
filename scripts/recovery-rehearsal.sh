@@ -359,7 +359,8 @@ step_restore() {
   create_fresh_db "$RESTORE_DB"
   with_backup_env env DB_NAME="$RESTORE_DB" bash "$REPO_ROOT/scripts/restore.sh" "$(cat "$WORK_DIR/dump.path")" --force \
     2>&1 | tee "$WORK_DIR/restore.out"
-  # restore.sh pipes into psql without ON_ERROR_STOP; any SQL error is a failed restore.
+  # restore.sh runs psql with ON_ERROR_STOP=1 --single-transaction and exits
+  # non-zero on any SQL error. Belt and braces: any ERROR line also fails.
   if grep -E '(^|: )(ERROR|FATAL):' "$WORK_DIR/restore.out"; then
     echo "restore reported SQL errors" >&2
     return 1

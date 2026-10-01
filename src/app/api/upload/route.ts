@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { chorePhotoPath } from '@/lib/chore-photos'
 import { lockHouseholdForJoin } from '@/lib/household-lock'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { resolveUploadDir } from '@/lib/upload-dir'
 import {
   FAMILY_UPLOAD_QUOTA_BYTES,
   FAMILY_UPLOAD_QUOTA_MESSAGE,
@@ -28,7 +29,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const MAX_REQUEST_BYTES = MAX_FILE_SIZE + 1024 * 1024
 // GIF is deliberately absent: /api/files/chores only serves jpg/png/webp/heic.
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
-const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
+const UPLOAD_DIR = resolveUploadDir()
 
 // POST /api/upload — upload a photo (used for chore completion verification)
 // Body: multipart/form-data with a 'file' field

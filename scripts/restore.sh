@@ -33,6 +33,18 @@ if [ -z "$BACKUP_FILE" ] || [ ! -f "$BACKUP_FILE" ]; then
   exit 1
 fi
 
+# Check the file before touching the database. psql --single-transaction
+# commits whatever it has read when its input ends, so a truncated file must be
+# refused here rather than half-restored.
+if ! gunzip -t "$BACKUP_FILE" 2>/dev/null; then
+  echo "ERROR: $BACKUP_FILE is corrupt (gunzip failed). Nothing was restored." >&2
+  exit 1
+fi
+if ! gunzip -c "$BACKUP_FILE" | tail -n 5 | grep -q '^-- PostgreSQL database dump complete'; then
+  echo "ERROR: $BACKUP_FILE is incomplete (no 'PostgreSQL database dump complete' trailer). Nothing was restored." >&2
+  exit 1
+fi
+
 # Confirm unless --force
 if [ "${2:-}" != "--force" ]; then
   echo "About to restore from: $BACKUP_FILE"
@@ -48,7 +60,16 @@ echo "[$(date -u +%FT%TZ)] Restoring from $BACKUP_FILE..."
 
 # Restore in the DB container. The dump uses --clean --if-exists so
 # it drops existing objects before recreating them.
-gunzip -c "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME"
+#   -X                   ignore any ~/.psqlrc in the container
+#   -v ON_ERROR_STOP=1   stop at the first SQL error and exit non-zero
+#   --single-transaction all or nothing: on any error the database is rolled
+#                        back to exactly what it was before the restore
+if ! gunzip -c "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" \
+  psql -X -v ON_ERROR_STOP=1 --single-transaction -U "$DB_USER" -d "$DB_NAME"; then
+  echo "[$(date -u +%FT%TZ)] ERROR: restore FAILED. Nothing was changed: the transaction was rolled back." >&2
+  echo "The $DB_NAME database is as it was before the restore. Read the psql error above." >&2
+  exit 1
+fi
 
 echo "[$(date -u +%FT%TZ)] Restore complete."
 echo "Verify with: docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c '\\dt'"

@@ -16,7 +16,6 @@ on:
           - release
 
 env:
-  NODE_VERSION: "22"
   JAVA_VERSION: "21"
 
 permissions:
@@ -25,7 +24,7 @@ permissions:
 jobs:
   build:
     name: Build APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       release_signed: ${{ steps.signing.outputs.signed }}
     steps:
@@ -37,16 +36,55 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: "npm"
 
+      # Same flags as release.yml's Build & Test. Lifecycle scripts stay on:
+      # Prisma's client generation and Capacitor's sync rely on installed
+      # packages being fully set up, and the same lockfile installs without
+      # --legacy-peer-deps in release.yml.
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --no-audit --no-fund
 
       - name: Generate Prisma client
         run: npx prisma generate
         env:
           DATABASE_URL: postgresql://placeholder/placeholder
+
+      # versionCode: this workflow's run number. It never repeats or goes down
+      # (a re-run of the same run keeps it), and is above the 1 shipped before.
+      # versionName: the v<MAJOR.MINOR.PATCH> tag on tag builds; otherwise the
+      # build.gradle default plus "-ci.<run>" so a non-tag artifact is never
+      # mistaken for a release. See docs/architecture/ANDROID.md, Versioning.
+      - name: Resolve Android version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$RUN_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::unexpected run number"
+            exit 1
+          fi
+          if [ "$REF_TYPE" = tag ]; then
+            if ! [[ "$REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "::error::release tags must be v<MAJOR.MINOR.PATCH>, got $REF_NAME"
+              exit 1
+            fi
+            name="${BASH_REMATCH[1]}"
+          else
+            default_name="$(sed -nE "s/^[[:space:]]*def fpVersionName = fpVersionInput\('fpVersionName', 'FP_VERSION_NAME', '([^']+)'\)$/\1/p" android/app/build.gradle)"
+            if [ -z "$default_name" ]; then
+              echo "::error::could not read the default versionName from android/app/build.gradle"
+              exit 1
+            fi
+            name="${default_name}-ci.${RUN_NUMBER}"
+          fi
+          # android/app/build.gradle reads these in every later Gradle step.
+          echo "FP_VERSION_CODE=$RUN_NUMBER" >> "$GITHUB_ENV"
+          echo "FP_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "Android versionCode=$RUN_NUMBER versionName=$name"
 
       - name: Setup Java
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
@@ -185,7 +223,7 @@ jobs:
     name: Upload to GitHub Releases
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     steps:

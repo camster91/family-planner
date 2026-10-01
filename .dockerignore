@@ -15,3 +15,9 @@ e2e
 playwright.config.ts
 playwright-report
 test-results
+# Not needed to build or run the server image.
+.claude
+android
+research_notes
+reports
+*.tsbuildinfo

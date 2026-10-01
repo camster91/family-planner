@@ -224,9 +224,8 @@ export async function importChoreChamps(
               family_id: options.familyId,
               name: source.name,
               description: source.description,
-              // Reward.icon is NOT NULL DEFAULT 'gift' in the migrated database
-              // (scripts/migrate.js) although prisma/schema.prisma marks it
-              // optional; /api/rewards uses the same fallback.
+              // Reward.icon is NOT NULL DEFAULT 'gift' (scripts/migrate.js and
+              // prisma/schema.prisma); /api/rewards uses the same fallback.
               icon: source.icon ?? "gift",
               cost: source.cost,
               is_active: source.active,

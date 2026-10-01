@@ -14,7 +14,7 @@ Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done w
 | 4 | Backups run every day and a restore has been tested | Owner | Install the timer (`runbooks/BACKUPS.md`) or use Coolify scheduled backups, then do the restore test | Open. Scripts and retention are on `master` |
 | 5 | Support contact | Owner | Fill in `<SUPPORT_EMAIL>` in `product/BETA_OPERATIONS.md`, on the privacy page and in `src/lib/support.ts` (shown on the in-app Help page, `/dashboard/help`). How to handle requests: `runbooks/SUPPORT.md` | Open |
 | 6 | Privacy page names Mailgun | Owner | Add it next to the other processors (`product/THIRD_PARTY_PROCESSORS.md` lists it) | Open |
-| 7 | Smoke test on production after the deploy | Owner, with an agent | Register a test parent, verify by email, create a household, invite a child, assign and complete a chore; then delete the test household | Open. The same journey runs in CI (`e2e/signup.spec.ts`) |
+| 7 | Smoke test on production after the deploy | Owner, with an agent | Register a test parent, verify by email, create a household, invite a child, assign and complete a chore; then delete the test household | Open. The same journey runs in the E2E workflow (`e2e.yml`, `e2e/signup.spec.ts`), which is informational, not a required check: a merge does not prove it passed, so check that run or do this smoke test |
 
 ## Ready in code (done)
 

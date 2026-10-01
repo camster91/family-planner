@@ -51,14 +51,20 @@ Public release work must support an Android App Bundle (AAB), stable application
 
 ## Versioning policy (#160, ADR-0004)
 
-Decision context: [ADR-0004](adr/0004-api-compatibility.md) (installed Android clients must keep working; versionCode/versionName are operational inputs). Current values, `android/app/build.gradle` on `master` at `cbef026`: `applicationId "com.ashbi.familyplanner"`, `versionCode 1`, `versionName "1.0"`. This section sets the rules for changing them; it does not change them.
+Decision context: [ADR-0004](adr/0004-api-compatibility.md) (installed Android clients must keep working; versionCode/versionName are operational inputs). The only distributed build so far is `versionCode 1`, `versionName "1.0"`; `applicationId "com.ashbi.familyplanner"`.
+
+**Where the values come from.** `android/app/build.gradle` reads `versionCode` from the Gradle property `fpVersionCode` (or env `FP_VERSION_CODE`) and `versionName` from `fpVersionName` (or `FP_VERSION_NAME`). It fails the build on a code outside 1..2100000000 or a name that is not 1-32 of `[0-9A-Za-z.+-]` starting with a digit. Without them a local build gets the defaults written in `build.gradle` (`1` and `1.0` today) and must never be distributed. `apk.yml` sets both in its `Resolve Android version` step:
+- `versionCode` = the `apk.yml` workflow run number (`github.run_number`). It only goes up, a re-run of the same run keeps it, and it is already above the `1` shipped before. Renaming or recreating `apk.yml` resets GitHub's run counter: before doing that, add a fixed offset above the last shipped code.
+- `versionName` = the tag without the `v` on a tag build (the tag must be `v<MAJOR.MINOR.PATCH>` or the build fails), otherwise the `build.gradle` default plus `-ci.<run>` (for example `1.0-ci.57`), so a non-tag artifact cannot pass for a release.
+
+Local check: `./gradlew -PfpVersionCode=57 -PfpVersionName=1.2.3 assembleDebug`.
 
 **Application ID.** `com.ashbi.familyplanner` never changes. Play, backups and installed tablets key on it.
 
 **versionCode**
-- A positive integer that increases by at least 1 for every build distributed beyond a developer machine: a GitHub Release APK, any Play track upload (internal, closed, open or production), or a sideloaded tablet build. Play rejects an upload whose `versionCode` is not higher than every code already uploaded.
+- Assigned by CI (run number, above). A positive integer that increases by at least 1 for every build distributed beyond a developer machine: a GitHub Release APK, any Play track upload (internal, closed, open or production), or a sideloaded tablet build. Play rejects an upload whose `versionCode` is not higher than every code already uploaded.
 - Never reused or lowered, including after a rollback. Rolling back means shipping the old code under a new, higher `versionCode`.
-- Local debug builds keep whatever is on the branch; they are never distributed.
+- Local builds get the `build.gradle` default; they are never distributed. Distribute only CI-built artifacts.
 
 **versionName**
 - `MAJOR.MINOR.PATCH` from the next bump. The existing `"1.0"` is read as `1.0.0`.
@@ -68,9 +74,9 @@ Decision context: [ADR-0004](adr/0004-api-compatibility.md) (installed Android c
 **When to bump.** The installed app loads the live site from `server.url`, so web and API changes reach every installed build without a new APK. Bump only when the native shell changes: `android/**`, `capacitor.config.ts`, Capacitor plugins or the Capacitor major version. A web-only release does not bump either value.
 
 **How to bump**
-1. A PR that changes only `versionCode` and `versionName` in `android/app/build.gradle` (plus release notes), after the native changes it ships have merged.
-2. After merge, the release tag is `v<versionName>` on that exact commit. `apk.yml` builds tagged releases, names the APK from the tag (`family-planner-<tag without v>.apk`) and refuses to publish an unsigned one. CI does not yet check that the tag matches `versionName`; check it by hand.
-3. Record the commit SHA, `versionCode`, `versionName` and the APK/AAB SHA-256 with the release evidence (`docs/runbooks/RELEASE_AND_ROLLBACK.md`).
+1. A PR that changes only the default `versionName` in `android/app/build.gradle` (the `fpVersionName` fallback, plus release notes), after the native changes it ships have merged. `versionCode` is not edited by hand any more; CI assigns it.
+2. After merge, the release tag is `v<versionName>` on that exact commit. `apk.yml` builds tagged releases, takes `versionName` from the tag, names the APK from it (`family-planner-<tag without v>.apk`) and refuses to publish an unsigned one. It does not compare the tag with the `build.gradle` default; check that by hand.
+3. Record the commit SHA, `versionCode` and `versionName` (printed by the `Resolve Android version` step) and the APK/AAB SHA-256 with the release evidence (`docs/runbooks/RELEASE_AND_ROLLBACK.md`).
 
 Pushing a tag, signing, `apk.yml` (currently disabled in GitHub, `CURRENT_STATE.md`) and any Play upload remain owner actions (AGENTS.md).
 
