@@ -3,6 +3,16 @@
 import * as React from 'react'
 import { Sparkles, Loader2, Check, X, ListPlus, CalendarDays, ClipboardList, Camera } from 'lucide-react'
 import { CAPTURE_CHILD_MESSAGE } from '@/lib/role-capabilities'
+import { localDateTimeToISO } from '@/lib/dates'
+
+// Capture returns local wall-clock times without an offset ("2026-10-06T15:00").
+// Convert them in the browser to an instant so the server (UTC) stores the time
+// the family meant, as the preview shows it. Times that already carry an
+// offset parse the same way.
+function toInstant(value: string | undefined): string | undefined {
+  if (!value) return value
+  return localDateTimeToISO(value) ?? value
+}
 
 // Small, focused capture box. One input. Type a phrase, confirm what it understood.
 // Deliberately not a chat: there is no conversation, no history, one job.
@@ -171,8 +181,8 @@ export function CaptureBox({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: draft.title,
-            start_time: draft.start_time,
-            end_time: draft.end_time,
+            start_time: toInstant(draft.start_time),
+            end_time: toInstant(draft.end_time),
             location: draft.location,
             event_type: draft.event_type || 'other',
           }),
@@ -240,8 +250,8 @@ export function CaptureBox({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: ev.title,
-            start_time: ev.start_time,
-            end_time: ev.end_time,
+            start_time: toInstant(ev.start_time),
+            end_time: toInstant(ev.end_time),
             location: ev.location,
             event_type: ev.event_type || 'other',
           }),
