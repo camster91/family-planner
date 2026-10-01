@@ -139,7 +139,7 @@ The Today board (`/dashboard/today`, `GET /api/family/board-version` polled ever
 | `upload.findMany` ambient photos | `MAX_AMBIENT_PHOTOS` | primary key |
 
 Findings, not fixed here:
-- `GET /api/chores` supports opt-in `?limit=1..200&cursor=` paging (#307, decision O-19); without `limit` it still returns every chore of the household so installed clients keep working, and moving the web and Android clients onto paging is the remaining step. `GET /api/lists` returns one row per list (with item counts), which stays small per household, so it has no paging (O-19).
+- `GET /api/chores` supports opt-in `?limit=1..200&cursor=` paging (#307, decision O-19); without `limit` it still returns every chore of the household so installed clients keep working, and the web chores page now pages only older verified chores ("Load more" under All; open and recent chores still load in full on the server). Moving the Android client and the other web callers (chore edit, travel) onto paging is the remaining step. `GET /api/lists` returns one row per list (with item counts), which stays small per household, so it has no paging (O-19).
 - The Today-board and `GET /api/chores` queries filter `family_id` and order by `due_date`; the `Chore(family_id, due_date)` index (expand-only, #306) serves both. With fixture data every table is small enough that Postgres may still scan sequentially; confirm with the slow-query hook or `EXPLAIN` on a realistic household.
 - `board-version` recomputes the whole board to hash it on every poll (rate limit 1200/hour per member). It is the hottest path; watch its p95 in `docs/testing/PERFORMANCE_BASELINE.md` before adding tiles.
 

@@ -199,6 +199,15 @@ its same-household check (403) and now also rejects a type outside the policy ta
 `src/lib/__tests__/notification-delivery.test.ts`, `notification-policy.test.ts` and the opt-in
 `preferences.integration.test.ts`.
 
+**Update 2026-10-01 (#141, O-32): quiet hours.** The same `PATCH /api/users/preferences` accepts an optional strict
+`quietHours: { enabled, start, end, timeZone? }` object and writes the four `quiet_hours_*` columns on the caller's
+own `User` row only (`where: { id: session user }`); an unknown key inside it (including `userId`) is a 400. The
+GET and the response add `quietHours` for the caller only. `deliverNotification` reads the recipient's own quiet
+hours in the same select as their switch; quiet hours never change who receives a row, only add `quiet` to the
+result. Tests: the quiet-hours block in `preferences.test.ts` (every role, device refusal, validation),
+`src/lib/__tests__/quiet-hours.test.ts`, `notification-delivery.test.ts`, the export canonical test and the
+integration suite.
+
 **Update 2026-09-29 (#285, PR101 D-4): household audit history.** New household-scoped table `AuditLog`
 (`family_id` NOT NULL, `ON DELETE CASCADE`; `actor_user_id` `ON DELETE SET NULL`) and `GET /api/audit`. Read: a
 paired shared device is refused (403 `DEVICE_WRITE_NOT_ALLOWED`, in the route-allowlist test's refused routes) before

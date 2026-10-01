@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     // cookie revoked by a password reset must not still read the profile.
     const [payload, authError] = await authenticateRequest(request)
     if (authError) {
-      return NextResponse.json({ user: null }, { status: 401 })
+      return NextResponse.json({ user: null, error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = await prisma!.user.findUnique({
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!user) {
-      return NextResponse.json({ user: null }, { status: 401 })
+      return NextResponse.json({ user: null, error: 'Unauthorized' }, { status: 401 })
     }
 
     // Points & streaks off for this family (#248): no XP/level/streak values.
@@ -50,6 +50,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user })
   } catch (error) {
     logRouteError('GET /api/auth/me', error, getRequestId(request))
-    return NextResponse.json({ user: null }, { status: 500 })
+    return NextResponse.json({ user: null, error: 'Internal server error' }, { status: 500 })
   }
 }

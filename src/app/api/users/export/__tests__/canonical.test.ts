@@ -142,6 +142,19 @@ describe('GET /api/users/export — canonical meal data', () => {
     expect(body.user).toMatchObject({ notify_chores: true, notify_events: false, notify_messages: true })
   })
 
+  it("export includes the caller's own quiet hours (#141, O-32), nobody else's", async () => {
+    Object.assign(db.find('user', 'child-a')!, {
+      quiet_hours_enabled: true,
+      quiet_hours_start: '21:00',
+      quiet_hours_end: '06:30',
+      quiet_hours_time_zone: 'America/Toronto',
+    })
+    const child = await exportAs('childA')
+    expect(child.body.quietHours).toEqual({ enabled: true, start: '21:00', end: '06:30', timeZone: 'America/Toronto' })
+    const parent = await exportAs('parentA')
+    expect(parent.body.quietHours).toEqual({ enabled: false, start: '22:00', end: '07:00', timeZone: null })
+  })
+
   it('import job listings stay parent-only; backfill archives are the only job data a child gets', async () => {
     const child = await exportAs('childA')
     expect(child.body.importJobs).toEqual([])

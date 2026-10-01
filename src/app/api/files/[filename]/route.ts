@@ -31,7 +31,7 @@ export async function GET(
 
   // Strict allowlist — no path separators, no '..', only known extension
   if (!FILENAME_RE.test(filename)) {
-    return new NextResponse('Not found', { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   // Authenticate before touching the filesystem, so an unauthenticated caller
@@ -45,7 +45,7 @@ export async function GET(
   // is still inside UPLOAD_DIR
   const resolved = path.resolve(filepath)
   if (!resolved.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) {
-    return new NextResponse('Forbidden', { status: 403 })
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const publicPath = `/api/files/${filename}`
@@ -64,11 +64,11 @@ export async function GET(
   // Not referenced by the caller's family: 404, so the response does not
   // confirm the file exists in another household.
   if (!chore && !assignment) {
-    return new NextResponse('Not found', { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   if (!existsSync(filepath)) {
-    return new NextResponse('Not found', { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const buf = await readFile(filepath)

@@ -71,6 +71,11 @@ function user(id: string, name: string, role: string, family_id: string | null):
     notify_chores: true,
     notify_events: true,
     notify_messages: true,
+    // Quiet hours (#141, O-32): schema defaults (off).
+    quiet_hours_enabled: false,
+    quiet_hours_start: '22:00',
+    quiet_hours_end: '07:00',
+    quiet_hours_time_zone: null,
   }
 }
 

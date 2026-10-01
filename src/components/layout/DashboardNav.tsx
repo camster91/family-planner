@@ -16,6 +16,7 @@ import {
   Refrigerator,
   Trash2,
   BellRing,
+  CircleHelp,
 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
@@ -289,6 +290,17 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       >
                         <Settings className="w-4 h-4 text-label-secondary" />
                         Settings
+                      </Link>
+                    )}
+                    {/* Help (#146): parents only, like Settings (not on the kid allowlist). */}
+                    {canSee('/dashboard/help') && (
+                      <Link
+                        href="/dashboard/help"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <CircleHelp className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        Help
                       </Link>
                     )}
                   </div>

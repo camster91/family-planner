@@ -38,7 +38,7 @@ export async function GET(
 
   // Strict allowlist — no path separators, no '..', only known extension
   if (!FILENAME_RE.test(filename)) {
-    return new NextResponse('Not found', { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   // Authenticate before touching the filesystem, so an unauthenticated caller
@@ -52,17 +52,17 @@ export async function GET(
   const resolved = path.resolve(filepath)
   const baseDir = path.resolve(UPLOAD_DIR, CHORES_SUBDIR) + path.sep
   if (!resolved.startsWith(baseDir)) {
-    return new NextResponse('Forbidden', { status: 403 })
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Cross-family and unowned files get the same 404 as a missing file, so the
   // response does not confirm that a file exists in another household.
   if (!(await canFamilyReadChorePhoto(auth.user.family_id, filename))) {
-    return new NextResponse('Not found', { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   if (!existsSync(filepath)) {
-    return new NextResponse('Not found', { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const buf = await readFile(filepath)

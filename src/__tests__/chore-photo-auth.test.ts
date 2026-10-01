@@ -42,6 +42,11 @@ jest.mock("next/server", () => ({
       this.status = init?.status ?? 200
       this.headers = init?.headers ?? {}
     }
+    static json(body: unknown, init?: { status?: number; headers?: Record<string, string> }) {
+      // Same object shape; the body stays the plain object for assertions.
+      const Self = this as unknown as new (b: unknown, i?: typeof init) => unknown
+      return new Self(body, init)
+    }
   },
 }))
 

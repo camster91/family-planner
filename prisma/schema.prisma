@@ -41,6 +41,14 @@ model User {
   notify_chores                 Boolean            @default(true)
   notify_events                 Boolean            @default(true)
   notify_messages               Boolean            @default(true)
+  /// Quiet hours (#141, O-32): notifications are still stored during the
+  /// window, but no interruptive delivery may fire (src/lib/quiet-hours.ts).
+  /// Default off. Start inclusive, end exclusive, "HH:MM"; may wrap midnight.
+  quiet_hours_enabled           Boolean            @default(false)
+  quiet_hours_start             String             @default("22:00")
+  quiet_hours_end               String             @default("07:00")
+  /// IANA zone the times are in (the browser's when saved). NULL = UTC.
+  quiet_hours_time_zone         String?
   created_at                    DateTime           @default(now())
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)

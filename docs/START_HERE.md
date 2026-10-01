@@ -38,13 +38,14 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Agent backlog: `docs/engineering/AGENT_BACKLOG.md`
 - Definition of done: `docs/engineering/DEFINITION_OF_DONE.md`
 - CI/release ownership: `docs/engineering/CI_AND_RELEASE.md`
+- Beta SLOs and performance budgets: `docs/engineering/SLO_AND_PERFORMANCE.md`
 - Agent workflow: `docs/engineering/AGENT_WORKFLOW.md`
 - Architecture: `docs/architecture/**`
 - Testing: `docs/testing/**`
 - Design: `design/**` and `BRAND.md`
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
 - Chores (parent check, picture routines for young kids): `docs/product/CHORES.md`
-- Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md` and `TRANSACTIONAL_EMAIL.md`)
+- Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md`, `TRANSACTIONAL_EMAIL.md` and `SUPPORT.md`)
 - Planned Coolify deployment (not the current production path): `docs/runbooks/COOLIFY_DEPLOY.md`
 - Design-partner beta operations (#107, #108): `docs/product/BETA_OPERATIONS.md`
 

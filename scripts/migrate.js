@@ -97,6 +97,11 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "board_color" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_chores" BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_events" BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notify_messages" BOOLEAN NOT NULL DEFAULT true;
+-- Quiet hours (#141, O-32). Additive, default off: existing rows keep today's behaviour.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_enabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_start" TEXT NOT NULL DEFAULT '22:00';
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_end" TEXT NOT NULL DEFAULT '07:00';
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_time_zone" TEXT;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (

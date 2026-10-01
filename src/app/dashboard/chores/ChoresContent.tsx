@@ -16,6 +16,7 @@ import { LongPressRow } from '@/components/ui/long-press-row'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays, snoozedDueDate } from '@/lib/dates'
+import { CHORE_HISTORY_PAGE_SIZE, compareChoreOrder } from '@/lib/chore-paging'
 import type { Chore } from '@/types'
 
 type FilterMode = 'today' | 'week' | 'all'
@@ -25,6 +26,8 @@ interface ChoresContentProps {
   familyMembers: { id: string; name: string; role: string; age?: number }[]
   currentUserId: string
   userRole: string
+  /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
+  historyCursor?: string | null
 }
 
 /** "Morning, step 2" for a chore in a picture routine (#272), else null. */
@@ -100,6 +103,7 @@ export default function ChoresContent({
   familyMembers,
   currentUserId,
   userRole,
+  historyCursor = null,
 }: ChoresContentProps) {
   const [filter, setFilter] = React.useState<FilterMode>('today')
   const [localChores, setLocalChores] = React.useState(chores)
@@ -111,10 +115,45 @@ export default function ChoresContent({
   const gamification = useFeatureEnabled('gamification')
   const [reassignTarget, setReassignTarget] = React.useState<string | null>(null)
   const router = useRouter()
+  const [nextCursor, setNextCursor] = React.useState(historyCursor)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [loadMoreError, setLoadMoreError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     setLocalChores(chores)
-  }, [chores])
+    setNextCursor(historyCursor)
+    setLoadMoreError(null)
+  }, [chores, historyCursor])
+
+  // Older verified chores, one page at a time (opt-in paging, O-19). Rows
+  // already on the page (and any local edits to them) win over the fetched copy.
+  const handleLoadMore = React.useCallback(async () => {
+    if (!nextCursor) return
+    setLoadingMore(true)
+    setLoadMoreError(null)
+    try {
+      const params = new URLSearchParams({
+        status: 'verified',
+        limit: String(CHORE_HISTORY_PAGE_SIZE),
+        cursor: nextCursor,
+      })
+      const response = await fetch(`/api/chores?${params}`)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !Array.isArray(data.chores)) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Please try again.')
+      }
+      const page = data.chores as ChoresContentProps['chores']
+      setLocalChores(prev => {
+        const have = new Set(prev.map(c => c.id))
+        return [...prev, ...page.filter(c => !have.has(c.id))].sort(compareChoreOrder)
+      })
+      setNextCursor(typeof data.nextCursor === 'string' ? data.nextCursor : null)
+    } catch (error) {
+      setLoadMoreError(error instanceof Error ? error.message : 'Please try again.')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [nextCursor])
 
   const handleCompleteChore = React.useCallback(async (choreId: string) => {
     try {
@@ -420,7 +459,10 @@ export default function ChoresContent({
               className="section-header w-full text-left flex items-center justify-between pr-4"
             >
               <span>Done</span>
-              <span className="text-label-tertiary text-xs">{doneChores.length}</span>
+              <span className="text-label-tertiary text-xs">
+                {doneChores.length}
+                {filter === 'all' && nextCursor ? '+' : ''}
+              </span>
             </button>
             {!doneCollapsed && (
               <div className="list-inset">
@@ -436,6 +478,25 @@ export default function ChoresContent({
                     className={cn(i === doneChores.length - 1 && 'border-b-0')}
                   />
                 ))}
+              </div>
+            )}
+            {/* Older history only shows under "All" (Today and Week are fully loaded). */}
+            {!doneCollapsed && filter === 'all' && nextCursor && (
+              <div className="mt-3 flex flex-col items-center gap-2">
+                {loadMoreError && (
+                  <p role="alert" className="text-footnote text-[var(--danger-text)] text-center">
+                    Couldn&apos;t load more chores. {loadMoreError}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  aria-busy={loadingMore}
+                  className="btn-tinted min-h-[44px] disabled:opacity-40"
+                >
+                  {loadingMore ? 'Loading…' : loadMoreError ? 'Try again' : 'Load more'}
+                </button>
               </div>
             )}
           </section>
