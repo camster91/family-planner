@@ -35,7 +35,11 @@ export default function SettingsClient({
 
   useEffect(() => {
     // Read saved theme from localStorage on mount (client only — localStorage doesn't exist on the server)
-    const saved = localStorage.getItem('familyPlanner_theme')
+    // Storage can be blocked (private mode, site data off); the theme then just isn't remembered.
+    let saved: string | null = null
+    try {
+      saved = localStorage.getItem('familyPlanner_theme')
+    } catch {}
     if (saved === 'light' || saved === 'dark' || saved === 'auto') setTheme(saved)
   }, [])
 
@@ -49,7 +53,9 @@ export default function SettingsClient({
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       document.documentElement.classList.toggle('dark', isDark)
     }
-    localStorage.setItem('familyPlanner_theme', theme)
+    try {
+      localStorage.setItem('familyPlanner_theme', theme)
+    } catch {}
   }, [theme])
 
   const toggleTheme = () => {
