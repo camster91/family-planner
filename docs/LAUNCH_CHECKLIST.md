@@ -27,7 +27,7 @@ Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done w
 - Backup retention matches the privacy page (about five weeks).
 - In-app Help for parents and a support runbook (`runbooks/SUPPORT.md`); the support address is one constant in `src/lib/support.ts`.
 - A parent can remove a household member (their sessions end at once) and get a new family code if the old one leaked (O-34).
-- Three full code reviews of `master` on 2026-10-01; every finding was fixed in #320 to #324. DNS-rebinding protection for user-supplied outbound URLs (ICS feeds, family AI provider) followed: requests pin the connection to an address vetted at connect time (`src/lib/safe-fetch.ts`; see `architecture/CALENDAR_IMPORT.md`).
+- Four full code reviews of `master` on 2026-10-01; every finding was fixed in #320 to #325.
 
 ## Can wait until after the first families
 
