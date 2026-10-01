@@ -27,8 +27,12 @@ export const FAMILY_UPLOAD_QUOTA_BYTES = 500 * 1024 * 1024
 export const FAMILY_UPLOAD_QUOTA_MESSAGE =
   'Your family has used all of its photo storage (500 MB). Remove some photos from chores or the board and try again.'
 
-/** Unreferenced uploads younger than this are left alone (a form may still be about to use them). */
-export const STALE_UPLOAD_AGE_MS = 24 * 60 * 60 * 1000
+/**
+ * Unreferenced uploads younger than this are left alone. The board photo
+ * picker lists every household upload, so a photo a parent un-picked stays
+ * choosable for a month before it is cleared (O-35).
+ */
+export const STALE_UPLOAD_AGE_MS = 30 * 24 * 60 * 60 * 1000
 /** Most stale uploads removed per upload request. */
 export const STALE_UPLOAD_BATCH = 20
 /** Above this many referenced photos the exclusion list is too large for one query: skip cleanup. */
