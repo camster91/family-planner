@@ -359,7 +359,7 @@ jobs:
   publish-image:
     name: Publish checked image
     needs: [build, checked-image]
-    # Only pushes to the repository's actual default branch (master today).
+    # Only pushes to the repository's actual default branch (main since 2026-10-01).
     if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.FP_IMMUTABLE_RELEASE_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -1,7 +1,7 @@
 # CI and Release Workflow Map
 
 **Last reconciled:** 2026-09-24 (workflow states re-checked through the GitHub API on 2026-09-29)
-**Default branch:** `master` (verify the live repository setting before changing it)
+**Default branch:** `main` (renamed from `master` on 2026-10-01) (verify the live repository setting before changing it)
 
 ## Workflow ownership
 
@@ -38,7 +38,7 @@ separate handoff gates.
 `Publish checked image` is a separate, initially disabled publisher: only a push
 to the repository's default branch (`github.ref_name ==
 github.event.repository.default_branch`, the same rule as `Release to VPS`; today
-`master`) with `FP_IMMUTABLE_RELEASE_ENABLED=true` can run it after both the full
+`main`) with `FP_IMMUTABLE_RELEASE_ENABLED=true` can run it after both the full
 build and imported-image security gate pass. It loads and verifies the saved
 image, publishes to `ghcr.io/camster91/family-planner` with a source/run/attempt
 tag, and records the immutable registry digest. It never runs a Docker build.

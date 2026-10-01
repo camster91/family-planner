@@ -1,6 +1,6 @@
 # Beta Launch Checklist
 
-What has to be true before the first real families use Family Planner, and who does it. The code side is done on `master` except where a row says otherwise. The rest needs the owner (Cameron).
+What has to be true before the first real families use Family Planner, and who does it. The code side is done on `main` except where a row says otherwise. The rest needs the owner (Cameron).
 
 Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
 
@@ -8,7 +8,7 @@ Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done w
 
 | # | Item | Who | How | Status |
 |---|------|-----|-----|--------|
-| 1 | Production is running the current `master` | Owner | Add the SSH settings to the GitHub `production` environment and run **Build, Test & Release**, or set up Coolify (`runbooks/COOLIFY_DEPLOY.md`) | Open. The last recorded deploy is `b408170` (2026-09-23). The 2026-09-30 release run built and tested, then stopped: the SSH host, user, key and known-hosts are not set |
+| 1 | Production is running the current `main` | Owner | Add the SSH settings to the GitHub `production` environment and run **Build, Test & Release**, or set up Coolify (`runbooks/COOLIFY_DEPLOY.md`) | Open. The last recorded deploy is `b408170` (2026-09-23). The 2026-09-30 release run built and tested, then stopped: the SSH host, user, key and known-hosts are not set |
 | 2 | Email sends | Owner | Mailgun domain, DNS (SPF, DKIM, DMARC), sending key in production, open and click tracking off (`runbooks/TRANSACTIONAL_EMAIL.md`) | Open. Without it a new parent cannot verify their email, so cannot sign in, and invites fail |
 | 3 | `TRUSTED_PROXY_HOPS` matches the real proxy chain | Owner | See `runbooks/COOLIFY_DEPLOY.md` or `engineering/CI_AND_RELEASE.md`. The server warns at start when it is missing | Open |
 | 4 | Backups run every day and a restore has been tested | Owner | Install the timer (`runbooks/BACKUPS.md`) or use Coolify scheduled backups, then do the restore test | Open. Scripts and retention are on `master` |
@@ -27,7 +27,7 @@ Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done w
 - Backup retention matches the privacy page (about five weeks).
 - In-app Help for parents and a support runbook (`runbooks/SUPPORT.md`); the support address is one constant in `src/lib/support.ts`.
 - A parent can remove a household member (their sessions end at once) and get a new family code if the old one leaked (O-34).
-- Four full code reviews of `master` on 2026-10-01; every finding was fixed in #320 to #325.
+- Five full code reviews on 2026-10-01; every finding was fixed in #320 to #326.
 
 ## Can wait until after the first families
 
