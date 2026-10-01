@@ -158,6 +158,7 @@ function AddEditModal({
   onDelete,
   t,
   saving,
+  error,
 }: {
   mode: 'add' | 'edit'
   initial?: EmergencyContact
@@ -166,6 +167,7 @@ function AddEditModal({
   onDelete?: () => void
   t: (key: string) => string
   saving: boolean
+  error?: string | null
 }) {
   const [form, setForm] = React.useState<ContactFormData>(
     initial ? contactToForm(initial) : emptyForm()
@@ -190,6 +192,11 @@ function AddEditModal({
         </button>
       </div>
       <div className="p-4 space-y-4">
+        {error && (
+          <p role="alert" className="text-footnote text-label-destructive">
+            {error}
+          </p>
+        )}
         <FormField label={t('emergency.personName')}>
           <Input value={form.person_name} onChange={(v) => set('person_name', v)} placeholder="e.g. Emma Johnson" />
         </FormField>
@@ -396,6 +403,7 @@ function EmergencyPageInner() {
   const [contacts, setContacts] = React.useState<EmergencyContact[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [modalError, setModalError] = React.useState<string | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
@@ -431,6 +439,7 @@ function EmergencyPageInner() {
 
   const handleSave = async (form: ContactFormData) => {
     setSaving(true)
+    setModalError(null)
     try {
       if (editContact) {
         const res = await fetch(`/api/emergency-contacts/${editContact.id}`, {
@@ -451,7 +460,8 @@ function EmergencyPageInner() {
       setEditContact(null)
       await fetchContacts()
     } catch {
-      // keep modal open on error
+      // Keep the modal open and say so.
+      setModalError(t('common.error'))
     } finally {
       setSaving(false)
     }
@@ -461,12 +471,15 @@ function EmergencyPageInner() {
     if (!editContact) return
     if (!confirm(t('common.confirm') + '?')) return
     setSaving(true)
+    setModalError(null)
     try {
       const res = await fetch(`/api/emergency-contacts/${editContact.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setEditContact(null)
       await fetchContacts()
     } catch {
+      setModalError(t('common.error'))
+    } finally {
       setSaving(false)
     }
   }
@@ -476,6 +489,7 @@ function EmergencyPageInner() {
   }
 
   const closeModal = () => {
+    setModalError(null)
     setShowAdd(false)
     setEditContact(null)
   }
@@ -620,20 +634,22 @@ function EmergencyPageInner() {
             onCancel={closeModal}
             t={t}
             saving={saving}
+            error={modalError}
           />
         </Modal>
 
         {/* Edit modal */}
-        <Modal open={isParent && !!editContact} onClose={() => setEditContact(null)}>
+        <Modal open={isParent && !!editContact} onClose={closeModal}>
           {isParent && editContact && (
             <AddEditModal
               mode="edit"
               initial={editContact}
               onSave={handleSave}
-              onCancel={() => setEditContact(null)}
+              onCancel={closeModal}
               onDelete={handleDelete}
               t={t}
               saving={saving}
+              error={modalError}
             />
           )}
         </Modal>

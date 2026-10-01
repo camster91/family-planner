@@ -9,6 +9,7 @@ import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import TransactionForm from './TransactionForm'
+import { formatRelativePastDate, toDateOnlyUTC } from '@/lib/dates'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 // -----------------------------------------------------------------------
@@ -23,21 +24,13 @@ function formatCurrency(amount: number): string {
   }).format(Math.abs(amount))
 }
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
+// Transaction dates are date-only values stored as UTC midnight. Group and
+// label them by that UTC calendar day (`YYYY-MM-DD` keys): local getters would
+// file them under the previous day west of UTC.
 function groupByDate(transactions: Transaction[]): Record<string, Transaction[]> {
   const groups: Record<string, Transaction[]> = {}
   for (const tx of transactions) {
-    const key = new Date(tx.date).toDateString()
+    const key = toDateOnlyUTC(tx.date)
     if (!groups[key]) groups[key] = []
     groups[key].push(tx)
   }
@@ -86,9 +79,8 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
 
   // Group by date
   const grouped = React.useMemo(() => groupByDate(filteredTransactions), [filteredTransactions])
-  const sortedDates = Object.keys(grouped).sort(
-    (a, b) => new Date(b).getTime() - new Date(a).getTime()
-  )
+  // `YYYY-MM-DD` keys sort chronologically as strings; newest first.
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
   // Budget limit (default to 2000 if not set)
   const budgetLimit = 2000
@@ -189,7 +181,7 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
         {sortedDates.length > 0 ? (
           sortedDates.map((dateKey) => {
             const txs = grouped[dateKey]
-            const dateLabel = formatDate(dateKey)
+            const dateLabel = formatRelativePastDate(dateKey)
             return (
               <section key={dateKey}>
                 <SectionHeader>{dateLabel}</SectionHeader>

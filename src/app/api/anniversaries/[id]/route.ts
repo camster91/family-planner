@@ -5,6 +5,7 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { canEditOwnedRecord } from '@/lib/role-capabilities'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { updateAnniversarySchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
     const { id } = await params
-    const { name, type, date, notes, person_id } = body
+    const parsed = updateAnniversarySchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    const { name, type, date, notes, person_id } = parsed.data
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -59,14 +64,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const data: Record<string, unknown> = {}
     if (name !== undefined) data.name = name
-    if (type !== undefined) {
-      if (!['birthday', 'anniversary', 'custom'].includes(type)) {
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
-      }
-      data.type = type
-    }
+    if (type !== undefined) data.type = type
     if (date !== undefined) data.date = new Date(date)
-    if (notes !== undefined) data.notes = notes || null
+    if (notes !== undefined) data.notes = notes?.trim() || null
     if (person_id !== undefined) {
       // A linked person must be a member of the caller's family (#102).
       if (person_id) {

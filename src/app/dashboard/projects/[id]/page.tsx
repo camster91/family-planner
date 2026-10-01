@@ -4,16 +4,14 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, CalendarPlus } from 'lucide-react'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { cn, formatDate } from '@/lib/utils'
 import { LargeHeader } from '@/components/ui/large-header'
-import { Glyph } from '@/components/ui/glyph'
-import { InsetList } from '@/components/ui/list-row'
-import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import { ProjectDetailActions } from './ProjectDetailActions'
+import { ProjectTaskChecklist, type ChecklistTask } from './ProjectTaskChecklist'
+import { SendToCalendarButton } from './SendToCalendarButton'
 import { AddProjectTaskForm } from '@/components/projects/AddProjectTaskForm'
 
 export const dynamic = 'force-dynamic'
@@ -71,21 +69,13 @@ async function ProjectDetailContent({ id }: { id: string }) {
     orderBy: { name: 'asc' },
   })
 
-  const taskData = project.tasks.map((t) => ({
+  // Plain data only: this is a server component, so nothing it passes to the
+  // client components below may be a function.
+  const taskData: ChecklistTask[] = project.tasks.map((t) => ({
     id: t.id,
     title: t.title,
-    description: t.description,
     completed: t.completed,
-    assigned_to: t.assigned_to,
     due_date: t.due_date ? t.due_date.toISOString() : null,
-    position: t.position,
-    assignee: t.assignee
-      ? {
-          id: t.assignee.id,
-          name: t.assignee.name,
-          avatar_url: t.assignee.avatar_url,
-        }
-      : null,
   }))
 
   const isParent = user.role === 'parent'
@@ -150,23 +140,11 @@ async function ProjectDetailContent({ id }: { id: string }) {
               }
             />
           ) : (
-            <InsetList>
-              {taskData.map((task, i) => (
-                <CheckboxRow
-                  key={task.id}
-                  checked={task.completed}
-                  onChange={() => {/* toggled via ProjectTaskList */}}
-                  title={task.title}
-                  subtitle={task.due_date ? formatDate(task.due_date) : undefined}
-                  glyph={
-                    <Glyph color="projects" size="sm">
-                      <span className="text-xs">✓</span>
-                    </Glyph>
-                  }
-                  className={cn(i === taskData.length - 1 && 'border-b-0')}
-                />
-              ))}
-            </InsetList>
+            <ProjectTaskChecklist
+              projectId={project.id}
+              tasks={taskData}
+              canToggle={isParent && project.status === 'active'}
+            />
           )}
           {/* Route inventory F-5 (#289): add a task to this project. The API
               takes tasks only while the project is active. */}
@@ -183,25 +161,10 @@ async function ProjectDetailContent({ id }: { id: string }) {
             <div>
               <h3 className="text-subhead text-label-primary font-semibold mb-1">Send tasks to calendar</h3>
               <p className="text-footnote text-label-secondary">
-                Create 30-minute calendar events from incomplete tasks with due dates.
+                Add incomplete tasks with due dates to the calendar as all-day events.
               </p>
             </div>
-            <button
-              type="button"
-              className="btn-tinted bg-projects px-4 py-2 text-sm font-medium shrink-0"
-              onClick={async () => {
-                try {
-                  const res = await fetch(`/api/projects/${project.id}/send-to-calendar`, { method: 'POST' })
-                  const data = await res.json()
-                  if (!res.ok) throw new Error(data.error || 'Failed')
-                  alert(`Created ${data.eventsCreated || 0} calendar events!`)
-                } catch (err) {
-                  alert(err instanceof Error ? err.message : 'Something went wrong')
-                }
-              }}
-            >
-              Send to Calendar
-            </button>
+            <SendToCalendarButton projectId={project.id} />
           </div>
         )}
       </div>

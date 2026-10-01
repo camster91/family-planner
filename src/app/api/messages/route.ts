@@ -19,11 +19,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const cursor = searchParams.get('cursor')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
+    const rawLimit = searchParams.get('limit')
+    let limit = 50
+    if (rawLimit !== null && rawLimit !== '') {
+      if (!/^\d+$/.test(rawLimit.trim())) {
+        return NextResponse.json({ error: 'limit must be a whole number' }, { status: 400 })
+      }
+      // Clamp to 1..100 rather than refusing an out-of-range page size.
+      limit = Math.min(Math.max(parseInt(rawLimit, 10), 1), 100)
+    }
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (cursor) {
-      where.created_at = { lt: new Date(cursor) }
+      const before = new Date(cursor)
+      if (Number.isNaN(before.getTime())) {
+        return NextResponse.json({ error: 'cursor must be a valid date-time' }, { status: 400 })
+      }
+      where.created_at = { lt: before }
     }
 
     const messages = await prisma!.message.findMany({

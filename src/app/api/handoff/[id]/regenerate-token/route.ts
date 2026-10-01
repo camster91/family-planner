@@ -5,6 +5,7 @@ import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { shareExpiry } from '@/lib/handoff-share'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,8 +36,9 @@ export async function POST(
 
     // Generate new token:32 hex chars (16 bytes)
     const newToken = randomBytes(16).toString('hex')
-    // Expire in 6 hours
-    const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000)
+    // Same expiry rule as create: 6h after the planned departure (at least 6h
+    // from now, at most 7 days), so re-sharing an advance handoff still works.
+    const expiresAt = shareExpiry(existing.departure_time)
 
     const handoff = await prisma!.handoff.update({
       where: { id },

@@ -63,8 +63,24 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
+  }
   if (!body.person_id || !body.name || !body.dosage || !body.schedule) {
     return NextResponse.json({ error: 'person_id, name, dosage, and schedule required' }, { status: 400 })
+  }
+  if (
+    typeof body.person_id !== 'string' ||
+    typeof body.name !== 'string' ||
+    typeof body.dosage !== 'string' ||
+    typeof body.schedule !== 'string' ||
+    (body.notes != null && typeof body.notes !== 'string') ||
+    (body.sick_day_id != null && typeof body.sick_day_id !== 'string')
+  ) {
+    return NextResponse.json({ error: 'person_id, name, dosage, schedule and notes must be strings' }, { status: 400 })
+  }
+  if (body.next_dose_at && (typeof body.next_dose_at !== 'string' || Number.isNaN(Date.parse(body.next_dose_at)))) {
+    return NextResponse.json({ error: 'next_dose_at must be an ISO date-time' }, { status: 400 })
   }
 
   // The person and (optional) sick day must belong to the caller's family;

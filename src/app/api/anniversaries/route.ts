@@ -4,6 +4,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { nextAnnualOccurrence, toDateOnlyUTC } from '@/lib/dates'
+import { createAnniversarySchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,21 +23,14 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'asc' },
     })
 
-    const today = new Date()
+    // Dates are stored as UTC midnight. Count whole calendar days from the
+    // server's UTC day (O-31), so a date falling today is 0 days away rather
+    // than rolling to next year. The client recounts from its local day.
+    const today = toDateOnlyUTC(new Date())
     const dates = anniversaries.map((a) => {
-      const date = new Date(a.date)
-      const thisYear = today.getFullYear()
-
-      // Determine next occurrence
-      const thisYearDate = new Date(thisYear, date.getMonth(), date.getDate())
-      const nextOccurrence =
-        thisYearDate >= today
-          ? thisYearDate
-          : new Date(thisYear + 1, date.getMonth(), date.getDate())
-
-      const daysUntil = Math.ceil(
-        (nextOccurrence.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      )
+      const next = nextAnnualOccurrence(a.date, today)
+      const nextOccurrence = next?.date ?? a.date
+      const daysUntil = next?.daysUntil ?? 0
 
       return {
         id: a.id,
@@ -72,18 +67,11 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { name, type, date, notes, person_id } = body
-
-    if (!name || !type || !date) {
-      return NextResponse.json(
-        { error: 'name, type, and date are required' },
-        { status: 400 }
-      )
+    const parsed = createAnniversarySchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
-
-    if (!['birthday', 'anniversary', 'custom'].includes(type)) {
-      return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
-    }
+    const { name, type, date, notes, person_id } = parsed.data
 
     // A linked person must be a member of the caller's family (#102).
     if (person_id) {
@@ -102,7 +90,7 @@ export async function POST(request: NextRequest) {
         name,
         type,
         date: new Date(date),
-        notes: notes || null,
+        notes: notes?.trim() || null,
         person_id: person_id || null,
         // D9 (#102): records who may edit it later (teens/children: own only).
         created_by: auth.user.id,

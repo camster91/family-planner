@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
+import { createPickupSchema } from '@/lib/validations'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -35,43 +38,50 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = (await getServerUser()) as SessionUser | null
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await featureGate(user.family_id, 'pickups')
-  if (gate) return gate
-  if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
-
-  let body: { title?: string; location?: string | null; pickup_time?: string; assigned_to?: string | null; notes?: string | null }
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
-  if (!body.title || !body.pickup_time) {
-    return NextResponse.json({ error: 'title and pickup_time required' }, { status: 400 })
-  }
+    const user = (await getServerUser()) as SessionUser | null
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gate = await featureGate(user.family_id, 'pickups')
+    if (gate) return gate
+    if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
 
-  // An assignee, if given, must be a member of the caller's family.
-  if (body.assigned_to) {
-    const assignee = await prisma!.user.findFirst({
-      where: { id: body.assigned_to, family_id: user.family_id },
-      select: { id: true },
-    })
-    if (!assignee) {
-      return NextResponse.json({ error: 'Assignee must be a member of your family' }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-  }
+    const parsed = createPickupSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    const body = parsed.data
 
-  const created = await prisma!.pickup.create({
-    data: {
-      family_id: user.family_id,
-      created_by: user.id,
-      title: body.title.trim(),
-      location: body.location?.trim() || null,
-      pickup_time: new Date(body.pickup_time),
-      assigned_to: body.assigned_to || null,
-      notes: body.notes?.trim() || null,
-    },
-  })
-  return NextResponse.json({ pickup: created }, { status: 201 })
+    // An assignee, if given, must be a member of the caller's family.
+    if (body.assigned_to) {
+      const assignee = await prisma!.user.findFirst({
+        where: { id: body.assigned_to, family_id: user.family_id },
+        select: { id: true },
+      })
+      if (!assignee) {
+        return NextResponse.json({ error: 'Assignee must be a member of your family' }, { status: 400 })
+      }
+    }
+
+    const created = await prisma!.pickup.create({
+      data: {
+        family_id: user.family_id,
+        created_by: user.id,
+        title: body.title,
+        location: body.location?.trim() || null,
+        pickup_time: new Date(body.pickup_time),
+        assigned_to: body.assigned_to || null,
+        notes: body.notes?.trim() || null,
+      },
+    })
+    return NextResponse.json({ pickup: created }, { status: 201 })
+  } catch (error) {
+    logRouteError('POST /api/pickups', error, getRequestId(request))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

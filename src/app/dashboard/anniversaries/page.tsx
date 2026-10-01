@@ -1,37 +1,18 @@
 'use client'
 
 import * as React from 'react'
-import { Gift, Cake, Heart, Plus, X, Pencil, Trash2 } from 'lucide-react'
+import { Gift, Cake, Heart, CalendarDays, Plus, X, Pencil, Trash2 } from 'lucide-react'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
+import { formatDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { buildDateItems, type ApiDateItem, type DateItem, type FamilyDate } from '@/lib/anniversary-dates'
 
-interface FamilyDate {
-  id: string
-  name: string
-  type: 'birthday' | 'anniversary' | 'custom'
-  date: string
-  notes?: string | null
-  person_id?: string | null
-  days_until?: number
-  role?: string
-}
-
-interface ApiDateItem extends FamilyDate {
-  days_until: number
-  next_occurrence: string
-}
-
-function getDaysUntil(dateStr: string): number {
-  const now = new Date()
-  const target = new Date(dateStr)
-  const diff = target.getTime() - now.getTime()
-  return Math.ceil(diff / (1000 * 60 * 60 * 24))
-}
-
+// Dates are stored as UTC midnight of the calendar day, so format them in UTC:
+// local getters would show the previous day west of UTC.
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  return formatDateOnly(dateStr, { month: 'long', day: 'numeric' })
 }
 
 function getDateSubtitle(date: FamilyDate, daysUntil: number, t: (key: string) => string): string {
@@ -41,18 +22,6 @@ function getDateSubtitle(date: FamilyDate, daysUntil: number, t: (key: string) =
   return `${dateStr} · ${daysUntil}${t('dates.daysAway')}`
 }
 
-function buildDateItems(dates: ApiDateItem[]): {
-  birthdays: DateItem[]
-  anniversaries: DateItem[]
-} {
-  const withDays = dates.map(d => ({ ...d, daysUntil: d.days_until }))
-  return {
-    birthdays: withDays.filter(d => d.type === 'birthday').sort((a, b) => a.daysUntil - b.daysUntil),
-    anniversaries: withDays.filter(d => d.type === 'anniversary').sort((a, b) => a.daysUntil - b.daysUntil),
-  }
-}
-
-type DateItem = ApiDateItem & { daysUntil: number }
 
 function DateSection({
   title,
@@ -65,7 +34,7 @@ function DateSection({
   title: string
   items: DateItem[]
   icon: typeof Cake
-  glyphColor: 'family' | 'rewards'
+  glyphColor: 'family' | 'rewards' | 'calendar'
   onItemClick: (item: DateItem) => void
   t: (key: string) => string
 }) {
@@ -134,6 +103,7 @@ function AddEditModal({
   onDelete,
   t,
   saving,
+  error,
 }: {
   mode: 'add' | 'edit'
   initial?: DateItem
@@ -142,18 +112,13 @@ function AddEditModal({
   onDelete?: () => void
   t: (key: string) => string
   saving: boolean
+  error?: string | null
 }) {
   const [name, setName] = React.useState(initial?.name ?? '')
   const [type, setType] = React.useState<'birthday' | 'anniversary' | 'custom'>(initial?.type ?? 'birthday')
-  const [date, setDate] = React.useState(() => {
-    if (initial?.date) {
-      const d = new Date(initial.date)
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const dd = String(d.getDate()).padStart(2, '0')
-      return `${d.getFullYear()}-${mm}-${dd}`
-    }
-    return ''
-  })
+  // Stored as UTC midnight: pre-fill the UTC calendar day, or saving an
+  // unchanged edit would shift the date back a day west of UTC.
+  const [date, setDate] = React.useState(() => (initial?.date ? toDateOnlyUTC(initial.date) : ''))
   const [notes, setNotes] = React.useState(initial?.notes ?? '')
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -172,6 +137,11 @@ function AddEditModal({
         </button>
       </div>
       <div className="p-4 space-y-4">
+        {error && (
+          <p role="alert" className="text-footnote text-label-destructive">
+            {error}
+          </p>
+        )}
         <div>
           <label className="block text-caption-1 text-label-secondary mb-1">{t('dates.dateName')}</label>
           <input
@@ -254,6 +224,7 @@ function AnniversariesPageInner() {
   const [showAdd, setShowAdd] = React.useState(false)
   const [editItem, setEditItem] = React.useState<DateItem | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const [modalError, setModalError] = React.useState<string | null>(null)
 
   const fetchDates = React.useCallback(async () => {
     try {
@@ -273,7 +244,8 @@ function AnniversariesPageInner() {
     fetchDates()
   }, [fetchDates])
 
-  const { birthdays, anniversaries } = buildDateItems(dates)
+  const { birthdays, anniversaries, others } = buildDateItems(dates, toDateOnlyLocal(new Date()))
+  const hasDates = birthdays.length + anniversaries.length + others.length > 0
 
   const birthdayItems = birthdays.filter(d => d.daysUntil >= 0 && d.daysUntil <= 90)
   const anniversaryItems = anniversaries.filter(d => d.daysUntil >= 0 && d.daysUntil <= 90)
@@ -282,6 +254,7 @@ function AnniversariesPageInner() {
 
   const handleSave = async (data: DateFormData) => {
     setSaving(true)
+    setModalError(null)
     try {
       if (editItem) {
         const res = await fetch(`/api/anniversaries/${encodeURIComponent(editItem.id)}`, {
@@ -302,7 +275,8 @@ function AnniversariesPageInner() {
       setEditItem(null)
       await fetchDates()
     } catch {
-      // keep modal open on error
+      // Keep the modal open and say so.
+      setModalError(t('common.error'))
     } finally {
       setSaving(false)
     }
@@ -312,21 +286,26 @@ function AnniversariesPageInner() {
     if (!editItem) return
     if (!confirm(t('common.confirm') + '?')) return
     setSaving(true)
+    setModalError(null)
     try {
       const res = await fetch(`/api/anniversaries/${encodeURIComponent(editItem.id)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setEditItem(null)
       await fetchDates()
     } catch {
+      setModalError(t('common.error'))
+    } finally {
       setSaving(false)
     }
   }
 
   const handleItemClick = (item: DateItem) => {
+    setModalError(null)
     setEditItem(item)
   }
 
   const closeModal = () => {
+    setModalError(null)
     setShowAdd(false)
     setEditItem(null)
   }
@@ -421,8 +400,18 @@ function AnniversariesPageInner() {
           t={t}
         />
       )}
+      {others.length > 0 && (
+        <DateSection
+          title={t('dates.otherDates')}
+          items={others}
+          icon={CalendarDays}
+          glyphColor="calendar"
+          onItemClick={handleItemClick}
+          t={t}
+        />
+      )}
 
-      {dates.length === 0 && (
+      {!hasDates && (
         <div className="card-apple p-8 text-center">
           <Gift className="w-10 h-10 text-label-tertiary mx-auto mb-3" />
           <h2 className="text-title-3 text-label-primary">{t('dates.empty')}</h2>
@@ -444,6 +433,7 @@ function AnniversariesPageInner() {
           onCancel={closeModal}
           t={t}
           saving={saving}
+          error={modalError}
         />
       </Modal>
 
@@ -458,6 +448,7 @@ function AnniversariesPageInner() {
             onDelete={handleDelete}
             t={t}
             saving={saving}
+            error={modalError}
           />
         )}
       </Modal>

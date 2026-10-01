@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Copy, Check, UserPlus, Mail, X } from 'lucide-react'
+import { Copy, Check, UserPlus, Mail, X, RefreshCw } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
+import { Dialog } from '@/components/ui/dialog'
 
 type PendingInvite = {
   id: string
@@ -23,6 +24,11 @@ export default function InviteMemberPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [invites, setInvites] = useState<PendingInvite[]>([])
+  // "Get a new family code" (O-34): confirm step, then POST /api/family/invite-code.
+  const [confirmNewCode, setConfirmNewCode] = useState(false)
+  const [rotating, setRotating] = useState(false)
+  const [codeError, setCodeError] = useState<string | null>(null)
+  const [codeMessage, setCodeMessage] = useState<string | null>(null)
 
   useEffect(() => {
     load()
@@ -41,15 +47,39 @@ export default function InviteMemberPage() {
       const familyData = await familyRes.json()
       const inviteData = await inviteRes.json()
       const inviteCode = familyData.family?.invite_code
-      if (familyRes.ok && inviteCode) {
-        setFamilyCode(inviteCode)
-        setInviteLink(`${window.location.origin}/join?code=${encodeURIComponent(inviteCode)}`)
-      }
+      if (familyRes.ok && inviteCode) showCode(inviteCode)
       if (inviteRes.ok) setInvites(inviteData.invites || [])
     } catch (err) {
       console.error('Error loading invite page:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const showCode = (code: string) => {
+    setFamilyCode(code)
+    setInviteLink(`${window.location.origin}/join?code=${encodeURIComponent(code)}`)
+  }
+
+  const handleNewCode = async () => {
+    setRotating(true)
+    setCodeError(null)
+    try {
+      const res = await fetch('/api/family/invite-code', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || typeof data.inviteCode !== 'string') {
+        setCodeError(
+          typeof data.error === 'string' ? data.error : 'Could not make a new code. Please try again.'
+        )
+        return
+      }
+      showCode(data.inviteCode)
+      setConfirmNewCode(false)
+      setCodeMessage('New code ready. The old code no longer works.')
+    } catch {
+      setCodeError('Could not make a new code. Check your connection and try again.')
+    } finally {
+      setRotating(false)
     }
   }
 
@@ -222,7 +252,65 @@ export default function InviteMemberPage() {
               <span>Copy</span>
             </button>
           </div>
+          {codeMessage && (
+            <p role="status" className="mt-4 text-[15px] font-medium text-label-primary">
+              {codeMessage}
+            </p>
+          )}
+          <div className="mt-4 border-t border-[var(--surface-separator)] pt-4">
+            <p className="text-footnote text-label-secondary mb-3">
+              Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops
+              working right away. People who already joined stay — remove them on the Family page.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setCodeError(null)
+                setCodeMessage(null)
+                setConfirmNewCode(true)
+              }}
+              className="btn-ghost min-h-[44px]"
+              disabled={!familyCode}
+            >
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+              <span>Get a new family code</span>
+            </button>
+          </div>
         </details>
+
+        <Dialog
+          open={confirmNewCode}
+          onClose={rotating ? undefined : () => setConfirmNewCode(false)}
+          title="Get a new family code?"
+          description="The current code stops working right away. Anyone you still want to join will need the new code."
+        >
+          {codeError && (
+            <p
+              role="alert"
+              className="mb-4 rounded-[var(--radius-md)] bg-[var(--danger-tint)] px-4 py-3 text-[15px] text-[var(--danger-text)]"
+            >
+              {codeError}
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setConfirmNewCode(false)}
+              disabled={rotating}
+              className="btn-ghost min-h-[44px] flex-1"
+            >
+              Keep the current code
+            </button>
+            <button
+              type="button"
+              onClick={handleNewCode}
+              disabled={rotating}
+              className="btn-filled min-h-[44px] flex-1"
+            >
+              {rotating ? 'Making a new code…' : 'Get a new code'}
+            </button>
+          </div>
+        </Dialog>
       </div>
     </div>
   )

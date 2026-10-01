@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Settings, Heart, LayoutGrid } from 'lucide-react'
+import { Users, Plus, Settings, Heart, LayoutGrid, UserMinus } from 'lucide-react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
 import { LargeHeader } from '@/components/ui/large-header'
 import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Dialog } from '@/components/ui/dialog'
 import { useFeatures } from '@/components/providers/features-provider'
 import { isFeatureEnabled } from '@/lib/features'
 import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
@@ -15,10 +16,19 @@ import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
  * Family tab (#269): members, then the household's other places — Emergency
  * (moved here from its own tab) and More (every other feature that is on).
  * Parent-only page (kid allowlist). Colour marks people (avatars), not roles.
+ * "Remove from household" (O-34): a parent removes another member after a
+ * confirm step (DELETE /api/family/members/[id]); never shown on their own row.
  */
 
+type Member = { id: string; name: string; role?: string; avatar_url?: string | null; email?: string }
+
 export default function FamilyPage() {
-  const [familyMembers, setFamilyMembers] = useState<any[]>([])
+  const [familyMembers, setFamilyMembers] = useState<Member[]>([])
+  const [myId, setMyId] = useState('')
+  const [removing, setRemoving] = useState<Member | null>(null)
+  const [removeBusy, setRemoveBusy] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [familyName, setFamilyName] = useState('')
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
@@ -39,6 +49,7 @@ export default function FamilyPage() {
 
       const user = meData.user
       setUserRole(user.role || '')
+      setMyId(user.id || '')
       if (user.family) setFamilyName(user.family.name || '')
 
       if (!user.family_id) return
@@ -52,6 +63,34 @@ export default function FamilyPage() {
       console.error('Error loading family data:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const parentCount = familyMembers.filter((m) => m.role === 'parent').length
+  const canRemove = (member: Member) =>
+    userRole === 'parent' && member.id !== myId && !(member.role === 'parent' && parentCount <= 1)
+
+  const confirmRemove = async () => {
+    if (!removing) return
+    setRemoveBusy(true)
+    setRemoveError(null)
+    try {
+      const res = await fetch(`/api/family/members/${encodeURIComponent(removing.id)}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRemoveError(typeof data.error === 'string' ? data.error : 'Could not remove them. Please try again.')
+        return
+      }
+      setFamilyMembers((current) => current.filter((m) => m.id !== removing.id))
+      setNotice(
+        `${removing.name} was removed from the household.` +
+          (data.tabletsRevoked > 0 ? ' Tablets they set up were signed out; a parent can pair them again.' : '')
+      )
+      setRemoving(null)
+    } catch {
+      setRemoveError('Could not remove them. Check your connection and try again.')
+    } finally {
+      setRemoveBusy(false)
     }
   }
 
@@ -77,6 +116,11 @@ export default function FamilyPage() {
 
       {/* Members list */}
       <div className="px-4">
+        {notice && (
+          <p role="status" className="mb-3 rounded-[var(--radius-md)] bg-[var(--surface-secondary)] px-4 py-3 text-[15px] text-label-primary">
+            {notice}
+          </p>
+        )}
         {loading ? (
           <div className="text-center py-12">
             <div className="text-subhead text-label-secondary">Loading…</div>
@@ -115,11 +159,60 @@ export default function FamilyPage() {
                   </div>
                   <div className="text-footnote text-label-secondary truncate">{member.email}</div>
                 </div>
+                {canRemove(member) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRemoveError(null)
+                      setNotice(null)
+                      setRemoving(member)
+                    }}
+                    className="btn-plain min-h-[44px] min-w-[44px] shrink-0 text-[var(--danger-text)]"
+                    aria-label={`Remove ${member.name} from household`}
+                  >
+                    <UserMinus className="w-5 h-5" aria-hidden="true" />
+                    <span className="sr-only sm:not-sr-only text-[15px]">Remove</span>
+                  </button>
+                )}
               </div>
             ))}
           </InsetList>
         )}
       </div>
+
+      <Dialog
+        open={removing !== null}
+        onClose={removeBusy ? undefined : () => setRemoving(null)}
+        title={removing ? `Remove ${removing.name}?` : 'Remove member?'}
+        description="They will be signed out everywhere and can no longer see this household. Their account is not deleted. Chores they had not finished go to you to hand on; everything else stays with the household."
+      >
+        {removeError && (
+          <p
+            role="alert"
+            className="mb-4 rounded-[var(--radius-md)] bg-[var(--danger-tint)] px-4 py-3 text-[15px] text-[var(--danger-text)]"
+          >
+            {removeError}
+          </p>
+        )}
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => setRemoving(null)}
+            disabled={removeBusy}
+            className="btn-ghost min-h-[44px] flex-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirmRemove}
+            disabled={removeBusy}
+            className="btn-destructive min-h-[44px] flex-1 disabled:opacity-40"
+          >
+            {removeBusy ? 'Removing…' : 'Remove from household'}
+          </button>
+        </div>
+      </Dialog>
 
       <section className="px-4 mt-6" aria-labelledby="family-household">
         <SectionHeader>

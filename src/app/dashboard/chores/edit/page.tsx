@@ -36,6 +36,10 @@ function EditChoreForm() {
   const [dueDate, setDueDate] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [frequency, setFrequency] = useState<Frequency>('once')
+  // A generated copy of a recurring series is stored as 'once'; the form shows
+  // its series' frequency instead, and a change applies to the series (O-33).
+  const [seriesCopy, setSeriesCopy] = useState(false)
+  const [loadedFrequency, setLoadedFrequency] = useState<Frequency>('once')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -77,7 +81,14 @@ function EditChoreForm() {
             const d = new Date(chore.due_date)
             setDueDate(d.toISOString().split('T')[0])
             setDifficulty(chore.difficulty || 'medium')
-            setFrequency(chore.frequency || 'once')
+            const template =
+              chore.recurrence_id && chore.recurrence_id !== chore.id
+                ? choresData.chores.find((c: any) => c.id === chore.recurrence_id)
+                : null
+            const shownFrequency: Frequency = (template ? template.frequency : chore.frequency) || 'once'
+            setSeriesCopy(Boolean(template))
+            setFrequency(shownFrequency)
+            setLoadedFrequency(shownFrequency)
             setIcon(typeof chore.icon === 'string' ? chore.icon : null)
             setRoutine(chore.routine ?? '')
             setRoutineOrder(typeof chore.routine_order === 'number' ? String(chore.routine_order) : '')
@@ -126,7 +137,13 @@ function EditChoreForm() {
           assigned_to: assignedTo,
           due_date: dueDate,
           difficulty,
-          frequency,
+          // A series copy sends its frequency only when it was changed, and
+          // then for the whole series.
+          ...(seriesCopy
+            ? frequency !== loadedFrequency
+              ? { frequency, apply_to_series: true }
+              : {}
+            : { frequency }),
           photo_url: photoUrl,
           icon,
           ...routineRequestFields(routine, routineOrder),
@@ -292,6 +309,11 @@ function EditChoreForm() {
         {/* Frequency picker */}
         <div>
           <label className="label-apple">Frequency</label>
+          {seriesCopy && (
+            <p className="text-caption-1 text-label-secondary mb-2">
+              This chore is part of a repeating series. Changing how often changes the whole series.
+            </p>
+          )}
           <div className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
             {frequencyOptions.map((opt) => (
               <button

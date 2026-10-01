@@ -21,11 +21,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  let body: { completed?: boolean }
+  let body: { completed?: unknown } | null
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
   }
 
   const updated = await prisma!.pickup.update({
