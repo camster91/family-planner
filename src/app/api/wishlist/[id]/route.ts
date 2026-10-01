@@ -5,6 +5,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { updateWishlistItemSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,22 +36,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { title, link, description, approx_price } = body
+    const parsed = updateWishlistItemSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    const { title, link, description, approx_price } = parsed.data
 
     const updated = await prisma!.wishlistItem.update({
       where: { id },
       data: {
-        ...(title !== undefined && { title: title.trim() }),
+        ...(title !== undefined && { title }),
         ...(link !== undefined && { link: link?.trim() || null }),
         ...(description !== undefined && { description: description?.trim() || null }),
         ...(approx_price !== undefined && {
-          approx_price: approx_price !== null ? new Prisma.Decimal(approx_price) : null,
+          approx_price: approx_price !== null ? new Prisma.Decimal(approx_price.toFixed(2)) : null,
         }),
       },
       include: {

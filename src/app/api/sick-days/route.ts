@@ -3,10 +3,11 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
 import { isKidRole } from '@/lib/kid-access'
+import { logRouteError } from '@/lib/api-error'
+import { getRequestId } from '@/lib/request-id'
+import { createSickDaySchema } from '@/lib/validations'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
-
-const SEVERITIES = ['mild', 'moderate', 'severe'] as const
 
 export async function GET() {
   const user = (await getServerUser()) as SessionUser | null
@@ -55,49 +56,50 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = (await getServerUser()) as SessionUser | null
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await featureGate(user.family_id, 'sick-days')
-  if (gate) return gate
-  if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
-
-  let body: { person_id?: string; severity?: string; symptoms?: string }
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
-  if (!body.person_id || !body.severity) {
-    return NextResponse.json({ error: 'person_id and severity required' }, { status: 400 })
-  }
-  if (!(SEVERITIES as readonly string[]).includes(body.severity)) {
-    return NextResponse.json(
-      { error: `severity must be one of: ${SEVERITIES.join(', ')}` },
-      { status: 400 }
-    )
-  }
+    const user = (await getServerUser()) as SessionUser | null
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gate = await featureGate(user.family_id, 'sick-days')
+    if (gate) return gate
+    if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
 
-  // The sick person must be a member of the caller's family.
-  const person = await prisma!.user.findFirst({
-    where: { id: body.person_id, family_id: user.family_id },
-    select: { id: true },
-  })
-  if (!person) {
-    return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
-  }
-  // D1 (#102): a teen or child may report only themselves as sick.
-  if (isKidRole(user.role) && body.person_id !== user.id) {
-    return NextResponse.json({ error: 'You can only report yourself as sick' }, { status: 403 })
-  }
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    const parsed = createSickDaySchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    const body = parsed.data
 
-  const created = await prisma!.sickDay.create({
-    data: {
-      family_id: user.family_id,
-      person_id: body.person_id,
-      severity: body.severity,
-      symptoms: body.symptoms?.trim() || null,
-      created_by: user.id,
-    },
-  })
-  return NextResponse.json({ sickDay: created }, { status: 201 })
+    // The sick person must be a member of the caller's family.
+    const person = await prisma!.user.findFirst({
+      where: { id: body.person_id, family_id: user.family_id },
+      select: { id: true },
+    })
+    if (!person) {
+      return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+    }
+    // D1 (#102): a teen or child may report only themselves as sick.
+    if (isKidRole(user.role) && body.person_id !== user.id) {
+      return NextResponse.json({ error: 'You can only report yourself as sick' }, { status: 403 })
+    }
+
+    const created = await prisma!.sickDay.create({
+      data: {
+        family_id: user.family_id,
+        person_id: body.person_id,
+        severity: body.severity,
+        symptoms: body.symptoms?.trim() || null,
+        created_by: user.id,
+      },
+    })
+    return NextResponse.json({ sickDay: created }, { status: 201 })
+  } catch (error) {
+    logRouteError('POST /api/sick-days', error, getRequestId(request))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
