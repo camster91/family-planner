@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { createEmergencyContactSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,11 +42,15 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    const parsed = createEmergencyContactSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
     const {
       person_id, person_name, relationship,
@@ -54,18 +59,7 @@ export async function POST(request: NextRequest) {
       insurance_provider, insurance_id,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
       notes,
-    } = body
-
-    if (!person_name || !relationship) {
-      return NextResponse.json(
-        { error: 'person_name and relationship are required' },
-        { status: 400 }
-      )
-    }
-
-    if (!['self', 'child', 'spouse', 'parent', 'other'].includes(relationship)) {
-      return NextResponse.json({ error: 'Invalid relationship' }, { status: 400 })
-    }
+    } = parsed.data
 
     // A linked person must be a member of the caller's family (#102).
     if (person_id) {

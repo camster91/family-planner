@@ -34,6 +34,12 @@ const noteColors = {
   },
 }
 
+/** The server's `error` text, or null when the body has none. */
+async function serverError(res: Response): Promise<string | null> {
+  const data = await res.json().catch(() => null)
+  return data && typeof data.error === 'string' && data.error ? data.error : null
+}
+
 const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = [
   { key: 'yellow', label: 'Yellow' },
   { key: 'pink', label: 'Pink' },
@@ -63,6 +69,8 @@ function NotesPageInner() {
   const [formBody, setFormBody] = React.useState('')
   const [formColor, setFormColor] = React.useState<'yellow' | 'pink' | 'blue'>('yellow')
   const [saving, setSaving] = React.useState(false)
+  // Why the last save/delete failed; shown in the modal, which stays open.
+  const [modalError, setModalError] = React.useState<string | null>(null)
 
   const fetchNotes = React.useCallback(async () => {
     try {
@@ -91,6 +99,7 @@ function NotesPageInner() {
     setFormBody('')
     setFormColor('yellow')
     setSelectedNote(null)
+    setModalError(null)
     setModalState('add')
   }
 
@@ -99,6 +108,7 @@ function NotesPageInner() {
     setFormBody(note.body)
     setFormColor(note.color)
     setSelectedNote(note)
+    setModalError(null)
     setModalState('edit')
   }
 
@@ -108,44 +118,42 @@ function NotesPageInner() {
     setFormTitle('')
     setFormBody('')
     setFormColor('yellow')
+    setModalError(null)
   }
 
   const handleSave = async () => {
     if (!formTitle.trim()) return
 
     setSaving(true)
+    setModalError(null)
     try {
+      const payload = { title: formTitle.trim(), body: formBody.trim(), color: formColor }
+      let res: Response
       if (modalState === 'add') {
-        const res = await fetch('/api/notes', {
+        res = await fetch('/api/notes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: formTitle.trim(),
-            body: formBody.trim(),
-            color: formColor,
-          }),
+          body: JSON.stringify(payload),
         })
-        if (!res.ok) throw new Error('Failed to create note')
-        await fetchNotes()
-        closeModal()
       } else if (modalState === 'edit' && selectedNote) {
         // Edit and delete live on /api/notes/[id]; /api/notes is GET/POST only.
-        const res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
+        res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: selectedNote.id,
-            title: formTitle.trim(),
-            body: formBody.trim(),
-            color: formColor,
-          }),
+          body: JSON.stringify({ id: selectedNote.id, ...payload }),
         })
-        if (!res.ok) throw new Error('Failed to update note')
-        await fetchNotes()
-        closeModal()
+      } else {
+        return
       }
-    } catch (err) {
-      console.error('Error saving note:', err)
+      if (!res.ok) {
+        setModalError(`${t('notes.errorSave')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        return
+      }
+      await fetchNotes()
+      closeModal()
+    } catch {
+      // Network failure: keep the modal and what was typed.
+      setModalError(`${t('notes.errorSave')} ${t('common.networkError')}`)
     } finally {
       setSaving(false)
     }
@@ -155,17 +163,21 @@ function NotesPageInner() {
     if (!selectedNote) return
 
     setSaving(true)
+    setModalError(null)
     try {
       const res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedNote.id }),
       })
-      if (!res.ok) throw new Error('Failed to delete note')
+      if (!res.ok) {
+        setModalError(`${t('notes.errorDelete')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        return
+      }
       await fetchNotes()
       closeModal()
-    } catch (err) {
-      console.error('Error deleting note:', err)
+    } catch {
+      setModalError(`${t('notes.errorDelete')} ${t('common.networkError')}`)
     } finally {
       setSaving(false)
     }
@@ -355,6 +367,12 @@ function NotesPageInner() {
                   ))}
                 </div>
               </div>
+
+              {modalError && (
+                <p role="alert" className="text-footnote text-[var(--danger-text)]">
+                  {modalError}
+                </p>
+              )}
             </div>
 
             {/* Footer */}

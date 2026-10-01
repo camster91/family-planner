@@ -6,6 +6,7 @@ import { parseDateOnly } from '@/lib/dates'
 import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { updateMealSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,11 +29,12 @@ export async function PATCH(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { id, recipe_name, notes, cook_id, date, meal_type, recipe_id, servings } = body
-
-    if (!id) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    const fields = updateMealSchema.safeParse(body)
+    if (!fields.success) {
+      return NextResponse.json({ error: fields.error.issues[0].message }, { status: 400 })
     }
+    const { id, recipe_name, notes, cook_id } = fields.data
+    const { date, meal_type, recipe_id, servings } = body
 
     let mealDate: Date | undefined
     if (date !== undefined) {

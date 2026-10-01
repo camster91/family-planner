@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Star, Gift, Calendar, Sparkles } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -13,7 +14,7 @@ import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
 import { useToast, useUndoToast } from '@/components/ui/toast'
 import { setChoreDone } from '@/lib/chore-tick-client'
-import { isDueToday } from '@/lib/dates'
+import { formatRelativePastDate, isDueToday, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { groupByRoutine, normalizeRoutineName } from '@/lib/routine-icons'
 import KidRoutines from './KidRoutines'
 
@@ -76,6 +77,15 @@ function formatTime(dateStr: string): string {
   })
 }
 
+const OPEN_STATUSES = new Set(['pending', 'in_progress', 'overdue'])
+const isOpen = (c: Chore) => OPEN_STATUSES.has(c.status)
+
+/** "Was due yesterday" / "Was due Jan 3": a plain fact, no scolding (BRAND.md). */
+function wasDueLabel(dueDate: string, now: Date): string {
+  const label = formatRelativePastDate(dueDate, now)
+  return `Was due ${label === 'Yesterday' ? 'yesterday' : label}`
+}
+
 // XP threshold to level up from `level` — shared with the server logic
 // (gamification.ts xpForNextLevel) so the ring matches awardChoreXP.
 const xpForLevel = xpForNextLevel
@@ -93,10 +103,17 @@ export default function KidHome({
   // chores' points, so this only decides what to draw.
   const gamification = useFeatureEnabled('gamification')
   const [completedChores, setCompletedChores] = useState<Set<string>>(new Set())
+  // Rewards claimed on this screen: hidden at once (a second tap would 409)
+  // until router.refresh() brings the server's list.
+  const [claimedRewards, setClaimedRewards] = useState<Set<string>>(new Set())
+  // XP balance returned by the claim, until fresh props arrive. Keyed to the
+  // prop it replaced so a later refresh always wins.
+  const [xpAfterClaim, setXpAfterClaim] = useState<{ from: number | null | undefined; xp: number } | null>(null)
+  const router = useRouter()
   const { addToast } = useToast()
   const showUndo = useUndoToast()
 
-  const userXp = user.xp ?? 0
+  const userXp = xpAfterClaim && xpAfterClaim.from === user.xp ? xpAfterClaim.xp : (user.xp ?? 0)
   const userLevel = user.level ?? 1
   // Threshold to reach level+1 is xpForNextLevel(level) = 100 * level
   const xpNextLevel = xpForLevel(userLevel)
@@ -110,12 +127,24 @@ export default function KidHome({
   const routineChores = (chores ?? []).filter((c) => inRoutine(c) && isDueToday(c.due_date))
   const { routines } = groupByRoutine(routineChores)
 
-  // Today's chores (pending + in_progress) — up to 3. Routine steps show above
-  // as picture cards, so they are never repeated here; a child with no routine
-  // chores sees exactly the list they always did.
-  const todayChores = (chores ?? []).filter(
-    (c) => (c.status === 'pending' || c.status === 'in_progress') && !inRoutine(c)
-  ).slice(0, 3)
+  // Missions are the child's open chores due on their local today — up to 3.
+  // Recurring chores keep future copies, so the due day matters, not just the
+  // status. Routine steps show above as picture cards, so they are never
+  // repeated here. Earlier open chores get their own small group, and
+  // tomorrow's are a read-only peek; neither counts as today's missions.
+  const now = new Date()
+  const todayKey = toDateOnlyLocal(now)
+  const tomorrow = new Date(now.getTime())
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowKey = toDateOnlyLocal(tomorrow)
+  const openChores = (chores ?? []).filter((c) => isOpen(c) && !inRoutine(c))
+  const todayChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === todayKey).slice(0, 3)
+  const earlierChores = openChores
+    .filter((c) => toDateOnlyUTC(c.due_date) < todayKey)
+    // Most recent first.
+    .sort((a, b) => toDateOnlyUTC(b.due_date).localeCompare(toDateOnlyUTC(a.due_date)))
+    .slice(0, 3)
+  const tomorrowChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey).slice(0, 3)
 
   // Today's events — up to 2
   const todayEvents = (events ?? []).filter((e) => {
@@ -125,7 +154,7 @@ export default function KidHome({
   }).slice(0, 2)
 
   // Most recent available reward to claim
-  const claimableReward = (rewards ?? []).find((r) => r.status === 'available')
+  const claimableReward = (rewards ?? []).find((r) => r.status === 'available' && !claimedRewards.has(r.id))
 
   async function handleClaimReward(rewardId: string) {
     if (claimingReward) return
@@ -137,8 +166,17 @@ export default function KidHome({
         body: JSON.stringify({ rewardId }),
       })
       if (res.ok) {
+        // The claim spent XP: show the new balance now (the response carries
+        // it), then drop the claimed reward and reload server data once the
+        // celebration ends, so it is never offered again.
+        const data = await res.json().catch(() => ({}))
+        if (typeof data?.xp === 'number') setXpAfterClaim({ from: user.xp, xp: data.xp })
         setCelebratingReward(rewardId)
-        setTimeout(() => setCelebratingReward(null), 2000)
+        setTimeout(() => {
+          setCelebratingReward(null)
+          setClaimedRewards((prev) => new Set([...prev, rewardId]))
+          router.refresh()
+        }, 2000)
       } else {
         const data = await res.json().catch(() => ({}))
         addToast({ type: 'error', title: "Couldn't claim that", message: data.error || 'Please try again.' })
@@ -190,6 +228,59 @@ export default function KidHome({
         else addToast({ type: 'error', title: "Couldn't undo", message: result.message })
       },
     })
+  }
+
+  function renderMission(chore: Chore, note?: string) {
+    const baseDone = chore.status === 'completed' || chore.status === 'verified'
+    const isDone = baseDone || completedChores.has(chore.id)
+    return (
+      <button
+        type="button"
+        onClick={() => handleChoreToggle(chore.id, isDone)}
+        disabled={isDone}
+        className={cn(
+          'w-full flex items-center gap-3 px-4 py-4 min-h-[64px] text-left',
+          'transition-all duration-200',
+          isDone
+            ? 'opacity-60'
+            : 'active:bg-[var(--surface-fill-secondary)]'
+        )}
+      >
+        {/* Big check circle */}
+        <div className={cn(
+          'w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300',
+          isDone
+            ? 'bg-success border-success animate-check-pop'
+            : 'border-label-tertiary'
+        )}>
+          {isDone && (
+            <svg className="w-4 h-4 text-white" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={cn(
+            'text-title-3 truncate leading-tight',
+            isDone ? 'text-label-tertiary line-through' : 'text-label-primary'
+          )}>
+            {chore.title}
+          </div>
+          {note && <div className="text-footnote text-label-secondary mt-1">{note}</div>}
+          {gamification && chore.points && (
+            <div className="flex items-center gap-1 mt-1">
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span className="text-footnote text-label-secondary">{chore.points} XP</span>
+            </div>
+          )}
+        </div>
+        {isDone && (
+          <span className="text-body text-success font-medium shrink-0">
+            You did it!
+          </span>
+        )}
+      </button>
+    )
   }
 
   return (
@@ -261,59 +352,25 @@ export default function KidHome({
           <section>
             <p className="section-header">Today&apos;s Missions</p>
             <div className="list-inset">
-              {todayChores.map((chore, i) => {
-                const baseDone = chore.status === 'completed' || chore.status === 'verified'
-                const isDone = baseDone || completedChores.has(chore.id)
-                return (
-                  <div key={chore.id} className={cn(i === todayChores.length - 1 && 'border-b-0')}>
-                    <button
-                      type="button"
-                      onClick={() => handleChoreToggle(chore.id, isDone)}
-                      disabled={isDone}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-4 py-4 min-h-[64px] text-left',
-                        'transition-all duration-200',
-                        isDone
-                          ? 'opacity-60'
-                          : 'active:bg-[var(--surface-fill-secondary)]'
-                      )}
-                    >
-                      {/* Big check circle */}
-                      <div className={cn(
-                        'w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300',
-                        isDone
-                          ? 'bg-success border-success animate-check-pop'
-                          : 'border-label-tertiary'
-                      )}>
-                        {isDone && (
-                          <svg className="w-4 h-4 text-white" viewBox="0 0 12 12" fill="none">
-                            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className={cn(
-                          'text-title-3 truncate leading-tight',
-                          isDone ? 'text-label-tertiary line-through' : 'text-label-primary'
-                        )}>
-                          {chore.title}
-                        </div>
-                        {gamification && chore.points && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                            <span className="text-footnote text-label-secondary">{chore.points} XP</span>
-                          </div>
-                        )}
-                      </div>
-                      {isDone && (
-                        <span className="text-body text-success font-medium shrink-0">
-                          You did it!
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                )
-              })}
+              {todayChores.map((chore, i) => (
+                <div key={chore.id} className={cn(i === todayChores.length - 1 && 'border-b-0')}>
+                  {renderMission(chore)}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Earlier open chores: their own small group, most recent first, tickable */}
+        {earlierChores.length > 0 && (
+          <section>
+            <p className="section-header">Still to do</p>
+            <div className="list-inset">
+              {earlierChores.map((chore, i) => (
+                <div key={chore.id} className={cn(i === earlierChores.length - 1 && 'border-b-0')}>
+                  {renderMission(chore, wasDueLabel(chore.due_date, now))}
+                </div>
+              ))}
             </div>
           </section>
         )}
@@ -325,6 +382,26 @@ export default function KidHome({
             <p className="text-title-3 text-label-primary">All done for today!</p>
             <p className="text-subhead text-label-secondary mt-1">Enjoy your day, superstar!</p>
           </div>
+        )}
+
+        {/* Tomorrow: a read-only peek, so "All done for today!" can be true */}
+        {tomorrowChores.length > 0 && (
+          <section>
+            <p className="section-header">Tomorrow</p>
+            <ul className="list-inset">
+              {tomorrowChores.map((chore, i) => (
+                <li
+                  key={chore.id}
+                  className={cn(
+                    'px-4 py-3 min-h-[44px] flex items-center text-body text-label-secondary',
+                    i === tomorrowChores.length - 1 && 'border-b-0'
+                  )}
+                >
+                  <span className="truncate">{chore.title}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {/* Coming up — events */}

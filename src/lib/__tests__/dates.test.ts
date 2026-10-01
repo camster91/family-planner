@@ -17,6 +17,9 @@ import {
   nextAnnualOccurrence,
   isoToLocalDateTimeInput,
   formatRelativePastDate,
+  shiftMonth,
+  calendarMonthQueryWindow,
+  isInLocalMonth,
 } from '../dates'
 
 describe('parseDateOnly', () => {
@@ -223,5 +226,44 @@ describe('local date/time helpers (runtime time zone)', () => {
     expect(formatRelativePastDate('2026-10-01T00:00:00.000Z', now)).toBe('Today')
     expect(formatRelativePastDate('2026-09-30T00:00:00.000Z', now)).toBe('Yesterday')
     expect(formatRelativePastDate('2026-09-29T00:00:00.000Z', now)).toBe('Sep 29')
+  })
+})
+
+describe('calendar month window', () => {
+  // Jest gives each test file its own process.env, so these assertions build
+  // local instants instead of relying on a TZ override and hold in any zone.
+  it('shiftMonth rolls the year over both ways', () => {
+    expect(shiftMonth(2026, 1, -1)).toEqual({ year: 2025, month: 12 })
+    expect(shiftMonth(2026, 12, 1)).toEqual({ year: 2027, month: 1 })
+    expect(shiftMonth(2026, 10, 0)).toEqual({ year: 2026, month: 10 })
+    expect(shiftMonth(2026, 3, -14)).toEqual({ year: 2025, month: 1 })
+  })
+
+  it('widens the UTC month by a day on each side', () => {
+    const { start, end } = calendarMonthQueryWindow(2026, 10)
+    expect(start.toISOString()).toBe('2026-09-30T00:00:00.000Z')
+    expect(end.toISOString()).toBe('2026-11-02T00:00:00.000Z')
+  })
+
+  it('covers the first and last local minutes of the month in any zone', () => {
+    const { start, end } = calendarMonthQueryWindow(2026, 10)
+    const first = new Date(2026, 9, 1, 0, 0)
+    const last = new Date(2026, 9, 31, 23, 59)
+    for (const d of [first, last]) {
+      expect(d.getTime() >= start.getTime() && d.getTime() < end.getTime()).toBe(true)
+      expect(isInLocalMonth(d.toISOString(), 2026, 10)).toBe(true)
+    }
+    expect(isInLocalMonth(new Date(2026, 9, 31, 20, 30), 2026, 11)).toBe(false)
+    expect(isInLocalMonth(new Date(2026, 10, 1, 0, 0).toISOString(), 2026, 10)).toBe(false)
+  })
+
+  it('a Toronto Oct 31 8:30 PM event (Nov 1 00:30Z) is in the October query window', () => {
+    const { start, end } = calendarMonthQueryWindow(2026, 10)
+    const t = new Date('2026-11-01T00:30:00.000Z').getTime()
+    expect(t >= start.getTime() && t < end.getTime()).toBe(true)
+  })
+
+  it('isInLocalMonth rejects unparseable values', () => {
+    expect(isInLocalMonth('nope', 2026, 10)).toBe(false)
   })
 })

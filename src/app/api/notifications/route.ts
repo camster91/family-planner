@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
-import { updateNotificationSchema, deleteNotificationSchema } from '@/lib/validations'
+import { updateNotificationSchema, deleteNotificationSchema, sendNotificationSchema } from '@/lib/validations'
 import { deliverNotification } from '@/lib/notification-delivery'
 import { isInAppNotificationType } from '@/lib/notification-policy'
 import { logRouteError } from '@/lib/api-error'
@@ -46,18 +46,18 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    let payload: any
+    let payload: unknown
     try {
       payload = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
-    const { userId, title, message, type } = payload
-
-    if (!userId || !title || !message || !type) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    const parsed = sendNotificationSchema.safeParse(payload)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const { userId, title, message, type } = parsed.data
     // Only types in the notification policy table (#286), so every row has a
     // category or is explicitly always-send.
     if (!isInAppNotificationType(type)) {

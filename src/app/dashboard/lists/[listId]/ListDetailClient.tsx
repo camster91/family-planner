@@ -114,6 +114,8 @@ export default function ListDetailClient({
   const [listItems, setListItems] = React.useState<Item[]>(initialItems)
   const [newItemText, setNewItemText] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  // Why the last "Add" failed; the typed text stays in the field.
+  const [addError, setAddError] = React.useState<string | null>(null)
   const [recentlySynced, setRecentlySynced] = React.useState<Set<string>>(() => new Set())
   const { addToast } = useToast()
   const showUndo = useUndoToast()
@@ -308,20 +310,37 @@ export default function ListDetailClient({
   const handleAdd = async () => {
     const trimmed = newItemText.trim()
     if (!trimmed || loading) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setAddError(`You're offline. “${trimmed}” wasn't added. Try again when you're back online.`)
+      return
+    }
     setLoading(true)
+    setAddError(null)
     try {
-      const res = await fetch('/api/lists/items/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listId, content: trimmed }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setListItems(prev => [...prev, toItem(data.item)])
-        setNewItemText('')
+      let res: Response
+      try {
+        res = await fetch('/api/lists/items/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listId, content: trimmed }),
+        })
+      } catch {
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+        setAddError(
+          offline
+            ? `You're offline. “${trimmed}” wasn't added. Try again when you're back online.`
+            : `Couldn't add “${trimmed}”. Check your connection and try again.`
+        )
+        return
       }
-    } catch (err) {
-      console.error('Failed to add item:', err)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.item) {
+        const reason = typeof data?.error === 'string' && data.error ? data.error : 'Please try again.'
+        setAddError(`Couldn't add “${trimmed}”. ${reason}`)
+        return
+      }
+      setListItems(prev => [...prev, toItem(data.item)])
+      setNewItemText('')
     } finally {
       setLoading(false)
     }
@@ -493,25 +512,35 @@ export default function ListDetailClient({
       />
 
       {/* Add item field */}
-      <div className="flex items-center gap-3 card-apple px-4 py-3">
-        <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
-        <input
-          type="text"
-          value={newItemText}
-          onChange={(e) => setNewItemText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add an item…"
-          disabled={loading}
-          className="flex-1 bg-transparent text-body text-label-primary placeholder:text-label-tertiary outline-none"
-        />
-        {newItemText.trim() && (
-          <button
-            onClick={handleAdd}
+      <div className="card-apple px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
+          <input
+            type="text"
+            value={newItemText}
+            onChange={(e) => setNewItemText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add an item…"
+            aria-label="Add an item"
+            aria-invalid={addError ? true : undefined}
+            aria-describedby={addError ? 'list-add-error' : undefined}
             disabled={loading}
-            className="text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
-          >
-            Add
-          </button>
+            className="flex-1 bg-transparent text-body text-label-primary placeholder:text-label-tertiary outline-none"
+          />
+          {newItemText.trim() && (
+            <button
+              onClick={handleAdd}
+              disabled={loading}
+              className="text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
+            >
+              Add
+            </button>
+          )}
+        </div>
+        {addError && (
+          <p id="list-add-error" role="alert" className="pt-2 text-footnote text-[var(--danger-text)]">
+            {addError}
+          </p>
         )}
       </div>
     </div>

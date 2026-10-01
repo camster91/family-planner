@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { updateEmergencyContactSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,11 +22,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (parentError) return parentError
 
     const { id } = await params
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    // The create rules, every field optional: person_name and relationship
+    // cannot be cleared; other text fields clear with "" or null.
+    const parsed = updateEmergencyContactSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
     const existing = await prisma!.emergencyContact.findUnique({
@@ -40,29 +47,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const familyError = requireFamilyMatch(existing.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    const data: Record<string, unknown> = {}
-    const allowed = [
-      'person_id', 'person_name', 'relationship',
-      'blood_type', 'allergies', 'medications', 'medical_conditions',
-      'doctor_name', 'doctor_phone', 'dentist_name', 'dentist_phone',
-      'insurance_provider', 'insurance_id',
-      'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relation',
-      'notes',
-    ]
-    for (const key of allowed) {
-      if (key in body) {
-        data[key] = body[key] ?? null
-      }
-    }
-
-    if (data.relationship && !['self', 'child', 'spouse', 'parent', 'other'].includes(data.relationship as string)) {
-      return NextResponse.json({ error: 'Invalid relationship' }, { status: 400 })
-    }
+    // Only the keys the caller sent (zod drops unknown keys).
+    const data = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined))
 
     // A linked person must be a member of the caller's family (#102).
     if (data.person_id) {
       const person = await prisma!.user.findFirst({
-        where: { id: data.person_id as string, family_id: auth.user.family_id },
+        where: { id: data.person_id, family_id: auth.user.family_id },
         select: { id: true },
       })
       if (!person) {

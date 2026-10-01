@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { format } from 'date-fns'
 import { eventFormRange } from '@/lib/dates'
+import { Dialog } from '@/components/ui/dialog'
 
 function EditEventForm() {
   const [title, setTitle] = useState('')
@@ -21,9 +22,23 @@ function EditEventForm() {
   const [error, setError] = useState<string | null>(null)
   // Imported events (#232) are read-only; the API refuses edits with 409.
   const [source, setSource] = useState<{ name: string } | null>(null)
+  // DELETE /api/events is parent-only (like PATCH). Unknown until
+  // /api/auth/me answers, so Delete never flashes for a teen or child.
+  const [isParent, setIsParent] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setIsParent(d?.user?.role === 'parent'))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!eventId) {
@@ -119,6 +134,31 @@ function EditEventForm() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!eventId) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch('/api/events', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setDeleteError(typeof data?.error === 'string' ? data.error : 'Could not delete the event. Try again.')
+        return
+      }
+      setConfirmOpen(false)
+      router.push('/dashboard/calendar')
+      router.refresh()
+    } catch {
+      setDeleteError('Could not delete the event. Check your connection and try again.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -276,6 +316,56 @@ function EditEventForm() {
           </button>
         </div>
       </form>
+
+      {isParent && (
+        <div className="px-4 pt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null)
+              setConfirmOpen(true)
+            }}
+            className="btn-plain w-full min-h-[44px] text-[var(--danger-text)]"
+          >
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+            <span>Delete event</span>
+          </button>
+        </div>
+      )}
+
+      <Dialog
+        open={confirmOpen}
+        onClose={deleting ? undefined : () => setConfirmOpen(false)}
+        title="Delete this event?"
+        description={`“${title}” will be removed from the family calendar for everyone.`}
+        initialFocusRef={cancelRef}
+        testId="delete-event-dialog"
+      >
+        {deleteError && (
+          <p role="alert" className="mb-4 text-body text-[var(--danger-text)]">
+            {deleteError}
+          </p>
+        )}
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={() => setConfirmOpen(false)}
+            disabled={deleting}
+            className="btn-tinted min-h-[44px]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="btn-destructive min-h-[44px]"
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
+      </Dialog>
     </div>
   )
 }

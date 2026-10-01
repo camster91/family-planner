@@ -9,12 +9,18 @@ import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
 import TransactionForm from './TransactionForm'
-import { formatRelativePastDate, toDateOnlyUTC } from '@/lib/dates'
+import { formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { budgetProgress } from '@/lib/budget'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 // -----------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------
+
+/** The viewer's local calendar month as `YYYY-MM`. */
+function localYearMonth(now: Date = new Date()): string {
+  return toDateOnlyLocal(now).slice(0, 7)
+}
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -82,15 +88,18 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
   // `YYYY-MM-DD` keys sort chronologically as strings; newest first.
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
-  // Budget limit (default to 2000 if not set)
-  const budgetLimit = 2000
+  // Limit is the sum of the household's category limits; with none set the
+  // card shows only what was spent (no ring, no made-up cap).
+  const budgetLimit = data.budget_limit ?? null
   const spent = data.total_expenses
-  const progress = budgetLimit > 0 ? Math.min(spent / budgetLimit, 1) : 0
+  const ring = budgetProgress(spent, budgetLimit)
 
   const refreshData = React.useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await fetch('/api/budget/stats')
+      // Ask for the viewer's local month (O-31): without it the server picks
+      // the UTC month, which is wrong for the hours around a month change.
+      const res = await fetch(`/api/budget/stats?month=${localYearMonth()}`)
       if (res.ok) {
         const json = await res.json()
         setData({
@@ -106,6 +115,12 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
       setIsLoading(false)
     }
   }, [])
+
+  // The server renders the UTC month. If the viewer's local month differs
+  // (e.g. the evening of the 31st west of UTC), load their month instead.
+  React.useEffect(() => {
+    if (initialData.month !== localYearMonth()) refreshData()
+  }, [initialData.month, refreshData])
 
   const handleSuccess = React.useCallback(() => {
     setShowForm(false)
@@ -129,26 +144,30 @@ export default function BudgetDashboard({ initialData, userId }: BudgetDashboard
       <div className="space-y-5 px-4">
         {/* Progress ring + summary */}
         <div className="card-apple p-5 flex items-center gap-5">
-          <ProgressRing
-            progress={progress}
-            size={80}
-            strokeWidth={8}
-            color={spent > budgetLimit ? 'var(--tint-rewards)' : 'var(--accent)'}
-          >
-            <span className="text-[28px] font-bold leading-none text-label-primary">
-              {Math.round(progress * 100)}%
-            </span>
-          </ProgressRing>
+          {ring && budgetLimit !== null && (
+            <ProgressRing
+              progress={ring.progress}
+              size={80}
+              strokeWidth={8}
+              color={ring.over ? 'var(--tint-rewards)' : 'var(--accent)'}
+            >
+              <span className="text-[28px] font-bold leading-none text-label-primary">
+                {Math.round(ring.progress * 100)}%
+              </span>
+            </ProgressRing>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-title-3 text-label-primary font-semibold">
               {formatCurrency(spent)}
             </p>
             <p className="text-subhead text-label-secondary mt-0.5">
-              of {formatCurrency(budgetLimit)} limit
+              {ring && budgetLimit !== null
+                ? `of ${formatCurrency(budgetLimit)} limit`
+                : 'spent this month'}
             </p>
-            {spent > budgetLimit && (
+            {ring?.over && (
               <p className="text-footnote text-[var(--tint-rewards-text)] mt-1 font-medium">
-                Over budget by {formatCurrency(spent - budgetLimit)}
+                Over budget by {formatCurrency(ring.overBy)}
               </p>
             )}
           </div>

@@ -64,6 +64,8 @@ describe("budget — two households, parent only", () => {
     expect(filtered.transactions).toEqual([]);
     const s = await expectNoForeignData(await stats.GET(req({ as: "parentA", query: { month: "2026-09" } })));
     expect(s.recent_transactions.map((t: any) => t.id)).toEqual(["txn-a"]);
+    // The limit sums only family A's category limits (family B's would make it 200).
+    expect(s.budget_limit).toBe(100);
   });
 
   it("refuses to touch another family's category or transaction", async () => {
