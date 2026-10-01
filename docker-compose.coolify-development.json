@@ -8,9 +8,6 @@
           "SOURCE_COMMIT": "${SOURCE_COMMIT}"
         }
       },
-      "ports": [
-        "127.0.0.1:13100:3000"
-      ],
       "env_file": [
         ".env"
       ],
@@ -27,7 +24,10 @@
       "networks": [
         "retained-database"
       ],
-      "restart": "unless-stopped"
+      "restart": "unless-stopped",
+      "expose": [
+        "3000"
+      ]
     }
   },
   "networks": {
