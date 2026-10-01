@@ -57,8 +57,14 @@ export function LongPressRow({ children, actions, className, menuLabel = 'More a
     setOpen(false)
     const target = returnFocusRef.current
     returnFocusRef.current = null
-    // After the sheet unmounts, put focus back where it was.
-    if (target && target.isConnected) setTimeout(() => target.focus(), 0)
+    // After the sheet unmounts, put focus back where it was, unless the chosen
+    // action already moved it (for example by opening a dialog).
+    if (target && target.isConnected) {
+      setTimeout(() => {
+        const active = document.activeElement
+        if (!active || active === document.body) target.focus()
+      }, 0)
+    }
   }, [])
 
   React.useEffect(() => {
