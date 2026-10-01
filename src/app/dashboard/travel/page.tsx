@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { useToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
+import { formatDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 
 interface TravelState {
   travel_mode_active: boolean
@@ -59,8 +60,8 @@ function TravelPageInner() {
         const data = await res.json()
         setTravel(data)
         setDestination(data.travel_destination ?? '')
-        setStartDate(data.travel_start_date ? data.travel_start_date.split('T')[0] : '')
-        setEndDate(data.travel_end_date ? data.travel_end_date.split('T')[0] : '')
+        setStartDate(data.travel_start_date ? toDateOnlyUTC(data.travel_start_date) : '')
+        setEndDate(data.travel_end_date ? toDateOnlyUTC(data.travel_end_date) : '')
       } else {
         await failed("Couldn't load travel mode", res)
       }
@@ -93,10 +94,12 @@ function TravelPageInner() {
       const res = await fetch('/api/family/travel', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        // Trip dates are date-only `YYYY-MM-DD` values; with no start date the
+        // trip starts on the viewer's local today (O-31), not the UTC instant.
         body: JSON.stringify({
           travel_mode_active: !travel.travel_mode_active,
-          travel_start_date: travel.travel_mode_active ? null : (startDate || new Date().toISOString()),
-          travel_end_date: travel.travel_mode_active ? null : endDate,
+          travel_start_date: travel.travel_mode_active ? null : startDate || toDateOnlyLocal(new Date()),
+          travel_end_date: travel.travel_mode_active ? null : endDate || null,
           travel_destination: travel.travel_mode_active ? null : destination,
         }),
       })
@@ -120,8 +123,8 @@ function TravelPageInner() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          travel_start_date: startDate,
-          travel_end_date: endDate,
+          travel_start_date: startDate || null,
+          travel_end_date: endDate || null,
           travel_destination: destination,
         }),
       })
@@ -142,17 +145,19 @@ function TravelPageInner() {
 
   const pendingInWindow = React.useMemo(() => {
     if (!isActive || !travel?.travel_start_date || !travel?.travel_end_date) return []
-    const start = new Date(travel.travel_start_date)
-    const end = new Date(travel.travel_end_date)
+    // All three are date-only values (UTC midnight): compare `YYYY-MM-DD` days.
+    const start = toDateOnlyUTC(travel.travel_start_date)
+    const end = toDateOnlyUTC(travel.travel_end_date)
     return pendingChores.filter(c => {
-      const due = new Date(c.due_date)
+      if (!c.due_date) return false
+      const due = toDateOnlyUTC(c.due_date)
       return due >= start && due <= end && (c.status === 'pending' || c.status === 'in_progress')
     })
   }, [isActive, travel, pendingChores])
 
   const formatDate = (d: string | null) => {
     if (!d) return null
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return formatDateOnly(d, { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
   if (loading) {
@@ -289,7 +294,7 @@ function TravelPageInner() {
                     </p>
                   </div>
                   <span className="text-footnote text-label-tertiary">
-                    {new Date(chore.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {formatDateOnly(chore.due_date)}
                   </span>
                 </div>
               ))}

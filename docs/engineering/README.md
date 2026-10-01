@@ -6,5 +6,6 @@
 - `AGENT_BACKLOG.md` — current agent-ready queue and dependencies
 - `DEFINITION_OF_DONE.md` — evidence required before claiming complete
 - `CI_AND_RELEASE.md` — workflow ownership, required-check evidence and release gates
+- `SLO_AND_PERFORMANCE.md` — beta SLOs, error budget, performance budgets and how to check them
 
 Repository-wide operating rules live in `/AGENTS.md`. Current implementation, branch and blocker state lives in `/docs/CURRENT_STATE.md`.

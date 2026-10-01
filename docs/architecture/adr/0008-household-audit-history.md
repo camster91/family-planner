@@ -19,7 +19,7 @@ parent makes from a phone.
 2. **Written in the same transaction as the change** (`writeAuditLog(tx, …)` in `src/lib/household-audit.ts`). A failed
    audit write fails the change; a failed change leaves no row. This is the opposite of the device trail on purpose.
 3. **Fixed vocabulary.** `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`,
-   `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, and (#287) `beta_metrics.turned_on`, `beta_metrics.turned_off`.
+   `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, (#287) `beta_metrics.turned_on`, `beta_metrics.turned_off`, and (O-34) `member.removed`, `invite_code.rotated`.
    `summary` is built only from fixed templates plus names (a feature title, a member's or a tablet's name, a role
    word), at most 200 characters. Never an email address, code, token, PIN, place, coordinate, colour value or other
    free text.

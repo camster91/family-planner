@@ -16,6 +16,7 @@ import {
   Refrigerator,
   Trash2,
   BellRing,
+  CircleHelp,
 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
@@ -44,7 +45,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [avatarOpen, setAvatarOpen] = useState(false)
-  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false)
   // Teens and children cannot open Settings (kid-access.ts), so their
   // "Delete my account" (D-3, ACCOUNT_DELETION.md) and their notification
   // switches (#286) live in this menu. Own account only.
@@ -70,7 +70,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     function handleClickOutside(e: MouseEvent) {
       if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
         setAvatarOpen(false)
-        setRoleSwitcherOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -88,12 +87,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     }
     router.push('/login')
     router.refresh()
-  }
-
-  const handleRoleSwitch = async (role: UserRole) => {
-    // In a real app this would call an API — for now just toggle UI state
-    setRoleSwitcherOpen(false)
-    // Could refresh or show a toast; the role affects surface rendering via props
   }
 
   return (
@@ -203,29 +196,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     </span>
                   </div>
 
-                  {/* Role switcher — shown for all roles so parents can preview */}
-                  <div className="px-3 py-2 border-b border-[var(--surface-separator)]">
-                    <p className="text-[11px] font-semibold text-label-tertiary uppercase tracking-wider px-1 mb-1.5">
-                      Switch View
-                    </p>
-                    <div className="flex gap-1">
-                      {(['parent', 'teen', 'child'] as UserRole[]).map((role) => (
-                        <button
-                          key={role}
-                          onClick={() => handleRoleSwitch(role)}
-                          className={cn(
-                            'flex-1 py-1.5 rounded-md text-[13px] font-medium transition-colors',
-                            user?.role === role
-                              ? 'bg-accent-fill text-white'
-                              : 'bg-[var(--surface-secondary)] text-label-secondary hover:text-label-primary'
-                          )}
-                        >
-                          {ROLE_LABELS[role]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Menu items */}
                   <div className="py-1.5">
                     {isKid && canSee('/dashboard/today') && (
@@ -289,6 +259,17 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       >
                         <Settings className="w-4 h-4 text-label-secondary" />
                         Settings
+                      </Link>
+                    )}
+                    {/* Help (#146): parents only, like Settings (not on the kid allowlist). */}
+                    {canSee('/dashboard/help') && (
+                      <Link
+                        href="/dashboard/help"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <CircleHelp className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        Help
                       </Link>
                     )}
                   </div>

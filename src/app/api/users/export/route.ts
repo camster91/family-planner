@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { BACKFILL_SOURCE_APP } from '@/lib/backfill/meals-groceries'
 import { NOTIFICATION_PREFERENCE_SELECT, preferencesFromRow } from '@/lib/notification-policy'
+import { QUIET_HOURS_SELECT, quietHoursFromRow } from '@/lib/quiet-hours'
 import { AUDIT_RETENTION_MS } from '@/lib/household-audit'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -20,6 +21,7 @@ export const dynamic = 'force-dynamic'
 // - All rewards they created or claimed
 // - All notifications addressed to them, and their notification preferences
 //   (#286: `notificationPreferences`, also the notify_* columns on `user`)
+//   and quiet hours (#141: `quietHours`, also the quiet_hours_* columns)
 // - All activities they performed
 // - The household's meal plan (FamilyMeal, ADR-0007) and recipes
 // - The household's food inventory (InventoryItem, #263), including used-up
@@ -60,6 +62,8 @@ export async function GET(request: NextRequest) {
           created_at: true, email_verified: true,
           // Notification preferences (#286); exported as `notificationPreferences`.
           ...NOTIFICATION_PREFERENCE_SELECT,
+          // Quiet hours (#141, O-32); exported as `quietHours`.
+          ...QUIET_HOURS_SELECT,
           // Explicitly EXCLUDE password
         },
       }),
@@ -262,6 +266,7 @@ export async function GET(request: NextRequest) {
       user,
       // Same shape as GET /api/users/preferences (#286).
       notificationPreferences: user ? preferencesFromRow(user) : null,
+      quietHours: user ? quietHoursFromRow(user) : null,
       family,
       chores,
       lists,

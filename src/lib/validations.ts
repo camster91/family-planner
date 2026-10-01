@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ROUTINE_ICON_KEYS, ROUTINE_NAME_MAX, ROUTINE_ORDER_MAX, normalizeRoutineName } from '@/lib/routine-icons'
+import { parseDateOnly } from '@/lib/dates'
 
 // Auth
 // Trimmed before the format check, so an autofilled trailing space does not
@@ -124,7 +125,9 @@ export const joinFamilySchema = z
   })
 
 export const createEmailInviteSchema = z.object({
-  email: z.string().email('Valid email is required').max(255),
+  // Trim before the format check (a pasted " a@b.com " is valid) and store the
+  // lower-cased address, as registration does.
+  email: z.string().trim().toLowerCase().email('Valid email is required').max(255),
   role: z.enum(['parent', 'teen', 'child']),
 })
 
@@ -220,6 +223,9 @@ export const updateChoreSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
+  // For a generated copy of a recurring series: apply `frequency` to the whole
+  // series (O-33). Without it a copy's frequency is left alone.
+  apply_to_series: z.boolean().optional(),
   // An /api/upload result owned by the caller's family (D3), or null to clear;
   // checked in the route.
   photo_url: z.string().max(500).nullable().optional(),
@@ -384,3 +390,299 @@ export const updateProjectTaskSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional().nullable(),
   position: z.number().int().min(0).optional(),
 })
+
+// Shared: a string that parses to a real date (`new Date(x)` is not Invalid Date).
+const validDateString = (message: string) =>
+  z.string({ required_error: message, invalid_type_error: message }).refine((val) => !isNaN(Date.parse(val)), message)
+
+// Anniversaries
+const anniversaryType = z.enum(['birthday', 'anniversary', 'custom'], {
+  errorMap: () => ({ message: 'Invalid type' }),
+})
+
+export const createAnniversarySchema = z.object(
+  {
+    name: z
+      .string({ required_error: 'name, type, and date are required', invalid_type_error: 'name must be a string' })
+      .trim()
+      .min(1, 'name, type, and date are required')
+      .max(200),
+    type: anniversaryType,
+    date: validDateString('date must be a valid date'),
+    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+    person_id: z.string({ invalid_type_error: 'person_id must be a string' }).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+export const updateAnniversarySchema = z.object(
+  {
+    name: z
+      .string({ invalid_type_error: 'name must be a string' })
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(200)
+      .optional(),
+    type: anniversaryType.optional(),
+    date: validDateString('date must be a valid date').optional(),
+    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+    person_id: z.string({ invalid_type_error: 'person_id must be a string' }).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+// Pickups
+export const createPickupSchema = z.object(
+  {
+    title: z
+      .string({ required_error: 'title and pickup_time required', invalid_type_error: 'title must be a string' })
+      .trim()
+      .min(1, 'title and pickup_time required')
+      .max(200),
+    location: z.string({ invalid_type_error: 'location must be a string' }).max(500).nullable().optional(),
+    pickup_time: validDateString('pickup_time must be a valid date-time'),
+    assigned_to: z.string({ invalid_type_error: 'assigned_to must be a string' }).nullable().optional(),
+    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+// Allowance
+export const createAllowanceSchema = z.object(
+  {
+    to_user_id: z
+      .string({
+        required_error: 'to_user_id and positive amount required',
+        invalid_type_error: 'to_user_id and positive amount required',
+      })
+      .min(1, 'to_user_id and positive amount required'),
+    amount: z
+      .number({
+        required_error: 'to_user_id and positive amount required',
+        invalid_type_error: 'to_user_id and positive amount required',
+      })
+      .finite('to_user_id and positive amount required')
+      .positive('to_user_id and positive amount required'),
+    reason: z.string({ invalid_type_error: 'reason must be a string' }).max(500).nullable().optional(),
+  },
+  { invalid_type_error: 'Request body must be a JSON object' }
+)
+
+// Shared: a JSON object body. A null, array or primitive body is a 400.
+const bodyObject = { invalid_type_error: 'Request body must be a JSON object' }
+
+// Optional free text: a string or null.
+const optionalText = (field: string, max: number) =>
+  z
+    .string({ invalid_type_error: `${field} must be a string` })
+    .max(max, `${field} must be ${max} characters or fewer`)
+    .nullable()
+    .optional()
+
+// Travel mode (family). Dates are date-only: `YYYY-MM-DD` (what the travel
+// page sends) or, for older clients, a full ISO date-time whose UTC calendar
+// day is kept. Both are stored as UTC midnight of that day; "" or null clears.
+const ISO_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+export function parseTravelDate(value: string): Date | null {
+  if (value.length > 40) return null
+  const dayOnly = parseDateOnly(value)
+  if (dayOnly) return dayOnly
+  if (!ISO_DATE_TIME_RE.test(value)) return null
+  const ms = Date.parse(value)
+  if (Number.isNaN(ms)) return null
+  return parseDateOnly(new Date(ms).toISOString().slice(0, 10))
+}
+
+const travelDate = (field: string) =>
+  z
+    .union([z.string(), z.null()], { errorMap: () => ({ message: `${field} must be a date (YYYY-MM-DD)` }) })
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined) return undefined
+      if (v === null || v.trim() === '') return null
+      const date = parseTravelDate(v.trim())
+      if (!date) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${field} must be a date (YYYY-MM-DD)` })
+        return z.NEVER
+      }
+      return date
+    })
+
+export const updateTravelSchema = z
+  .object(
+    {
+      travel_mode_active: z.boolean({ invalid_type_error: 'travel_mode_active must be true or false' }).optional(),
+      travel_start_date: travelDate('travel_start_date'),
+      travel_end_date: travelDate('travel_end_date'),
+      travel_destination: z
+        .string({ invalid_type_error: 'travel_destination must be a string' })
+        .max(200, 'travel_destination must be 200 characters or fewer')
+        .nullable()
+        .optional()
+        .transform((v) => (v === undefined ? undefined : v?.trim() || null)),
+    },
+    bodyObject
+  )
+  .refine(
+    (d) => !d.travel_start_date || !d.travel_end_date || d.travel_end_date >= d.travel_start_date,
+    'travel_end_date must be on or after travel_start_date'
+  )
+
+// Meals. `date`, `meal_type`, `recipe_id` and `servings` keep their checks in
+// the routes (and src/lib/meal-recipe-link.ts); these cover the free fields.
+export const createMealSchema = z.object(
+  {
+    recipe_name: optionalText('recipe_name', 200),
+    notes: optionalText('notes', 2000),
+    cook_id: z
+      .string({ invalid_type_error: 'cook_id must be a string' })
+      .max(128, 'cook_id must be a user id')
+      .nullable()
+      .optional(),
+  },
+  bodyObject
+)
+
+export const updateMealSchema = createMealSchema.extend({
+  id: z
+    .string({ required_error: 'id is required', invalid_type_error: 'id must be a string' })
+    .min(1, 'id is required')
+    .max(128, 'id must be a meal id'),
+})
+
+// Locations
+export const createLocationSchema = z.object(
+  {
+    label: z
+      .string({ required_error: 'label required', invalid_type_error: 'label must be a string' })
+      .trim()
+      .min(1, 'label required')
+      .max(100, 'label must be 100 characters or fewer'),
+    address: optionalText('address', 500),
+  },
+  bodyObject
+)
+
+// Sick days
+export const createSickDaySchema = z.object(
+  {
+    person_id: z
+      .string({ required_error: 'person_id and severity required', invalid_type_error: 'person_id must be a string' })
+      .min(1, 'person_id and severity required')
+      .max(128, 'person_id must be a user id'),
+    severity: z.enum(['mild', 'moderate', 'severe'], {
+      errorMap: (issue) => ({
+        message:
+          issue.code === 'invalid_type' && issue.received === 'undefined'
+            ? 'person_id and severity required'
+            : 'severity must be one of: mild, moderate, severe',
+      }),
+    }),
+    symptoms: optionalText('symptoms', 2000),
+  },
+  bodyObject
+)
+
+// Wishlist. approx_price must fit Decimal(10,2): 0 to 99,999,999.99, rounded
+// to cents. The page sends a number or null; a numeric string is accepted too.
+// "" and null clear.
+export const WISHLIST_PRICE_MAX = 99999999.99
+const wishlistPrice = z
+  .union([z.number(), z.string(), z.null()], {
+    errorMap: () => ({ message: 'approx_price must be a number' }),
+  })
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined) return undefined
+    if (v === null || (typeof v === 'string' && v.trim() === '')) return null
+    if (typeof v === 'string' && !/^\d{1,12}(\.\d{1,12})?$/.test(v.trim())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'approx_price must be a number' })
+      return z.NEVER
+    }
+    const n = Math.round(Number(v) * 100) / 100
+    if (!Number.isFinite(n) || n < 0 || n > WISHLIST_PRICE_MAX) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'approx_price must be between 0 and 99,999,999.99' })
+      return z.NEVER
+    }
+    return n
+  })
+
+export const createWishlistItemSchema = z.object(
+  {
+    title: z
+      .string({ required_error: 'Title is required', invalid_type_error: 'Title is required' })
+      .trim()
+      .min(1, 'Title is required')
+      .max(200, 'Title must be 200 characters or fewer'),
+    link: optionalText('link', 2000),
+    description: optionalText('description', 2000),
+    approx_price: wishlistPrice,
+  },
+  bodyObject
+)
+
+export const updateWishlistItemSchema = createWishlistItemSchema.partial()
+
+// Notifications (POST, parent-sent). `type` is checked against the
+// notification policy table in the route.
+const notificationField = (field: string, max: number) =>
+  z
+    .string({ required_error: 'Missing required fields', invalid_type_error: `${field} must be a string` })
+    .min(1, 'Missing required fields')
+    .max(max, `${field} must be ${max} characters or fewer`)
+
+export const sendNotificationSchema = z.object(
+  {
+    userId: notificationField('userId', 128),
+    title: notificationField('title', 200),
+    message: notificationField('message', 1000),
+    type: notificationField('type', 50),
+  },
+  bodyObject
+)
+
+// Emergency contacts. Optional text fields: "" or null clears (stored null).
+const contactText = (field: string, max: number) =>
+  optionalText(field, max).transform((v) => (v === undefined ? undefined : v || null))
+
+const emergencyContactFields = {
+  person_id: contactText('person_id', 128),
+  person_name: z
+    .string({
+      required_error: 'person_name and relationship are required',
+      invalid_type_error: 'person_name must be a string',
+    })
+    .trim()
+    .min(1, 'person_name and relationship are required')
+    .max(200, 'person_name must be 200 characters or fewer'),
+  relationship: z.enum(['self', 'child', 'spouse', 'parent', 'other'], {
+    errorMap: (issue) => ({
+      message:
+        issue.code === 'invalid_type' && issue.received === 'undefined'
+          ? 'person_name and relationship are required'
+          : 'Invalid relationship',
+    }),
+  }),
+  blood_type: contactText('blood_type', 20),
+  allergies: contactText('allergies', 2000),
+  medications: contactText('medications', 2000),
+  medical_conditions: contactText('medical_conditions', 2000),
+  doctor_name: contactText('doctor_name', 200),
+  doctor_phone: contactText('doctor_phone', 50),
+  dentist_name: contactText('dentist_name', 200),
+  dentist_phone: contactText('dentist_phone', 50),
+  insurance_provider: contactText('insurance_provider', 200),
+  insurance_id: contactText('insurance_id', 100),
+  emergency_contact_name: contactText('emergency_contact_name', 200),
+  emergency_contact_phone: contactText('emergency_contact_phone', 50),
+  emergency_contact_relation: contactText('emergency_contact_relation', 100),
+  notes: contactText('notes', 2000),
+}
+
+export const createEmergencyContactSchema = z.object(emergencyContactFields, bodyObject)
+
+// PATCH: the same rules with every field optional. person_name and
+// relationship cannot be cleared (NOT NULL); the other fields clear with "" or
+// null.
+export const updateEmergencyContactSchema = createEmergencyContactSchema.partial()

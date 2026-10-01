@@ -8,15 +8,22 @@
 //   password, and had no rate limit although it is public.
 // - POST /api/auth/change-password had no rate limit, so a stolen session
 //   cookie was an unlimited current-password oracle.
+// - POST /api/auth/forgot-password looked up only the lower-cased email, so an
+//   older account stored with capitals (which login still accepts) could not
+//   reset its password.
+// - POST /api/auth/change-password left an outstanding reset link valid, so a
+//   link requested earlier could still override the new password.
 
 jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
 jest.mock('@/lib/prisma', () => ({ prisma: require('@/__tests__/helpers/two-household').fakePrisma }))
 jest.mock('@/lib/session', () => require('@/__tests__/helpers/two-household').sessionMock)
+jest.mock('@/lib/notification-delivery', () => ({ sendAccountMail: jest.fn(async () => undefined) }))
 
 import { db, deviceReq, setCookie, setPassword } from '@/__tests__/helpers/device'
 import { POST as login } from '../login/route'
 import { POST as resetPassword } from '../reset-password/route'
 import { POST as changePassword } from '../change-password/route'
+import { POST as forgotPassword } from '../forgot-password/route'
 
 const PASSWORD = 'parent-a-password'
 
@@ -107,5 +114,67 @@ describe('POST /api/auth/change-password rate limit', () => {
     }
     expect(statuses.slice(0, 10).every((s) => s === 400)).toBe(true)
     expect(statuses[10]).toBe(429)
+  })
+})
+
+describe('POST /api/auth/forgot-password email lookup', () => {
+  beforeEach(() => db.reset())
+
+  const forgot = (email: string, ip: string) =>
+    forgotPassword(deviceReq({ method: 'POST', path: '/api/auth/forgot-password', body: { email }, ip }))
+
+  it('finds a lower-cased account from a capitalised address', async () => {
+    const res = await forgot(' Parent-A@Example.test ', '203.0.113.60')
+    expect(res.status).toBe(200)
+    expect(db.find('user', 'parent-a')!.reset_token).toEqual(expect.any(String))
+  })
+
+  it('falls back to the address as typed for a legacy mixed-case account, like login', async () => {
+    db.find('user', 'parent-a')!.email = 'Parent-A@Example.test'
+    const res = await forgot('Parent-A@Example.test', '203.0.113.61')
+    expect(res.status).toBe(200)
+    expect(db.find('user', 'parent-a')!.reset_token).toEqual(expect.any(String))
+  })
+
+  it('an unknown address still answers 200 and issues nothing', async () => {
+    const res = await forgot('Nobody@Example.test', '203.0.113.62')
+    expect(res.status).toBe(200)
+    expect(db.rows('user').every((u: any) => !u.reset_token)).toBe(true)
+  })
+})
+
+describe('POST /api/auth/change-password clears an outstanding reset link', () => {
+  beforeEach(() => {
+    db.reset()
+    setPassword('parentA', PASSWORD)
+    const user = db.find('user', 'parent-a')!
+    user.reset_token = 'hashed-earlier-reset-token'
+    user.reset_token_expires = new Date(Date.now() + 30 * 60 * 1000)
+  })
+
+  it('a successful change removes the reset token', async () => {
+    const res = await changePassword(
+      deviceReq({
+        method: 'POST',
+        as: 'parentA',
+        path: '/api/auth/change-password',
+        body: { currentPassword: PASSWORD, newPassword: 'new-password-1' },
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(db.find('user', 'parent-a')).toMatchObject({ reset_token: null, reset_token_expires: null })
+  })
+
+  it('a refused change leaves it alone', async () => {
+    const res = await changePassword(
+      deviceReq({
+        method: 'POST',
+        as: 'parentA',
+        path: '/api/auth/change-password',
+        body: { currentPassword: 'wrong-guess', newPassword: 'new-password-1' },
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(db.find('user', 'parent-a')!.reset_token).toBe('hashed-earlier-reset-token')
   })
 })

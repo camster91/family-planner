@@ -5,6 +5,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { createWishlistItemSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,26 +49,27 @@ export async function POST(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'wishlist')
     if (gate) return gate
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { title, link, description, approx_price } = body
-
-    if (!title || typeof title !== 'string' || title.trim() === '') {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+    const parsed = createWishlistItemSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const { title, link, description, approx_price } = parsed.data
 
     const item = await prisma!.wishlistItem.create({
       data: {
         family_id: auth.user.family_id,
         requested_by: auth.user.id,
-        title: title.trim(),
+        title,
         link: link?.trim() || null,
         description: description?.trim() || null,
-        approx_price: approx_price ? new Prisma.Decimal(approx_price) : null,
+        // 0 or no price stores no price, as before.
+        approx_price: approx_price ? new Prisma.Decimal(approx_price.toFixed(2)) : null,
       },
       include: {
         requester: { select: { id: true, name: true } },

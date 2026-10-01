@@ -6,21 +6,12 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { shapeHandoffForRole } from '@/lib/role-capabilities'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { shareExpiry } from '@/lib/handoff-share'
 
 export const dynamic = 'force-dynamic'
 
-// Share links are unauthenticated, so they must be unguessable and short-lived.
-// 128-bit token like /api/handoff/[id]/regenerate-token. The link lives for at
-// least 6h, stretches to 6h after the planned departure so a handoff prepared
-// in advance still works, and never beyond 7 days.
-const SHARE_TOKEN_TTL_MS = 6 * 60 * 60 * 1000
-const SHARE_TOKEN_MAX_MS = 7 * 24 * 60 * 60 * 1000
-
-function shareExpiry(departure: Date | null): Date {
-  const now = Date.now()
-  const afterDeparture = departure && !isNaN(departure.getTime()) ? departure.getTime() + SHARE_TOKEN_TTL_MS : 0
-  return new Date(Math.min(Math.max(now + SHARE_TOKEN_TTL_MS, afterDeparture), now + SHARE_TOKEN_MAX_MS))
-}
+// Share links are unauthenticated: a 128-bit token like
+// /api/handoff/[id]/regenerate-token, with the expiry rule in shareExpiry.
 
 // GET /api/handoff - List all handoffs for the user's family
 export async function GET(request: NextRequest) {

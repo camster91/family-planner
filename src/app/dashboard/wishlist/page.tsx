@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from '@/i18n'
 import { Heart, Plus, X, ExternalLink } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
+import { useMaybeToast } from '@/components/ui/toast'
 
 type WishlistItem = {
   id: string
@@ -16,6 +17,12 @@ type WishlistItem = {
   requested_by: string
   created_at: string
   requester: { id: string; name: string }
+}
+
+/** The server's `error` text, or null when the body has none. */
+async function serverError(res: Response): Promise<string | null> {
+  const data = await res.json().catch(() => null)
+  return data && typeof data.error === 'string' && data.error ? data.error : null
 }
 
 type UserRole = 'parent' | 'child' | 'teen'
@@ -32,6 +39,9 @@ function WishlistContent() {
   const [userId, setUserId] = useState<string>('')
   const [userRole, setUserRole] = useState<UserRole>('child')
   const [submitting, setSubmitting] = useState(false)
+  // Why the open modal's last save/delete failed; the modal stays open.
+  const [modalError, setModalError] = useState<string | null>(null)
+  const { addToast } = useMaybeToast()
 
   const [formTitle, setFormTitle] = useState('')
   const [formLink, setFormLink] = useState('')
@@ -66,6 +76,7 @@ function WishlistContent() {
   const handleAddWish = async () => {
     if (!formTitle.trim()) return
     setSubmitting(true)
+    setModalError(null)
     try {
       const res = await fetch('/api/wishlist', {
         method: 'POST',
@@ -77,15 +88,18 @@ function WishlistContent() {
           approx_price: formPrice ? parseFloat(formPrice) : null,
         }),
       })
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) {
+        setModalError(`${t('wishlist.errorSave')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        return
+      }
       await fetchItems()
       setShowAddModal(false)
       setFormTitle('')
       setFormLink('')
       setFormDescription('')
       setFormPrice('')
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Error')
+    } catch {
+      setModalError(`${t('wishlist.errorSave')} ${t('common.networkError')}`)
     } finally {
       setSubmitting(false)
     }
@@ -94,35 +108,43 @@ function WishlistContent() {
   const handleStatusChange = async (id: string, status: string, denied_reason?: string) => {
     const body: Record<string, string> = { status }
     if (status === 'denied' && denied_reason) body.denied_reason = denied_reason
-    const res = await fetch(`/api/wishlist/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      alert(err.error || 'Error')
-      return
+    try {
+      const res = await fetch(`/api/wishlist/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        addToast({ type: 'error', title: t('wishlist.errorStatus'), message: (await serverError(res)) ?? t('common.tryAgain') })
+        return
+      }
+      await fetchItems()
+    } catch {
+      addToast({ type: 'error', title: t('wishlist.errorStatus'), message: t('common.networkError') })
     }
-    await fetchItems()
   }
 
   const handleDelete = async () => {
     if (!deletingItem) return
     setSubmitting(true)
-    const res = await fetch(`/api/wishlist/${deletingItem.id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      const err = await res.json()
-      alert(err.error || 'Error')
+    setModalError(null)
+    try {
+      const res = await fetch(`/api/wishlist/${deletingItem.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setModalError(`${t('wishlist.errorDelete')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        return
+      }
+      await fetchItems()
+      setDeletingItem(null)
+    } catch {
+      setModalError(`${t('wishlist.errorDelete')} ${t('common.networkError')}`)
+    } finally {
       setSubmitting(false)
-      return
     }
-    await fetchItems()
-    setDeletingItem(null)
-    setSubmitting(false)
   }
 
   const openEditModal = (item: WishlistItem) => {
+    setModalError(null)
     setEditingItem(item)
     setEditTitle(item.title)
   }
@@ -135,22 +157,32 @@ function WishlistContent() {
     }
 
     setSubmitting(true)
-    const res = await fetch(`/api/wishlist/${editingItem.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: editTitle.trim() }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      alert(err.error || 'Error')
+    setModalError(null)
+    try {
+      const res = await fetch(`/api/wishlist/${editingItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle.trim() }),
+      })
+      if (!res.ok) {
+        setModalError(`${t('wishlist.errorSave')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        return
+      }
+      await fetchItems()
+      setEditingItem(null)
+      setEditTitle('')
+    } catch {
+      setModalError(`${t('wishlist.errorSave')} ${t('common.networkError')}`)
+    } finally {
       setSubmitting(false)
-      return
     }
-    await fetchItems()
-    setEditingItem(null)
-    setEditTitle('')
-    setSubmitting(false)
   }
+
+  const modalErrorText = modalError && (
+    <p role="alert" className="text-footnote text-[var(--danger-text)]">
+      {modalError}
+    </p>
+  )
 
   const isParent = userRole === 'parent'
   const visibleItems = isParent ? items : items.filter(i => i.requested_by === userId)
@@ -194,7 +226,10 @@ function WishlistContent() {
           <p className="text-subhead text-label-secondary mt-1">{t('wishlist.subtitle')}</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setModalError(null)
+            setShowAddModal(true)
+          }}
           className="btn-filled flex items-center gap-2 px-4 py-2 rounded-full text-body font-semibold"
         >
           <Plus size={18} />
@@ -299,7 +334,10 @@ function WishlistContent() {
                             </svg>
                           </button>
                           <button
-                            onClick={() => setDeletingItem(item)}
+                            onClick={() => {
+                              setModalError(null)
+                              setDeletingItem(item)
+                            }}
                             className="btn-ghost p-1.5 rounded-lg text-red-400"
                             title={t('wishlist.delete')}
                           >
@@ -373,6 +411,7 @@ function WishlistContent() {
                   className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
                 />
               </div>
+              {modalErrorText}
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setShowAddModal(false)}
@@ -421,6 +460,7 @@ function WishlistContent() {
                   className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
                 />
               </div>
+              {modalErrorText}
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setEditingItem(null)}
@@ -456,9 +496,13 @@ function WishlistContent() {
               <p id="delete-wish-description" className="text-subhead text-label-secondary">
                 {deletingItem.title}
               </p>
+              {modalErrorText}
               <div className="flex gap-3 pt-2">
                 <button
-                  onClick={() => setDeletingItem(null)}
+                  onClick={() => {
+                    setModalError(null)
+                    setDeletingItem(null)
+                  }}
                   className="flex-1 btn-ghost py-3 rounded-xl text-body font-semibold"
                 >
                   {t('wishlist.cancel')}

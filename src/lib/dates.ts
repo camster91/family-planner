@@ -78,6 +78,14 @@ export function formatRelativeDueDate(value: Date | string, now: Date = new Date
   return formatDateOnly(value)
 }
 
+/** "Today", "Yesterday" or a short date for a date-only value such as a transaction date. */
+export function formatRelativePastDate(value: Date | string, now: Date = new Date()): string {
+  const day = toDateOnlyUTC(value)
+  if (day === toDateOnlyLocal(now)) return 'Today'
+  if (day === localDateOnlyPlusDays(now, -1)) return 'Yesterday'
+  return formatDateOnly(value)
+}
+
 /** Add whole days to a UTC-midnight date. */
 export function addUTCDays(date: Date, days: number): Date {
   const next = new Date(date.getTime())
@@ -116,6 +124,27 @@ export function snoozedDueDate(current: Date | string, now: Date = new Date()): 
   return toDateOnlyUTC(addUTCDays(base ?? (parseDateOnly(today) as Date), 1))
 }
 
+/**
+ * Next yearly occurrence of a date-only value (stored as UTC midnight), such
+ * as a birthday, counted in whole calendar days from `today` (`YYYY-MM-DD`).
+ * The month/day matching `today` is 0 days away, not next year. Pass the
+ * viewer's local day on the client and the UTC day on the server (O-31).
+ * Feb 29 rolls to Mar 1 in non-leap years. Returns null for malformed input.
+ */
+export function nextAnnualOccurrence(
+  value: Date | string,
+  today: string
+): { date: Date; daysUntil: number } | null {
+  const stored = parseDateOnly(toDateOnlyUTC(value))
+  const start = parseDateOnly(today)
+  if (!stored || !start) return null
+  const month = stored.getUTCMonth()
+  const day = stored.getUTCDate()
+  let next = new Date(Date.UTC(start.getUTCFullYear(), month, day))
+  if (next.getTime() < start.getTime()) next = new Date(Date.UTC(start.getUTCFullYear() + 1, month, day))
+  return { date: next, daysUntil: Math.round((next.getTime() - start.getTime()) / 86_400_000) }
+}
+
 /** Parse a strict `YYYY-MM` string. Returns null if invalid. */
 export function parseYearMonth(value: string): { year: number; month: number } | null {
   const match = YEAR_MONTH_RE.exec(value)
@@ -146,6 +175,17 @@ export function localDateTimeToISO(value: string): string | null {
 }
 
 /**
+ * Convert a stored instant (Date or ISO string) to a `datetime-local` input
+ * value (`YYYY-MM-DDTHH:mm`) in the runtime's local time zone: the inverse of
+ * `localDateTimeToISO`, for pre-filling edit forms. Returns '' if unparseable.
+ */
+export function isoToLocalDateTimeInput(value: Date | string): string {
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return ''
+  return format(date, "yyyy-MM-dd'T'HH:mm")
+}
+
+/**
  * Start and end instants for the event create/edit forms (local wall-clock
  * inputs). An end time with no end date means the same day as the start: a
  * parent entering "Soccer, 15:00 to 16:00" usually leaves the end date blank,
@@ -166,4 +206,36 @@ export function eventFormRange(input: {
   else if (input.endTime) end = localDateTimeToISO(`${input.startDate}T${input.endTime}`)
   if (!end) return null
   return { start, end }
+}
+
+/** Month `delta` months away from a 1-based `year`/`month`, rolling the year over. */
+export function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {
+  const index = year * 12 + (month - 1) + delta
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 }
+}
+
+/**
+ * Server query window for a calendar month page (1-based `month`). The server
+ * runs in UTC but the viewer sees their own local month (O-31), so the UTC
+ * month is widened by a day on each side; that covers every UTC offset
+ * (-12h to +14h). The client then keeps only events in its local month with
+ * `isInLocalMonth`. `end` is exclusive.
+ */
+export function calendarMonthQueryWindow(year: number, month: number): { start: Date; end: Date } {
+  const { start, end } = utcMonthRange(year, month)
+  return { start: addUTCDays(start, -1), end: addUTCDays(end, 1) }
+}
+
+/** Whether an instant falls in a 1-based `year`/`month` in the runtime's local time zone (client-side use). */
+/** True when `value` falls in the given 1-based month of `year`, read in UTC. */
+export function isInUtcMonth(value: Date | string, year: number, month: number): boolean {
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return false
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
+}
+
+export function isInLocalMonth(value: Date | string, year: number, month: number): boolean {
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return false
+  return date.getFullYear() === year && date.getMonth() + 1 === month
 }

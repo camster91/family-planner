@@ -48,6 +48,23 @@ Do not expose stack traces, database details, foreign record existence or secret
 
 `code` is stable UPPER_SNAKE_CASE; clients branch on `code`, never on `message`. Success bodies and status codes of adopted routes did not change. Routes not yet adopted still return `{ error }` (and the shared-device routes their own nested envelope without `requestId`); the adoption order is in `OBSERVABILITY.md` "Incremental adoption plan". Moving an existing route from `flat` to `nested` is a breaking change and needs the compatibility plan above.
 
+### Envelope rule for every route (#134)
+Every API error response is JSON with an `error` key and a 4xx/5xx status: `{ "error": "<human message>" }` (plus the
+additive flat fields above where adopted) or the nested `{ "error": { "code", "message", ... } }`. Extra keys a client
+already reads stay (for example `GET /api/auth/me` keeps `user: null` next to `error`). Never `{ "message" }`,
+`{ "errors" }`, plain text, or a 200 that carries `error`. The one exception is `GET /api/health`, whose 503 body is
+`{ "status": "degraded" }` for the orchestrator and the release check.
+
+`src/app/api/__tests__/error-envelope.test.ts` parses every `src/app/api/**/route.ts` and fails on an inline error
+body without `error`, an `error` body with a success status, or a plain-text error. It does not see bodies built in
+shared helpers or responses with a computed status; those helpers (`api-auth`, `csrf`, `feature-gate-server`,
+`idempotency`, `device-http`, `inventory-http`) already return `{ error }`.
+
+Aligned in #134 (additive or invisible to clients): `GET /api/files/[filename]` and `GET /api/files/chores/[filename]`
+answer 403/404 with `{ "error": "Forbidden" | "Not found" }` instead of plain text (they are loaded by `<img>`, which
+ignores the body; the 401 was already JSON); `GET /api/auth/me` adds `error` to its 401/500 `{ user: null }` bodies.
+Reliability targets and how to check them: [`docs/engineering/SLO_AND_PERFORMANCE.md`](../engineering/SLO_AND_PERFORMANCE.md).
+
 ## Request identity and build version (#161)
 - **`X-Request-Id`** is on every response that passes through `src/middleware.ts` (all API routes and pages; not `/_next/static`, `/_next/image`, `favicon.ico`), including CSRF 403s and redirects. A client or proxy may send its own `X-Request-Id` (`[A-Za-z0-9_-]{8,64}`); a well-formed value is echoed back, anything else is replaced by a random UUID. Adopted error bodies repeat it as `requestId`. Quote it in bug and support reports.
 - **`GET /api/version`** (public, `Cache-Control: no-store`): `200 { "version": "0.1.0", "commit": "<40-hex RELEASE_SHA or \"unknown\">", "builtAt": "<ISO time of next build or \"unknown\">" }` and nothing else. Clients may show it in an About/diagnostics view. Installed clients never depend on it; a server rolled back to a build without it answers 404.
@@ -293,6 +310,7 @@ Every change here is additive: old request bodies stay valid and old response fi
 | `POST /api/chores/uncomplete` | Undo for a tick (#268): parent or the assignee, `completed` → `pending`. | 403; 404; 409 `CHORE_ALREADY_VERIFIED` |
 | `POST /api/chores/create`, `PATCH /api/chores` (#272) | Optional `icon` (a key from `src/lib/routine-icons.ts`), `routine` (≤ 40 chars after trimming and collapsing spaces; empty becomes `null`) and `routine_order` (integer 1–99); `null` clears on PATCH. Create stores `null` when absent. Assignee may PATCH them like the title. | 400 `Choose a picture from the list` / routine or step messages |
 | `GET /api/chores`, create/PATCH responses, `GET /api/users/export` (#272) | Chore rows add `icon`, `routine`, `routine_order` (nullable). Recurring generation copies them. | unchanged |
+| `PATCH /api/chores` `frequency` (O-33) | Parent only, as before. On a chore with no series, a repeating value makes it the template of a new series and generates its window, like create. On a series template, `once` stops the series (it is no longer `is_template`; its still-`pending` copies due after today are removed) and another repeating value re-times it. On a generated copy (always stored as `once`) `frequency` is ignored unless the new optional `apply_to_series: true` is sent; then the change is made to the series' template (the edited copy is kept). The edit and the series change commit in one transaction. | unchanged |
 | `GET /api/chores?limit=&cursor=` (O-19) | Opt-in paging. Without `limit` the response is unchanged: every chore of the household ordered by `due_date`, no `nextCursor` (installed Android builds). With `limit` (1–200) at most that many chores ordered by `due_date` then `id`, plus `nextCursor`: an opaque string to pass back as `cursor`, or `null` on the last page. `status` and `assigned_to` filters still apply. | 400 `INVALID_QUERY` for a bad `limit`, a bad `cursor`, or a `cursor` without `limit` |
 | `GET /api/device/today`, the Today board DTO (#272) | Each `chores[]` item adds `icon`: a catalogue key or `null` (a stored key the build does not know is sent as `null`). Not the routine name or step. | unchanged |
 
@@ -312,6 +330,18 @@ records (and, for a household, all of them) with everything else, so a retry aft
 authentication with 401: the account no longer exists. The Settings dialog retries once with the same key after a
 network error and treats that 401 as "already deleted".
 
+## Household member controls (O-34)
+Additive: two new routes; no existing request or response changes, except that households created from now on get
+a 24-character code (lowercase letters and digits) instead of a cuid; both formats keep working with
+`POST /api/family/join` and `GET /api/family/lookup`. Decision: `docs/decisions/PROVISIONAL_OWNER_DECISIONS.md`
+O-34; roles: `docs/ROLE_AND_ISOLATION_MATRIX.md`. Both routes refuse a paired shared device with 403
+`DEVICE_WRITE_NOT_ALLOWED` before person auth; CSRF is checked by the middleware.
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `POST /api/family/invite-code` | Parent only. No body. Replaces the household's family code with a new random one (`createFamilyInviteCode`, the generator used at household creation); the old code is refused at once. Emailed invites and current members are not affected. Writes an `invite_code.rotated` audit row (never the code). 200 `{ inviteCode }`, `Cache-Control: private, no-store`. | 400 no household; 401; 403 teen/child, device; 404; 429 (10 an hour per parent) |
+| `DELETE /api/family/members/[id]` | Parent only, on another member of their own household. The member keeps their account; `family_id` is cleared and `token_version` bumped (every session ends). Their tablet elevation, PIN, unfinished pairings, tablets they paired or confirmed (revoked), unaccepted invites, calendar connections, idempotency records, push subscriptions, notifications and activity rows go. Household content they created is handed to the removing parent; their open chores are reassigned to the removing parent; finished chores and messages stay. Writes `member.removed` (and `device.removed` per revoked tablet). 200 `{ success: true, removedId, tabletsRevoked }`. Errors are `{ error, code, requestId }`. | 400 `CANNOT_REMOVE_SELF`, no household; 401; 403 teen/child, device; 404 `MEMBER_NOT_FOUND` (missing id and another household's member alike); 409 `LAST_PARENT`; 429 `RATE_LIMITED` (30 an hour per parent) |
+
 ## Notification preferences (#286, PR101 D-5)
 
 Each member switches three categories of notifications on or off for themselves. Stored on `User` as
@@ -323,7 +353,7 @@ today's behaviour, and an old client that never calls the routes keeps receiving
 | --- | --- | --- |
 | `GET /api/users/preferences` | New. `{ "preferences": { "chores", "events", "messages" } }` (booleans) for the caller only. Any role. | n/a |
 | `PATCH /api/users/preferences` | New. Body `{ chores?, events?, messages? }`, booleans, at least one. **Strict**: any other key (including `userId`) is `400 VALIDATION_ERROR`; there is no way to name another member. Returns the full `preferences` after the change. Optional `Idempotency-Key` (see Idempotency). | n/a |
-| `POST /api/notifications` | `type` must be a type from the policy table (`chore`, `reward`, `event`, `message`, `system`); anything else is `400`. The recipient's preferences apply: a muted category creates nothing and answers `{ success: true, delivered: false, notification: null }`. The success body adds `delivered`. | The app's own caller (`src/lib/notifications.ts`) only sends table types. |
+| `POST /api/notifications` | `type` must be a type from the policy table (`chore`, `reward`, `event`, `message`, `system`); anything else is `400`. The recipient's preferences apply: a muted category creates nothing and answers `{ success: true, delivered: false, notification: null }`. The success body adds `delivered`. | No browser code calls it today; server-side sends go through `src/lib/notifications-server.ts` and use table types only. |
 | `GET /api/users/export` | Adds `notificationPreferences` (same shape as the GET) and the three `notify_*` columns on `user`. | unchanged |
 
 Both preference routes: a paired shared device is refused with `403 DEVICE_WRITE_NOT_ALLOWED` before person auth,
@@ -353,13 +383,38 @@ email (`sendAccountMail`). `src/lib/notifications-server.ts` (used by the chore 
 creates a `Notification` row or calls `sendMail`, or if a source file sends a type that is not in the table. There
 is no push channel today; a future one must go through the same helper.
 
+### Quiet hours (#141, decision O-32)
+
+Each member can set quiet hours for themselves. Stored on `User` as `quiet_hours_enabled` (Boolean,
+`NOT NULL DEFAULT false`), `quiet_hours_start` / `quiet_hours_end` (Text `"HH:MM"`, `NOT NULL DEFAULT '22:00'` /
+`'07:00'`) and `quiet_hours_time_zone` (Text, nullable: an IANA zone, NULL = UTC), added by `scripts/migrate.js`
+with `ADD COLUMN IF NOT EXISTS`. Additive and off by default, so existing rows and old clients behave as before.
+
+Quiet hours never drop or delay storing a notification: the row is created exactly as before, so nothing is lost.
+`deliverNotification` adds `quiet: true` when the recipient is inside their window (start inclusive, end exclusive,
+may wrap past midnight, read in the saved zone with its daylight-saving offset; `src/lib/quiet-hours.ts`). Every
+interruptive channel (push, sound, toast, reminder email) must hold its interruption when `quiet` is true. **The app
+has no such channel today** (the bell is a plain link with no badge, nothing polls for toasts, and the only email is
+always-sent account mail), so quiet hours are a stored preference that the first interruptive sender must honour.
+`quiet` applies to every in-app type, including `system` notices; account email is not in-app and is not held.
+
+| Route | Change | Old clients |
+| --- | --- | --- |
+| `GET /api/users/preferences` | Adds `quietHours: { enabled, start, end, timeZone }` beside `preferences`. | Extra key, ignored |
+| `PATCH /api/users/preferences` | Body may add `quietHours: { enabled, start, end, timeZone? }` (the whole setting; strict). `start`/`end` are 24-hour `"HH:MM"` and must differ; `timeZone` must be an IANA zone the server knows (max 64 characters) or null/missing (UTC). Any other shape is `400 VALIDATION_ERROR`. The response adds `quietHours`. | Unchanged bodies still valid |
+| `POST /api/notifications` | A delivered notification's body adds `quiet` (boolean). A muted one is unchanged. | Extra key, ignored |
+| `GET /api/users/export` | Adds `quietHours` (same shape as the GET) and the four `quiet_hours_*` columns on `user`. | unchanged |
+
+"Local" time: the Settings form saves the browser's own time zone with the times (O-31: dates use the browser's
+local time; there is no per-household zone yet). Moving to another zone needs a save from a browser there.
+
 ## Household audit history (#285, PR101 D-4)
 Additive: one new route and one new export key; no existing request or response changes. Roles:
 `docs/ROLE_AND_ISOLATION_MATRIX.md` "Household audit history"; decision: ADR-0008.
 
 | Route | Contract | Errors |
 | --- | --- | --- |
-| `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, `beta_metrics.turned_on`, `beta_metrics.turned_off` (#287); clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
+| `GET /api/audit?limit=&cursor=` | Parent only; person session only. `{ entries: [{ id, action, actorKind: 'person' \| 'device', actor: { id, name } \| null, targetType, targetId, summary, createdAt }], nextCursor: string \| null }`, newest first (`created_at` desc, `id` desc). `limit` 1–50, default 20; `cursor` is the previous page's opaque `nextCursor`. `action` is one of `feature.turned_on`, `feature.turned_off`, `member.joined`, `member.left`, `board_settings.changed`, `device.paired`, `device.renamed`, `device.removed`, `invite.created`, `invite.revoked`, `beta_metrics.turned_on`, `beta_metrics.turned_off` (#287), `member.removed`, `invite_code.rotated` (O-34); clients must show `summary` and treat an unknown `action` as plain text. `actor` is null for a former member. Rows older than 12 months are pruned before the read. `Cache-Control: private, no-store`. | 400 bad `limit` / `cursor`; 401; 403 teen/child; 403 `DEVICE_WRITE_NOT_ALLOWED` on a paired tablet |
 | `GET /api/users/export` (#285) | Adds `auditLog: [{ id, action, actor_kind, actor_user_id, target_type, target_id, summary, created_at }]`, last 12 months: every household row for a parent, only rows the caller acted in for a teen or child. | unchanged |
 
 ## Deprecated, duplicate and operator routes (#289, route inventory F-5/F-6)

@@ -42,6 +42,11 @@ grid (every choice labelled, at least 64×76), a Routine field with suggestions 
 copy all three to every generated occurrence (and to the legacy one-off successor). Editing one row does not
 change the series' other rows, as for the title.
 
+A recurring series keeps a short window of upcoming chores (7 daily, 4 weekly, 3 monthly). There is no scheduler,
+so the window is refilled when any chore of the series is ticked, and when the chores page, the Today board or a
+paired tablet's board loads. Changing a chore's "how often" in the edit form starts, re-times or stops its series;
+on a generated copy the form shows the series' frequency and a change applies to the whole series (O-33).
+
 ### What the child sees
 
 On the kid home (`/dashboard`, child and teen), when they have routine chores due **today**:

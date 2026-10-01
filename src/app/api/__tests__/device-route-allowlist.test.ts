@@ -127,6 +127,9 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   'GET /api/audit': [403],
   // Beta usage counts switch (#287): a parent's choice, never the tablet's.
   'PATCH /api/family/beta-metrics': [403],
+  // Member controls (O-34): a parent's household account controls, never the tablet's.
+  'POST /api/family/invite-code': [403],
+  'DELETE /api/family/members/[id]': [403],
 }
 
 function routeFiles(dir: string): string[] {

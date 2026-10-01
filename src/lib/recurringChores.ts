@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { describeError, log } from '@/lib/logger'
 import type { ChoreFrequency } from '@/types'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
@@ -98,7 +99,8 @@ export async function expandSeriesInTx(
     },
   })
 
-  if (!original || original.frequency === 'once') return 0
+  // Household-scoped: a template of another household is never expanded.
+  if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
 
   const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>]
   if (!windowSize) return 0
@@ -229,4 +231,147 @@ export async function expandAllRecurringChores(familyId: string, now: Date = new
     inserted += await expandRecurringChores(template, familyId, now)
   }
   return inserted
+}
+
+/**
+ * Most series one lazy top-up looks at. A household has a handful of
+ * recurring chores; the cap only bounds a page load if something goes wrong.
+ */
+export const MAX_SERIES_PER_TOP_UP = 100
+
+/**
+ * Keep every recurring series of a household topped up, on read.
+ *
+ * There is no scheduler (AGENTS.md: no cron without approval), so a series is
+ * otherwise only extended when it is created, when one of its chores is
+ * completed (`completeChore`) or when someone calls the unscheduled cron
+ * route. A series nobody ticks for a few weeks would run out. The chores page
+ * and the Today board call this before they read, so the window is refilled
+ * whenever someone looks.
+ *
+ * Idempotent and bounded like `expandSeriesInTx` (at most the window per
+ * series, never past the horizon; the (recurrence_id, due_date) unique key
+ * guards concurrent loads). Never throws: a failure is logged and the page
+ * renders what is already there.
+ */
+export async function topUpHouseholdSeries(familyId: string, now: Date = new Date()): Promise<number> {
+  try {
+    const templates = await prisma!.chore.findMany({
+      where: { family_id: familyId, is_template: true, frequency: { not: 'once' } },
+      select: { id: true, frequency: true },
+      orderBy: { id: 'asc' },
+      take: MAX_SERIES_PER_TOP_UP,
+    })
+    let inserted = 0
+    for (const template of templates) {
+      inserted += await expandRecurringChores(template, familyId, now)
+    }
+    return inserted
+  } catch (error) {
+    log.warn('chores.series_top_up_failed', describeError(error))
+    return 0
+  }
+}
+
+/** The chore fields a frequency edit reads. */
+export type FrequencyEditChore = {
+  id: string
+  family_id: string
+  frequency: string
+  recurrence_id: string | null
+}
+
+/**
+ * Apply a frequency edit (PATCH /api/chores) inside the caller's transaction,
+ * after the other fields of the edit are written.
+ *
+ * - A chore with no series that becomes daily/weekly/monthly becomes the
+ *   template of its own series and is expanded, exactly like a recurring
+ *   chore created that way (`markAsTemplate` + expansion).
+ * - A template set to `once` stops its series (O-33): the template keeps its
+ *   `recurrence_id` but is no longer `is_template`, so nothing extends it
+ *   again, and the series' copies that are still `pending` and due after
+ *   today are removed. Copies due today or earlier, and any copy someone has
+ *   started, completed or had verified, are kept. Leaving the future copies
+ *   would show three or four more "weekly" chores after the parent said it no
+ *   longer repeats, which is the more surprising outcome.
+ * - A template moved to another repeating frequency removes the same pending
+ *   future copies and re-expands at the new interval.
+ * - A generated copy is always a one-off (`frequency` 'once'). Its frequency is
+ *   changed only with `applyToSeries`, and then the change is made to its
+ *   series' template as above (the edited copy itself is never removed).
+ *   Without the flag the value is ignored: older edit forms post the copy's own
+ *   'once' back with every save, and that must not stop the series.
+ */
+export async function applyFrequencyEditInTx(
+  tx: Prisma.TransactionClient,
+  chore: FrequencyEditChore,
+  newFrequency: string,
+  options: { applyToSeries?: boolean; now?: Date } = {}
+): Promise<void> {
+  const now = options.now ?? new Date()
+  const template = chore.recurrence_id
+    ? await tx.chore.findFirst({
+        where: { id: chore.recurrence_id, family_id: chore.family_id },
+        select: { id: true, frequency: true },
+      })
+    : null
+
+  if (template && template.id !== chore.id) {
+    // A generated copy.
+    if (!options.applyToSeries || newFrequency === template.frequency) return
+    await changeSeriesFrequencyInTx(tx, template.id, chore.family_id, newFrequency, chore.id, now)
+    return
+  }
+
+  if (template) {
+    // The series template itself.
+    if (newFrequency === template.frequency) return
+    await changeSeriesFrequencyInTx(tx, template.id, chore.family_id, newFrequency, chore.id, now)
+    return
+  }
+
+  // No series (a plain chore, a legacy recurring row, or a copy whose template
+  // was deleted).
+  if (newFrequency === chore.frequency) return
+  if (newFrequency === 'once' || !isRepeating(newFrequency)) {
+    await tx.chore.update({ where: { id: chore.id }, data: { frequency: newFrequency } })
+    return
+  }
+  await tx.chore.update({
+    where: { id: chore.id },
+    data: { frequency: newFrequency, recurrence_id: chore.id, is_template: true },
+  })
+  await expandSeriesInTx(tx, chore.id, chore.family_id, now)
+}
+
+function isRepeating(frequency: string): frequency is Exclude<ChoreFrequency, 'once'> {
+  return Object.prototype.hasOwnProperty.call(WINDOW_SIZE, frequency)
+}
+
+async function changeSeriesFrequencyInTx(
+  tx: Prisma.TransactionClient,
+  templateId: string,
+  familyId: string,
+  newFrequency: string,
+  keepId: string,
+  now: Date
+): Promise<void> {
+  const repeating = isRepeating(newFrequency)
+  await tx.chore.update({
+    where: { id: templateId },
+    data: { frequency: repeating ? newFrequency : 'once', is_template: repeating },
+  })
+  const tomorrow = startOfDay(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  await tx.chore.deleteMany({
+    where: {
+      family_id: familyId,
+      recurrence_id: templateId,
+      id: { notIn: [templateId, keepId] },
+      status: 'pending',
+      due_date: { gte: tomorrow },
+    },
+  })
+  if (repeating) await expandSeriesInTx(tx, templateId, familyId, now)
 }

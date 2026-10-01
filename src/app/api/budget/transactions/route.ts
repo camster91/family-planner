@@ -29,11 +29,23 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get("category_id");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    // A non-numeric limit falls back to the default; any number is clamped to
+    // 1..200 (a negative `take` would silently page backwards).
     const limit = Math.min(
-      parseInt(searchParams.get("limit") || "50", 10) || 50,
+      Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1),
       200,
     );
-    const offset = parseInt(searchParams.get("offset") || "0", 10) || 0;
+    const rawOffset = searchParams.get("offset");
+    let offset = 0;
+    if (rawOffset !== null && rawOffset !== "") {
+      if (!/^\d+$/.test(rawOffset.trim())) {
+        return NextResponse.json(
+          { error: "offset must be a whole number of 0 or more" },
+          { status: 400 },
+        );
+      }
+      offset = parseInt(rawOffset, 10);
+    }
 
     const where: Record<string, unknown> = {
       family_id: auth.user.family_id,
@@ -49,8 +61,26 @@ export async function GET(request: NextRequest) {
 
     if (startDate || endDate) {
       const dateFilter: Record<string, Date> = {};
-      if (startDate) dateFilter.gte = new Date(startDate);
-      if (endDate) dateFilter.lte = new Date(endDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        if (Number.isNaN(start.getTime())) {
+          return NextResponse.json(
+            { error: "startDate must be a valid date" },
+            { status: 400 },
+          );
+        }
+        dateFilter.gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        if (Number.isNaN(end.getTime())) {
+          return NextResponse.json(
+            { error: "endDate must be a valid date" },
+            { status: 400 },
+          );
+        }
+        dateFilter.lte = end;
+      }
       where.date = dateFilter;
     }
 

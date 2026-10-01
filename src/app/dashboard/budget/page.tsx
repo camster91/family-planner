@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import BudgetDashboard from '@/components/budget/BudgetDashboard'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
+import { utcMonthRange } from '@/lib/dates'
+import { RECENT_TRANSACTIONS_LIMIT, sumBudgetLimits } from '@/lib/budget'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +52,8 @@ export interface BudgetPageData {
   total_income: number
   total_expenses: number
   balance: number
+  /** Sum of the household's expense-category limits; null when none is set. */
+  budget_limit: number | null
   category_breakdown: CategoryBreakdown[]
   recent_transactions: RecentTransaction[]
   monthly_trend: MonthlyTrend[]
@@ -92,19 +96,19 @@ export default async function BudgetPage() {
 
   const familyId = user.family_id
 
-  // Determine current month range
+  // Current UTC calendar month, the same window `/api/budget/stats` uses
+  // (server UTC, O-31). Transaction dates are date-only values at UTC midnight.
   const now = new Date()
-  const targetYear = now.getFullYear()
-  const targetMonth = now.getMonth() + 1
-  const monthStart = new Date(targetYear, targetMonth - 1, 1)
-  const monthEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999)
+  const targetYear = now.getUTCFullYear()
+  const targetMonth = now.getUTCMonth() + 1
+  const { start: monthStart, end: monthEnd } = utcMonthRange(targetYear, targetMonth)
 
   // 1. Aggregate income and expenses for the month
   const aggregations = await prisma!.transaction.groupBy({
     by: ['type'],
     where: {
       family_id: familyId,
-      date: { gte: monthStart, lte: monthEnd },
+      date: { gte: monthStart, lt: monthEnd },
     },
     _sum: { amount: true },
   })
@@ -126,7 +130,7 @@ export default async function BudgetPage() {
     where: {
       family_id: familyId,
       type: 'expense',
-      date: { gte: monthStart, lte: monthEnd },
+      date: { gte: monthStart, lt: monthEnd },
     },
     _sum: { amount: true },
   })
@@ -164,7 +168,15 @@ export default async function BudgetPage() {
 
   categoryBreakdown.sort((a, b) => b.total - a.total)
 
-  // 3. Recent transactions (last 10)
+  // Household limit: sum of every expense category's budget_limit (null when
+  // none is set, and the dashboard then shows only what was spent).
+  const limitCategories = await prisma!.budgetCategory.findMany({
+    where: { family_id: familyId, type: 'expense' },
+    select: { budget_limit: true },
+  })
+  const budgetLimit = sumBudgetLimits(limitCategories)
+
+  // 3. Recent transactions (same count as `/api/budget/stats`)
   const recentTransactions = await prisma!.transaction.findMany({
     where: { family_id: familyId },
     include: {
@@ -172,21 +184,19 @@ export default async function BudgetPage() {
       user: { select: { id: true, name: true, avatar_url: true } },
     },
     orderBy: { date: 'desc' },
-    take: 10,
+    take: RECENT_TRANSACTIONS_LIMIT,
   })
 
   // 4. Monthly trend (last 6 months)
   const monthlyTrend: MonthlyTrend[] = []
   for (let i = 5; i >= 0; i--) {
-    const trendDate = new Date(targetYear, targetMonth - 1 - i, 1)
-    const tStart = new Date(trendDate.getFullYear(), trendDate.getMonth(), 1)
-    const tEnd = new Date(trendDate.getFullYear(), trendDate.getMonth() + 1, 0, 23, 59, 59, 999)
+    const { start: tStart, end: tEnd } = utcMonthRange(targetYear, targetMonth - i)
 
     const monthAgg = await prisma!.transaction.groupBy({
       by: ['type'],
       where: {
         family_id: familyId,
-        date: { gte: tStart, lte: tEnd },
+        date: { gte: tStart, lt: tEnd },
       },
       _sum: { amount: true },
     })
@@ -200,7 +210,7 @@ export default async function BudgetPage() {
     }
 
     monthlyTrend.push({
-      month: `${trendDate.getFullYear()}-${String(trendDate.getMonth() + 1).padStart(2, '0')}`,
+      month: `${tStart.getUTCFullYear()}-${String(tStart.getUTCMonth() + 1).padStart(2, '0')}`,
       income: Math.round(mIncome * 100) / 100,
       expenses: Math.round(mExpenses * 100) / 100,
       balance: Math.round((mIncome - mExpenses) * 100) / 100,
@@ -212,6 +222,7 @@ export default async function BudgetPage() {
     total_income: Math.round(totalIncome * 100) / 100,
     total_expenses: Math.round(totalExpenses * 100) / 100,
     balance: Math.round(balance * 100) / 100,
+    budget_limit: budgetLimit,
     category_breakdown: categoryBreakdown,
     recent_transactions: recentTransactions.map((t) => ({
       ...t,

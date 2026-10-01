@@ -202,6 +202,12 @@ test.describe("notification preferences (Family A child, user menu)", () => {
     const own = await browserFetch(page, "/api/users/preferences");
     expect(JSON.parse(own.body)).toEqual({
       preferences: { chores: false, events: true, messages: true },
+      quietHours: {
+        enabled: false,
+        start: "22:00",
+        end: "07:00",
+        timeZone: null,
+      },
     });
     const other = await browserSend(page, "PATCH", "/api/users/preferences", {
       userId: A.parent,

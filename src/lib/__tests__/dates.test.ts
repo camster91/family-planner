@@ -14,6 +14,12 @@ import {
   normalizeDateOnlyInput,
   snoozedDueDate,
   eventFormRange,
+  nextAnnualOccurrence,
+  isoToLocalDateTimeInput,
+  formatRelativePastDate,
+  shiftMonth,
+  calendarMonthQueryWindow,
+  isInLocalMonth,
 } from '../dates'
 
 describe('parseDateOnly', () => {
@@ -173,5 +179,91 @@ describe('snoozedDueDate west of UTC', () => {
   })
   it('falls back to tomorrow for a malformed stored value', () => {
     expect(snoozedDueDate('garbage', now)).toBe('2026-01-06')
+  })
+})
+
+describe('nextAnnualOccurrence', () => {
+  const birthday = '1990-03-15T00:00:00.000Z'
+
+  it('is 0 days away on the day itself, not next year', () => {
+    const next = nextAnnualOccurrence(birthday, '2026-03-15')
+    expect(next?.daysUntil).toBe(0)
+    expect(next?.date.toISOString()).toBe('2026-03-15T00:00:00.000Z')
+  })
+  it('counts whole calendar days to a later date this year', () => {
+    expect(nextAnnualOccurrence(birthday, '2026-03-14')?.daysUntil).toBe(1)
+    expect(nextAnnualOccurrence(birthday, '2026-03-01')?.daysUntil).toBe(14)
+  })
+  it('rolls a passed date to next year', () => {
+    const next = nextAnnualOccurrence(birthday, '2026-03-16')
+    expect(next?.daysUntil).toBe(364)
+    expect(next?.date.toISOString()).toBe('2027-03-15T00:00:00.000Z')
+  })
+  it('accepts a Date and rejects malformed input', () => {
+    expect(nextAnnualOccurrence(new Date(birthday), '2026-03-15')?.daysUntil).toBe(0)
+    expect(nextAnnualOccurrence('garbage', '2026-03-15')).toBeNull()
+    expect(nextAnnualOccurrence(birthday, 'today')).toBeNull()
+  })
+})
+
+// Jest workers ignore a runtime process.env.TZ change, so these hold in any
+// zone; run with TZ=America/Toronto to exercise a west-of-UTC offset.
+describe('local date/time helpers (runtime time zone)', () => {
+  it('round-trips a datetime-local value through the stored instant', () => {
+    const iso = localDateTimeToISO('2026-10-03T18:30')
+    expect(iso).toBe(new Date(2026, 9, 3, 18, 30).toISOString())
+    expect(isoToLocalDateTimeInput(iso as string)).toBe('2026-10-03T18:30')
+  })
+  it('pre-fills a stored instant in local time, not its UTC wall clock', () => {
+    // 21:00 local on Oct 3 is 01:00Z on Oct 4 in Toronto (UTC-4).
+    const stored = new Date(2026, 9, 3, 21, 0).toISOString()
+    expect(isoToLocalDateTimeInput(stored)).toBe('2026-10-03T21:00')
+    expect(isoToLocalDateTimeInput('nope')).toBe('')
+  })
+  it('labels a UTC-midnight date by its calendar day relative to local today', () => {
+    // Evening of Oct 1 local time (already Oct 2 in UTC west of UTC).
+    const now = new Date(2026, 9, 1, 21, 0)
+    expect(formatRelativePastDate('2026-10-01T00:00:00.000Z', now)).toBe('Today')
+    expect(formatRelativePastDate('2026-09-30T00:00:00.000Z', now)).toBe('Yesterday')
+    expect(formatRelativePastDate('2026-09-29T00:00:00.000Z', now)).toBe('Sep 29')
+  })
+})
+
+describe('calendar month window', () => {
+  // Jest gives each test file its own process.env, so these assertions build
+  // local instants instead of relying on a TZ override and hold in any zone.
+  it('shiftMonth rolls the year over both ways', () => {
+    expect(shiftMonth(2026, 1, -1)).toEqual({ year: 2025, month: 12 })
+    expect(shiftMonth(2026, 12, 1)).toEqual({ year: 2027, month: 1 })
+    expect(shiftMonth(2026, 10, 0)).toEqual({ year: 2026, month: 10 })
+    expect(shiftMonth(2026, 3, -14)).toEqual({ year: 2025, month: 1 })
+  })
+
+  it('widens the UTC month by a day on each side', () => {
+    const { start, end } = calendarMonthQueryWindow(2026, 10)
+    expect(start.toISOString()).toBe('2026-09-30T00:00:00.000Z')
+    expect(end.toISOString()).toBe('2026-11-02T00:00:00.000Z')
+  })
+
+  it('covers the first and last local minutes of the month in any zone', () => {
+    const { start, end } = calendarMonthQueryWindow(2026, 10)
+    const first = new Date(2026, 9, 1, 0, 0)
+    const last = new Date(2026, 9, 31, 23, 59)
+    for (const d of [first, last]) {
+      expect(d.getTime() >= start.getTime() && d.getTime() < end.getTime()).toBe(true)
+      expect(isInLocalMonth(d.toISOString(), 2026, 10)).toBe(true)
+    }
+    expect(isInLocalMonth(new Date(2026, 9, 31, 20, 30), 2026, 11)).toBe(false)
+    expect(isInLocalMonth(new Date(2026, 10, 1, 0, 0).toISOString(), 2026, 10)).toBe(false)
+  })
+
+  it('a Toronto Oct 31 8:30 PM event (Nov 1 00:30Z) is in the October query window', () => {
+    const { start, end } = calendarMonthQueryWindow(2026, 10)
+    const t = new Date('2026-11-01T00:30:00.000Z').getTime()
+    expect(t >= start.getTime() && t < end.getTime()).toBe(true)
+  })
+
+  it('isInLocalMonth rejects unparseable values', () => {
+    expect(isInLocalMonth('nope', 2026, 10)).toBe(false)
   })
 })

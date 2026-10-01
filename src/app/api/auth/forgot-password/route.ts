@@ -34,7 +34,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    const user = await prisma!.user.findUnique({ where: { email } })
+    // Same lookup as login: the lower-cased form first, then the address as
+    // typed (trimmed) so an older account stored with capitals can still
+    // reset its password.
+    let user = await prisma!.user.findUnique({ where: { email } })
+    const typed = String(payload.email).trim()
+    if (!user && typed !== email) {
+      user = await prisma!.user.findUnique({ where: { email: typed } })
+    }
 
     // Always return success to prevent email enumeration
     if (!user) {

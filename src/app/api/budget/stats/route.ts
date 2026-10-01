@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { featureGate } from '@/lib/feature-gate-server';
 import { parseYearMonth, utcMonthRange } from "@/lib/dates";
+import { RECENT_TRANSACTIONS_LIMIT, sumBudgetLimits } from "@/lib/budget";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 
@@ -136,7 +137,15 @@ export async function GET(request: NextRequest) {
     // Sort by total descending
     categoryBreakdown.sort((a, b) => b.total - a.total);
 
-    // 3. Recent transactions (last 5)
+    // Household limit: sum of every expense category's budget_limit (null
+    // when none is set). Limits are not per-month, so they apply to any month.
+    const limitCategories = await prisma!.budgetCategory.findMany({
+      where: { family_id: familyId, type: "expense" },
+      select: { budget_limit: true },
+    });
+    const budgetLimit = sumBudgetLimits(limitCategories);
+
+    // 3. Recent transactions (same count as the server-rendered budget page)
     const recentTransactions = await prisma!.transaction.findMany({
       where: { family_id: familyId },
       include: {
@@ -148,7 +157,7 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { date: "desc" },
-      take: 5,
+      take: RECENT_TRANSACTIONS_LIMIT,
     });
 
     // 4. Monthly trend (last 6 months including current)
@@ -196,6 +205,7 @@ export async function GET(request: NextRequest) {
       total_income: Math.round(totalIncome * 100) / 100,
       total_expenses: Math.round(totalExpenses * 100) / 100,
       balance: Math.round(balance * 100) / 100,
+      budget_limit: budgetLimit,
       category_breakdown: categoryBreakdown,
       recent_transactions: recentTransactions,
       monthly_trend: monthlyTrend,

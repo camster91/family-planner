@@ -2,6 +2,7 @@
 import {
   CHORE_PAGE_MAX,
   afterChoreCursor,
+  compareChoreOrder,
   decodeChoreCursor,
   encodeChoreCursor,
   parseChorePaging,
@@ -48,5 +49,14 @@ describe('chore cursor', () => {
     expect(afterChoreCursor(cursor)).toEqual({
       OR: [{ due_date: { gt: cursor.dueDate } }, { due_date: cursor.dueDate, id: { gt: 'b' } }],
     })
+  })
+
+  it('sorts by due date then id, for Date or ISO string due dates', () => {
+    const rows = [
+      { due_date: '2026-10-02T00:00:00.000Z', id: 'a' },
+      { due_date: new Date('2026-10-01T00:00:00Z'), id: 'c' },
+      { due_date: '2026-10-01T00:00:00.000Z', id: 'b' },
+    ]
+    expect([...rows].sort(compareChoreOrder).map((r) => r.id)).toEqual(['b', 'c', 'a'])
   })
 })

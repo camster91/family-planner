@@ -7,6 +7,7 @@ import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
 import { recordBetaMetric } from '@/lib/beta-metrics'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { createMealSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +91,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
-    const { date, meal_type, recipe_name, notes, cook_id, recipe_id, servings } = body
+    const fields = createMealSchema.safeParse(body)
+    if (!fields.success) {
+      return NextResponse.json({ error: fields.error.issues[0].message }, { status: 400 })
+    }
+    const { recipe_name, notes, cook_id } = fields.data
+    const { date, meal_type, recipe_id, servings } = body
 
     if (!date || !meal_type) {
       return NextResponse.json({ error: 'date and meal_type are required' }, { status: 400 })

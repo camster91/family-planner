@@ -1,13 +1,41 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Send, Plus, MessageSquare } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Glyph } from '@/components/ui/glyph'
-import { InsetList } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { cn, formatDate } from '@/lib/utils'
+import { mergeLatest, prependEarlier } from './thread'
+
+/** GET /api/messages page size (the route's default). */
+const PAGE_SIZE = 50
+/** Within this many pixels of the bottom counts as reading the newest messages. */
+const NEAR_BOTTOM_PX = 120
+
+interface ChatMessage {
+  id: string
+  created_at: string
+  content: string
+  sender_id: string
+  sender?: { id: string; name: string; avatar_url?: string | null } | null
+}
+
+interface Member {
+  id: string
+  name: string
+}
+
+/** The server's `error` text, or null when the body has none. */
+async function serverError(res: Response): Promise<string | null> {
+  const data = await res.json().catch(() => null)
+  return data && typeof data.error === 'string' && data.error ? data.error : null
+}
+
+function sameIds(a: { id: string }[], b: { id: string }[]): boolean {
+  return a.length === b.length && a.every((m, i) => m.id === b[i]?.id)
+}
 
 // Gated like the other feature pages (route inventory F-2): with Family chat
 // off nothing below mounts, so it neither polls /api/messages nor shows a 403.
@@ -20,28 +48,44 @@ export default function MessagesPage() {
 }
 
 function MessagesContent() {
-  const [messages, setMessages] = useState<any[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
-  const [familyMembers, setFamilyMembers] = useState<any[]>([])
+  const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showAttach, setShowAttach] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  // Older history: GET /api/messages?cursor=<oldest created_at> returns the
+  // page of messages created before it.
+  const [hasEarlier, setHasEarlier] = useState(false)
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const [earlierError, setEarlierError] = useState<string | null>(null)
+  const threadRef = useRef<HTMLDivElement>(null)
+  // Start pinned to the bottom; scrolling up to read history unpins.
+  const nearBottomRef = useRef(true)
+  const justSentRef = useRef(false)
+  const firstLoadRef = useRef(true)
+  // Thread scroll height just before earlier messages are put in front.
+  const prependAnchorRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const res = await fetch('/api/messages')
       const data = await res.json()
       if (res.ok) {
-        if (data.messages) setMessages(data.messages)
-        if (data.members) setFamilyMembers(data.members)
+        if (Array.isArray(data.messages)) {
+          // Same newest message and count: keep the same array, so a quiet
+          // poll neither re-renders the thread nor scrolls it.
+          setMessages(prev => mergeLatest(prev, data.messages as ChatMessage[]))
+          if (firstLoadRef.current) {
+            firstLoadRef.current = false
+            setHasEarlier(data.messages.length >= PAGE_SIZE)
+          }
+        }
+        if (Array.isArray(data.members)) {
+          setFamilyMembers(prev => (sameIds(prev, data.members) ? prev : data.members))
+        }
         if (data.userId) setCurrentUserId(data.userId)
       }
     } catch (err) {
@@ -49,29 +93,99 @@ function MessagesContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    loadData()
+    const interval = setInterval(loadData, 5000)
+    return () => clearInterval(interval)
+  }, [loadData])
+
+  const newestId = messages.length > 0 ? messages[messages.length - 1].id : null
+
+  // Earlier messages went in front: keep the same message under the reader's eye.
+  useLayoutEffect(() => {
+    const el = threadRef.current
+    if (el && prependAnchorRef.current !== null) {
+      el.scrollTop += el.scrollHeight - prependAnchorRef.current
+      prependAnchorRef.current = null
+    }
   }, [messages])
+
+  // A new newest message: follow it only when the reader is already at the
+  // bottom or just sent it, so someone reading history is never yanked away.
+  useEffect(() => {
+    if (!newestId) return
+    const el = threadRef.current
+    if (!el || !(nearBottomRef.current || justSentRef.current)) return
+    justSentRef.current = false
+    nearBottomRef.current = true
+    const reduce =
+      typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (typeof el.scrollTo === 'function') el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'auto' : 'smooth' })
+    else el.scrollTop = el.scrollHeight
+  }, [newestId])
+
+  const handleScroll = () => {
+    const el = threadRef.current
+    if (!el) return
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX
+  }
+
+  const loadEarlier = async () => {
+    const oldest = messages[0]
+    if (!oldest || loadingEarlier) return
+    setLoadingEarlier(true)
+    setEarlierError(null)
+    try {
+      const res = await fetch(`/api/messages?cursor=${encodeURIComponent(oldest.created_at)}&limit=${PAGE_SIZE}`)
+      if (!res.ok) {
+        setEarlierError(`Couldn't load earlier messages. ${(await serverError(res)) ?? 'Please try again.'}`)
+        return
+      }
+      const data = await res.json()
+      const older: ChatMessage[] = Array.isArray(data.messages) ? data.messages : []
+      setHasEarlier(older.length >= PAGE_SIZE)
+      if (older.length > 0) {
+        prependAnchorRef.current = threadRef.current?.scrollHeight ?? null
+        setMessages(prev => prependEarlier(prev, older))
+      }
+    } catch {
+      setEarlierError("Couldn't load earlier messages. Check your connection and try again.")
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim() || sending) return
 
     setSending(true)
+    setSendError(null)
     try {
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: newMessage.trim(), type: 'text' }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to send message')
-      if (data.message) setMessages(prev => [...prev, data.message])
+      let res: Response
+      try {
+        res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: newMessage.trim(), type: 'text' }),
+        })
+      } catch {
+        // The typed text stays in the field so it can be sent again.
+        setSendError("Couldn't send your message. Check your connection and try again.")
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.message) {
+        const reason = typeof data?.error === 'string' && data.error ? data.error : 'Please try again.'
+        setSendError(`Couldn't send your message. ${reason}`)
+        return
+      }
+      const sent = data.message as ChatMessage
+      justSentRef.current = true
+      setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent]))
       setNewMessage('')
-    } catch (err) {
-      console.error('Error sending message:', err)
     } finally {
       setSending(false)
     }
@@ -99,6 +213,8 @@ function MessagesContent() {
       <div className="card-apple mx-4 overflow-hidden">
         {/* Messages thread */}
         <div
+          ref={threadRef}
+          onScroll={handleScroll}
           className="h-[calc(100vh-18rem)] overflow-y-auto"
           role="region"
           aria-label="Messages thread"
@@ -119,6 +235,24 @@ function MessagesContent() {
             </div>
           ) : (
             <div className="py-3">
+              {hasEarlier && (
+                <div className="flex flex-col items-center gap-1 px-4 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => void loadEarlier()}
+                    disabled={loadingEarlier}
+                    aria-busy={loadingEarlier || undefined}
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full px-4 text-subhead font-medium text-[var(--accent-text)] hover:bg-[var(--surface-fill)] disabled:opacity-60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+                  >
+                    {loadingEarlier ? 'Loading earlier messages…' : 'Load earlier messages'}
+                  </button>
+                  {earlierError && (
+                    <p role="alert" className="text-footnote text-[var(--danger-text)] text-center">
+                      {earlierError}
+                    </p>
+                  )}
+                </div>
+              )}
               {messages.map((message) => {
                 const isCurrentUser = message.sender_id === currentUserId
                 const sender = message.sender
@@ -148,7 +282,6 @@ function MessagesContent() {
                   </div>
                 )
               })}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
@@ -177,6 +310,8 @@ function MessagesContent() {
               className="input-apple flex-1"
               disabled={sending}
               aria-label="Message text"
+              aria-invalid={sendError ? true : undefined}
+              aria-describedby={sendError ? 'message-send-error' : undefined}
             />
             <button
               type="submit"
@@ -192,6 +327,12 @@ function MessagesContent() {
               <Send className="w-3.5 h-3.5" />
             </button>
           </form>
+
+          {sendError && (
+            <p id="message-send-error" role="alert" className="pt-2 text-footnote text-[var(--danger-text)]">
+              {sendError}
+            </p>
+          )}
 
           {/* Live region for screen readers — announces send events */}
           <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
