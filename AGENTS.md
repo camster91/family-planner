@@ -95,7 +95,7 @@ cd android
 ./gradlew connectedDebugAndroidTest            # needs a device or emulator
 ./gradlew assembleRelease bundleRelease        # APK + AAB; unsigned without ANDROID_KEYSTORE_* / ANDROID_KEY_* env
 ```
-Do not change `versionCode`/`versionName` outside a version-bump PR that follows the versioning policy in `docs/architecture/ANDROID.md` (ADR-0004).
+`versionCode` comes from the CI run number and `versionName` from the `vX.Y.Z` release tag (`.github/workflows/apk.yml`); do not hard-code them in `android/app/build.gradle`. The policy is in `docs/architecture/ANDROID.md` (ADR-0004).
 
 ## Responsive QA baseline
 Representative sizes:
