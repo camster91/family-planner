@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, Calendar as CalendarIcon, Sparkles, Undo2, X } from 'lucide-react'
+import { Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Sparkles, Undo2, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ListRow, InsetList } from '@/components/ui/list-row'
@@ -10,12 +10,11 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
+import { isInLocalMonth, shiftMonth } from '@/lib/dates'
 import { IMPORT_UNDO_WINDOW_MS, type ImportCommitResult } from '@/lib/event-import-client'
 import { ImportEventsDialog } from './ImportEventsDialog'
 import { SyncNotice, UpdatedLine, useNow } from '@/components/fridge/sync-status'
 import { useOnline } from '@/components/fridge/use-board-sync'
-
-type ViewMode = 'day' | 'week' | 'month'
 
 interface EventData {
   id: string
@@ -39,6 +38,50 @@ interface CalendarPageClientProps {
    * the event import provider configured and the viewer may import.
    */
   importEnabled?: boolean
+  /**
+   * False when the URL named no month and the server picked its own (UTC)
+   * month: the page then moves to the viewer's local month if that differs.
+   */
+  monthFromUrl?: boolean
+}
+
+/** `/dashboard/calendar?year=…&month=…` for a 1-based month. */
+export function calendarMonthHref(year: number, month: number): string {
+  return `/dashboard/calendar?year=${year}&month=${month}`
+}
+
+function monthLabel(year: number, month: number): string {
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
+/** Previous/next month links (44px targets), each naming the month it opens. */
+function MonthNav({ year, month }: { year: number; month: number }) {
+  const prev = shiftMonth(year, month, -1)
+  const next = shiftMonth(year, month, 1)
+  const linkClass =
+    'inline-flex h-11 min-w-[44px] items-center justify-center gap-1 rounded-full px-3 text-subhead font-medium text-[var(--accent-text)] active:bg-[var(--surface-fill)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]'
+  return (
+    <nav aria-label="Change month" className="flex items-center justify-between gap-2">
+      <Link
+        href={calendarMonthHref(prev.year, prev.month)}
+        className={linkClass}
+        aria-label={`Previous month, ${monthLabel(prev.year, prev.month)}`}
+        data-testid="calendar-prev-month"
+      >
+        <ChevronLeft className="w-5 h-5" aria-hidden="true" />
+        <span>Previous</span>
+      </Link>
+      <Link
+        href={calendarMonthHref(next.year, next.month)}
+        className={linkClass}
+        aria-label={`Next month, ${monthLabel(next.year, next.month)}`}
+        data-testid="calendar-next-month"
+      >
+        <span>Next</span>
+        <ChevronRight className="w-5 h-5" aria-hidden="true" />
+      </Link>
+    </nav>
+  )
 }
 
 function formatDate(dateStr: string): string {
@@ -171,11 +214,21 @@ export default function CalendarPageClient({
   currentMonth,
   currentYear,
   importEnabled = false,
+  monthFromUrl = true,
 }: CalendarPageClientProps) {
-  const [view, setView] = React.useState<ViewMode>('day')
   const [importOpen, setImportOpen] = React.useState(false)
   const [imported, setImported] = React.useState<{ result: ImportCommitResult; at: number } | null>(null)
   const router = useRouter()
+
+  // No month in the URL: the server used its UTC month. Move to the viewer's
+  // local month when that differs (near a month boundary, O-31).
+  React.useEffect(() => {
+    if (monthFromUrl) return
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    if (year !== currentYear || month !== currentMonth) router.replace(calendarMonthHref(year, month))
+  }, [monthFromUrl, currentYear, currentMonth, router])
 
   const onImported = (result: ImportCommitResult) => {
     setImportOpen(false)
@@ -183,27 +236,10 @@ export default function CalendarPageClient({
     router.refresh()
   }
 
-  const SegmentedControl = ({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) => (
-    <div className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
-      {(['day', 'week', 'month'] as ViewMode[]).map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => onChange(opt)}
-          className={cn(
-            'flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200',
-            value === opt
-              ? 'bg-[var(--surface-elevated)] text-label-primary shadow-sm'
-              : 'text-label-secondary hover:text-label-primary'
-          )}
-        >
-          {opt.charAt(0).toUpperCase() + opt.slice(1)}
-        </button>
-      ))}
-    </div>
-  )
-
-  const grouped = groupEventsByDay(events)
+  // The server sends the UTC month plus a day each side; keep the viewer's
+  // local month only.
+  const monthEvents = events.filter((e) => isInLocalMonth(e.start_time, currentYear, currentMonth))
+  const grouped = groupEventsByDay(monthEvents)
   const sortedDays = Array.from(grouped.keys()).sort(
     (a, b) => new Date(a).getTime() - new Date(b).getTime()
   )
@@ -212,7 +248,7 @@ export default function CalendarPageClient({
     <div className="pb-20">
       <LargeHeader
         title="Calendar"
-        subtitle={new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        subtitle={monthLabel(currentYear, currentMonth)}
         trailing={
           <Link href="/dashboard/calendar/create" className="btn-filled shrink-0" aria-label="Add event">
             <Plus className="w-4 h-4" />
@@ -224,11 +260,11 @@ export default function CalendarPageClient({
       <CalendarSyncLine events={events} />
 
       <div className="px-4 mb-4">
-        <SegmentedControl value={view} onChange={setView} />
+        <MonthNav year={currentYear} month={currentMonth} />
       </div>
 
       <div className="px-4 mb-5">
-        <CaptureBox />
+        <CaptureBox onSaved={() => router.refresh()} />
       </div>
 
       {importEnabled && (

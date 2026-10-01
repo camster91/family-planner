@@ -88,7 +88,12 @@ function friendlyTime(iso?: string): string {
   })
 }
 
-export function CaptureBox() {
+export function CaptureBox({
+  onSaved,
+}: {
+  /** Called after anything is saved, so the host page can re-request its data. */
+  onSaved?: () => void
+} = {}) {
   const [text, setText] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [draft, setDraft] = React.useState<Draft | null>(null)
@@ -177,9 +182,10 @@ export function CaptureBox() {
           throw new Error(d.error || 'Could not save')
         }
       }
-      setSaved(draft.title)
+      setSaved(`Added “${draft.title}”`)
       setDraft(null)
       setText('')
+      onSaved?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save')
     } finally {
@@ -217,13 +223,17 @@ export function CaptureBox() {
     }
   }
 
-  // Add every proposed event the user has not removed.
+  // Add every proposed event the user has not removed. Events that fail stay
+  // in the list so the person can try again or remove them.
   async function confirmPhoto() {
     if (!photoEvents || photoEvents.length === 0) return
     setPhotoBusy(true)
     setError(null)
+    setSaved(null)
+    const total = photoEvents.length
+    const failed: PhotoEvent[] = []
+    let added = 0
     try {
-      let added = 0
       for (const ev of photoEvents) {
         const res = await fetch('/api/events', {
           method: 'POST',
@@ -237,16 +247,29 @@ export function CaptureBox() {
           }),
         })
         if (res.ok) added += 1
+        else failed.push(ev)
       }
-      if (added === 0) throw new Error('Could not save those events')
-      setSaved(`${added} event${added === 1 ? '' : 's'}`)
+    } catch {
+      // Network error: everything not yet saved counts as failed.
+      failed.push(...photoEvents.slice(added + failed.length))
+    }
+    if (added > 0) onSaved?.()
+    if (failed.length === 0) {
+      setSaved(`Added ${added} event${added === 1 ? '' : 's'}`)
       setPhotoEvents(null)
       setPhotoNote(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save those events')
-    } finally {
-      setPhotoBusy(false)
+    } else {
+      setPhotoEvents(failed)
+      if (added > 0) {
+        setSaved(`Added ${added} of ${total} events`)
+        setError(
+          `${failed.length} event${failed.length === 1 ? '' : 's'} could not be saved. Try again, or remove ${failed.length === 1 ? 'it' : 'them'}.`
+        )
+      } else {
+        setError('Could not save those events')
+      }
     }
+    setPhotoBusy(false)
   }
 
   if (childBlocked) {
@@ -318,11 +341,11 @@ export function CaptureBox() {
         </button>
       </div>
 
-      {error && <p className="text-subhead text-[var(--danger-text)] mt-3">{error}</p>}
+      {error && <p role="alert" className="text-subhead text-[var(--danger-text)] mt-3">{error}</p>}
 
       {saved && (
-        <p className="text-subhead text-[var(--success,#059669)] mt-3 flex items-center gap-1">
-          <Check className="w-4 h-4" /> Added “{saved}”
+        <p role="status" className="text-subhead text-[var(--success,#059669)] mt-3 flex items-center gap-1">
+          <Check className="w-4 h-4" aria-hidden="true" /> {saved}
         </p>
       )}
 

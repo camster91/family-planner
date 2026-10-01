@@ -207,3 +207,28 @@ export function eventFormRange(input: {
   if (!end) return null
   return { start, end }
 }
+
+/** Month `delta` months away from a 1-based `year`/`month`, rolling the year over. */
+export function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {
+  const index = year * 12 + (month - 1) + delta
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 }
+}
+
+/**
+ * Server query window for a calendar month page (1-based `month`). The server
+ * runs in UTC but the viewer sees their own local month (O-31), so the UTC
+ * month is widened by a day on each side; that covers every UTC offset
+ * (-12h to +14h). The client then keeps only events in its local month with
+ * `isInLocalMonth`. `end` is exclusive.
+ */
+export function calendarMonthQueryWindow(year: number, month: number): { start: Date; end: Date } {
+  const { start, end } = utcMonthRange(year, month)
+  return { start: addUTCDays(start, -1), end: addUTCDays(end, 1) }
+}
+
+/** Whether an instant falls in a 1-based `year`/`month` in the runtime's local time zone (client-side use). */
+export function isInLocalMonth(value: Date | string, year: number, month: number): boolean {
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return false
+  return date.getFullYear() === year && date.getMonth() + 1 === month
+}

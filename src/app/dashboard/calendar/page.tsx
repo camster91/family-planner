@@ -5,6 +5,7 @@ import { attachEventSources } from '@/lib/calendar-import/source'
 import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
 import { refreshStaleConnections } from '@/lib/calendar-sync/sync'
 import { canImportEvents, isEventImportConfigured } from '@/lib/event-import'
+import { calendarMonthQueryWindow } from '@/lib/dates'
 import CalendarPageClient from './CalendarPageClient'
 
 interface CalendarPageProps {
@@ -34,27 +35,30 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     after(() => refreshStaleConnections(syncFamilyId))
   }
 
-  // Parse month/year from searchParams or default to today
+  // Month/year come from the URL. With none (or a hand-edited/truncated value
+  // like ?month=abc or ?month=13) the server falls back to its own UTC month;
+  // the client then moves to the viewer's local month if that differs (O-31).
   const now = new Date()
-  // A hand-edited or truncated URL (?month=abc, ?month=13) falls back to the
-  // current month instead of building an Invalid Date query and a 500 page.
   const monthParam = Number(params.month)
   const yearParam = Number(params.year)
-  const month = Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12 ? monthParam : now.getMonth() + 1
-  const year = Number.isInteger(yearParam) && yearParam >= 1970 && yearParam <= 9999 ? yearParam : now.getFullYear()
+  const validMonth = Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12
+  const validYear = Number.isInteger(yearParam) && yearParam >= 1970 && yearParam <= 9999
+  const month = validMonth ? monthParam : now.getUTCMonth() + 1
+  const year = validYear ? yearParam : now.getUTCFullYear()
 
-  // Calculate month boundaries
-  const monthStart = new Date(year, month - 1, 1)
-  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999)
+  // The UTC month widened by a day on each side, so an event that is in the
+  // viewer's local month but the next/previous UTC month (a Toronto Oct 31
+  // 8:30 PM event is stored as Nov 1 00:30Z) is fetched. The client keeps only
+  // events in its local month.
+  const range = calendarMonthQueryWindow(year, month)
 
-  // Fetch events for the month range
   const events = familyId
     ? await prisma!.event.findMany({
         where: {
           family_id: familyId,
           start_time: {
-            gte: monthStart,
-            lte: monthEnd,
+            gte: range.start,
+            lt: range.end,
           },
         },
         include: { creator: { select: { name: true } } },
@@ -80,6 +84,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       events={serializedEvents as any}
       currentMonth={month}
       currentYear={year}
+      // Without a month in the URL the client picks the viewer's local month.
+      monthFromUrl={validMonth}
       // Review-first import (#270): hidden unless the provider key is set and the viewer may import.
       importEnabled={isEventImportConfigured() && canImportEvents(user?.role)}
     />
