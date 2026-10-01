@@ -1,6 +1,6 @@
 # Coolify Deploy Runbook
 
-**Status:** planned path, not the current production deployment. Today production is promoted by `release.yml` (`Release to VPS`, see `DEPLOYMENT.md` and `docs/engineering/CI_AND_RELEASE.md`). This runbook prepares a Coolify setup that Cameron can do himself.
+**Status:** immutable-image Coolify handoff is being prepared under #145. Today production is still promoted by `release.yml` (`Release to VPS`, see `DEPLOYMENT.md` and `docs/engineering/CI_AND_RELEASE.md`). The consolidation target is the saved image checked by CI, including its imported-image household tests, rather than a new build on the VPS. The registry publisher is implemented behind the initially disabled `FP_IMMUTABLE_RELEASE_ENABLED` flag. Actual publication, registry access, resource/data/uploads adoption and production handoff remain outstanding.
 
 This runbook does not authorize anything. Creating the Coolify application, setting production secrets, pointing DNS, moving data, turning on scheduled backups and every deploy or rollback are owner actions that need Cameron's explicit approval (`AGENTS.md`, approval boundaries).
 
@@ -9,12 +9,12 @@ Facts here come from the source on `master` (Dockerfile, `docker-entrypoint.sh`,
 ## 1. Decisions before you start
 
 1. **One owner for production.** Do not run `release.yml` `Release to VPS` and Coolify against the same hostname. Pick one. If Coolify takes over, stop dispatching `Release to VPS` (it would also fail: it looks for the old Traefik-labelled container). Update `DEPLOYMENT.md` and `CI_AND_RELEASE.md` in the same change that switches.
-2. **Coolify rebuilds on the server.** `RELEASE_AND_ROLLBACK.md` says "promote the exact reviewed artifact". The Dockerfile build pack builds the image again on the Coolify host from the Git commit. It uses the same Dockerfile, the same `npm ci` lockfile install and the same commit that passed `Build & Test`, but it is not the byte-identical image CI smoke-tested (for example `node:22-alpine` is a moving tag). Accept this knowingly, or later switch Coolify to its "Docker Image" build pack and publish the CI-verified image to a registry (a separate, owner-approved change: GHCR publishing was removed on purpose).
-3. **Same host or new host.** Coolify runs its own Traefik proxy on ports 80/443. On the current VPS that would clash with the existing Traefik. A fresh host (or a planned cut-over) is simpler.
+2. **Consume the checked image.** Use the immutable GHCR digest recorded by the checked main publisher when that path is activated. Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The Dockerfile instructions below remain reference material for a separate source-build setup; they are not the selected automatic deployment path.
+3. **One proxy owner.** The current VPS already has Traefik serving ports80/443 and a Coolify installation. Keep the existing proxy owner until the reviewed routing handoff; do not start a competing proxy. Resource configuration, data/uploads adoption, private acceptance and rollback must precede public routing changes.
 
-## 2. Build pack: use Dockerfile
+## 2. Reference source-build setup: Dockerfile
 
-Recommended: **Dockerfile** build pack, file `/Dockerfile`, base directory `/`.
+For a separately approved source-build setup: **Dockerfile** build pack, file `/Dockerfile`, base directory `/`. For the consolidation handoff, prepare the checked registry image path described above instead.
 
 Why, from this repo:
 
@@ -25,7 +25,13 @@ Why, from this repo:
 
 No compose file is added for Coolify.
 
-## 3. Create the database first
+## 3. Reference: database for a new installation
+
+The existing VPS production database is PostgreSQL16.14, inspected on October1,
+2026. It must be backed up and adopted or copied for staging; this reference does
+not authorize replacing it. CI exercises both PostgreSQL17 and the imported
+runtime on PostgreSQL16. A major-version upgrade is a separate recovery and
+compatibility decision.
 
 1. In the same Coolify project and environment (and same server) as the app, add a **PostgreSQL** database. Use **Postgres 17** (`postgres:17-alpine`): CI and `docker-compose.yml` test against 17. 16 also works with the current SQL, but 17 is what is tested.
 2. Set the database name to `family_planner` (any name matching `^[a-zA-Z0-9_]+$` works; `scripts/migrate.js` refuses other names).

@@ -5,6 +5,48 @@
 
 ## Workflow ownership
 
+### Checked image transport for Coolify preparation (#145)
+
+After the existing build and container readiness gate, `Build & Test` saves the
+exact runtime image plus a receipt naming the repository, full source revision,
+workflow run/attempt, image configuration ID and archive checksum. The separate
+`Checked image on fresh runner` job downloads that artifact, verifies it before
+import, and compares the loaded image configuration, filesystem layer identities
+and platform with the saved image. It then runs the imported container against a
+throwaway PostgreSQL 16 database (the existing VPS major version inspected on
+October 1, 2026), complementing the original PostgreSQL 17 CI smoke, and requires
+readiness, the baked release header and writable
+image-owned uploads directory. The manual `Release to VPS` job also waits for this
+transport gate. It continues to transfer the original checked image bundle.
+
+The imported image also runs selected existing login/logout, parent-role and
+two-household privacy journeys on all six responsive viewport projects. This
+uses a fixed loopback PostgreSQL 16 fixture database and no provider credentials.
+The existing E2E clock shim is mounted read-only solely to align synthetic dates;
+application code and migrations remain in the saved image. Playwright reuses the
+already-started container and never builds another application for this job.
+The broad E2E workflow remains separate; the focused image cases complement it.
+
+This prepares artifact transport; it does not publish to a registry or activate
+Coolify. Artifact names include the workflow attempt to avoid collisions. The
+seven-day Actions artifact is temporary: a full rerun can remove prior artifacts,
+so durable image/receipt retention remains required before automatic promotion.
+Production backup, restored persistent uploads, authenticated acceptance on the
+actual adopted staging resource, routing ownership and registry access remain
+separate handoff gates.
+
+`Publish checked image` is a separate, initially disabled publisher: only a push
+to `main` with `FP_IMMUTABLE_RELEASE_ENABLED=true` can run it after both the full
+build and imported-image security gate pass. It loads and verifies the saved
+image, publishes to `ghcr.io/camster91/family-planner` with a source/run/attempt
+tag, and records the immutable registry digest. It never runs a Docker build.
+Its validated receipt is saved as a draft GitHub release asset and downloaded
+again to compare bytes, preserving metadata beyond the Actions rerun lifecycle.
+Existing assets must match; they are not overwritten. This publisher has no VPS
+credentials and does not deploy or change package visibility. Its flag, actual
+registry publication, registry access and production ownership remain separate
+activation/handoff steps. The default branch currently remains `master`.
+
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
 | `release.yml` — `Build & Test` | Secret scan (gitleaks, see below), locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |

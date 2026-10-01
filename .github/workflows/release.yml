@@ -226,63 +226,26 @@ jobs:
 
       - name: Smoke test container readiness
         run: |
-          set -euo pipefail
-          network="fp-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          database="fp-smoke-db-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          app="fp-smoke-app-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          cleanup() {
-            docker rm --force "$app" "$database" >/dev/null 2>&1 || true
-            docker network rm "$network" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
+          FP_CHECKED_IMAGE="family-planner:${GITHUB_SHA}" bash .github/scripts/smoke-checked-image.sh
 
-          docker network create "$network" >/dev/null
-          # Throwaway database on the isolated smoke-test network.
-          docker run --detach \
-            --name "$database" \
-            --network "$network" \
-            --env POSTGRES_USER=postgres \
-            --env POSTGRES_HOST_AUTH_METHOD=trust \
-            --env POSTGRES_DB=familyplanner_ci \
-            postgres:17-alpine >/dev/null
+      - name: Verify checked-image transport guards
+        run: |
+          python3 .github/scripts/test_checked_image.py
+          node --test .github/scripts/test_preserve_image_receipt.mjs
 
-          ready=0
-          for _ in $(seq 1 60); do
-            if docker exec "$database" pg_isready -U postgres -d familyplanner_ci >/dev/null 2>&1; then
-              ready=1
-              break
-            fi
-            sleep 5
-          done
-          if [ "$ready" -ne 1 ]; then
-            echo "::error::test database did not become ready"
-            exit 1
-          fi
+      - name: Preserve the checked image for a fresh runner
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/checked-image.py export --image "family-planner:${GITHUB_SHA}" --directory "$RUNNER_TEMP/checked-image"
 
-          docker run --detach \
-            --name "$app" \
-            --network "$network" \
-            --env DATABASE_URL="postgresql://postgres@${database}:5432/familyplanner_ci" \
-            --env JWT_SECRET="${GITHUB_SHA}${GITHUB_SHA}" \
-            --env NEXT_PUBLIC_APP_URL="http://family-planner.test" \
-            "family-planner:${GITHUB_SHA}" >/dev/null
-
-          healthy=0
-          for _ in $(seq 1 120); do
-            state="$(docker inspect --format '{{.State.Health.Status}}' "$app")"
-            if [ "$state" = healthy ]; then
-              healthy=1
-              break
-            fi
-            if [ "$state" = unhealthy ]; then
-              break
-            fi
-            sleep 5
-          done
-          if [ "$healthy" -ne 1 ]; then
-            echo "::error::container readiness smoke test failed; application logs remain on the ephemeral runner"
-            exit 1
-          fi
+      - name: Upload checked image and identity receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: family-planner-checked-image-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked-image/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
       - name: Package verified release image
         id: package-image
@@ -311,9 +274,122 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  checked-image:
+    name: Checked image on fresh runner
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_checked_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_checked_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download checked image
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: family-planner-checked-image-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked-image/
+      - name: Verify archive and loaded runtime identity
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/checked-image.py load --directory "$RUNNER_TEMP/checked-image"
+      - name: Exercise imported runtime on disposable database
+        env:
+          FP_CHECKED_IMAGE: family-planner-checked-runtime:${{ github.sha }}
+          FP_TEST_POSTGRES_IMAGE: postgres:16-alpine
+        run: bash .github/scripts/smoke-checked-image.sh
+      - name: Setup browser test runner
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked browser test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate fixture Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres@127.0.0.1:5432/fp_e2e_checked_ci
+        run: npx prisma generate
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify household security on the imported image
+        env:
+          FP_CHECKED_IMAGE: family-planner-checked-runtime:${{ github.sha }}
+          CI: "true"
+        run: bash .github/scripts/browser-checked-image.sh
+      - name: Preserve synthetic image-browser failure report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: family-planner-image-browser-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            playwright-report/checked-image/
+            test-results/checked-image/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish-image:
+    name: Publish checked image
+    needs: [build, checked-image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FP_IMMUTABLE_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup receipt verifier
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Download the checked image
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: family-planner-checked-image-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked-image/
+      - name: Authenticate registry publication
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+      - name: Publish the tested image without rebuilding
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/checked-image.py publish --directory "$RUNNER_TEMP/checked-image"
+      - name: Preserve and refetch durable draft receipt
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CHECKED_IMAGE_DIRECTORY: ${{ runner.temp }}/checked-image
+        run: node .github/scripts/preserve-image-receipt.mjs
+      - name: Upload the published receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: family-planner-release-receipt-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked-image/release-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+      - if: always()
+        run: docker logout ghcr.io
+
   release:
     name: Release to VPS
-    needs: build
+    needs: [build, checked-image]
     # Production credentials are only available to a manually dispatched run on
     # the actual default branch. Pull requests and ordinary pushes never deploy.
     if: github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
