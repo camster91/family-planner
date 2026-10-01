@@ -4,12 +4,12 @@
 
 This runbook does not authorize anything. Creating the Coolify application, setting production secrets, pointing DNS, moving data, turning on scheduled backups and every deploy or rollback are owner actions that need Cameron's explicit approval (`AGENTS.md`, approval boundaries).
 
-Facts here come from the source on `master` (Dockerfile, `docker-entrypoint.sh`, `scripts/migrate.js`, `src/app/api/health/route.ts`, `src/lib/client-ip.ts`, the env reads under `src/`). Coolify UI labels move between versions. Where a label is named below, look for the closest match in your version.
+Facts here come from the source on `main` (Dockerfile, `docker-entrypoint.sh`, `scripts/migrate.js`, `src/app/api/health/route.ts`, `src/lib/client-ip.ts`, the env reads under `src/`). Coolify UI labels move between versions. Where a label is named below, look for the closest match in your version.
 
 ## 1. Decisions before you start
 
 1. **One owner for production.** Do not run `release.yml` `Release to VPS` and Coolify against the same hostname. Pick one. If Coolify takes over, stop dispatching `Release to VPS` (it would also fail: it looks for the old Traefik-labelled container). Update `DEPLOYMENT.md` and `CI_AND_RELEASE.md` in the same change that switches.
-2. **Consume the checked image.** Use the immutable GHCR digest recorded by the checked default-branch publisher when that path is activated. Prerequisites: the repository variable `FP_IMMUTABLE_RELEASE_ENABLED=true` (owner action) and a push to the default branch (`master` today; the job compares against `github.event.repository.default_branch`, so a rename needs no workflow change). Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The Dockerfile instructions below remain reference material for a separate source-build setup; they are not the selected automatic deployment path.
+2. **Consume the checked image.** Use the immutable GHCR digest recorded by the checked default-branch publisher when that path is activated. Prerequisites: the repository variable `FP_IMMUTABLE_RELEASE_ENABLED=true` (owner action) and a push to the default branch (`main` since 2026-10-01; the job compares against `github.event.repository.default_branch`, so a rename needs no workflow change). Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The Dockerfile instructions below remain reference material for a separate source-build setup; they are not the selected automatic deployment path.
 3. **One proxy owner.** The current VPS already has Traefik serving ports80/443 and a Coolify installation. Keep the existing proxy owner until the reviewed routing handoff; do not start a competing proxy. Resource configuration, data/uploads adoption, private acceptance and rollback must precede public routing changes.
 
 ## 2. Reference source-build setup: Dockerfile
@@ -23,7 +23,7 @@ Why, from this repo:
 - `docker-compose.yml` is a local, self-contained stack. It starts its own Postgres with a fixed `container_name`, publishes port 3000 on the host, has no uploads volume and requires `POSTGRES_PASSWORD`/`DATABASE_URL` from a `.env`. Coolify's compose mode would need all of that reworked, and a database inside the app's compose stack is harder to back up and upgrade than a Coolify-managed database.
 - A separate Coolify-managed Postgres gives you its own lifecycle, backups UI and upgrades, independent of app deploys.
 
-No compose file is added for Coolify.
+`docker-compose.coolify-development.json` (#327) is the owner's Coolify **development** setup. It builds the same `Dockerfile`, reads `.env`, exposes port 3000 to Coolify's proxy only (no host port), joins the existing external `family-planner-internal` network to reach the retained database, and bind-mounts the existing host uploads directory `/opt/family-planner/uploads` to `/data/family-planner-uploads`. That host directory must be owned by `1001:1001` (section 7). It passes only `SOURCE_COMMIT` as a build argument, so `NEXT_PUBLIC_APP_URL` keeps the Dockerfile default `https://family.ashbi.ca` in email and invite links; on a different test hostname, add it as a build argument too (section 10). It is not a production cut-over; sections 1 and 12 still apply.
 
 ## 3. Reference: database for a new installation
 
@@ -48,7 +48,7 @@ Migrations connect to the `postgres` maintenance database first to create the ta
 
 ## 4. Create the application
 
-1. New resource → **Public/Private Repository** (GitHub App) → `camster91/family-planner`, branch `master`.
+1. New resource → **Public/Private Repository** (GitHub App) → `camster91/family-planner`, branch `main`.
 2. Build pack: **Dockerfile**. Dockerfile location `/Dockerfile`.
 3. **Ports Exposes:** `3000`.
 4. **Ports Mappings:** leave empty. Publishing 3000 on the host lets clients bypass Traefik, which also breaks the client-IP trust model (section 8).
@@ -241,7 +241,7 @@ Owner actions, each needing approval. Outline:
 
 ## 13. First deploy and every deploy
 
-1. Confirm the target commit is on `master` and its `Build & Test` run passed.
+1. Confirm the target commit is on `main` and its `Build & Test` run passed.
 2. Confirm the approval names that exact commit.
 3. Confirm a recent database backup exists.
 4. In Coolify, deploy that commit (Deploy, or redeploy a chosen commit).

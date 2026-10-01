@@ -29,7 +29,7 @@ Schema changes must update `prisma/schema.prisma` and `scripts/migrate.js` (or a
 ## Branches
 Use descriptive branches such as `feat/<issue>-short-name`, `fix/<issue>-short-name`, `refactor/<issue>-short-name`, `docs/<issue>-short-name`.
 
-Do not work directly on `master`.
+Do not work directly on `main`.
 
 ## Pull requests
 A PR should normally:
