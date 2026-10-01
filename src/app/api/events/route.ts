@@ -9,6 +9,9 @@ import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
+/** GET without `upcoming`: how far back the list reaches (by event end). */
+const LIST_WINDOW_PAST_DAYS = 30
+
 // GET - List events for the user's family, or fetch one with ?id=
 export async function GET(request: NextRequest) {
   try {
@@ -36,9 +39,16 @@ export async function GET(request: NextRequest) {
 
     const upcoming = searchParams.get('upcoming') === 'true'
 
+    // `upcoming=true`: events starting from now. Otherwise a recent window:
+    // events that end no earlier than LIST_WINDOW_PAST_DAYS ago (so ongoing
+    // and recently finished ones are included), oldest first. Without the
+    // window the list was the household's 100 OLDEST events ever, which hid
+    // everything current once a household had more than 100.
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (upcoming) {
       where.start_time = { gte: new Date() }
+    } else {
+      where.end_time = { gte: new Date(Date.now() - LIST_WINDOW_PAST_DAYS * 24 * 60 * 60 * 1000) }
     }
 
     const events = await prisma!.event.findMany({
@@ -46,7 +56,7 @@ export async function GET(request: NextRequest) {
       include: {
         creator: { select: { id: true, name: true } },
       },
-      orderBy: { start_time: 'asc' },
+      orderBy: [{ start_time: 'asc' }, { id: 'asc' }],
       take: 100,
     })
 

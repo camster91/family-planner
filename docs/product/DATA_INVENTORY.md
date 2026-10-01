@@ -34,7 +34,13 @@ This document is the engineering source for privacy review and future Play Data 
 - Beta criteria are measured only through `src/lib/beta-metrics.ts` (fixed metric names, counts only) (decision D-6). The old page-view helper `src/lib/analytics.ts` is removed and the app records no page views (#136, #140).
 - Logs/analytics must not contain passwords/tokens, child names, message bodies, precise addresses, medical notes, private event descriptions, finance descriptions or arbitrary AI prompts.
 - Provider integrations require a processor/data-flow entry before production.
-- Export/deletion/retention must be defined per domain before broad launch.
+- Export/deletion/retention must be defined per domain before broad launch. The account export
+  (`GET /api/users/export`) carries household-shared domains plus the member's own rows in the per-person
+  domains (allowance, wishlist, sick days, medications, emergency card, anniversaries, pickups, notes, saved
+  places, handoffs, upload metadata, chore assignments, calendar subscriptions/connections, push
+  registrations, budget categories), with the role rules of each domain's GET route and no secrets: the
+  exact keys and redactions are in `docs/architecture/API_CONTRACTS.md` "Export completeness, analytics days
+  and the event list" and `docs/ROLE_AND_ISOLATION_MATRIX.md` "Account export".
 
 ## Third-party processor register
 Maintain for each provider:

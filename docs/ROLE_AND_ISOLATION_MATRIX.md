@@ -233,6 +233,23 @@ Counts only (`BetaMetricDaily`: household, UTC day, fixed metric name, count), o
 | Export (`GET /api/users/export`) | the household's counts and switch | same | same | — | No `family_id`, no user reference. |
 | Read the counts | — (no app route) | — | — | — | Only `npm run beta:scorecard`, run by the operator, households as numbers. |
 
+### Account export
+
+`GET /api/users/export` (Settings → Data Export, and "Download my data" in the delete dialog). Per-person
+domains: only the caller's own rows in their current household, no `family_id`, never another member's or
+household's rows. Full key list: `architecture/API_CONTRACTS.md` "Export completeness, analytics days and the
+event list".
+
+| Domain | Parent | Teen | Child | Notes |
+|---|---|---|---|---|
+| Allowance (D5) | paid to them or given by them | paid to them | paid to them | |
+| Wishlist, notes, pickups, anniversaries, chore assignments, upload metadata | own rows | own rows | own rows | Upload rows only, never file bytes; chore assignments without `idempotency_key`. |
+| Sick days, medications, emergency card (D1) | about them | about them | about them | Another member's medical rows never appear, even for a parent. |
+| Handoffs (D2) | they created | they created, without share expiry | they created, child fields only | `share_token` is never exported. |
+| Saved places, budget categories, calendar connections | own rows | — (empty) | — (empty) | Parent-only like their GET routes; connections without tokens or sync cursor. |
+| Calendar subscriptions | they added | they added | — (empty) | Never the feed URL. |
+| Push registrations | own | own | own | `id` and dates only: no endpoint, no keys. |
+
 ### Today board page (#119 / #159)
 
 `/dashboard/today` (the fridge/wall tablet view) is on the kid allowlist for parent, teen and child. It is read-only

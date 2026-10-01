@@ -32,7 +32,12 @@ function AnalyticsPageContent() {
 
   const loadAnalytics = async () => {
     try {
-      const res = await fetch('/api/analytics')
+      // O-31: the server counts days in the viewer's local zone.
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const zoneParam = tz
+        ? `tz=${encodeURIComponent(tz)}`
+        : `tzOffset=${new Date().getTimezoneOffset()}`
+      const res = await fetch(`/api/analytics?${zoneParam}`)
       const data = await res.json()
       if (res.ok) {
         if (data.members) setMembers(data.members)

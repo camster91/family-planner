@@ -518,5 +518,19 @@ per UTC day (suggestions only). Suggestions are read-only; the commit is idempot
 `calendar.import-commit`, records scoped to `user:<id>`), and none of these routes is offline-queued. Compatibility: additive routes; nothing existing changes. With the key removed the route is
 404 and the button disappears on the next page load, so rollback is an environment change, not a deploy.
 
+## Export completeness, analytics days and the event list (server review)
+Additive for every client: new export keys, a new optional query parameter, and a narrower default event list
+that no in-app or Android caller depends on (the web calendar pages read single events by `?id=`; the e2e
+isolation check only asserts that no foreign row appears).
+
+| Route | Contract | Errors |
+| --- | --- | --- |
+| `GET /api/users/export` | Adds the caller's own rows in per-person domains, current household only, never a `family_id`: `allowances` (paid to them; a parent also gets those they gave), `wishlistItems` (they asked for), `sickDays` and `medications` (about them, any status), `emergencyContacts` (their own card), `anniversaries` (about them or added by them), `pickups` (assigned to or added by them), `pinnedNotes` (they wrote), `choreAssignments` (assigned to, completed or approved by them; no `idempotency_key`), `uploads` (`id, filename, content_type, size_bytes, created_at` of photos they uploaded; no file bytes), `handoffs` (they created; never `share_token`, then shaped like `GET /api/handoff` for the role), `pushSubscriptions` (`id` and dates only: no endpoint, no keys). Parent only (empty array otherwise): `familyLocations` (their own saved places), `budgetCategories` (they created; no `import_metadata`), `calendarConnections` (their own; no tokens, no sync cursor). Parent or teen: `calendarSubscriptions` (they added; no feed URL, `etag` or `last_modified`). A member with no household gets empty arrays. | unchanged |
+| `GET /api/analytics?tz=<IANA>` or `?tzOffset=<minutes>` | Days (`weeklyTrend[].date/day`, `summary.mostActiveDay`, `summary.currentStreak`) are the viewer's local days (O-31). `tz` is an IANA zone (validated with `Intl`), preferred; `tzOffset` is `Date#getTimezoneOffset()` (minutes, positive west of UTC). Without either: UTC days, as before. Rates (`summary.totalChores/completedChores/completionRate`, `memberParticipation`, `topPerformers`, `difficultyDistribution`) cover chores due in the last 90 days up to now, plus chores completed in that window; a chore that is not due yet (e.g. a generated future occurrence) is no longer in the denominator. The streak looks back up to 90 days (was 30). The web Analytics page sends `tz`. | new: 400 `{ error: 'Invalid time zone' }` for an unknown zone or an offset that is not an integer within ±16 h |
+| `GET /api/events` (no `id`, no `upcoming`) | Was the household's 100 **oldest** events ever. Now events whose `end_time` is no earlier than 30 days ago (ongoing and recently finished ones included), oldest start first, at most 100. `upcoming=true` (events starting from now) and `?id=` are unchanged. | unchanged |
+
+Tests: `src/app/api/users/export/__tests__/personal.test.ts`, `src/app/api/analytics/__tests__/local-days.test.ts`,
+`src/app/api/events/__tests__/list-window.test.ts`.
+
 ## Testing
 Contract tests should cover validation, happy path, unauthorized/forbidden, foreign-family IDs, not-found semantics, duplicate retry, concurrency conflict, pagination and old-client fixtures when relevant.
