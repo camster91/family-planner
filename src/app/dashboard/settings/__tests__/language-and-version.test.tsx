@@ -11,6 +11,9 @@ import userEvent from '@testing-library/user-event'
 import SettingsClient from '../SettingsClient'
 import { I18nProvider, LOCALE_STORAGE_KEY, useTranslation } from '@/i18n'
 
+// SettingsClient refreshes the server layout after a profile save.
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }) }))
+
 jest.mock('next/link', () => ({
   __esModule: true,
   default: ({ href, children, ...rest }: any) => (

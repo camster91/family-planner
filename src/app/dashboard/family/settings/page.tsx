@@ -11,8 +11,6 @@ import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 
 export default function FamilySettingsPage() {
   const [familyName, setFamilyName] = useState('')
-  const [timezone, setTimezone] = useState('America/New_York')
-  const [currency, setCurrency] = useState('USD')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +70,7 @@ export default function FamilySettingsPage() {
         return
       }
 
-      setSuccess('Family settings updated successfully!')
+      setSuccess('Family name saved.')
     } catch (err) {
       setError('An unexpected error occurred')
       console.error(err)
@@ -130,12 +128,12 @@ export default function FamilySettingsPage() {
         <form onSubmit={handleSaveSettings}>
           <div className="card-apple overflow-hidden">
             {error && (
-              <div className="mx-4 mt-4 bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-subhead">
+              <div role="alert" className="mx-4 mt-4 bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-subhead">
                 {error}
               </div>
             )}
             {success && (
-              <div className="mx-4 mt-4 bg-green-500/10 border border-green-500/20 text-green-500 px-4 py-3 rounded-xl text-subhead">
+              <div role="status" className="mx-4 mt-4 bg-green-500/10 border border-green-500/20 text-green-500 px-4 py-3 rounded-xl text-subhead">
                 {success}
               </div>
             )}
@@ -154,45 +152,6 @@ export default function FamilySettingsPage() {
                   className="input-apple w-full"
                   placeholder="The Smith Family"
                 />
-              </div>
-
-              <div>
-                <label htmlFor="timezone" className="block text-subhead font-medium text-label-primary mb-2">
-                  Timezone
-                </label>
-                <select
-                  id="timezone"
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="input-apple w-full"
-                >
-                  <option value="America/New_York">Eastern Time</option>
-                  <option value="America/Chicago">Central Time</option>
-                  <option value="America/Denver">Mountain Time</option>
-                  <option value="America/Los_Angeles">Pacific Time</option>
-                  <option value="Europe/London">London</option>
-                  <option value="Europe/Paris">Paris</option>
-                  <option value="Asia/Tokyo">Tokyo</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="currency" className="block text-subhead font-medium text-label-primary mb-2">
-                  Currency
-                </label>
-                <select
-                  id="currency"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="input-apple w-full"
-                >
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="JPY">JPY (¥)</option>
-                  <option value="CAD">CAD ($)</option>
-                  <option value="AUD">AUD ($)</option>
-                </select>
               </div>
             </div>
 

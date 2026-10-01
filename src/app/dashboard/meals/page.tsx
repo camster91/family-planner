@@ -13,6 +13,7 @@ import { useTranslation } from '@/i18n'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { useToast, useUndoToast } from '@/components/ui/toast'
+import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 import {
   MEAL_LABELS as mealLabels,
   MEAL_TYPES,
@@ -260,35 +261,38 @@ function MealsPageInner() {
   const openEdit = (meal: MealSlot) => setModal({ mode: 'edit', meal })
 
   const handleSave = async (data: MealSaveData) => {
+    const editing = modal?.mode === 'edit' && modal.meal ? modal.meal : null
+    // Keep the dialog open on failure and say why: the server's reason (for
+    // example a validation message) or the offline line.
+    const failTitle = editing ? "Couldn't save the meal" : "Couldn't add the meal"
     setSaving(true)
     try {
-      if (modal?.mode === 'edit' && modal.meal) {
-        const res = await fetch(`/api/meals/${modal.meal.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: modal.meal.id,
-            date: data.date,
-            meal_type: data.meal_type,
-            recipe_name: data.recipe_name,
-            notes: data.notes,
-            ...(data.recipe_id !== undefined ? { recipe_id: data.recipe_id } : {}),
-          }),
-        })
-        if (!res.ok) throw new Error('Failed to update')
-      } else {
-        const res = await fetch('/api/meals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        })
-        if (!res.ok) throw new Error('Failed to create')
+      const res = editing
+        ? await fetch(`/api/meals/${editing.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: editing.id,
+              date: data.date,
+              meal_type: data.meal_type,
+              recipe_name: data.recipe_name,
+              notes: data.notes,
+              ...(data.recipe_id !== undefined ? { recipe_id: data.recipe_id } : {}),
+            }),
+          })
+        : await fetch('/api/meals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          })
+      if (!res.ok) {
+        addToast({ type: 'error', title: failTitle, message: await responseErrorMessage(res) })
+        return
       }
       setModal(null)
       await fetchMeals()
-    } catch (err) {
-      console.error(err)
-      alert(t('common.error'))
+    } catch {
+      addToast({ type: 'error', title: failTitle, message: OFFLINE_MESSAGE })
     } finally {
       setSaving(false)
     }

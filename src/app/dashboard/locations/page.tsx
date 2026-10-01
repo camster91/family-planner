@@ -124,7 +124,7 @@ function LocationsPageInner() {
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="btn-tinted"
+              className="btn-tinted min-h-[44px]"
             >
               <Plus className="w-4 h-4" />
               <span>Add</span>
@@ -142,8 +142,9 @@ function LocationsPageInner() {
             <span className="text-headline">New location</span>
           </div>
           <div>
-            <label className="label-apple">Label</label>
+            <label htmlFor="location-label" className="label-apple">Label</label>
             <input
+              id="location-label"
               type="text"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -153,8 +154,9 @@ function LocationsPageInner() {
             />
           </div>
           <div>
-            <label className="label-apple">Address</label>
+            <label htmlFor="location-address" className="label-apple">Address</label>
             <input
+              id="location-address"
               type="text"
               value={newAddress}
               onChange={(e) => setNewAddress(e.target.value)}
@@ -194,7 +196,7 @@ function LocationsPageInner() {
           icon={MapPin}
           glyphColor="calendar"
           title="No locations yet"
-          description="Add Home, School, Work, or any place the family goes regularly. You can attach them to pickups and events."
+          description="Add Home, School, Work, or any place the family goes regularly."
         />
       ) : (
         <>
@@ -240,8 +242,8 @@ function LocationRow({ location, onRemove, last }: { location: Location; onRemov
       <button
         type="button"
         onClick={() => onRemove(location.id)}
-        className="p-2 text-label-tertiary active:text-[var(--danger-text)] transition-colors"
-        aria-label="Remove"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-label-tertiary active:text-[var(--danger-text)] transition-colors"
+        aria-label={`Remove ${location.label}`}
       >
         <Trash2 className="w-4 h-4" />
       </button>

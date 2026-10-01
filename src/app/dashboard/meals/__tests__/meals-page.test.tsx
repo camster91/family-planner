@@ -20,7 +20,16 @@ const LASAGNA = { id: 'r_lasagna', title: 'Veggie lasagna', prep_time: 25, cook_
 
 type Call = { url: string; method: string; body: unknown }
 
-function setup({ meals, mealsStatus = 200 }: { meals: unknown[]; mealsStatus?: number }) {
+function setup({
+  meals,
+  mealsStatus = 200,
+  saveError,
+}: {
+  meals: unknown[]
+  mealsStatus?: number
+  /** Answer meal POST/PATCH with this status and server error. */
+  saveError?: { status: number; error: string }
+}) {
   const calls: Call[] = []
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -31,6 +40,8 @@ function setup({ meals, mealsStatus = 200 }: { meals: unknown[]; mealsStatus?: n
       ({ ok: status >= 200 && status < 300, status, json: async () => data }) as Response
     if (url.startsWith('/api/meals?')) return json(mealsStatus, mealsStatus === 200 ? { meals } : { error: 'boom' })
     if (url.startsWith('/api/recipes')) return json(200, { recipes: [LASAGNA], nextOffset: null })
+    if (saveError && (method === 'POST' || method === 'PATCH') && url.startsWith('/api/meals'))
+      return json(saveError.status, { error: saveError.error })
     if (url === '/api/meals' && method === 'POST') return json(201, { meal: { id: 'new' } })
     if (url.startsWith('/api/meals/') && method === 'PATCH') return json(200, { meal: { id: 'x' } })
     if (url.startsWith('/api/meals/') && method === 'DELETE') return json(200, { success: true })
@@ -184,5 +195,34 @@ describe('/dashboard/meals', () => {
       expect(within(card).getByText(label)).toBeTruthy()
     }
     expect(within(card).getAllByText('Nothing planned')).toHaveLength(4)
+  })
+
+  it("shows the server's reason in a toast when a save fails, not alert(), and keeps the dialog open", async () => {
+    const user = userEvent.setup()
+    setup({ meals: [], saveError: { status: 400, error: 'Recipe name is too long' } })
+    const card = await todayCard()
+    await user.click(within(card).getByRole('button', { name: /^Add breakfast,/ }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Recipe name'), 'Porridge')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Recipe name is too long')).toBeTruthy()
+    expect(screen.getByText("Couldn't add the meal")).toBeTruthy()
+    expect(window.alert).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('says to check the connection when a save cannot reach the server', async () => {
+    const user = userEvent.setup()
+    const { fetchMock } = setup({ meals: [dinnerA] })
+    const card = await todayCard()
+    await user.click(within(card).getByTestId('meal-row'))
+    const dialog = await screen.findByRole('dialog')
+    fetchMock.mockImplementationOnce(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText("Couldn't save the meal")).toBeTruthy()
+    expect(screen.getByText('Check your connection and try again.')).toBeTruthy()
+    expect(window.alert).not.toHaveBeenCalled()
   })
 })

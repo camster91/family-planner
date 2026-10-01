@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import CalendarSubscriptionsSection from './CalendarSubscriptionsSection'
 import CalendarSyncSection from './CalendarSyncSection'
 import SharedDeviceSettings from './SharedDeviceSettings'
@@ -27,6 +28,7 @@ export default function SettingsClient({
   betaMetrics?: { enabled: boolean } | null
   calendarSync?: boolean
 }) {
+  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('')
@@ -255,6 +257,8 @@ export default function SettingsClient({
       }
 
       setMessage({ type: 'success', text: 'Profile updated successfully!' })
+      // The nav avatar initials and name come from the server layout.
+      router.refresh()
     } catch (err) {
       console.error('Error saving profile:', err)
       setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' })
