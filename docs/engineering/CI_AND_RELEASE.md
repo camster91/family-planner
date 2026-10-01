@@ -19,12 +19,21 @@ readiness, the baked release header and writable
 image-owned uploads directory. The manual `Release to VPS` job also waits for this
 transport gate. It continues to transfer the original checked image bundle.
 
+The imported image also runs selected existing login/logout, parent-role and
+two-household privacy journeys on all six responsive viewport projects. This
+uses a fixed loopback PostgreSQL 16 fixture database and no provider credentials.
+The existing E2E clock shim is mounted read-only solely to align synthetic dates;
+application code and migrations remain in the saved image. Playwright reuses the
+already-started container and never builds another application for this job.
+The broad E2E workflow remains separate; the focused image cases complement it.
+
 This prepares artifact transport; it does not publish to a registry or activate
 Coolify. Artifact names include the workflow attempt to avoid collisions. The
 seven-day Actions artifact is temporary: a full rerun can remove prior artifacts,
 so durable image/receipt retention remains required before automatic promotion.
-Production backup, restored persistent uploads, household isolation on the actual
-candidate, routing ownership and registry access remain separate handoff gates.
+Production backup, restored persistent uploads, authenticated acceptance on the
+actual adopted staging resource, routing ownership and registry access remain
+separate handoff gates.
 
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
