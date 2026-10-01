@@ -87,36 +87,38 @@ export async function completeChore(
       },
     })
 
-    // Recurring chores: make sure the next occurrence exists. A series
-    // template (recurrence_id) uses the same series logic as the create route
-    // and the cron; a legacy recurring row keeps its single successor.
-    if (chore.frequency && chore.frequency !== 'once') {
-      if (chore.recurrence_id) {
-        await expandSeriesInTx(tx, chore.recurrence_id, chore.family_id)
-      } else {
-        const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
-        if (nextDueDate) {
-          const successor = await tx.chore.create({
-            data: {
-              family_id: chore.family_id,
-              title: chore.title,
-              description: chore.description,
-              points: chore.points,
-              assigned_to: chore.assigned_to,
-              due_date: nextDueDate,
-              status: 'pending',
-              frequency: 'once',
-              difficulty: chore.difficulty,
-              created_by: chore.created_by,
-              icon: chore.icon,
-              routine: chore.routine,
-              routine_order: chore.routine_order,
-            },
-          })
-          // Remember exactly which row this completion created, so Undo
-          // removes that row and nothing else (#268).
-          await tx.chore.update({ where: { id: chore.id }, data: { successor_id: successor.id } })
-        }
+    // Recurring chores: make sure the next occurrences exist. Any chore in a
+    // series (the template or one of its generated copies, which are stored
+    // as 'once') tops the series up with the same logic as the create route
+    // and the cron; the template's own frequency decides whether the series
+    // still repeats. Idempotent: the window/horizon rules and the
+    // (recurrence_id, due_date) unique key mean a repeat call adds nothing.
+    // A legacy recurring row (no series) keeps its single successor.
+    if (chore.recurrence_id) {
+      await expandSeriesInTx(tx, chore.recurrence_id, chore.family_id, now)
+    } else if (chore.frequency && chore.frequency !== 'once') {
+      const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
+      if (nextDueDate) {
+        const successor = await tx.chore.create({
+          data: {
+            family_id: chore.family_id,
+            title: chore.title,
+            description: chore.description,
+            points: chore.points,
+            assigned_to: chore.assigned_to,
+            due_date: nextDueDate,
+            status: 'pending',
+            frequency: 'once',
+            difficulty: chore.difficulty,
+            created_by: chore.created_by,
+            icon: chore.icon,
+            routine: chore.routine,
+            routine_order: chore.routine_order,
+          },
+        })
+        // Remember exactly which row this completion created, so Undo
+        // removes that row and nothing else (#268).
+        await tx.chore.update({ where: { id: chore.id }, data: { successor_id: successor.id } })
       }
     }
     return true

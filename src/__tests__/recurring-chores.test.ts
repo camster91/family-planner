@@ -113,7 +113,10 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
-import { expandRecurringChores, expandAllRecurringChores } from '@/lib/recurringChores'
+jest.mock('@/lib/beta-metrics', () => ({ recordBetaMetric: async () => undefined }))
+
+import { expandRecurringChores, expandAllRecurringChores, topUpHouseholdSeries } from '@/lib/recurringChores'
+import { completeChore, type CompletableChore } from '@/lib/chore-complete'
 
 const FAM = 'fam-A'
 
@@ -314,5 +317,73 @@ describe('#184 recurring chores', () => {
     const generated = rows.filter((r) => r.recurrence_id === t.id && r.id !== t.id)
     expect(generated.length).toBeGreaterThan(0)
     for (const g of generated) expect(g).toMatchObject({ icon: null, routine: null, routine_order: null })
+  })
+})
+
+describe('series keep going after the first window (no scheduler)', () => {
+  // A db for completeChore: the status flip and activity row on top of the
+  // same in-memory chore table the expander uses.
+  const updateMany = async ({ where, data }: { where: { id: string; status: { in: string[] } }; data: Partial<Row> }) => {
+    const r = rows.find((x) => x.id === where.id && where.status.in.includes(x.status))
+    if (!r) return { count: 0 }
+    Object.assign(r, data)
+    return { count: 1 }
+  }
+  const completionTx = { chore: { ...chore, updateMany }, activity: { create: async () => ({}) } }
+  const db = { chore: {}, $transaction: async (fn: (tx: unknown) => unknown) => fn(completionTx), $executeRaw: async () => 0 }
+
+  function asCompletable(r: Row): CompletableChore {
+    return { ...r, photo_url: null, icon: null, routine: null, routine_order: null } as unknown as CompletableChore
+  }
+
+  function weeklySeries(): Row {
+    const t = addRow({ frequency: 'weekly', is_template: true, due_date: day(1) })
+    t.recurrence_id = t.id
+    return t
+  }
+
+  it('completing a generated copy (stored as once) tops the series up', async () => {
+    const t = weeklySeries()
+    await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
+    expect(seriesRows(t.id)).toHaveLength(4) // Sep 1, 8, 15, 22
+
+    const later = new Date(2026, 8, 16, 12) // Sep 16: only Sep 22 is still upcoming
+    const copy = seriesRows(t.id).find((r) => r.due_date.getTime() === day(15).getTime())!
+    expect(copy.frequency).toBe('once')
+
+    expect(await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: later })).toBe(true)
+    const dates = seriesRows(t.id).map((r) => r.due_date.getTime())
+    expect(dates).toHaveLength(7)
+    expect(dates).toContain(new Date(2026, 9, 13).getTime()) // Oct 13
+
+    // Repeat completes add nothing.
+    expect(await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: later })).toBe(false)
+    const next = seriesRows(t.id).find((r) => r.due_date.getTime() === day(22).getTime())!
+    expect(await completeChore(db as never, asCompletable(next), { id: 'kid', name: 'Kid' }, { now: later })).toBe(true)
+    expect(seriesRows(t.id)).toHaveLength(7)
+  })
+
+  it('a copy of a stopped series (template set to once) does not extend it', async () => {
+    const t = weeklySeries()
+    await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
+    t.frequency = 'once'
+    t.is_template = false
+    const copy = seriesRows(t.id).find((r) => r.id !== t.id)!
+    await completeChore(db as never, asCompletable(copy), { id: 'kid', name: 'Kid' }, { now: new Date(2026, 8, 30, 12) })
+    expect(seriesRows(t.id)).toHaveLength(4)
+  })
+
+  it('the read-time top-up is idempotent', async () => {
+    const t = weeklySeries()
+    await expandRecurringChores({ id: t.id, frequency: 'weekly' }, FAM, NOW)
+    const later = new Date(2026, 8, 30, 12)
+    const first = await topUpHouseholdSeries(FAM, later)
+    expect(first).toBeGreaterThan(0)
+    const size = seriesRows(t.id).length
+    expect(await topUpHouseholdSeries(FAM, later)).toBe(0)
+    expect(seriesRows(t.id)).toHaveLength(size)
+    // Another household's top-up never touches this series.
+    expect(await topUpHouseholdSeries('fam-B', new Date(2026, 10, 30, 12))).toBe(0)
+    expect(seriesRows(t.id)).toHaveLength(size)
   })
 })

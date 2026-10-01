@@ -7,6 +7,7 @@ import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import HomeSummary from '@/components/dashboard/HomeSummary'
 import { loadTodayBoard } from './board-snapshot'
+import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { loadHomeSummary } from './home-summary-data'
 
 export const metadata: Metadata = { title: 'Today' }
@@ -70,6 +71,9 @@ export default async function TodayBoardPage({
   after(() => refreshStaleSubscriptions(familyId))
 
   const now = new Date()
+  // Recurring series are extended on read (no scheduler), before the board
+  // reads today's chores. Bounded, idempotent, never throws.
+  await topUpHouseholdSeries(familyId, now)
   // Weather (#262) is opt-in per household and never fails the page: null
   // hides the tile. The board carries its display settings and change
   // version (#271).

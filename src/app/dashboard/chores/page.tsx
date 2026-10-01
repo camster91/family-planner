@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 import { CHORE_HISTORY_PAGE_SIZE, compareChoreOrder, encodeChoreCursor } from '@/lib/chore-paging'
+import { topUpHouseholdSeries } from '@/lib/recurringChores'
 
 export default async function ChoresPage() {
   const sessionUser = await getServerUser()
@@ -20,6 +21,10 @@ export default async function ChoresPage() {
   // Points & streaks (#248). When off, no chore points or streaks are computed
   // or sent to the client.
   const gamification = await isGamificationOn(familyId)
+
+  // Recurring series are extended on read (there is no scheduler): a series
+  // nobody ticks still shows its next weeks. Bounded, idempotent, never throws.
+  if (familyId) await topUpHouseholdSeries(familyId)
 
   // Chores for the family (O-19 paging). Everything still open, and every
   // chore due from yesterday (UTC) on, loads in full: the Today and Week views,

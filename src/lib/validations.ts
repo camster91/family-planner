@@ -222,6 +222,9 @@ export const updateChoreSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
+  // For a generated copy of a recurring series: apply `frequency` to the whole
+  // series (O-33). Without it a copy's frequency is left alone.
+  apply_to_series: z.boolean().optional(),
   // An /api/upload result owned by the caller's family (D3), or null to clear;
   // checked in the route.
   photo_url: z.string().max(500).nullable().optional(),

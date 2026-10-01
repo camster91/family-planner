@@ -8,6 +8,7 @@ import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility
 import { apiError, logRouteError } from '@/lib/api-error'
 import { afterChoreCursor, encodeChoreCursor, parseChorePaging } from '@/lib/chore-paging'
 import { getRequestId } from '@/lib/request-id'
+import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,7 +97,7 @@ export async function PATCH(request: NextRequest) {
 
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
-      select: { family_id: true, assigned_to: true, photo_url: true },
+      select: { family_id: true, assigned_to: true, photo_url: true, frequency: true, recurrence_id: true },
     })
 
     if (!chore) {
@@ -162,7 +163,8 @@ export async function PATCH(request: NextRequest) {
     if (updates.assigned_to !== undefined) data.assigned_to = updates.assigned_to
     if (dueDate !== undefined) data.due_date = dueDate
     if (updates.difficulty !== undefined) data.difficulty = updates.difficulty
-    if (updates.frequency !== undefined) data.frequency = updates.frequency
+    // `frequency` is applied below by `applyFrequencyEditInTx`, which also
+    // starts, re-times or stops the recurring series.
     if (photo.value !== undefined) data.photo_url = photo.value
     // Picture routines (#272): null clears. Like the title, the assignee may
     // change them; they carry no XP or privilege.
@@ -170,14 +172,26 @@ export async function PATCH(request: NextRequest) {
     if (updates.routine !== undefined) data.routine = updates.routine
     if (updates.routine_order !== undefined) data.routine_order = updates.routine_order
 
-    const updated = await prisma!.chore.update({
-      where: { id: choreId },
-      data,
-      include: {
-        assignee: { select: { id: true, name: true, avatar_url: true } },
-        creator: { select: { id: true, name: true } },
-      },
-    })
+    const include = {
+      assignee: { select: { id: true, name: true, avatar_url: true } },
+      creator: { select: { id: true, name: true } },
+    } as const
+    // One transaction: the edit and any series change (once -> repeating
+    // starts a series; a template set to 'once' stops it, O-33) commit together.
+    const frequency = updates.frequency
+    const updated =
+      frequency === undefined
+        ? await prisma!.chore.update({ where: { id: choreId }, data, include })
+        : await prisma!.$transaction(async (tx) => {
+            if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
+            await applyFrequencyEditInTx(
+              tx,
+              { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id },
+              frequency,
+              { applyToSeries: updates.apply_to_series === true }
+            )
+            return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
+          })
 
     if (!(await isGamificationOn(auth.user.family_id))) {
       return NextResponse.json({ chore: omitChorePoints(updated) })

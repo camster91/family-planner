@@ -4,6 +4,7 @@ import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
 import { deviceClock, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
 import { getRequestId } from '@/lib/request-id'
+import { topUpHouseholdSeries } from '@/lib/recurringChores'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,11 +20,17 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await authenticateDevice(request)
     if (!auth.ok) return auth.response
+    const now = deviceClock.now()
+    // Recurring series are extended on read (no scheduler), so a tablet that
+    // is the household's only screen still gets each new week's chores.
+    // Bounded, idempotent, household-scoped, never throws. The version routes
+    // do not do this; they only hash what is there.
+    await topUpHouseholdSeries(auth.actor.familyId, now)
     // Weather (#262): the household's opt-in tile, or null. Never fails the board.
     const data = await loadTodayBoard(prisma!, {
       familyId: auth.actor.familyId,
       audience: 'device',
-      now: deviceClock.now(),
+      now,
       withWeather: true,
     })
     return deviceJson(data)
