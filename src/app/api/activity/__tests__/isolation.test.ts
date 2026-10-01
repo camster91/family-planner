@@ -7,7 +7,7 @@ jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-hous
 jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null }));
 
 import { GET } from "../route";
-import { db, req, expectNoForeignData } from "@/__tests__/helpers/two-household";
+import { db, req, expectNoForeignData, FAMILY_A } from "@/__tests__/helpers/two-household";
 
 describe("activity — two households", () => {
   beforeEach(() => db.reset());
@@ -23,5 +23,18 @@ describe("activity — two households", () => {
   it("lists only the caller's family", async () => {
     const body = await expectNoForeignData(await GET(req({ as: "childA" })));
     expect(body.activities.map((a: any) => a.id)).toEqual(["act-a"]);
+  });
+
+  it("keeps real event_* and events_* rows and hides legacy analytics rows", async () => {
+    const base = { family_id: FAMILY_A, user_id: "parent-a", description: null, metadata: null };
+    db.rows("activity").push(
+      { ...base, id: "act-created", type: "event_created", title: "Event", created_at: new Date("2026-01-02T00:00:00Z") },
+      { ...base, id: "act-imported", type: "events_imported", title: "Import", created_at: new Date("2026-01-03T00:00:00Z") },
+      { ...base, id: "act-pageview", type: "event_page_view", title: "page", created_at: new Date("2026-01-04T00:00:00Z") },
+    );
+    const res = await GET(req({ as: "parentA" }));
+    const ids = (await res.json()).activities.map((a: any) => a.id);
+    expect(ids).toEqual(expect.arrayContaining(["act-created", "act-imported", "act-a"]));
+    expect(ids).not.toContain("act-pageview");
   });
 });
