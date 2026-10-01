@@ -48,6 +48,23 @@ Do not expose stack traces, database details, foreign record existence or secret
 
 `code` is stable UPPER_SNAKE_CASE; clients branch on `code`, never on `message`. Success bodies and status codes of adopted routes did not change. Routes not yet adopted still return `{ error }` (and the shared-device routes their own nested envelope without `requestId`); the adoption order is in `OBSERVABILITY.md` "Incremental adoption plan". Moving an existing route from `flat` to `nested` is a breaking change and needs the compatibility plan above.
 
+### Envelope rule for every route (#134)
+Every API error response is JSON with an `error` key and a 4xx/5xx status: `{ "error": "<human message>" }` (plus the
+additive flat fields above where adopted) or the nested `{ "error": { "code", "message", ... } }`. Extra keys a client
+already reads stay (for example `GET /api/auth/me` keeps `user: null` next to `error`). Never `{ "message" }`,
+`{ "errors" }`, plain text, or a 200 that carries `error`. The one exception is `GET /api/health`, whose 503 body is
+`{ "status": "degraded" }` for the orchestrator and the release check.
+
+`src/app/api/__tests__/error-envelope.test.ts` parses every `src/app/api/**/route.ts` and fails on an inline error
+body without `error`, an `error` body with a success status, or a plain-text error. It does not see bodies built in
+shared helpers or responses with a computed status; those helpers (`api-auth`, `csrf`, `feature-gate-server`,
+`idempotency`, `device-http`, `inventory-http`) already return `{ error }`.
+
+Aligned in #134 (additive or invisible to clients): `GET /api/files/[filename]` and `GET /api/files/chores/[filename]`
+answer 403/404 with `{ "error": "Forbidden" | "Not found" }` instead of plain text (they are loaded by `<img>`, which
+ignores the body; the 401 was already JSON); `GET /api/auth/me` adds `error` to its 401/500 `{ user: null }` bodies.
+Reliability targets and how to check them: [`docs/engineering/SLO_AND_PERFORMANCE.md`](../engineering/SLO_AND_PERFORMANCE.md).
+
 ## Request identity and build version (#161)
 - **`X-Request-Id`** is on every response that passes through `src/middleware.ts` (all API routes and pages; not `/_next/static`, `/_next/image`, `favicon.ico`), including CSRF 403s and redirects. A client or proxy may send its own `X-Request-Id` (`[A-Za-z0-9_-]{8,64}`); a well-formed value is echoed back, anything else is replaced by a random UUID. Adopted error bodies repeat it as `requestId`. Quote it in bug and support reports.
 - **`GET /api/version`** (public, `Cache-Control: no-store`): `200 { "version": "0.1.0", "commit": "<40-hex RELEASE_SHA or \"unknown\">", "builtAt": "<ISO time of next build or \"unknown\">" }` and nothing else. Clients may show it in an About/diagnostics view. Installed clients never depend on it; a server rolled back to a build without it answers 404.
