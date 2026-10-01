@@ -4,6 +4,8 @@ import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { DEFAULT_FAMILY_TIMEZONE, isValidTimeZone } from '@/lib/calendar-import/timezone'
+import { allDayRange, projectTaskUid } from '@/lib/project-calendar'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +13,10 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-// POST — Create calendar events from incomplete project tasks
-// Each incomplete task with a due_date becomes a 30-minute event on that date
+// POST — Create calendar events from incomplete project tasks.
+// Each incomplete task with a due_date becomes an all-day event on that
+// calendar day. Optional body: `{ timeZone }` (the caller's IANA zone);
+// otherwise the household default zone is used.
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -28,6 +32,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { error: 'Project ID is required' },
         { status: 400 }
       )
+    }
+
+    // The body is optional; an unknown or missing zone falls back to the default.
+    let timeZone = DEFAULT_FAMILY_TIMEZONE
+    try {
+      const body = await request.json()
+      const requested = body && typeof body === 'object' ? (body as { timeZone?: unknown }).timeZone : undefined
+      if (typeof requested === 'string' && isValidTimeZone(requested)) timeZone = requested
+    } catch {
+      // No or invalid JSON body: keep the default zone.
     }
 
     // Verify the project exists and belongs to the user's family
@@ -71,23 +85,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
       })
     }
 
-    // Check for existing events already linked to this project and task-like
-    // (to avoid creating duplicates — events with is_task=true and project_id set)
-    const existingTaskTitles = new Set(
-      (
-        await prisma!.event.findMany({
-          where: {
-            project_id: projectId,
-            is_task: true,
-          },
-          select: { title: true },
-        })
-      ).map((e) => e.title)
+    // Skip tasks already on the calendar. New events carry a stable link to
+    // their task (source_uid). Events sent before that link existed have no
+    // source_uid; for those only, a matching title still counts as sent so a
+    // re-send after upgrade does not duplicate them.
+    const existing = await prisma!.event.findMany({
+      where: {
+        family_id: auth.user.family_id,
+        project_id: projectId,
+        is_task: true,
+      },
+      select: { title: true, source_uid: true },
+    })
+    const linkedUids = new Set(
+      existing.map((e) => e.source_uid).filter((uid): uid is string => !!uid)
+    )
+    const legacyTitles = new Set(
+      existing.filter((e) => !e.source_uid).map((e) => e.title)
     )
 
-    // Filter out tasks that already have calendar events
     const tasksToCreate = tasks.filter(
-      (task) => !existingTaskTitles.has(task.title)
+      (task) =>
+        !linkedUids.has(projectTaskUid(task.id)) && !legacyTitles.has(task.title)
     )
 
     if (tasksToCreate.length === 0) {
@@ -101,20 +120,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Create calendar events for each remaining task
     const createdEvents = await Promise.all(
       tasksToCreate.map(async (task) => {
-        const startTime = task.due_date!
-        // 30-minute event window
-        const endTime = new Date(startTime.getTime() + 30 * 60 * 1000)
+        const { start, end } = allDayRange(task.due_date!, timeZone)
 
         return prisma!.event.create({
           data: {
             family_id: auth.user.family_id,
             title: task.title,
             description: task.description || `Task from project: ${project.name}`,
-            start_time: startTime,
-            end_time: endTime,
+            start_time: start,
+            end_time: end,
             event_type: 'other',
             is_task: true,
             project_id: projectId,
+            source_uid: projectTaskUid(task.id),
             created_by: auth.user.id,
           },
           select: {

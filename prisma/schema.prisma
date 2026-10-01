@@ -798,6 +798,9 @@ model Event {
   // for events created in the app. Identity of an imported occurrence is
   // (subscription, iCalendar UID, original occurrence start): the
   // RECURRENCE-ID instant for recurring instances, DTSTART otherwise.
+  // Exception: an in-app event sent from a project task keeps
+  // source_uid = "project-task:<task id>" (subscription id null) as its
+  // dedupe link; see src/lib/project-calendar.ts.
   source_subscription_id  String?
   source_uid              String?
   source_occurrence_start DateTime?
