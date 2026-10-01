@@ -277,7 +277,6 @@ const messages = {
       save: 'Save',
       cancel: 'Cancel',
       emptyState: 'Not traveling. Toggle on when you are.',
-      banner: 'Family is away in {destination} until {date}',
     },
     emergency: {
       title: 'Emergency Contacts',
@@ -686,7 +685,6 @@ const messages = {
       save: 'Guardar',
       cancel: 'Cancelar',
       emptyState: 'No estan viajando. Activa cuando lo esten.',
-      banner: 'La familia esta en {destination} hasta {date}',
     },
     emergency: {
       title: 'Contactos de Emergencia',

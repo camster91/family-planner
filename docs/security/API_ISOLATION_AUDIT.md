@@ -533,7 +533,7 @@ database. No confirmed cross-family read or write remains open.
 The role gates added (locations, travel) do not remove any existing kid UI.
 `src/lib/kid-access.ts` sends teen and child sessions away from `/dashboard/locations` and `/dashboard/travel`.
 Since the #102 decisions, `/dashboard/allowance`, `/dashboard/lists`, `/dashboard/handoff` and
-`/dashboard/sick-days` are on the kid allowlist, read-only or own-only as the matrix describes. `TravelModeBanner` (the only other caller of `/api/family/travel`) is not mounted anywhere.
+`/dashboard/sick-days` are on the kid allowlist, read-only or own-only as the matrix describes. The unmounted `TravelModeBanner` (formerly the only other caller of `/api/family/travel`) has been deleted.
 
 ## Decisions
 
