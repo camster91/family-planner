@@ -5,6 +5,25 @@
 
 ## Workflow ownership
 
+### Checked image transport for Coolify preparation (#145)
+
+After the existing build and container readiness gate, `Build & Test` saves the
+exact runtime image plus a receipt naming the repository, full source revision,
+workflow run/attempt, image configuration ID and archive checksum. The separate
+`Checked image on fresh runner` job downloads that artifact, verifies it before
+import, and compares the loaded image configuration, filesystem layer identities
+and platform with the saved image. It then runs the imported container against a
+throwaway database and requires readiness, the baked release header and writable
+image-owned uploads directory. The manual `Release to VPS` job also waits for this
+transport gate. It continues to transfer the original checked image bundle.
+
+This prepares artifact transport; it does not publish to a registry or activate
+Coolify. Artifact names include the workflow attempt to avoid collisions. The
+seven-day Actions artifact is temporary: a full rerun can remove prior artifacts,
+so durable image/receipt retention remains required before automatic promotion.
+Production backup, restored persistent uploads, household isolation on the actual
+candidate, routing ownership and registry access remain separate handoff gates.
+
 | Workflow | Responsibility | Trigger | External effect |
 | --- | --- | --- | --- |
 | `release.yml` — `Build & Test` | Secret scan (gitleaks, see below), locked install, Prisma validation, typecheck, lint, format, unit tests, idempotent migration check, persisted-import and import-reconciliation integration tests, backup/restore/rollback-forward rehearsal (report artifact), production dependency audit, app build, Docker build and readiness smoke test | Pull request, `main`/`master` push, manual dispatch | Validation only |
