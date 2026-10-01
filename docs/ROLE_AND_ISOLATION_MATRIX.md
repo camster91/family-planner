@@ -297,6 +297,7 @@ Navigation is a view of the kid allowlist, never a second gate (`src/lib/nav-ite
 | Emergency | Family → Emergency | own tab | own tab |
 | Family → More (`/dashboard/family/more`) | Chores plus every enabled feature that is not a tab | not reachable (`/dashboard/family` is parent-only) | not reachable |
 | Today board | Today tab | user menu → Today board | user menu → Today board |
+| Help (`/dashboard/help`, #146) | user menu → Help (static text and links, no household data) | not reachable (not on the kid allowlist) | not reachable |
 
 The kid home (#272) shows the child's own chores due today grouped into picture routines; it reads nothing new
 beyond the child's own chore rows it already read (`docs/product/CHORES.md`).

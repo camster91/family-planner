@@ -47,6 +47,8 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
   & streaks is a setting, not a place, so it is not listed (its pages are Rewards and Analytics).
 - The user-menu "Food inventory" link (#263) stays, for every role, because children and teens cannot open
   More. The command palette lists the same destinations plus More, Emergency and Travel.
+- Help (`/dashboard/help`, #146, parents): user menu → Help, under Settings. Short how-to answers, links to the
+  real pages, and the support contact from `src/lib/support.ts`. Not on the kid allowlist, like Settings.
 
 ## Undo over confirm
 

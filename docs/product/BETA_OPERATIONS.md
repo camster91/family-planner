@@ -81,7 +81,8 @@ Do this on a short call or by message. The adult does every step themselves on t
 
 ## Support
 
-- Contact: `<SUPPORT_EMAIL>` (placeholder; owner fills in). One inbox, read at least once a day.
+- Contact: `<SUPPORT_EMAIL>` (placeholder; owner fills in, also in `src/lib/support.ts` for the in-app Help page). One inbox, read at least once a day.
+- Step-by-step handling of each kind of request: `docs/runbooks/SUPPORT.md`.
 - Reply within one working day. Privacy or "I can see another family" reports: reply and start the incident loop within one hour when awake.
 - In issues and notes, refer to households only as `beta-0N`. Never copy messages, child names, photos, addresses or screenshots with personal data into GitHub.
 - Operators do not join beta households and do not sign in as a member. If a fix needs someone's data, ask them to describe it or use the export they send you, then delete the export.
