@@ -70,10 +70,10 @@ Revocation means removing the subscription (parents only): `DELETE /api/calendar
 ## Fetch safety (SSRF)
 
 - Only `https://` is fetched. `webcal://`/`webcals://` are rewritten to `https://`. Credentials in the URL are rejected.
-- `checkProviderUrlShape` + `assertPublicProviderUrl` (`src/lib/outbound-url.ts`) run on save and **again before every request hop**. They reject loopback, RFC 1918, CGNAT, link-local/metadata (169.254.169.254), ULA and multicast addresses, including hostnames that resolve to them.
+- `checkProviderUrlShape` + `assertPublicProviderUrl` (`src/lib/outbound-url.ts`) run on save and **again before every request hop**. They reject loopback, RFC 1918, CGNAT, link-local/metadata (169.254.169.254), ULA and multicast addresses, including hostnames that resolve to them. IPv6 literals are fully expanded before judging, so every IPv6 form that embeds an IPv4 address is judged by that IPv4 address: IPv4-mapped in hex or dotted form (`[::ffff:7f00:1]`, which is how the URL parser normalises `[::ffff:127.0.0.1]`), IPv4-compatible `::/96` (refused outright), NAT64 `64:ff9b::/96` and 6to4 `2002::/16`. Teredo, the local-use NAT64 prefix and unparseable addresses are refused.
 - `redirect: 'manual'`, with at most 3 redirects. Each `Location` is resolved and re-validated, and a downgrade to http is refused.
 - 10 s total timeout (AbortController). The 2 MB body cap is checked against `Content-Length` and enforced while streaming.
-- Residual risk: DNS is resolved separately from the connection, so a hostile DNS server could rebind between check and connect. This is the same as the existing AI-provider guard. Pinning the resolved address in a custom agent is a possible hardening step.
+- Residual risk: DNS is resolved separately from the connection, so a hostile DNS server could rebind between check and connect. This is the same as the existing AI-provider guard. Pinning the resolved address in a custom agent is the follow-up: an undici `Agent` with a validating `connect.lookup` passed as fetch's `dispatcher`. It needs the `undici` package as a direct dependency (it is not installed today; Node's built-in fetch does not export `Agent`), so it was deferred rather than adding a dependency in the security-fix pass.
 
 ## Secrets, privacy and logging
 

@@ -25,39 +25,6 @@ export function formatTime(date: string | Date): string {
   })
 }
 
-// Calculate time remaining
-export function timeRemaining(dueDate: string | Date): string {
-  const now = new Date()
-  const due = new Date(dueDate)
-  const diff = due.getTime() - now.getTime()
-  
-  if (diff < 0) return 'Overdue'
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-  
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h`
-  
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  return `${minutes}m`
-}
-
-// Get chore status color
-export function getChoreStatusColor(status: string): string {
-  switch (status) {
-    case 'completed':
-    case 'verified':
-      return 'bg-green-100 text-green-800'
-    case 'in_progress':
-      return 'bg-yellow-100 text-yellow-800'
-    case 'overdue':
-      return 'bg-red-100 text-red-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
-
 // Calculate age from birthdate
 export function calculateAge(birthDate: string | Date): number {
   const today = new Date()
@@ -110,26 +77,4 @@ export function fileToBase64(file: File): Promise<string> {
     reader.onload = () => resolve(reader.result as string)
     reader.onerror = reject
   })
-}
-
-export function exportToCSV(data: Record<string, unknown>[], filename: string) {
-  const csvRows: string[] = []
-  const headers = Object.keys(data[0])
-  csvRows.push(headers.join(','))
-
-  for (const row of data) {
-    const values = headers.map(header => {
-      const val = row[header]
-      const escaped = ('' + val).replace(/"/g, '\\"')
-      return `"${escaped}"`
-    })
-    csvRows.push(values.join(','))
-  }
-
-  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.setAttribute('href', url)
-  a.setAttribute('download', `${filename}.csv`)
-  a.click()
 }

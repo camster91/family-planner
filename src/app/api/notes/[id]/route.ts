@@ -5,8 +5,11 @@ import { canEditOwnedRecord } from '@/lib/role-capabilities'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { deleteNoteSchema, updateNoteSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
+
+const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple']
 
 // PATCH - Update a note
 export async function PATCH(request: NextRequest) {
@@ -17,17 +20,17 @@ export async function PATCH(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'notes')
     if (gate) return gate
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { id, title, body: noteBody, color } = body
-
-    if (!id || typeof id !== 'string') {
-      return NextResponse.json({ error: 'Note ID is required' }, { status: 400 })
+    const parsed = updateNoteSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const { id, title, body: noteBody, color } = parsed.data
 
     const note = await prisma!.pinnedNote.findUnique({
       where: { id },
@@ -47,11 +50,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     const data: Record<string, unknown> = {}
-    if (title !== undefined) data.title = title.trim()
-    if (noteBody !== undefined) data.body = noteBody.trim()
+    if (title !== undefined) data.title = title
+    if (noteBody !== undefined) data.body = (noteBody ?? '').trim()
     if (color !== undefined) {
-      const validColors = ['yellow', 'pink', 'blue', 'green', 'purple']
-      data.color = validColors.includes(color) ? color : 'yellow'
+      data.color = typeof color === 'string' && NOTE_COLORS.includes(color) ? color : 'yellow'
     }
 
     const updated = await prisma!.pinnedNote.update({
@@ -79,17 +81,17 @@ export async function DELETE(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { id } = body
-
-    if (!id || typeof id !== 'string') {
-      return NextResponse.json({ error: 'Note ID is required' }, { status: 400 })
+    const parsed = deleteNoteSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const { id } = parsed.data
 
     const note = await prisma!.pinnedNote.findUnique({
       where: { id },

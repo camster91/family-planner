@@ -85,7 +85,7 @@ describe('gallery isolation', () => {
     // Runtime imports only; `import type` is erased at build.
     const runtimeImports = [...code.matchAll(/^import\s+(?!type\b)[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1])
     for (const spec of runtimeImports) {
-      expect(spec).not.toMatch(/prisma|^pg$|@\/lib\/(session|auth|api-auth|api-client|feature-gate-server)$|today-board-data|shopping-snapshot$/)
+      expect(spec).not.toMatch(/prisma|^pg$|@\/lib\/(session|auth|api-auth|feature-gate-server)$|today-board-data|shopping-snapshot$/)
       expect(spec).not.toMatch(/\/page$/)
     }
     expect(code).not.toMatch(/\bfetch\s*\(/)

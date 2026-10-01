@@ -10,11 +10,22 @@ import { sniffImageType } from '@/lib/image-sniff'
 import { prisma } from '@/lib/prisma'
 import { chorePhotoPath } from '@/lib/chore-photos'
 import { lockHouseholdForJoin } from '@/lib/household-lock'
+import { checkRateLimit } from '@/lib/rate-limit-db'
+import {
+  FAMILY_UPLOAD_QUOTA_BYTES,
+  FAMILY_UPLOAD_QUOTA_MESSAGE,
+  UPLOAD_RATE_LIMIT_MAX,
+  UPLOAD_RATE_LIMIT_WINDOW_MS,
+  familyUploadBytes,
+  pruneUnreferencedUploads,
+} from '@/lib/upload-housekeeping'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+// One photo plus generous room for multipart framing and other fields.
+const MAX_REQUEST_BYTES = MAX_FILE_SIZE + 1024 * 1024
 // GIF is deliberately absent: /api/files/chores only serves jpg/png/webp/heic.
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/family-planner-uploads'
@@ -32,7 +43,31 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const formData = await request.formData()
+    const rate = await checkRateLimit(`upload:${auth.user.id}`, UPLOAD_RATE_LIMIT_MAX, UPLOAD_RATE_LIMIT_WINDOW_MS)
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: 'Too many photo uploads this hour. Try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.max(1, Math.ceil(rate.retryAfterMs / 1000))) } }
+      )
+    }
+
+    // Refuse a body far larger than one allowed photo before buffering it.
+    const declaredLength = Number(request.headers.get('content-length'))
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+      return NextResponse.json(
+        { error: `File too large. Max: ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+        { status: 413 }
+      )
+    }
+
+    // A body that is not multipart (or urlencoded) form data makes formData()
+    // throw: that is the client's mistake, not a server error.
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch {
+      return NextResponse.json({ error: 'Send the photo as multipart/form-data with a "file" field' }, { status: 400 })
+    }
     const file = formData.get('file')
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
@@ -82,6 +117,12 @@ export async function POST(request: NextRequest) {
     const filename = `${hash}.${ext}`
     const filepath = path.join(choreUploadDir, filename)
 
+    // Opportunistic cleanup of this household's stale, unreferenced uploads
+    // (src/lib/upload-housekeeping.ts). It runs before the quota check so a
+    // household at its quota can recover by uploading again; it never fails
+    // the upload and never touches the file this request is storing.
+    await pruneUnreferencedUploads(prisma!, familyId, { uploadDir: UPLOAD_DIR, keepFilename: filename })
+
     // Order against household deletion (D-3, src/lib/household-lock.ts):
     // 1. the bytes are written to a private temp file;
     // 2. one transaction under the household lock re-checks the household and
@@ -99,13 +140,18 @@ export async function POST(request: NextRequest) {
 
     // A row owned by another family would mean a 64-bit hash collision across
     // households: refuse rather than hand over or share the file.
-    let outcome: 'ok' | 'gone' | 'collision'
+    let outcome: 'ok' | 'gone' | 'collision' | 'quota'
     let created = false
     try {
       outcome = await prisma!.$transaction(async (tx) => {
         if (!(await lockHouseholdForJoin(tx, familyId))) return 'gone' as const
         const existing = await tx.upload.findUnique({ where: { filename }, select: { family_id: true } })
         if (existing && existing.family_id !== familyId) return 'collision' as const
+        // Quota under the household lock, so concurrent uploads cannot both
+        // squeeze past it. A same-household re-upload stores nothing new.
+        if (!existing && (await familyUploadBytes(tx, familyId)) + buf.length > FAMILY_UPLOAD_QUOTA_BYTES) {
+          return 'quota' as const
+        }
         if (!existing) {
           await tx.upload.create({
             data: {
@@ -142,6 +188,10 @@ export async function POST(request: NextRequest) {
     }
     if (outcome === 'gone') {
       return NextResponse.json({ error: 'Household not found' }, { status: 404 })
+    }
+    if (outcome === 'quota') {
+      log.warn('upload.photo.quota_exceeded')
+      return NextResponse.json({ error: FAMILY_UPLOAD_QUOTA_MESSAGE }, { status: 413 })
     }
     if (outcome === 'collision') {
       log.warn('upload.photo.collision')

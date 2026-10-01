@@ -5,7 +5,7 @@
  * state-changing requests. Patches window.fetch once on import.
  *
  * This is loaded via the root layout so every page picks it up.
- * It's safer than migrating 66 individual fetch calls to use apiFetch.
+ * It covers every fetch call without each caller adding the header.
  */
 
 const CSRF_COOKIE_NAME = 'csrf_token'

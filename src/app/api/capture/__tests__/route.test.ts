@@ -36,6 +36,7 @@ import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { assertPublicProviderUrl } from "@/lib/outbound-url";
+import { CAPTURE_TIMEOUT_MS, MAX_IMAGE_BASE64_LENGTH } from "@/lib/capture";
 
 const mockAuth = authenticateWithFamily as jest.Mock;
 const mockFamilyFindUnique = (prisma as any).family.findUnique as jest.Mock;
@@ -49,8 +50,8 @@ const mockFetch = jest.fn();
 
 const parentA = { id: "parent-a", family_id: "family-A", role: "parent", name: "Parent A", last_chore_date: null };
 
-function makeRequest(body: unknown) {
-  return { json: async () => body } as any;
+function makeRequest(body: unknown, headers: Record<string, string> = {}) {
+  return { json: async () => body, headers: new Headers(headers) } as any;
 }
 
 function modelReply(content: unknown) {
@@ -148,5 +149,91 @@ describe("POST /api/capture — server key never follows a family base URL", () 
 
     expect(res.status).toBe(503);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/capture — size cap and provider timeout", () => {
+  const originalFetch2 = global.fetch;
+
+  beforeAll(() => {
+    global.fetch = mockFetch as unknown as typeof fetch;
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch2;
+    delete process.env.CAPTURE_AI_KEY;
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.CAPTURE_AI_KEY = "server-env-key";
+    mockAuth.mockResolvedValue([{ payload: { userId: "parent-a" }, user: parentA }, null]);
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, retryAfterMs: 0, remaining: 29 });
+    mockFamilyFindUnique.mockResolvedValue({ capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null });
+    mockFetch.mockResolvedValue(modelReply({ events: [], confidence: "low" }));
+  });
+
+  it("refuses an imageBase64 longer than the cap with 413 and no provider call", async () => {
+    const res = await POST(makeRequest({ imageBase64: "A".repeat(MAX_IMAGE_BASE64_LENGTH + 1), mimeType: "image/png" }));
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: expect.stringMatching(/too large/i) });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("accepts an image exactly at the cap", async () => {
+    const res = await POST(makeRequest({ imageBase64: "A".repeat(MAX_IMAGE_BASE64_LENGTH), mimeType: "image/png" }));
+
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a declared oversized body before parsing it", async () => {
+    const json = jest.fn();
+    const res = await POST({ json, headers: new Headers({ "content-length": String(50 * 1024 * 1024) }) } as any);
+
+    expect(res.status).toBe(413);
+    expect(json).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("passes an abort signal to the provider call", async () => {
+    await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
+
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(CAPTURE_TIMEOUT_MS).toBe(30_000);
+  });
+
+  it("turns a provider timeout into a friendly 504", async () => {
+    mockFetch.mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+
+    const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
+
+    expect(res.status).toBe(504);
+    expect((await res.json()).error).toMatch(/took too long/i);
+  });
+
+  it("turns a timeout while reading the body into the same 504", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      },
+    });
+
+    const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
+
+    expect(res.status).toBe(504);
+  });
+
+  it("a plain network failure stays a generic 500", async () => {
+    mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+
+    const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("Capture failed. Try again shortly.");
   });
 });

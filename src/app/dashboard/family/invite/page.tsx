@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Copy, Check, UserPlus, Mail, X, RefreshCw } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
@@ -30,11 +30,12 @@ export default function InviteMemberPage() {
   const [codeError, setCodeError] = useState<string | null>(null)
   const [codeMessage, setCodeMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    load()
+  const showCode = useCallback((code: string) => {
+    setFamilyCode(code)
+    setInviteLink(`${window.location.origin}/join?code=${encodeURIComponent(code)}`)
   }, [])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
@@ -54,12 +55,11 @@ export default function InviteMemberPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [showCode])
 
-  const showCode = (code: string) => {
-    setFamilyCode(code)
-    setInviteLink(`${window.location.origin}/join?code=${encodeURIComponent(code)}`)
-  }
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const handleNewCode = async () => {
     setRotating(true)

@@ -60,9 +60,9 @@ Overlays that use `position: fixed` (toasts, the calm display) render inside a `
 ### Not in the gallery, and why
 
 - `TodayBoard` as a whole: it polls `/api/family/board-version`, runs the clock and wake lock. Its regions are shown individually instead.
-- `HomeSummary`, `ChoreList`, `AddToGroceriesButton`, `RecipePicker`, `ActivityFeed`, `BoardSettings`, `DevicesManager`, `NotificationBell`, `InventoryClient`, `ListDetailClient` (whole): they load data or call the API on mount or on their main action. Their presentational parts are shown where they exist.
+- `HomeSummary`, `AddToGroceriesButton`, `RecipePicker`, `BoardSettings`, `DevicesManager`, `InventoryClient`, `ListDetailClient` (whole): they load data or call the API on mount or on their main action. Their presentational parts are shown where they exist.
 - `RemovedScreen` / `DeviceUnavailable`: they wipe device storage on mount.
-- `OfflineBanner`: it reads `navigator.onLine` and cannot be forced; the offline states are shown through `SyncNotice` and `SyncBanner` (and `e2e/sync.spec.ts` covers the real banner).
+- The list page's live offline banner (`data-testid="offline-banner"` in `ListDetailClient`): it reads `navigator.onLine` and cannot be forced; the offline states are shown through `SyncNotice` and `SyncBanner` (and `e2e/sync.spec.ts` covers the real banner).
 - `ErrorBoundary` default fallback: showing it means throwing during render (noise in the dev overlay); `DashboardError` is the route error state in use.
 - `TabBar` and `DashboardNav`: they depend on the signed-in user and feature provider.
 

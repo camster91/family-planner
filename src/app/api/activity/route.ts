@@ -14,8 +14,23 @@ export async function GET(request: NextRequest) {
     if (error) return error
 
     const { searchParams } = new URL(request.url)
-    const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 100)
     const cursor = searchParams.get('cursor')
+    const rawLimit = searchParams.get('limit')
+    let limit = 30
+    if (rawLimit !== null && rawLimit !== '') {
+      if (!/^\d+$/.test(rawLimit.trim())) {
+        return NextResponse.json({ error: 'limit must be a whole number' }, { status: 400 })
+      }
+      // Clamp to 1..100 rather than refusing an out-of-range page size.
+      limit = Math.min(Math.max(parseInt(rawLimit, 10), 1), 100)
+    }
+    let before: Date | null = null
+    if (cursor) {
+      before = new Date(cursor)
+      if (Number.isNaN(before.getTime())) {
+        return NextResponse.json({ error: 'cursor must be a valid date-time' }, { status: 400 })
+      }
+    }
 
     const where: Record<string, unknown> = {
       family_id: auth.user.family_id,
@@ -24,8 +39,8 @@ export async function GET(request: NextRequest) {
       // `event_created` and `events_imported` stay in the feed.
       type: { not: legacyAnalyticsTypeFilter() },
     }
-    if (cursor) {
-      where.created_at = { lt: new Date(cursor) }
+    if (before) {
+      where.created_at = { lt: before }
     }
 
     // Housekeeping: drop this household's legacy analytics rows past retention (#136).

@@ -50,6 +50,76 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/cron/recurring-chores',
 ])
 
+// The pre-auth endpoints above skip the double-submit check because the caller
+// has no csrf_token cookie yet. That leaves login CSRF: a cross-site
+// `<form enctype="text/plain">` could sign the victim into the ATTACKER'S
+// account (the route reads the body with request.json(), which ignores the
+// Content-Type). Two cheap checks close it without a token:
+//   1. The request must not come from another site. Browsers send
+//      Sec-Fetch-Site (and Origin); non-browser clients send neither and are
+//      allowed. The Capacitor app loads the real origin, so its requests are
+//      same-origin.
+//   2. A request with a body must be `application/json`. A cross-site page can
+//      only send JSON after a CORS preflight, which this app never grants.
+const PRE_AUTH_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/verify-email',
+  '/api/auth/resend-verification',
+  '/api/auth/logout',
+])
+// Endpoints that never read a body, so they need no Content-Type.
+const BODYLESS_PRE_AUTH_PATHS = new Set(['/api/auth/logout'])
+
+function firstHeaderValue(value: string | null): string | null {
+  const first = value?.split(',')[0]?.trim().toLowerCase()
+  return first || null
+}
+
+/** True when an Origin header names a different host than this request's. */
+function isForeignOrigin(request: NextRequest, origin: string): boolean {
+  if (origin === 'null') return true // sandboxed iframes, data: URLs, some cross-site redirects
+  let originHost: string
+  try {
+    originHost = new URL(origin).host.toLowerCase()
+  } catch {
+    return true
+  }
+  // Behind a proxy the app may see an internal Host; the browser-visible host
+  // is then in X-Forwarded-Host. A cross-site page cannot set either header.
+  const ownHosts = [
+    firstHeaderValue(request.headers.get('host')),
+    firstHeaderValue(request.headers.get('x-forwarded-host')),
+    request.nextUrl.host.toLowerCase(),
+  ]
+  return !ownHosts.includes(originHost)
+}
+
+/** Returns an error response for a cross-site or non-JSON pre-auth request, else null. */
+function checkPreAuthRequest(request: NextRequest): NextResponse | null {
+  const pathname = request.nextUrl.pathname
+  if (!PRE_AUTH_PATHS.has(pathname) || !UNSAFE_METHODS.has(request.method)) return null
+
+  const fetchSite = firstHeaderValue(request.headers.get('sec-fetch-site'))
+  const origin = request.headers.get('origin')
+  const crossSite = fetchSite
+    ? fetchSite !== 'same-origin' && fetchSite !== 'none'
+    : origin !== null && isForeignOrigin(request, origin)
+  if (crossSite) {
+    return NextResponse.json({ error: 'Cross-site request refused' }, { status: 403 })
+  }
+
+  if (!BODYLESS_PRE_AUTH_PATHS.has(pathname)) {
+    const mediaType = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
+    if (mediaType !== 'application/json') {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+  }
+  return null
+}
+
 /**
  * Request identity (#161): every response leaving the middleware, including
  * early CSRF rejections and redirects, carries `X-Request-Id`.
@@ -88,6 +158,9 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
     const csrfError = validateCsrf(request)
     if (csrfError) return csrfError
   }
+
+  const preAuthError = checkPreAuthRequest(request)
+  if (preAuthError) return preAuthError
 
   const token = request.cookies.get('session_token')?.value
 
@@ -197,6 +270,13 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // dropping any inbound header.
   const forwardedHeaders = new Headers(request.headers)
   forwardedHeaders.set(REQUEST_ID_HEADER, requestId)
+  // Expose the request pathname to server components/layouts. The dashboard
+  // layout reads it for its kid-access check. Next.js does not provide the
+  // pathname to layouts on its own, and only REQUEST headers reach headers()
+  // in a layout, so this must be set on the forwarded request (a response
+  // header never reaches it). Always overwrite: a client-sent x-pathname must
+  // not be trusted.
+  forwardedHeaders.set('x-pathname', request.nextUrl.pathname)
   const response = NextResponse.next({ request: { headers: forwardedHeaders } })
 
   // Kill switch off: device cookies are ignored above, and expired here so a
@@ -209,12 +289,6 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   ) {
     clearDeviceCookies(response)
   }
-
-  // Expose the request pathname to server components/layouts via a request
-  // header. The dashboard layout uses this for its kid-access check. Next.js
-  // does NOT provide x-pathname or x-invoke-path to layouts on its own, which
-  // is why the layout's earlier gate always fell through and never fired.
-  response.headers.set('x-pathname', request.nextUrl.pathname)
 
   // Security headers
   response.headers.set('X-Content-Type-Options', 'nosniff')

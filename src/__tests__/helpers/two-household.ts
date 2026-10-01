@@ -796,6 +796,13 @@ function delegate(model: string) {
           out._max[key] = vals.length ? Math.max(...vals) : null
         }
       }
+      if (args._sum) {
+        out._sum = {}
+        for (const key of Object.keys(args._sum)) {
+          const vals = rows.map((r) => r[key]).filter((v) => v != null)
+          out._sum[key] = vals.length ? vals.reduce((s: number, v: number) => s + v, 0) : null
+        }
+      }
       return out
     },
     groupBy: async (args: any) => {

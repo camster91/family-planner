@@ -7,6 +7,7 @@ import { shapeHandoffForRole } from '@/lib/role-capabilities'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { shareExpiry } from '@/lib/handoff-share'
+import { createHandoffSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,11 +52,15 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    const parsed = createHandoffSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
     const {
       sitter_name,
@@ -70,11 +75,7 @@ export async function POST(request: NextRequest) {
       emergency_notes,
       house_notes,
       general_notes,
-    } = body
-
-    if (!sitter_name || typeof sitter_name !== 'string' || sitter_name.trim() === '') {
-      return NextResponse.json({ error: 'Sitter name is required' }, { status: 400 })
-    }
+    } = parsed.data
 
     // Validate datetime fields. datetime-local inputs produce "YYYY-MM-DDTHH:MM"
     // strings. If a user types garbage, new Date() returns Invalid Date which
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     const handoff = await prisma!.handoff.create({
       data: {
         family_id: auth.user.family_id,
-        sitter_name: sitter_name.trim(),
+        sitter_name,
         sitter_phone: sitter_phone?.trim() || null,
         arrival_time: parsedArrival,
         departure_time: parsedDeparture,

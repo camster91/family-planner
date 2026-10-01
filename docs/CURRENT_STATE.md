@@ -117,7 +117,27 @@ Everything listed here before 2026-09-30 has merged: notification preferences (#
 - #313: Coolify deploy runbook (`runbooks/COOLIFY_DEPLOY.md`), `SOURCE_COMMIT` fallback and a writable uploads folder in the image. Coolify is planned, not the current deployment.
 - #314: beta operations packet (`product/BETA_OPERATIONS.md`), Mailgun email runbook (`runbooks/TRANSACTIONAL_EMAIL.md`), a daily backup timer ready to install and backup retention that matches the privacy page (`runbooks/BACKUPS.md`).
 - #315: real-user readiness fixes (joining with an existing account, case-insensitive sign-in, "Forgot your password?", login notices, same-origin redirects only, blank names rejected, calendar end time kept, kid-view and invite errors shown, production env check at start), page views no longer stored, secret scanning in `Build & Test`, "N ingredients missing" on the Tonight card, and narrow-screen/zoom checks (`e2e/reflow.spec.ts`).
-- Readiness follow-ups (this PR): honest beta pricing copy (O-23), a confirm step before an email verification link is used (O-24), unused code removed (O-25), error handling on the off-by-default feature pages (O-26), decisions O-27 to O-31, `.input-field`/`.card` styles that older pages used but were never defined, and the new-household sign-up E2E journey (`e2e/signup.spec.ts`).
+- #316, readiness follow-ups: honest beta pricing copy (O-23), a confirm step before an email verification link is used (O-24), unused code removed (O-25), error handling on the off-by-default feature pages (O-26), decisions O-27 to O-31, `.input-field`/`.card` styles that older pages used but were never defined, and the new-household sign-up E2E journey (`e2e/signup.spec.ts`).
+
+Merged on 2026-10-01:
+
+- #317: the checked image is tested again on a fresh runner (database, release identity, upload ownership, sign-in and two-household checks). A publish step exists but stays off until the owner turns it on.
+- #320: the activity feed shows "event added" and "events imported" rows again; unused code removed.
+- #321: older chore history loads with "Load more"; a parent Help page and the support runbook (`runbooks/SUPPORT.md`); per-member quiet hours (O-32); beta SLOs (`engineering/SLO_AND_PERFORMANCE.md`) and a test that keeps every API error in the `{ error }` shape.
+- #322 and #323, fixes from two full review passes:
+  - Repeating chores keep repeating (O-33), and the project page no longer crashes.
+  - Dates and times show on the right day: handoffs, birthdays, budget, travel and the calendar month.
+  - The calendar has month links and event delete. Kid home shows only today's missions.
+  - Failed actions show an error instead of failing silently.
+  - Logging a medicine dose no longer guesses the next dose.
+  - Bad input gets a 400 instead of a 500 on about twenty routes.
+  - Parents can remove a household member and get a new family code (O-34).
+- #324, third review pass:
+  - The server can no longer be steered to internal addresses (SSRF), and another website can't sign someone into the wrong account (login CSRF).
+  - Uploads have a rate limit, a 500 MB household quota and cleanup after 30 days (O-35).
+  - AI capture calls time out after 30 seconds, and `X-Real-IP` is trusted only behind a declared proxy.
+  - The kid page gate uses the real path, the English/Español switch works, and wishlist labels are fixed.
+  - About 2,000 lines of unused code are gone, and more routes answer bad input with 400.
 
 What is left before real families use the app, and who does it: [`LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md).
 

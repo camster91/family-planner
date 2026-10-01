@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
-import { CaptureError, draftFromText, draftFromImage, resolveCaptureConfig } from '@/lib/capture'
+import {
+  CaptureError,
+  IMAGE_TOO_LARGE_MESSAGE,
+  MAX_IMAGE_BASE64_LENGTH,
+  draftFromText,
+  draftFromImage,
+  resolveCaptureConfig,
+} from '@/lib/capture'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { CAPTURE_CHILD_MESSAGE, canUseCapture } from '@/lib/role-capabilities'
@@ -11,6 +18,9 @@ export const dynamic = 'force-dynamic'
 
 // Accepted image types for screenshot capture. Kept deliberately narrow.
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+
+// The largest JSON body worth parsing: the image cap plus room for the other fields.
+const MAX_CAPTURE_BODY_BYTES = MAX_IMAGE_BASE64_LENGTH + 64 * 1024
 
 // POST /api/capture
 // Body: { text: string }              -> one proposed draft
@@ -54,6 +64,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Refuse an oversized body before parsing it into memory. A request
+    // without Content-Length (chunked) is still bounded by the field check below.
+    const declaredLength = Number(request.headers.get('content-length'))
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_CAPTURE_BODY_BYTES) {
+      return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
+    }
+
     let body: any
     try {
       body = await request.json()
@@ -63,6 +80,9 @@ export async function POST(request: NextRequest) {
 
     // Image path: extract several events from a photo/screenshot.
     if (typeof body?.imageBase64 === 'string' && body.imageBase64) {
+      if (body.imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+        return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
+      }
       const mimeType =
         typeof body.mimeType === 'string' && ALLOWED_IMAGE_TYPES.includes(body.mimeType)
           ? body.mimeType

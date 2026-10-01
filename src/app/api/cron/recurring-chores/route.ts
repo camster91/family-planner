@@ -24,19 +24,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Expand recurring chores for all families
+    // Expand recurring chores for all families. One family's failure (bad
+    // data, a transient database error) must not stop the others: log it with
+    // the shared content-minimal route logger and carry on.
     const families = await prisma!.family.findMany({ select: { id: true } })
     const results: Array<{ familyId: string; inserted: number }> = []
+    const requestId = getRequestId(request)
+    let processed = 0
+    let failed = 0
 
     for (const family of families) {
-      const inserted = await expandAllRecurringChores(family.id)
-      if (inserted > 0) {
-        results.push({ familyId: family.id, inserted })
+      try {
+        const inserted = await expandAllRecurringChores(family.id)
+        processed++
+        if (inserted > 0) {
+          results.push({ familyId: family.id, inserted })
+        }
+      } catch (error) {
+        failed++
+        logRouteError('POST /api/cron/recurring-chores (family)', error, requestId)
       }
     }
 
     return NextResponse.json({
-      success: true,
+      success: failed === 0,
+      processed,
+      failed,
       families: results.length,
       details: results,
     })

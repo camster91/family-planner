@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { wishlistStatusSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,28 +34,23 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    let body: any
+    let json: unknown
     try {
-      body = await request.json()
+      json = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
-    const { status, denied_reason } = body
-
-    const validStatuses = ['idle', 'on_the_way', 'received', 'denied']
-    if (!status || !validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    const parsed = wishlistStatusSchema.safeParse(json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
-
-    if (status === 'denied' && !denied_reason) {
-      return NextResponse.json({ error: 'Denial reason required when denying' }, { status: 400 })
-    }
+    const { status, denied_reason } = parsed.data
 
     const updated = await prisma!.wishlistItem.update({
       where: { id },
       data: {
         status,
-        denied_reason: status === 'denied' ? denied_reason : null,
+        denied_reason: status === 'denied' ? (denied_reason ?? '').trim() : null,
         status_changed_at: new Date(),
         status_changed_by: auth.user.id,
       },
