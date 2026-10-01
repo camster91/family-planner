@@ -398,6 +398,8 @@ function HandoffPageInner() {
   const { t } = useTranslation()
   const [handoffs, setHandoffs] = React.useState<Handoff[]>([])
   const [loading, setLoading] = React.useState(true)
+  // loadError: the list failed to load. error: the open modal's save/delete failed.
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
   const [editHandoff, setEditHandoff] = React.useState<Handoff | null>(null)
@@ -410,9 +412,9 @@ function HandoffPageInner() {
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
       setHandoffs(data.handoffs || [])
-      setError(null)
+      setLoadError(null)
     } catch {
-      setError(t('common.error'))
+      setLoadError(t('common.error'))
     } finally {
       setLoading(false)
     }
@@ -518,6 +520,7 @@ function HandoffPageInner() {
   const closeModal = () => {
     setShowAdd(false)
     setEditHandoff(null)
+    setError(null)
   }
 
   const isParent = userRole === 'parent'
@@ -565,13 +568,13 @@ function HandoffPageInner() {
           )}
         </div>
 
-        {error && (
+        {loadError && (
           <div className="card-apple p-4 text-center text-label-secondary">
             {t('handoff.errorLoad')}
           </div>
         )}
 
-        {!error && handoffs.length === 0 && (
+        {!loadError && handoffs.length === 0 && (
           <EmptyState
             glyphColor="family"
             title={t('handoff.empty')}
