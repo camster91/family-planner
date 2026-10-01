@@ -6,6 +6,7 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { legacyAnalyticsTypeFilter } from '@/lib/legacy-analytics'
 import { addDaysToKey, dayKeyFor, parseLocalZone, weekdayOfKey } from '@/lib/local-day-key'
+import { isGamificationOn } from '@/lib/gamification-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     const [familyMembers, allChores, recentCompletedChores, recentActivities] = await Promise.all([
       prisma!.user.findMany({
         where: { family_id: familyId },
-        select: { id: true, name: true, role: true, avatar_url: true },
+        select: { id: true, name: true, role: true, avatar_url: true, xp: true, level: true, streak: true, best_streak: true },
       }),
       // Chores that count toward the rates: due in the window up to now, or
       // completed in the window. A future occurrence (a recurring series
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
             { status: { in: DONE_STATUSES }, completed_at: { gte: windowStart, lte: now } },
           ],
         },
-        select: { id: true, assigned_to: true, status: true, points: true, difficulty: true, completed_at: true },
+        select: { id: true, assigned_to: true, status: true, points: true, difficulty: true, completed_at: true, due_date: true },
         orderBy: [{ due_date: 'desc' }, { id: 'asc' }],
         take: MAX_ANALYTICS_CHORES,
       }),
@@ -151,6 +152,43 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.completedChores - a.completedChores)
       .slice(0, 3)
 
+    // Weekly completion: chores due in the last 7 local days (today included)
+    // that are done. Matches the "this week" ring on the analytics page.
+    const weekStart = addDaysToKey(today, -6)
+    const dueThisWeek = allChores.filter((c) => {
+      if (!c.due_date) return false
+      const key = dayKey(new Date(c.due_date))
+      return key >= weekStart && key <= today
+    })
+    const weeklyCompletion =
+      dueThisWeek.length > 0
+        ? Math.round((dueThisWeek.filter((c) => DONE_STATUSES.includes(c.status)).length / dueThisWeek.length) * 100)
+        : 0
+
+    // Members for the page's list. XP, level and streaks only when the family
+    // has Points & streaks on (#248); otherwise just completion counts.
+    const gamification = await isGamificationOn(familyId)
+    const members = familyMembers
+      .map((m) => {
+        const participation = memberParticipation.find((p) => p.id === m.id)
+        const base = {
+          id: m.id,
+          name: m.name,
+          role: m.role,
+          avatar_url: m.avatar_url,
+          completedChores: participation?.completedChores ?? 0,
+          totalChores: participation?.totalChores ?? 0,
+        }
+        return gamification
+          ? { ...base, xp: m.xp, level: m.level, streak: m.streak, best_streak: m.best_streak }
+          : base
+      })
+      .sort((a, b) =>
+        gamification
+          ? ((b as { xp?: number }).xp ?? 0) - ((a as { xp?: number }).xp ?? 0)
+          : b.completedChores - a.completedChores
+      )
+
     // Difficulty distribution
     const difficultyDistribution = {
       easy: allChores.filter(c => c.difficulty === 'easy').length,
@@ -167,6 +205,9 @@ export async function GET(request: NextRequest) {
         mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null,
       },
       weeklyTrend: weeklyData,
+      weeklyCompletion,
+      gamification,
+      members,
       memberParticipation,
       topPerformers,
       difficultyDistribution,

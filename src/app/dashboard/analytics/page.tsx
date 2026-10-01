@@ -10,21 +10,27 @@ import { InsetList } from '@/components/ui/list-row'
 import { cn } from '@/lib/utils'
 import { FeatureGate } from '@/components/ui/feature-gate'
 
+// From GET /api/analytics. xp/level/streak/best_streak are only present when
+// the family has Points & streaks on (#248).
 interface Member {
   id: string
   name: string
   role: string
-  xp: number
-  level: number
-  streak: number
-  best_streak: number
   avatar_url?: string | null
+  completedChores: number
+  totalChores: number
+  xp?: number
+  level?: number
+  streak?: number
+  best_streak?: number
 }
 
 function AnalyticsPageContent() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [weeklyCompletion, setWeeklyCompletion] = useState(0)
+  const [gamification, setGamification] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     loadAnalytics()
@@ -40,17 +46,22 @@ function AnalyticsPageContent() {
       const res = await fetch(`/api/analytics?${zoneParam}`)
       const data = await res.json()
       if (res.ok) {
-        if (data.members) setMembers(data.members)
-        if (data.weeklyCompletion !== undefined) setWeeklyCompletion(data.weeklyCompletion)
+        if (Array.isArray(data.members)) setMembers(data.members)
+        if (typeof data.weeklyCompletion === 'number') setWeeklyCompletion(data.weeklyCompletion)
+        setGamification(data.gamification === true)
+        setLoadError(false)
+      } else {
+        setLoadError(true)
       }
-    } catch (err) {
-      console.error('Error loading analytics:', err)
+    } catch {
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
   }
 
   const totalXP = members.reduce((sum, m) => sum + (m.xp || 0), 0)
+  const totalDone = members.reduce((sum, m) => sum + m.completedChores, 0)
   const bestStreak = Math.max(0, ...members.map(m => m.best_streak || 0))
   const topLevel = Math.max(1, ...members.map(m => m.level || 1))
 
@@ -87,28 +98,51 @@ function AnalyticsPageContent() {
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 px-4 mb-6">
-        <div className="card-apple p-4 text-center">
-          <div className="text-2xl font-bold text-label-primary">{totalXP}</div>
-          <div className="text-caption-1 text-label-secondary">Family XP</div>
-        </div>
-        <div className="card-apple p-4 text-center">
-          <div className="flex items-center justify-center gap-1">
-            <span className="text-2xl font-bold text-label-primary">{bestStreak}d</span>
+      {/* Stats row: points and levels only when Points & streaks is on */}
+      {gamification ? (
+        <div className="grid grid-cols-3 gap-3 px-4 mb-6">
+          <div className="card-apple p-4 text-center">
+            <div className="text-2xl font-bold text-label-primary">{totalXP}</div>
+            <div className="text-caption-1 text-label-secondary">Family XP</div>
           </div>
-          <div className="text-caption-1 text-label-secondary">Best streak</div>
+          <div className="card-apple p-4 text-center">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-2xl font-bold text-label-primary">{bestStreak}d</span>
+            </div>
+            <div className="text-caption-1 text-label-secondary">Best streak</div>
+          </div>
+          <div className="card-apple p-4 text-center">
+            <div className="text-2xl font-bold text-label-primary">Lvl {topLevel}</div>
+            <div className="text-caption-1 text-label-secondary">Top level</div>
+          </div>
         </div>
-        <div className="card-apple p-4 text-center">
-          <div className="text-2xl font-bold text-label-primary">Lvl {topLevel}</div>
-          <div className="text-caption-1 text-label-secondary">Top level</div>
+      ) : (
+        <div className="px-4 mb-6">
+          <div className="card-apple p-4 text-center">
+            <div className="text-2xl font-bold text-label-primary">{totalDone}</div>
+            <div className="text-caption-1 text-label-secondary">Chores done in the last 90 days</div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Leaderboard */}
       <div className="px-4">
-        <p className="section-header">Leaderboard</p>
-        {loading ? (
+        <p className="section-header">{gamification ? 'Leaderboard' : 'Who did what'}</p>
+        {loadError ? (
+          <div role="alert" className="card-apple p-6 text-center space-y-3">
+            <div className="text-subhead text-label-secondary">Could not load analytics.</div>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true)
+                void loadAnalytics()
+              }}
+              className="btn-tinted px-4 rounded-lg text-subhead font-semibold"
+            >
+              Try again
+            </button>
+          </div>
+        ) : loading ? (
           <div className="text-center py-8">
             <div className="text-subhead text-label-secondary">Loading…</div>
           </div>
@@ -135,17 +169,23 @@ function AnalyticsPageContent() {
                 <Avatar name={member.name} src={member.avatar_url} size="sm" />
                 <div className="flex-1 min-w-0">
                   <div className="text-body text-label-primary truncate">{member.name}</div>
-                  <div className="text-footnote text-label-secondary">Level {member.level || 1}</div>
+                  <div className="text-footnote text-label-secondary">
+                    {gamification
+                      ? `Level ${member.level || 1}`
+                      : `${member.completedChores} of ${member.totalChores} chores done`}
+                  </div>
                 </div>
-                {member.streak > 0 && (
+                {gamification && (member.streak ?? 0) > 0 && (
                   <div className="flex items-center gap-1 text-orange-500 shrink-0">
                     <span className="text-sm">🔥</span>
                     <span className="text-footnote font-medium">{member.streak}d</span>
                   </div>
                 )}
-                <div className="text-title-3 text-label-primary font-semibold shrink-0">
-                  {member.xp || 0} XP
-                </div>
+                {gamification && (
+                  <div className="text-title-3 text-label-primary font-semibold shrink-0">
+                    {member.xp || 0} XP
+                  </div>
+                )}
               </div>
             ))}
           </InsetList>
