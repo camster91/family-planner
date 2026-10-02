@@ -102,6 +102,26 @@ describe('LongPressRow', () => {
     }
   })
 
+  it('with showMenuButton, a visible ⋯ button opens the sheet without starting a hold', async () => {
+    const user = userEvent.setup()
+    const onRowClick = jest.fn()
+    render(
+      <LongPressRow showMenuButton itemName="Unload dishwasher" actions={[{ label: 'Edit', onClick: jest.fn() }]}>
+        <button type="button" onClick={onRowClick}>Unload dishwasher</button>
+      </LongPressRow>
+    )
+    // One menu button, shown as an icon (no focus-only text), named for the row.
+    expect(screen.getAllByRole('button', { name: /More actions/ })).toHaveLength(1)
+    expect(trigger()).toHaveTextContent('')
+    expect(trigger()).toHaveAttribute('aria-haspopup', 'dialog')
+    await user.click(trigger())
+    expect(dialog()).toBeInTheDocument()
+    expect(trigger()).toHaveAttribute('aria-expanded', 'true')
+    expect(onRowClick).not.toHaveBeenCalled()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(trigger()).toHaveFocus())
+  })
+
   it('does not open when the press is released early', () => {
     jest.useFakeTimers()
     try {

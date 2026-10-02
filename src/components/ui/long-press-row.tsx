@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Action {
@@ -19,6 +20,12 @@ interface LongPressRowProps {
   menuLabel?: string
   /** What the row is, for screen readers: "More actions for <itemName>". */
   itemName?: string
+  /**
+   * Always show a trailing "⋯" button that opens the menu, so the actions are
+   * discoverable without knowing to press and hold. It replaces the
+   * focus-revealed button.
+   */
+  showMenuButton?: boolean
 }
 
 const HOLD_DURATION = 500 // ms
@@ -28,11 +35,19 @@ const HOLD_DURATION = 500 // ms
  *
  * The same menu is reachable without a pointer: a "More actions" button that
  * is visually hidden until it has keyboard focus, the ContextMenu key or
- * Shift+F10 from anything focused inside the row, and a right click. The
+ * Shift+F10 from anything focused inside the row, and a right click. With
+ * `showMenuButton` that button is a visible "⋯" at the end of the row. The
  * sheet is a modal dialog: focus moves to its first action, Escape or Cancel
  * closes it, and focus returns to where it was.
  */
-export function LongPressRow({ children, actions, className, menuLabel = 'More actions', itemName }: LongPressRowProps) {
+export function LongPressRow({
+  children,
+  actions,
+  className,
+  menuLabel = 'More actions',
+  itemName,
+  showMenuButton = false,
+}: LongPressRowProps) {
   const [open, setOpen] = React.useState(false)
   const holdTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const returnFocusRef = React.useRef<HTMLElement | null>(null)
@@ -131,23 +146,48 @@ export function LongPressRow({ children, actions, className, menuLabel = 'More a
         onPointerCancel={clearHold}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        className={cn('relative', className)}
+        className={cn('relative', showMenuButton && 'flex items-center', className)}
       >
-        {children}
-        <button
-          type="button"
-          onClick={openMenu}
-          aria-label={accessibleName}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          className={cn(
-            'sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:right-2 focus-visible:top-1/2',
-            'focus-visible:-translate-y-1/2 focus-visible:min-h-[44px] focus-visible:px-3 focus-visible:rounded-xl',
-            'focus-visible:bg-[var(--surface-elevated)] focus-visible:text-[var(--accent)] focus-visible:text-subhead'
-          )}
-        >
-          {menuLabel}
-        </button>
+        {showMenuButton ? (
+          <>
+            <div className="flex-1 min-w-0">{children}</div>
+            <button
+              type="button"
+              onClick={openMenu}
+              // A tap on the button opens the menu at once; it must not also
+              // start the row's press-and-hold timer.
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label={accessibleName}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              className={cn(
+                'mr-1 w-11 h-11 shrink-0 flex items-center justify-center rounded-full',
+                'text-label-secondary active:bg-[var(--surface-fill-secondary)] transition-colors duration-150',
+                'focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]'
+              )}
+            >
+              <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
+            </button>
+          </>
+        ) : (
+          <>
+            {children}
+            <button
+              type="button"
+              onClick={openMenu}
+              aria-label={accessibleName}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              className={cn(
+                'sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:right-2 focus-visible:top-1/2',
+                'focus-visible:-translate-y-1/2 focus-visible:min-h-[44px] focus-visible:px-3 focus-visible:rounded-xl',
+                'focus-visible:bg-[var(--surface-elevated)] focus-visible:text-[var(--accent)] focus-visible:text-subhead'
+              )}
+            >
+              {menuLabel}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Action sheet + scrim */}

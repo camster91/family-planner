@@ -449,9 +449,13 @@ export default function ChoresContent({
             <p className="section-header">Today</p>
             <div className="list-inset stagger">
               {todayChores.map((chore, i) => (
+                // A visible "⋯" opens the actions (they used to be long-press
+                // only), and only the check itself completes the chore, so a
+                // parent tapping the name to edit it doesn't tick it off.
                 <LongPressRow
                   key={chore.id}
-                  itemName={chore.title}
+                  itemName={`“${chore.title}”`}
+                  showMenuButton
                   actions={[
                     {
                       label: 'Snooze a day',
@@ -481,6 +485,7 @@ export default function ChoresContent({
                 >
                   <CheckboxRow
                     checked={false}
+                    toggleArea="control"
                     onChange={() => handleCompleteChore(chore.id)}
                     title={chore.title}
                     subtitle={[
@@ -512,7 +517,7 @@ export default function ChoresContent({
                         )
                         : undefined
                     }
-                    className={cn(i === todayChores.length - 1 && 'border-b-0')}
+                    className={cn('pr-3', i === todayChores.length - 1 && 'border-b-0')}
                   />
                 </LongPressRow>
               ))}
