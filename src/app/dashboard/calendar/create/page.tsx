@@ -135,6 +135,7 @@ export default function CreateEventPage() {
             />
             <input
               id="startTime"
+              aria-label="Start time"
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
@@ -157,6 +158,7 @@ export default function CreateEventPage() {
             />
             <input
               id="endTime"
+              aria-label="End time"
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}

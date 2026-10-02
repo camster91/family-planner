@@ -262,6 +262,7 @@ function EditEventForm() {
             />
             <input
               id="startTime"
+              aria-label="Start time"
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
@@ -284,6 +285,7 @@ function EditEventForm() {
             />
             <input
               id="endTime"
+              aria-label="End time"
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
