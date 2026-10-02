@@ -97,6 +97,25 @@ describe('HomeSummary sentence', () => {
   })
 })
 
+describe('HomeSummary with nothing due', () => {
+  it('parent: renders nothing when no chore is due today and none waits for a check (the board says it)', () => {
+    renderSummary({ viewer: { id: 'p', role: 'parent' }, chores: [], choresHref: '/dashboard/chores' })
+    expect(screen.queryByTestId('home-summary')).toBeNull()
+    expect(screen.queryByText('No chores today')).toBeNull()
+  })
+
+  it('parent: still shows when a chore waits for a check', () => {
+    renderSummary({ viewer: { id: 'p', role: 'parent' }, chores: [], toCheckCount: 1, choresHref: '/dashboard/chores' })
+    expect(sentence()).toBe('No chores today')
+    expect(screen.getByRole('link', { name: /1 chore to check/ })).toBeTruthy()
+  })
+
+  it('child: keeps their own sentence', () => {
+    renderSummary({ viewer: { id: 'c', role: 'child' }, chores: [] })
+    expect(sentence()).toBe('Nothing on your list today')
+  })
+})
+
 describe('HomeSummary chore tick', () => {
   const feedCat = { id: 'ch1', title: 'Feed cat', dueDay: TODAY, status: 'pending', assigneeId: 'c' }
 

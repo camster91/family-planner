@@ -6,9 +6,11 @@ import { prisma } from '@/lib/prisma'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import HomeSummary from '@/components/dashboard/HomeSummary'
+import GetStarted from '@/components/dashboard/GetStarted'
 import { loadTodayBoard } from './board-snapshot'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { loadHomeSummary } from './home-summary-data'
+import { allStepsDone, loadGetStarted } from './get-started-data'
 
 export const metadata: Metadata = { title: 'Today' }
 
@@ -27,7 +29,8 @@ export const dynamic = 'force-dynamic'
  * home at /dashboard). Outside fridge mode the page adds the viewer's summary
  * sentence and their own tickable chores above the board (#268,
  * ./home-summary-data.ts). Fridge mode is the shared surface, so it shows the
- * board alone.
+ * board alone. A parent of a household that is not set up yet also gets a
+ * "Get started" card on top (./get-started-data.ts).
  */
 export default async function TodayBoardPage({
   searchParams,
@@ -77,9 +80,10 @@ export default async function TodayBoardPage({
   // Weather (#262) is opt-in per household and never fails the page: null
   // hides the tile. The board carries its display settings and change
   // version (#271).
-  const [data, home] = await Promise.all([
+  const [data, home, getStarted] = await Promise.all([
     loadTodayBoard(prisma!, { familyId, role: user.role, now, withWeather: true }),
     fridgeMode ? Promise.resolve(null) : loadHomeSummary(prisma!, { familyId, role: user.role }),
+    fridgeMode ? Promise.resolve(null) : loadGetStarted(prisma!, { familyId, role: user.role, now }),
   ])
 
   // Tiles act directly for the signed-in person (#274): their chores (any for
@@ -89,6 +93,9 @@ export default async function TodayBoardPage({
 
   return (
     <>
+      {getStarted && !allStepsDone(getStarted) && (
+        <GetStarted viewer={viewer} familyId={familyId} steps={getStarted} />
+      )}
       <HomeSummary viewer={viewer} {...home} />
       <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />
     </>

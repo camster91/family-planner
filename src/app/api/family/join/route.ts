@@ -18,23 +18,40 @@ import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
+const HOUR_MS = 60 * 60 * 1000
+const JOIN_PER_ACCOUNT_IP_PER_HOUR = 10
+const JOIN_PER_ACCOUNT_PER_HOUR = 10
+const JOIN_PER_IP_PER_HOUR = 30
+
 export async function POST(request: NextRequest) {
   try {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
+    // Every code guess is rate limited three ways before the code is read or
+    // looked up (brute-force math: createFamilyInviteCode in
+    // src/lib/family-invite.ts): per account+IP (the original bucket), per
+    // account whatever the IP, and per IP whatever the account. The normal UI
+    // makes one join per person, far below each limit.
     const ip = getClientIp(request)
-    const rateCheck = await checkRateLimit(`join:${payload.userId}:${ip}`, 10, 60 * 60 * 1000)
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many join attempts. Please try again later.' },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000) || 60),
-          },
-        }
-      )
+    const buckets: Array<[key: string, max: number]> = [
+      [`join:${payload.userId}:${ip}`, JOIN_PER_ACCOUNT_IP_PER_HOUR],
+      [`join-account:${payload.userId}`, JOIN_PER_ACCOUNT_PER_HOUR],
+      [`join-ip:${ip}`, JOIN_PER_IP_PER_HOUR],
+    ]
+    for (const [key, max] of buckets) {
+      const rateCheck = await checkRateLimit(key, max, HOUR_MS)
+      if (!rateCheck.allowed) {
+        return NextResponse.json(
+          { error: 'Too many join attempts. Please try again later.' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000) || 60),
+            },
+          }
+        )
+      }
     }
 
     let body: any

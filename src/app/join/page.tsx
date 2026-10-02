@@ -127,7 +127,7 @@ export default function JoinFamilyPage() {
       const meData = await meRes.json()
       if (!meRes.ok || !meData.user) {
         setLeaving(true)
-        router.push(`/login?redirect=${encodeURIComponent(`/join?code=${code}`)}`)
+        router.push(`/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`)
         return
       }
       if (!familyInfo) {
@@ -267,10 +267,15 @@ export default function JoinFamilyPage() {
                     setCode(e.target.value)
                     setFamilyInfo(null)
                   }}
-                  className="input-field flex-1 font-mono"
-                  placeholder="Invite code from a parent"
+                  className="input-field flex-1 font-mono tabular-nums tracking-wider"
+                  placeholder="e.g. K7QM-4XPD-2HNA"
+                  aria-describedby="code-hint"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
                   autoComplete="off"
                   spellCheck={false}
+                  maxLength={64}
                   disabled={busy}
                 />
                 <button
@@ -282,6 +287,9 @@ export default function JoinFamilyPage() {
                   Check Code
                 </button>
               </div>
+              <p id="code-hint" className="mt-2 text-sm text-gray-600">
+                Capitals, spaces and dashes don’t matter.
+              </p>
             </div>
             {familyInfo && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

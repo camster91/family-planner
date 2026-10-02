@@ -8,7 +8,7 @@ import { readIdempotencyKey } from '@/lib/idempotency'
 import { deleteHousehold } from '@/lib/account-deletion'
 import { checkFreshAuthorization, runDeletion } from '@/lib/account-deletion-http'
 import { lockUser } from '@/lib/household-lock'
-import { createFamilyInviteCode } from '@/lib/family-invite'
+import { createFamilyInviteCode, INVITE_CODE_ATTEMPTS, isInviteCodeCollision } from '@/lib/family-invite'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -45,22 +45,40 @@ export async function POST(request: NextRequest) {
     // deletion holds it from before it reads family_id, so a household is never
     // created for an account that is being deleted (which would leave a Family
     // with no members). Re-checked here under the lock.
-    const family = await prisma!.$transaction(async (tx) => {
-      await lockUser(tx, payload.userId)
-      const current = await tx.user.findUnique({ where: { id: payload.userId }, select: { family_id: true } })
-      if (!current) return 'gone' as const
-      if (current.family_id) return 'already' as const
-      // Explicit new-household flags (#248): Points & streaks start OFF. A blob
-      // without the `gamification` key would read as an existing household.
-      const newFamily = await tx.family.create({
-        data: { name: parsed.data.name, features: defaultFeatures(), invite_code: createFamilyInviteCode() },
+    // A unique collision on the new invite code aborts the transaction, so the
+    // whole transaction is retried with a fresh code (INVITE_CODE_ATTEMPTS).
+    const createOnce = () =>
+      prisma!.$transaction(async (tx) => {
+        await lockUser(tx, payload.userId)
+        const current = await tx.user.findUnique({ where: { id: payload.userId }, select: { family_id: true } })
+        if (!current) return 'gone' as const
+        if (current.family_id) return 'already' as const
+        // Explicit new-household flags (#248): Points & streaks start OFF. A blob
+        // without the `gamification` key would read as an existing household.
+        const newFamily = await tx.family.create({
+          data: { name: parsed.data.name, features: defaultFeatures(), invite_code: createFamilyInviteCode() },
+        })
+        await tx.user.update({
+          where: { id: payload.userId },
+          data: { family_id: newFamily.id, role: 'parent' },
+        })
+        return newFamily
       })
-      await tx.user.update({
-        where: { id: payload.userId },
-        data: { family_id: newFamily.id, role: 'parent' },
-      })
-      return newFamily
-    })
+    let family: Awaited<ReturnType<typeof createOnce>> | null = null
+    for (let attempt = 1; family === null; attempt++) {
+      try {
+        family = await createOnce()
+      } catch (err) {
+        if (!isInviteCodeCollision(err)) throw err
+        if (attempt >= INVITE_CODE_ATTEMPTS) {
+          logRouteError('POST /api/family', err, getRequestId(request))
+          return NextResponse.json(
+            { error: 'Could not make a family code. Please try again.' },
+            { status: 503, headers: { 'Retry-After': '1' } }
+          )
+        }
+      }
+    }
     if (family === 'gone') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (family === 'already') {
       return NextResponse.json({ error: 'You already belong to a family' }, { status: 400 })

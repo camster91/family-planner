@@ -40,7 +40,7 @@ export const H1_CANARIES = [
   'Home garage',
   'Home weekly',
   '1 Home Street',
-  'INVITEA1',
+  'invitea1',
   'feed-token-a',
   'share-token-a',
 ]

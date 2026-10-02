@@ -259,9 +259,9 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
   // seed writes this on every run, so a test that toggles a flag is reset.
   const features = { ...FIXTURE_FEATURES }
   const families: FixtureFamily[] = [
-    { id: A.family, name: 'Fixture Family A (busy)', invite_code: 'fx-invite-family-a', created_at: created, features },
-    { id: B.family, name: 'Fixture Family B (sparse)', invite_code: 'fx-invite-family-b', created_at: created, features },
-    { id: E.family, name: 'Fixture Family (empty)', invite_code: 'fx-invite-family-empty', created_at: created, features },
+    { id: A.family, name: 'Fixture Family A (busy)', invite_code: 'fxinvitefamilya', created_at: created, features },
+    { id: B.family, name: 'Fixture Family B (sparse)', invite_code: 'fxinvitefamilyb', created_at: created, features },
+    { id: E.family, name: 'Fixture Family (empty)', invite_code: 'fxinvitefamilyempty', created_at: created, features },
   ]
 
   const user = (

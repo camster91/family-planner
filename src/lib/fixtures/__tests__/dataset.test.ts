@@ -1,3 +1,4 @@
+import { normalizeInviteCode } from '@/lib/family-code'
 import {
   buildFixtureDataset,
   DEFAULT_FIXTURE_ANCHOR,
@@ -57,6 +58,8 @@ describe('fixture dataset', () => {
     for (const id of ids) expect(id.startsWith(FIXTURE_ID_PREFIX)).toBe(true)
     const invites = ds.families.map((f) => f.invite_code)
     expect(new Set(invites).size).toBe(invites.length)
+    // Stored in canonical form, so the code can be typed to join.
+    for (const code of invites) expect(normalizeInviteCode(code)).toBe(code)
   })
 
   it('exported id/email constants all exist in the dataset', () => {

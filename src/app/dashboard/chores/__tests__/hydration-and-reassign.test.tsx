@@ -108,7 +108,7 @@ describe('ChoresContent reassign dialog', () => {
   async function openReassign() {
     const user = userEvent.setup()
     render(page([chore('c1', 'Feed the cat', today())]))
-    await user.click(screen.getByRole('button', { name: 'More actions for Feed the cat' }))
+    await user.click(screen.getByRole('button', { name: 'More actions for “Feed the cat”' }))
     await user.click(screen.getByRole('button', { name: 'Reassign' }))
     return user
   }

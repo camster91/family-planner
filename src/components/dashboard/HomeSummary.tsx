@@ -119,6 +119,11 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
     )
   }
 
+  // A parent's household with nothing due today and nothing to check: the
+  // board's "Chores today" region already says "No chores due today" and
+  // links to all chores, so this card would only repeat it.
+  if (isParent && toCheckCount === 0 && choresDueOn(effective, todayKey).length === 0) return null
+
   const sentence = homeSummary({ viewer, chores: effective, members, todayKey })
   const mine = choresDueOn(effective, todayKey).filter((c) => c.assigneeId === viewer.id)
   // Open first, then done, each in the server's order.

@@ -17,7 +17,8 @@
  *    unverified, presses "Confirm my email" and lands on /login?verified=1.
  *    No app code or test-only switch is involved.
  * 3. The parent signs in, lands on onboarding, creates the household and is
- *    sent to the Today board (empty chores region).
+ *    sent to the Today board (empty chores region, and a "Get started" card
+ *    with three steps, none done).
  * 4. Settings → Invite → "In person instead" shows the family code (the one
  *    stored for the new household).
  * 5. The child registers and verifies the same way in a second browser
@@ -37,6 +38,7 @@
 import crypto from "crypto";
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 import pg from "pg";
+import { FAMILY_CODE_LENGTH, formatFamilyCode } from "../src/lib/family-code";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { E2E_ANCHOR } from "./support/env";
 import { expect, loginViaUi, test } from "./support/test";
@@ -305,6 +307,23 @@ test.describe("new household sign-up journey", () => {
       await expect(page.getByTestId("region-chores")).toContainText(
         "No chores due today.",
       );
+      // A parent of a new household gets three first steps, none done yet.
+      const getStarted = page.getByRole("region", { name: "Get started" });
+      await expect(getStarted).toBeVisible();
+      await expect(
+        getStarted.getByTestId("get-started-progress"),
+      ).toContainText("0 of 3 done");
+      await expect(
+        getStarted.getByRole("link", { name: /Invite your family/ }),
+      ).toHaveAttribute("href", "/dashboard/family/invite");
+      await expect(
+        getStarted.getByRole("link", { name: /Add your first chore/ }),
+      ).toHaveAttribute("href", "/dashboard/chores/create");
+      await expect(
+        getStarted.getByRole("link", { name: /Add an event/ }),
+      ).toHaveAttribute("href", "/dashboard/calendar/create");
+      // The board's chores region already says there are none; no second card repeats it.
+      await expect(page.getByTestId("home-summary")).toHaveCount(0);
       await expectNoHorizontalOverflow(page, "Today board (new household)");
 
       const row = await withDb((db) =>
@@ -319,12 +338,18 @@ test.describe("new household sign-up journey", () => {
       expect(row.rows[0].role).toBe("parent");
       familyId = row.rows[0].family_id;
       inviteCode = row.rows[0].invite_code;
+      // Stored canonical: lowercase, no dashes; shown as XXXX-XXXX-XXXX.
+      expect(inviteCode).toMatch(
+        new RegExp(`^[a-z2-9]{${FAMILY_CODE_LENGTH}}$`),
+      );
     });
 
     await test.step("parent finds the in-person family code", async () => {
       await page.goto("/dashboard/family/invite");
       await page.getByText("In person instead").click();
-      await expect(page.getByText(inviteCode, { exact: true })).toBeVisible();
+      await expect(
+        page.getByText(formatFamilyCode(inviteCode), { exact: true }),
+      ).toBeVisible();
       await expect(
         page.getByRole("button", { name: "Copy code" }),
       ).toBeEnabled();
@@ -351,7 +376,8 @@ test.describe("new household sign-up journey", () => {
         ).toBeVisible();
         await expectNoHorizontalOverflow(kid, "/join");
 
-        await kid.getByLabel("Family Code").fill(inviteCode);
+        // Typed the way a parent reads it out: capitals and dashes.
+        await kid.getByLabel("Family Code").fill(formatFamilyCode(inviteCode));
         await kid.getByRole("button", { name: "Check Code" }).click();
         await expect(
           kid.getByText("Ready to join as a child or teen."),
@@ -447,6 +473,10 @@ test.describe("new household sign-up journey", () => {
         await expect(
           page.getByRole("link", { name: "1 chore to check" }).first(),
         ).toBeVisible();
+        // The child joined and a chore exists; only the event step is left.
+        await expect(page.getByTestId("get-started-progress")).toContainText(
+          "2 of 3 done",
+        );
         await expectNoHorizontalOverflow(page, "Today board (one to check)");
 
         await page.goto("/dashboard/chores");
