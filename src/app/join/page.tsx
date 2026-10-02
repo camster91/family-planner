@@ -63,6 +63,12 @@ export default function JoinFamilyPage() {
   const checkFamilyCode = async (familyCode: string) => {
     try {
       const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`)
+      // Signed out: the lookup needs a session. Say nothing yet; pressing Join
+      // sends the person to sign in and back here with the code filled in.
+      if (res.status === 401) {
+        setError(null)
+        return
+      }
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Family not found. Please check the code.')
