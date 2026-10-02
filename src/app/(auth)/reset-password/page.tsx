@@ -9,8 +9,6 @@ import { useTranslation } from '@/i18n'
 
 function ResetPasswordForm() {
   const { t } = useTranslation()
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -20,8 +18,11 @@ function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    const fields = new FormData(e.currentTarget)
+    const password = String(fields.get('password') ?? '')
+    const confirmPassword = String(fields.get('confirmPassword') ?? '')
     if (password !== confirmPassword) {
       setError(t('auth.passwordMismatch'))
       return
@@ -129,11 +130,10 @@ function ResetPasswordForm() {
               <div className="relative">
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   className="input-field pr-10"
                   placeholder="••••••••"
                 />
@@ -158,11 +158,10 @@ function ResetPasswordForm() {
               <div className="relative">
                 <input
                   id="confirmPassword"
+                  name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   required
                   autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="input-field pr-10"
                   placeholder="••••••••"
                 />
