@@ -166,14 +166,14 @@ describe('Settings -> Privacy & Security', () => {
 
   it('shows the switch when the page passes the household value (a parent)', async () => {
     api()
-    render(<SettingsClient sharedDevice={null} betaMetrics={{ enabled: true }} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} betaMetrics={{ enabled: true }} />)
     expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
     expect(screen.getByRole('switch', { name: NAME }).getAttribute('aria-checked')).toBe('true')
   })
 
   it('has no switch without it (not a parent)', async () => {
     api()
-    render(<SettingsClient sharedDevice={null} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: NAME })).toBeNull()
   })

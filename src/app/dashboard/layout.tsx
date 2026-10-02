@@ -8,7 +8,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import CommandPaletteHost from '@/components/layout/CommandPaletteHost'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { defaultFeatures, normalizeFeatures } from '@/lib/features'
-import { isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
+import { canRoleAccessPath, isKidRole } from '@/lib/kid-access'
 import type { NavUser, UserRole } from '@/types'
 
 function toUserRole(role: string | null | undefined): UserRole {
@@ -68,7 +68,7 @@ export default async function DashboardLayout({
     // If we cannot determine the route, allow it: the middleware ran first and
     // already enforced the allowlist. Failing closed here would lock kids out
     // of their own dashboard.
-    if (route && !isDashboardRoot(route) && !isKidAllowedPath(route)) {
+    if (route && !canRoleAccessPath(role, route)) {
       redirect('/dashboard')
     }
   }

@@ -53,7 +53,7 @@ beforeAll(() => {
 describe('Settings privacy controls', () => {
   it('has no Two-Factor Authentication control', async () => {
     mockApi()
-    render(<SettingsClient sharedDevice={null} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
     expect(screen.queryByText(/Two-Factor/i)).toBeNull()
   })
@@ -62,7 +62,7 @@ describe('Settings privacy controls', () => {
     const urls = mockApi()
     Object.assign(URL, { createObjectURL: jest.fn(() => 'blob:x'), revokeObjectURL: jest.fn() })
     const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    render(<SettingsClient sharedDevice={null} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     await userEvent.click(await screen.findByRole('button', { name: /Data Export/ }))
     await waitFor(() => expect(urls).toContain('/api/users/export'))
     await waitFor(() => expect(click).toHaveBeenCalled())
@@ -72,7 +72,7 @@ describe('Settings privacy controls', () => {
   it('Delete Account opens the confirmation dialog in the page', async () => {
     mockApi()
     window.confirm = jest.fn(() => true)
-    render(<SettingsClient sharedDevice={null} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     await userEvent.click(await screen.findByRole('button', { name: 'Delete Account' }))
     expect(await screen.findByRole('dialog', { name: 'Delete account' })).toBeTruthy()
     expect(await screen.findByLabelText('Your password')).toBeTruthy()

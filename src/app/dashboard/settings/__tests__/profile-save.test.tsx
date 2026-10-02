@@ -36,7 +36,7 @@ function mockApi(patch: { status: number; body: unknown }) {
 function renderSettings() {
   return render(
     <I18nProvider locale="en">
-      <SettingsClient sharedDevice={null} />
+      <SettingsClient viewerRole="parent" sharedDevice={null} />
     </I18nProvider>
   )
 }

@@ -1,9 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-// Notification switches for teens and children (#286): they cannot open
-// Settings (src/lib/kid-access.ts), so the user menu, which is on every page
-// they can reach, opens the same switches in a dialog. Parents use Settings.
+// Notification switches for children (#286): they cannot open Settings
+// (src/lib/kid-access.ts), so the user menu, which is on every page they can
+// reach, opens the same switches in a dialog. Parents and teens (O-37) use
+// Settings, and get the notifications bell.
 import * as React from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -37,9 +38,9 @@ async function openMenu(role: NavUser['role']) {
 }
 
 describe('DashboardNav user menu: notifications', () => {
-  it.each(['teen', 'child'] as const)('a %s opens their own notification switches from the menu', async (role) => {
+  it('a child opens their own notification switches from the menu', async () => {
     const calls = mockPrefs()
-    await openMenu(role)
+    await openMenu('child')
     const item = screen.getByRole('button', { name: 'Notifications' })
     expect(item.className).toContain('min-h-[44px]')
     await userEvent.click(item)
@@ -54,10 +55,19 @@ describe('DashboardNav user menu: notifications', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'User menu' }))
   })
 
-  it('parents do not get the menu entry (they use Settings)', async () => {
+  it.each(['parent', 'teen'] as const)('a %s does not get the menu entry (they use Settings)', async (role) => {
     mockPrefs()
-    await openMenu('parent')
+    await openMenu(role)
     expect(screen.queryByRole('button', { name: 'Notifications' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Settings' })).toBeTruthy()
+    // The bell opens their own notifications list.
+    expect(screen.getByRole('link', { name: 'Notifications' }).getAttribute('href')).toBe('/dashboard/notifications')
+  })
+
+  it('a child gets no Settings link and no notifications bell', async () => {
+    mockPrefs()
+    await openMenu('child')
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Notifications' })).toBeNull()
   })
 })

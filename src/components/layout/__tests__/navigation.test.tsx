@@ -56,14 +56,32 @@ describe('tab model', () => {
     ])
   })
 
-  it.each(['teen', 'child'] as const)('%s tabs are only allowlisted routes, with Emergency one tap away', (role) => {
-    const tabs = tabsFor(role, defaultFeatures())
+  it('child tabs are only allowlisted routes, with Emergency one tap away', () => {
+    const tabs = tabsFor('child', defaultFeatures())
     expect(tabs.map((t) => [t.label, t.href])).toEqual([
       ['Today', '/dashboard'],
       ['Lists', '/dashboard/lists'],
       ['Emergency', '/dashboard/emergency'],
     ])
-    for (const t of tabs) expect(canRoleAccessPath(role, t.href)).toBe(true)
+    for (const t of tabs) expect(canRoleAccessPath('child', t.href)).toBe(true)
+  })
+
+  it('teen tabs add Calendar and Meals (O-37), with Emergency one tap away', () => {
+    const tabs = tabsFor('teen', defaultFeatures())
+    expect(tabs.map((t) => [t.label, t.href])).toEqual([
+      ['Today', '/dashboard'],
+      ['Calendar', '/dashboard/calendar'],
+      ['Meals', '/dashboard/meals'],
+      ['Lists', '/dashboard/lists'],
+      ['Emergency', '/dashboard/emergency'],
+    ])
+    for (const t of tabs) expect(canRoleAccessPath('teen', t.href)).toBe(true)
+    // Feature-gated like a parent's tabs.
+    expect(tabsFor('teen', { ...defaultFeatures(), meals: false, calendar: false }).map((t) => t.label)).toEqual([
+      'Today',
+      'Lists',
+      'Emergency',
+    ])
   })
 
   it('the kid allowlist is unchanged by the new shell', () => {
@@ -161,6 +179,19 @@ describe('TabBar (phone)', () => {
       ['Emergency', '/dashboard/emergency'],
     ])
   })
+
+  it('gives a teen Today (kid home), Calendar, Meals, Lists and Emergency (O-37)', () => {
+    mockPath = '/dashboard/calendar'
+    const { container } = render(<TabBar user={user('teen')} />)
+    expect(tabLabels(container)).toEqual([
+      ['Today', '/dashboard'],
+      ['Calendar', '/dashboard/calendar'],
+      ['Meals', '/dashboard/meals'],
+      ['Lists', '/dashboard/lists'],
+      ['Emergency', '/dashboard/emergency'],
+    ])
+    expect(screen.getByRole('link', { name: 'Calendar' }).getAttribute('aria-current')).toBe('page')
+  })
 })
 
 describe('DashboardNav (top bar)', () => {
@@ -180,6 +211,18 @@ describe('DashboardNav (top bar)', () => {
   it('gives a child its own tabs and a home link to the kid home', () => {
     render(<DashboardNav user={user('child')} />)
     expect(tabLabels(screen.getByTestId('top-tabs')).map(([l]) => l)).toEqual(['Today', 'Lists', 'Emergency'])
+    expect(screen.getByRole('link', { name: 'Family Planner home' }).getAttribute('href')).toBe('/dashboard')
+  })
+
+  it('gives a teen Calendar and Meals too, and the kid home (O-37)', () => {
+    render(<DashboardNav user={user('teen')} />)
+    expect(tabLabels(screen.getByTestId('top-tabs')).map(([l]) => l)).toEqual([
+      'Today',
+      'Calendar',
+      'Meals',
+      'Lists',
+      'Emergency',
+    ])
     expect(screen.getByRole('link', { name: 'Family Planner home' }).getAttribute('href')).toBe('/dashboard')
   })
 })

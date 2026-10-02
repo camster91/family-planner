@@ -756,8 +756,16 @@ test.describe("Shared tablet", () => {
       expect(login.status(), await login.text()).toBe(200);
       await teen.page.goto("/dashboard/settings/devices");
       await expect(teen.page).toHaveURL(/\/dashboard$/);
+      // O-37: a teen opens their own Settings, which has no tablet entries.
       await teen.page.goto("/dashboard/settings");
-      await expect(teen.page).toHaveURL(/\/dashboard$/);
+      await expect(teen.page).toHaveURL(/\/dashboard\/settings$/);
+      await expect(
+        teen.page.getByRole("heading", { name: "Privacy & Security" }),
+      ).toBeVisible();
+      await expect(teen.page.getByText("Tablet PIN")).toHaveCount(0);
+      await expect(
+        teen.page.locator('a[href="/dashboard/settings/devices"]'),
+      ).toHaveCount(0);
       const api = await browserFetch(teen.page, "/api/family/devices");
       expect(api.status).toBe(403);
       const pin = await send(teen.page, "PUT", "/api/users/elevation-pin", {

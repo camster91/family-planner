@@ -3,7 +3,8 @@
  *
  * - One home: `/dashboard` sends a parent to the Today board
  *   (`/dashboard/today`), which starts with one true summary sentence and the
- *   viewer's own chores; children and teens keep their kid home.
+ *   viewer's own chores; children and teens keep their kid home. Teens also
+ *   get Calendar and Meals tabs (O-37).
  * - Tapping a chore on the home completes it (optimistic, server-confirmed)
  *   and Undo reopens it.
  * - Phone tab bar: exactly Today · Calendar · Meals · Lists · Family. The top
@@ -18,7 +19,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
 import pg from "pg";
-import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
+import {
+  FIXTURE_EMAILS,
+  FIXTURE_IDS,
+  FIXTURE_PASSWORD,
+} from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { expect, test } from "./support/test";
@@ -311,5 +316,45 @@ test.describe("Family A child", () => {
     await expect(
       page.getByTestId("home-summary").getByRole("link"),
     ).toHaveCount(0);
+  });
+});
+
+// O-37: a teen keeps the kid home and also gets the family calendar and meals.
+// No teen storage state exists, so the teen signs in through the API here.
+test.describe("Family A teen", () => {
+  test("keeps the kid home, with Today, Calendar, Meals, Lists and Emergency tabs", async ({
+    page,
+  }, testInfo) => {
+    const login = await page.request.post("/api/auth/login", {
+      data: { email: FIXTURE_EMAILS.familyA.teen, password: FIXTURE_PASSWORD },
+    });
+    expect(login.status(), await login.text()).toBe(200);
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard$/);
+    const tabs =
+      testInfo.project.name === "phone-390x844"
+        ? page.locator("nav.tab-bar").getByRole("link")
+        : page.getByTestId("top-tabs").getByRole("link");
+    await expect(tabs).toHaveText([
+      "Today",
+      "Calendar",
+      "Meals",
+      "Lists",
+      "Emergency",
+    ]);
+    await page.goto("/dashboard/calendar");
+    await expect(page).toHaveURL(/\/dashboard\/calendar/);
+    await expect(
+      page.locator('a[href^="/dashboard/calendar/edit"]'),
+    ).toHaveCount(0);
+    await page.goto("/dashboard/meals");
+    await expect(page).toHaveURL(/\/dashboard\/meals$/);
+    for (const parentOnly of [
+      "/dashboard/settings/devices",
+      "/dashboard/features",
+    ]) {
+      await page.goto(parentOnly);
+      await expect(page).toHaveURL(/\/dashboard$/);
+    }
   });
 });

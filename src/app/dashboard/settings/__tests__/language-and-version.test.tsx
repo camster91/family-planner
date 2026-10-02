@@ -51,7 +51,7 @@ function renderSettings() {
   return render(
     <I18nProvider locale="en" persistLocale>
       <Probe />
-      <SettingsClient sharedDevice={null} />
+      <SettingsClient viewerRole="parent" sharedDevice={null} />
     </I18nProvider>
   )
 }

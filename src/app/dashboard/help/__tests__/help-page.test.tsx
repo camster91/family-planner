@@ -3,7 +3,8 @@
  */
 // Help page (#146): renders every section, links only to real pages, and shows
 // the support address from src/lib/support.ts, or plain "coming soon" text
-// while it is not set. Parents reach it from the user menu; kids do not.
+// while it is not set. Parents and teens (O-37) reach it from the user menu;
+// children do not. A teen sees parent-only pages named, never linked.
 import * as React from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -30,10 +31,22 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
 }))
 jest.mock('@/lib/offline-queue-browser', () => ({ clearAllPersonQueues: async () => undefined }))
+// The server page reads the viewer's role from the database.
+let mockRole: string = 'parent'
+jest.mock('@/lib/supabase/server', () => ({
+  getServerUser: async () => ({ id: 'u1', email: 'u1@example.test', role: 'parent', family_id: 'f1' }),
+}))
+jest.mock('@/lib/prisma', () => ({
+  prisma: { user: { findUnique: async () => ({ role: mockRole }) } },
+}))
+
+beforeEach(() => {
+  mockRole = 'parent'
+})
 
 describe('Help page', () => {
-  it('renders a heading and every help section', () => {
-    render(<HelpPage />)
+  it('renders a heading and every help section', async () => {
+    render(await HelpPage())
     expect(screen.getByRole('heading', { level: 1, name: 'Help' })).toBeTruthy()
     for (const name of [
       'Getting started',
@@ -47,8 +60,8 @@ describe('Help page', () => {
     }
   })
 
-  it('links to the real pages for each task', () => {
-    render(<HelpPage />)
+  it('links to the real pages for each task', async () => {
+    render(await HelpPage())
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(hrefs).toEqual(
       expect.arrayContaining([
@@ -67,13 +80,28 @@ describe('Help page', () => {
     )
   })
 
-  it('shows "coming soon" text, not an address, while the support email is unset', () => {
+  it('shows "coming soon" text, not an address, while the support email is unset', async () => {
     expect(SUPPORT_EMAIL).toBe('')
-    render(<HelpPage />)
+    render(await HelpPage())
     const contact = screen.getByRole('region', { name: 'Contact support' })
     expect(within(contact).getByTestId('support-email').textContent).toBe(SUPPORT_EMAIL_PENDING_TEXT)
     expect(within(contact).queryByRole('link')).toBeNull()
     expect(contact.textContent).not.toMatch(/@/)
+  })
+
+  it('gives a teen the same answers, but links only pages a teen may open', async () => {
+    mockRole = 'teen'
+    render(await HelpPage())
+    expect(screen.getByRole('region', { name: 'Getting started' })).toBeTruthy()
+    const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
+    expect(hrefs).toEqual(
+      expect.arrayContaining(['/join', '/dashboard/calendar', '/dashboard/meals', '/dashboard/lists', '/forgot-password', '/dashboard/settings', '/privacy'])
+    )
+    for (const parentOnly of ['/dashboard/family/create', '/dashboard/family/invite', '/dashboard/chores', '/dashboard/rewards']) {
+      expect(hrefs).not.toContain(parentOnly)
+    }
+    // Still named, as text.
+    expect(screen.getByText('Family → Invite')).toBeTruthy()
   })
 
   it('shows a mailto link once a support email is set', () => {
@@ -102,8 +130,14 @@ describe('DashboardNav user menu: Help', () => {
     expect(link.className).toContain('min-h-[44px]')
   })
 
-  it.each(['teen', 'child'] as const)('does not show Help to a %s (not on the kid allowlist)', async (role) => {
-    render(<DashboardNav user={user(role)} />)
+  it('links a teen to /dashboard/help too (O-37)', async () => {
+    render(<DashboardNav user={user('teen')} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
+    expect(screen.getByRole('link', { name: 'Help' }).getAttribute('href')).toBe('/dashboard/help')
+  })
+
+  it('does not show Help to a child (not on the kid allowlist)', async () => {
+    render(<DashboardNav user={user('child')} />)
     await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
     expect(screen.queryByRole('link', { name: 'Help' })).toBeNull()
   })

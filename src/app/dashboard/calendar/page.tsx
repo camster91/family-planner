@@ -6,6 +6,7 @@ import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
 import { refreshStaleConnections } from '@/lib/calendar-sync/sync'
 import { canImportEvents, isEventImportConfigured } from '@/lib/event-import'
 import { calendarMonthQueryWindow } from '@/lib/dates'
+import { isParentRole } from '@/lib/role-capabilities'
 import CalendarPageClient from './CalendarPageClient'
 
 interface CalendarPageProps {
@@ -88,6 +89,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       monthFromUrl={validMonth}
       // Review-first import (#270): hidden unless the provider key is set and the viewer may import.
       importEnabled={isEventImportConfigured() && canImportEvents(user?.role)}
+      // Edit and delete are parent-only in the API; a teen (O-37) only views and adds.
+      canEditEvents={isParentRole(user?.role)}
     />
   )
 }

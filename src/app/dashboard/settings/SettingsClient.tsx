@@ -14,21 +14,34 @@ import NotificationPreferences from '@/components/account/NotificationPreference
 import BetaMetricsSwitch from '@/components/account/BetaMetricsSwitch'
 import { Save, Bell, User, Shield, Moon, Globe, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
 
+/** Who is looking at Settings; decided on the server from the database role. */
+export type SettingsViewerRole = 'parent' | 'teen'
+
 /**
- * `sharedDevice` is decided on the server (./page.tsx): null unless the
- * shared-device kill switch is on AND the viewer is a parent. `betaMetrics`
- * (#287) is the household's beta usage counts switch, read on the server for
- * a parent only (null otherwise, and the switch is not shown).
+ * `viewerRole` is decided on the server (./page.tsx). A teen (O-37) gets only
+ * their personal sections: profile, notifications and quiet hours, theme,
+ * language, password, their own data export and account deletion. Every
+ * family-level section (AI capture, calendar feed, subscriptions and sync,
+ * Features, imports, Recent changes, tablets and the Tablet PIN, beta usage
+ * counts) is parent-only: it is not rendered and its data is never fetched.
+ *
+ * `sharedDevice` is null unless the shared-device kill switch is on AND the
+ * viewer is a parent. `betaMetrics` (#287) is the household's beta usage
+ * counts switch, read on the server for a parent only (null otherwise, and the
+ * switch is not shown).
  */
 export default function SettingsClient({
+  viewerRole,
   sharedDevice,
   betaMetrics = null,
   calendarSync = false,
 }: {
+  viewerRole: SettingsViewerRole
   sharedDevice: { hasPin: boolean } | null
   betaMetrics?: { enabled: boolean } | null
   calendarSync?: boolean
 }) {
+  const isParent = viewerRole === 'parent'
   const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -131,18 +144,20 @@ export default function SettingsClient({
   }, [])
 
   // Load the family's calendar feed token, if one exists. Parents only — the
-  // API returns an error for kids, which we swallow so the card just hides.
+  // API refuses everyone else too.
   useEffect(() => {
+    if (!isParent) return
     fetch('/api/family/feed-token')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d && typeof d.feedToken === 'string' && d.feedToken) setFeedToken(d.feedToken)
       })
       .catch(() => {})
-  }, [])
+  }, [isParent])
 
-  // Load AI capture settings (masked hint only — never the key itself).
+  // Load AI capture settings (masked hint only — never the key itself). Parents only.
   useEffect(() => {
+    if (!isParent) return
     fetch('/api/family/ai-settings')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -153,7 +168,7 @@ export default function SettingsClient({
         setAiModel(d.model ?? '')
       })
       .catch(() => {})
-  }, [])
+  }, [isParent])
 
   const saveAiSettings = async (clear = false) => {
     setAiBusy(true)
@@ -320,7 +335,7 @@ export default function SettingsClient({
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="mt-2 text-gray-600">
-          Manage your account preferences and family settings.
+          {isParent ? 'Manage your account preferences and family settings.' : 'Manage your account preferences.'}
         </p>
       </div>
 
@@ -474,179 +489,183 @@ export default function SettingsClient({
             </div>
           </div>
 
-          {/* AI capture */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center mr-4">
-                <Sparkles className="w-5 h-5 text-violet-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">AI capture</h2>
-                <p className="text-gray-600">Type a sentence or photograph a flyer, and it sorts itself out</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="aiKey" className="block text-sm font-medium text-gray-900 mb-2">
-                  API key
-                </label>
-                <input
-                  id="aiKey"
-                  type="password"
-                  autoComplete="off"
-                  value={aiKey}
-                  onChange={(e) => setAiKey(e.target.value)}
-                  placeholder={aiConfigured ? `Saved: ${aiKeyHint}` : 'Paste your key'}
-                  className="input-field w-full font-mono text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Stored encrypted. Never shown again after saving.
-                </p>
+          {/* AI capture: the household's provider key. Parents only (API-enforced). */}
+          {isParent && (
+            <div className="card">
+              <div className="flex items-center mb-6">
+                <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center mr-4">
+                  <Sparkles className="w-5 h-5 text-violet-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">AI capture</h2>
+                  <p className="text-gray-600">Type a sentence or photograph a flyer, and it sorts itself out</p>
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
-                  Provider URL <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  id="aiBaseUrl"
-                  value={aiBaseUrl}
-                  onChange={(e) => setAiBaseUrl(e.target.value)}
-                  placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
-                  className="input-field w-full text-sm"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
-                  Model <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  id="aiModel"
-                  value={aiModel}
-                  onChange={(e) => setAiModel(e.target.value)}
-                  placeholder="gemini-2.0-flash"
-                  className="input-field w-full text-sm"
-                />
-              </div>
-
-              <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
-                <div className="font-medium text-gray-900 mb-1">For photos of flyers, pick a vision model</div>
-                <div>Google Gemini Flash — free tier, reads photos. Use the URL and model above.</div>
-                <div>OpenAI — paste the key and leave URL and model blank.</div>
-                <div>DeepSeek — paste the key. Text only; photos will not work.</div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => saveAiSettings(false)}
-                  disabled={aiBusy || (!aiKey.trim() && !aiConfigured)}
-                  className="btn-primary inline-flex items-center"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {aiBusy ? 'Saving…' : 'Save'}
-                </button>
-                {aiConfigured && (
-                  <button
-                    onClick={() => saveAiSettings(true)}
-                    disabled={aiBusy}
-                    className="text-sm text-red-600 hover:underline"
-                  >
-                    Remove key
-                  </button>
-                )}
-                {aiMessage && (
-                  <span className="text-sm text-green-700 inline-flex items-center">
-                    <Check className="w-4 h-4 mr-1" /> {aiMessage}
-                  </span>
-                )}
-              </div>
-
-              {aiError && <p className="text-sm text-red-600">{aiError}</p>}
-            </div>
-          </div>
-
-          {/* Calendar feed */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center mr-4">
-                <CalendarDays className="w-5 h-5 text-sky-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Calendar feed</h2>
-                <p className="text-gray-600">See your family calendar in Google, Apple or Outlook</p>
-              </div>
-            </div>
-
-            {feedToken ? (
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="feedUrl" className="block text-sm font-medium text-gray-900 mb-2">
-                    Your private link
+                  <label htmlFor="aiKey" className="block text-sm font-medium text-gray-900 mb-2">
+                    API key
                   </label>
                   <input
-                    id="feedUrl"
-                    readOnly
-                    value={feedUrl}
-                    onFocus={(e) => e.currentTarget.select()}
-                    className="input-field w-full text-xs font-mono"
+                    id="aiKey"
+                    type="password"
+                    autoComplete="off"
+                    value={aiKey}
+                    onChange={(e) => setAiKey(e.target.value)}
+                    placeholder={aiConfigured ? `Saved: ${aiKeyHint}` : 'Paste your key'}
+                    className="input-field w-full font-mono text-sm"
                   />
                   <p className="text-xs text-gray-500 mt-2">
-                    Anyone with this link can read your family calendar. Keep it private.
+                    Stored encrypted. Never shown again after saving.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={copyFeedUrl} className="btn-primary inline-flex items-center">
-                    {feedCopied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
-                    {feedCopied ? 'Copied' : 'Copy link'}
-                  </button>
-                  <button
-                    onClick={() => handleFeedToken(true)}
-                    disabled={feedBusy}
-                    className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
-                    Reset link
-                  </button>
+                <div>
+                  <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
+                    Provider URL <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="aiBaseUrl"
+                    value={aiBaseUrl}
+                    onChange={(e) => setAiBaseUrl(e.target.value)}
+                    placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
+                    className="input-field w-full text-sm"
+                  />
                 </div>
 
-                <p className="text-xs text-gray-500">
-                  Resetting makes a new link and instantly stops the old one working.
-                </p>
+                <div>
+                  <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
+                    Model <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="aiModel"
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    placeholder="gemini-2.0-flash"
+                    className="input-field w-full text-sm"
+                  />
+                </div>
 
                 <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
-                  <div className="font-medium text-gray-900 mb-1">How to add it</div>
-                  <div>Google Calendar: Other calendars then From URL, paste the link.</div>
-                  <div>Apple Calendar: File then New Calendar Subscription, paste the link.</div>
-                  <div>Outlook: Add calendar then Subscribe from web, paste the link.</div>
+                  <div className="font-medium text-gray-900 mb-1">For photos of flyers, pick a vision model</div>
+                  <div>Google Gemini Flash — free tier, reads photos. Use the URL and model above.</div>
+                  <div>OpenAI — paste the key and leave URL and model blank.</div>
+                  <div>DeepSeek — paste the key. Text only; photos will not work.</div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => saveAiSettings(false)}
+                    disabled={aiBusy || (!aiKey.trim() && !aiConfigured)}
+                    className="btn-primary inline-flex items-center"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {aiBusy ? 'Saving…' : 'Save'}
+                  </button>
+                  {aiConfigured && (
+                    <button
+                      onClick={() => saveAiSettings(true)}
+                      disabled={aiBusy}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Remove key
+                    </button>
+                  )}
+                  {aiMessage && (
+                    <span className="text-sm text-green-700 inline-flex items-center">
+                      <Check className="w-4 h-4 mr-1" /> {aiMessage}
+                    </span>
+                  )}
+                </div>
+
+                {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Calendar feed: a household link. Parents only (API-enforced). */}
+          {isParent && (
+            <div className="card">
+              <div className="flex items-center mb-6">
+                <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center mr-4">
+                  <CalendarDays className="w-5 h-5 text-sky-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Calendar feed</h2>
+                  <p className="text-gray-600">See your family calendar in Google, Apple or Outlook</p>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  Create a private link so your family calendar shows up in the calendar app you already use.
-                </p>
-                <button
-                  onClick={() => handleFeedToken(false)}
-                  disabled={feedBusy}
-                  className="btn-primary inline-flex items-center"
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
-                  {feedBusy ? 'Creating...' : 'Create feed link'}
-                </button>
-              </div>
-            )}
 
-            {feedError && <p className="text-sm text-red-600 mt-3">{feedError}</p>}
-          </div>
+              {feedToken ? (
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="feedUrl" className="block text-sm font-medium text-gray-900 mb-2">
+                      Your private link
+                    </label>
+                    <input
+                      id="feedUrl"
+                      readOnly
+                      value={feedUrl}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="input-field w-full text-xs font-mono"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      Anyone with this link can read your family calendar. Keep it private.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={copyFeedUrl} className="btn-primary inline-flex items-center">
+                      {feedCopied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                      {feedCopied ? 'Copied' : 'Copy link'}
+                    </button>
+                    <button
+                      onClick={() => handleFeedToken(true)}
+                      disabled={feedBusy}
+                      className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
+                      Reset link
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-gray-500">
+                    Resetting makes a new link and instantly stops the old one working.
+                  </p>
+
+                  <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                    <div className="font-medium text-gray-900 mb-1">How to add it</div>
+                    <div>Google Calendar: Other calendars then From URL, paste the link.</div>
+                    <div>Apple Calendar: File then New Calendar Subscription, paste the link.</div>
+                    <div>Outlook: Add calendar then Subscribe from web, paste the link.</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    Create a private link so your family calendar shows up in the calendar app you already use.
+                  </p>
+                  <button
+                    onClick={() => handleFeedToken(false)}
+                    disabled={feedBusy}
+                    className="btn-primary inline-flex items-center"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
+                    {feedBusy ? 'Creating...' : 'Create feed link'}
+                  </button>
+                </div>
+              )}
+
+              {feedError && <p className="text-sm text-red-600 mt-3">{feedError}</p>}
+            </div>
+          )}
 
           {/* Subscribed (read-only ICS) calendars, #232. Parents only; the API enforces it too. */}
-          {role === 'parent' && <CalendarSubscriptionsSection />}
+          {isParent && <CalendarSubscriptionsSection />}
 
           {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured; parents only (API-enforced). */}
-          {role === 'parent' && calendarSync && <CalendarSyncSection />}
+          {isParent && calendarSync && <CalendarSyncSection />}
 
           {/* Language Settings */}
           <div className="card">
@@ -688,28 +707,33 @@ export default function SettingsClient({
             </div>
 
             <div className="space-y-4">
-              <Link
-                href="/dashboard/features"
-                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-              >
-                <Sliders className="w-4 h-4 text-blue-600" />
-                <div>
-                  <div className="font-medium">Features</div>
-                  <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
-                </div>
-              </Link>
-              <Link
-                href="/dashboard/settings/imports"
-                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-              >
-                <Database className="w-4 h-4 text-violet-600" />
-                <div>
-                  <div className="font-medium">Import family apps</div>
-                  <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
-                </div>
-              </Link>
+              {/* Household-level links: parents only (the pages are not on any kid allowlist). */}
+              {isParent && (
+                <>
+                  <Link
+                    href="/dashboard/features"
+                    className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                  >
+                    <Sliders className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <div className="font-medium">Features</div>
+                      <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/dashboard/settings/imports"
+                    className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                  >
+                    <Database className="w-4 h-4 text-violet-600" />
+                    <div>
+                      <div className="font-medium">Import family apps</div>
+                      <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
+                    </div>
+                  </Link>
+                </>
+              )}
               {/* Household audit history, #285. Parents only; the page and API enforce it too. */}
-              {role === 'parent' && (
+              {isParent && (
                 <Link
                   href="/dashboard/settings/activity"
                   className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3 min-h-[44px]"
@@ -727,9 +751,9 @@ export default function SettingsClient({
               >
                 Change Password
               </button>
-              {sharedDevice && <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />}
+              {isParent && sharedDevice && <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />}
               {/* Beta usage counts (#287): parents only; PATCH /api/family/beta-metrics enforces it too. */}
-              {betaMetrics && <BetaMetricsSwitch initialEnabled={betaMetrics.enabled} />}
+              {isParent && betaMetrics && <BetaMetricsSwitch initialEnabled={betaMetrics.enabled} />}
               <button
                 type="button"
                 onClick={() => void handleExport()}
@@ -769,7 +793,8 @@ export default function SettingsClient({
         </div>
       </div>
 
-      <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} />
+      {/* A teen deletes only their own account; the household option is a parent's. */}
+      <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} allowHousehold={isParent} />
 
       {/* Change Password Modal */}
       <Dialog

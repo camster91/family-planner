@@ -14,8 +14,8 @@
  *   account by typing DELETE; the household stays and the chore they created
  *   now belongs to the other parent.
  *
- * - A teen (who cannot open Settings) deletes their own account from the
- *   user menu: account only, no household option; the household stays.
+ * - A teen deletes their own account from their own Settings (O-37):
+ *   account only, no household option; the household stays.
  *
  * Spec-owned rows `fx_e2e_acctdel_<project>_*` are inserted before each test
  * and removed after it (whatever the test left). They copy the fixture
@@ -316,15 +316,19 @@ test.describe("account and household deletion", () => {
     });
   });
 
-  test("a teen deletes their own account from the user menu", async ({
+  test("a teen deletes their own account from their Settings", async ({
     page,
   }, testInfo) => {
     const x = await seed(testInfo);
     await loginViaUi(page, x.email(x.duo.teen));
     await page.waitForURL(/\/dashboard/);
     await page.getByRole("button", { name: "User menu" }).click();
-    await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Delete my account" }).click();
+    await expect(
+      page.getByRole("button", { name: "Delete my account" }),
+    ).toHaveCount(0);
+    await page.getByRole("link", { name: "Settings" }).click();
+    await page.waitForURL(/\/dashboard\/settings$/);
+    await page.getByRole("button", { name: "Delete Account" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Delete account" });
     await expect(dialog.getByText(/stay with it/)).toBeVisible();

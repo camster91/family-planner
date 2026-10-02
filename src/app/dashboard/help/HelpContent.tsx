@@ -2,15 +2,29 @@ import * as React from 'react'
 import Link from 'next/link'
 import { LargeHeader } from '@/components/ui/large-header'
 import { SUPPORT_EMAIL_PENDING_TEXT, supportEmail } from '@/lib/support'
+import { canRoleAccessPath } from '@/lib/kid-access'
 
 /**
  * Help (#146): short, plain-English answers for beta families, with links to
- * the real pages. Parents only, like Settings: /dashboard/help is not on the
- * kid allowlist (src/lib/kid-access.ts), because most answers point at
- * parent-only pages. The support address comes from src/lib/support.ts.
+ * the real pages. Parents and teens (O-37) open it; children do not
+ * (src/lib/kid-access.ts). The text is the same for everyone and may describe
+ * what a parent does, but a page the viewer's role cannot open is named as
+ * plain text, not linked, so a teen is never sent somewhere that bounces them
+ * home. The support address comes from src/lib/support.ts.
  */
 
 const linkClass = 'font-medium text-accent underline underline-offset-2'
+
+/** A link to `href`, or just its text when `role` may not open that page. */
+function PageLink({ href, role, children }: { href: string; role?: string | null; children: React.ReactNode }) {
+  // Only dashboard pages are role-gated; /join, /forgot-password and /privacy are open to everyone.
+  if (href.startsWith('/dashboard') && !canRoleAccessPath(role, href)) return <span className="font-medium text-label-primary">{children}</span>
+  return (
+    <Link href={href} className={linkClass}>
+      {children}
+    </Link>
+  )
+}
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
@@ -32,7 +46,14 @@ function Item({ title, children }: { title: string; children: React.ReactNode })
   )
 }
 
-export default function HelpContent({ supportEmail: configured }: { supportEmail?: string }) {
+export default function HelpContent({
+  supportEmail: configured,
+  role,
+}: {
+  supportEmail?: string
+  /** The viewer's role; links to pages it cannot open become plain text. */
+  role?: string | null
+}) {
   const email = supportEmail(configured)
 
   return (
@@ -43,24 +64,24 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
         <Section id="help-start" title="Getting started">
           <Item title="Create your household">
             After you sign up and confirm your email, create your household on{' '}
-            <Link href="/dashboard/family/create" className={linkClass}>
+            <PageLink href="/dashboard/family/create" role={role}>
               Create a household
-            </Link>
+            </PageLink>
             . You become its parent.
           </Item>
           <Item title="Invite your family">
             Go to{' '}
-            <Link href="/dashboard/family/invite" className={linkClass}>
+            <PageLink href="/dashboard/family/invite" role={role}>
               Family → Invite
-            </Link>
+            </PageLink>
             . Type their email and pick a role: child, teen or parent. They get an email with a link to join.
           </Item>
           <Item title="Join with a family code">
             On the Invite page, open “In person instead” to see your family code. The other person signs in with
             their own account, opens{' '}
-            <Link href="/join" className={linkClass}>
+            <PageLink href="/join" role={role}>
               Join a family
-            </Link>{' '}
+            </PageLink>{' '}
             and types the code. A code always joins them as a child or teen.
           </Item>
         </Section>
@@ -68,17 +89,17 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
         <Section id="help-chores" title="Chores and rewards">
           <Item title="Chores">
             Add a chore on{' '}
-            <Link href="/dashboard/chores" className={linkClass}>
+            <PageLink href="/dashboard/chores" role={role}>
               Chores
-            </Link>{' '}
+            </PageLink>{' '}
             and choose who does it. When it is ticked off, it waits for a parent to check. Verify gives the points
             (XP). Reject sends it back with a short reason, so they can try again.
           </Item>
           <Item title="Rewards">
             Add rewards on{' '}
-            <Link href="/dashboard/rewards" className={linkClass}>
+            <PageLink href="/dashboard/rewards" role={role}>
               Rewards
-            </Link>
+            </PageLink>
             . Each one costs some XP. Kids save up their points and claim them.
           </Item>
         </Section>
@@ -86,23 +107,23 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
         <Section id="help-plan" title="Calendar, meals and lists">
           <Item title="Calendar">
             Add family events on the{' '}
-            <Link href="/dashboard/calendar" className={linkClass}>
+            <PageLink href="/dashboard/calendar" role={role}>
               Calendar
-            </Link>
+            </PageLink>
             . Everyone in the household sees what is coming up.
           </Item>
           <Item title="Meals">
             Plan the week’s dinners on{' '}
-            <Link href="/dashboard/meals" className={linkClass}>
+            <PageLink href="/dashboard/meals" role={role}>
               Meals
-            </Link>
+            </PageLink>
             .
           </Item>
           <Item title="Lists">
             Keep shared lists, like groceries, on{' '}
-            <Link href="/dashboard/lists" className={linkClass}>
+            <PageLink href="/dashboard/lists" role={role}>
               Lists
-            </Link>
+            </PageLink>
             . Everyone can add and tick items.
           </Item>
         </Section>
@@ -110,9 +131,9 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
         <Section id="help-account" title="Trouble signing in">
           <Item title="Forgot your password">
             Use{' '}
-            <Link href="/forgot-password" className={linkClass}>
+            <PageLink href="/forgot-password" role={role}>
               Forgot password
-            </Link>{' '}
+            </PageLink>{' '}
             to get a reset link by email. The link works for one hour. If you know your password
             and want a new one, use Settings → Privacy &amp; Security → Change Password.
           </Item>
@@ -125,9 +146,9 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
         <Section id="help-data" title="Your data">
           <Item title="Download your data">
             Go to{' '}
-            <Link href="/dashboard/settings" className={linkClass}>
+            <PageLink href="/dashboard/settings" role={role}>
               Settings
-            </Link>{' '}
+            </PageLink>{' '}
             → Privacy &amp; Security → Data Export. Each family member downloads their own copy.
           </Item>
           <Item title="Delete your account or household">
@@ -137,9 +158,9 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
           </Item>
           <Item title="Privacy">
             Read how we handle your family’s information in our{' '}
-            <Link href="/privacy" className={linkClass}>
+            <PageLink href="/privacy" role={role}>
               Privacy Policy
-            </Link>
+            </PageLink>
             .
           </Item>
         </Section>
