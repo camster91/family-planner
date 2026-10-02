@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
  * and children are redirected by the kid allowlist before they get here
  * (src/lib/kid-access.ts lets a teen open only the Settings page itself, never
  * a sub-route), this page checks
- * the database role again, and every /api/family/devices route answers
+ * the session role again, and every /api/family/devices route answers
  * 403 PARENT_REQUIRED to them. With the kill switch off the page does not exist.
  */
 export default async function DevicesSettingsPage() {

@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * Household audit history (#285, PR101 D-4). Parent only: teens and children
  * are redirected by the kid allowlist before they get here (src/lib/kid-access.ts
  * lets a teen open only the Settings page itself, never a sub-route), this page
- * checks the database role again,
+ * checks the session role again,
  * and `GET /api/audit` answers 403 to them regardless.
  */
 export default async function ActivitySettingsPage() {
