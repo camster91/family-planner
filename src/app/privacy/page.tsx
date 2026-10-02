@@ -166,8 +166,14 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Email</h2>
             <p>
               We send transactional emails only: email verification, password reset,
-              chore completion notifications to parents. No marketing email, ever.
-              You can opt out of notification emails in Settings.
+              household invites and the notifications you have left on. No marketing email, ever.
+              You can turn notification emails off in Settings.
+            </p>
+            <p className="mt-3">
+              These emails are sent through Mailgun, our email provider. To deliver a message, Mailgun
+              receives the recipient&apos;s address and name and the message itself. We have turned off
+              Mailgun&apos;s open and click tracking, so it does not track whether you open an email or
+              rewrite the links in it.
             </p>
           </section>
 

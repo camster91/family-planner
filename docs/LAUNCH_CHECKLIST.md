@@ -9,11 +9,11 @@ Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done w
 | # | Item | Who | How | Status |
 |---|------|-----|-----|--------|
 | 1 | Production is running the current `main` | Owner | Add the SSH settings to the GitHub `production` environment and run **Build, Test & Release**, or set up Coolify (`runbooks/COOLIFY_DEPLOY.md`) | Open. The last recorded deploy is `b408170` (2026-09-23). The 2026-09-30 release run built and tested, then stopped: the SSH host, user, key and known-hosts are not set |
-| 2 | Email sends | Owner | Mailgun domain, DNS (SPF, DKIM, DMARC), sending key in production, open and click tracking off (`runbooks/TRANSACTIONAL_EMAIL.md`) | Open. Without it a new parent cannot verify their email, so cannot sign in, and invites fail |
+| 2 | Email sends | Owner | Mailgun domain, DNS (SPF, DKIM, DMARC), sending key in production, open and click tracking off (`runbooks/TRANSACTIONAL_EMAIL.md`) | Open. Without it a new parent cannot verify their email, so cannot sign in, and invites fail. The privacy page says Mailgun open and click tracking is off |
 | 3 | `TRUSTED_PROXY_HOPS` matches the real proxy chain | Owner | See `runbooks/COOLIFY_DEPLOY.md` or `engineering/CI_AND_RELEASE.md`. The server warns at start when it is missing | Open |
 | 4 | Backups run every day and a restore has been tested | Owner | Install the timer (`runbooks/BACKUPS.md`) or use Coolify scheduled backups, then do the restore test | Open. Scripts and retention are on `master` |
 | 5 | Support contact | Owner | Fill in `<SUPPORT_EMAIL>` in `product/BETA_OPERATIONS.md`, on the privacy page and in `src/lib/support.ts` (shown on the in-app Help page, `/dashboard/help`). How to handle requests: `runbooks/SUPPORT.md` | Open |
-| 6 | Privacy page names Mailgun | Owner | Add it next to the other processors (`product/THIRD_PARTY_PROCESSORS.md` lists it) | Open |
+| 6 | Privacy page names Mailgun | Agent | The privacy page names Mailgun and what it receives, and says its open and click tracking is off | Done 2026-10-02. Row 2 must keep tracking off so the page stays true |
 | 7 | Smoke test on production after the deploy | Owner, with an agent | Register a test parent, verify by email, create a household, invite a child, assign and complete a chore; then delete the test household | Open. The same journey runs in the E2E workflow (`e2e.yml`, `e2e/signup.spec.ts`), which is informational, not a required check: a merge does not prove it passed, so check that run or do this smoke test |
 
 ## Ready in code (done)
