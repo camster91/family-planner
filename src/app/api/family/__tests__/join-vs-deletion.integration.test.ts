@@ -42,7 +42,7 @@ describeWithDatabase('joins vs household deletion (Postgres)', () => {
   const FAM = `${P}-family`
   const PARENT = `${P}-parent`
   const JOINER = `${P}-joiner`
-  const CODE = `${P}-invite-code-0001`
+  const CODE = `${P}invitecode0001` // canonical form: lowercase, no dashes
   const NEW_EMAIL = `${P}-newcomer@example.test`
 
   function request(body: unknown, as?: string): any {
@@ -60,7 +60,9 @@ describeWithDatabase('joins vs household deletion (Postgres)', () => {
   async function cleanup() {
     await prisma.user.deleteMany({ where: { OR: [{ id: { startsWith: `${P}-` } }, { email: { startsWith: `${P}-` } }] } })
     await prisma.family.deleteMany({ where: { id: FAM } })
-    await prisma.rateLimitEntry.deleteMany({ where: { key: { contains: P } } })
+    await prisma.rateLimitEntry.deleteMany({
+      where: { OR: [{ key: { contains: P } }, { key: { startsWith: 'join-ip:198.51.100.' } }] },
+    })
   }
 
   async function seed() {

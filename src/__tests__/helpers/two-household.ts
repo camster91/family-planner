@@ -89,13 +89,13 @@ function seed(): Tables {
   return {
     family: [
       {
-        id: FAMILY_A, name: 'Household A', invite_code: 'INVITEA1', feed_token: 'feed-token-a',
+        id: FAMILY_A, name: 'Household A', invite_code: 'invitea1', feed_token: 'feed-token-a',
         features: null, subscription_tier: 'free', created_at: T0,
         travel_mode_active: true, travel_start_date: T0, travel_end_date: SOON, travel_destination: 'Lisbon',
         capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null,
       },
       {
-        id: FAMILY_B, name: `Household ${FOREIGN}`, invite_code: 'INVITEB1', feed_token: 'feed-token-b',
+        id: FAMILY_B, name: `Household ${FOREIGN}`, invite_code: 'inviteb1', feed_token: 'feed-token-b',
         features: null, subscription_tier: 'free', created_at: T0,
         travel_mode_active: true, travel_start_date: T0, travel_end_date: SOON, travel_destination: `${FOREIGN} Island`,
         capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null,

@@ -66,10 +66,10 @@ describe('POST /api/family/invite-code', () => {
     const res = await rotate(req({ as: 'parentA', method: 'POST', path: '/api/family/invite-code' }))
     expect(res.status).toBe(200)
     const { inviteCode } = await bodyOf(res)
-    expect(inviteCode).toMatch(/^[a-km-np-z2-9]{24}$/)
-    expect(inviteCode).not.toBe('INVITEA1')
+    expect(inviteCode).toMatch(/^[a-hjkmnp-z2-9]{12}$/)
+    expect(inviteCode).not.toBe('invitea1')
     expect(codeOf(FAMILY_A)).toBe(inviteCode)
-    expect(codeOf(FAMILY_B)).toBe('INVITEB1')
+    expect(codeOf(FAMILY_B)).toBe('inviteb1')
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
 
     // Old code: refused by join and lookup.
@@ -88,22 +88,22 @@ describe('POST /api/family/invite-code', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ family_id: FAMILY_A, actor_user_id: USER_IDS.parentA, target_type: 'family' })
     expect(JSON.stringify(rows[0])).not.toContain(inviteCode)
-    expect(JSON.stringify(rows[0])).not.toContain('INVITEA1')
+    expect(JSON.stringify(rows[0])).not.toContain('invitea1')
   })
 
   it.each(['teenA', 'childA', 'childB'] as UserKey[])('%s cannot get a new code (403, nothing written)', async (as) => {
     const res = await rotate(req({ as, method: 'POST', path: '/api/family/invite-code' }))
     expect(res.status).toBe(403)
     expect(writesTo('family')).toHaveLength(0)
-    expect(codeOf(FAMILY_A)).toBe('INVITEA1')
-    expect(codeOf(FAMILY_B)).toBe('INVITEB1')
+    expect(codeOf(FAMILY_A)).toBe('invitea1')
+    expect(codeOf(FAMILY_B)).toBe('inviteb1')
   })
 
   it('parent B changes only family B; unauthenticated is 401; no household is 400', async () => {
     const res = await rotate(req({ as: 'parentB', method: 'POST', path: '/api/family/invite-code' }))
     expect(res.status).toBe(200)
-    expect(codeOf(FAMILY_A)).toBe('INVITEA1')
-    expect(codeOf(FAMILY_B)).not.toBe('INVITEB1')
+    expect(codeOf(FAMILY_A)).toBe('invitea1')
+    expect(codeOf(FAMILY_B)).not.toBe('inviteb1')
     expect((await rotate(req({ as: null, method: 'POST' }))).status).toBe(401)
     expect((await rotate(req({ as: 'loner', method: 'POST' }))).status).toBe(400)
   })

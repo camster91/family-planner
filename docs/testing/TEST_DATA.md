@@ -67,7 +67,7 @@ The CLI refuses, before it opens a connection, unless **all** of these hold:
 Rule 5 is stricter than "a docker service name is fine" because production uses host `postgres` with database `family_planner`. A compose-based dev database must therefore be named something like `family_planner_dev`.
 
 ### Ownership, idempotency and reset
-- Every fixture row id starts with `fx_` (for example `fx_family_a`, `fx_user_a_parent`). Invite codes are `fx-invite-*`.
+- Every fixture row id starts with `fx_` (for example `fx_family_a`, `fx_user_a_parent`). Invite codes are `fxinvite*` (lowercase, no dashes: the canonical stored form, so they can be typed to join).
 - **Seed** upserts every dataset row by id, restores anything a test changed (titles, statuses, the password), and prunes stale `fx_` rows from an older dataset version inside fixture families. It never updates or deletes a non-`fx_` row, except that a non-`fx_` chore occurrence on the same `(recurrence_id, due_date)` as a fixture series occurrence is replaced. Passwords are only rehashed when the stored hash no longer verifies, so a second run leaves the rows byte-identical.
 - Before writing anything, seed refuses when a non-fixture user already has a fixture email or a non-fixture family has a fixture invite code.
 - **Reset** deletes `fx_` families and `fx_` users. Household rows inside those families, including rows the app (or the ADR-0007 backfill) created during tests, go with them via `ON DELETE CASCADE`. Before deleting anything, reset refuses if a non-fixture user belongs to a fixture family, or if chores, events, lists, list items, rewards, meals, recipes, meal plans, shopping lists or import jobs in a non-fixture family reference a fixture user.

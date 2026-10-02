@@ -56,7 +56,7 @@ describe("family settings — two households", () => {
 
   it("GET /api/family returns only the caller's family and hides the invite code from kids", async () => {
     const parent = await expectNoForeignData(await family.GET(req({ as: "parentA" })));
-    expect(parent.family).toMatchObject({ id: "family-A", invite_code: "INVITEA1" });
+    expect(parent.family).toMatchObject({ id: "family-A", invite_code: "invitea1" });
     const child = await expectNoForeignData(await family.GET(req({ as: "childA" })));
     expect(child.family.invite_code).toBeNull();
   });

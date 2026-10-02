@@ -5,12 +5,22 @@ import { Copy, Check, UserPlus, Mail, X, RefreshCw } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { Dialog } from '@/components/ui/dialog'
+import { FAMILY_CODE_LENGTH, formatFamilyCode } from '@/lib/family-code'
 
 type PendingInvite = {
   id: string
   email: string
   role: string
   expires_at: string
+}
+
+/**
+ * A new 12-character code is copied as shown (`K7QM-4XPD-2HNA`); an older
+ * 24/25-character code is copied exactly as stored, so a paste works anywhere.
+ * The join form accepts either (src/lib/family-code.ts).
+ */
+function codeToCopy(code: string): string {
+  return code.length === FAMILY_CODE_LENGTH ? formatFamilyCode(code) : code
 }
 
 export default function InviteMemberPage() {
@@ -226,12 +236,12 @@ export default function InviteMemberPage() {
           <p className="text-footnote text-label-secondary mt-3 mb-4">
             For another phone in the room. This code does not choose a role — they join as a child or teen.
           </p>
-          <p className="text-title-3 font-mono tracking-wide break-all">
-            {loading ? 'Loading…' : familyCode || 'No code'}
+          <p className="text-title-3 font-mono tabular-nums tracking-wider break-words">
+            {loading ? 'Loading…' : familyCode ? formatFamilyCode(familyCode) : 'No code'}
           </p>
           <button
             type="button"
-            onClick={() => familyCode && copy('code', familyCode)}
+            onClick={() => familyCode && copy('code', codeToCopy(familyCode))}
             className="btn-tinted mt-3"
             disabled={!familyCode}
           >

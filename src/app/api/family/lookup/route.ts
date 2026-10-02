@@ -3,21 +3,33 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { getClientIp } from '@/lib/client-ip'
 import { normalizeInviteCode } from '@/lib/family-invite'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
-const LOOKUP_MAX_ATTEMPTS = 20
-const LOOKUP_WINDOW_MS = 60 * 1000
+// Brute-force math for these limits: createFamilyInviteCode in
+// src/lib/family-invite.ts. The join page looks a code up once or twice per
+// person, far below both.
+const LOOKUP_PER_ACCOUNT_PER_HOUR = 30
+const LOOKUP_PER_IP_PER_HOUR = 60
+const LOOKUP_WINDOW_MS = 60 * 60 * 1000
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
+}
 
 function buildLookupRateLimitKey(userId: string): string {
   // Account-wide bucket: keyed on the authenticated user only, so rotating
   // proxies or a spoofable X-Forwarded-For cannot reset the quota.
-  const fingerprint = createHash('sha256').update(userId).digest('hex')
+  return `family-lookup:${sha256(userId)}`
+}
 
-  return `family-lookup:${fingerprint}`
+function buildLookupIpRateLimitKey(ip: string): string {
+  // Per-IP bucket across accounts, so many accounts on one address share one quota.
+  return `family-lookup-ip:${sha256(ip)}`
 }
 
 export async function GET(request: NextRequest) {
@@ -25,22 +37,23 @@ export async function GET(request: NextRequest) {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
-    // Account-wide quota — an authenticated enumerator cannot reset it by
-    // varying their IP or X-Forwarded-For.
-    const rateCheck = await checkRateLimit(
-      buildLookupRateLimitKey(payload.userId),
-      LOOKUP_MAX_ATTEMPTS,
-      LOOKUP_WINDOW_MS
-    )
-    if (!rateCheck.allowed) {
-      const retryAfterSeconds = Math.max(1, Math.ceil(rateCheck.retryAfterMs / 1000))
-      return NextResponse.json(
-        { error: 'Too many lookup attempts' },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(retryAfterSeconds) },
-        }
-      )
+    // Both quotas are checked before the code is read or looked up.
+    const buckets: Array<[key: string, max: number]> = [
+      [buildLookupRateLimitKey(payload.userId), LOOKUP_PER_ACCOUNT_PER_HOUR],
+      [buildLookupIpRateLimitKey(getClientIp(request)), LOOKUP_PER_IP_PER_HOUR],
+    ]
+    for (const [key, max] of buckets) {
+      const rateCheck = await checkRateLimit(key, max, LOOKUP_WINDOW_MS)
+      if (!rateCheck.allowed) {
+        const retryAfterSeconds = Math.max(1, Math.ceil(rateCheck.retryAfterMs / 1000))
+        return NextResponse.json(
+          { error: 'Too many lookup attempts' },
+          {
+            status: 429,
+            headers: { 'Retry-After': String(retryAfterSeconds) },
+          }
+        )
+      }
     }
 
     const code = normalizeInviteCode(request.nextUrl.searchParams.get('code'))
