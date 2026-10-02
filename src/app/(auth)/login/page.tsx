@@ -11,7 +11,6 @@ import { loginNoticeFor, safeRedirectPath } from '@/lib/safe-redirect'
 export default function LoginPage() {
   const { t } = useTranslation()
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,8 +36,13 @@ export default function LoginPage() {
     setVerifyNotice(loginNoticeFor(params))
   }, [])
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // Read DOM values before re-rendering: password managers may not emit change events.
+    const fields = new FormData(e.currentTarget)
+    const submittedEmail = String(fields.get('email') ?? '')
+    const password = String(fields.get('password') ?? '')
+    setEmail(submittedEmail)
     setLoading(true)
     setError(null)
     // The arrival notices ("email verified", "account deleted") are stale once
@@ -50,7 +54,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: submittedEmail, password }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -163,10 +167,11 @@ export default function LoginPage() {
               <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 required
-                autoComplete="email"
-                value={email}
+                autoComplete="username"
+                defaultValue=""
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-apple"
                 placeholder="you@example.com"
@@ -178,11 +183,10 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   className="input-apple pr-10"
                   placeholder="••••••••"
                 />

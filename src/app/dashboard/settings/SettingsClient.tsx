@@ -177,9 +177,6 @@ export default function SettingsClient({
       ? `${window.location.origin}/api/calendar/feed?token=${feedToken}`
       : ''
   const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
@@ -358,8 +355,12 @@ export default function SettingsClient({
     }
   }
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    const fields = new FormData(e.currentTarget)
+    const currentPassword = String(fields.get('currentPassword') ?? '')
+    const newPassword = String(fields.get('newPassword') ?? '')
+    const confirmNewPassword = String(fields.get('confirmNewPassword') ?? '')
     setPasswordError(null)
 
     if (newPassword !== confirmNewPassword) {
@@ -382,9 +383,6 @@ export default function SettingsClient({
       if (!res.ok) throw new Error(data.error || 'Failed to change password')
 
       setPasswordSuccess(true)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmNewPassword('')
       setTimeout(() => {
         setShowPasswordModal(false)
         setPasswordSuccess(false)
@@ -836,10 +834,9 @@ export default function SettingsClient({
                   </label>
                   <input
                     id="currentPassword"
+                    name="currentPassword"
                     type="password"
                     required
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
                     className="input-field"
                     autoComplete="current-password"
                   />
@@ -850,10 +847,9 @@ export default function SettingsClient({
                   </label>
                   <input
                     id="newPassword"
+                    name="newPassword"
                     type="password"
                     required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
                     className="input-field"
                     autoComplete="new-password"
                     minLength={8}
@@ -866,10 +862,9 @@ export default function SettingsClient({
                   </label>
                   <input
                     id="confirmNewPassword"
+                    name="confirmNewPassword"
                     type="password"
                     required
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
                     className="input-field"
                     autoComplete="new-password"
                   />
@@ -884,7 +879,7 @@ export default function SettingsClient({
                   </button>
                   <button
                     type="submit"
-                    disabled={changingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+                    disabled={changingPassword}
                     className="btn-primary flex-1"
                   >
                     {changingPassword ? 'Changing...' : 'Change Password'}
