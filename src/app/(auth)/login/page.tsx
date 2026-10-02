@@ -41,6 +41,10 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    // The arrival notices ("email verified", "account deleted") are stale once
+    // the person tries to sign in; leaving them above a fresh error is confusing.
+    setVerifyNotice(null)
+    setDeletedNotice(null)
 
     try {
       const res = await fetch('/api/auth/login', {

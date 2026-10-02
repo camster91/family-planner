@@ -64,6 +64,12 @@ async function readPhoto(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('CaptureBox', () => {
+  it('shows nothing when no AI key is set up, instead of a dead-end message', async () => {
+    global.fetch = jest.fn(async () => json(200, { configured: false, allowed: true })) as unknown as typeof fetch
+    const { container } = render(<CaptureBox />)
+    await waitFor(() => expect(container.innerHTML).toBe(''))
+  })
+
   it('calls onSaved after a typed event is added', async () => {
     mockFetch(() => 201)
     const onSaved = jest.fn()

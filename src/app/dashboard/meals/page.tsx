@@ -118,7 +118,7 @@ function MealModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor={`${titleId}-date`} className="text-subhead text-label-secondary mb-1 block">{t('dashboard.due')}</label>
+            <label htmlFor={`${titleId}-date`} className="text-subhead text-label-secondary mb-1 block">{t('meals.date')}</label>
             <input
               id={`${titleId}-date`}
               type="date"

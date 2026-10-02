@@ -69,6 +69,13 @@ function renderPage() {
 const queue = () => screen.queryByText('Pending Verification')?.closest('section') as HTMLElement | null
 
 describe('ChoresContent parent check', () => {
+  it('shows the chores to check before the empty "All clear!" state', () => {
+    renderPage()
+    const check = screen.getByText('Pending Verification')
+    const clear = screen.getByText('All clear!')
+    expect(check.compareDocumentPosition(clear) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('Verify posts to /api/chores/verify and the row leaves the queue', async () => {
     replies.push({
       status: 200,

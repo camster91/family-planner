@@ -290,13 +290,10 @@ export function CaptureBox({
     )
   }
 
-  if (unavailable) {
-    return (
-      <div className="card-apple p-4 text-subhead text-label-secondary">
-        Capture needs an AI key to be set up. Ask an admin to add one.
-      </div>
-    )
-  }
+  // No AI key on this deployment or household: show nothing rather than a
+  // dead end. The calendar's own "Add Event" still works, and a parent can
+  // add a key in Settings.
+  if (unavailable) return null
 
   const KindIcon = draft ? KIND_ICON[draft.kind] : Sparkles
   return (

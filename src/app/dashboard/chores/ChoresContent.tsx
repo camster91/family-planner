@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, CheckSquare, Flame } from 'lucide-react'
+import { Plus, CheckSquare, ChevronDown, Flame } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { RoutineIcon } from '@/components/chores/RoutineIcon'
@@ -383,6 +383,59 @@ export default function ChoresContent({
       </div>
 
       <div className="space-y-6 px-4">
+        {/* Parent-only: chores waiting for a check. First, because it is the
+            parent's next action; below an "All clear!" it read as nothing to do. */}
+        {userRole === 'parent' && (() => {
+          // Every chore marked done and not yet checked (the same count the
+          // home's "N chores to check" link uses), photo or not.
+          const pendingVerification = localChores.filter(c => c.status === 'completed')
+          if (pendingVerification.length === 0) return null
+          return (
+            <section>
+              <p className="section-header">Pending Verification</p>
+              <div className="list-inset">
+                {pendingVerification.map((chore, i) => (
+                  <div
+                    key={chore.id}
+                    className={cn(
+                      'px-4 py-3 flex items-center gap-3',
+                      'border-b border-[var(--surface-separator)] last:border-b-0'
+                    )}
+                  >
+                    {chore.photo_url && (
+                      <div className="w-10 h-10 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-fill)] shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={chore.photo_url} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body text-label-primary truncate">{chore.title}</p>
+                      <p className="text-footnote text-label-secondary">Awaiting verification</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCheckChore(chore.id, 'approve')}
+                        aria-label={`Verify “${chore.title}”`}
+                        className="btn-filled text-sm py-1.5 px-3 min-h-[44px]"
+                      >
+                        Verify
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCheckChore(chore.id, 'reject')}
+                        aria-label={`Send back “${chore.title}”`}
+                        className="btn-destructive text-sm py-1.5 px-3 min-h-[44px]"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })()}
         {!now ? (
           <section aria-label="Chores" aria-busy="true" data-testid="chores-pending">
             <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
@@ -475,12 +528,17 @@ export default function ChoresContent({
             <button
               type="button"
               onClick={() => setDoneCollapsed(!doneCollapsed)}
+              aria-expanded={!doneCollapsed}
               className="section-header w-full text-left flex items-center justify-between pr-4"
             >
               <span>Done</span>
-              <span className="text-label-tertiary text-xs">
+              <span className="flex items-center gap-1 text-label-tertiary text-xs">
                 {doneChores.length}
                 {filter === 'all' && nextCursor ? '+' : ''}
+                <ChevronDown
+                  aria-hidden="true"
+                  className={cn('w-4 h-4 transition-transform', !doneCollapsed && 'rotate-180')}
+                />
               </span>
             </button>
             {!doneCollapsed && (
@@ -521,58 +579,6 @@ export default function ChoresContent({
           </section>
         )}
 
-        {/* Parent-only: Pending photo verification queue */}
-        {userRole === 'parent' && (() => {
-          // Every chore marked done and not yet checked (the same count the
-          // home's "N chores to check" link uses), photo or not.
-          const pendingVerification = localChores.filter(c => c.status === 'completed')
-          if (pendingVerification.length === 0) return null
-          return (
-            <section>
-              <p className="section-header">Pending Verification</p>
-              <div className="list-inset">
-                {pendingVerification.map((chore, i) => (
-                  <div
-                    key={chore.id}
-                    className={cn(
-                      'px-4 py-3 flex items-center gap-3',
-                      'border-b border-[var(--surface-separator)] last:border-b-0'
-                    )}
-                  >
-                    {chore.photo_url && (
-                      <div className="w-10 h-10 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-fill)] shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={chore.photo_url} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-body text-label-primary truncate">{chore.title}</p>
-                      <p className="text-footnote text-label-secondary">Awaiting verification</p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleCheckChore(chore.id, 'approve')}
-                        aria-label={`Verify “${chore.title}”`}
-                        className="btn-filled text-sm py-1.5 px-3 min-h-[44px]"
-                      >
-                        Verify
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCheckChore(chore.id, 'reject')}
-                        aria-label={`Send back “${chore.title}”`}
-                        className="btn-destructive text-sm py-1.5 px-3 min-h-[44px]"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )
-        })()}
       </div>
 
       {/* Reassign modal */}
