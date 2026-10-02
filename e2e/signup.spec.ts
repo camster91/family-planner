@@ -17,7 +17,8 @@
  *    unverified, presses "Confirm my email" and lands on /login?verified=1.
  *    No app code or test-only switch is involved.
  * 3. The parent signs in, lands on onboarding, creates the household and is
- *    sent to the Today board (empty chores region).
+ *    sent to the Today board (empty chores region, and a "Get started" card
+ *    with three steps, none done).
  * 4. Settings → Invite → "In person instead" shows the family code (the one
  *    stored for the new household).
  * 5. The child registers and verifies the same way in a second browser
@@ -305,6 +306,23 @@ test.describe("new household sign-up journey", () => {
       await expect(page.getByTestId("region-chores")).toContainText(
         "No chores due today.",
       );
+      // A parent of a new household gets three first steps, none done yet.
+      const getStarted = page.getByRole("region", { name: "Get started" });
+      await expect(getStarted).toBeVisible();
+      await expect(
+        getStarted.getByTestId("get-started-progress"),
+      ).toContainText("0 of 3 done");
+      await expect(
+        getStarted.getByRole("link", { name: /Invite your family/ }),
+      ).toHaveAttribute("href", "/dashboard/family/invite");
+      await expect(
+        getStarted.getByRole("link", { name: /Add your first chore/ }),
+      ).toHaveAttribute("href", "/dashboard/chores/create");
+      await expect(
+        getStarted.getByRole("link", { name: /Add an event/ }),
+      ).toHaveAttribute("href", "/dashboard/calendar/create");
+      // The board's chores region already says there are none; no second card repeats it.
+      await expect(page.getByTestId("home-summary")).toHaveCount(0);
       await expectNoHorizontalOverflow(page, "Today board (new household)");
 
       const row = await withDb((db) =>
@@ -447,6 +465,10 @@ test.describe("new household sign-up journey", () => {
         await expect(
           page.getByRole("link", { name: "1 chore to check" }).first(),
         ).toBeVisible();
+        // The child joined and a chore exists; only the event step is left.
+        await expect(page.getByTestId("get-started-progress")).toContainText(
+          "2 of 3 done",
+        );
         await expectNoHorizontalOverflow(page, "Today board (one to check)");
 
         await page.goto("/dashboard/chores");
