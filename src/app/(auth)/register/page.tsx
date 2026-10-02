@@ -11,13 +11,10 @@ export default function RegisterPage() {
   const router = useRouter()
   const [showVerificationNotice, setShowVerificationNotice] = useState(false)
   const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [emailLocked, setEmailLocked] = useState(false)
   const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [inviteLabel, setInviteLabel] = useState<string | null>(null)
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,8 +36,16 @@ export default function RegisterPage() {
       .catch(() => setError('Could not load invite'))
   }, [])
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // Password managers can fill fields without firing React change events.
+    // Read their current values before any state update re-renders the form.
+    const fields = new FormData(e.currentTarget)
+    const name = String(fields.get('name') ?? '')
+    const submittedEmail = emailLocked ? email : String(fields.get('email') ?? '')
+    const password = String(fields.get('password') ?? '')
+    const confirmPassword = String(fields.get('confirmPassword') ?? '')
+    setEmail(submittedEmail)
     setLoading(true)
     setError(null)
 
@@ -61,7 +66,7 @@ export default function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
+          email: submittedEmail,
           password,
           name,
           ...(inviteToken ? { inviteToken } : {}),
@@ -168,11 +173,10 @@ export default function RegisterPage() {
               <label htmlFor="name" className="label-apple">{t('auth.fullName')}</label>
               <input
                 id="name"
+                name="name"
                 type="text"
                 required
                 autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
                 className="input-apple"
                 placeholder="John Doe"
               />
@@ -182,11 +186,13 @@ export default function RegisterPage() {
               <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 required
-                autoComplete="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onInput={(e) => setEmail(e.currentTarget.value)}
                 className="input-apple"
                 placeholder="you@example.com"
                 readOnly={emailLocked}
@@ -197,11 +203,11 @@ export default function RegisterPage() {
               <label htmlFor="password" className="label-apple">{t('auth.password')}</label>
               <input
                 id="password"
+                name="password"
                 type="password"
                 required
+                minLength={8}
                 autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 className="input-apple"
                 placeholder="••••••••"
               />
@@ -214,11 +220,11 @@ export default function RegisterPage() {
               <label htmlFor="confirmPassword" className="label-apple">{t('auth.confirmPassword')}</label>
               <input
                 id="confirmPassword"
+                name="confirmPassword"
                 type="password"
                 required
+                minLength={8}
                 autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
                 className="input-apple"
                 placeholder="••••••••"
               />
