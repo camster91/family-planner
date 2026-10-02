@@ -701,7 +701,7 @@ export default function SettingsClient({
 
                 <div>
                   <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
-                    Provider URL <span className="text-gray-400 font-normal">(optional)</span>
+                    Provider URL <span className="text-gray-600 font-normal">(optional)</span>
                   </label>
                   <input
                     id="aiBaseUrl"
@@ -714,7 +714,7 @@ export default function SettingsClient({
 
                 <div>
                   <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
-                    Model <span className="text-gray-400 font-normal">(optional)</span>
+                    Model <span className="text-gray-600 font-normal">(optional)</span>
                   </label>
                   <input
                     id="aiModel"
