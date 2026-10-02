@@ -191,6 +191,18 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
   })
 
   it('offers kids only the links they can open', async () => {
+    const expected: Record<string, unknown> = {
+      child: { calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null, inventory: null },
+      // O-37: a teen may open the calendar and meals.
+      teen: {
+        calendar: '/dashboard/calendar',
+        chores: null,
+        meals: '/dashboard/meals',
+        lists: '/dashboard/lists',
+        features: null,
+        inventory: null,
+      },
+    }
     for (const role of ['child', 'teen']) {
       const data = await buildTodayBoard(mockDb() as any, {
         familyId: FAMILY,
@@ -198,7 +210,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         features: defaultFeatures(),
         now: NOW,
       })
-      expect(data.links).toEqual({ calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null, inventory: null })
+      expect(data.links).toEqual(expected[role])
       // Shared household data every member may already read (ROLE_AND_ISOLATION_MATRIX.md).
       expect(data.shopping?.total).toBe(1)
       expect(data.chores).toHaveLength(2)

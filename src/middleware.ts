@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { resolveSession } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
-import { KID_ALLOWED_PREFIXES, isDashboardRoot, isKidAllowedPath, isKidRole } from '@/lib/kid-access'
+import { KID_ALLOWED_PREFIXES, canRoleAccessPath } from '@/lib/kid-access'
 import { isSharedDeviceEnabled } from '@/lib/device-http'
 import { clearDeviceCookies, DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE } from '@/lib/device-session'
 import { REQUEST_ID_HEADER, resolveRequestId } from '@/lib/request-id'
@@ -245,13 +245,13 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   }
 
   // Role gate: kids and teens can only see the KidHome at /dashboard, plus the
-  // few routes on the shared kid allowlist (src/lib/kid-access.ts).
+  // few routes on the shared kid allowlist (src/lib/kid-access.ts); teens also
+  // get the teen-only routes there (O-37).
   // The allowlist is the single source of truth — the dashboard layout uses the
   // same helper, so the two gates cannot disagree.
   if (isProtectedRoute && isAuthenticated && payload) {
-    const isKid = isKidRole(currentRole)
     const pathname = request.nextUrl.pathname
-    if (isKid && !isDashboardRoot(pathname) && !isKidAllowedPath(pathname)) {
+    if (!canRoleAccessPath(currentRole, pathname)) {
       const redirectUrl = new URL('/dashboard', request.url)
       return NextResponse.redirect(redirectUrl)
     }

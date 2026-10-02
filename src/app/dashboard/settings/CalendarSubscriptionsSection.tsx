@@ -5,6 +5,8 @@
 // host hint comes back from the API.
 
 import { useCallback, useEffect, useState } from "react";
+import SettingsDisclosure from "./SettingsDisclosure";
+import SettingsIcon from "./SettingsIcon";
 import {
   CalendarPlus,
   RefreshCw,
@@ -195,24 +197,15 @@ export default function CalendarSubscriptionsSection() {
   };
 
   return (
-    <div className="card" aria-labelledby="calendar-subscriptions-heading">
-      <div className="flex items-center mb-6">
-        <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center mr-4">
-          <CalendarPlus className="w-5 h-5 text-sky-600" aria-hidden="true" />
-        </div>
-        <div>
-          <h2
-            id="calendar-subscriptions-heading"
-            className="text-xl font-semibold text-gray-900"
-          >
-            Subscribed calendars
-          </h2>
-          <p className="text-gray-600">
-            Show a school, team or work calendar here. Imported events are
-            read-only.
-          </p>
-        </div>
-      </div>
+    <SettingsDisclosure
+      headingId="calendar-subscriptions-heading"
+      title="Subscribed calendars"
+      description="Show a school, team or work calendar here"
+      icon={<SettingsIcon icon={CalendarPlus} tone="sky" />}
+    >
+      <p className="text-sm text-gray-600 mb-4">
+        Imported events are read-only.
+      </p>
 
       {!loaded ? (
         <p className="text-sm text-gray-600">Loading…</p>
@@ -407,6 +400,6 @@ export default function CalendarSubscriptionsSection() {
         {error && <p className="text-sm text-red-700">{error}</p>}
         {notice && <p className="text-sm text-green-700">{notice}</p>}
       </div>
-    </div>
+    </SettingsDisclosure>
   );
 }

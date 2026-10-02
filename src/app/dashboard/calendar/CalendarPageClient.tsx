@@ -40,6 +40,12 @@ interface CalendarPageClientProps {
    */
   importEnabled?: boolean
   /**
+   * Whether the viewer may edit and delete events (parents only: PATCH and
+   * DELETE /api/events refuse everyone else). A teen (O-37) sees the calendar
+   * and may add events, but rows do not open the edit page.
+   */
+  canEditEvents?: boolean
+  /**
    * False when the URL named no month and the server picked its own (UTC)
    * month: the page then moves to the viewer's local month if that differs.
    */
@@ -216,6 +222,7 @@ export default function CalendarPageClient({
   currentMonth,
   currentYear,
   importEnabled = false,
+  canEditEvents = false,
   monthFromUrl = true,
 }: CalendarPageClientProps) {
   const [importOpen, setImportOpen] = React.useState(false)
@@ -319,7 +326,8 @@ export default function CalendarPageClient({
                     const subtitle = [time, event.location].filter(Boolean).join(' · ') || undefined
                     // Imported events are read-only: no edit link, and a text
                     // badge naming the source (not colour alone).
-                    if (event.source) {
+                    // A viewer who may not edit (a teen) gets no edit link either.
+                    if (event.source || !canEditEvents) {
                       return (
                         <ListRow
                           key={event.id}
@@ -328,7 +336,13 @@ export default function CalendarPageClient({
                           title={event.title}
                           subtitle={subtitle}
                           showChevron={false}
-                          trailing={<SourceBadge name={event.source.name} color={event.source.color} />}
+                          trailing={
+                            event.source ? (
+                              <SourceBadge name={event.source.name} color={event.source.color} />
+                            ) : event.event_type && event.event_type !== 'other' ? (
+                              <span className="text-caption-1 text-label-tertiary capitalize">{event.event_type}</span>
+                            ) : undefined
+                          }
                           className={cn(i === dayEvents.length - 1 && 'border-b-0')}
                         />
                       )

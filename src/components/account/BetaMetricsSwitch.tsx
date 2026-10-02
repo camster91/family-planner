@@ -1,6 +1,6 @@
 'use client'
 
-// Beta usage counts switch (#287, PR101 D-6). Settings -> Privacy & Security,
+// Beta usage counts switch (#287, PR101 D-6). Settings -> Privacy & data,
 // parents only (the page decides; PATCH /api/family/beta-metrics refuses
 // everyone else too). Saves on its own like the notification switches: the
 // change shows at once and goes back with a message if the save fails;

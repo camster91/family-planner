@@ -37,10 +37,11 @@ import { canRoleAccessPath, isKidRole } from '@/lib/kid-access'
  * tab bar and the desktop top bar alike. Chores live on Today. Everything else
  * is under Family → More, listed only while its feature is on.
  *
- * Children and teens get the tabs they can open (kid allowlist, unchanged):
- * Today (their kid home at /dashboard) · Lists · Emergency. Family is
- * parent-only, so Emergency keeps its own tab for them: a child home alone
- * must find it in one tap.
+ * Children get the tabs they can open (kid allowlist): Today (their kid home
+ * at /dashboard) · Lists · Emergency. Teens also get Calendar and Meals
+ * (O-37): Today · Calendar · Meals · Lists · Emergency. Family is parent-only,
+ * so Emergency keeps its own tab for them: a child home alone must find it in
+ * one tap.
  */
 
 export interface TabItem {
@@ -72,6 +73,15 @@ export const KID_TABS: readonly TabItem[] = [
   { href: '/dashboard/emergency', label: 'Emergency', icon: Heart, featureKey: 'emergency' },
 ]
 
+// Teens (O-37): the kid home, plus the family calendar and meals.
+export const TEEN_TABS: readonly TabItem[] = [
+  KID_TABS[0],
+  { href: '/dashboard/calendar', label: 'Calendar', icon: Calendar, featureKey: 'calendar' },
+  { href: '/dashboard/meals', label: 'Meals', icon: UtensilsCrossed, featureKey: 'meals' },
+  KID_TABS[1],
+  KID_TABS[2],
+]
+
 /** Where the logo and "home" go for this role. */
 export function homeHrefFor(role: string | null | undefined): string {
   return isKidRole(role) ? KID_HOME_HREF : HOME_HREF
@@ -79,7 +89,7 @@ export function homeHrefFor(role: string | null | undefined): string {
 
 /** The tabs this role sees with these features: every tab it may open, feature-gated. */
 export function tabsFor(role: string | null | undefined, features: FamilyFeatures): TabItem[] {
-  const source = isKidRole(role) ? KID_TABS : PRIMARY_TABS
+  const source = role === 'teen' ? TEEN_TABS : isKidRole(role) ? KID_TABS : PRIMARY_TABS
   return source.filter(
     (t) => canRoleAccessPath(role, t.href) && (!t.featureKey || isFeatureEnabled(features, t.featureKey))
   )

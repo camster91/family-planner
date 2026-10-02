@@ -1,7 +1,9 @@
 # Role and isolation matrix
 
-Status: current as of 2026-09-26. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
-(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`).
+Status: current as of 2026-10-02. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
+(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`), and owner decision O-37
+(teens see the calendar, meals, Help, their notifications and their own Settings; see "Teen pages and personal
+Settings" below).
 Authority: `docs/architecture/AUTHORIZATION.md` (model and decision order) points here for per-domain
 capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md`.
 
@@ -37,7 +39,8 @@ capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md
   - `—`: the operation does not exist.
 - **Where it is enforced.** Role rules live in the route handlers. The shared helpers are
   `src/lib/role-capabilities.ts` (per-domain capability) and `src/lib/kid-access.ts` (which `/dashboard` pages
-  a teen or child may open). Pages hide controls a role cannot use, but the API is always the enforcement
+  a teen or child may open: `canRoleAccessPath`, used by the middleware, the dashboard layout and every nav
+  filter). Pages hide controls a role cannot use, but the API is always the enforcement
   point. Direct API calls are covered by the isolation tests listed in the audit.
 - **Current role and household (D6).** Role and `family_id` are read from the database on every request, in
   the same query as the session-generation (`token_version`) check (`resolveSession` in `src/lib/session.ts`).
@@ -126,7 +129,7 @@ authentication and answers 403 when the household has lists off, matching the UI
 
 | Domain | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|---|
-| Meals | R / C / U / D | yes | yes | yes | R: dinners only, recipe name, cook name, linked recipe title and prep time; C/U: elevated only (when tablet flows exist); D: no | `featureGate('meals')`. `cook_id` and the optional `recipe_id` are verified in the household (400, same answer for a foreign and a missing id). Several meals may share a (date, meal type) slot (O-1). Device never reads `notes` or recipe instructions/description. UI: `/dashboard/meals` and `/dashboard/meals/recipes/[id]` are parent-only (not on the kid allowlist), like `/dashboard/calendar`; teens and children reach meals through the API and the Today board only. |
+| Meals | R / C / U / D | yes | yes | yes | R: dinners only, recipe name, cook name, linked recipe title and prep time; C/U: elevated only (when tablet flows exist); D: no | `featureGate('meals')`. `cook_id` and the optional `recipe_id` are verified in the household (400, same answer for a foreign and a missing id). Several meals may share a (date, meal type) slot (O-1). Device never reads `notes` or recipe instructions/description. UI: `/dashboard/meals` and `/dashboard/meals/recipes/[id]` are open to parents and teens (O-37; the teen sees the same add/edit/delete meal controls, which the API allows, and the recipe page has no edit or delete control); children reach meals through the API and the Today board only. |
 | Recipes (`/api/recipes`, `/api/recipes/[id]`) | R | yes | yes | yes | tonight's recipe title and prep time only (via the board DTO); never the missing-ingredient count, which only a member's board gets (#122) | `featureGate('meals')`. Every lookup is scoped by `family_id`; another household's recipe is a 404 identical to a missing id. |
 | Recipes | C / U | yes | yes | no (403) | no | O-7. Nested ingredients: `ingredient_id` must be in the household (400 "Ingredient not found"); `name` is upserted by (household, normalized name) and never matches another household's ingredient. Bodies are strict: `family_id`, `created_by` or other unknown keys are a 400. |
 | Recipes | D | yes | no (403) | no (403) | no | O-7. Meals and grocery items keep their rows (FK `SET NULL`; the meal keeps its `recipe_name` snapshot). A recipe still referenced by a frozen legacy `MealPlanEntry` is refused with 409 `RECIPE_IN_ARCHIVED_PLAN` (that FK cascades and legacy rows are never modified). |
@@ -150,14 +153,14 @@ authentication and answers 403 when the household has lists off, matching the UI
 
 Page: `/dashboard/inventory` is on the kid allowlist (teens edit, use up, throw away and undo; children read, with
 the add/edit/used/throw-away/undo controls hidden) and, when the feature is on, in the user menu (touch) and the command palette. Its "View recipe" link is shown only to roles that
-may open `/dashboard/meals/recipes/[id]` (parents). "Scan fridge" is shown only to parents when the scan is configured.
+may open `/dashboard/meals/recipes/[id]` (parents and teens, O-37). "Scan fridge" is shown only to parents when the scan is configured.
 
 ### Other domains (unchanged by this round; recorded for completeness)
 
 | Domain | R | C | U | D | Shared device (proposed) | Notes |
 |---|---|---|---|---|---|---|
-| Events (calendar) | all | all | parent | parent | R: `id`, title, start/end, is-task, imported-calendar name/colour only; C/U/D: elevated only (when tablet flows exist) | Page `/dashboard/calendar` is parent-only in the UI (kid allowlist). Device never reads `location` or `description`. |
-| Event import (`POST /api/calendar/import-suggestions`, `…/commit`, `…/undo`, #270) | — | parent, teen: suggest (child 403 `EVENT_IMPORT_FORBIDDEN`); commit the reviewed events in one transaction (child 403) | — | own import only: `…/undo` takes the commit's signed undo token (HMAC over user, household, event ids and time), ≤ 10 min; 403 `UNDO_TOKEN_INVALID` for a forged, edited, another person's or another household's token, 409 late; never accepts event ids, so it cannot reach events made by hand; child 403 | no (403 `DEVICE_WRITE_NOT_ALLOWED` on all three, before person auth) | Suggestions are off (404 `EVENT_IMPORT_DISABLED`) until the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY`; all three need `featureGate('calendar')`. Suggestions write nothing and read no household rows. Commit applies the `POST /api/events` field rules, writes only to the session household with `created_by` = caller, and is idempotent per batch key. Rate limits on suggestions per user and household; the text/photo/PDF is sent to the provider and never stored. Undo is the only event delete open to teens, and only for their own import of the last 10 minutes (same idea as the grocery undo, O-5); `DELETE /api/events` stays parent-only. The button is on `/dashboard/calendar`, which is parent-only in the UI today. `docs/architecture/CALENDAR_IMPORT.md`. |
+| Events (calendar) | all | all | parent | parent | R: `id`, title, start/end, is-task, imported-calendar name/colour only; C/U/D: elevated only (when tablet flows exist) | Pages: `/dashboard/calendar` and `/dashboard/calendar/create` are open to parents and teens (O-37); the teen month view serialises the same event fields `GET /api/events` already returns to them and has no edit link, because PATCH/DELETE are parent-only. `/dashboard/calendar/edit` stays parent-only (kid-access). Children: no calendar page. Device never reads `location` or `description`. |
+| Event import (`POST /api/calendar/import-suggestions`, `…/commit`, `…/undo`, #270) | — | parent, teen: suggest (child 403 `EVENT_IMPORT_FORBIDDEN`); commit the reviewed events in one transaction (child 403) | — | own import only: `…/undo` takes the commit's signed undo token (HMAC over user, household, event ids and time), ≤ 10 min; 403 `UNDO_TOKEN_INVALID` for a forged, edited, another person's or another household's token, 409 late; never accepts event ids, so it cannot reach events made by hand; child 403 | no (403 `DEVICE_WRITE_NOT_ALLOWED` on all three, before person auth) | Suggestions are off (404 `EVENT_IMPORT_DISABLED`) until the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY`; all three need `featureGate('calendar')`. Suggestions write nothing and read no household rows. Commit applies the `POST /api/events` field rules, writes only to the session household with `created_by` = caller, and is idempotent per batch key. Rate limits on suggestions per user and household; the text/photo/PDF is sent to the provider and never stored. Undo is the only event delete open to teens, and only for their own import of the last 10 minutes (same idea as the grocery undo, O-5); `DELETE /api/events` stays parent-only. The button is on `/dashboard/calendar`, which parents and teens open (O-37); it shows only when the provider is configured and the role may import. `docs/architecture/CALENDAR_IMPORT.md`. |
 | Chores | all | parent | parent, or assignee for status | parent, or assignee | R: title, due day, status, assignee name, picture key (`icon`, #272); complete: device writes (opt-in), chores due today only, waits for a parent's check (O-4, #274), plus Undo of the tablet's own completion within 2 minutes; verify: elevated only (not built) | Completion open to any member for any household chore. Check (`POST /api/chores/verify`): parent only; `decision: 'approve'` verifies, `decision: 'reject'` sends a `completed` chore back to `pending` with the reason (a verified chore is 409). Undo (`POST /api/chores/uncomplete`, #268): parent, or the assignee (a sibling 403); only from `completed` (a parent-verified chore is 409 `CHORE_ALREADY_VERIFIED`), an open chore is a no-op success, a foreign chore 403. a legacy recurring chore's next occurrence is removed only by the id completion recorded (`successor_id`). Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. Picture routines (#272): `icon`, `routine`, `routine_order` follow the chore's rules (create: parent; PATCH: parent or the assignee, a sibling 403, another household 403); the kid home groups the caller's own chores due today by routine. The shared device gets only the `icon` catalogue key, never the routine name. |
 | Rewards | all | parent | parent | — | no | Claim: all. Approve: parent. Every handler 403s unless Rewards AND Points & streaks are on (#248). |
 | Wishlist | all | all | requester or parent | requester or parent | no | Status changes: parent. |
@@ -166,14 +169,14 @@ may open `/dashboard/meals/recipes/[id]` (parents). "Scan fridge" is shown only 
 | Messages | all | all | all (mark read) | — | no | |
 | Activity, analytics | all | — | — | — | no | `/api/analytics` (the leaderboard) 403s unless Analytics AND Points & streaks are on (#248). |
 | Notifications | own | parent (to a household member) | own | own | no | Every row goes through `src/lib/notification-delivery.ts`, which honours the recipient's preferences (below). |
-| Notification preferences (`/api/users/preferences`, #286) | own | — | own | — | no (403 `DEVICE_WRITE_NOT_ALLOWED` on GET and PATCH, before person auth) | Three switches: "Chores and rewards", "Calendar events", "Family messages" (default on). Strict body: nobody can read or change another member's, a parent included. Parents change theirs in Settings → Notifications; teens and children, who cannot open Settings, from the user menu → Notifications. Password reset, email verification, invites and a parent's `system` notices are always sent. |
+| Notification preferences (`/api/users/preferences`, #286) | own | — | own | — | no (403 `DEVICE_WRITE_NOT_ALLOWED` on GET and PATCH, before person auth) | Three switches: "Chores and rewards", "Calendar events", "Family messages" (default on). Strict body: nobody can read or change another member's, a parent included. Parents and teens (O-37) change theirs in Settings → Notifications (with quiet hours); children, who cannot open Settings, from the user menu → Notifications. Password reset, email verification, invites and a parent's `system` notices are always sent. |
 | Locations | parent | parent | — | parent | no | Precise addresses. |
 | Travel mode | parent | — | parent | — | no | |
 | Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | Feature toggles, including Points & streaks (`gamification`, #248): PATCH is parent-only, teen/child 403. |
 | Family code (`POST /api/family/invite-code`, "Get a new family code", O-34) | parent (GET /api/family shows it to parents only) | — | parent: replaces the code; the old one is refused at once | — | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | Teen/child 403. Only the caller's own household. Rate limited 10 an hour per parent. Audited as `invite_code.rotated` (never the code). New codes are 12 characters, shown `XXXX-XXXX-XXXX`; a unique collision is retried with a fresh code (503 after 5). Older 24-character and cuid codes are never rewritten and keep working. Join and lookup accept any case, spaces and dashes, and are rate limited per account and per IP before the code is read (join 10/hour per account, 30/hour per IP, 10/hour per account+IP; lookup 30/hour per account, 60/hour per IP; brute-force math in `src/lib/family-invite.ts`). |
 | Remove a member (`DELETE /api/family/members/[id]`, "Remove from household", O-34) | — | — | — | parent, on **another** member of their **own** household; never themselves (400 `CANNOT_REMOVE_SELF`), never the last parent (409 `LAST_PARENT`); another household's member or a missing id 404 `MEMBER_NOT_FOUND`; teen/child 403 | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | The removed person keeps their account; their `family_id` is cleared and `token_version` bumped, so their next request with any old session is 401 and they read nothing of the household. Tablets they paired or confirmed are revoked; their elevation, PIN, unfinished pairings, unaccepted invites, calendar connections, idempotency records, push subscriptions, notifications and activity rows go. Household content stays: created rows go to the removing parent, open chores are reassigned to the removing parent, finished chores and messages stay. Audited as `member.removed` (plus `device.removed` per tablet). `src/lib/member-removal.ts`; tests `src/app/api/family/__tests__/member-controls.test.ts`. |
 | Household deletion (`DELETE /api/family`, D-3; joins wait on the same household lock and then fail cleanly) | — | — | — | the household's **only** parent, with the current password and the household name typed (another parent: 409 `OTHER_PARENTS_EXIST`); teen/child 403 | no (403 `DEVICE_WRITE_NOT_ALLOWED`) | Deletes every member account and all household rows in an explicit sequence (`src/lib/account-deletion.ts`), revokes device sessions, invitations, feed token, share links and calendar connections, and removes uploaded files. |
-| Account (`/api/users`, export) | own | — | own | own | no | **Delete own account (D-3, `product/ACCOUNT_DELETION.md`):** every role, with the current password and typed `DELETE`; the only parent of a household gets 409 `LAST_PARENT` (they delete the household instead); household content the member created is handed to the earliest other parent; a paired device gets 403 `DEVICE_WRITE_NOT_ALLOWED`. `GET /api/users/deletion` describes the caller's own household only. Teens and children cannot reach Settings; they delete their own account from the user menu ("Delete my account", account only, no household option). Export includes travel fields for parents only. Export (ADR-0007, #251) adds the household's `FamilyMeal` rows (`meals`) and the ADR-0007 backfill `ImportJob` summaries (`mealBackfillJobs`, every member, because they archive legacy rows every member already exports); the legacy `mealPlans`/`shoppingLists` stay; other import jobs stay parent-only. Export (#263) adds the household's `InventoryItem` rows (`inventory`, every member, without `family_id`; #158 adds date kind, category, bought/opened days and status, and used-up/thrown-away items stay in it) and (#158/#121) the household's `InventoryAdjustment` history (`inventoryAdjustments`, every member, without `family_id` or the idempotency record id). Export (#273) adds the household's `grocerySectionPreferences` and `groceryShoppingSessions` (every member, without `family_id`). Export (#286) adds the caller's own `notificationPreferences`. |
+| Account (`/api/users`, export) | own | — | own | own | no | **Delete own account (D-3, `product/ACCOUNT_DELETION.md`):** every role, with the current password and typed `DELETE`; the only parent of a household gets 409 `LAST_PARENT` (they delete the household instead); household content the member created is handed to the earliest other parent; a paired device gets 403 `DEVICE_WRITE_NOT_ALLOWED`. `GET /api/users/deletion` describes the caller's own household only. Teens delete their own account from their own Settings (O-37); children, who cannot reach Settings, from the user menu ("Delete my account"). Both are account only, no household option. Export includes travel fields for parents only. Export (ADR-0007, #251) adds the household's `FamilyMeal` rows (`meals`) and the ADR-0007 backfill `ImportJob` summaries (`mealBackfillJobs`, every member, because they archive legacy rows every member already exports); the legacy `mealPlans`/`shoppingLists` stay; other import jobs stay parent-only. Export (#263) adds the household's `InventoryItem` rows (`inventory`, every member, without `family_id`; #158 adds date kind, category, bought/opened days and status, and used-up/thrown-away items stay in it) and (#158/#121) the household's `InventoryAdjustment` history (`inventoryAdjustments`, every member, without `family_id` or the idempotency record id). Export (#273) adds the household's `grocerySectionPreferences` and `groceryShoppingSessions` (every member, without `family_id`). Export (#286) adds the caller's own `notificationPreferences`. |
 | Connected calendars — two-way Google/Outlook sync (#264) | parent (teen/child 403 `PARENT_REQUIRED`) | parent (own account only) | own connection only: calendar choice, push mode; any parent: Sync now | any parent in the household (disconnect) | no (401: a device is not a person session) | Implemented, **dormant unless configured** (every route 404 until `CALENDAR_TOKEN_KEY`, `APP_URL` and a provider's client id/secret are set). Listing a member's provider calendars is that member only (403 for another parent). Tokens are never returned. Imported events are ordinary events (rules of the Events row). `docs/architecture/CALENDAR_SYNC.md`. |
 | Calendar subscriptions — read-only ICS feeds (`/api/calendar/subscriptions/**`, #232) | parent, teen (child 403); the host-only `url_hint` is parent only, the feed URL is never returned | parent (teen/child 403) | parent: rename/recolour only, the URL cannot change (teen/child 403); parent, teen: refresh now (child 403) | parent (teen/child 403); removes only that feed's imported events | no (a device cookie is refused) | Every lookup is `where { id, family_id }` via `authenticateWithFamily`: another household's id is a 404 identical to a missing one, and the role check runs before the lookup. Feed URL stored AES-256-GCM encrypted, public addresses only. Imported events are ordinary events (rules of the Events row). Added from source for route inventory F-4; tests in `src/app/api/calendar/subscriptions/__tests__/isolation.test.ts`. `docs/architecture/CALENDAR_IMPORT.md`. |
 | Shared devices (list, rename, revoke, pairing codes, audit) | parent | parent | parent | parent (revoke) | this device only: rename/revoke elevated only | Implemented (behind SHARED_DEVICE_ENABLED), #240; teens and children get 403 `PARENT_REQUIRED`. |
@@ -193,17 +196,19 @@ its feature off.
 | Searched | Feature | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|---|
 | Members (name) | `family` | yes | no | no | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Name and role word only; never email, age or points. |
-| Events (title, description, location) | `calendar` | yes | no | no | no | Links to the month on `/dashboard/calendar` (parent-only page). |
+| Events (title, description, location) | `calendar` | yes | yes (O-37) | no | no | Links to the month on `/dashboard/calendar` (parents and teens). |
 | Chores (title, description) | `chores` | yes | no | no | no | Assignee name and status in words. |
 | Lists (name, description) | `lists` | yes | yes | yes | no | |
 | List items (text) | `lists` | yes | yes | yes | no | Looked up through the list's household; links to the list. |
-| Recipes (title, description) | `meals` | yes | no | no | no | Links to `/dashboard/meals/recipes/[id]` (parent-only page). |
+| Recipes (title, description) | `meals` | yes | yes (O-37) | no | no | Links to `/dashboard/meals/recipes/[id]` (parents and teens). |
 | Pinned notes (title, body) | `notes` | yes | no | no | no | The body is matched but never returned. |
 | Food inventory (name) | `inventory` | yes | yes | yes | no | Active items only; used-up and thrown-away items are left out. |
 | Budget, transactions, allowance, messages, medical, sick days, locations, handoff, projects, rewards, wishlist, anniversaries | — | no | no | no | no | Not searched for anyone. |
 
-Teen and child columns follow the kid allowlist: events, chores, recipes and notes are readable to them through their
-APIs, but their pages are parent-only, so search does not surface them. Page: `/dashboard/search` is parent-only (not
+Teen and child columns follow `canRoleAccessPath`: events, chores, recipes and notes are readable to them through
+their APIs, but search returns a type only when the role may open its page. Since O-37 a teen may open the calendar and
+recipe pages, so `GET /api/search` returns events and recipes to a teen (fields they already read through
+`/api/events` and `/api/recipes`); chores and notes stay out. Page: `/dashboard/search` is parent-only (not
 on the kid allowlist); the command palette offers "Search the household" only to roles that may open it.
 
 ### Household audit history (#285, PR101 D-4)
@@ -213,7 +218,7 @@ on the kid allowlist); the command palette offers "Search the household" only to
 | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|
 | Read the household's history | yes | no (403) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Own household only; newest first; cursor-paged, 1–50 per page; `private, no-store`. Reading prunes the household's rows older than 12 months. |
-| Open Recent changes | yes | no (kid allowlist redirect; page re-checks the role) | no | no | Linked from Settings → Privacy & Security for parents only. |
+| Open Recent changes | yes | no (redirect: a teen may open only the Settings page itself, never a sub-route; page re-checks the role) | no | no | Linked from Settings → Family for parents only. |
 | Rows written | a parent's feature toggles, board-settings changes, invites created/cancelled, tablet pair/rename/remove, beta usage counts on/off (#287), a new family code and a removed member (O-34) | — (they cannot make these changes) | — | the elevated parent's rename, removal and board-settings changes on the tablet (`actor_kind: device`) | Also `member.joined` for anyone who joins by code, invite or invite registration (their own row, with their role), and `member.left` (role word only, no actor) when a member deletes their account. Same transaction as the change. |
 | Export (`GET /api/users/export`) | every row of the last 12 months | only rows they acted in | only rows they acted in | — | No `family_id` in the export. |
 
@@ -222,13 +227,13 @@ token, place or colour. An actor who has left the household is shown as "A forme
 
 ### Beta usage counts (#287, PR101 D-6)
 
-`PATCH /api/family/beta-metrics` and the "Share beta usage counts" switch in Settings → Privacy & Security.
+`PATCH /api/family/beta-metrics` and the "Share beta usage counts" switch in Settings → Privacy & data.
 Counts only (`BetaMetricDaily`: household, UTC day, fixed metric name, count), off by default.
 
 | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|
 | Turn the household's counts on or off | yes (own household) | no (403) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Strict body `{ enabled }`; off deletes the household's counts in the same transaction; a real change adds a household audit line. `private, no-store`. |
-| See the switch | yes (Settings, value read on the server) | no (Settings is not on the kid allowlist) | no | no | |
+| See the switch | yes (Settings, value read on the server) | no (a teen's Settings is personal sections only; the server never reads the value for them) | no | no | |
 | Actions that are counted | whatever the existing routes already allow them (no role changes) | same | same | a tablet chore completion (through the shared `completeChore`) | Eight success paths add one to the household's number for the day: never who did it. No-op while the household is opted out. |
 | Export (`GET /api/users/export`) | the household's counts and switch | same | same | — | No `family_id`, no user reference. |
 | Read the counts | — (no app route) | — | — | — | Only `npm run beta:scorecard`, run by the operator, households as numbers. |
@@ -306,17 +311,20 @@ dashboard page serialises the signed-in person's email, age, XP, level or streak
 
 ### Home and navigation (#268, #269)
 
-Navigation is a view of the kid allowlist, never a second gate (`src/lib/nav-items.ts`,
-`docs/product/NAVIGATION.md`). The allowlist in `src/lib/kid-access.ts` is unchanged.
+Navigation is a view of `canRoleAccessPath`, never a second gate (`src/lib/nav-items.ts`,
+`docs/product/NAVIGATION.md`). The child allowlist in `src/lib/kid-access.ts` is unchanged; teens add the O-37
+routes.
 
 | | Parent | Teen | Child |
 |---|---|---|---|
 | Home (`/dashboard`) | redirects to `/dashboard/today` | kid home (own missions; level/rewards with Points & streaks on) | kid home |
-| Tabs (phone tab bar and top bar) | Today · Calendar · Meals · Lists · Family (Meals hidden while meal planning is off) | Today (kid home) · Lists · Emergency | same as teen |
+| Tabs (phone tab bar and top bar) | Today · Calendar · Meals · Lists · Family (Meals hidden while meal planning is off) | Today (kid home) · Calendar · Meals · Lists · Emergency (O-37; feature-gated) | Today (kid home) · Lists · Emergency |
 | Emergency | Family → Emergency | own tab | own tab |
 | Family → More (`/dashboard/family/more`) | Chores plus every enabled feature that is not a tab | not reachable (`/dashboard/family` is parent-only) | not reachable |
 | Today board | Today tab | user menu → Today board | user menu → Today board |
-| Help (`/dashboard/help`, #146) | user menu → Help (static text and links, no household data) | not reachable (not on the kid allowlist) | not reachable |
+| Help (`/dashboard/help`, #146) | user menu → Help (static text and links, no household data) | user menu → Help (O-37); pages a teen cannot open are named, not linked | not reachable |
+| Settings (`/dashboard/settings`) | user menu → Settings | user menu → Settings, personal sections only (O-37) | not reachable; notification switches and "Delete my account" in the user menu |
+| Notifications list (`/dashboard/notifications`) | bell in the top bar | bell in the top bar (O-37); own rows only | not reachable |
 
 The kid home (#272) shows the child's own chores due today grouped into picture routines; it reads nothing new
 beyond the child's own chore rows it already read (`docs/product/CHORES.md`).
@@ -325,6 +333,51 @@ The summary above the board on `/dashboard/today` (not in fridge mode) reads onl
 assignee and member names for the caller's household (`src/app/dashboard/today/home-summary-data.ts`), the same
 fields the board shows; parents also get the count of chores waiting for a check. A teen or child sees their own
 chores there and no link to `/dashboard/chores`.
+
+### Teen pages and personal Settings (O-37)
+
+Owner decision O-37 (Cameron, 2026-10-02): teens may see the family calendar and meals, read Help, see their own
+notifications and use their own Settings. They must not change family-level settings. Children are unchanged.
+
+Pages, one rule (`canRoleAccessPath` in `src/lib/kid-access.ts`, read by `src/middleware.ts`,
+`src/app/dashboard/layout.tsx`, the tab bar, top bar, user menu, command palette, Today board links and search):
+
+| Route | Parent | Teen | Child |
+|---|---|---|---|
+| `/dashboard/calendar` (month view), `/dashboard/calendar/create` | yes | yes (exact paths) | no |
+| `/dashboard/calendar/edit` | yes | no (redirect; PATCH/DELETE `/api/events` are parent-only) | no |
+| `/dashboard/meals` and everything under it (recipe page) | yes | yes | no |
+| `/dashboard/help`, `/dashboard/notifications` | yes | yes | no |
+| `/dashboard/settings` (the page itself) | yes | yes (exact path) | no (redirect; the page also redirects a child) |
+| `/dashboard/settings/*` (devices, activity, imports, any future sub-route), `/dashboard/features`, `/dashboard/family/**`, `/dashboard/search` | yes | no | no |
+
+Settings for a teen (`src/app/dashboard/settings/page.tsx` reads the role from the database; `SettingsClient`
+renders by `viewerRole`):
+
+| Section | Parent | Teen | API and its role rule |
+|---|---|---|---|
+| Profile (name, age; email and role read-only) | yes | yes | `GET`/`PATCH /api/users`: own row only, `role`/`family_id` ignored |
+| Notifications and quiet hours | yes | yes | `/api/users/preferences`: own only, any role |
+| Theme, Language | yes | yes | this device only (no API) |
+| Change Password | yes | yes | `POST /api/auth/change-password`: own account |
+| Data Export | yes | yes | `GET /api/users/export`: own export, role-shaped (see "Account export") |
+| Delete Account | yes (household option when the only parent) | own account only | `DELETE /api/users`; household deletion is parent-only (403) |
+| AI capture key | yes | not rendered, not fetched | `/api/family/ai-settings`: parent only (403). The parent form is shown only with `CAPTURE_AI_SETTINGS_ENABLED` on, or when a key is already saved. |
+| Calendar feed link | yes | not rendered, not fetched | `/api/family/feed-token`: parent only (403) |
+| Subscribed calendars, Connected calendars | yes | not rendered | `/api/calendar/subscriptions/**` add/edit/remove parent only; sync `PARENT_REQUIRED` |
+| Features, Import family apps, Recent changes links | yes | not rendered (pages redirect a teen) | `PATCH /api/family/features`, `/api/admin/imports`, `GET /api/audit`: parent only (403) |
+| Devices, Tablet PIN | yes (kill switch on) | not rendered; the server never reads PIN presence for a teen | `/api/family/devices/**`, `/api/users/elevation-pin`: `PARENT_REQUIRED` |
+| Share beta usage counts | yes | not rendered; value never read for a teen | `PATCH /api/family/beta-metrics`: parent only (403) |
+
+Calendar and meals for a teen follow the API exactly: a teen may add an event but not edit or delete one, so the
+month view has "Add event" and no edit link; meals are R/C/U/D for every member, so the meals page shows a teen the
+same meal controls; recipe delete is parent-only and no page offers it. Neither page serialises anything a teen
+cannot already read through `GET /api/events`, `GET /api/meals` or `GET /api/recipes` (there are no private events
+and no finance data on these pages). Tests: `src/lib/__tests__/kid-access-nav.test.ts`,
+`src/__tests__/teen-access-middleware.test.ts`, `src/app/dashboard/settings/__tests__/teen-settings.test.tsx`,
+`src/app/dashboard/calendar/__tests__/teen-calendar.test.tsx`, the navigation and help tests, and the existing
+two-household family-settings tests (`src/app/api/family/__tests__/isolation.test.ts`, `beta-metrics.test.ts`,
+`src/app/api/audit/__tests__/audit.test.ts`), which already refuse a teen every family-level handler.
 
 ### Points & streaks setting (#248)
 

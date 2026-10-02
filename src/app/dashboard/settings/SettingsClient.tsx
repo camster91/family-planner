@@ -12,23 +12,109 @@ import { downloadMyData } from '@/lib/data-export-client'
 import { isLocale, useTranslation } from '@/i18n'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
 import BetaMetricsSwitch from '@/components/account/BetaMetricsSwitch'
-import { Save, Bell, User, Shield, Moon, Globe, KeyRound, Sliders, Database, CalendarDays, Copy, Check, RefreshCw, Sparkles, History } from 'lucide-react'
+import SettingsDisclosure from './SettingsDisclosure'
+import SettingsIcon from './SettingsIcon'
+import {
+  Save,
+  Bell,
+  User,
+  Moon,
+  Globe,
+  KeyRound,
+  Sliders,
+  Database,
+  CalendarDays,
+  Copy,
+  Check,
+  RefreshCw,
+  Sparkles,
+  History,
+  Home,
+  Users,
+  UserPlus,
+  TabletSmartphone,
+  Download,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
+
+/** Who is looking at Settings; decided on the server from the database role. */
+export type SettingsViewerRole = 'parent' | 'teen'
+
+const rowClass =
+  'flex min-h-[44px] w-full items-center gap-3 rounded-lg p-3 text-left text-gray-700 hover:bg-gray-50'
+
+/** One of the three Settings groups: Your account, Family, Privacy & data. */
+function SettingsGroup({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="space-y-4">
+      <h2 id={id} className="px-1 text-xl font-semibold text-gray-900">
+        {title}
+      </h2>
+      {children}
+    </section>
+  )
+}
+
+function CardHeader({
+  icon,
+  tone,
+  title,
+  description,
+}: {
+  icon: LucideIcon
+  tone: React.ComponentProps<typeof SettingsIcon>['tone']
+  title: string
+  description?: string
+}) {
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <SettingsIcon icon={icon} tone={tone} />
+      <div className="min-w-0">
+        <h3 className="text-[17px] font-semibold text-gray-900">{title}</h3>
+        {description && <p className="text-sm text-gray-600">{description}</p>}
+      </div>
+    </div>
+  )
+}
 
 /**
- * `sharedDevice` is decided on the server (./page.tsx): null unless the
- * shared-device kill switch is on AND the viewer is a parent. `betaMetrics`
- * (#287) is the household's beta usage counts switch, read on the server for
- * a parent only (null otherwise, and the switch is not shown).
+ * Settings, in three groups (one primary action per card):
+ * 1. Your account: profile, password, language, theme, notifications.
+ * 2. Family (parents only): household links, family tablet, calendar feed,
+ *    subscriptions and sync, AI capture. Long, rarely used parts start closed.
+ * 3. Privacy & data: data export, beta usage counts (parents), delete account.
+ *
+ * `viewerRole` is decided on the server (./page.tsx). A teen (O-37) gets only
+ * their personal sections: profile, notifications and quiet hours, theme,
+ * language, password, their own data export and account deletion. Every
+ * family-level section (AI capture, calendar feed, subscriptions and sync,
+ * Features, imports, Recent changes, tablets and the Tablet PIN, beta usage
+ * counts) is parent-only: it is not rendered and its data is never fetched.
+ *
+ * `aiCaptureSettings` (server-decided) shows the AI capture key form: off
+ * unless CAPTURE_AI_SETTINGS_ENABLED is on or the household already saved a
+ * key. While it is off the form is not rendered and its API is not called.
+ *
+ * `sharedDevice` is null unless the shared-device kill switch is on AND the
+ * viewer is a parent. `betaMetrics` (#287) is the household's beta usage
+ * counts switch, read on the server for a parent only (null otherwise, and the
+ * switch is not shown).
  */
 export default function SettingsClient({
+  viewerRole,
   sharedDevice,
   betaMetrics = null,
   calendarSync = false,
+  aiCaptureSettings = false,
 }: {
+  viewerRole: SettingsViewerRole
   sharedDevice: { hasPin: boolean } | null
   betaMetrics?: { enabled: boolean } | null
   calendarSync?: boolean
+  aiCaptureSettings?: boolean
 }) {
+  const isParent = viewerRole === 'parent'
   const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -131,18 +217,22 @@ export default function SettingsClient({
   }, [])
 
   // Load the family's calendar feed token, if one exists. Parents only — the
-  // API returns an error for kids, which we swallow so the card just hides.
+  // API refuses everyone else too.
   useEffect(() => {
+    if (!isParent) return
     fetch('/api/family/feed-token')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d && typeof d.feedToken === 'string' && d.feedToken) setFeedToken(d.feedToken)
       })
       .catch(() => {})
-  }, [])
+  }, [isParent])
 
-  // Load AI capture settings (masked hint only — never the key itself).
+  // Load AI capture settings (masked hint only — never the key itself). Parents
+  // only, and only while the form is shown (see aiCaptureSettings).
+  const showAi = isParent && aiCaptureSettings
   useEffect(() => {
+    if (!showAi) return
     fetch('/api/family/ai-settings')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -153,7 +243,7 @@ export default function SettingsClient({
         setAiModel(d.model ?? '')
       })
       .catch(() => {})
-  }, [])
+  }, [showAi])
 
   const saveAiSettings = async (clear = false) => {
     setAiBusy(true)
@@ -316,11 +406,11 @@ export default function SettingsClient({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-3xl space-y-10">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="mt-2 text-gray-600">
-          Manage your account preferences and family settings.
+          {isParent ? 'Your account, your family and your data.' : 'Your account and your data.'}
         </p>
       </div>
 
@@ -332,253 +422,186 @@ export default function SettingsClient({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Profile Settings */}
-        <div className="lg:col-span-2 space-y-8">
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                <User className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Profile</h2>
-                <p className="text-gray-600">Update your personal information</p>
-              </div>
+      {/* 1. Your account: personal to whoever is signed in (parent or teen). */}
+      <SettingsGroup id="settings-account" title="Your account">
+        <div className="card">
+          <CardHeader icon={User} tone="blue" title="Profile" />
+
+          <form onSubmit={handleSaveProfile} className="space-y-5">
+            <div>
+              <label htmlFor="profileName" className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                id="profileName"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="input-field"
+                placeholder="Your name"
+              />
             </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="profileName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    id="profileName"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="input-field"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="profileEmail" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    id="profileEmail"
-                    type="email"
-                    value={email}
-                    disabled
-                    className="input-field bg-gray-50"
-                    placeholder="Your email"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Contact support to change email</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="profileRole" className="block text-sm font-medium text-gray-700 mb-2">
-                    Role
-                  </label>
-                  <input
-                    id="profileRole"
-                    type="text"
-                    value={role}
-                    disabled
-                    className="input-field bg-gray-50 capitalize"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Role is set by family admin</p>
-                </div>
-                <div>
-                  <label htmlFor="profileAge" className="block text-sm font-medium text-gray-700 mb-2">
-                    Age (Optional)
-                  </label>
-                  <input
-                    id="profileAge"
-                    type="number"
-                    min="1"
-                    max="120"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    className="input-field"
-                    placeholder="Your age"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn-primary inline-flex items-center"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {saving ? 'Saving...' : 'Save Profile'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Notification Settings */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center mr-4">
-                <Bell className="w-5 h-5 text-yellow-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Notifications</h2>
-                <p className="text-gray-600">Choose what you hear about. Each switch saves straight away.</p>
-              </div>
+            <div>
+              <label htmlFor="profileAge" className="block text-sm font-medium text-gray-700 mb-2">
+                Age <span className="font-normal text-gray-500">(optional)</span>
+              </label>
+              <input
+                id="profileAge"
+                type="number"
+                min="1"
+                max="120"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                className="input-field"
+                placeholder="Your age"
+              />
             </div>
+            {/* Read-only facts: email changes go through support, roles through a parent. */}
+            <dl className="space-y-1 text-sm text-gray-600">
+              <div className="flex flex-wrap gap-x-2">
+                <dt className="font-medium text-gray-700">Email</dt>
+                <dd className="min-w-0 break-words">{email}</dd>
+              </div>
+              {role && (
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="font-medium text-gray-700">Role</dt>
+                  <dd className="capitalize">{role}</dd>
+                </div>
+              )}
+            </dl>
 
-            {/* Saved on your account (#286), so it follows you to every device. */}
-            <NotificationPreferences />
-          </div>
+            <button type="submit" disabled={saving} className="btn-primary inline-flex items-center min-h-[44px]">
+              <Save className="w-4 h-4 mr-2" aria-hidden="true" />
+              {saving ? 'Saving...' : 'Save Profile'}
+            </button>
+          </form>
         </div>
 
-        {/* Sidebar - Additional Settings */}
-        <div className="space-y-8">
-          {/* Theme Settings */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                <Moon className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Theme</h2>
-                <p className="text-gray-600">Choose your preferred theme</p>
-              </div>
-            </div>
+        <div className="card">
+          <CardHeader icon={KeyRound} tone="red" title="Password" description="Change the password you sign in with" />
+          <button type="button" onClick={() => setShowPasswordModal(true)} className="btn-secondary min-h-[44px]">
+            Change Password
+          </button>
+        </div>
 
-            <div className="space-y-4">
-              {(['light', 'dark', 'auto'] as const).map((themeOption) => (
-                <button
-                  key={themeOption}
-                  onClick={() => setTheme(themeOption)}
-                  className={`w-full p-4 rounded-lg border-2 text-left ${
-                    theme === themeOption
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="font-medium text-gray-900 capitalize">{themeOption}</div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    {themeOption === 'light' && 'Always light mode'}
-                    {themeOption === 'dark' && 'Always dark mode'}
-                    {themeOption === 'auto' && 'Follow system preference'}
-                  </div>
-                </button>
-              ))}
+        <div className="card">
+          <CardHeader icon={Globe} tone="green" title="Language" />
+          <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
+          <select
+            id="preferredLanguage"
+            value={locale}
+            onChange={(e) => {
+              // Saved on this device by the root I18nProvider; applies at once.
+              if (isLocale(e.target.value)) setLocale(e.target.value)
+            }}
+            className="input-field w-full"
+          >
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+
+        <div className="card">
+          <CardHeader icon={Moon} tone="purple" title="Theme" description="Saved on this device" />
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Theme">
+            {(['light', 'dark', 'auto'] as const).map((themeOption) => (
+              <button
+                key={themeOption}
+                type="button"
+                onClick={() => setTheme(themeOption)}
+                aria-pressed={theme === themeOption}
+                className={`min-h-[44px] rounded-lg border-2 px-2 py-2 text-center font-medium text-gray-900 ${
+                  theme === themeOption ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {themeOption === 'light' ? 'Light' : themeOption === 'dark' ? 'Dark' : 'Auto'}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-gray-500">Auto follows your phone or computer.</p>
+        </div>
+
+        <div className="card">
+          <CardHeader
+            icon={Bell}
+            tone="yellow"
+            title="Notifications"
+            description="Choose what you hear about. Each switch saves straight away."
+          />
+          {/* Saved on your account (#286), so it follows you to every device. */}
+          <NotificationPreferences />
+        </div>
+      </SettingsGroup>
+
+      {/* 2. Family: household-level, parents only. Not rendered for a teen and
+          none of its data is fetched (the APIs refuse teens regardless). */}
+      {isParent && (
+        <SettingsGroup id="settings-family" title="Family">
+          <div className="card">
+            <div className="-mx-3 space-y-1">
+              <Link href="/dashboard/family/settings" className={rowClass}>
+                <Home className="w-4 h-4 shrink-0 text-sky-600" aria-hidden="true" />
+                <div>
+                  <div className="font-medium">Household</div>
+                  <div className="text-xs text-gray-500">Family name and the fridge board</div>
+                </div>
+              </Link>
+              <Link href="/dashboard/family" className={rowClass}>
+                <Users className="w-4 h-4 shrink-0 text-blue-600" aria-hidden="true" />
+                <div>
+                  <div className="font-medium">Members</div>
+                  <div className="text-xs text-gray-500">See and manage who is in your family</div>
+                </div>
+              </Link>
+              <Link href="/dashboard/family/invite" className={rowClass}>
+                <UserPlus className="w-4 h-4 shrink-0 text-green-600" aria-hidden="true" />
+                <div>
+                  <div className="font-medium">Invite and family code</div>
+                  <div className="text-xs text-gray-500">Add a parent, teen or child</div>
+                </div>
+              </Link>
+              <Link href="/dashboard/features" className={rowClass}>
+                <Sliders className="w-4 h-4 shrink-0 text-blue-600" aria-hidden="true" />
+                <div>
+                  <div className="font-medium">Features</div>
+                  <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                </div>
+              </Link>
+              <Link href="/dashboard/settings/imports" className={rowClass}>
+                <Database className="w-4 h-4 shrink-0 text-violet-600" aria-hidden="true" />
+                <div>
+                  <div className="font-medium">Import family apps</div>
+                  <div className="text-xs text-gray-500">Bring in ChoreChamps, Meal Planner or Budget App exports</div>
+                </div>
+              </Link>
+              {/* Household audit history, #285. The page and API are parent-only too. */}
+              <Link href="/dashboard/settings/activity" className={rowClass}>
+                <History className="w-4 h-4 shrink-0 text-teal-600" aria-hidden="true" />
+                <div>
+                  <div className="font-medium">Recent changes</div>
+                  <div className="text-xs text-gray-500">Who changed features, invites, the Today board or tablets</div>
+                </div>
+              </Link>
             </div>
           </div>
 
-          {/* AI capture */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center mr-4">
-                <Sparkles className="w-5 h-5 text-violet-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">AI capture</h2>
-                <p className="text-gray-600">Type a sentence or photograph a flyer, and it sorts itself out</p>
+          {/* Shared tablets (#241): only while the kill switch is on (decided in ./page.tsx). */}
+          {sharedDevice && (
+            <div className="card">
+              <CardHeader icon={TabletSmartphone} tone="blue" title="Family tablet" />
+              <div className="-mx-3 space-y-1">
+                <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />
               </div>
             </div>
+          )}
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="aiKey" className="block text-sm font-medium text-gray-900 mb-2">
-                  API key
-                </label>
-                <input
-                  id="aiKey"
-                  type="password"
-                  autoComplete="off"
-                  value={aiKey}
-                  onChange={(e) => setAiKey(e.target.value)}
-                  placeholder={aiConfigured ? `Saved: ${aiKeyHint}` : 'Paste your key'}
-                  className="input-field w-full font-mono text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Stored encrypted. Never shown again after saving.
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
-                  Provider URL <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  id="aiBaseUrl"
-                  value={aiBaseUrl}
-                  onChange={(e) => setAiBaseUrl(e.target.value)}
-                  placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
-                  className="input-field w-full text-sm"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
-                  Model <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  id="aiModel"
-                  value={aiModel}
-                  onChange={(e) => setAiModel(e.target.value)}
-                  placeholder="gemini-2.0-flash"
-                  className="input-field w-full text-sm"
-                />
-              </div>
-
-              <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
-                <div className="font-medium text-gray-900 mb-1">For photos of flyers, pick a vision model</div>
-                <div>Google Gemini Flash — free tier, reads photos. Use the URL and model above.</div>
-                <div>OpenAI — paste the key and leave URL and model blank.</div>
-                <div>DeepSeek — paste the key. Text only; photos will not work.</div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => saveAiSettings(false)}
-                  disabled={aiBusy || (!aiKey.trim() && !aiConfigured)}
-                  className="btn-primary inline-flex items-center"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {aiBusy ? 'Saving…' : 'Save'}
-                </button>
-                {aiConfigured && (
-                  <button
-                    onClick={() => saveAiSettings(true)}
-                    disabled={aiBusy}
-                    className="text-sm text-red-600 hover:underline"
-                  >
-                    Remove key
-                  </button>
-                )}
-                {aiMessage && (
-                  <span className="text-sm text-green-700 inline-flex items-center">
-                    <Check className="w-4 h-4 mr-1" /> {aiMessage}
-                  </span>
-                )}
-              </div>
-
-              {aiError && <p className="text-sm text-red-600">{aiError}</p>}
-            </div>
-          </div>
-
-          {/* Calendar feed */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center mr-4">
-                <CalendarDays className="w-5 h-5 text-sky-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Calendar feed</h2>
-                <p className="text-gray-600">See your family calendar in Google, Apple or Outlook</p>
-              </div>
-            </div>
-
+          {/* Calendar feed: a household link (API-enforced parent-only). */}
+          <SettingsDisclosure
+            title="Calendar feed"
+            description="See your family calendar in Google, Apple or Outlook"
+            icon={<SettingsIcon icon={CalendarDays} tone="sky" />}
+            forceOpen={Boolean(feedError)}
+          >
             {feedToken ? (
               <div className="space-y-4">
                 <div>
@@ -598,14 +621,14 @@ export default function SettingsClient({
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={copyFeedUrl} className="btn-primary inline-flex items-center">
+                  <button onClick={copyFeedUrl} className="btn-primary inline-flex items-center min-h-[44px]">
                     {feedCopied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
                     {feedCopied ? 'Copied' : 'Copy link'}
                   </button>
                   <button
                     onClick={() => handleFeedToken(true)}
                     disabled={feedBusy}
-                    className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
                     Reset link
@@ -631,7 +654,7 @@ export default function SettingsClient({
                 <button
                   onClick={() => handleFeedToken(false)}
                   disabled={feedBusy}
-                  className="btn-primary inline-flex items-center"
+                  className="btn-primary inline-flex items-center min-h-[44px]"
                 >
                   <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
                   {feedBusy ? 'Creating...' : 'Create feed link'}
@@ -640,136 +663,151 @@ export default function SettingsClient({
             )}
 
             {feedError && <p className="text-sm text-red-600 mt-3">{feedError}</p>}
-          </div>
+          </SettingsDisclosure>
 
-          {/* Subscribed (read-only ICS) calendars, #232. Parents only; the API enforces it too. */}
-          {role === 'parent' && <CalendarSubscriptionsSection />}
+          {/* Subscribed (read-only ICS) calendars, #232. The API enforces parent-only too. */}
+          <CalendarSubscriptionsSection />
 
-          {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured; parents only (API-enforced). */}
-          {role === 'parent' && calendarSync && <CalendarSyncSection />}
+          {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured. */}
+          {calendarSync && <CalendarSyncSection />}
 
-          {/* Language Settings */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                <Globe className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Language</h2>
-                <p className="text-gray-600">Choose your preferred language</p>
-              </div>
-            </div>
-
-            <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
-            <select
-              id="preferredLanguage"
-              value={locale}
-              onChange={(e) => {
-                // Saved on this device by the root I18nProvider; applies at once.
-                if (isLocale(e.target.value)) setLocale(e.target.value)
-              }}
-              className="input-field w-full"
+          {/* AI capture: the household's provider key. Only when the deployment
+              turns the form on, or a key is already saved (so it can be removed). */}
+          {aiCaptureSettings && (
+            <SettingsDisclosure
+              title="AI capture"
+              description="Type a sentence or photograph a flyer, and it sorts itself out"
+              icon={<SettingsIcon icon={Sparkles} tone="violet" />}
+              forceOpen={Boolean(aiError)}
             >
-              <option value="en">English</option>
-              <option value="es">Español</option>
-            </select>
-          </div>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="aiKey" className="block text-sm font-medium text-gray-900 mb-2">
+                    API key
+                  </label>
+                  <input
+                    id="aiKey"
+                    type="password"
+                    autoComplete="off"
+                    value={aiKey}
+                    onChange={(e) => setAiKey(e.target.value)}
+                    placeholder={aiConfigured ? `Saved: ${aiKeyHint}` : 'Paste your key'}
+                    className="input-field w-full font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Stored encrypted. Never shown again after saving.
+                  </p>
+                </div>
 
-          {/* Privacy & Security */}
-          <div className="card">
-            <div className="flex items-center mb-6">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-4">
-                <Shield className="w-5 h-5 text-red-600" />
+                <div>
+                  <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
+                    Provider URL <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="aiBaseUrl"
+                    value={aiBaseUrl}
+                    onChange={(e) => setAiBaseUrl(e.target.value)}
+                    placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
+                    className="input-field w-full text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
+                    Model <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="aiModel"
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    placeholder="gemini-2.0-flash"
+                    className="input-field w-full text-sm"
+                  />
+                </div>
+
+                <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                  <div className="font-medium text-gray-900 mb-1">For photos of flyers, pick a vision model</div>
+                  <div>Google Gemini Flash — free tier, reads photos. Use the URL and model above.</div>
+                  <div>OpenAI — paste the key and leave URL and model blank.</div>
+                  <div>DeepSeek — paste the key. Text only; photos will not work.</div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => saveAiSettings(false)}
+                    disabled={aiBusy || (!aiKey.trim() && !aiConfigured)}
+                    className="btn-primary inline-flex items-center min-h-[44px]"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {aiBusy ? 'Saving…' : 'Save'}
+                  </button>
+                  {aiConfigured && (
+                    <button
+                      onClick={() => saveAiSettings(true)}
+                      disabled={aiBusy}
+                      className="min-h-[44px] px-2 text-sm text-red-600 hover:underline"
+                    >
+                      Remove key
+                    </button>
+                  )}
+                  {aiMessage && (
+                    <span className="text-sm text-green-700 inline-flex items-center">
+                      <Check className="w-4 h-4 mr-1" /> {aiMessage}
+                    </span>
+                  )}
+                </div>
+
+                {aiError && <p className="text-sm text-red-600">{aiError}</p>}
               </div>
+            </SettingsDisclosure>
+          )}
+        </SettingsGroup>
+      )}
+
+      {/* 3. Privacy & data: a teen sees only their own export and deletion. */}
+      <SettingsGroup id="settings-privacy" title="Privacy & data">
+        <div className="card">
+          <div className="-mx-3 space-y-1">
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={exportState === 'working'}
+              className={rowClass}
+            >
+              <Download className="w-4 h-4 shrink-0 text-blue-600" aria-hidden="true" />
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Privacy & Security</h2>
-                <p className="text-gray-600">Manage your privacy settings</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Link
-                href="/dashboard/features"
-                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-              >
-                <Sliders className="w-4 h-4 text-blue-600" />
-                <div>
-                  <div className="font-medium">Features</div>
-                  <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
-                </div>
-              </Link>
-              <Link
-                href="/dashboard/settings/imports"
-                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-              >
-                <Database className="w-4 h-4 text-violet-600" />
-                <div>
-                  <div className="font-medium">Import family apps</div>
-                  <div className="text-xs text-gray-500">Preview and consolidate ChoreChamps, Meal Planner, or Budget App exports</div>
-                </div>
-              </Link>
-              {/* Household audit history, #285. Parents only; the page and API enforce it too. */}
-              {role === 'parent' && (
-                <Link
-                  href="/dashboard/settings/activity"
-                  className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3 min-h-[44px]"
-                >
-                  <History className="w-4 h-4 text-teal-600" aria-hidden="true" />
-                  <div>
-                    <div className="font-medium">Recent changes</div>
-                    <div className="text-xs text-gray-500">Who changed features, invites, the Today board or tablets</div>
-                  </div>
-                </Link>
-              )}
-              <button
-                onClick={() => setShowPasswordModal(true)}
-                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"
-              >
-                Change Password
-              </button>
-              {sharedDevice && <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />}
-              {/* Beta usage counts (#287): parents only; PATCH /api/family/beta-metrics enforces it too. */}
-              {betaMetrics && <BetaMetricsSwitch initialEnabled={betaMetrics.enabled} />}
-              <button
-                type="button"
-                onClick={() => void handleExport()}
-                disabled={exportState === 'working'}
-                className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg"
-              >
                 <div className="font-medium">{exportState === 'working' ? 'Preparing your data…' : 'Data Export'}</div>
                 <div className="text-xs text-gray-500">Download everything the app holds about you as a JSON file</div>
-              </button>
-              {exportState === 'error' && (
-                <p role="alert" className="px-3 text-sm text-red-600">
-                  The download did not work. Try again.
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowDeleteDialog(true)}
-                className="w-full p-3 text-left text-red-600 hover:bg-red-50 rounded-lg"
-              >
-                Delete Account
-              </button>
-            </div>
+              </div>
+            </button>
+            {exportState === 'error' && (
+              <p role="alert" className="px-3 text-sm text-red-600">
+                The download did not work. Try again.
+              </p>
+            )}
+            {/* Beta usage counts (#287): parents only; PATCH /api/family/beta-metrics enforces it too. */}
+            {isParent && betaMetrics && <BetaMetricsSwitch initialEnabled={betaMetrics.enabled} />}
+            <button
+              type="button"
+              onClick={() => setShowDeleteDialog(true)}
+              className={`${rowClass} text-red-600 hover:bg-red-50`}
+            >
+              <Trash2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span className="font-medium">Delete Account</span>
+            </button>
           </div>
         </div>
-      </div>
+      </SettingsGroup>
 
       {/* App Info */}
-      <div className="bg-gray-50 rounded-xl p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Family Planner</h3>
-            {build && <p className="text-gray-600">Version {build}</p>}
-          </div>
-          <div className="mt-4 md:mt-0 text-sm text-gray-500">
-            <p>&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>
-          </div>
-        </div>
+      <div className="rounded-xl bg-gray-50 p-5 text-sm text-gray-600">
+        <p className="font-semibold text-gray-900">Family Planner</p>
+        {build && <p>Version {build}</p>}
+        <p className="mt-1 text-gray-500">&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>
       </div>
 
-      <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} />
+      {/* A teen deletes only their own account; the household option is a parent's. */}
+      <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} allowHousehold={isParent} />
 
       {/* Change Password Modal */}
       <Dialog

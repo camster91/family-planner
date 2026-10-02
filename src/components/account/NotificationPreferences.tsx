@@ -1,8 +1,8 @@
 'use client'
 
 // Per-member notification switches (#286, PR101 D-5). Used by the Settings
-// "Notifications" section (parents) and by the user-menu dialog (teens and
-// children, who cannot open Settings; src/lib/kid-access.ts).
+// "Notifications" section (parents and teens, O-37) and by the user-menu
+// dialog (children, who cannot open Settings; src/lib/kid-access.ts).
 //
 // Each switch saves on its own: the change shows at once, and goes back with a
 // message if the save fails. Offline, the switches are disabled with a notice.

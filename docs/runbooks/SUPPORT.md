@@ -58,11 +58,11 @@ A new adult cannot sign in until they confirm their email.
 
 People do this themselves. Walk them through it; do not do it for them.
 
-- **Export:** Settings → Privacy & Security → Data Export. Each member downloads their own copy. A teen or child
+- **Export:** Settings → Privacy & data → Data Export. Each member downloads their own copy. A teen or child
   asks a parent, or uses "Download my data" inside their delete dialog.
 - **Delete:** follow `docs/product/ACCOUNT_DELETION.md` and "Offboarding and data deletion" in
   `docs/product/BETA_OPERATIONS.md`. In short: the only parent can delete the whole household from Settings →
-  Privacy & Security → Delete Account. With two parents, each deletes their own account and the last one deletes
+  Privacy & data → Delete Account. With two parents, each deletes their own account and the last one deletes
   the household. A teen or child uses user menu → Delete my account.
 - **Tell them about backups:** deleted data stays in server backups until they rotate out, up to about five weeks
   ([BACKUPS.md "Retention"](BACKUPS.md#retention)). Do not restore a backup to "undo" a deletion without

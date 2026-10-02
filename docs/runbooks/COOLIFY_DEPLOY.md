@@ -205,6 +205,7 @@ Set these in Coolify → Environment Variables. Mark only `NEXT_PUBLIC_APP_URL` 
 
 | Variable | Default | What it turns on | Production value |
 | --- | --- | --- | --- |
+| `CAPTURE_AI_SETTINGS_ENABLED` | off | Shows the per-family "AI capture" key form in Settings (provider URL, model, key). Only `1`/`true` turns it on. Off: the form is hidden, except for a household that already saved a key (so it can remove it). The API and capture itself do not change. | `false` or unset. |
 | `CAPTURE_AI_KEY` | unset | Deployment-wide AI capture fallback key (families can still add their own key in Settings). | **Unset.** |
 | `CAPTURE_AI_BASE_URL` / `CAPTURE_AI_MODEL` | provider defaults in `src/lib/capture.ts` | Endpoint and model for the above. | **Unset.** |
 | `INVENTORY_SCAN_ANTHROPIC_API_KEY` | unset | Fridge photo scan (`docs/runbooks/INVENTORY_SCAN.md`). | **Unset.** |

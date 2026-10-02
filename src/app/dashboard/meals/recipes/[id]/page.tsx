@@ -3,8 +3,9 @@
 /**
  * Recipe detail route (ADR-0007, #252). Reads `GET /api/recipes/[id]`, which is
  * household-scoped: another household's id is the same 404 as a missing one.
- * Like /dashboard/meals, this page is parent-only in the UI (kid allowlist,
- * src/lib/kid-access.ts); the recipes API itself allows every role to read.
+ * Like /dashboard/meals, parents and teens (O-37) open it; children do not
+ * (src/lib/kid-access.ts). The recipes API itself allows every role to read.
+ * Nothing here edits or deletes the recipe; "Add to groceries" is open to all.
  */
 import * as React from 'react'
 import Link from 'next/link'

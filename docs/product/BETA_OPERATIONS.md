@@ -71,7 +71,7 @@ Do this on a short call or by message. The adult does every step themselves on t
 1. [ ] Consent recorded (date, "yes") in the cohort map.
 2. [ ] Adult registers at the production URL and clicks the verification email.
 3. [ ] Adult creates the household.
-4. [ ] **Right away**, adult turns on Settings → Privacy & Security → "Share beta usage counts". (Counts start from this moment. Turning it on after the first chore loses the time-to-first-value measure for this household.)
+4. [ ] **Right away**, adult turns on Settings → Privacy & data → "Share beta usage counts". (Counts start from this moment. Turning it on after the first chore loses the time-to-first-value measure for this household.)
 5. [ ] Adult invites a child or teen: Family → Invite (`/dashboard/family/invite`), by email (role child or teen), or by family code for someone who already has a verified account.
 6. [ ] The child or teen joins.
 7. [ ] Adult assigns the first chore. Note the date in the cohort map. Do not time it by hand; the scorecard measures registration-to-first-chore.
@@ -155,7 +155,7 @@ For each household at the end (or when they leave early):
 1. **Ask their choice**: keep using the app, download their data, delete one account, or delete the whole household.
 2. **Export**: Settings → Data Export (or the "Download my data" step inside the delete dialog). Each member gets their own export.
 3. **Delete** (they do it, not us), per `docs/product/ACCOUNT_DELETION.md`:
-   - Whole household: the **only** parent uses Settings → Privacy & Security → Delete Account, and chooses the household. They confirm with their password and the household name. This deletes every member, all household data, photos, tablets, invitations, calendar links and beta counts.
+   - Whole household: the **only** parent uses Settings → Privacy & data → Delete Account, and chooses the household. They confirm with their password and the household name. This deletes every member, all household data, photos, tablets, invitations, calendar links and beta counts.
    - If there are two parents, the household can't be deleted while both exist (409 `OTHER_PARENTS_EXIST`). Each parent deletes their own account; the last one then deletes the household.
    - A teen or child can delete only their own account, from the user menu (avatar) → Delete my account.
 4. **Stop counting**: if they keep using the app but leave the beta, they turn off "Share beta usage counts". That deletes their counts at once.

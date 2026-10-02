@@ -99,7 +99,7 @@ count-only store, not `src/lib/analytics.ts` (which kept free-form metadata
 tied to a user; removed in #136/#140, see `src/lib/legacy-analytics.ts`). `BetaMetricDaily` holds one count per household, UTC day and
 metric name from the fixed list in `src/lib/beta-metrics.ts`; it has no user
 id, role, text or content. Counting is **off by default**: a parent turns on
-"Share beta usage counts" in Settings → Privacy & Security, and turning it off
+"Share beta usage counts" in Settings → Privacy & data, and turning it off
 deletes the household's counts. Counts are kept 13 months and deleted with the
 household (privacy page, `product/ACCOUNT_DELETION.md`).
 

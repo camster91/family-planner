@@ -37,6 +37,16 @@ describe("/api/users — own account only", () => {
     expect(db.find("user", "child-a")).toMatchObject({ role: "child", family_id: "family-A" });
   });
 
+  // O-37: a teen edits their own profile from their own Settings page.
+  it("a teen updates their own name and age, and nothing else", async () => {
+    const res = await users.PATCH(req({ as: "teenA", body: { name: "Riley", age: 15, role: "parent" } }));
+    expect(res.status).toBe(200);
+    const [write] = writesTo("user");
+    expect(write.args.where).toEqual({ id: "teen-a" });
+    expect(Object.keys(write.args.data).sort()).toEqual(["age", "name"]);
+    expect(db.find("user", "teen-a")).toMatchObject({ role: "teen", family_id: "family-A" });
+  });
+
   it("DELETE refuses to remove the only parent, and never touches another user", async () => {
     // Full deletion behaviour: deletion.test.ts and src/lib/__tests__/account-deletion.test.ts.
     const bcrypt = require("bcryptjs");

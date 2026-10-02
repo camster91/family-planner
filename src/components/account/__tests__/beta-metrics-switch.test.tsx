@@ -149,7 +149,7 @@ describe('BetaMetricsSwitch', () => {
   })
 })
 
-describe('Settings -> Privacy & Security', () => {
+describe('Settings -> Privacy & data', () => {
   beforeAll(() => {
     window.matchMedia =
       window.matchMedia ||
@@ -166,15 +166,15 @@ describe('Settings -> Privacy & Security', () => {
 
   it('shows the switch when the page passes the household value (a parent)', async () => {
     api()
-    render(<SettingsClient sharedDevice={null} betaMetrics={{ enabled: true }} />)
-    expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} betaMetrics={{ enabled: true }} />)
+    expect(await screen.findByRole('heading', { name: 'Privacy & data' })).toBeTruthy()
     expect(screen.getByRole('switch', { name: NAME }).getAttribute('aria-checked')).toBe('true')
   })
 
   it('has no switch without it (not a parent)', async () => {
     api()
-    render(<SettingsClient sharedDevice={null} />)
-    expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
+    expect(await screen.findByRole('heading', { name: 'Privacy & data' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: NAME })).toBeNull()
   })
 })

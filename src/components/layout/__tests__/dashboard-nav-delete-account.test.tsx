@@ -1,10 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-// Account deletion for teens and children (D-3, ACCOUNT_DELETION.md): they
-// cannot open Settings (src/lib/kid-access.ts), so the user menu, which is on
-// every page they can reach, offers "Delete my account". Own account only:
-// the dialog never offers household deletion here. Parents use Settings.
+// Account deletion for children (D-3, ACCOUNT_DELETION.md): they cannot open
+// Settings (src/lib/kid-access.ts), so the user menu, which is on every page
+// they can reach, offers "Delete my account". Own account only: the dialog
+// never offers household deletion here. Parents and teens (O-37) use Settings.
 import * as React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -47,9 +47,9 @@ async function openMenu(role: NavUser['role']) {
 }
 
 describe('DashboardNav user menu: delete my account', () => {
-  it.each(['teen', 'child'] as const)('a %s opens the account-only delete dialog from the menu', async (role) => {
-    const calls = mockOptions({ ...KID_OPTIONS, role })
-    await openMenu(role)
+  it('a child opens the account-only delete dialog from the menu', async () => {
+    const calls = mockOptions({ ...KID_OPTIONS, role: 'child' })
+    await openMenu('child')
     const item = screen.getByRole('button', { name: 'Delete my account' })
     expect(item.className).toContain('min-h-[44px]')
     await userEvent.click(item)
@@ -60,17 +60,17 @@ describe('DashboardNav user menu: delete my account', () => {
   })
 
   it('never offers household deletion from the menu, even if the server would allow it', async () => {
-    mockOptions({ ...KID_OPTIONS, isOnlyParent: true, canDeleteAccount: false, canDeleteHousehold: true })
-    await openMenu('teen')
+    mockOptions({ ...KID_OPTIONS, role: 'child', isOnlyParent: true, canDeleteAccount: false, canDeleteHousehold: true })
+    await openMenu('child')
     await userEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
     await waitFor(() => expect(screen.getByText(/Delete the household from Settings instead/)).toBeTruthy())
     expect(screen.queryByRole('dialog', { name: 'Delete household' })).toBeNull()
     expect(screen.queryByLabelText('Your password')).toBeNull()
   })
 
-  it('parents do not get the menu entry (they use Settings)', async () => {
+  it.each(['parent', 'teen'] as const)('a %s does not get the menu entry (they use Settings)', async (role) => {
     mockOptions(KID_OPTIONS)
-    await openMenu('parent')
+    await openMenu(role)
     expect(screen.queryByRole('button', { name: 'Delete my account' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Settings' })).toBeTruthy()
   })

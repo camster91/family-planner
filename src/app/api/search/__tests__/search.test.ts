@@ -103,19 +103,24 @@ describe('GET /api/search', () => {
     expect(rows).toEqual([])
   })
 
-  it.each(['teenA', 'childA'] as UserKey[])(
-    '%s gets only lists, list items and food: the pages a teen or child may open',
-    async (who) => {
-      const rows = await results(who, 'home')
-      expect(types(rows)).toEqual(['list', 'list_item', 'inventory'])
-      for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|inventory)(\/|$)/)
-      // No members, events, chores, recipes or notes, even by a direct call.
-      expect(await results(who, 'parent')).toEqual([])
-      expect(await results(who, 'dentist')).toEqual([])
-      expect(await results(who, 'lasagne')).toEqual([])
-      expect(await results(who, 'wifi')).toEqual([])
-    }
-  )
+  it('childA gets only lists, list items and food: the pages a child may open', async () => {
+    const rows = await results('childA', 'home')
+    expect(types(rows)).toEqual(['list', 'list_item', 'inventory'])
+    for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|inventory)(\/|$)/)
+    // No members, events, chores, recipes or notes, even by a direct call.
+    expect(await results('childA', 'parent')).toEqual([])
+    expect(await results('childA', 'dentist')).toEqual([])
+    expect(await results('childA', 'lasagne')).toEqual([])
+    expect(await results('childA', 'wifi')).toEqual([])
+  })
+
+  it('teenA also gets events and recipes (O-37: a teen may open the calendar and meals), never members, chores or notes', async () => {
+    const rows = await results('teenA', 'home')
+    expect(types(rows)).toEqual(['event', 'list', 'list_item', 'recipe', 'inventory'])
+    for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|inventory|calendar|meals\/recipes)(\/|\?|$)/)
+    expect(await results('teenA', 'parent')).toEqual([])
+    expect(await results('teenA', 'wifi')).toEqual([])
+  })
 
   it('never returns budget, messages, medical, locations, handoff or allowance data', async () => {
     // Seeded family-A rows: "Home groceries" budget category, "Home shop"
@@ -129,7 +134,8 @@ describe('GET /api/search', () => {
   it('leaves out a type while its feature is off', async () => {
     setFeatures(FAMILY_A, { meals: false, notes: false, inventory: false })
     expect(types(await results('parentA', 'home'))).toEqual(['event', 'chore', 'list', 'list_item'])
-    expect(types(await results('teenA', 'home'))).toEqual(['list', 'list_item'])
+    expect(types(await results('teenA', 'home'))).toEqual(['event', 'list', 'list_item'])
+    expect(types(await results('childA', 'home'))).toEqual(['list', 'list_item'])
     // Lists is core, but a stored `lists: false` is still honoured.
     setFeatures(FAMILY_A, { ...ALL_ON, lists: false })
     expect(types(await results('parentA', 'home'))).toEqual(['event', 'chore', 'recipe', 'note', 'inventory'])

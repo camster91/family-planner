@@ -115,6 +115,24 @@ describe('POST /api/auth/change-password rate limit', () => {
     expect(statuses.slice(0, 10).every((s) => s === 400)).toBe(true)
     expect(statuses[10]).toBe(429)
   })
+
+  // O-37: a teen changes their own password from their own Settings page.
+  it('lets a teen change their own password, and only their own', async () => {
+    setPassword('teenA', 'teen-a-password')
+    const before = db.find('user', 'parent-a')!.password
+    const res = await changePassword(
+      deviceReq({
+        method: 'POST',
+        as: 'teenA',
+        path: '/api/auth/change-password',
+        body: { currentPassword: 'teen-a-password', newPassword: 'teen-new-password' },
+      })
+    )
+    expect(res.status).toBe(200)
+    const bcrypt = require('bcryptjs')
+    expect(bcrypt.compareSync('teen-new-password', db.find('user', 'teen-a')!.password)).toBe(true)
+    expect(db.find('user', 'parent-a')!.password).toBe(before)
+  })
 })
 
 describe('POST /api/auth/forgot-password email lookup', () => {

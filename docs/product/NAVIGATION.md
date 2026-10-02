@@ -19,7 +19,8 @@ tabs, everything else one level down, undo instead of "are you sure", colour onl
 - Children and teens keep the kid home at `/dashboard` (their missions, and level and rewards when Points &
   streaks is on). It is a different, simpler view on purpose, so their Today tab points there and the board is
   one tap away in the user menu ("Today board"). If the kid home is later folded into the board, change
-  `KID_TABS` and `homeHrefFor` in `src/lib/nav-items.ts` and the kid branch of `src/app/dashboard/page.tsx`.
+  `KID_TABS`, `TEEN_TABS` and `homeHrefFor` in `src/lib/nav-items.ts` and the kid branch of
+  `src/app/dashboard/page.tsx`.
 
 ## Tabs
 
@@ -28,11 +29,17 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
 | Role | Tabs |
 |---|---|
 | Parent | Today · Calendar · Meals · Lists · Family |
-| Teen, child | Today (kid home) · Lists · Emergency |
+| Teen | Today (kid home) · Calendar · Meals · Lists · Emergency (O-37) |
+| Child | Today (kid home) · Lists · Emergency |
 
-- Feature-gated tabs hide while their feature is off (Meals with meal planning off; Emergency for kids).
-- Kids see only tabs on the kid allowlist (`src/lib/kid-access.ts`, unchanged). Family is parent-only, so
-  Emergency keeps its own kid tab: a child home alone must find it in one tap.
+- Feature-gated tabs hide while their feature is off (Calendar and Meals with their feature off; Emergency for
+  kids).
+- Kids see only tabs their role may open (`canRoleAccessPath` in `src/lib/kid-access.ts`: the kid allowlist, plus
+  the teen-only routes for a teen). Family is parent-only, so Emergency keeps its own kid tab: a child home alone
+  must find it in one tap.
+- Teens (O-37) also get Settings (their personal sections only), Help and the notifications bell. Children get
+  their notification switches and "Delete my account" in the user menu instead, because they cannot open
+  Settings.
 - Chores live on Today (the summary's "All chores" link, and "N chores to check" for parents). The Today tab
   stays current on `/dashboard/chores`; the Family tab stays current on Emergency, Features, More and every
   page listed under More.
@@ -47,8 +54,9 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
   & streaks is a setting, not a place, so it is not listed (its pages are Rewards and Analytics).
 - The user-menu "Food inventory" link (#263) stays, for every role, because children and teens cannot open
   More. The command palette lists the same destinations plus More, Emergency and Travel.
-- Help (`/dashboard/help`, #146, parents): user menu → Help, under Settings. Short how-to answers, links to the
-  real pages, and the support contact from `src/lib/support.ts`. Not on the kid allowlist, like Settings.
+- Help (`/dashboard/help`, #146, parents and teens since O-37): user menu → Help, under Settings. Short how-to
+  answers, links to the real pages, and the support contact from `src/lib/support.ts`. A teen sees the same
+  text; pages a teen cannot open are named but not linked. Children cannot open it.
 
 ## Undo over confirm
 

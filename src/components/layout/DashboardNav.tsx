@@ -45,9 +45,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [avatarOpen, setAvatarOpen] = useState(false)
-  // Teens and children cannot open Settings (kid-access.ts), so their
-  // "Delete my account" (D-3, ACCOUNT_DELETION.md) and their notification
-  // switches (#286) live in this menu. Own account only.
+  // Children cannot open Settings (kid-access.ts), so their "Delete my
+  // account" (D-3, ACCOUNT_DELETION.md) and their notification switches (#286)
+  // live in this menu. Own account only. Teens use their own Settings (O-37).
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [notifyOpen, setNotifyOpen] = useState(false)
   const avatarRef = useRef<HTMLDivElement>(null)
@@ -59,6 +59,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const primaryTabs = tabsFor(user?.role, features)
   const homeHref = homeHrefFor(user?.role)
   const isKid = isKidRole(user?.role)
+  // A kid who cannot open Settings (a child) gets its personal controls here.
+  const accountInMenu = isKid && !canSee('/dashboard/settings')
   // Food inventory (#263): feature-gated and on the kid allowlist, so every
   // role reaches it by touch from this menu (the command palette is
   // keyboard-only). Parents also find it under Family → More.
@@ -238,7 +240,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         Family
                       </Link>
                     )}
-                    {isKid && (
+                    {accountInMenu && (
                       <button
                         type="button"
                         onClick={() => {
@@ -261,7 +263,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         Settings
                       </Link>
                     )}
-                    {/* Help (#146): parents only, like Settings (not on the kid allowlist). */}
+                    {/* Help (#146): parents and teens (O-37), like Settings. */}
                     {canSee('/dashboard/help') && (
                       <Link
                         href="/dashboard/help"
@@ -276,7 +278,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
                   {/* Sign out */}
                   <div className="py-1.5 border-t border-[var(--surface-separator)]">
-                    {isKid && (
+                    {accountInMenu && (
                       <button
                         type="button"
                         onClick={() => {
@@ -304,7 +306,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         </div>
       </nav>
 
-      {isKid && (
+      {accountInMenu && (
         <>
           <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} allowHousehold={false} />
           <Dialog

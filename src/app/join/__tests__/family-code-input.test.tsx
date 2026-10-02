@@ -6,7 +6,7 @@
 // codes with separators. What the person typed is sent as is; the server
 // normalizes it (src/lib/family-code.ts).
 import * as React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }) }))
@@ -54,4 +54,18 @@ it('looks up and joins with the code as typed (XXXX-XXXX-XXXX)', async () => {
   await screen.findByText('Successfully joined The Smiths!')
   const joinCall = calls.find((c) => c.url === '/api/family/join')
   expect(JSON.parse(joinCall!.body!)).toEqual({ inviteCode: 'K7QM-4XPD-2HNA' })
+})
+
+it('says nothing scary when a signed-out person opens a code link', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    calls.push({ url })
+    if (url.startsWith('/api/family/lookup')) return reply({ error: 'Unauthorized' }, 401)
+    return reply({})
+  }) as unknown as typeof fetch
+  window.history.replaceState(null, '', '/join?code=K7QM-4XPD-2HNA')
+  render(<JoinFamilyPage />)
+  await waitFor(() => expect(calls.some((c) => c.url.startsWith('/api/family/lookup'))).toBe(true))
+  expect(screen.queryByText('Unauthorized')).toBeNull()
+  expect((screen.getByLabelText('Family Code') as HTMLInputElement).value).toBe('K7QM-4XPD-2HNA')
 })

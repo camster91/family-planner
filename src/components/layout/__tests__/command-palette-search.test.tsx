@@ -54,3 +54,22 @@ it.each(['teen', 'child'])('never offers search to a %s', async (role) => {
   expect(screen.getByText(/No results for/)).toBeTruthy()
   expect(mockPush).not.toHaveBeenCalled()
 })
+
+// O-37: the palette uses the same role filter as the tabs and the redirect.
+it('offers a teen Calendar, Meals and Settings, but never Features or Family', async () => {
+  render(<CommandPalette open onClose={() => undefined} role="teen" />)
+  for (const name of ['Calendar', 'Meals', 'Settings', 'Lists', 'Emergency']) {
+    expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toBeTruthy()
+  }
+  for (const name of ['Features', 'Family', 'Chores', 'Budget']) {
+    expect(screen.queryByRole('button', { name: new RegExp(`^${name}`) })).toBeNull()
+  }
+})
+
+it('offers a child neither Calendar, Meals nor Settings', async () => {
+  render(<CommandPalette open onClose={() => undefined} role="child" />)
+  expect(screen.getByRole('button', { name: /^Lists/ })).toBeTruthy()
+  for (const name of ['Calendar', 'Meals', 'Settings', 'Features']) {
+    expect(screen.queryByRole('button', { name: new RegExp(`^${name}`) })).toBeNull()
+  }
+})

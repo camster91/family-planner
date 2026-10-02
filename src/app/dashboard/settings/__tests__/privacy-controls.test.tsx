@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-// Settings → Privacy & Security (F-3, D-3): every control does something.
+// Settings → Privacy & data (F-3, D-3): every control does something.
 // No Two-Factor Authentication entry (the app has no 2FA); Data Export
 // downloads GET /api/users/export; Delete Account opens the in-page dialog.
 import * as React from 'react'
@@ -53,8 +53,8 @@ beforeAll(() => {
 describe('Settings privacy controls', () => {
   it('has no Two-Factor Authentication control', async () => {
     mockApi()
-    render(<SettingsClient sharedDevice={null} />)
-    expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
+    expect(await screen.findByRole('heading', { name: 'Privacy & data' })).toBeTruthy()
     expect(screen.queryByText(/Two-Factor/i)).toBeNull()
   })
 
@@ -62,7 +62,7 @@ describe('Settings privacy controls', () => {
     const urls = mockApi()
     Object.assign(URL, { createObjectURL: jest.fn(() => 'blob:x'), revokeObjectURL: jest.fn() })
     const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    render(<SettingsClient sharedDevice={null} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     await userEvent.click(await screen.findByRole('button', { name: /Data Export/ }))
     await waitFor(() => expect(urls).toContain('/api/users/export'))
     await waitFor(() => expect(click).toHaveBeenCalled())
@@ -72,7 +72,7 @@ describe('Settings privacy controls', () => {
   it('Delete Account opens the confirmation dialog in the page', async () => {
     mockApi()
     window.confirm = jest.fn(() => true)
-    render(<SettingsClient sharedDevice={null} />)
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     await userEvent.click(await screen.findByRole('button', { name: 'Delete Account' }))
     expect(await screen.findByRole('dialog', { name: 'Delete account' })).toBeTruthy()
     expect(await screen.findByLabelText('Your password')).toBeTruthy()

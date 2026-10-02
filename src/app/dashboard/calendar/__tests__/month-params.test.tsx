@@ -65,3 +65,18 @@ describe('calendar month/year parameters', () => {
     expect(element.props.monthFromUrl).toBe(false)
   })
 })
+
+// O-37: a teen sees the calendar, but editing and deleting are parent-only
+// (PATCH/DELETE /api/events), so the page does not link events to the editor.
+describe('calendar edit links by role', () => {
+  const findUnique = () => require('@/lib/prisma').prisma.user.findUnique as jest.Mock
+
+  it.each([
+    ['parent', true],
+    ['teen', false],
+  ])('%s: canEditEvents is %p', async (role, expected) => {
+    findUnique().mockResolvedValueOnce({ family_id: 'family-A', role })
+    const element = (await CalendarPage({ searchParams: Promise.resolve({}) })) as { props: { canEditEvents: boolean } }
+    expect(element.props.canEditEvents).toBe(expected)
+  })
+})

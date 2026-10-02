@@ -70,7 +70,8 @@ function openShoppingTitles(familyId: string) {
 }
 
 /**
- * The routes middleware must bounce a child/teen away from (src/lib/kid-access.ts).
+ * The routes middleware must bounce a child away from (src/lib/kid-access.ts).
+ * A teen may open /dashboard/settings itself since O-37; the rest stay closed to teens too.
  * /dashboard/allowance left this list with D5 (#102): kids now get a read-only
  * view of their own allowance.
  */

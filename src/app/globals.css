@@ -374,10 +374,17 @@
   }
   .input-field::placeholder { color: var(--label-tertiary); }
   .input-field:focus { outline: none; background: var(--surface-fill-secondary); box-shadow: var(--shadow-focus); }
+  /* Unlike .card-apple (padding set per use with p-*), .card carries its own
+     inner padding: none of its users add any, and without it inputs, icons
+     and buttons sat flush against the card edge. */
   .card {
     background: var(--surface-elevated);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
+    padding: 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .card { padding: 1.5rem; }
   }
 
   .input-apple-grouped {
