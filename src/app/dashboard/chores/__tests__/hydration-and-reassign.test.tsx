@@ -70,10 +70,10 @@ describe('ChoresContent server render vs hydration', () => {
     expect(hydrated.html).toContain('data-testid="chores-pending"')
     expect(hydrated.html).not.toContain('Feed the cat')
     expect(hydrated.html).not.toContain('Water plants')
-    expect(hydrated.html).not.toContain('pending</p>')
+    expect(hydrated.html).not.toContain(' to do')
     expect(hydrated.html).not.toContain('All clear!')
     // Not day-based: the parent's check queue renders on the server too.
-    expect(hydrated.html).toContain('Pending Verification')
+    expect(hydrated.html).toContain('To check')
   })
 
   it('hydrates with no mismatch, then filters to the local today', () => {
@@ -82,7 +82,7 @@ describe('ChoresContent server render vs hydration', () => {
     expect(hydrated.errors).toEqual([])
 
     expect(screen.queryByTestId('chores-pending')).toBeNull()
-    expect(screen.getByText('1 pending')).toBeTruthy()
+    expect(screen.getByText(/^1 to do( · \d+ to check)?$/)).toBeTruthy()
     const today = screen.getByText('Today', { selector: 'p' }).closest('section') as HTMLElement
     expect(within(today).getByText('Water plants')).toBeTruthy()
     expect(within(today).getByText('Casey · Today')).toBeTruthy()

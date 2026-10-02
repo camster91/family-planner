@@ -248,7 +248,7 @@ test.describe("Family A parent", () => {
     await page.goto("/dashboard/chores");
     const queue = page
       .locator("section")
-      .filter({ has: page.getByText("Pending Verification") });
+      .filter({ has: page.getByText("To check", { exact: true }) });
     for (const s of STEPS) await expect(queue.getByText(s.title)).toBeVisible();
 
     page.once("dialog", (d) => d.accept("Teeth need another go"));

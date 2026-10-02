@@ -34,7 +34,7 @@ async function ProjectDetailContent({ id }: { id: string }) {
 
   // Same server-side gate as the projects list (route inventory F-2).
   if (!isFeatureEnabled(normalizeFeatures(user?.family?.features), 'projects')) {
-    return <FeatureOffState featureKey="projects" />
+    return <FeatureOffState featureKey="projects" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
   const project = await prisma!.project.findUnique({

@@ -68,6 +68,20 @@ function renderBoard(props: Partial<React.ComponentProps<typeof RewardsBoard>> =
 beforeEach(() => refresh.mockReset())
 
 describe('RewardsBoard', () => {
+  it('lets a parent add another reward once some exist; a child sees no add button', () => {
+    const { unmount } = renderBoard({ isParent: true })
+    expect(screen.getByRole('link', { name: 'Add reward' }).getAttribute('href')).toBe('/dashboard/rewards/create')
+    unmount()
+    renderBoard({ isParent: false })
+    expect(screen.queryByRole('link', { name: 'Add reward' })).toBeNull()
+  })
+
+  it('shows a gift instead of a stored word icon', () => {
+    renderBoard({ rewards: [{ ...MOVIE, icon: 'tv' }] })
+    expect(screen.queryByText('tv')).toBeNull()
+    expect(screen.getAllByText('🎁').length).toBeGreaterThan(0)
+  })
+
   it('claims a reward after confirming, then refreshes the page', async () => {
     const user = userEvent.setup()
     const calls = mockFetch(() => ({ status: 200, body: { reward: {}, xp: 30 } }))

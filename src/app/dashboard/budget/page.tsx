@@ -91,7 +91,7 @@ export default async function BudgetPage() {
   // Server-side gate (route inventory F-2): with Budget off, no transaction or
   // category is read, rendered or serialised. The APIs are gated the same way.
   if (!isFeatureEnabled(normalizeFeatures(user.family?.features), 'budget')) {
-    return <FeatureOffState featureKey="budget" />
+    return <FeatureOffState featureKey="budget" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
   const familyId = user.family_id

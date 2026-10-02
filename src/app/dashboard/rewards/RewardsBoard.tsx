@@ -125,7 +125,7 @@ export default function RewardsBoard({
                 <div key={reward.id} className="card-apple p-5 flex flex-col gap-4" data-testid="claimable-reward">
                   <Glyph color="rewards" size="lg">
                     <span className="text-2xl" aria-hidden="true">
-                      {reward.icon || '🎁'}
+                      {rewardIcon(reward.icon)}
                     </span>
                   </Glyph>
                   <div>
@@ -156,9 +156,17 @@ export default function RewardsBoard({
 
       {/* All family rewards */}
       <section aria-labelledby="family-rewards-heading">
-        <h2 id="family-rewards-heading" className="section-header">
-          All Family Rewards
-        </h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="family-rewards-heading" className="section-header">
+            All Family Rewards
+          </h2>
+          {/* The empty state has its own create button. */}
+          {isParent && rewards.length > 0 && (
+            <Link href="/dashboard/rewards/create" className="btn-tinted min-h-[44px] shrink-0">
+              Add reward
+            </Link>
+          )}
+        </div>
         {rewards.length === 0 ? (
           <EmptyState
             icon={Gift}
@@ -190,7 +198,7 @@ export default function RewardsBoard({
                 <li key={reward.id} className="card-apple p-4 flex flex-wrap items-center gap-4" data-testid="family-reward">
                   <Glyph color="rewards" size="md">
                     <span className="text-lg" aria-hidden="true">
-                      {reward.icon || '🎁'}
+                      {rewardIcon(reward.icon)}
                     </span>
                   </Glyph>
                   <div className="flex-1 min-w-0">
@@ -249,4 +257,9 @@ export default function RewardsBoard({
       </Dialog>
     </>
   )
+}
+
+/** Shows the stored icon only when it is an emoji; older rows hold words like "tv". */
+function rewardIcon(icon: string | null | undefined): string {
+  return icon && /\p{Extended_Pictographic}/u.test(icon) ? icon : '🎁'
 }

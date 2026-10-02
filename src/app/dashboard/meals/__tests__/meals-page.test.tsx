@@ -149,6 +149,19 @@ describe('/dashboard/meals', () => {
     expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual(expect.objectContaining({ notes: 'No onions' }))
   })
 
+  it('moves focus into the meal dialog, and Escape closes it and returns focus', async () => {
+    const user = userEvent.setup()
+    setup({ meals: [] })
+    const card = await todayCard()
+    const opener = within(card).getByRole('button', { name: /^Add breakfast,/ })
+    await user.click(opener)
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+
   it('adds a free-text meal from an empty slot exactly as before', async () => {
     const user = userEvent.setup()
     const { calls } = setup({ meals: [] })

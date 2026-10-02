@@ -66,12 +66,12 @@ function renderPage() {
   )
 }
 
-const queue = () => screen.queryByText('Pending Verification')?.closest('section') as HTMLElement | null
+const queue = () => screen.queryByText('To check')?.closest('section') as HTMLElement | null
 
 describe('ChoresContent parent check', () => {
   it('shows the chores to check before the empty "All clear!" state', () => {
     renderPage()
-    const check = screen.getByText('Pending Verification')
+    const check = screen.getByText('To check')
     const clear = screen.getByText('All clear!')
     expect(check.compareDocumentPosition(clear) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })

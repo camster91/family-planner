@@ -124,7 +124,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
   // Server-side gate (#248): with Rewards off, or Points & streaks off (which
   // Rewards needs), no XP balance or reward cost is rendered or serialised.
   if (!isFeatureEnabled(normalizeFeatures(user?.family?.features), 'rewards')) {
-    return <FeatureOffState featureKey="rewards" />
+    return <FeatureOffState featureKey="rewards" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
   return (

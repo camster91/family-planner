@@ -132,7 +132,7 @@ export default async function ProjectsPage() {
   // read, rendered or serialised. The APIs are gated the same way.
   const familyId = user?.family_id
   if (familyId && !isFeatureEnabled(normalizeFeatures(user?.family?.features), 'projects')) {
-    return <FeatureOffState featureKey="projects" />
+    return <FeatureOffState featureKey="projects" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
   return (

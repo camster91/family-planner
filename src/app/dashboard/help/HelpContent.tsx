@@ -37,7 +37,7 @@ export default function HelpContent({ supportEmail: configured }: { supportEmail
 
   return (
     <div className="pb-20 max-w-2xl mx-auto">
-      <LargeHeader title="Help" subtitle="Quick answers for your family. Contact us if you get stuck." className="px-4" />
+      <LargeHeader title="Help" subtitle={email ? 'Quick answers for your family. Contact us if you get stuck.' : 'Quick answers for your family.'} className="px-4" />
 
       <div className="px-4 space-y-6">
         <Section id="help-start" title="Getting started">

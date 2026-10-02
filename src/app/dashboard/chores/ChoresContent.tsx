@@ -340,6 +340,8 @@ export default function ChoresContent({
     : []
 
   const todayChores = filtered.filter(c => c.status === 'pending' || c.status === 'in_progress')
+  // Done by a child and waiting for a parent's check (any date).
+  const toCheckCount = localChores.filter(c => c.status === 'completed').length
   // Newest first, so "Load more" (older history) continues at the bottom.
   const doneChores = filtered
     .filter(c => c.status === 'completed' || c.status === 'verified')
@@ -369,7 +371,7 @@ export default function ChoresContent({
     <div className="pb-20">
       <LargeHeader
         title="Chores"
-        subtitle={now ? `${todayChores.length} pending` : undefined}
+        subtitle={now ? choresSubtitle(todayChores.length, userRole === 'parent' ? toCheckCount : 0) : undefined}
         trailing={
           <Link href="/dashboard/chores/create" className="btn-filled shrink-0" aria-label="Add chore">
             <Plus className="w-4 h-4" aria-hidden="true" />
@@ -392,7 +394,7 @@ export default function ChoresContent({
           if (pendingVerification.length === 0) return null
           return (
             <section>
-              <p className="section-header">Pending Verification</p>
+              <p className="section-header">To check</p>
               <div className="list-inset">
                 {pendingVerification.map((chore, i) => (
                   <div
@@ -410,7 +412,9 @@ export default function ChoresContent({
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-body text-label-primary truncate">{chore.title}</p>
-                      <p className="text-footnote text-label-secondary">Awaiting verification</p>
+                      <p className="text-footnote text-label-secondary">
+                        {chore.assignee?.name ? `Done by ${chore.assignee.name}` : 'Done, waiting for your check'}
+                      </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -494,11 +498,11 @@ export default function ChoresContent({
                       </Glyph>
                     }
                     meta={
-                      gamification && (chore.points > 0 || (chore.streak && chore.streak >= 3))
+                      gamification && (chore.points > 0 || (chore.streak ?? 0) >= 3)
                         ? (
                           <span className="flex items-center gap-1">
                             {chore.points > 0 && <span className="text-footnote text-label-tertiary">+{chore.points}</span>}
-                            {chore.streak && chore.streak >= 3 && (
+                            {(chore.streak ?? 0) >= 3 && (
                               <span className="flex items-center text-orange-500" title={`${chore.streak} day streak`}>
                                 <Flame className="w-3 h-3 fill-orange-500" />
                                 <span className="text-footnote">{chore.streak}</span>
@@ -594,4 +598,10 @@ export default function ChoresContent({
       )}
     </div>
   )
+}
+
+function choresSubtitle(open: number, toCheck: number): string {
+  const parts = [`${open} to do`]
+  if (toCheck > 0) parts.push(`${toCheck} to check`)
+  return parts.join(' · ')
 }

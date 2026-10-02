@@ -2,9 +2,10 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { Plus, UtensilsCrossed, Coffee, Sun, Moon, X, ChevronRight, BookOpen, Refrigerator } from 'lucide-react'
+import { Plus, UtensilsCrossed, Coffee, Sun, Moon, ChevronRight, BookOpen, Refrigerator } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
+import { Dialog } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RecipePicker, type RecipeOption } from '@/components/meals/RecipePicker'
@@ -93,29 +94,13 @@ function MealModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        data-testid="meal-modal"
-        className="relative bg-[var(--surface-elevated)] rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 space-y-4"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
-            {mode === 'add' ? t('meals.addMeal') : recipe_name || mealLabels[meal_type]}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
-          >
-            <X className="w-5 h-5 text-label-tertiary" aria-hidden="true" />
-          </button>
-        </div>
-
+    <Dialog
+      open
+      onClose={onClose}
+      title={mode === 'add' ? t('meals.addMeal') : recipe_name || mealLabels[meal_type]}
+      testId="meal-modal"
+      className="sm:max-w-md space-y-4"
+    >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor={`${titleId}-date`} className="text-subhead text-label-secondary mb-1 block">{t('meals.date')}</label>
@@ -200,8 +185,7 @@ function MealModal({
         {mode === 'edit' && initial?.id && initial.recipe_id && (recipe?.id ?? null) === initial.recipe_id && (
           <AddToGroceriesButton recipeId={initial.recipe_id} mealId={initial.id} />
         )}
-      </div>
-    </div>
+    </Dialog>
   )
 }
 

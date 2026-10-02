@@ -18,6 +18,8 @@ const Context = React.createContext<{
   setFeature: (key: FeatureKey, enabled: boolean) => Promise<void>
   refresh: () => Promise<void>
   loading: boolean
+  /** Only parents can change features; others get "ask a parent" copy. */
+  canManage: boolean
 } | null>(null)
 
 /** Read the feature blob from the inline <script id="family-features"> tag. */
@@ -39,10 +41,12 @@ function readInitial(): FamilyFeatures {
 export function FeaturesProvider({
   children,
   initial,
+  canManage = true,
 }: {
   children: React.ReactNode
   /** Normalized flags from the server; preferred over the script tag. */
   initial?: FamilyFeatures
+  canManage?: boolean
 }) {
   const [features, setFeatures] = React.useState<FamilyFeatures>(() => initial ?? readInitial())
   const [loading, setLoading] = React.useState(false)
@@ -80,7 +84,7 @@ export function FeaturesProvider({
   }, [])
 
   return (
-    <Context.Provider value={{ features, setFeature, refresh, loading }}>
+    <Context.Provider value={{ features, setFeature, refresh, loading, canManage }}>
       {children}
     </Context.Provider>
   )
@@ -96,6 +100,7 @@ export function useFeatures() {
       setFeature: async () => undefined,
       refresh: async () => undefined,
       loading: false,
+      canManage: true,
     }
   }
   return ctx
