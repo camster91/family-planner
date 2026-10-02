@@ -244,6 +244,8 @@
      - .btn-primary is the same as .btn-filled. Settings, kid home, family,
        join and password-reset screens used it while it was never defined,
        so their main action rendered as bare text (#133).
+     - .btn-secondary is the same as .btn-tinted, for the same reason: join,
+       family, invite, notes and settings used it while it was undefined.
      - Filled and destructive buttons are primary actions: never shorter than
        44px, even when a screen shrinks their padding (AGENTS.md). */
   .btn-filled,
@@ -268,7 +270,8 @@
   .btn-filled:focus-visible,
   .btn-primary:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
-  .btn-tinted {
+  .btn-tinted,
+  .btn-secondary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -282,13 +285,19 @@
     font-size: 15px;
     transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
-  .btn-tinted:active { transform: scale(0.97); }
-  .btn-tinted:hover { background: var(--accent-tint-strong); }
-  .btn-tinted:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .btn-tinted:active,
+  .btn-secondary:active { transform: scale(0.97); }
+  .btn-tinted:hover,
+  .btn-secondary:hover { background: var(--accent-tint-strong); }
+  .btn-tinted:focus-visible,
+  .btn-secondary:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
   /* Same dimming as .btn-filled; no hover/press feedback while unavailable. */
-  .btn-tinted:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-tinted:disabled:hover { background: var(--accent-tint); }
-  .btn-tinted:disabled:active { transform: none; }
+  .btn-tinted:disabled,
+  .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-tinted:disabled:hover,
+  .btn-secondary:disabled:hover { background: var(--accent-tint); }
+  .btn-tinted:disabled:active,
+  .btn-secondary:disabled:active { transform: none; }
 
   .btn-plain {
     display: inline-flex;

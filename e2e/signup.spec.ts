@@ -452,7 +452,7 @@ test.describe("new household sign-up journey", () => {
         await page.goto("/dashboard/chores");
         const queue = page
           .locator("section")
-          .filter({ has: page.getByText("Pending Verification") });
+          .filter({ has: page.getByText("To check", { exact: true }) });
         await expect(queue.getByText(x.chore)).toBeVisible();
         const checked = page.waitForResponse(
           (r) =>
@@ -466,7 +466,9 @@ test.describe("new household sign-up journey", () => {
         await expect(
           page.getByText("Chore verified", { exact: true }).first(),
         ).toBeVisible();
-        await expect(page.getByText("Pending Verification")).toHaveCount(0);
+        await expect(page.getByText("To check", { exact: true })).toHaveCount(
+          0,
+        );
         await expectNoHorizontalOverflow(page, "chores page (verified)");
 
         const chore = await withDb((db) =>

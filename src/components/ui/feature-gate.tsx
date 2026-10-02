@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Lock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { useFeatureEnabled } from '@/components/providers/features-provider'
+import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
 import type { FeatureKey } from '@/lib/features'
 import { FEATURES } from '@/lib/features'
 
@@ -22,14 +22,27 @@ export function FeatureGate({
 
   if (enabled) return <>{children}</>
 
-  return <FeatureOffState featureKey={featureKey} />
+  return <ClientFeatureOffState featureKey={featureKey} />
+}
+
+/** The off state with the viewer's role from the features provider. */
+function ClientFeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
+  const { canManage } = useFeatures()
+  return <FeatureOffState featureKey={featureKey} canManage={canManage} />
 }
 
 /**
  * The calm "this is off" state. No hooks, so server components can render it
  * too (the rewards page gates on the server, #248).
  */
-export function FeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
+export function FeatureOffState({
+  featureKey,
+  canManage = true,
+}: {
+  featureKey: FeatureKey
+  /** False for teens and children: they cannot open Features, so no button. */
+  canManage?: boolean
+}) {
   const meta = FEATURES.find((f) => f.key === featureKey)
 
   return (
@@ -39,15 +52,18 @@ export function FeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
       </div>
       <h2 className="text-title-2 mb-2">{meta?.title ?? 'Feature'} is off</h2>
       <p className="text-body text-label-secondary mb-6">
-        {meta?.title ?? 'This feature'} is turned off for your family. A parent can turn it on in Features settings.
+        {meta?.title ?? 'This feature'} is turned off for your family.{' '}
+        {canManage ? 'You can turn it on in Features settings.' : 'Ask a parent to turn it on.'}
       </p>
-      <Link
-        href="/dashboard/features"
-        className="btn-filled"
-      >
-        Open Features
-        <ChevronRight className="w-4 h-4" />
-      </Link>
+      {canManage && (
+        <Link
+          href="/dashboard/features"
+          className="btn-filled"
+        >
+          Open Features
+          <ChevronRight className="w-4 h-4" />
+        </Link>
+      )}
     </div>
   )
 }

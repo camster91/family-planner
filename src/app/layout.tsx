@@ -3,9 +3,7 @@ import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
-// Side-effect import: patches window.fetch on the client to auto-inject
-// the CSRF token on state-changing API requests. Loaded once, lives forever.
-import '@/lib/fetch-csrf'
+import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -78,6 +76,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans">
+        <CsrfFetchPatch />
         <ThemeProvider>
           <PostHogProvider>
             <ToastProvider>

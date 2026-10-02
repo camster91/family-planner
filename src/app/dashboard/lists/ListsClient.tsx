@@ -89,9 +89,8 @@ export default function ListsClient({ lists, familyName, canCreate = true, initi
   return (
     <div className="pb-20">
       <LargeHeader
-        greeting="Family"
-        title={familyName}
-        subtitle="Shared Lists"
+        greeting={familyName}
+        title="Lists"
         trailing={
           canCreate ? (
             <Link href={createHref} className="btn-tinted" aria-label="Add list">
