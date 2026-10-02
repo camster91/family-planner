@@ -432,7 +432,7 @@ test.describe("Shared tablet", () => {
   }, testInfo) => {
     const parent = await openContext(browser, testInfo, authFile("parentA"));
     try {
-      // PIN set in Settings → Privacy & Security → Tablet PIN; common PINs are refused.
+      // PIN set in Settings → Family → Family tablet → Tablet PIN; common PINs are refused.
       await setPinViaSettings(parent.page, "123456");
       await expect(parent.page.getByTestId("pin-dialog")).toContainText(
         "too easy to guess",
@@ -760,7 +760,7 @@ test.describe("Shared tablet", () => {
       await teen.page.goto("/dashboard/settings");
       await expect(teen.page).toHaveURL(/\/dashboard\/settings$/);
       await expect(
-        teen.page.getByRole("heading", { name: "Privacy & Security" }),
+        teen.page.getByRole("heading", { name: "Privacy & data" }),
       ).toBeVisible();
       await expect(teen.page.getByText("Tablet PIN")).toHaveCount(0);
       await expect(

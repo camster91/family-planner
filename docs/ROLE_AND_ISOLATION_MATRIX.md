@@ -218,7 +218,7 @@ on the kid allowlist); the command palette offers "Search the household" only to
 | Action | Parent | Teen | Child | Shared device | Notes |
 |---|---|---|---|---|---|
 | Read the household's history | yes | no (403) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth; not on the device allowlist) | Own household only; newest first; cursor-paged, 1–50 per page; `private, no-store`. Reading prunes the household's rows older than 12 months. |
-| Open Recent changes | yes | no (redirect: a teen may open only the Settings page itself, never a sub-route; page re-checks the role) | no | no | Linked from Settings → Privacy & Security for parents only. |
+| Open Recent changes | yes | no (redirect: a teen may open only the Settings page itself, never a sub-route; page re-checks the role) | no | no | Linked from Settings → Family for parents only. |
 | Rows written | a parent's feature toggles, board-settings changes, invites created/cancelled, tablet pair/rename/remove, beta usage counts on/off (#287), a new family code and a removed member (O-34) | — (they cannot make these changes) | — | the elevated parent's rename, removal and board-settings changes on the tablet (`actor_kind: device`) | Also `member.joined` for anyone who joins by code, invite or invite registration (their own row, with their role), and `member.left` (role word only, no actor) when a member deletes their account. Same transaction as the change. |
 | Export (`GET /api/users/export`) | every row of the last 12 months | only rows they acted in | only rows they acted in | — | No `family_id` in the export. |
 
@@ -227,7 +227,7 @@ token, place or colour. An actor who has left the household is shown as "A forme
 
 ### Beta usage counts (#287, PR101 D-6)
 
-`PATCH /api/family/beta-metrics` and the "Share beta usage counts" switch in Settings → Privacy & Security.
+`PATCH /api/family/beta-metrics` and the "Share beta usage counts" switch in Settings → Privacy & data.
 Counts only (`BetaMetricDaily`: household, UTC day, fixed metric name, count), off by default.
 
 | Action | Parent | Teen | Child | Shared device | Notes |
@@ -362,7 +362,7 @@ renders by `viewerRole`):
 | Change Password | yes | yes | `POST /api/auth/change-password`: own account |
 | Data Export | yes | yes | `GET /api/users/export`: own export, role-shaped (see "Account export") |
 | Delete Account | yes (household option when the only parent) | own account only | `DELETE /api/users`; household deletion is parent-only (403) |
-| AI capture key | yes | not rendered, not fetched | `/api/family/ai-settings`: parent only (403) |
+| AI capture key | yes | not rendered, not fetched | `/api/family/ai-settings`: parent only (403). The parent form is shown only with `CAPTURE_AI_SETTINGS_ENABLED` on, or when a key is already saved. |
 | Calendar feed link | yes | not rendered, not fetched | `/api/family/feed-token`: parent only (403) |
 | Subscribed calendars, Connected calendars | yes | not rendered | `/api/calendar/subscriptions/**` add/edit/remove parent only; sync `PARENT_REQUIRED` |
 | Features, Import family apps, Recent changes links | yes | not rendered (pages redirect a teen) | `PATCH /api/family/features`, `/api/admin/imports`, `GET /api/audit`: parent only (403) |

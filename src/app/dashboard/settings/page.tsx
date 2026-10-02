@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { isParentRole } from '@/lib/role-capabilities'
 import { isSharedDeviceEnabled } from '@/lib/device-http'
 import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
+import { isCaptureAiSettingsEnabled } from '@/lib/capture-settings-flag'
 import SettingsClient, { type SettingsViewerRole } from './SettingsClient'
 
 export const metadata: Metadata = { title: 'Settings' }
@@ -18,7 +19,10 @@ export const dynamic = 'force-dynamic'
  *
  * - Parent: everything, including the shared-tablet entries (Devices, Tablet
  *   PIN, #241: kill switch on AND a parent) and the household's beta usage
- *   counts switch (#287).
+ *   counts switch (#287). The "AI capture" key form only when
+ *   CAPTURE_AI_SETTINGS_ENABLED is on, or the household already saved a key
+ *   (so it can still be removed); only the fact that a key exists is read
+ *   here, never the key.
  * - Teen (O-37): personal sections only. Nothing household-level is read here
  *   or serialised to the page: no PIN presence, no beta switch, no calendar
  *   sync flag. The client also skips the parent-only fetches (AI key hint,
@@ -39,6 +43,7 @@ export default async function SettingsPage() {
 
   let sharedDevice: { hasPin: boolean } | null = null
   let betaMetrics: { enabled: boolean } | null = null
+  let aiCaptureSettings = false
   const parentFamilyId = viewerRole === 'parent' ? (profile?.family_id ?? null) : null
   if (parentFamilyId) {
     if (isSharedDeviceEnabled()) {
@@ -50,9 +55,10 @@ export default async function SettingsPage() {
     }
     const family = await prisma!.family.findUnique({
       where: { id: parentFamilyId },
-      select: { beta_metrics_enabled: true },
+      select: { beta_metrics_enabled: true, capture_ai_key_enc: true },
     })
     if (family) betaMetrics = { enabled: family.beta_metrics_enabled }
+    aiCaptureSettings = isCaptureAiSettingsEnabled() || Boolean(family?.capture_ai_key_enc)
   }
   // Two-way calendar sync (#264) is dormant unless configured; the section
   // is not even mounted while it is off (its API would answer 404).
@@ -62,6 +68,7 @@ export default async function SettingsPage() {
       sharedDevice={sharedDevice}
       betaMetrics={betaMetrics}
       calendarSync={viewerRole === 'parent' && isCalendarSyncEnabled()}
+      aiCaptureSettings={aiCaptureSettings}
     />
   )
 }

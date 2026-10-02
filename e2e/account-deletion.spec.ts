@@ -196,7 +196,7 @@ test.describe("account and household deletion", () => {
     await page.waitForURL(/\/dashboard/);
     await page.goto("/dashboard/settings");
     await expect(
-      page.getByRole("heading", { name: "Privacy & Security" }),
+      page.getByRole("heading", { name: "Privacy & data" }),
     ).toBeVisible();
     await expect(page.getByText(/Two-Factor/i)).toHaveCount(0);
 

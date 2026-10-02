@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-// Settings → Privacy & Security (F-3, D-3): every control does something.
+// Settings → Privacy & data (F-3, D-3): every control does something.
 // No Two-Factor Authentication entry (the app has no 2FA); Data Export
 // downloads GET /api/users/export; Delete Account opens the in-page dialog.
 import * as React from 'react'
@@ -54,7 +54,7 @@ describe('Settings privacy controls', () => {
   it('has no Two-Factor Authentication control', async () => {
     mockApi()
     render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
-    expect(await screen.findByRole('heading', { name: 'Privacy & Security' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Privacy & data' })).toBeTruthy()
     expect(screen.queryByText(/Two-Factor/i)).toBeNull()
   })
 

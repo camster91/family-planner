@@ -61,7 +61,7 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 | `/dashboard/settings` | P | no | sections by env: calendar sync, shared device | Utility (user menu) | `/api/users` (incl. `DELETE`, D-3), `/api/users/deletion`, `/api/users/export`, `/api/family` (`DELETE`, only parent), `/api/auth/change-password`, `/api/family/ai-settings`, `/api/family/feed-token`, `/api/calendar/*`, `/api/users/elevation-pin`, `/api/users/preferences` (#286; teens and children reach it from the user menu) | 4 |
 | `/dashboard/settings/devices` | P | manages devices | `SHARED_DEVICE_ENABLED` (`notFound()` while off) | Settings | `/api/family/devices*` | 4, 7 |
 | `/dashboard/settings/imports` | P | no | — | Settings | `POST /api/admin/imports/[source]` | 4 |
-| `/dashboard/settings/activity` | P | no | — | Settings → Privacy & Security "Recent changes" (parents) | `GET /api/audit` (#285) | 1 |
+| `/dashboard/settings/activity` | P | no | — | Settings → Family "Recent changes" (parents) | `GET /api/audit` (#285) | 1 |
 | `/dashboard/search` | P | no | — (per type in the API) | Utility (top bar link; command palette "Search the household") | `GET /api/search` (F-3 search part fixed) | 1 |
 | `/dashboard/notifications` | P | no | — | Utility (bell) | `/api/notifications` | 1 |
 | `/dashboard/emergency` | all (edit P) | no | `emergency` | Tab (T/C); Family → Emergency (P) | `/api/emergency-contacts*` | 5 |

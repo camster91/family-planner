@@ -103,7 +103,7 @@ export default function PrivacyPage() {
             <p>
               While Family Planner is in a small beta, a parent can choose to share usage counts so we can check the
               app is working for families. They are off unless a parent turns them on under Settings, Privacy &amp;
-              Security, &quot;Share beta usage counts&quot;. When they are on, we keep one number per day for your
+              data, &quot;Share beta usage counts&quot;. When they are on, we keep one number per day for your
               household for each of these: events added, meals planned, chores assigned, chores completed, chores
               checked by a parent, rewards claimed, members who joined, and whether the household&apos;s first chore
               was assigned within 10 minutes of signing up. That is all: no names, no user accounts, no roles, no

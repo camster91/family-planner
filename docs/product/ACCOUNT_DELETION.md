@@ -66,7 +66,7 @@ Request/response contract: `docs/architecture/API_CONTRACTS.md` "Account and hou
 
 ### Where it is in the app
 
-Settings → Privacy & Security → **Delete Account** (and the same dialog from Family settings → Danger Zone). The
+Settings → Privacy & data → **Delete Account** (and the same dialog from Family settings → Danger Zone). The
 dialog is built in the page (no browser `confirm`):
 
 1. It loads `GET /api/users/deletion` and decides the mode: own account, or (only parent) the whole household.
@@ -76,7 +76,7 @@ dialog is built in the page (no browser `confirm`):
    both are filled in and the text matches.
 4. On success the browser goes to `/login?deleted=account|household`, which says so.
 
-Teens (O-37) delete their own account from their own Settings → Privacy & Security → Delete Account, which opens
+Teens (O-37) delete their own account from their own Settings → Privacy & data → Delete Account, which opens
 the same dialog with household deletion switched off. Children cannot open Settings (`src/lib/kid-access.ts`). They
 find **Delete my account** in the user menu
 (the avatar button in the top bar, on every page they can reach), which opens the same dialog with household deletion

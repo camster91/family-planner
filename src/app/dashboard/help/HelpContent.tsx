@@ -135,7 +135,7 @@ export default function HelpContent({
               Forgot password
             </PageLink>{' '}
             to get a reset link by email. The link works for one hour. If you know your password
-            and want a new one, use Settings → Privacy &amp; Security → Change Password.
+            and want a new one, use Settings → Your account → Change Password.
           </Item>
           <Item title="The confirmation email did not arrive">
             Check your spam or junk folder. On the sign-in page you can ask for a new one. The newest link is the one
@@ -149,10 +149,10 @@ export default function HelpContent({
             <PageLink href="/dashboard/settings" role={role}>
               Settings
             </PageLink>{' '}
-            → Privacy &amp; Security → Data Export. Each family member downloads their own copy.
+            → Privacy &amp; data → Data Export. Each family member downloads their own copy.
           </Item>
           <Item title="Delete your account or household">
-            In Settings → Privacy &amp; Security, choose Delete Account. If you are the only parent, you can delete
+            In Settings → Privacy &amp; data, choose Delete Account. If you are the only parent, you can delete
             the whole household. With two parents, each parent deletes their own account first, and the last one can
             then delete the household. Deleted data stays in our backups for up to about five weeks, then it is gone.
           </Item>

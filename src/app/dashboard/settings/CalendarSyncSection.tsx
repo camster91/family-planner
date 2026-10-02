@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarSync, Link2, RefreshCw, Unlink } from "lucide-react";
 import { describeCalendarSync } from "@/lib/calendar-sync-status";
 import { useNow } from "@/components/fridge/sync-status";
+import SettingsDisclosure from "./SettingsDisclosure";
+import SettingsIcon from "./SettingsIcon";
 
 interface Provider {
   id: string;
@@ -235,20 +237,15 @@ export default function CalendarSyncSection() {
   const connectable = providers.filter((p) => !mineByProvider.has(p.id));
 
   return (
-    <div id="calendar-sync" className="card" aria-labelledby="calendar-sync-heading">
-      <div className="flex items-center mb-6">
-        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center mr-4 shrink-0">
-          <CalendarSync className="w-5 h-5 text-emerald-700" aria-hidden="true" />
-        </div>
-        <div>
-          <h2 id="calendar-sync-heading" className="text-xl font-semibold text-gray-900">
-            Connected calendars
-          </h2>
-          <p className="text-gray-600">
-            Two-way sync with your own Google or Outlook calendar. Changes on either side show up on both.
-          </p>
-        </div>
-      </div>
+    <SettingsDisclosure
+      id="calendar-sync"
+      headingId="calendar-sync-heading"
+      title="Connected calendars"
+      description="Two-way sync with your own Google or Outlook calendar"
+      icon={<SettingsIcon icon={CalendarSync} tone="emerald" />}
+      forceOpen={Boolean(notice || error)}
+    >
+      <p className="text-sm text-gray-600 mb-4">Changes on either side show up on both.</p>
 
       {connections.length === 0 ? (
         <p className="text-sm text-gray-600 mb-4">No connected calendars yet.</p>
@@ -426,6 +423,6 @@ export default function CalendarSyncSection() {
         {error && <p className="text-sm text-red-700">{error}</p>}
         {notice && <p className="text-sm text-green-700">{notice}</p>}
       </div>
-    </div>
+    </SettingsDisclosure>
   );
 }

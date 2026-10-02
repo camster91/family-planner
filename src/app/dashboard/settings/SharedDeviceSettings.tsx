@@ -26,7 +26,7 @@ function minutes(seconds: number | null): string {
 }
 
 /**
- * Settings → Privacy & Security entries for shared tablets (#241): the
+ * Settings → Family → Family tablet entries for shared tablets (#241): the
  * Devices page and the parent's own Tablet PIN (SHARED_DEVICE.md §6.1, §7).
  * Rendered only for parents while the kill switch is on (decided server-side
  * in ./page.tsx).

@@ -90,7 +90,7 @@ Use an owner-controlled test inbox and a throwaway account. Record only non-secr
 5. **Invite.** From the test household, invite a second test address. It arrives, and joining works.
 6. **Throttling.** Six "Forgot password" requests from one IP within an hour: the sixth answers 429. Resend-verification has the same limit.
 7. **Headers.** In the received email, "Show original": SPF pass, DKIM pass, DMARC pass. No `email.<subdomain>` tracking links.
-8. **Clean up.** Delete the throwaway household: Settings → Privacy & Security → Delete Account (`docs/product/ACCOUNT_DELETION.md`).
+8. **Clean up.** Delete the throwaway household: Settings → Privacy & data → Delete Account (`docs/product/ACCOUNT_DELETION.md`).
 
 ## When it breaks
 
