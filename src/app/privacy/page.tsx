@@ -188,7 +188,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Contact</h2>
             <p>
-              For privacy questions or to exercise your rights: <a href="mailto:privacy@ashbi.ca" className="text-blue-600 hover:underline">privacy@ashbi.ca</a>
+              For privacy questions or to exercise your rights: <a href="mailto:privacy@ashbi.ca" className="text-blue-600 underline underline-offset-2">privacy@ashbi.ca</a>
             </p>
           </section>
         </div>
