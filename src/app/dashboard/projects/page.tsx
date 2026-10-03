@@ -93,7 +93,7 @@ async function ProjectsContent({ familyId }: { familyId: string }) {
             title="No projects yet"
             description="Organize family goals, home projects, or any collaborative effort."
             action={
-              <Link href="/dashboard/projects/create" className="btn-tinted bg-projects px-5 py-2 text-base font-medium">
+              <Link href="/dashboard/projects/create" className="btn-tinted bg-tint-projects text-white px-5 py-2 text-base font-medium">
                 Create Project
               </Link>
             }
@@ -142,7 +142,7 @@ export default async function ProjectsPage() {
         subtitle="Track family goals and collaborative tasks"
         className="px-4"
         trailing={
-          <Link href="/dashboard/projects/create" className="btn-tinted bg-projects px-4 py-2 text-sm font-medium">
+          <Link href="/dashboard/projects/create" className="btn-tinted bg-tint-projects text-white px-4 py-2 text-sm font-medium">
             New
           </Link>
         }

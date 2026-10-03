@@ -62,7 +62,7 @@ export function SendToCalendarButton({ projectId }: { projectId: string }) {
       onClick={send}
       disabled={sending}
       aria-busy={sending || undefined}
-      className="btn-tinted bg-projects min-h-[44px] px-4 py-2 text-sm font-medium shrink-0 disabled:opacity-60"
+      className="btn-tinted bg-tint-projects text-white min-h-[44px] px-4 py-2 text-sm font-medium shrink-0 disabled:opacity-60"
     >
       {sending ? 'Sending…' : 'Send to Calendar'}
     </button>

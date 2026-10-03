@@ -160,7 +160,7 @@ function CreateProjectForm() {
               className={cn(
                 'w-full py-3 rounded-xl text-base font-semibold transition-all duration-200',
                 name.trim() && !loading
-                  ? 'bg-projects text-white hover:bg-projects/90'
+                  ? 'bg-tint-projects text-white hover:opacity-90'
                   : 'bg-muted text-label-tertiary cursor-not-allowed',
               )}
             >

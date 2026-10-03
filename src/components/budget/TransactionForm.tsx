@@ -429,7 +429,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
                 disabled={busy}
-                className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 rounded-xl text-subhead font-medium text-label-destructive hover:bg-[var(--surface-secondary)] disabled:opacity-40"
+                className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 rounded-xl text-subhead font-medium text-danger-text hover:bg-[var(--surface-secondary)] disabled:opacity-40"
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
                 Delete transaction

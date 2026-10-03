@@ -73,7 +73,7 @@ export default function ProjectCard({ project, className }: ProjectCardProps) {
         <div className="space-y-1.5 mt-auto">
           <div className="h-1 rounded-full bg-surface-fill overflow-hidden">
             <div
-              className={cn('h-full rounded-full transition-all duration-700 ease-out', isComplete ? 'bg-success' : 'bg-projects')}
+              className={cn('h-full rounded-full transition-all duration-700 ease-out', isComplete ? 'bg-success' : 'bg-tint-projects')}
               style={{ width: `${percent}%` }}
             />
           </div>

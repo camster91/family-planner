@@ -673,7 +673,7 @@ function SickDaysPageInner() {
                 type="button"
                 onClick={endSickness}
                 disabled={saving}
-                className="w-full btn-ghost min-h-[44px] text-label-destructive disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full btn-ghost min-h-[44px] text-danger-text disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {t('sickDays.endSickness')}
               </button>

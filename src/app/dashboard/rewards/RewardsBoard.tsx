@@ -143,7 +143,7 @@ export default function RewardsBoard({
                     aria-label={canClaim ? `Claim ${reward.name}` : undefined}
                     className={cn(
                       'btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold',
-                      canClaim ? 'bg-rewards' : 'bg-muted text-label-tertiary cursor-not-allowed'
+                      canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed'
                     )}
                   >
                     {canClaim ? 'Claim Reward' : `Need ${reward.cost - userXp} more XP`}
@@ -180,7 +180,7 @@ export default function RewardsBoard({
               isParent ? (
                 <Link
                   href="/dashboard/rewards/create"
-                  className="btn-tinted bg-rewards min-h-[44px] px-5 py-2 text-base font-medium"
+                  className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium"
                 >
                   Create Reward
                 </Link>

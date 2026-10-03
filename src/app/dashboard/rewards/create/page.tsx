@@ -122,7 +122,7 @@ function CreateRewardPageContent() {
                 onClick={() => setIcon(emoji)}
                 className={`w-11 h-11 rounded-xl text-xl flex items-center justify-center transition-all duration-150 ${
                   icon === emoji
-                    ? 'bg-rewards text-white ring-2 ring-rewards ring-offset-1'
+                    ? 'bg-tint-rewards text-white ring-2 ring-tint-rewards ring-offset-1'
                     : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
                 }`}
               >
@@ -136,7 +136,7 @@ function CreateRewardPageContent() {
           <button
             type="submit"
             disabled={loading || !name.trim()}
-            className="btn-tinted bg-rewards w-full py-3 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-tinted bg-tint-rewards text-white w-full py-3 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating...' : 'Create Reward'}
           </button>

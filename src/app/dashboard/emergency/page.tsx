@@ -170,7 +170,7 @@ function AddEditModal({
     <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         {error && (
-          <p role="alert" className="text-footnote text-label-destructive">
+          <p role="alert" className="text-footnote text-danger-text">
             {error}
           </p>
         )}
@@ -248,7 +248,7 @@ function AddEditModal({
           <button
             type="button"
             onClick={onDelete}
-            className="px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
+            className="px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
             {t('emergency.delete')}
