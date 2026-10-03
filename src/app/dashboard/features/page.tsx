@@ -8,7 +8,7 @@ import { FEATURES, groupFeatures, isFeatureEnabled, type FeatureKey, type Featur
 
 const GROUP_LABELS: Record<FeatureMeta['group'], { title: string; sub: string }> = {
   core: { title: 'Core', sub: 'Always on. These keep the app working.' },
-  planning: { title: 'Planning', sub: 'Mostly on by default. Turn off what you do not use.' },
+  planning: { title: 'Planning', sub: 'Turn on what helps your family. Turn off what you do not use.' },
   family: { title: 'Family life', sub: 'Off by default. Turn on to add to your dashboard.' },
 }
 

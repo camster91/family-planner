@@ -118,7 +118,7 @@ describe('tab model', () => {
 
 describe('More list', () => {
   it('lists Chores plus only the features that are on, never a tab', () => {
-    const f = { ...defaultFeatures(), inventory: true, budget: false, pickups: true, gamification: false }
+    const f = { ...defaultFeatures(), inventory: true, notes: true, budget: false, pickups: true, gamification: false }
     const keys = moreItemsFor('parent', f).map((i) => i.key)
     expect(keys[0]).toBe('chores')
     expect(keys).toEqual(expect.arrayContaining(['emergency', 'inventory', 'notes', 'pickups']))

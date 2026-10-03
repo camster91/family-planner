@@ -7,6 +7,7 @@ import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import HomeSummary from '@/components/dashboard/HomeSummary'
 import GetStarted from '@/components/dashboard/GetStarted'
+import FeatureSuggestions from '@/components/dashboard/FeatureSuggestions'
 import { loadTodayBoard } from './board-snapshot'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { loadHomeSummary } from './home-summary-data'
@@ -30,7 +31,9 @@ export const dynamic = 'force-dynamic'
  * sentence and their own tickable chores above the board (#268,
  * ./home-summary-data.ts). Fridge mode is the shared surface, so it shows the
  * board alone. A parent of a household that is not set up yet also gets a
- * "Get started" card on top (./get-started-data.ts).
+ * "Get started" card on top (./get-started-data.ts); once that is done or
+ * hidden, a "Turn on more" card suggests a few sections that are still off
+ * (O-38, components/dashboard/FeatureSuggestions.tsx).
  */
 export default async function TodayBoardPage({
   searchParams,
@@ -95,6 +98,9 @@ export default async function TodayBoardPage({
     <>
       {getStarted && !allStepsDone(getStarted) && (
         <GetStarted viewer={viewer} familyId={familyId} steps={getStarted} />
+      )}
+      {getStarted && (
+        <FeatureSuggestions viewer={viewer} familyId={familyId} setupDone={allStepsDone(getStarted)} />
       )}
       <HomeSummary viewer={viewer} {...home} />
       <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />

@@ -53,6 +53,19 @@ function subscribe(onChange: () => void): () => void {
 }
 
 /**
+ * Whether a parent hid the Get started card for this household in this
+ * browser. The "Turn on more" card (./FeatureSuggestions.tsx) waits for it.
+ * False on the server and during hydration.
+ */
+export function useGetStartedHidden(familyId: string): boolean {
+  return React.useSyncExternalStore(
+    subscribe,
+    () => readHidden(familyId),
+    () => false
+  )
+}
+
+/**
  * The parent's first steps on a new household's Today board: invite the
  * family, add a chore, add an event. Each step is ticked from real household
  * data (./get-started-data.ts). The card goes away once all three are done,
@@ -64,11 +77,7 @@ function subscribe(onChange: () => void): () => void {
  */
 export default function GetStarted({ viewer, familyId, steps }: GetStartedProps) {
   const showUndo = useUndoToast()
-  const stored = React.useSyncExternalStore(
-    subscribe,
-    () => readHidden(familyId),
-    () => false
-  )
+  const stored = useGetStartedHidden(familyId)
   // Hidden for this visit even if storage refused the write.
   const [hiddenNow, setHiddenNow] = React.useState(false)
   const headingId = React.useId()

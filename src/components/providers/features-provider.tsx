@@ -16,6 +16,12 @@ import { defaultFeatures, isFeatureEnabled, normalizeFeatures, type FeatureKey, 
 const Context = React.createContext<{
   features: FamilyFeatures
   setFeature: (key: FeatureKey, enabled: boolean) => Promise<void>
+  /**
+   * Change several flags in one request (PATCH `{ features }`), optimistically.
+   * Used where one choice needs two flags, e.g. Rewards needs Points & streaks.
+   * Only the named keys change; on failure they are put back and it throws.
+   */
+  updateFeatures: (changes: Partial<FamilyFeatures>) => Promise<void>
   refresh: () => Promise<void>
   loading: boolean
   /** Only parents can change features; others get "ask a parent" copy. */
@@ -50,6 +56,11 @@ export function FeaturesProvider({
 }) {
   const [features, setFeatures] = React.useState<FamilyFeatures>(() => initial ?? readInitial())
   const [loading, setLoading] = React.useState(false)
+  // Latest flags for updateFeatures' rollback (read in an event, not render).
+  const featuresRef = React.useRef(features)
+  React.useEffect(() => {
+    featuresRef.current = features
+  }, [features])
 
   const refresh = React.useCallback(async () => {
     setLoading(true)
@@ -83,8 +94,27 @@ export function FeaturesProvider({
     }
   }, [])
 
+  const updateFeatures = React.useCallback(async (changes: Partial<FamilyFeatures>) => {
+    const before: Partial<FamilyFeatures> = {}
+    for (const k of Object.keys(changes) as FeatureKey[]) before[k] = featuresRef.current[k]
+    setFeatures((prev) => ({ ...prev, ...changes }))
+    try {
+      const res = await fetch('/api/family/features', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ features: changes }),
+      })
+      if (!res.ok) throw new Error('Failed to update features')
+      const data = await res.json()
+      setFeatures(normalizeFeatures(data.features))
+    } catch (err) {
+      setFeatures((prev) => ({ ...prev, ...before }))
+      throw err
+    }
+  }, [])
+
   return (
-    <Context.Provider value={{ features, setFeature, refresh, loading, canManage }}>
+    <Context.Provider value={{ features, setFeature, updateFeatures, refresh, loading, canManage }}>
       {children}
     </Context.Provider>
   )
@@ -98,6 +128,7 @@ export function useFeatures() {
     return {
       features: defaultFeatures(),
       setFeature: async () => undefined,
+      updateFeatures: async () => undefined,
       refresh: async () => undefined,
       loading: false,
       canManage: true,

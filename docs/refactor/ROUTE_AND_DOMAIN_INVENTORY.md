@@ -90,19 +90,21 @@ Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep b
 
 ## Feature flags (`src/lib/features.ts`)
 
+New households start simple ([O-38](../decisions/PROVISIONAL_OWNER_DECISIONS.md), 2026-10-03): only `chores`, `calendar`, `lists`, `family`, `meals` and `emergency` are on. "On for pre-O-38 households" means a household that existed before the change keeps the section on, including one whose stored blob is empty or lacks the key (`legacyDefault`); nothing stored is rewritten.
+
 | Feature | Default (new household) | Page | API gate | Disposition |
 |---|---|---|---|---|
 | `chores`, `calendar`, `lists`, `family` | core, always on | yes | `lists` gated (O-11); others core | 1 |
 | `meals` | on | `/dashboard/meals` | `featureGate('meals')` on meals, recipes, from-recipe, cook | 1 |
 | `inventory` | off (also for existing households) | `/dashboard/inventory` | `featureGate('inventory')`; scan also needs its key | 7 |
-| `notes` | on | `/dashboard/notes` | yes | 1 (F-1 fixed) |
-| `anniversaries` | on | yes | yes | 1 |
+| `notes` | off; on for pre-O-38 households | `/dashboard/notes` | yes | 1 (F-1 fixed) |
+| `anniversaries` | off; on for pre-O-38 households | yes | yes | 1 |
 | `gamification` | off; on for pre-#248 households | setting, not a page | hides fields (`isGamificationOn`) | 7 |
-| `rewards` | on, requires `gamification` | yes | yes | 7 |
-| `analytics` | on, requires `gamification` | yes | yes | 7 |
-| `budget` | on | yes (F-2 fixed) | yes | 4 |
-| `projects` | on | yes (F-2 fixed) | yes | 1 |
-| `messages` | on | yes (F-2 fixed) | yes | 1 |
+| `rewards` | off (on for pre-O-38 households), requires `gamification` | yes | yes | 7 |
+| `analytics` | off (on for pre-O-38 households), requires `gamification` | yes | yes | 7 |
+| `budget` | off; on for pre-O-38 households | yes (F-2 fixed) | yes | 4 |
+| `projects` | off; on for pre-O-38 households | yes (F-2 fixed) | yes | 1 |
+| `messages` | off; on for pre-O-38 households | yes (F-2 fixed) | yes | 1 |
 | `emergency` | on | yes | yes | 5 (kid-readable by design) |
 | `wishlist` | off | yes | yes | 5, 7 |
 | `locations` | off | yes | yes | 4, 7 |

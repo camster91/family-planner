@@ -18,7 +18,9 @@
  *    No app code or test-only switch is involved.
  * 3. The parent signs in, lands on onboarding, creates the household and is
  *    sent to the Today board (empty chores region, and a "Get started" card
- *    with three steps, none done).
+ *    with three steps, none done). The household is stored with only the six
+ *    sections a new household starts with (O-38) and no "Turn on more" card
+ *    shows while Get started is open.
  * 4. Settings → Invite → "In person instead" shows the family code (the one
  *    stored for the new household).
  * 5. The child registers and verifies the same way in a second browser
@@ -324,11 +326,18 @@ test.describe("new household sign-up journey", () => {
       ).toHaveAttribute("href", "/dashboard/calendar/create");
       // The board's chores region already says there are none; no second card repeats it.
       await expect(page.getByTestId("home-summary")).toHaveCount(0);
+      // "Turn on more" (O-38) waits until Get started is done or hidden.
+      await expect(page.getByTestId("feature-suggestions")).toHaveCount(0);
       await expectNoHorizontalOverflow(page, "Today board (new household)");
 
       const row = await withDb((db) =>
-        db.query<{ family_id: string; role: string; invite_code: string }>(
-          `SELECT u.family_id, u.role, f.invite_code
+        db.query<{
+          family_id: string;
+          role: string;
+          invite_code: string;
+          features: Record<string, boolean>;
+        }>(
+          `SELECT u.family_id, u.role, f.invite_code, f.features
              FROM "User" u JOIN "Family" f ON f.id = u.family_id
             WHERE u.email = $1 AND f.name = $2`,
           [x.parent.email, x.familyName],
@@ -336,6 +345,26 @@ test.describe("new household sign-up journey", () => {
       );
       expect(row.rows).toHaveLength(1);
       expect(row.rows[0].role).toBe("parent");
+      // New households start simple (O-38): an explicit blob with only these on.
+      const on = Object.entries(row.rows[0].features)
+        .filter(([, enabled]) => enabled === true)
+        .map(([key]) => key)
+        .sort();
+      expect(on).toEqual([
+        "calendar",
+        "chores",
+        "emergency",
+        "family",
+        "lists",
+        "meals",
+      ]);
+      expect(row.rows[0].features).toMatchObject({
+        budget: false,
+        messages: false,
+        notes: false,
+        rewards: false,
+        gamification: false,
+      });
       familyId = row.rows[0].family_id;
       inviteCode = row.rows[0].invite_code;
       // Stored canonical: lowercase, no dashes; shown as XXXX-XXXX-XXXX.

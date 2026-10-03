@@ -132,7 +132,7 @@ model Family {
   name               String
   invite_code        String    @unique @default(cuid())
   subscription_tier  String    @default("free") // 'free', 'premium', 'family'
-  features           Json?     @default("{\"chores\":true,\"calendar\":true,\"lists\":true,\"family\":true,\"meals\":true,\"notes\":true,\"anniversaries\":true,\"rewards\":true,\"budget\":true,\"projects\":true,\"messages\":true,\"analytics\":true,\"wishlist\":false,\"emergency\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"travel\":false,\"handoff\":false,\"sick-days\":false,\"gamification\":false,\"inventory\":false}")
+  features           Json?     @default("{\"chores\":true,\"calendar\":true,\"lists\":true,\"family\":true,\"meals\":true,\"notes\":false,\"anniversaries\":false,\"rewards\":false,\"budget\":false,\"projects\":false,\"messages\":false,\"analytics\":false,\"wishlist\":false,\"emergency\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"travel\":false,\"handoff\":false,\"sick-days\":false,\"gamification\":false,\"inventory\":false}")
   travel_mode_active Boolean   @default(false)
   travel_start_date  DateTime?
   travel_end_date    DateTime?
