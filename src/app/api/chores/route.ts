@@ -16,6 +16,7 @@ import {
 } from '@/lib/chore-paging'
 import { getRequestId } from '@/lib/request-id'
 import { applyFrequencyEditInTx } from '@/lib/recurringChores'
+import { applyRotationEditInTx, rotationMembersInHousehold } from '@/lib/chore-rotation'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,9 +27,10 @@ export const dynamic = 'force-dynamic'
 // (installed Android builds): chores ordered by due date, no `nextCursor`, but
 // capped at the latest CHORE_UNPAGED_MAX by due date.
 // Optional `from` / `to` (`YYYY-MM-DD`, inclusive) filter on the due date.
-// `?id=<id>` returns `{ chore, template }` for one chore of the household
-// (`template`: `{ id, frequency }` of its series' template when the chore is a
-// generated copy, else null), or 404.
+// `?id=<id>` returns `{ chore, template, rotation }` for one chore of the
+// household (`template`: `{ id, frequency, rotation_member_ids }` of its
+// series' template when the chore is a generated copy, else null; `rotation`:
+// the series' take-turns order, O-39, or null), or 404.
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -111,11 +113,19 @@ async function getOneChore(id: string, familyId: string) {
     chore.recurrence_id && chore.recurrence_id !== chore.id
       ? await prisma!.chore.findFirst({
           where: { id: chore.recurrence_id, family_id: familyId },
-          select: { id: true, frequency: true },
+          select: { id: true, frequency: true, rotation_member_ids: true },
         })
       : null
+  // Take turns (O-39) is a series setting: on the template itself, or on the
+  // template of a generated copy.
+  const seriesRotation =
+    (template ? template.rotation_member_ids : chore.recurrence_id === chore.id ? chore.rotation_member_ids : null) ?? []
   const gamified = await isGamificationOn(familyId)
-  return NextResponse.json({ chore: gamified ? chore : omitChorePoints(chore), template: template ?? null })
+  return NextResponse.json({
+    chore: gamified ? chore : omitChorePoints(chore),
+    template: template ?? null,
+    rotation: seriesRotation.length > 0 ? seriesRotation : null,
+  })
 }
 
 // PATCH - Update a chore (family-scoped, parent or assignee). Details only:
@@ -176,7 +186,9 @@ export async function PATCH(request: NextRequest) {
     // the chore at any user id they could guess. Both are privilege boundaries,
     // not cosmetic edits. `difficulty` feeds the XP multiplier the same way,
     // so it is parent-only too.
-    const PARENT_ONLY_FIELDS = ['points', 'difficulty', 'assigned_to', 'frequency'] as const
+    // `rotation` (take turns, O-39) decides who gets every future copy, so it
+    // is parent-only like `assigned_to`.
+    const PARENT_ONLY_FIELDS = ['points', 'difficulty', 'assigned_to', 'frequency', 'rotation'] as const
     if (auth.user.role !== 'parent') {
       const attempted = PARENT_ONLY_FIELDS.filter((f) => updates[f] !== undefined)
       if (attempted.length > 0) {
@@ -203,6 +215,13 @@ export async function PATCH(request: NextRequest) {
           )
         }
       }
+    }
+
+    // Everyone taking turns must be in the caller's household (O-39); another
+    // household's member reads the same as a missing one.
+    const rotation = updates.rotation
+    if (rotation && !(await rotationMembersInHousehold(prisma!, auth.user.family_id, rotation))) {
+      return NextResponse.json({ error: 'Everyone taking turns must be in your family' }, { status: 400 })
     }
 
     // D3 (#102): a new photo must be an upload owned by the caller's family.
@@ -235,20 +254,46 @@ export async function PATCH(request: NextRequest) {
     } as const
     // One transaction: the edit and any series change (once -> repeating
     // starts a series; a template set to 'once' stops it, O-33) commit together.
+    // Take turns (O-39) applies to the whole series, after any frequency
+    // change in the same request (so "once -> weekly, take turns" works).
     const frequency = updates.frequency
-    const updated =
-      frequency === undefined
-        ? await prisma!.chore.update({ where: { id: choreId }, data, include })
-        : await prisma!.$transaction(async (tx) => {
-            if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
-            await applyFrequencyEditInTx(
-              tx,
-              { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id },
-              frequency,
-              { applyToSeries: updates.apply_to_series === true }
-            )
-            return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
-          })
+    let updated
+    try {
+      updated =
+        frequency === undefined && rotation === undefined
+          ? await prisma!.chore.update({ where: { id: choreId }, data, include })
+          : await prisma!.$transaction(async (tx) => {
+              if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
+              if (frequency !== undefined) {
+                await applyFrequencyEditInTx(
+                  tx,
+                  { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id },
+                  frequency,
+                  { applyToSeries: updates.apply_to_series === true }
+                )
+              }
+              if (rotation !== undefined) {
+                const row = await tx.chore.findUniqueOrThrow({ where: { id: choreId }, select: { recurrence_id: true } })
+                const template = row.recurrence_id
+                  ? await tx.chore.findFirst({
+                      where: { id: row.recurrence_id, family_id: chore.family_id, is_template: true },
+                      select: { id: true },
+                    })
+                  : null
+                if (template) {
+                  await applyRotationEditInTx(tx, template.id, chore.family_id, rotation ?? [])
+                } else if (rotation) {
+                  throw new RotationNeedsSeriesError()
+                }
+              }
+              return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
+            })
+    } catch (err) {
+      if (err instanceof RotationNeedsSeriesError) {
+        return NextResponse.json({ error: err.message }, { status: 400 })
+      }
+      throw err
+    }
 
     if (!(await isGamificationOn(auth.user.family_id))) {
       return NextResponse.json({ chore: omitChorePoints(updated) })
@@ -258,6 +303,13 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     logRouteError('PATCH /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/** Take turns on a chore that does not repeat; rolls the edit back. */
+class RotationNeedsSeriesError extends Error {
+  constructor() {
+    super('Taking turns needs a chore that repeats')
   }
 }
 

@@ -117,7 +117,7 @@ describe("kill switch", () => {
   });
 
   it("a single unconfigured provider is 404 while the other works", async () => {
-    setSyncEnv({ MICROSOFT_TENANT: undefined });
+    setSyncEnv({ MICROSOFT_CLIENT_SECRET: undefined });
     const body = await bodyOf(await list.GET(req({ as: "parentA" })));
     expect(body.providers.map((p: { id: string }) => p.id)).toEqual(["google"]);
     expect((await startFlow("parentA", "microsoft")).res.status).toBe(404);

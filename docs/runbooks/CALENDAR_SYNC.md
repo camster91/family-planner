@@ -93,11 +93,11 @@ lines in the `.env` file that `docker-compose.yml` reads.)
 | `GOOGLE_CLIENT_SECRET` | from A8 (Google only) |
 | `MICROSOFT_CLIENT_ID` | from B2 (Outlook only) |
 | `MICROSOFT_CLIENT_SECRET` | from B4, the secret **Value** (Outlook only) |
-| `MICROSOFT_TENANT` | `common` (Outlook only; see below) |
+| `MICROSOFT_TENANT` | optional; unset means `common` (Outlook only; see below) |
 
 Then **Redeploy** (a restart is enough; nothing needs rebuilding). The database tables already exist.
 
-`MICROSOFT_TENANT`: `common` = personal and work accounts (matches B2). Use `consumers` for personal accounts only,
+`MICROSOFT_TENANT`: leave it unset for `common` = personal and work accounts (matches B2). Use `consumers` for personal accounts only,
 or your organisation's tenant id if you chose "single tenant" in B2.
 
 If the Settings card does not appear after the restart, look in the app logs for lines starting with

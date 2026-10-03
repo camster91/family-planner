@@ -269,6 +269,32 @@ describe('DELETE /api/family/members/[id]', () => {
     expect(db.find('event', 'event-b')!.created_by).toBe('parent-b')
   })
 
+  it('drops the removed member from every take-turns rotation of the household only (O-39)', async () => {
+    const template = (id: string, family_id: string, rotation: string[], index: number) => ({
+      ...db.find('chore', 'chore-a')!,
+      id,
+      family_id,
+      frequency: 'weekly',
+      recurrence_id: id,
+      is_template: true,
+      status: 'verified',
+      assigned_to: rotation[0],
+      rotation_member_ids: rotation,
+      rotation_index: index,
+    })
+    // Dishes: parent -> child -> teen, latest turn the child's (place 1).
+    db.rows('chore').push(template('dishes-a', FAMILY_A, ['parent-a', 'child-a', 'teen-a'], 1))
+    // Bins: child -> teen; left with only the teen.
+    db.rows('chore').push(template('bins-a', FAMILY_A, ['child-a', 'teen-a'], 0))
+    // Another household's rotation that happens to list the same id is not touched.
+    db.rows('chore').push(template('dishes-b', FAMILY_B, ['parent-b', 'child-a'], 0))
+
+    expect((await del('parentA', 'child-a')).status).toBe(200)
+    expect(db.find('chore', 'dishes-a')).toMatchObject({ rotation_member_ids: ['parent-a', 'teen-a'], rotation_index: 0 })
+    expect(db.find('chore', 'bins-a')).toMatchObject({ rotation_member_ids: ['teen-a'], rotation_index: null })
+    expect(db.find('chore', 'dishes-b')!.rotation_member_ids).toEqual(['parent-b', 'child-a'])
+  })
+
   it('a removed member can join again only with the current code', async () => {
     const { inviteCode } = await bodyOf(await rotate(req({ as: 'parentA', method: 'POST' })))
     expect((await del('parentA', 'teen-a')).status).toBe(200)

@@ -1,4 +1,4 @@
-# Chores: the parent check and picture routines
+# Chores: the parent check, picture routines and taking turns
 
 Status: implemented (2026-09-28): the parent check fix (Verify and Reject on `/dashboard/chores`) and picture
 routines for young kids (#272). Roles: `docs/ROLE_AND_ISOLATION_MATRIX.md` "Chores". API:
@@ -74,3 +74,43 @@ key only; routine names are not on the board or the shared device).
 - The assignee may change their own chore's picture or routine through `PATCH` (like the title); these fields
   carry no XP or privilege. The UI to edit them is parent-only (`/dashboard/chores` is not on the kid allowlist).
 - No completion from the shared tablet yet (phase 2, SHARED_DEVICE.md O-4); the tablet only shows the picture.
+
+## Taking turns (O-39)
+
+Status: implemented (2026-10-03), owner decision O-39 (`docs/decisions/PROVISIONAL_OWNER_DECISIONS.md`).
+Code: `src/lib/chore-rotation.ts`, generation in `expandSeriesInTx` (`src/lib/recurringChores.ts`). API:
+`docs/architecture/API_CONTRACTS.md` "Chores" (`rotation`). Roles: `docs/ROLE_AND_ISOLATION_MATRIX.md` "Take turns".
+
+A repeating chore can rotate between chosen people: dishes go Sam → Alex → Jo → Sam. On **New chore** and
+**Edit chore**, when "How often" is daily, weekly or monthly, a parent turns on **Take turns** and taps people in
+the order they take turns (each shows its number; tap again to take someone out; at least 2, at most 8). On New
+chore the "Assign To" field is hidden: the first person takes the first one. On Edit, "This time" still changes who
+does just that occurrence. The chores list shows "Takes turns · next: Alex" on open rows of a rotating series.
+Kids and the tablet see nothing new: each occurrence simply has its person.
+
+### The rule
+
+- **One turn per occurrence, in due-date order.** Each new copy of the series goes to the person after the
+  latest occurrence's place in the order, and wraps around.
+- **Who ticked it does not matter.** If Jo does Alex's dishes, the next one is still Jo's.
+- **A skipped or late chore keeps its person.** Nothing already made is moved when time passes.
+- **Changing one occurrence by hand** ("This time", or Reassign on the list) changes only that row. Each row
+  remembers its place in the order (`rotation_index`), so the order carries on as planned.
+- **Deterministic and idempotent.** The same series always produces the same people; the read-time top-up and a
+  completion refill never reshuffle copies already made (the `(recurrence_id, due_date)` key still guards races).
+- **Changing the order** (or turning it on for an existing series) re-plans the rows due after today that nobody
+  has started, from the first person. Rows due today or earlier, and anything started or done, keep their person.
+  Turning it off leaves everyone's chores where they are; new copies then go to the series' own assignee.
+- **Someone leaves.** Removing a member (O-34) or deleting an account drops them from every rotation in the
+  household, in the same transaction. Their turn passes to the person after them. Their open chores already made
+  go to the removing parent to hand on, as O-34 says for every open chore. A rotation left with one person gives
+  every new copy to that person (the forms show it as a plain chore); a rotation left with nobody is cleared and new
+  copies follow the series' own assignee. Generation also skips anyone no longer in the household.
+
+### Storage
+
+Two additive `Chore` columns (`scripts/migrate.js`, `prisma/schema.prisma`): `rotation_member_ids TEXT[] NOT NULL
+DEFAULT '{}'` on the series template (empty = no rotation, the old behaviour; Prisma cannot model a nullable list,
+and the empty default is a metadata-only change) and `rotation_index INTEGER NULL` on each row of a rotating series.
+Older app versions never read or write them and keep working; rolling the code back leaves them unused.
+

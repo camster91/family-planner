@@ -27,7 +27,7 @@
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
 | Route-level `loading.tsx` / `error.tsx` files | `error.tsx` for `/dashboard` and `/device`; `loading.tsx` for the today, chores, lists, calendar and rewards tabs (finding F-9, fixed) |
 
-API route files by domain (first path segment, all 150): family 24, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload, version.
+API route files by domain (first path segment, all 151): family 24, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload, version.
 
 ## Page routes
 
@@ -220,6 +220,7 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/chores/uncomplete` | POST | POST: P or assignee (403); only from `completed` (verified: 409 `CHORE_ALREADY_VERIFIED`) | no | — | — | — |
 | `/api/chores/verify` | POST | POST: P (approve and reject) | no | gamification (fields hidden) | — | — |
 | `/api/cron/recurring-chores` | POST | POST: n/a | no | — | CRON_SECRET | — |
+| `/api/cron/morning-summary` | POST | POST: n/a | no | — | CRON_SECRET | — |
 | `/api/device/elevation` | POST, DELETE | POST: target must be a `parent` of the device's family (DB); PIN or password; every failure the same 401 ; DELETE: n/a | device only | — | SHARED_DEVICE_ENABLED | — |
 | `/api/device/label` | PATCH | PATCH: elevated parent (role, family, token_version re-read) | device + elevation | — | SHARED_DEVICE_ENABLED | — |
 | `/api/device/me` | GET | GET: n/a | device only | — | SHARED_DEVICE_ENABLED | — |
