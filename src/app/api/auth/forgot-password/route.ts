@@ -6,6 +6,7 @@ import { createResetToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
+import { brandedEmailHtml, emailButton } from '@/lib/email-layout'
 import { logRouteError, logRouteWarning } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -56,14 +57,14 @@ export async function POST(request: NextRequest) {
     // Previously this route used an inline Maton/Gmail path that silently fell
     // through to a dev-only console.log when MATON_API_KEY was unset, so
     // production sent no email at all.
-    const html = [
+    const html = brandedEmailHtml([
       '<h2>Password Reset Request</h2>',
       `<p>Hi ${escapeHtml(user.name)},</p>`,
       '<p>You requested a password reset for your Family Planner account.</p>',
-      `<p><a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a></p>`,
+      `<p>${emailButton(resetUrl, 'Reset Password')}</p>`,
       `<p>Or copy this link: ${escapeHtml(resetUrl)}</p>`,
       '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>',
-    ].join('\n')
+    ].join('\n'))
 
     try {
       await sendAccountMail('password_reset', {

@@ -1,4 +1,5 @@
 import { escapeHtml } from '@/lib/escape-html'
+import { brandedEmailHtml, emailButton } from '@/lib/email-layout'
 
 const DEFAULT_FROM = 'Family Planner <noreply@ashbi.ca>'
 const DEFAULT_DOMAIN = 'ashbi.ca'
@@ -57,13 +58,13 @@ export function familyInviteEmail(options: {
   const inviterName = escapeHtml(options.inviterName)
   const role = escapeHtml(options.role)
   const subject = `${options.inviterName} invited you to ${options.familyName} on Family Planner`
-  const html = [
+  const html = brandedEmailHtml([
     `<p>Hi,</p>`,
     `<p>${inviterName} invited you to join <strong>${familyName}</strong> as a <strong>${role}</strong>.</p>`,
-    `<p><a href="${escapeHtml(options.joinUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Join family</a></p>`,
+    `<p>${emailButton(options.joinUrl, 'Join family')}</p>`,
     `<p>Or copy this link: ${escapeHtml(options.joinUrl)}</p>`,
     `<p>This invite expires in 48 hours. If you were not expecting this, you can ignore it.</p>`,
-  ].join('\n')
+  ].join('\n'))
   const text = [
     `${options.inviterName} invited you to join ${options.familyName} as a ${options.role}.`,
     `Join: ${options.joinUrl}`,
