@@ -269,7 +269,7 @@ describe('DELETE /api/family/members/[id]', () => {
     expect(db.find('event', 'event-b')!.created_by).toBe('parent-b')
   })
 
-  it('drops the removed member from every take-turns rotation of the household only (O-38)', async () => {
+  it('drops the removed member from every take-turns rotation of the household only (O-39)', async () => {
     const template = (id: string, family_id: string, rotation: string[], index: number) => ({
       ...db.find('chore', 'chore-a')!,
       id,

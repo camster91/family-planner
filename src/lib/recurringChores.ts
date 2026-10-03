@@ -155,7 +155,7 @@ export async function expandSeriesInTx(
 
   if (candidates.length === 0) return 0
 
-  // Take turns (O-38, src/lib/chore-rotation.ts): each new copy takes the
+  // Take turns (O-39, src/lib/chore-rotation.ts): each new copy takes the
   // place after the latest occurrence, in due-date order. Members no longer
   // in the household are skipped; if nobody in the list is, the copy goes to
   // the template's assignee like any series.

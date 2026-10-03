@@ -38,7 +38,7 @@ const choreRoutineOrderSchema = z
   .min(1, 'Step must be 1 or more')
   .max(ROUTINE_ORDER_MAX, `Step must be ${ROUTINE_ORDER_MAX} or less`)
 
-// Take turns (O-38): the members of the caller's household who take turns,
+// Take turns (O-39): the members of the caller's household who take turns,
 // in order. Membership is checked in the route.
 const choreRotationSchema = z
   .array(z.string().min(1).max(64))
@@ -62,7 +62,7 @@ export const createChoreSchema = z
     icon: choreIconSchema.nullable().optional(),
     routine: choreRoutineSchema.nullable().optional(),
     routine_order: choreRoutineOrderSchema.nullable().optional(),
-    // Take turns (O-38): repeating chores only. null or absent: no rotation.
+    // Take turns (O-39): repeating chores only. null or absent: no rotation.
     rotation: choreRotationSchema.nullable().optional(),
   })
   .superRefine((v, ctx) => {
@@ -254,7 +254,7 @@ export const updateChoreSchema = z.object({
   icon: choreIconSchema.nullable().optional(),
   routine: choreRoutineSchema.nullable().optional(),
   routine_order: choreRoutineOrderSchema.nullable().optional(),
-  // Take turns (O-38), for the whole series this chore belongs to; null
+  // Take turns (O-39), for the whole series this chore belongs to; null
   // stops taking turns. Parent-only; repeating chores only (checked in the route).
   rotation: choreRotationSchema.nullable().optional(),
 })

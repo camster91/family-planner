@@ -58,7 +58,7 @@ function EditChoreForm() {
   const [icon, setIcon] = useState<string | null>(null)
   const [routine, setRoutine] = useState('')
   const [routineOrder, setRoutineOrder] = useState('')
-  // Take turns (O-38), a series setting. Sent only when changed here, so a
+  // Take turns (O-39), a series setting. Sent only when changed here, so a
   // plain save never re-plans the turns.
   const [takeTurns, setTakeTurns] = useState(false)
   const [rotation, setRotation] = useState<string[]>([])
@@ -358,7 +358,7 @@ function EditChoreForm() {
           </div>
         </div>
 
-        {/* Take turns (O-38): repeating chores only, for the whole series */}
+        {/* Take turns (O-39): repeating chores only, for the whole series */}
         {frequency !== 'once' && (
           <TakeTurnsPicker
             members={familyMembers}

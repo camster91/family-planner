@@ -1,4 +1,4 @@
-// Take turns (O-38): who gets the next copy of a rotating series.
+// Take turns (O-39): who gets the next copy of a rotating series.
 //
 // The pure rule (wrap-around, skipping members who left, idempotent planning)
 // and the series generation against the two-household fake database: a hand

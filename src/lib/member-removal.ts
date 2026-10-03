@@ -32,7 +32,7 @@
  *   `approved`) keep their name as history. Verifying never pays XP or sends
  *   a notification to someone outside the chore's household
  *   (`POST /api/chores/verify`).
- * - They are dropped from every take-turns rotation in the household (O-38,
+ * - They are dropped from every take-turns rotation in the household (O-39,
  *   `dropMemberFromRotationsInTx`): the next turn goes to the person after
  *   them; a rotation left with one person gives every new copy to that person.
  * - Messages they sent stay as written. Rows about them (allowance, sick
@@ -188,7 +188,7 @@ export async function removeHouseholdMember(
         where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
         data: { assigned_to: actorId },
       })
-      // Take turns (O-38): they leave every rotation in the household; the
+      // Take turns (O-39): they leave every rotation in the household; the
       // order carries on with the person after them. Copies already made
       // follow the open-chore rule just above.
       await dropMemberFromRotationsInTx(tx, familyId, target.id)

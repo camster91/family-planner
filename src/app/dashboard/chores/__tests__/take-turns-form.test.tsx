@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-// Take turns (O-38) on the chore forms: a switch that shows only for
+// Take turns (O-39) on the chore forms: a switch that shows only for
 // repeating chores, an ordered member picker (tap in order, numbers shown, tap
 // again to take out, at least two), and what the forms send. The chores list
 // shows "Takes turns · next: Alex" on a rotating row.

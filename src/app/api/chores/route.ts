@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic'
 // `?id=<id>` returns `{ chore, template, rotation }` for one chore of the
 // household (`template`: `{ id, frequency, rotation_member_ids }` of its
 // series' template when the chore is a generated copy, else null; `rotation`:
-// the series' take-turns order, O-38, or null), or 404.
+// the series' take-turns order, O-39, or null), or 404.
 export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -116,7 +116,7 @@ async function getOneChore(id: string, familyId: string) {
           select: { id: true, frequency: true, rotation_member_ids: true },
         })
       : null
-  // Take turns (O-38) is a series setting: on the template itself, or on the
+  // Take turns (O-39) is a series setting: on the template itself, or on the
   // template of a generated copy.
   const seriesRotation =
     (template ? template.rotation_member_ids : chore.recurrence_id === chore.id ? chore.rotation_member_ids : null) ?? []
@@ -186,7 +186,7 @@ export async function PATCH(request: NextRequest) {
     // the chore at any user id they could guess. Both are privilege boundaries,
     // not cosmetic edits. `difficulty` feeds the XP multiplier the same way,
     // so it is parent-only too.
-    // `rotation` (take turns, O-38) decides who gets every future copy, so it
+    // `rotation` (take turns, O-39) decides who gets every future copy, so it
     // is parent-only like `assigned_to`.
     const PARENT_ONLY_FIELDS = ['points', 'difficulty', 'assigned_to', 'frequency', 'rotation'] as const
     if (auth.user.role !== 'parent') {
@@ -217,7 +217,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Everyone taking turns must be in the caller's household (O-38); another
+    // Everyone taking turns must be in the caller's household (O-39); another
     // household's member reads the same as a missing one.
     const rotation = updates.rotation
     if (rotation && !(await rotationMembersInHousehold(prisma!, auth.user.family_id, rotation))) {
@@ -254,7 +254,7 @@ export async function PATCH(request: NextRequest) {
     } as const
     // One transaction: the edit and any series change (once -> repeating
     // starts a series; a template set to 'once' stops it, O-33) commit together.
-    // Take turns (O-38) applies to the whole series, after any frequency
+    // Take turns (O-39) applies to the whole series, after any frequency
     // change in the same request (so "once -> weekly, take turns" works).
     const frequency = updates.frequency
     let updated

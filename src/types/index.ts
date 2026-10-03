@@ -72,7 +72,7 @@ export interface Chore {
   icon?: string | null
   routine?: string | null
   routine_order?: number | null
-  /** Take turns (O-38): who is up after this one, for "Takes turns · next: Alex"; set by the chores page. */
+  /** Take turns (O-39): who is up after this one, for "Takes turns · next: Alex"; set by the chores page. */
   rotation_next_name?: string | null
 }
 

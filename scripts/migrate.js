@@ -140,7 +140,7 @@ ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "successor_id" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "icon" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_order" INTEGER;
--- Take turns (O-38): additive. Empty list = no rotation (today's behaviour);
+-- Take turns (O-39): additive. Empty list = no rotation (today's behaviour);
 -- a constant default is a metadata-only change, so this is cheap on a big table.
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "rotation_member_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "rotation_index" INTEGER;

@@ -50,7 +50,7 @@ export default function CreateChorePage() {
   const [icon, setIcon] = useState<string | null>(null)
   const [routine, setRoutine] = useState('')
   const [routineOrder, setRoutineOrder] = useState('')
-  // Take turns (O-38): repeating chores only.
+  // Take turns (O-39): repeating chores only.
   const [takeTurns, setTakeTurns] = useState(false)
   const [rotation, setRotation] = useState<string[]>([])
   const rotating = frequency !== 'once' && takeTurns
@@ -274,7 +274,7 @@ export default function CreateChorePage() {
           )}
         </div>
 
-        {/* Take turns (O-38): repeating chores only */}
+        {/* Take turns (O-39): repeating chores only */}
         {frequency !== 'once' && (
           <TakeTurnsPicker
             members={familyMembers}

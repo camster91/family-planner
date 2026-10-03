@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const { title, description, points, due_date, difficulty, frequency, photo_url, icon, routine, routine_order } =
       parsed.data
-    // Take turns (O-38): the first person in the order takes the first one,
+    // Take turns (O-39): the first person in the order takes the first one,
     // whatever `assigned_to` says.
     const rotation = parsed.data.rotation ?? null
     const assigned_to = rotation ? rotation[0] : parsed.data.assigned_to!

@@ -122,7 +122,7 @@ export default async function ChoresPage() {
     orderBy: { role: 'desc' }
   }) : []
 
-  // Take turns (O-38): "Takes turns · next: Alex" on open rows of a rotating
+  // Take turns (O-39): "Takes turns · next: Alex" on open rows of a rotating
   // series. One small read of the series templates on this page.
   const seriesIds = [
     ...new Set(

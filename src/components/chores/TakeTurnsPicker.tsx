@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * "Take turns" (O-38) for the chore create and edit forms: a switch, and when
+ * "Take turns" (O-39) for the chore create and edit forms: a switch, and when
  * it is on, an ordered member picker. Tap people in the order they take
  * turns; each shows its number; tap again to take them out. At least two.
  *

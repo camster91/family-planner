@@ -434,7 +434,7 @@ model Chore {
   routine        String?
   routine_order  Int?
 
-  // Take turns (O-38). On a series template: the members who take turns, in
+  // Take turns (O-39). On a series template: the members who take turns, in
   // order (empty = no rotation, every copy goes to the template's assignee).
   // On every row of a rotating series: which place in that list this
   // occurrence's turn belongs to (0-based). The next generated copy takes the

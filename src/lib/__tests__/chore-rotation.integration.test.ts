@@ -1,4 +1,4 @@
-// Take turns (O-38) against real Postgres: create -> complete -> refill keeps
+// Take turns (O-39) against real Postgres: create -> complete -> refill keeps
 // the order, a hand reassign does not move it, a repeated top-up adds
 // nothing, another household's member is refused, and removing a member
 // (O-34) drops them from every rotation in the same transaction. Opt-in like

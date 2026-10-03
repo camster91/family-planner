@@ -473,7 +473,7 @@ async function handOverAndDetach(
   await tx.calendarConnection.deleteMany({ where: { user_id: userId } })
   await tx.idempotencyRecord.deleteMany({ where: { user_id: userId } })
 
-  // Take turns (O-38): they leave every rotation in the household.
+  // Take turns (O-39): they leave every rotation in the household.
   await dropMemberFromRotationsInTx(tx, familyId, userId)
 
   // Their own chores (assigned to them) go; photos are handled below.

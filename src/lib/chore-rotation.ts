@@ -1,5 +1,5 @@
 /**
- * Take turns: a recurring chore that rotates between chosen members (O-38,
+ * Take turns: a recurring chore that rotates between chosen members (O-39,
  * docs/decisions/PROVISIONAL_OWNER_DECISIONS.md; docs/product/CHORES.md
  * "Taking turns").
  *

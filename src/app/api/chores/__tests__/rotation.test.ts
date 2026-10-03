@@ -1,4 +1,4 @@
-// Take turns (O-38) through the chore API: POST /api/chores/create and
+// Take turns (O-39) through the chore API: POST /api/chores/create and
 // PATCH /api/chores accept `rotation` (2-8 distinct members of the caller's
 // household, repeating chores only, parent-only), and GET /api/chores?id=
 // returns the series' order. Two households: an id from the other household
