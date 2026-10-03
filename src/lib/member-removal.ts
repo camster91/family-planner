@@ -32,6 +32,9 @@
  *   `approved`) keep their name as history. Verifying never pays XP or sends
  *   a notification to someone outside the chore's household
  *   (`POST /api/chores/verify`).
+ * - They are dropped from every take-turns rotation in the household (O-38,
+ *   `dropMemberFromRotationsInTx`): the next turn goes to the person after
+ *   them; a rotation left with one person gives every new copy to that person.
  * - Messages they sent stay as written. Rows about them (allowance, sick
  *   days, medication, wishlist, reward requests, habit logs, badges) stay for
  *   the parents, who can delete them.
@@ -52,6 +55,7 @@ import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { auditSummary, writeAuditLog, type AuditEntry } from '@/lib/household-audit'
 import { CLEARED_ELEVATION, revokeDeviceInTransaction } from '@/lib/device-session'
 import { writeDeviceAudit } from '@/lib/device-audit'
+import { dropMemberFromRotationsInTx } from '@/lib/chore-rotation'
 import {
   HOUSEHOLD_CLEARED_REFERENCES,
   HOUSEHOLD_HANDOVER_COLUMNS,
@@ -184,6 +188,10 @@ export async function removeHouseholdMember(
         where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
         data: { assigned_to: actorId },
       })
+      // Take turns (O-38): they leave every rotation in the household; the
+      // order carries on with the person after them. Copies already made
+      // follow the open-chore rule just above.
+      await dropMemberFromRotationsInTx(tx, familyId, target.id)
 
       // Household content they created: handed to the removing parent.
       for (const [model, column] of HOUSEHOLD_HANDOVER_COLUMNS) {

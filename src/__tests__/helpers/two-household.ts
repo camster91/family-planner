@@ -714,6 +714,11 @@ function delegate(model: string) {
   const log = (op: string, args: any) => db.writes.push({ model, op, args })
   return {
     findUnique: async (args: any) => project(model, all().find((r) => matches(model, r, args.where)), args),
+    findUniqueOrThrow: async (args: any) => {
+      const row = all().find((r) => matches(model, r, args.where))
+      if (!row) throw notFound(model)
+      return project(model, row, args)
+    },
     findFirst: async (args: any = {}) =>
       project(model, sortRows(all().filter((r) => matches(model, r, args.where)), args.orderBy)[0], args),
     findMany: async (args: any = {}) => {

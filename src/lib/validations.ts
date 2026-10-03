@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ROUTINE_ICON_KEYS, ROUTINE_NAME_MAX, ROUTINE_ORDER_MAX, normalizeRoutineName } from '@/lib/routine-icons'
 import { parseDateOnly } from '@/lib/dates'
+import { ROTATION_MAX, ROTATION_MIN } from '@/lib/chore-rotation'
 
 // Auth
 // Trimmed before the format check, so an autofilled trailing space does not
@@ -37,21 +38,41 @@ const choreRoutineOrderSchema = z
   .min(1, 'Step must be 1 or more')
   .max(ROUTINE_ORDER_MAX, `Step must be ${ROUTINE_ORDER_MAX} or less`)
 
-export const createChoreSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  // The chore forms send null for an empty description.
-  description: z.string().max(1000).trim().nullable().optional(),
-  points: z.number().int().min(0).max(1000).default(10),
-  assigned_to: z.string().min(1),
-  due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
-  difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
-  frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
-  // An /api/upload result owned by the caller's family (D3); checked in the route.
-  photo_url: z.string().max(500).nullable().optional(),
-  icon: choreIconSchema.nullable().optional(),
-  routine: choreRoutineSchema.nullable().optional(),
-  routine_order: choreRoutineOrderSchema.nullable().optional(),
-})
+// Take turns (O-38): the members of the caller's household who take turns,
+// in order. Membership is checked in the route.
+const choreRotationSchema = z
+  .array(z.string().min(1).max(64))
+  .min(ROTATION_MIN, `Pick at least ${ROTATION_MIN} people to take turns`)
+  .max(ROTATION_MAX, `Pick at most ${ROTATION_MAX} people to take turns`)
+  .refine((ids) => new Set(ids).size === ids.length, 'Pick each person only once')
+
+export const createChoreSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    // The chore forms send null for an empty description.
+    description: z.string().max(1000).trim().nullable().optional(),
+    points: z.number().int().min(0).max(1000).default(10),
+    // Optional only with `rotation`: the first person in the order takes the first one.
+    assigned_to: z.string().min(1).optional(),
+    due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
+    difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
+    frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
+    // An /api/upload result owned by the caller's family (D3); checked in the route.
+    photo_url: z.string().max(500).nullable().optional(),
+    icon: choreIconSchema.nullable().optional(),
+    routine: choreRoutineSchema.nullable().optional(),
+    routine_order: choreRoutineOrderSchema.nullable().optional(),
+    // Take turns (O-38): repeating chores only. null or absent: no rotation.
+    rotation: choreRotationSchema.nullable().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.rotation && v.frequency === 'once') {
+      ctx.addIssue({ code: 'custom', path: ['rotation'], message: 'Taking turns needs a chore that repeats' })
+    }
+    if (!v.rotation && !v.assigned_to) {
+      ctx.addIssue({ code: 'custom', path: ['assigned_to'], message: 'Choose who does this chore' })
+    }
+  })
 
 export const completeChoreSchema = z.object({
   choreId: z.string().min(1),
@@ -233,6 +254,9 @@ export const updateChoreSchema = z.object({
   icon: choreIconSchema.nullable().optional(),
   routine: choreRoutineSchema.nullable().optional(),
   routine_order: choreRoutineOrderSchema.nullable().optional(),
+  // Take turns (O-38), for the whole series this chore belongs to; null
+  // stops taking turns. Parent-only; repeating chores only (checked in the route).
+  rotation: choreRotationSchema.nullable().optional(),
 })
 
 // Events (update + delete)

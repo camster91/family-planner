@@ -33,6 +33,7 @@ import { unlink } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { describeError, log } from '@/lib/logger'
 import { chorePhotoFilename, CHORE_PHOTO_FILENAME_RE } from '@/lib/chore-photos'
+import { dropMemberFromRotationsInTx } from '@/lib/chore-rotation'
 import { clearConnectionData, revokeProviderGrant } from '@/lib/calendar-sync/sync'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { auditSummary, roleWord, writeAuditLog } from '@/lib/household-audit'
@@ -471,6 +472,9 @@ async function handOverAndDetach(
   await tx.calendarOAuthState.deleteMany({ where: { user_id: userId } })
   await tx.calendarConnection.deleteMany({ where: { user_id: userId } })
   await tx.idempotencyRecord.deleteMany({ where: { user_id: userId } })
+
+  // Take turns (O-38): they leave every rotation in the household.
+  await dropMemberFromRotationsInTx(tx, familyId, userId)
 
   // Their own chores (assigned to them) go; photos are handled below.
   const ownChores = await tx.chore.findMany({ where: { ...inFamily, assigned_to: userId }, select: { id: true } })

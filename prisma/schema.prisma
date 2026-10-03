@@ -434,6 +434,16 @@ model Chore {
   routine        String?
   routine_order  Int?
 
+  // Take turns (O-38). On a series template: the members who take turns, in
+  // order (empty = no rotation, every copy goes to the template's assignee).
+  // On every row of a rotating series: which place in that list this
+  // occurrence's turn belongs to (0-based). The next generated copy takes the
+  // place after the latest one by due date, so a hand reassign of one copy
+  // never changes the order. Additive: the list defaults to empty and the
+  // place is nullable, so older app versions keep working.
+  rotation_member_ids String[] @default([])
+  rotation_index      Int?
+
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id], onDelete: Cascade)

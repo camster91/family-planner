@@ -11,6 +11,7 @@ import {
   encodeChoreCursor,
 } from '@/lib/chore-paging'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
+import { nextRotationMember } from '@/lib/chore-rotation'
 
 export default async function ChoresPage() {
   const sessionUser = await getServerUser()
@@ -121,6 +122,30 @@ export default async function ChoresPage() {
     orderBy: { role: 'desc' }
   }) : []
 
+  // Take turns (O-38): "Takes turns · next: Alex" on open rows of a rotating
+  // series. One small read of the series templates on this page.
+  const seriesIds = [
+    ...new Set(
+      chores
+        .filter((c) => c.recurrence_id && c.rotation_index !== null && !['completed', 'verified', 'approved'].includes(c.status))
+        .map((c) => c.recurrence_id as string)
+    ),
+  ]
+  const rotations = new Map<string, string[]>()
+  if (familyId && seriesIds.length > 0) {
+    const templates = await prisma!.chore.findMany({
+      where: { family_id: familyId, id: { in: seriesIds } },
+      select: { id: true, rotation_member_ids: true },
+    })
+    for (const t of templates) rotations.set(t.id, t.rotation_member_ids)
+  }
+  const memberNames = new Map(familyMembers.map((m) => [m.id, m.name]))
+  const rotationNextName = (c: (typeof chores)[number]): string | null => {
+    if (!c.recurrence_id || ['completed', 'verified', 'approved'].includes(c.status)) return null
+    const nextId = nextRotationMember(rotations.get(c.recurrence_id), c.rotation_index)
+    return nextId ? (memberNames.get(nextId) ?? null) : null
+  }
+
   const serializedChores = chores.map((c) => {
     const row = {
       ...c,
@@ -130,6 +155,7 @@ export default async function ChoresPage() {
       verified_at: c.verified_at?.toISOString() ?? null,
       photo_url: c.photo_url ?? null,
       streak: streakMap[c.assigned_to] ?? 0,
+      rotation_next_name: rotationNextName(c),
     }
     return gamification ? row : omitChorePoints(row)
   })

@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { RoutineFields, RoutineIconPicker, routineRequestFields } from '@/components/chores/RoutineIconPicker'
+import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
+import { ROTATION_MIN } from '@/lib/chore-rotation'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -48,6 +50,10 @@ export default function CreateChorePage() {
   const [icon, setIcon] = useState<string | null>(null)
   const [routine, setRoutine] = useState('')
   const [routineOrder, setRoutineOrder] = useState('')
+  // Take turns (O-38): repeating chores only.
+  const [takeTurns, setTakeTurns] = useState(false)
+  const [rotation, setRotation] = useState<string[]>([])
+  const rotating = frequency !== 'once' && takeTurns
 
   useEffect(() => {
     const loadFamilyMembers = async () => {
@@ -80,7 +86,8 @@ export default function CreateChorePage() {
           title,
           description: description || null,
           points,
-          assigned_to: assignedTo,
+          // Taking turns: the first person in the order takes the first one.
+          ...(rotating ? { rotation } : { assigned_to: assignedTo }),
           due_date: dueDate,
           difficulty,
           frequency,
@@ -156,8 +163,9 @@ export default function CreateChorePage() {
           />
         </div>
 
-        {/* Points + Assignee row (points only with Points & streaks on) */}
-        <div className={cn(gamification && 'grid grid-cols-2 gap-3')}>
+        {/* Points + Assignee row (points only with Points & streaks on;
+            no assignee while taking turns: the order decides) */}
+        <div className={cn(gamification && !rotating && 'grid grid-cols-2 gap-3')}>
           {gamification && (
             <div>
               <label className="label-apple" htmlFor="points">Points</label>
@@ -172,22 +180,24 @@ export default function CreateChorePage() {
               />
             </div>
           )}
-          <div>
-            <label className="label-apple" htmlFor="assignedTo">Assign To</label>
-            <select
-              id="assignedTo"
-              required
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="input-apple"
-            >
-              {familyMembers.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!rotating && (
+            <div>
+              <label className="label-apple" htmlFor="assignedTo">Assign To</label>
+              <select
+                id="assignedTo"
+                required
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="input-apple"
+              >
+                {familyMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Due Date */}
@@ -263,6 +273,17 @@ export default function CreateChorePage() {
             </p>
           )}
         </div>
+
+        {/* Take turns (O-38): repeating chores only */}
+        {frequency !== 'once' && (
+          <TakeTurnsPicker
+            members={familyMembers}
+            on={takeTurns}
+            onToggle={setTakeTurns}
+            order={rotation}
+            onOrderChange={setRotation}
+          />
+        )}
 
         {/* Picture routines (#272): picture, routine and step */}
         <RoutineIconPicker value={icon} onChange={setIcon} />
@@ -352,7 +373,9 @@ export default function CreateChorePage() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={loading || !title || !assignedTo || !dueDate}
+            disabled={
+              loading || !title || !dueDate || (rotating ? rotation.length < ROTATION_MIN : !assignedTo)
+            }
             className="btn-filled w-full"
           >
             {loading ? 'Creating...' : 'Create Chore'}

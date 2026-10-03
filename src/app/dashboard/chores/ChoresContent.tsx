@@ -492,6 +492,7 @@ export default function ChoresContent({
                       chore.assignee?.name,
                       formatRelativeDueDate(chore.due_date, now),
                       routineLabel(chore),
+                      chore.rotation_next_name ? `Takes turns · next: ${chore.rotation_next_name}` : null,
                     ].filter(Boolean).join(' · ')}
                     glyph={
                       <Glyph color="chore" size="sm">
