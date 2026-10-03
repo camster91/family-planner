@@ -9,11 +9,18 @@ describeWithDatabase("family import persistence", () => {
   const parentId = "integration-parent";
   const childId = "integration-child";
 
-  beforeAll(async () => {
-    const prismaModule = await import("@/lib/prisma");
-    if (!prismaModule.prisma)
-      throw new Error("Integration database is not configured");
-    prisma = prismaModule.prisma;
+  // User.family_id is ON DELETE SET NULL, so deleting the family alone leaves
+  // integration-parent / integration-child behind. Delete both, before and
+  // after, so the suite also passes on a database an earlier run has used
+  // (otherwise beforeAll hits P2002 on User_pkey and every test fails).
+  async function cleanup() {
+    await prisma.family.deleteMany({ where: { id: familyId } });
+    await prisma.user.deleteMany({
+      where: { id: { in: [parentId, childId] } },
+    });
+  }
+
+  async function seed() {
     await prisma.family.create({
       data: {
         id: familyId,
@@ -39,11 +46,36 @@ describeWithDatabase("family import persistence", () => {
         },
       ],
     });
+  }
+
+  beforeAll(async () => {
+    const prismaModule = await import("@/lib/prisma");
+    if (!prismaModule.prisma)
+      throw new Error("Integration database is not configured");
+    prisma = prismaModule.prisma;
+    await cleanup();
+    await seed();
   });
 
   afterAll(async () => {
-    await prisma.family.delete({ where: { id: familyId } });
+    await cleanup();
     await prisma.$disconnect();
+  });
+
+  it("can be set up again over rows left by an earlier run", async () => {
+    // Rows from beforeAll stand in for an earlier run's leftovers. Deleting
+    // the family alone would orphan the users rather than remove them.
+    await prisma.family.delete({ where: { id: familyId } });
+    expect(
+      await prisma.user.count({ where: { id: { in: [parentId, childId] } } }),
+    ).toBe(2);
+    await cleanup();
+    await expect(seed()).resolves.toBeUndefined();
+    expect(
+      await prisma.user.count({
+        where: { id: { in: [parentId, childId] }, family_id: familyId },
+      }),
+    ).toBe(2);
   });
 
   it("persists and reuses ChoreChamps records transactionally", async () => {
