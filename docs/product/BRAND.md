@@ -121,6 +121,8 @@ Files are compressed WebP (spots about 480px on the long side, 20 to 60 KB). Eve
 
 Other brand files: `public/og-image.jpg` (1200×630, includes the words "Family Planner"), `public/icon-192.png`, `public/icon-512.png`, `public/apple-touch-icon.png`, `public/favicon.ico`, `public/brand/favicon-32.png`, `public/brand/favicon-48.png`, and `public/favicon.svg` (hand-written SVG of the house mark that reads at 16px; also used as the in-app logo through `BrandMark`).
 
+Android app icon (done): the Capacitor launcher icons in `android/app/src/main/res/` use the same house mark, cut from `public/icon-512.png`. The adaptive icon is a flat navy `#1F2A44` background (`values/ic_launcher_background.xml`) with the house on a transparent foreground (`mipmap-*/ic_launcher_foreground.png`, 108dp canvas, mark inside a 56dp circle so every launcher mask keeps it whole) and a single-colour `ic_launcher_monochrome.png` (heart and door cut out) for Android 13 themed icons. The legacy `ic_launcher.png` and `ic_launcher_round.png` (48dp, rounded square and circle) are the same art for Android 7 and 7.1. The splash is cream `#FBF7F0` with the navy house tile (`drawable*/splash.png` before Android 12, `windowSplashScreenBackground` in `values/styles.xml` from Android 12). The Play Store listing icon is still part of #163.
+
 ### Add an illustration
 
 1. Generate with the same model, the style reference image and the prompt pattern above; one subject, transparent background.

@@ -18,5 +18,7 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ system splash: Warm Paper cream behind the launcher icon. -->
+        <item name="windowSplashScreenBackground">#FBF7F0</item>
     </style>
 </resources>

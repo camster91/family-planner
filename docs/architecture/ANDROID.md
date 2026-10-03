@@ -49,6 +49,8 @@ Android system back must have deterministic behaviour. Do not implement iOS-like
 ## Packaging
 Public release work must support an Android App Bundle (AAB), stable application ID, versionCode/versionName policy, production signing ownership/recovery, adaptive/monochrome icons and exact artifact provenance. Internal APKs remain useful for development/testing.
 
+Launcher icons: adaptive (navy background colour, house foreground) plus a monochrome layer for Android 13 themed icons, and legacy/round PNGs for Android 7.x. How they are made and what they look like is in `docs/product/BRAND.md` (Android app icon).
+
 ## Versioning policy (#160, ADR-0004)
 
 Decision context: [ADR-0004](adr/0004-api-compatibility.md) (installed Android clients must keep working; versionCode/versionName are operational inputs). The only distributed build so far is `versionCode 1`, `versionName "1.0"`; `applicationId "com.ashbi.familyplanner"`.
