@@ -78,6 +78,16 @@ export function usableCursor(stored: string | null | undefined, now: Date): stri
   return m[2];
 }
 
+/**
+ * When the full listing behind a stored cursor ran. Incremental pulls keep
+ * this time, so the cursor still expires CURSOR_MAX_AGE_MS after the last
+ * full listing and the window moves forward even on a daily-synced calendar.
+ */
+export function cursorIssuedAt(stored: string | null | undefined): Date | null {
+  const m = stored ? CURSOR_RE.exec(stored) : null;
+  return m ? new Date(Number(m[1])) : null;
+}
+
 export interface EngineDeps {
   db?: any;
   now?: Date;
@@ -774,6 +784,8 @@ export async function syncConnection(
   try {
     let pulled: PullResult;
     const cursor = usableCursor(conn.sync_cursor, now);
+    // Full listings start a new cursor age; incremental pulls keep the old one.
+    let issuedAt = cursor ? (cursorIssuedAt(conn.sync_cursor) ?? now) : now;
     // A periodic full listing (cursor too old) is a routine refresh, not a
     // 410 resync, so `resynced` stays false for it.
     try {
@@ -783,6 +795,7 @@ export async function syncConnection(
     } catch (err) {
       if (!(err instanceof CursorExpiredError)) throw err;
       summary.resynced = true;
+      issuedAt = now;
       pulled = await withAuth(ctx, (t) =>
         ctx.adapter.pull(t, conn.calendar_id, null, window, ctx.timeZone),
       );
@@ -793,7 +806,7 @@ export async function syncConnection(
     await inGeneration(ctx, (tx) =>
       tx.calendarConnection.updateMany({
         where: { id: conn.id, family_id: familyId, generation: conn.generation },
-        data: { sync_cursor: packCursor(pulled.nextCursor, now) },
+        data: { sync_cursor: packCursor(pulled.nextCursor, issuedAt) },
       }),
     );
     await pushLocal(ctx, window, summary);

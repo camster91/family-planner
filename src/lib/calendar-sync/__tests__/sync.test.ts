@@ -27,6 +27,7 @@ import {
 } from "@/__tests__/helpers/two-household";
 import {
   CURSOR_MAX_AGE_MS,
+  cursorIssuedAt,
   packCursor,
   usableCursor,
   refreshStaleConnections,
@@ -185,6 +186,29 @@ describe("pull", () => {
     expect(links()).toHaveLength(2);
   });
 
+  it("daily incremental syncs keep the cursor's age, so the weekly full listing still happens", async () => {
+    provider.remoteUpsert("r1", { title: "Soon", start: inDays(2) });
+    await syncConnection("conn-a", FAMILY_A, deps);
+    provider.remoteUpsert("far", { title: "Far", start: inDays(200) });
+
+    const day = 86400000;
+    for (let d = 1; d <= 7; d++) {
+      provider.calls = [];
+      await syncConnection("conn-a", FAMILY_A, { ...deps, now: new Date(NOW.getTime() + d * day) });
+      expect(provider.calls.filter((c) => c.startsWith("pull"))).not.toContain("pull:full");
+      // Incremental pulls keep the time of the last full listing.
+      expect(conn().sync_cursor).toMatch(new RegExp(`^c1\\.${NOW.getTime()}\\.`));
+    }
+    expect(imported().map((e) => e.title)).toEqual(["Soon"]);
+
+    const day8 = new Date(NOW.getTime() + 8 * day);
+    provider.calls = [];
+    await syncConnection("conn-a", FAMILY_A, { ...deps, now: day8 });
+    expect(provider.calls.filter((c) => c.startsWith("pull"))).toEqual(["pull:full"]);
+    expect(conn().sync_cursor).toBe(`c1.${day8.getTime()}.${provider.seq}`);
+    expect(imported().map((e) => e.title).sort()).toEqual(["Far", "Soon"]);
+  });
+
   it("cursor helpers: old-format, future and expired cursors force a full listing", () => {
     expect(usableCursor(null, NOW)).toBeNull();
     expect(usableCursor("legacy-token", NOW)).toBeNull();
@@ -192,6 +216,8 @@ describe("pull", () => {
     expect(usableCursor(packCursor("t", NOW), new Date(NOW.getTime() + CURSOR_MAX_AGE_MS + 1))).toBeNull();
     expect(usableCursor(packCursor("t", new Date(NOW.getTime() + 60000)), NOW)).toBeNull();
     expect(packCursor(null, NOW)).toBeNull();
+    expect(cursorIssuedAt(packCursor("t", NOW))).toEqual(NOW);
+    expect(cursorIssuedAt("legacy-token")).toBeNull();
   });
 
   it("does not import events that ended before the sync window", async () => {
