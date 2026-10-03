@@ -39,7 +39,7 @@ same restore. The private native resource is healthy; all 63 hashes survived an
 actual native container recreation, after its own independent backup restore
 and retained-image checks.
 
-The current app image, revision `c36c0acb0679186a1dfdf456b2a891d937f99909`, passed
+The previously checked image, `c36c0acb0679186a1dfdf456b2a891d937f99909`, passed
 full isolated startup/migrations, public health/login/register pages, fixture
 registration, unverified-account rejection, real verification-token consumption,
 wrong-password rejection, login, protected session cookies, CSRF and cross-origin
@@ -50,6 +50,12 @@ database ran on an internal-only network without published ports, provider
 credentials or production secrets; all fixtures were removed. Mail delivery,
 phone password-manager behaviour, browser rendering, Android and every optional
 integration are not proven by these HTTP checks.
+
+During preparation, main advanced to
+`a00d29d896e03effa38ef2f8f5064ebfc3eca5ae`, including additive schema and workflow
+changes. The preceding image checks and database snapshot remain historical
+recovery evidence. Recheck the current image and schema on a fresh restored copy
+before cutover; do not describe the earlier private database copy as synchronized.
 
 The private copy must not be substituted for live data merely because those
 checks pass. All original volumes remain; the candidate adds one volume.
