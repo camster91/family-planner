@@ -24,9 +24,9 @@ interface ProjectCardProps {
 }
 
 const statusBadgeClasses: Record<string, string> = {
-  active: 'bg-green-100 text-green-700 border-green-200',
-  completed: 'bg-blue-100 text-blue-700 border-blue-200',
-  archived: 'bg-gray-100 text-gray-500 border-gray-200',
+  active: 'bg-[var(--success-tint)] text-success-text border-[var(--success-tint)]',
+  completed: 'bg-[var(--accent-tint)] text-primary border-[var(--accent-tint-strong)]',
+  archived: 'bg-muted text-label-tertiary border-border',
 }
 
 export default function ProjectCard({ project, className }: ProjectCardProps) {
@@ -73,7 +73,7 @@ export default function ProjectCard({ project, className }: ProjectCardProps) {
         <div className="space-y-1.5 mt-auto">
           <div className="h-1 rounded-full bg-surface-fill overflow-hidden">
             <div
-              className={cn('h-full rounded-full transition-all duration-700 ease-out', isComplete ? 'bg-success' : 'bg-projects')}
+              className={cn('h-full rounded-full transition-all duration-700 ease-out', isComplete ? 'bg-success' : 'bg-tint-projects')}
               style={{ width: `${percent}%` }}
             />
           </div>

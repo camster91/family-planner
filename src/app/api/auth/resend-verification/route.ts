@@ -6,6 +6,7 @@ import { createVerificationToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
+import { brandedEmailHtml, emailButton } from '@/lib/email-layout'
 import { logRouteError, logRouteWarning } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -53,14 +54,14 @@ export async function POST(request: NextRequest) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
         const verifyUrl = appUrl + '/verify-email?token=' + token
 
-        const html = [
+        const html = brandedEmailHtml([
           '<h2>Verify Your Email</h2>',
           `<p>Hi ${escapeHtml(user.name)},</p>`,
           '<p>Here is a new verification link for your Family Planner account.</p>',
-          `<p><a href="${escapeHtml(verifyUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
+          `<p>${emailButton(verifyUrl, 'Verify Email')}</p>`,
           `<p>Or copy this link: ${escapeHtml(verifyUrl)}</p>`,
           '<p>This link expires in 24 hours.</p>',
-        ].join('\n')
+        ].join('\n'))
 
         await sendAccountMail('email_verification', {
           to: email,

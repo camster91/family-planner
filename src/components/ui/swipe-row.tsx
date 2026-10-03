@@ -76,8 +76,8 @@ export function SwipeRow({
     setTranslateX(0)
   }
 
-  const leftActionBg = 'bg-red-500'
-  const rightActionBg = 'bg-green-500'
+  const leftActionBg = 'bg-danger-fill'
+  const rightActionBg = 'bg-success'
   const leftIcon = leftContent ?? <Trash2 className="w-5 h-5 text-white" />
   const rightIcon = rightContent ?? <Check className="w-5 h-5 text-white" />
 

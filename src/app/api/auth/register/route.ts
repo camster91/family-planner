@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
+import { brandedEmailHtml, emailButton } from '@/lib/email-layout'
 import { hashPassword } from '@/lib/auth'
 import { attachSessionCookie } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -170,14 +171,14 @@ export async function POST(request: NextRequest) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
       const verifyUrl = appUrl + '/verify-email?token=' + verifyToken
 
-      const html = [
+      const html = brandedEmailHtml([
         '<h2>Verify Your Email</h2>',
         `<p>Hi ${escapeHtml(name)},</p>`,
         '<p>Welcome to Family Planner! Please verify your email address to get started.</p>',
-        `<p><a href="${escapeHtml(verifyUrl)}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verify Email</a></p>`,
+        `<p>${emailButton(verifyUrl, 'Verify Email')}</p>`,
         `<p>Or copy this link: ${escapeHtml(verifyUrl)}</p>`,
         '<p>This link expires in 24 hours. If you did not sign up, you can ignore this email.</p>',
-      ].join('\n')
+      ].join('\n'))
 
       try {
         await sendAccountMail('email_verification', {

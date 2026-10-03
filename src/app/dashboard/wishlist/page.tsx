@@ -197,9 +197,9 @@ function WishlistContent() {
 
   const statusMeta: Record<string, { label: string; color: string; dot: string }> = {
     idle: { label: t('wishlist.status.idle'), color: 'text-label-secondary', dot: 'bg-label-tertiary' },
-    on_the_way: { label: t('wishlist.coming'), color: 'text-blue-600', dot: 'bg-blue-500' },
-    received: { label: t('wishlist.gotIt'), color: 'text-green-600', dot: 'bg-green-500' },
-    denied: { label: t('wishlist.status.denied'), color: 'text-red-500', dot: 'bg-red-500' },
+    on_the_way: { label: t('wishlist.coming'), color: 'text-primary', dot: 'bg-primary' },
+    received: { label: t('wishlist.gotIt'), color: 'text-success-text', dot: 'bg-success' },
+    denied: { label: t('wishlist.status.denied'), color: 'text-danger-text', dot: 'bg-danger-fill' },
   }
 
   if (loading) {
@@ -213,7 +213,7 @@ function WishlistContent() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-subhead text-red-500">{error}</p>
+        <p className="text-subhead text-danger-text">{error}</p>
       </div>
     )
   }
@@ -279,7 +279,7 @@ function WishlistContent() {
                           href={item.link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-caption-1 text-blue-500 mt-1 hover:underline"
+                          className="inline-flex items-center gap-1 text-caption-1 text-primary mt-1 hover:underline"
                         >
                           <ExternalLink size={12} />
                           {item.link.length > 40 ? item.link.slice(0, 40) + '...' : item.link}
@@ -294,7 +294,7 @@ function WishlistContent() {
                         </p>
                       )}
                       {item.status === 'denied' && item.denied_reason && (
-                        <p className="text-caption-1 text-red-400 mt-1 italic">
+                        <p className="text-caption-1 text-danger-text mt-1 italic">
                           {t('wishlist.deniedReason')}: {item.denied_reason}
                         </p>
                       )}
@@ -339,7 +339,7 @@ function WishlistContent() {
                               setModalError(null)
                               setDeletingItem(item)
                             }}
-                            className="btn-ghost h-11 w-11 p-0 rounded-lg text-red-400"
+                            className="btn-ghost h-11 w-11 p-0 rounded-lg text-danger-text"
                             title={t('wishlist.delete')}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -373,7 +373,7 @@ function WishlistContent() {
               onChange={(e) => setFormTitle(e.target.value)}
               placeholder="Nintendo Switch"
               required
-              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
+              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-[var(--focus-ring)] focus:outline-none"
             />
           </div>
           <div>
@@ -386,7 +386,7 @@ function WishlistContent() {
               value={formLink}
               onChange={(e) => setFormLink(e.target.value)}
               placeholder="https://..."
-              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
+              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-[var(--focus-ring)] focus:outline-none"
             />
           </div>
           <div>
@@ -399,7 +399,7 @@ function WishlistContent() {
               onChange={(e) => setFormDescription(e.target.value)}
               placeholder="Optional details..."
               rows={3}
-              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none resize-none"
+              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-[var(--focus-ring)] focus:outline-none resize-none"
             />
           </div>
           <div>
@@ -414,7 +414,7 @@ function WishlistContent() {
               placeholder="149.99"
               step="0.01"
               min="0"
-              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
+              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-[var(--focus-ring)] focus:outline-none"
             />
           </div>
           {modalErrorText}
@@ -450,7 +450,7 @@ function WishlistContent() {
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-blue-400 focus:outline-none"
+              className="w-full bg-[var(--surface-fill)] rounded-xl px-4 py-3 text-body border border-[var(--surface-separator)] focus:border-[var(--focus-ring)] focus:outline-none"
             />
           </div>
           {modalErrorText}
@@ -502,7 +502,7 @@ function WishlistContent() {
               type="button"
               onClick={handleDelete}
               disabled={submitting}
-              className="flex-1 rounded-xl py-3 text-body font-semibold bg-red-500 text-white disabled:opacity-50"
+              className="flex-1 rounded-xl py-3 text-body font-semibold bg-danger-fill text-white disabled:opacity-50"
             >
               {submitting ? '...' : t('wishlist.delete')}
             </button>

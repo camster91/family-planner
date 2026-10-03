@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ListRow, InsetList } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { CaptureBox } from '@/components/capture/CaptureBox'
@@ -305,6 +306,7 @@ export default function CalendarPageClient({
           <EmptyState
             icon={CalendarIcon}
             glyphColor="calendar"
+            illustration={ILLUSTRATIONS.calendarEmpty}
             title="No events"
             description="Add events to your family's shared calendar."
             action={

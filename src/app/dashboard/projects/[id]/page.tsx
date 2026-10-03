@@ -120,7 +120,7 @@ async function ProjectDetailContent({ id }: { id: string }) {
               <p className="text-subhead text-label-secondary mt-1">{totalTasks - completedTasks} remaining</p>
             )}
             {progress === 100 && totalTasks > 0 && (
-              <p className="text-subhead text-green-600 mt-1 font-medium">All done!</p>
+              <p className="text-subhead text-success-text mt-1 font-medium">All done!</p>
             )}
           </div>
           {/* Color accent dot */}
@@ -178,13 +178,13 @@ function ProjectDetailSkeleton() {
   return (
     <div className="space-y-6 animate-pulse px-4">
       <div className="flex justify-between">
-        <div className="h-4 w-28 bg-gray-200 rounded" />
-        <div className="h-8 w-32 bg-gray-200 rounded-xl" />
+        <div className="h-4 w-28 bg-muted rounded" />
+        <div className="h-8 w-32 bg-muted rounded-xl" />
       </div>
       <div className="card-apple p-5 h-32" />
       <div className="space-y-1">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-14 bg-gray-100 rounded-xl" />
+          <div key={i} className="h-14 bg-muted rounded-xl" />
         ))}
       </div>
     </div>

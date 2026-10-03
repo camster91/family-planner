@@ -3,105 +3,114 @@
 @tailwind utilities;
 
 /* ============================================================
-   Family Planner — Apple HIG-aligned design tokens
-   Surfaces, type, color, motion, shadows, radii, spring physics
+   Family Planner — Warm Paper design tokens
+   Cozy, crafted, editorial: warm cream paper, deep navy ink,
+   terracotta highlights, sage for success, mustard accents.
+   Palette, contrast ratios and illustration rules:
+   docs/product/BRAND.md. Token names are kept from the
+   earlier Apple HIG-aligned set; new: --on-accent,
+   --success-text, --focus-ring, --brand-*, --font-family-*.
+   Every ratio below is WCAG 2.1 relative-luminance contrast
+   (src/__tests__/brand-contrast.test.ts checks every pair;
+   BRAND_CONTRAST_TABLE=1 prints the table).
    ============================================================ */
 
 @layer base {
   :root {
-    /* === Surfaces (light mode) === */
-    --surface-base: #FFFFFF;
-    --surface-elevated: #FFFFFF;
-    --surface-grouped: #F2F2F7;          /* iOS grouped table bg */
-    --surface-grouped-secondary: #FFFFFF;
-    --surface-fill: rgba(120, 120, 128, 0.12);
-    --surface-fill-secondary: rgba(120, 120, 128, 0.08);
-    --surface-separator: rgba(60, 60, 67, 0.12);
-    --surface-separator-opaque: #C6C6C8;
-    --surface-overlay: rgba(0, 0, 0, 0.4);
+    /* === Type families (next/font sets --font-fraunces and --font-inter on <html> in layout.tsx) === */
+    --font-family-serif: var(--font-fraunces), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --font-family-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
-    /* === Label (text) colors ===
-       WCAG 2.1 AA contrast (4.5:1) against surface-base (#FCFCFD) and
-       surface-grouped (#F2F2F7) requires darker secondary text than the
-       Apple default 0.7 alpha. Bumped to 0.9/0.75 to keep hierarchy while
-       passing the contrast check. — QA pass 3, 2026-06-06 */
-    --label-primary: rgba(0, 0, 0, 1);
-    --label-secondary: rgba(60, 60, 67, 0.9);
-    --label-tertiary: rgba(60, 60, 67, 0.75);
-    --label-quaternary: rgba(60, 60, 67, 0.75);
-    --label-inverse: #FFFFFF;
+    /* === Surfaces (light mode): cream paper with warm white cards === */
+    --surface-base: #FFFDF9;
+    --surface-elevated: #FFFDF9;
+    --surface-grouped: #FBF7F0;          /* cream page */
+    --surface-grouped-secondary: #FFFDF9;
+    --surface-fill: rgba(122, 98, 64, 0.10);
+    --surface-fill-secondary: rgba(122, 98, 64, 0.06);
+    --surface-separator: rgba(31, 42, 68, 0.12);
+    --surface-separator-opaque: #E6DDCC;
+    --surface-overlay: rgba(18, 26, 43, 0.45);
 
-    /* === Accent — system blue (calmer than the old teal)
-       Used in 3 roles:
-       (1) text/link on neutral surface (--accent-text)
-       (2) text on --accent-tint (--accent-text — same value, tints are light enough)
-       (3) background fill with white text (--accent-fill)
+    /* === Label (text) colours: deep navy ink ===
+       Solid colours (not alpha) so every pair has one known ratio.
+       primary   #1F2A44  13.35:1 on cream, 14.03:1 on card
+       secondary #4A5068   7.45:1 on cream,  6.85:1 on surface-fill over card
+       tertiary  #5C6175   5.75:1 on cream,  5.29:1 on surface-fill over card */
+    --label-primary: #1F2A44;
+    --label-secondary: #4A5068;
+    --label-tertiary: #5C6175;
+    --label-quaternary: #5C6175;
+    --label-inverse: #FFFDF9;
 
-       The original Apple blue (#007AFF) fails 4.5:1 in all 3 cases on
-       light gray surfaces. Split into two tokens so each role has its
-       own pass: --accent-text for text uses (lighter, more saturated),
-       --accent-fill for filled buttons (darker, white text passes). */
-    --accent-text: #0040DD;
-    --accent-fill: #0035B5;
-    --accent-fill-hover: #0025A0;
-    --accent-fill-pressed: #001E80;
-    --accent-tint: rgba(0, 64, 221, 0.15);
-    --accent-tint-strong: rgba(0, 64, 221, 0.22);
-    /* Backwards-compat: --accent is the text variant. Existing components
-       that use `var(--accent)` for text/link color are unaffected.
-       Buttons (.btn-filled) use --accent-fill directly. */
+    /* === Accent ===
+       --accent-fill: primary actions. Deep navy behind cream text (14.03:1).
+       --accent-text: links, tinted buttons, active states. Terracotta,
+         5.71:1 on cream, 4.97:1 on --accent-tint over cream.
+       --on-accent: text and icons on --accent-fill. */
+    --accent-text: #A3452A;
+    --accent-fill: #1F2A44;
+    --accent-fill-hover: #2B3A5C;
+    --accent-fill-pressed: #141C30;
+    --accent-tint: rgba(196, 98, 61, 0.12);
+    --accent-tint-strong: rgba(196, 98, 61, 0.20);
+    --on-accent: #FFFDF9;
+    /* Backwards-compat: --accent is the text variant. */
     --accent: var(--accent-text);
     --accent-hover: var(--accent-fill-hover);
     --accent-pressed: var(--accent-fill-pressed);
 
-    /* === Semantic === */
-    --success: #34C759;
-    --success-tint: rgba(52, 199, 89, 0.15);
-    --warning: #FF9500;
-    --warning-tint: rgba(255, 149, 0, 0.15);
-    --danger: #FF3B30;
-    --danger-tint: rgba(255, 59, 48, 0.12);
+    /* Terracotta and mustard as brand decoration (rules, badges, art). */
+    --brand-terracotta: #C4623D;
+    --brand-mustard: #D9A33A;
+    --brand-sage: #8FB283;
+    --brand-navy: #1F2A44;
+    --brand-cream: #FBF7F0;
 
-    /* Text-safe semantic variants (#131). The Apple system orange/red
-       above are kept for non-text decoration (borders, dots, tints,
-       badges without text) but fail WCAG 2.1 AA as text:
-         #FF9500 on white = 2.20:1, white on #FF3B30 = 3.55:1.
-       Same split as --accent-text / --accent-fill:
-       --warning-text / --danger-text: text on neutral or tint surfaces
-       --danger-fill: filled destructive button behind white text
-       --on-warning: text on a --warning fill (e.g. offline banner)
-       Values are close to Apple's increased-contrast system colours.
-       Ratios below are WCAG 2.1 relative-luminance contrast; all >= 4.5:1. */
-    --warning-text: #C93400;             /* 5.28:1 on #FFF, 4.73:1 on #F2F2F7 */
-    --danger-text: #C4001A;              /* 6.25:1 on #FFF, 5.60:1 on #F2F2F7, 4.80:1 on danger-tint */
-    --danger-fill: #D70015;              /* white text 5.38:1 */
-    --danger-fill-pressed: #B8000F;
-    --on-warning: #000000;               /* 9.55:1 on #FF9500 */
+    /* Focus ring: a 2px gap in the surface colour, then a 2px terracotta
+       ring. 3.81:1 against cream, so it shows on cream pages and around
+       navy buttons alike (WCAG 2.4.11 / 1.4.11). */
+    --focus-ring: #C4623D;
 
-    /* === Family module tints (used for category glyphs + avatars) ===
-       Darkened in QA pass 3 (2026-06-06) so white text on avatar
-       backgrounds hits WCAG 2.1 AA 4.5:1. The original
-       Apple tints (#FF2D55, #5AC8FA, #FFCC00) are pretty but fail
-       the contrast check. */
-    --tint-chore: #5856D6;               /* indigo */
-    --tint-calendar: #D70015;            /* red — darkened for AA */
-    --tint-lists: #1d6e30;               /* green — darkened further to hit 4.5:1 on white */
-    --tint-budget: #0040DD;              /* blue — darkened for AA */
-    --tint-messages: #C8003C;            /* pink — darkened for AA */
-    --tint-family: #8944AB;              /* purple — darkened for AA */
-    --tint-rewards: #8F5500;             /* orange — darkened further so white-on-bg AND text-on-white both pass */
-    --tint-projects: #0079A8;            /* sky — darkened for AA */
-    --tint-meals: #997A00;               /* yellow — darkened for AA */
+    /* === Semantic ===
+       --success is the sage fill: white check 5.56:1. --success-text is
+       for text (5.20:1 on cream). */
+    --success: #4E7148;
+    --success-text: #4E7148;             /* text; lighter sage in dark mode */
+    --success-tint: rgba(110, 145, 100, 0.16);
+    --warning: #D9A33A;                  /* mustard, decoration only */
+    --warning-tint: rgba(217, 163, 58, 0.18);
+    --danger: #C2412D;                   /* decoration only */
+    --danger-tint: rgba(194, 65, 45, 0.10);
 
-    /* Dark-mode text-friendly variants of the tints. Used only for
-       text color (e.g. text-[var(--tint-lists-text)] on dark surface).
-       The light-mode tints above are too dark to read as text on a
-       dark surface. Lighter variants give 4.5:1 on #1C1C1E.
-       Use the same pattern as --accent-text vs --accent-fill. */
-    --tint-lists-text: #4ADE80;          /* green: 4.7:1 on #1C1C1E */
-    --tint-rewards-text: #FFB672;        /* orange: 6.4:1 on #1C1C1E */
+    /* Text-safe semantic variants (#131): --warning/--danger above are for
+       borders, dots and tints; text uses these. */
+    --warning-text: #8A5A00;             /* 5.55:1 on cream, 5.83:1 on card */
+    --danger-text: #A8261B;              /* 6.65:1 on cream, 5.82:1 on danger-tint */
+    --danger-fill: #A8261B;              /* cream text 6.97:1 */
+    --danger-fill-pressed: #8C1F16;
+    --on-warning: #1F2A44;               /* 6.27:1 on mustard */
 
-    /* === Radius (Apple's 8/12/16/20/28 progression) === */
+    /* === Family module tints (glyphs, avatars, member colours) ===
+       Earthy versions of the old hues, still distinct from each other.
+       All carry white text at >= 5.7:1 in both modes. */
+    --tint-chore: #4A4F8C;               /* indigo ink   7.53:1 */
+    --tint-calendar: #A8432B;            /* terracotta   6.00:1 */
+    --tint-lists: #46663C;               /* sage         6.51:1, text on cream 6.10:1 */
+    --tint-budget: #2F5A85;              /* slate blue   7.19:1 */
+    --tint-messages: #A13A5A;            /* berry        6.43:1 */
+    --tint-family: #71508A;              /* plum         6.53:1 */
+    --tint-rewards: #8A5413;             /* ochre        6.25:1, text on cream 5.86:1 */
+    --tint-projects: #2C6B78;            /* teal         6.03:1 */
+    --tint-meals: #7A5C0E;               /* mustard deep 6.24:1 */
+
+    /* Dark-mode text variants of the tints (see .dark). In light mode they
+       are the tints themselves, already AA as text on cream. (Before the
+       rebrand these two were swapped: light mode got the pale variants.) */
+    --tint-lists-text: var(--tint-lists);
+    --tint-rewards-text: var(--tint-rewards);
+
+    /* === Radius === */
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
@@ -109,15 +118,15 @@
     --radius-2xl: 28px;
     --radius-full: 9999px;
 
-    /* === Shadows (subtle, layered — iOS elevation) === */
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-    --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.06);
-    --shadow-focus: 0 0 0 4px rgba(0, 122, 255, 0.24);
+    /* === Shadows: soft, warm, like paper resting on paper === */
+    --shadow-xs: 0 1px 2px rgba(60, 42, 20, 0.05);
+    --shadow-sm: 0 1px 3px rgba(60, 42, 20, 0.07), 0 1px 2px rgba(60, 42, 20, 0.04);
+    --shadow-md: 0 4px 14px rgba(60, 42, 20, 0.09), 0 1px 3px rgba(60, 42, 20, 0.05);
+    --shadow-lg: 0 10px 28px rgba(60, 42, 20, 0.11), 0 2px 6px rgba(60, 42, 20, 0.06);
+    --shadow-xl: 0 20px 48px rgba(60, 42, 20, 0.15), 0 4px 12px rgba(60, 42, 20, 0.07);
+    --shadow-focus: 0 0 0 2px var(--surface-elevated), 0 0 0 4px var(--focus-ring);
 
-    /* === Motion — Apple spring physics === */
+    /* === Motion === */
     --spring-default: cubic-bezier(0.32, 0.72, 0, 1);
     --spring-emphasis: cubic-bezier(0.5, 1.2, 0.4, 1);
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -127,49 +136,57 @@
     --duration-slow: 420ms;
   }
 
+  /* Dark mode: deep navy paper, warm cream ink, the same accents lifted. */
   .dark {
-    --surface-base: #000000;
-    --surface-elevated: #1C1C1E;
-    --surface-grouped: #000000;
-    --surface-grouped-secondary: #1C1C1E;
-    --surface-fill: rgba(120, 120, 128, 0.24);
-    --surface-fill-secondary: rgba(120, 120, 128, 0.16);
-    --surface-separator: rgba(84, 84, 88, 0.45);
-    --surface-separator-opaque: #38383A;
-    --surface-overlay: rgba(0, 0, 0, 0.6);
+    --surface-base: #121A2B;
+    --surface-elevated: #1B2538;
+    --surface-grouped: #121A2B;
+    --surface-grouped-secondary: #1B2538;
+    --surface-fill: rgba(232, 220, 196, 0.10);
+    --surface-fill-secondary: rgba(232, 220, 196, 0.06);
+    --surface-separator: rgba(232, 220, 196, 0.14);
+    --surface-separator-opaque: #2C3850;
+    --surface-overlay: rgba(5, 8, 15, 0.6);
 
-    /* Dark mode: bumped secondary/tertiary/quarterly alpha for WCAG AA on #000 surface */
-    --label-primary: rgba(255, 255, 255, 1);
-    --label-secondary: rgba(235, 235, 245, 0.9);
-    --label-tertiary: rgba(235, 235, 245, 0.7);
-    --label-quaternary: rgba(235, 235, 245, 0.5);
+    /* primary 13.28:1, secondary 9.64:1, tertiary 6.67:1 on #1B2538 cards */
+    --label-primary: #F5EEDF;
+    --label-secondary: #D5CCBB;
+    --label-tertiary: #B3AA9A;
+    --label-quaternary: #A39B8C;
+    --label-inverse: #121A2B;
 
-    /* Dark mode accent: split into --accent-text (for text on dark
-       surface, needs to be light to hit 4.5:1 on #1C1C1E) and
-       --accent-fill (for button backgrounds, needs to be dark enough
-       for white text to hit 4.5:1). The original Apple dark accent
-       #0A84FF fails 4.5:1 in both directions. */
-    --accent-text: #6FA9FF;      /* light blue: 6.7:1 on #1C1C1E */
-    --accent-fill: #0050CC;      /* dark blue: 4.7:1 white-on-bg */
-    --accent-fill-hover: #0060E0;
-    --accent-fill-pressed: #0040AA;
-    --accent-tint: rgba(111, 169, 255, 0.18);
-    --accent-tint-strong: rgba(111, 169, 255, 0.30);
+    /* Text: light terracotta, 7.01:1 on cards. Fill: a lifted "denim" navy
+       with cream text (5.27:1); distinct from the red destructive fill. */
+    --accent-text: #F09A76;
+    --accent-fill: #4A6BA3;
+    --accent-fill-hover: #42619A;
+    --accent-fill-pressed: #3B5689;
+    --accent-tint: rgba(240, 154, 118, 0.16);
+    --accent-tint-strong: rgba(240, 154, 118, 0.20);
+    --on-accent: #FFFDF9;
     --accent: var(--accent-text);
     --accent-hover: var(--accent-fill-hover);
     --accent-pressed: var(--accent-fill-pressed);
 
-    /* In light mode, --tint-lists-text and --tint-rewards-text are
-       the same as the dark --tint-lists / --tint-rewards (which
-       are already AA-compliant on white). In dark mode (above) they
-       point to lighter variants. */
-    --tint-lists-text: var(--tint-lists);
-    --tint-rewards-text: var(--tint-rewards);
+    --focus-ring: #F09A76;               /* 7.94:1 on navy */
 
-    /* Dark-mode text-safe semantic variants (#131): lighter for text on
-       dark surfaces. --danger-fill stays dark so white text passes. */
-    --warning-text: #FFB340;             /* 9.54:1 on #1C1C1E, 11.77:1 on #000 */
-    --danger-text: #FF6961;              /* 6.03:1 on #1C1C1E, 5.36:1 on danger-tint */
+    --success: #76996A;                  /* fill: white check 3.21:1 */
+    --success-text: #9DBF8E;             /* 7.51:1 on cards */
+    --success-tint: rgba(143, 178, 131, 0.16);
+    --warning-tint: rgba(230, 185, 79, 0.18);
+    --danger-tint: rgba(242, 140, 122, 0.16);
+
+    --tint-lists-text: #9DBF8E;          /* 7.51:1 on cards */
+    --tint-rewards-text: #F2B880;        /* 8.73:1 on cards */
+
+    --warning-text: #E6B94F;             /* 8.34:1 on cards */
+    --danger-text: #F28C7A;              /* 6.44:1 on cards */
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.20);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.18);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.22);
+    --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.42), 0 4px 12px rgba(0, 0, 0, 0.26);
   }
 
   html {
@@ -184,35 +201,40 @@
      Done as a global override rather than per-file to keep the diff small.
      Uses !important to beat Tailwind's @layer utilities which come
      later in the bundled CSS. */
-  .text-gray-500 { color: #5b5b62 !important; }
-  .text-green-600 { color: #1d7a3d !important; }
+  .text-gray-500 { color: var(--label-tertiary) !important; }
+  .text-green-600 { color: var(--success) !important; }
 
   body {
     background: var(--surface-grouped);
     color: var(--label-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-      "Inter", "Segoe UI", system-ui, sans-serif;
+    font-family: var(--font-family-sans);
     font-feature-settings: "ss01", "cv11";
     letter-spacing: -0.011em;
   }
 
-  /* SF Pro Display for large titles */
+  /* Fraunces for display text (large titles, the Today clock and date). */
   .font-display {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-      "Inter", system-ui, sans-serif;
-    letter-spacing: -0.022em;
+    font-family: var(--font-family-serif);
+    font-variation-settings: "SOFT" 50;
+    letter-spacing: -0.012em;
   }
+
+  ::selection { background: var(--accent-tint-strong); }
 
   .safe-top { padding-top: env(safe-area-inset-top); }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 }
 
 @layer components {
-  /* === Type scale (Apple HIG) === */
-  .text-large-title { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: -0.022em; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; }
-  .text-title-1 { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.022em; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; }
-  .text-title-2 { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.018em; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; }
-  .text-title-3 { font-size: 20px; line-height: 25px; font-weight: 600; }
+  /* === Type scale ===
+     Sizes are the Apple HIG scale. Titles are set in Fraunces (serif, soft
+     axis at 50 for the paper feel) with lighter tracking than the old
+     SF Pro settings: a serif needs less negative letter-spacing. Text below
+     title-3 stays in Inter. */
+  .text-large-title { font-size: 34px; line-height: 41px; font-weight: 600; letter-spacing: -0.014em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
+  .text-title-1 { font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.012em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
+  .text-title-2 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.008em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
+  .text-title-3 { font-size: 20px; line-height: 25px; font-weight: 600; letter-spacing: -0.004em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
   .text-headline { font-size: 17px; line-height: 22px; font-weight: 600; }
   .text-body { font-size: 17px; line-height: 22px; font-weight: 400; }
   .text-callout { font-size: 16px; line-height: 21px; font-weight: 400; }
@@ -258,11 +280,13 @@
     border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
     background: var(--accent-fill);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 600;
     font-size: 17px;
     transition: transform 200ms var(--spring-default), background 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
+  .btn-filled:hover,
+  .btn-primary:hover { background: var(--accent-fill-hover); }
   .btn-filled:active,
   .btn-primary:active { transform: scale(0.97); background: var(--accent-fill-pressed); }
   .btn-filled:disabled,
@@ -339,13 +363,13 @@
     padding: 0.75rem 1.25rem;
     /* --danger-fill, not --danger: white on #FF3B30 is 3.55:1 (#131). */
     background: var(--danger-fill);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 600;
     font-size: 17px;
     transition: transform 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
   .btn-destructive:active { transform: scale(0.97); background: var(--danger-fill-pressed); }
-  .btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(255, 59, 48, 0.24); }
+  .btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface-elevated), 0 0 0 4px var(--danger); }
 
   /* === Inputs === */
   .input-apple {
@@ -476,6 +500,22 @@
     background: var(--surface-fill);
     color: var(--label-tertiary);
   }
+  /* Warm Paper spot illustration in place of the glyph (EmptyState
+     `illustration`). Decorative; sized so the text stays above the fold
+     on a 390px phone. */
+  .empty-state-illustration {
+    /* A fixed width plus the img width/height attributes (aspect-ratio)
+       reserves the box before the file loads. Tall art is capped by
+       max-height and letterboxed by object-fit on a transparent ground. */
+    width: min(180px, 60vw);
+    height: auto;
+    max-height: 160px;
+    object-fit: contain;
+    margin-bottom: 1rem;
+  }
+  @media (min-width: 768px) {
+    .empty-state-illustration { width: 200px; max-height: 180px; }
+  }
 
   /* === Tab bar === */
   .tab-bar {
@@ -484,12 +524,12 @@
     left: 0;
     right: 0;
     z-index: 40;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 253, 249, 0.9);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     border-top: 1px solid var(--surface-separator);
   }
-  .dark .tab-bar { background: rgba(28, 28, 30, 0.85); }
+  .dark .tab-bar { background: rgba(27, 37, 56, 0.9); }
 
   /* === Progress ring === */
   .progress-ring {
@@ -499,14 +539,33 @@
 
   /* === Glass === */
   .glass {
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 253, 249, 0.85);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
   }
-  .dark .glass { background: rgba(28, 28, 30, 0.8); }
+  .dark .glass { background: rgba(27, 37, 56, 0.85); }
 }
 
 @layer utilities {
+  /* Light "paper" tokens for a subtree that always sits on cream artwork
+     (the landing hero text over the kitchen scene), in either theme.
+     Ratios on the darkest wall tone (#E6CBA2): ink 9.12:1, secondary
+     6.39:1, tertiary/link 4.73:1. Use with a breakpoint (lg:on-paper)
+     when the art is only behind the text at that size. */
+  .on-paper {
+    --label-primary: #1F2A44;
+    --label-secondary: #3A4258;
+    --label-tertiary: #3A4258;
+    --accent-text: #8F3C22;
+    --accent-fill: #1F2A44;
+    --accent-fill-hover: #2B3A5C;
+    --accent-fill-pressed: #141C30;
+    --on-accent: #FFFDF9;
+    --focus-ring: #8F3C22;
+    --surface-elevated: #FBF7F0;
+    color: var(--label-primary);
+  }
+
   .spring-default { transition-timing-function: var(--spring-default); }
   .spring-emphasis { transition-timing-function: var(--spring-emphasis); }
 
@@ -525,6 +584,18 @@
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 .animate-spring-in { animation: spring-in 360ms var(--spring-emphasis) both; }
+
+/* Warm Paper illustrations: a plain opacity fade, nothing more. Skipped
+   entirely with reduced motion (the global rule below also shortens it). */
+@keyframes paper-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.animate-paper-fade { animation: paper-fade-in 400ms var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-paper-fade { animation: none; }
+}
+.reduce-motion .animate-paper-fade { animation: none; }
 
 @keyframes spring-up {
   0% { opacity: 0; transform: translateY(12px); }

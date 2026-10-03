@@ -115,7 +115,7 @@ export function ProjectDetailActions({
       icon: CheckCircle2,
       onClick: () => updateStatus('completed'),
       loading: loading === 'completed',
-      className: 'text-emerald-600',
+      className: 'text-success-text',
     })
     actions.push({
       label: 'Archive',
@@ -151,7 +151,7 @@ export function ProjectDetailActions({
       icon: Trash2,
       onClick: deleteProject,
       loading: loading === 'delete',
-      className: 'text-red-500 hover:bg-red-50 hover:text-red-600',
+      className: 'text-danger-text hover:bg-[var(--danger-tint)]',
     })
   }
 
@@ -164,7 +164,7 @@ export function ProjectDetailActions({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
-        className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
+        className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors"
       >
         <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
         Actions
@@ -178,7 +178,7 @@ export function ProjectDetailActions({
             id={menuId}
             role="menu"
             aria-label="Project actions"
-            className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-white border shadow-lg py-1 overflow-hidden"
+            className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-card border shadow-lg py-1 overflow-hidden"
           >
             {actions.map((action) => (
               <button
@@ -187,7 +187,7 @@ export function ProjectDetailActions({
                 role="menuitem"
                 onClick={action.onClick}
                 disabled={!!action.loading}
-                className={`flex min-h-[44px] items-center gap-2 w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors disabled:opacity-50 ${action.className || ''}`}
+                className={`flex min-h-[44px] items-center gap-2 w-full px-4 py-2.5 text-sm text-left hover:bg-muted transition-colors disabled:opacity-50 ${action.className || ''}`}
               >
                 <action.icon className="w-4 h-4" aria-hidden="true" />
                 {action.loading ? '...' : action.label}

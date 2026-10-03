@@ -38,21 +38,21 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <KeyRound className="w-8 h-8 text-green-600" />
+              <div className="w-16 h-16 bg-[var(--success-tint)] rounded-[var(--radius-xl)] flex items-center justify-center">
+                <KeyRound className="w-8 h-8 text-success-text" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Check Your Email</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-title-2 text-label-primary">Check Your Email</h1>
+            <p className="mt-2 text-[var(--label-secondary)]">
               If an account exists with <span className="font-medium">{email}</span>, you&apos;ll receive a password reset link.
             </p>
           </div>
           <div className="text-center">
-            <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
+            <Link href="/login" className="text-[var(--accent-text)] hover:underline font-medium">
               {t('auth.backToSignIn')}
             </Link>
           </div>
@@ -62,16 +62,16 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] shadow-[var(--shadow-md)] flex items-center justify-center">
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('auth.forgotPasswordTitle')}</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-title-2 text-label-primary">{t('auth.forgotPasswordTitle')}</h1>
+          <p className="mt-2 text-[var(--label-secondary)]">
             {t('auth.forgotPasswordSubtitle')}
           </p>
         </div>
@@ -79,13 +79,13 @@ export default function ForgotPasswordPage() {
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              <div className="bg-[var(--danger-tint)] text-[var(--danger-text)] px-4 py-3 rounded-[var(--radius-md)]">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-[var(--label-primary)] mb-2">
                 {t('auth.email')}
               </label>
               <input
@@ -110,9 +110,9 @@ export default function ForgotPasswordPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-[var(--label-secondary)]">
               {t('auth.alreadyHaveAccount')}{' '}
-              <Link href="/login" className="inline-flex items-center py-2 text-blue-600 hover:text-blue-500 font-medium min-h-11">
+              <Link href="/login" className="inline-flex items-center py-2 text-[var(--accent-text)] hover:underline font-medium min-h-11">
                 {t('auth.signInLink')}
               </Link>
             </p>

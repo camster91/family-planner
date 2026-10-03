@@ -57,7 +57,7 @@ export default function CreateFamilyPage() {
         <div className="card-apple p-5">
           <form onSubmit={handleCreateFamily} className="space-y-6">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-subhead">
+              <div className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-xl text-subhead">
                 {error}
               </div>
             )}

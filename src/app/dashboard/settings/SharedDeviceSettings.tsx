@@ -41,26 +41,26 @@ export default function SharedDeviceSettings({ initialHasPin }: { initialHasPin:
     <>
       <Link
         href="/dashboard/settings/devices"
-        className="w-full p-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-3 min-h-[44px]"
+        className="w-full p-3 text-left text-foreground hover:bg-muted rounded-lg flex items-center gap-3 min-h-[44px]"
       >
-        <TabletSmartphone className="w-4 h-4 text-blue-600" aria-hidden="true" />
+        <TabletSmartphone className="w-4 h-4 text-primary" aria-hidden="true" />
         <div>
           <div className="font-medium">Devices</div>
-          <div className="text-xs text-gray-500">Pair, rename or remove the family tablet</div>
+          <div className="text-xs text-label-tertiary">Pair, rename or remove the family tablet</div>
         </div>
       </Link>
 
       <div className="w-full p-3 rounded-lg flex flex-wrap items-center gap-3" data-testid="tablet-pin">
-        <KeyRound className="w-4 h-4 text-violet-600" aria-hidden="true" />
+        <KeyRound className="w-4 h-4 text-primary" aria-hidden="true" />
         <div className="flex-1 min-w-[12rem]">
-          <div className="font-medium text-gray-700">Tablet PIN</div>
-          <div className="text-xs text-gray-500">
+          <div className="font-medium text-foreground">Tablet PIN</div>
+          <div className="text-xs text-label-tertiary">
             {hasPin
               ? 'Set. Use it to unlock parent mode on the family tablet.'
               : 'Not set. A 6-digit PIN unlocks parent mode on the family tablet without your password.'}
           </div>
           {message && (
-            <p role="status" className="mt-1 text-sm text-gray-700">
+            <p role="status" className="mt-1 text-sm text-foreground">
               {message}
             </p>
           )}

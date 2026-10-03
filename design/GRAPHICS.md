@@ -45,6 +45,9 @@ table, breakfast, lunchbox, coat, wash hands, pyjamas, …).
   checks every key has a drawing.
 - Figma: no Figma source yet; the SVG in code is the editable source until a design handoff exists.
 
+## Warm Paper illustrations and loops
+The second family: paper-cut and risograph spot illustrations, scenes and short loops (owner decision 2026-10-03). Style, palette, generator, prompts, where each file is used and how to add one: `docs/product/BRAND.md`. Code: `src/lib/brand-illustrations.ts`, `BrandIllustration`, `BrandMotion`, `EmptyState illustration`/`motion`.
+
 ## Motion
 Animations derived from graphics must have static/reduced-motion equivalents and must not run continuously on an always-on fridge tablet unless functionally necessary.
 

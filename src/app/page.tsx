@@ -1,9 +1,12 @@
 'use client'
 
-import { CheckCircle, Wallet, ShoppingCart, Calendar, FolderKanban, MessageSquare, Shield, Star, Zap, ArrowRight, Users } from 'lucide-react'
+import { CheckCircle, Wallet, ShoppingCart, Calendar, FolderKanban, MessageSquare, Shield, Star, Zap, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import { Glyph } from '@/components/ui/glyph'
+import { BrandIllustration, BrandMark } from '@/components/ui/brand-illustration'
+import { BrandMotion } from '@/components/ui/brand-motion'
+import { ILLUSTRATIONS, MOTION } from '@/lib/brand-illustrations'
 
 const FEATURES = [
   {
@@ -55,41 +58,56 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero */}
+      {/* Hero: the kitchen scene. On large screens the headline sits in the
+          empty left third of the art; below that the text comes first and the
+          art follows, so the call to action is never pushed off a phone. The
+          text block uses the light "paper" tokens in both themes because it
+          always sits on the cream illustration on large screens. */}
       <section className="relative">
-        <div className="container mx-auto px-4 pt-16 pb-12 md:pt-24 md:pb-16">
-          <div className="max-w-2xl mx-auto text-center">
-            <h1 className="text-large-title mb-4">
-              {t('landing.heroTitle')}
-            </h1>
-            <p className="text-[17px] leading-6 text-[var(--label-secondary)] mb-8">
-              {t('landing.heroDescription')}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/register"
-                className="btn-filled"
-              >
-                {t('landing.getStartedFree')}
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/login"
-                className="btn-plain"
-              >
-                {t('landing.signIn')}
-              </Link>
-            </div>
+        <div className="relative mx-auto max-w-[1600px]">
+          <div className="lg:on-paper relative z-10 px-4 pt-14 pb-8 text-center lg:absolute lg:inset-y-0 lg:left-0 lg:flex lg:w-[40%] lg:flex-col lg:justify-center lg:pt-0 lg:pb-0 lg:pl-12 lg:pr-4 lg:text-left xl:pl-20">
+            <div className="mx-auto max-w-xl lg:mx-0">
+              <h1 className="text-large-title mb-4 text-label-primary lg:text-[48px] lg:leading-[1.08]">
+                {t('landing.heroTitle')}
+              </h1>
+              <p className="text-[17px] leading-6 text-[var(--label-secondary)] mb-8">
+                {t('landing.heroDescription')}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                <Link
+                  href="/register"
+                  className="btn-filled"
+                >
+                  {t('landing.getStartedFree')}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href="/login"
+                  className="btn-plain"
+                >
+                  {t('landing.signIn')}
+                </Link>
+              </div>
 
-            {/* Trust badges inline */}
-            <div className="flex items-center justify-center gap-6 mt-6">
-              {TRUST_BADGES.map((badge) => (
-                <div key={badge.label} className="flex items-center gap-1.5 text-[13px] text-[var(--label-tertiary)]">
-                  {badge.icon}
-                  <span>{badge.label}</span>
-                </div>
-              ))}
+              {/* Trust badges inline */}
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-6 lg:justify-start">
+                {TRUST_BADGES.map((badge) => (
+                  <div key={badge.label} className="flex items-center gap-1.5 text-[13px] text-[var(--label-tertiary)]">
+                    {badge.icon}
+                    <span>{badge.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
+          </div>
+          <div className="px-4 lg:px-0">
+            <BrandMotion
+              motion={MOTION.hero}
+              play="immediate"
+              priority
+              sizes="(min-width: 1600px) 1600px, 100vw"
+              className="block h-auto w-full rounded-[var(--radius-xl)] lg:rounded-none"
+            />
           </div>
         </div>
       </section>
@@ -170,14 +188,17 @@ export default function Home() {
         </div>
       </section>
 
+      {/* A row of paper houses as the divider above the footer. */}
+      <div className="mx-auto max-w-3xl px-4 pt-4">
+        <BrandIllustration source={ILLUSTRATIONS.housesBanner} className="block h-auto w-full" />
+      </div>
+
       {/* Footer */}
       <footer className="py-6 border-t border-[var(--surface-separator)]">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-[var(--accent-fill)] rounded-[8px] flex items-center justify-center">
-                <Users className="w-4 h-4 text-white" />
-              </div>
+              <BrandMark size={28} className="h-7 w-7" />
               <span className="text-[15px] font-semibold text-[var(--label-primary)]">Family Planner</span>
             </div>
             <nav className="flex gap-6 text-[13px] text-[var(--label-secondary)]">

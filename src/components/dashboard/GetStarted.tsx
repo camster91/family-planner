@@ -4,6 +4,8 @@ import * as React from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { useUndoToast } from '@/components/ui/toast'
+import { BrandMotion } from '@/components/ui/brand-motion'
+import { MOTION } from '@/lib/brand-illustrations'
 import { cn } from '@/lib/utils'
 import { allStepsDone, type GetStartedSteps } from '@/app/dashboard/today/get-started-data'
 
@@ -123,6 +125,10 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
 
   return (
     <section aria-labelledby={headingId} data-testid="get-started" className="mb-5 card-apple p-4 md:p-5">
+      <BrandMotion
+        motion={MOTION.getStarted}
+        className="mx-auto mb-3 h-auto w-full max-w-[280px] rounded-[var(--radius-lg)] md:max-w-[320px]"
+      />
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">

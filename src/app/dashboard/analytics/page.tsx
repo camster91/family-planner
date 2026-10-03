@@ -159,9 +159,9 @@ function AnalyticsPageContent() {
               >
                 <span className={cn(
                   'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                  i === 0 ? 'bg-yellow-100 text-yellow-700' :
-                  i === 1 ? 'bg-gray-100 text-gray-600' :
-                  i === 2 ? 'bg-orange-100 text-orange-700' :
+                  i === 0 ? 'bg-[var(--warning-tint)] text-warning-text' :
+                  i === 1 ? 'bg-muted text-muted-foreground' :
+                  i === 2 ? 'bg-[var(--accent-tint)] text-primary' :
                   'bg-surface-fill text-label-secondary'
                 )}>
                   {i + 1}

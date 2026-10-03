@@ -42,7 +42,7 @@ Each section is a `<section id="<id>" data-testid="gallery-section-<id>">`; each
 
 | Id | Production components |
 |---|---|
-| `foundations` | Colour tokens, type scale, radii, shadows (`src/app/globals.css`); member colours (`src/lib/member-colors.ts`) |
+| `foundations` | Warm Paper palette and colour tokens, typefaces (Fraunces, Inter), type scale, radii, shadows (`src/app/globals.css`); member colours (`src/lib/member-colors.ts`) |
 | `controls` | `.btn-*` buttons (enabled/disabled), board action link, `.input-apple` fields with an error, select, `SearchField`, `RoutineFields`, `RoutineIconPicker`, `CheckboxRow` states |
 | `overlays` | `Dialog` and `MoveToSectionDialog` (bottom sheet on phones), opened by a button; `LongPressRow` action sheet; toasts (undo, success, error) in a contained frame plus a live Undo toast |
 | `people` | `LargeHeader`, `Avatar` sizes, `ProgressRing`, `Glyph`, `ListRow`/`InsetList`/`SectionHeader` |
@@ -51,8 +51,8 @@ Each section is a `<section id="<id>" data-testid="gallery-section-<id>">`; each
 | `groceries` | `GroceriesRegion`; list rows as `ListDetailClient` composes them (`SwipeRow` + `CheckboxRow` + `groceryDetailText`, by store section) |
 | `chores` | `ChoresRegion` (open, done, awaiting a check, "N more"), `KidRoutines` (checked, waiting, next, to do) |
 | `inventory` | `UseSoonRegion` (expired, use by today, soon, "N more") |
-| `states` | `EmptyState`, skeletons, `RouteLoading`, `DashboardError` (on demand, it takes focus), `SyncNotice` (offline, stale), `UpdatedLine`, `SyncBanner`, offline sync and conflict row text (`syncStatusText`) |
-| `graphics` | The original chore picture set (`RoutineIcon`, every drawn key). There are no other illustrations in the repository yet (#163). |
+| `states` | `EmptyState` (glyph and illustration), skeletons, `RouteLoading`, `DashboardError` (on demand, it takes focus), `SyncNotice` (offline, stale), `UpdatedLine`, `SyncBanner`, offline sync and conflict row text (`syncStatusText`) |
+| `graphics` | Warm Paper illustrations (`src/lib/brand-illustrations.ts`) and loops (`BrandMotion`), then the original chore picture set (`RoutineIcon`, every drawn key). See `docs/product/BRAND.md`. |
 | `fridge` | `AmbientCover` calm display and night dimming, only with `theme=fridge-night` (they take focus) |
 
 Overlays that use `position: fixed` (toasts, the calm display) render inside a `ContainedFrame`, whose transform makes it their containing block.

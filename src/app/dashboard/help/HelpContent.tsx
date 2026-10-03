@@ -1,6 +1,8 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { LargeHeader } from '@/components/ui/large-header'
+import { BrandIllustration } from '@/components/ui/brand-illustration'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { SUPPORT_EMAIL_PENDING_TEXT, supportEmail } from '@/lib/support'
 import { canRoleAccessPath } from '@/lib/kid-access'
 
@@ -58,7 +60,12 @@ export default function HelpContent({
 
   return (
     <div className="pb-20 max-w-2xl mx-auto">
-      <LargeHeader title="Help" subtitle={email ? 'Quick answers for your family. Contact us if you get stuck.' : 'Quick answers for your family.'} className="px-4" />
+      <LargeHeader
+        title="Help"
+        subtitle={email ? 'Quick answers for your family. Contact us if you get stuck.' : 'Quick answers for your family.'}
+        trailing={<BrandIllustration source={ILLUSTRATIONS.help} priority className="h-24 w-auto shrink-0 md:h-28" />}
+        className="px-4"
+      />
 
       <div className="px-4 space-y-6">
         <Section id="help-start" title="Getting started">

@@ -203,20 +203,20 @@ export default function CalendarSubscriptionsSection() {
       description="Show a school, team or work calendar here"
       icon={<SettingsIcon icon={CalendarPlus} tone="sky" />}
     >
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-muted-foreground mb-4">
         Imported events are read-only.
       </p>
 
       {!loaded ? (
-        <p className="text-sm text-gray-600">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : subs.length === 0 ? (
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           No subscribed calendars yet.
         </p>
       ) : (
         <ul className="space-y-3 mb-6">
           {subs.map((sub) => (
-            <li key={sub.id} className="rounded-lg border border-gray-200 p-3">
+            <li key={sub.id} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-start gap-3">
                 <span
                   aria-hidden="true"
@@ -250,23 +250,23 @@ export default function CalendarSubscriptionsSection() {
                       <button
                         type="button"
                         onClick={() => setRenaming(null)}
-                        className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-gray-300 text-gray-700"
+                        className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground"
                       >
                         <X className="w-4 h-4 mr-1" aria-hidden="true" /> Cancel
                       </button>
                     </div>
                   ) : (
-                    <div className="font-medium text-gray-900 break-words">
+                    <div className="font-medium text-foreground break-words">
                       {sub.name}
                     </div>
                   )}
                   {sub.url_hint && (
-                    <div className="text-xs text-gray-500 break-all">
+                    <div className="text-xs text-label-tertiary break-all">
                       {sub.url_hint}
                     </div>
                   )}
                   <div
-                    className={`text-xs mt-1 ${sub.last_status === "error" ? "text-red-700" : "text-gray-600"}`}
+                    className={`text-xs mt-1 ${sub.last_status === "error" ? "text-danger-text" : "text-muted-foreground"}`}
                     role={sub.last_status === "error" ? "status" : undefined}
                   >
                     {sub.last_status === "error" ? "Problem: " : ""}
@@ -280,7 +280,7 @@ export default function CalendarSubscriptionsSection() {
                     type="button"
                     onClick={() => refresh(sub.id)}
                     disabled={busy !== null}
-                    className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground hover:bg-muted"
                     aria-label={`Refresh ${sub.name}`}
                   >
                     <RefreshCw
@@ -293,7 +293,7 @@ export default function CalendarSubscriptionsSection() {
                     type="button"
                     onClick={() => setRenaming({ id: sub.id, name: sub.name })}
                     disabled={busy !== null}
-                    className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground hover:bg-muted"
                     aria-label={`Rename ${sub.name}`}
                   >
                     <Pencil className="w-4 h-4 mr-2" aria-hidden="true" />
@@ -303,7 +303,7 @@ export default function CalendarSubscriptionsSection() {
                     type="button"
                     onClick={() => remove(sub)}
                     disabled={busy !== null}
-                    className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                    className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[var(--danger-tint)] text-danger-text hover:bg-[var(--danger-tint)]"
                     aria-label={`Remove ${sub.name}`}
                   >
                     <Trash2 className="w-4 h-4 mr-2" aria-hidden="true" />
@@ -320,7 +320,7 @@ export default function CalendarSubscriptionsSection() {
         <div>
           <label
             htmlFor="calendarSubName"
-            className="block text-sm font-medium text-gray-900 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Calendar name
           </label>
@@ -336,7 +336,7 @@ export default function CalendarSubscriptionsSection() {
         <div>
           <label
             htmlFor="calendarSubUrl"
-            className="block text-sm font-medium text-gray-900 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Calendar link (https:// or webcal://)
           </label>
@@ -352,13 +352,13 @@ export default function CalendarSubscriptionsSection() {
             placeholder="webcal://example.com/calendar.ics"
             aria-describedby="calendarSubUrlHelp"
           />
-          <p id="calendarSubUrlHelp" className="text-xs text-gray-500 mt-1">
+          <p id="calendarSubUrlHelp" className="text-xs text-label-tertiary mt-1">
             Treat this link like a password. After saving, only its website name
             is shown.
           </p>
         </div>
         <fieldset>
-          <legend className="block text-sm font-medium text-gray-900 mb-1">
+          <legend className="block text-sm font-medium text-foreground mb-1">
             Colour
           </legend>
           <div className="flex flex-wrap gap-2">
@@ -366,7 +366,7 @@ export default function CalendarSubscriptionsSection() {
               <label
                 key={c.value}
                 className={`inline-flex items-center gap-2 min-h-[44px] px-3 rounded-lg border cursor-pointer ${
-                  color === c.value ? "border-gray-900" : "border-gray-300"
+                  color === c.value ? "border-foreground" : "border-input"
                 }`}
               >
                 <input
@@ -397,8 +397,8 @@ export default function CalendarSubscriptionsSection() {
       </form>
 
       <div aria-live="polite" className="mt-3">
-        {error && <p className="text-sm text-red-700">{error}</p>}
-        {notice && <p className="text-sm text-green-700">{notice}</p>}
+        {error && <p className="text-sm text-danger-text">{error}</p>}
+        {notice && <p className="text-sm text-success-text">{notice}</p>}
       </div>
     </SettingsDisclosure>
   );

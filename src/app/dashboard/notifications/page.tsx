@@ -5,6 +5,7 @@ import { Bell, Check, Trash2, Clock, AlertCircle } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
 import { InsetList } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { MOTION } from '@/lib/brand-illustrations'
 import { useToast, useUndoToast, UNDO_TOAST_MS } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 import { cn, formatDate } from '@/lib/utils'
@@ -251,6 +252,7 @@ export default function NotificationsPage() {
           <EmptyState
             icon={Bell}
             glyphColor="family"
+            motion={MOTION.moon}
             title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
             description={filter === 'unread' ? "You're all caught up!" : "You'll see notifications here when things happen in your family."}
           />

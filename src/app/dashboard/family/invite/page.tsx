@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Copy, Check, UserPlus, Mail, X, RefreshCw } from 'lucide-react'
+import { Copy, Check, Mail, X, RefreshCw } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
-import { Glyph } from '@/components/ui/glyph'
+import { BrandIllustration } from '@/components/ui/brand-illustration'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Dialog } from '@/components/ui/dialog'
 import { FAMILY_CODE_LENGTH, formatFamilyCode } from '@/lib/family-code'
 
@@ -151,9 +152,11 @@ export default function InviteMemberPage() {
         title="Invite"
         subtitle="Email a family member"
         trailing={
-          <Glyph color="family" size="md">
-            <UserPlus className="w-4 h-4" />
-          </Glyph>
+          <BrandIllustration
+            source={ILLUSTRATIONS.invite}
+            priority
+            className="h-24 w-auto shrink-0 md:h-28"
+          />
         }
         className="px-4"
       />
@@ -169,7 +172,7 @@ export default function InviteMemberPage() {
             </div>
           )}
           {message && (
-            <div className="bg-[var(--success-tint,rgba(52,199,89,0.12))] text-[var(--success)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
+            <div className="bg-[var(--success-tint)] text-success-text text-[15px] rounded-[var(--radius-md)] px-4 py-3">
               {message}
             </div>
           )}

@@ -8,6 +8,7 @@ import { RoutineIcon } from '@/components/chores/RoutineIcon'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { MOTION } from '@/lib/brand-illustrations'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Glyph } from '@/components/ui/glyph'
 import { useToast, useUndoToast } from '@/components/ui/toast'
@@ -528,6 +529,7 @@ export default function ChoresContent({
           <EmptyState
             icon={CheckSquare}
             glyphColor="chore"
+            motion={MOTION.tea}
             title="All clear!"
             description={filter === 'today' ? 'No chores due today.' : 'No chores in this range.'}
           />

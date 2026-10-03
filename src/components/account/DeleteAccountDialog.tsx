@@ -244,7 +244,7 @@ export default function DeleteAccountDialog({
             <p className="font-semibold">This cannot be undone.</p>
           </div>
 
-          <div className="rounded-[var(--radius-lg)] bg-[var(--surface-fill)] p-4">
+          <div className="rounded-[var(--radius-lg)] border border-border p-4">
             <p className="text-[16px] text-label-primary">Download a copy of your data first.</p>
             <button
               type="button"

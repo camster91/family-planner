@@ -93,7 +93,7 @@ async function ProjectsContent({ familyId }: { familyId: string }) {
             title="No projects yet"
             description="Organize family goals, home projects, or any collaborative effort."
             action={
-              <Link href="/dashboard/projects/create" className="btn-tinted bg-projects px-5 py-2 text-base font-medium">
+              <Link href="/dashboard/projects/create" className="btn-tinted bg-tint-projects text-white px-5 py-2 text-base font-medium">
                 Create Project
               </Link>
             }
@@ -107,7 +107,7 @@ async function ProjectsContent({ familyId }: { familyId: string }) {
 function ProjectsSkeleton() {
   return (
     <div className="space-y-8 animate-pulse">
-      <div className="h-4 w-32 bg-gray-200 rounded mb-4" />
+      <div className="h-4 w-32 bg-muted rounded mb-4" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
           <div key={i} className="card-apple p-5 h-40" />
@@ -142,7 +142,7 @@ export default async function ProjectsPage() {
         subtitle="Track family goals and collaborative tasks"
         className="px-4"
         trailing={
-          <Link href="/dashboard/projects/create" className="btn-tinted bg-projects px-4 py-2 text-sm font-medium">
+          <Link href="/dashboard/projects/create" className="btn-tinted bg-tint-projects text-white px-4 py-2 text-sm font-medium">
             New
           </Link>
         }

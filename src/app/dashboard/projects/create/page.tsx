@@ -84,7 +84,7 @@ function CreateProjectForm() {
       </div>
 
       {/* Form card */}
-      <div className="rounded-2xl bg-white border shadow-sm overflow-hidden mx-4">
+      <div className="rounded-2xl bg-card border shadow-sm overflow-hidden mx-4">
         {/* Color preview bar */}
         <div className="h-1.5 w-full transition-colors duration-300" style={{ backgroundColor: color }} />
 
@@ -93,7 +93,7 @@ function CreateProjectForm() {
             {/* Name */}
             <div className="space-y-1.5">
               <label htmlFor="name" className="text-subhead text-label-secondary">
-                Project Name <span className="text-red-400">*</span>
+                Project Name <span className="text-danger-text">*</span>
               </label>
               <input
                 id="name"
@@ -139,8 +139,8 @@ function CreateProjectForm() {
                     className={cn(
                       'w-9 h-9 rounded-xl border-2 transition-all duration-150 flex items-center justify-center',
                       color === c.value
-                        ? 'border-gray-900 ring-2 ring-offset-1 ring-gray-400'
-                        : 'border-transparent hover:border-gray-300',
+                        ? 'border-foreground ring-2 ring-offset-1 ring-label-tertiary'
+                        : 'border-transparent hover:border-input',
                     )}
                     style={{ backgroundColor: c.value }}
                     title={c.label}
@@ -160,8 +160,8 @@ function CreateProjectForm() {
               className={cn(
                 'w-full py-3 rounded-xl text-base font-semibold transition-all duration-200',
                 name.trim() && !loading
-                  ? 'bg-projects text-white hover:bg-projects/90'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed',
+                  ? 'bg-tint-projects text-white hover:opacity-90'
+                  : 'bg-muted text-label-tertiary cursor-not-allowed',
               )}
             >
               {loading ? (

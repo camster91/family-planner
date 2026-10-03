@@ -9,6 +9,7 @@ import { Glyph } from '@/components/ui/glyph'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { InsetList, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import type { ListType } from '@/types'
 import type { QueuedOperation } from '@/lib/offline-queue'
 import { useListItemSync, type SyncNotice } from './use-list-item-sync'
@@ -498,6 +499,7 @@ export default function ListDetailClient({
         <EmptyState
           icon={CheckSquare}
           glyphColor="lists"
+          illustration={isGrocery ? ILLUSTRATIONS.groceriesClear : ILLUSTRATIONS.listsEmpty}
           title="No items yet"
           description="Add items using the field below."
         />

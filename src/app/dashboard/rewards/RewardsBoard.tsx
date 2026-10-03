@@ -7,6 +7,7 @@ import { Gift } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Dialog } from '@/components/ui/dialog'
 import { useMaybeToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
@@ -23,10 +24,10 @@ export interface RewardCard {
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  available: { label: 'Available', className: 'bg-green-100 text-green-700' },
-  claimed: { label: 'Claimed', className: 'bg-yellow-100 text-yellow-700' },
-  approved: { label: 'Given', className: 'bg-blue-100 text-blue-700' },
-  redeemed: { label: 'Given', className: 'bg-blue-100 text-blue-700' },
+  available: { label: 'Available', className: 'bg-[var(--success-tint)] text-success-text' },
+  claimed: { label: 'Claimed', className: 'bg-[var(--warning-tint)] text-warning-text' },
+  approved: { label: 'Given', className: 'bg-[var(--accent-tint)] text-primary' },
+  redeemed: { label: 'Given', className: 'bg-[var(--accent-tint)] text-primary' },
 }
 
 /**
@@ -142,7 +143,7 @@ export default function RewardsBoard({
                     aria-label={canClaim ? `Claim ${reward.name}` : undefined}
                     className={cn(
                       'btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold',
-                      canClaim ? 'bg-rewards' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed'
                     )}
                   >
                     {canClaim ? 'Claim Reward' : `Need ${reward.cost - userXp} more XP`}
@@ -171,6 +172,7 @@ export default function RewardsBoard({
           <EmptyState
             icon={Gift}
             glyphColor="rewards"
+            illustration={ILLUSTRATIONS.rewards}
             headingLevel="h3"
             title="No rewards yet"
             description={isParent ? 'Create your first reward for the family.' : 'Ask a parent to create rewards.'}
@@ -178,7 +180,7 @@ export default function RewardsBoard({
               isParent ? (
                 <Link
                   href="/dashboard/rewards/create"
-                  className="btn-tinted bg-rewards min-h-[44px] px-5 py-2 text-base font-medium"
+                  className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium"
                 >
                   Create Reward
                 </Link>
@@ -190,7 +192,7 @@ export default function RewardsBoard({
             {rewards.map((reward) => {
               const badge = STATUS_BADGE[reward.status] ?? {
                 label: reward.status,
-                className: 'bg-gray-100 text-gray-600',
+                className: 'bg-muted text-muted-foreground',
               }
               const claimedByMe = reward.claimedById === currentUserId
               const claimer = claimedByMe ? 'you' : reward.claimedByName
@@ -242,7 +244,7 @@ export default function RewardsBoard({
         testId="claim-reward-dialog"
       >
         {claimError && (
-          <p role="alert" className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-subhead text-[var(--danger-text)]">
+          <p role="alert" className="mb-3 rounded-xl border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-4 py-3 text-subhead text-[var(--danger-text)]">
             {claimError}
           </p>
         )}

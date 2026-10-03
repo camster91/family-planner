@@ -113,7 +113,7 @@ function AddEditModal({
     <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         {error && (
-          <p role="alert" className="text-footnote text-label-destructive">
+          <p role="alert" className="text-footnote text-danger-text">
             {error}
           </p>
         )}
@@ -177,7 +177,7 @@ function AddEditModal({
           <button
             type="button"
             onClick={onDelete}
-            className="px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-red-50"
+            className="px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
             {t('common.delete')}
@@ -319,7 +319,7 @@ function AnniversariesPageInner() {
           <p className="text-subhead text-label-secondary mt-0.5">{t('dates.subtitle')}</p>
         </div>
         <div className="card-apple p-8 text-center">
-          <p className="text-subhead text-label-destructive">{error}</p>
+          <p className="text-subhead text-danger-text">{error}</p>
           <button
             onClick={fetchDates}
             className="mt-3 px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"

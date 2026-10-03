@@ -15,7 +15,23 @@ module.exports = {
       },
     },
     extend: {
+      // Warm Paper type (src/app/layout.tsx loads the fonts with next/font).
+      fontFamily: {
+        sans: ["var(--font-family-sans)"],
+        // `.font-display` (globals.css) is the serif with display tracking.
+        serif: ["var(--font-family-serif)"],
+      },
       colors: {
+        // Warm Paper brand colours for decoration (docs/product/BRAND.md).
+        // Text and controls use the semantic tokens below, not these.
+        brand: {
+          navy: "var(--brand-navy)",
+          cream: "var(--brand-cream)",
+          terracotta: "var(--brand-terracotta)",
+          sage: "var(--brand-sage)",
+          mustard: "var(--brand-mustard)",
+        },
+        "on-accent": "var(--on-accent)",
         // Apple system colors (light/dark aware via CSS vars)
         surface: {
           base: "var(--surface-base)",
@@ -46,7 +62,11 @@ module.exports = {
           tint: "var(--accent-tint)",
           "tint-strong": "var(--accent-tint-strong)",
         },
-        success: "var(--success)",
+        // --success is the sage fill (white check 3:1+); success-text is for text.
+        success: {
+          DEFAULT: "var(--success)",
+          text: "var(--success-text)",
+        },
         // --warning/--danger are decoration fills; use the -text variants
         // for text and danger-fill behind white text (WCAG AA, #131).
         warning: {

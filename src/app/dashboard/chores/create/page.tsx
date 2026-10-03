@@ -333,7 +333,7 @@ export default function CreateChorePage() {
             className={cn(
               'w-full py-3 rounded-[var(--radius-md)] border transition-all duration-200 text-center',
               photoPreview
-                ? 'border-[var(--success)] bg-[var(--success-tint)] text-[var(--success)]'
+                ? 'border-[var(--success)] bg-[var(--success-tint)] text-success-text'
                 : 'border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-secondary'
             )}
           >

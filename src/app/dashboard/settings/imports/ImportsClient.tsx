@@ -87,16 +87,16 @@ export default function ImportsClient() {
     <div className="max-w-4xl mx-auto space-y-6">
       <Link
         href="/dashboard/settings"
-        className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="w-4 h-4" /> Back to settings
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Database className="w-8 h-8 text-violet-600" /> Import family apps
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+          <Database className="w-8 h-8 text-primary" /> Import family apps
         </h1>
-        <p className="mt-2 text-gray-600">
+        <p className="mt-2 text-muted-foreground">
           Validate an export first, review skipped records, then explicitly
           approve persistence.
         </p>
@@ -106,7 +106,7 @@ export default function ImportsClient() {
         <div>
           <label
             htmlFor="importSource"
-            className="block text-sm font-medium text-gray-700 mb-2"
+            className="block text-sm font-medium text-foreground mb-2"
           >
             Source application
           </label>
@@ -128,15 +128,15 @@ export default function ImportsClient() {
         <div>
           <label
             htmlFor="importFile"
-            className="block text-sm font-medium text-gray-700 mb-2"
+            className="block text-sm font-medium text-foreground mb-2"
           >
             JSON export
           </label>
           <label
             htmlFor="importFile"
-            className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-300 p-8 hover:border-violet-400"
+            className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-input p-8 hover:border-primary"
           >
-            <FileJson className="w-6 h-6 text-violet-600" />
+            <FileJson className="w-6 h-6 text-primary" />
             <span>{fileName || "Choose a JSON export (maximum 10 MB)"}</span>
           </label>
           <input
@@ -152,7 +152,7 @@ export default function ImportsClient() {
           <div>
             <label
               htmlFor="identityMap"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-foreground mb-2"
             >
               Identity mapping
             </label>
@@ -166,7 +166,7 @@ export default function ImportsClient() {
               }}
               className="input-field w-full font-mono text-sm"
             />
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-label-tertiary">
               Map source child/user IDs to existing Family Planner user IDs, for
               example {`{"source-id":"family-user-id"}`}.
             </p>
@@ -176,7 +176,7 @@ export default function ImportsClient() {
         {error && (
           <div
             role="alert"
-            className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800"
+            className="rounded-lg border border-[var(--danger-tint)] bg-[var(--danger-tint)] p-3 text-danger-text"
           >
             {error}
           </div>
@@ -199,13 +199,13 @@ export default function ImportsClient() {
 
       {result && (
         <div className="card space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-foreground">
             Reconciliation preview
           </h2>
-          <pre className="max-h-96 overflow-auto rounded-lg bg-gray-950 p-4 text-xs text-gray-100">
+          <pre className="max-h-96 overflow-auto rounded-lg bg-muted p-4 text-xs text-foreground">
             {JSON.stringify(result, null, 2)}
           </pre>
-          <label className="flex items-start gap-3 text-sm text-gray-700">
+          <label className="flex items-start gap-3 text-sm text-foreground">
             <input
               type="checkbox"
               checked={confirmed}

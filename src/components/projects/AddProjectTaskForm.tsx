@@ -166,7 +166,7 @@ export function AddProjectTaskForm({ projectId, familyMembers = [] }: AddProject
       </div>
 
       {error && (
-        <p id={errorId} role="alert" className="text-[15px] text-red-700 dark:text-red-400">
+        <p id={errorId} role="alert" className="text-[15px] text-danger-text">
           {error}
         </p>
       )}
@@ -176,7 +176,7 @@ export function AddProjectTaskForm({ projectId, familyMembers = [] }: AddProject
           type="submit"
           disabled={!online || saving}
           aria-busy={saving ? true : undefined}
-          className={`inline-flex min-h-[44px] min-w-[44px] items-center rounded-full bg-projects px-5 text-[15px] font-medium text-white disabled:opacity-60 ${FOCUS}`}
+          className={`inline-flex min-h-[44px] min-w-[44px] items-center rounded-full bg-tint-projects px-5 text-[15px] font-medium text-white disabled:opacity-60 ${FOCUS}`}
         >
           {saving ? 'Adding…' : 'Add task'}
         </button>

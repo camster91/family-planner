@@ -7,6 +7,7 @@ import { FeatureGate } from '@/components/ui/feature-gate'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { Dialog } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RecipePicker, type RecipeOption } from '@/components/meals/RecipePicker'
 import { cn } from '@/lib/utils'
@@ -388,11 +389,25 @@ function MealsPageInner() {
             }
           />
         ) : (
-          <div className="space-y-3 stagger">
-            {week.map(day => (
-              <DayCard key={day.dateKey} day={day} onAdd={openAdd} onEdit={openEdit} />
-            ))}
-          </div>
+          <>
+            {/* Nothing planned all week: a quiet illustrated note above the
+                days, which stay below as the way to add a meal. */}
+            {week.every(day => day.slots.every(slot => slot.meals.length === 0)) && (
+              <EmptyState
+                icon={UtensilsCrossed}
+                glyphColor="meals"
+                illustration={ILLUSTRATIONS.mealsEmpty}
+                headingLevel="h3"
+                title={t('meals.empty')}
+                className="pt-2 pb-6"
+              />
+            )}
+            <div className="space-y-3 stagger">
+              {week.map(day => (
+                <DayCard key={day.dateKey} day={day} onAdd={openAdd} onEdit={openEdit} />
+              ))}
+            </div>
+          </>
         )}
       </section>
 
