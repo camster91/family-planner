@@ -84,9 +84,10 @@ export function getProviderConfig(provider: Provider): ProviderConfig | null {
   }
   const clientId = env("MICROSOFT_CLIENT_ID");
   const clientSecret = env("MICROSOFT_CLIENT_SECRET");
-  const tenant = env("MICROSOFT_TENANT");
-  if (!clientId || !clientSecret || !tenant || !TENANT_RE.test(tenant))
-    return null;
+  // Unset means "common": personal and work or school accounts (owner
+  // decision 2026-10-03). Set it only to narrow sign-in to one tenant.
+  const tenant = env("MICROSOFT_TENANT") || "common";
+  if (!clientId || !clientSecret || !TENANT_RE.test(tenant)) return null;
   return { provider, clientId, clientSecret, tenant, redirectUri };
 }
 
@@ -140,11 +141,7 @@ export function calendarSyncConfigProblems(source: Env): string[] {
   }
   if (microsoft.every(has)) {
     const tenant = (source.MICROSOFT_TENANT ?? "").trim();
-    if (!tenant) {
-      problems.push(
-        "Outlook is off: MICROSOFT_TENANT is not set (use common for personal and work accounts).",
-      );
-    } else if (!TENANT_RE.test(tenant)) {
+    if (tenant && !TENANT_RE.test(tenant)) {
       problems.push("Outlook is off: MICROSOFT_TENANT is not a valid tenant id or name.");
     }
   }

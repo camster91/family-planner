@@ -643,14 +643,11 @@ async function pushLocal(
       adapter.update(t, calendarId, link.external_id, input),
     );
     if (!res) {
-      // Gone at the provider. An event imported from it goes too; a local
-      // event just loses its link.
-      await deleteLocal(
-        ctx,
-        link,
-        ev.source_connection_id === conn.id ? ev.id : null,
-      );
-      if (ev.source_connection_id === conn.id) summary.pulled.deleted++;
+      // Gone at the provider: the family event goes too, the same as when a
+      // pull reports the delete (owner decision 2026-10-03). Otherwise a
+      // pushed event deleted in Google or Outlook would be pushed back.
+      await deleteLocal(ctx, link, ev.id);
+      summary.pulled.deleted++;
       continue;
     }
     await db.calendarEventLink.updateMany({

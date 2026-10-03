@@ -163,6 +163,21 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Connected Google or Outlook calendars (optional)</h2>
+            <p>
+              A parent can connect their own Google Calendar or Outlook calendar in Settings. Only then,
+              and only for the one calendar they choose, Family Planner reads and writes events with
+              Google or Microsoft: it brings that calendar&apos;s events into the family calendar and, if
+              the parent turns it on, adds family events to it. Each event shares its title, time,
+              place and notes. We keep the access Google or Microsoft gives us encrypted and use it only
+              for this sync; we do not read your other calendars, email or contacts. Disconnecting in
+              Settings stops the sync, removes the events it brought in, and asks Google to cancel the
+              access. Use of information received from Google follows the Google API Services User Data
+              Policy, including its Limited Use requirements.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Email</h2>
             <p>
               We send transactional emails only: email verification, password reset,
