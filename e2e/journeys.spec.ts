@@ -350,7 +350,7 @@ test.describe("Family A child", () => {
   }) => {
     await page.goto("/dashboard");
     const main = page.locator("#main-content");
-    await expect(main.getByText("Hi, Casey Fixture-A!")).toBeVisible();
+    await expect(main.getByText("Hi, Casey!")).toBeVisible();
     await expect(main.getByText("Tidy bedroom")).toBeVisible();
     await expect(main.getByText("Pack school bag")).toBeVisible();
     // The teen's chores and parent-only panels are not on a child's home.
@@ -366,7 +366,7 @@ test.describe("Family A child", () => {
       await page.goto(route);
       await expect(page).toHaveURL(/\/dashboard$/);
       await expect(
-        page.locator("#main-content").getByText("Hi, Casey Fixture-A!"),
+        page.locator("#main-content").getByText("Hi, Casey!"),
       ).toBeVisible();
     });
   }
@@ -376,7 +376,7 @@ test.describe("Family A child", () => {
   }) => {
     await page.goto("/dashboard");
     await expect(
-      page.locator("#main-content").getByText("Hi, Casey Fixture-A!"),
+      page.locator("#main-content").getByText("Hi, Casey!"),
     ).toBeVisible();
     for (const path of ["/dashboard/calendar", "/dashboard/family"]) {
       await expect(page.locator(`nav a[href="${path}"]`)).toHaveCount(0);
