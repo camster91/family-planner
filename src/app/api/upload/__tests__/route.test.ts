@@ -5,23 +5,24 @@
 // is an in-memory map.
 
 const mockFiles = new Map<string, Buffer>();
+function mockFilePath(p: string): string { return require('node:path').resolve(p); }
 
 jest.mock("fs/promises", () => ({
   writeFile: async (p: string, buf: Buffer) => {
-    mockFiles.set(p, Buffer.from(buf));
+    mockFiles.set(mockFilePath(p), Buffer.from(buf));
   },
   mkdir: async () => undefined,
   rename: async (from: string, to: string) => {
-    const buf = mockFiles.get(from);
+    const buf = mockFiles.get(mockFilePath(from));
     if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-    mockFiles.delete(from);
-    mockFiles.set(to, buf);
+    mockFiles.delete(mockFilePath(from));
+    mockFiles.set(mockFilePath(to), buf);
   },
   unlink: async (p: string) => {
-    if (!mockFiles.delete(p)) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    if (!mockFiles.delete(mockFilePath(p))) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
   },
 }));
-jest.mock("fs", () => ({ existsSync: (p: string) => mockFiles.has(p) || !/\.[a-z]+$/i.test(p) }));
+jest.mock("fs", () => ({ existsSync: (p: string) => mockFiles.has(mockFilePath(p)) || !/\.[a-z]+$/i.test(p) }));
 
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);
@@ -43,7 +44,7 @@ import {
 
 const mockRate = checkRateLimit as jest.Mock;
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || "/data/family-planner-uploads";
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || "/data/family-planner-uploads");
 const CHORES_DIR = path.join(UPLOAD_DIR, "chores");
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
 const OLD = new Date(Date.now() - STALE_UPLOAD_AGE_MS - 60_000);
