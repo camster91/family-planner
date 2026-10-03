@@ -8,15 +8,14 @@
  * --guard-only) against port 1, where nothing listens: a refusal with the
  * guard's exit code proves no step ran.
  */
-import { spawnSync } from "node:child_process";
+import { runBash } from './helpers/run-bash';
 import path from "node:path";
 
 const SCRIPT = path.join(__dirname, "../../scripts/recovery-rehearsal.sh");
 const GUARD_EXIT = 3;
 
 function run(env: Record<string, string>, args: string[] = []) {
-  const result = spawnSync("bash", [SCRIPT, ...args], {
-    env: {
+  const result = runBash(SCRIPT, args, {
       PATH: process.env.PATH ?? "/usr/bin:/bin",
       HOME: process.env.HOME ?? "/tmp",
       NODE_ENV: "test",
@@ -25,9 +24,6 @@ function run(env: Record<string, string>, args: string[] = []) {
       GITHUB_ACTIONS: "",
       REHEARSAL_RUN_ID: "unit",
       ...env,
-    },
-    encoding: "utf8",
-    timeout: 20_000,
   });
   return {
     status: result.status,

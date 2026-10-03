@@ -4,7 +4,7 @@
  * familyplanner-*.sql.gz name (backup-prune.sh keeps the newest one and
  * restore.sh restores it by default).
  */
-import { spawnSync } from "node:child_process";
+import { runBash } from './helpers/run-bash';
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -41,18 +41,14 @@ function dump(tables: number, trailer = true) {
 function run(content: string, exitCode = 0) {
   const dumpFile = path.join(work, "dump.sql");
   fs.writeFileSync(dumpFile, content);
-  const result = spawnSync("bash", [SCRIPT, backups], {
-    env: {
+  const result = runBash(SCRIPT, [backups], {
       NODE_ENV: "test",
-      PATH: `${path.join(work, "bin")}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+      PATH: `${path.join(work, "bin")}${path.delimiter}${process.env.PATH ?? "/usr/bin:/bin"}`,
       DB_CONTAINER: "fake-db",
       DB_USER: "fake",
       DB_NAME: "fake",
       FAKE_DUMP: dumpFile,
       FAKE_EXIT: String(exitCode),
-    },
-    encoding: "utf8",
-    timeout: 20_000,
   });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }

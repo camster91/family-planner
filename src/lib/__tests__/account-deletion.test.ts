@@ -20,7 +20,7 @@ import {
 } from '@/lib/account-deletion'
 
 const A_USERS = ['parent-a', 'teen-a', 'child-a']
-const UPLOADS = '/srv/uploads'
+const UPLOADS = path.resolve('/srv/uploads')
 
 type Row = Record<string, any>
 
@@ -178,8 +178,8 @@ describe('deleteHousehold', () => {
     expect(disconnected.sort()).toEqual(['conn-a', 'conn-a-teen'])
     // The household's Upload file and its legacy chore photo; nothing of B.
     expect(removed.sort()).toEqual([
-      `${UPLOADS}/chores/1111111111111111.jpg`,
-      `${UPLOADS}/chores/aaaaaaaaaaaaaaaa.jpg`,
+      path.join(UPLOADS, 'chores', '1111111111111111.jpg'),
+      path.join(UPLOADS, 'chores', 'aaaaaaaaaaaaaaaa.jpg'),
     ])
   })
 
@@ -202,7 +202,7 @@ describe('deleteHousehold', () => {
     db.find('chore', 'chore-b')!.photo_url = '/api/files/chores/aaaaaaaaaaaaaaaa.jpg'
     const { d, removed } = deps()
     await deleteHousehold(FAMILY_A, 'parent-a', d)
-    expect(removed).toEqual([`${UPLOADS}/chores/1111111111111111.jpg`])
+    expect(removed).toEqual([path.join(UPLOADS, 'chores', '1111111111111111.jpg')])
   })
 
   it.each([
@@ -212,7 +212,7 @@ describe('deleteHousehold', () => {
     db.find('chore', 'chore-b')!.photo_url = ref
     const { d, removed } = deps()
     await deleteHousehold(FAMILY_A, 'parent-a', d)
-    expect(removed).toEqual([`${UPLOADS}/chores/1111111111111111.jpg`])
+    expect(removed).toEqual([path.join(UPLOADS, 'chores', '1111111111111111.jpg')])
   })
 
   it('keeps a shared legacy photo when this household uses the bare form and the other the canonical one', async () => {
@@ -220,7 +220,7 @@ describe('deleteHousehold', () => {
     db.find('chore', 'chore-b')!.photo_url = '/api/files/chores/aaaaaaaaaaaaaaaa.jpg'
     const { d, removed } = deps()
     await deleteHousehold(FAMILY_A, 'parent-a', d)
-    expect(removed).toEqual([`${UPLOADS}/chores/1111111111111111.jpg`])
+    expect(removed).toEqual([path.join(UPLOADS, 'chores', '1111111111111111.jpg')])
   })
 
   it('counts a file that could not be removed and still finishes', async () => {

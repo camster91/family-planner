@@ -1,7 +1,7 @@
 /**
  * Retention of scripts/backup-prune.sh (#145), run for real on a temp dir.
  */
-import { spawnSync } from "node:child_process";
+import { runBash } from './helpers/run-bash';
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -30,15 +30,11 @@ function touch(name: string, where = dir) {
 }
 
 function run(args: string[], env: Record<string, string> = {}) {
-  const result = spawnSync("bash", [SCRIPT, ...args], {
-    env: {
+  const result = runBash(SCRIPT, args, {
       NODE_ENV: "test",
       PATH: process.env.PATH ?? "/usr/bin:/bin",
       BACKUP_PRUNE_NOW: String(NOW / 1000),
       ...env,
-    },
-    encoding: "utf8",
-    timeout: 20_000,
   });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
