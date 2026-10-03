@@ -61,6 +61,22 @@ function isQuietHours(value: unknown): value is QuietHours {
   )
 }
 
+/**
+ * "22:00" → "10:00 PM" (in this browser's locale), so the saved message reads
+ * like the time boxes above it instead of switching to a 24-hour clock.
+ */
+export function formatClock(hhmm: string): string {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm)
+  if (!m) return hhmm
+  try {
+    return new Date(2000, 0, 1, Number(m[1]), Number(m[2]))
+      .toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+      .replace(/[\u202f\u00a0]/g, ' ')
+  } catch {
+    return hhmm
+  }
+}
+
 /** This browser's IANA time zone, or null when the browser does not say. */
 function browserTimeZone(): string | null {
   try {
@@ -198,7 +214,9 @@ export default function NotificationPreferences({ className }: { className?: str
       setQuietDraft({ start: saved.start, end: saved.end })
       setStatus({
         kind: 'saved',
-        text: saved.enabled ? `Quiet hours: on, ${saved.start} to ${saved.end}.` : 'Quiet hours: off.',
+        text: saved.enabled
+          ? `Quiet hours: on, ${formatClock(saved.start)} to ${formatClock(saved.end)}.`
+          : 'Quiet hours: off.',
       })
     } catch {
       setLoad((l) => (l.state === 'ready' ? { ...l, quiet: previous } : l))

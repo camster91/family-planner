@@ -125,6 +125,26 @@ describe('New chore form', () => {
     expect(body.assigned_to).toBeUndefined()
   })
 
+  it('says why "Create Chore" is greyed out, and the hint goes once it can be pressed', async () => {
+    const user = userEvent.setup()
+    render(<CreateChorePage />)
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Sam' })).toBeTruthy())
+    const submit = screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement
+    expect(submit.disabled).toBe(true)
+    expect(screen.getByText('Add a title and a due date first.')).toBeTruthy()
+    expect(submit.getAttribute('aria-describedby')).toBeTruthy()
+    await user.type(screen.getByLabelText('Title'), 'Dishes')
+    expect(screen.getByText('Add a due date first.')).toBeTruthy()
+    await user.type(screen.getByLabelText('Due Date'), '2099-10-05')
+    await user.click(screen.getByRole('button', { name: 'Weekly' }))
+    await user.click(screen.getByRole('switch', { name: 'Take turns' }))
+    expect(screen.getByText('Add at least 2 people to take turns first.')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Once' }))
+    expect(submit.disabled).toBe(false)
+    expect(screen.queryByText(/ first\.$/)).toBeNull()
+    expect(submit.getAttribute('aria-describedby')).toBeNull()
+  })
+
   it('switching back to Once sends a plain assignment', async () => {
     const user = userEvent.setup()
     await fillBasics(user)

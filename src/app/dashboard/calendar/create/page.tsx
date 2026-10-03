@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
 import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
+import { missingFieldsHint } from '@/lib/form-hints'
 
 export default function CreateEventPage() {
   const [title, setTitle] = useState('')
@@ -14,6 +15,7 @@ export default function CreateEventPage() {
   const [endDate, setEndDate] = useState('')
   const [endTime, setEndTime] = useState('')
   const [location, setLocation] = useState('')
+  const submitHint = missingFieldsHint([...(title.trim() ? [] : ['a title']), ...(startDate ? [] : ['a start date'])])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -37,7 +39,7 @@ export default function CreateEventPage() {
       }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
-        setError('End date/time must be after start date/time')
+        setError('The end must be after the start. Check the end date and time.')
         setLoading(false)
         return
       }
@@ -184,11 +186,17 @@ export default function CreateEventPage() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={loading || !title || !startDate}
+            disabled={loading || submitHint !== null}
+            aria-describedby={submitHint ? 'create-event-hint' : undefined}
             className="btn-filled w-full"
           >
             {loading ? 'Creating...' : 'Create Event'}
           </button>
+          {submitHint && (
+            <p id="create-event-hint" className="text-footnote text-label-secondary mt-2 text-center">
+              {submitHint}
+            </p>
+          )}
         </div>
       </form>
     </div>

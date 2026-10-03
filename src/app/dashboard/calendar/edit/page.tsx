@@ -103,7 +103,7 @@ function EditEventForm() {
       }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
-        setError('End date/time must be after start date/time')
+        setError('The end must be after the start. Check the end date and time.')
         setLoading(false)
         return
       }
