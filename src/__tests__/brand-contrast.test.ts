@@ -75,7 +75,7 @@ function ratio(a: Rgba, b: Rgba): number {
 }
 
 /** A background: one token, or a translucent token laid over a surface. */
-type Bg = string | [top: string, surface: string]
+type Bg = string | string[]
 type Pair = { fg: string; bg: Bg; min: number; use: string }
 
 const TEXT = 4.5
@@ -93,6 +93,8 @@ const pairs: Pair[] = [
   { fg: '--accent-text', bg: ['--accent-tint', '--surface-grouped'], min: TEXT, use: 'tinted button on page' },
   { fg: '--accent-text', bg: ['--accent-tint-strong', '--surface-elevated'], min: TEXT, use: 'tinted button hover' },
   { fg: '--accent-text', bg: ['--accent-tint-strong', '--surface-grouped'], min: TEXT, use: 'tinted button hover on page' },
+  // A tinted button must not sit on a --surface-fill panel: terracotta on
+  // tint over fill is 3.8-4.2:1. Panels holding one use a border instead.
   { fg: '--label-secondary', bg: ['--surface-fill', '--surface-grouped'], min: TEXT, use: 'text on fills on page' },
   ...['--accent-fill', '--accent-fill-hover', '--accent-fill-pressed'].map((bg) => ({
     fg: '--on-accent',
@@ -134,7 +136,8 @@ const pairs: Pair[] = [
 
 function measure(tokens: Record<string, string>, p: Pair): number {
   const colour = (t: string) => (t.startsWith('#') ? parse(t, tokens) : parse(`var(${t})`, tokens))
-  const bg = Array.isArray(p.bg) ? over(colour(p.bg[0]), colour(p.bg[1])) : colour(p.bg)
+  // Layers top first; the last one must be opaque.
+  const bg = Array.isArray(p.bg) ? p.bg.map(colour).reduceRight((under, layer) => over(layer, under)) : colour(p.bg)
   return ratio(over(colour(p.fg), bg), bg)
 }
 
