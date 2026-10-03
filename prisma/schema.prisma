@@ -49,6 +49,15 @@ model User {
   quiet_hours_end               String             @default("07:00")
   /// IANA zone the times are in (the browser's when saved). NULL = UTC.
   quiet_hours_time_zone         String?
+  /// Morning summary (O-38): one short message a day, opt-in (default off).
+  /// Sent only when an operator calls POST /api/cron/morning-summary on a
+  /// schedule they set up (src/lib/morning-summary.ts). The time zone is the
+  /// browser's IANA zone saved with the switch (NULL = the caller's `tz`, else
+  /// UTC). `morning_summary_sent_on` is the local `YYYY-MM-DD` of the last
+  /// send: the once-a-day dedupe key.
+  morning_summary_enabled       Boolean            @default(false)
+  morning_summary_time_zone     String?
+  morning_summary_sent_on       String?
   created_at                    DateTime           @default(now())
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)

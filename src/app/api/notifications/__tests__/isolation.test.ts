@@ -44,6 +44,14 @@ describe("notifications — two households", () => {
     expect(db.find("notification", "notif-b")?.read).toBe(false);
   });
 
+  it("a parent cannot write a fake morning summary (opt-in type, O-38)", async () => {
+    const opted = db.find("user", "child-a")!;
+    opted.morning_summary_enabled = true;
+    const res = await notifications.POST(req({ as: "parentA", body: { ...note, type: "summary" } }));
+    expect(res.status).toBe(400);
+    expect(writesTo("notification")).toHaveLength(0);
+  });
+
   it("a parent can notify a same-family member", async () => {
     expect((await notifications.POST(req({ as: "parentA", body: note }))).status).toBe(200);
     expect(writesTo("notification")[0].args.data).toMatchObject({ user_id: "child-a" });

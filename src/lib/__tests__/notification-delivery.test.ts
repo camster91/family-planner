@@ -7,12 +7,12 @@ jest.mock('next/server', () => require('@/__tests__/helpers/two-household').next
 jest.mock('next/headers', () => require('@/__tests__/helpers/two-household').nextHeadersMock)
 jest.mock('@/lib/session', () => require('@/__tests__/helpers/two-household').sessionMock)
 jest.mock('@/lib/prisma', () => ({ prisma: require('@/__tests__/helpers/two-household').fakePrisma }))
-jest.mock('@/lib/mail', () => ({ sendMail: jest.fn(async () => undefined) }))
+jest.mock('@/lib/mail', () => ({ sendMail: jest.fn(async () => undefined), isMailConfigured: jest.fn(() => true) }))
 
-import { deliverNotification, sendAccountMail } from '../notification-delivery'
+import { deliverNotification, sendAccountMail, sendOptInMail } from '../notification-delivery'
 import { notificationServiceServer } from '../notifications-server'
 import { POST } from '@/app/api/notifications/route'
-import { sendMail } from '@/lib/mail'
+import { isMailConfigured, sendMail } from '@/lib/mail'
 import { db, req, writesTo, USER_IDS } from '@/__tests__/helpers/two-household'
 import { IN_APP_NOTIFICATION_TYPES } from '../notification-policy'
 
@@ -75,11 +75,23 @@ describe('deliverNotification', () => {
     expect(rowsFor(CHILD)).toHaveLength(1)
   })
 
-  it('with everything on, every type is delivered', async () => {
+  it('with every default switch, every type is delivered except opt-in ones', async () => {
     for (const type of IN_APP_NOTIFICATION_TYPES) {
-      expect((await deliverNotification({ userId: CHILD, title: 't', message: 'm', type })).delivered).toBe(true)
+      expect((await deliverNotification({ userId: CHILD, title: 't', message: 'm', type })).delivered).toBe(
+        type !== 'summary'
+      )
     }
-    expect(rowsFor(CHILD)).toHaveLength(IN_APP_NOTIFICATION_TYPES.length)
+    expect(rowsFor(CHILD)).toHaveLength(IN_APP_NOTIFICATION_TYPES.length - 1)
+  })
+
+  it('the morning summary (opt-in, O-38) is stored only once the member turns it on', async () => {
+    const input = { userId: CHILD, title: 'Your morning summary', message: 'Today: 1 chore (Dishes).', type: 'summary' as const }
+    expect(await deliverNotification(input)).toEqual({ delivered: false, notification: null })
+    // Muting every category does not matter; only its own switch does.
+    mute(CHILD, ALL_OFF)
+    Object.assign(db.find('user', CHILD)!, { morning_summary_enabled: true })
+    expect((await deliverNotification(input)).delivered).toBe(true)
+    expect(rowsFor(CHILD)).toHaveLength(1)
   })
 })
 
@@ -150,6 +162,52 @@ describe('deliverNotification and quiet hours (#141, O-32)', () => {
     const body = await res.json()
     expect(body).toMatchObject({ success: true, delivered: true, quiet: false })
     expect(body.notification).toMatchObject({ title: 'Soon' })
+  })
+})
+
+describe('sendOptInMail (morning summary, O-38)', () => {
+  const mail = { userId: CHILD, subject: 'Your day', html: '<p>x</p>', text: 'x' }
+  const optIn = (extra: Record<string, unknown> = {}) =>
+    Object.assign(db.find('user', CHILD)!, { morning_summary_enabled: true, ...extra })
+
+  beforeEach(() => {
+    db.reset()
+    ;(sendMail as jest.Mock).mockClear()
+    ;(isMailConfigured as jest.Mock).mockReturnValue(true)
+  })
+
+  it('is not sent to a member who has not opted in (the default)', async () => {
+    expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: false, reason: 'opted_out' })
+    expect(sendMail).not.toHaveBeenCalled()
+  })
+
+  it("goes to the member's own verified address, never one the caller picks", async () => {
+    optIn()
+    expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: true })
+    expect(sendMail).toHaveBeenCalledWith({ to: 'child-a@example.test', subject: 'Your day', html: '<p>x</p>', text: 'x' })
+  })
+
+  it('is not sent to an unverified address', async () => {
+    optIn({ email_verified: false })
+    expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: false, reason: 'unverified' })
+    expect(sendMail).not.toHaveBeenCalled()
+  })
+
+  it('is held inside quiet hours (O-32: email interrupts) and sent outside them', async () => {
+    optIn({ quiet_hours_enabled: true, quiet_hours_start: '22:00', quiet_hours_end: '07:00', quiet_hours_time_zone: 'UTC' })
+    expect(await sendOptInMail('morning_summary', mail, new Date('2026-10-03T06:30:00Z'))).toEqual({
+      sent: false,
+      reason: 'quiet_hours',
+    })
+    expect(await sendOptInMail('morning_summary', mail, new Date('2026-10-03T07:00:00Z'))).toEqual({ sent: true })
+    expect(sendMail).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends nothing (and logs nothing) when mail is not configured', async () => {
+    optIn()
+    ;(isMailConfigured as jest.Mock).mockReturnValue(false)
+    expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: false, reason: 'mail_not_configured' })
+    expect(sendMail).not.toHaveBeenCalled()
   })
 })
 

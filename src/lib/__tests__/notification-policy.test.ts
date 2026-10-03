@@ -16,8 +16,13 @@ import {
   IN_APP_NOTIFICATION_TYPES,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_PREFERENCE_SELECT,
+  OPT_IN_COLUMN,
+  OPT_IN_KINDS,
+  OPT_IN_MAIL_POLICY,
   allowsNotification,
   isInAppNotificationType,
+  isParentSendableType,
+  morningSummaryFromRow,
   preferencesFromRow,
   preferencesToColumns,
 } from '../notification-policy'
@@ -56,9 +61,9 @@ function sentTypes(): Array<{ rel: string; type: string | null }> {
 }
 
 describe('notification policy table', () => {
-  it('maps every in-app type to a category or ALWAYS, and nothing else', () => {
+  it('maps every in-app type to a category, ALWAYS or an opt-in kind, and nothing else', () => {
     for (const [type, policy] of Object.entries(IN_APP_NOTIFICATION_POLICY)) {
-      expect([...NOTIFICATION_CATEGORIES, ALWAYS_SEND]).toContain(policy)
+      expect([...NOTIFICATION_CATEGORIES, ALWAYS_SEND, ...OPT_IN_KINDS]).toContain(policy)
       expect(isInAppNotificationType(type)).toBe(true)
     }
     expect(IN_APP_NOTIFICATION_TYPES).toEqual(Object.keys(IN_APP_NOTIFICATION_POLICY))
@@ -74,6 +79,28 @@ describe('notification policy table', () => {
       event: 'events',
       message: 'messages',
       system: ALWAYS_SEND,
+      summary: 'morning_summary',
+    })
+    expect(OPT_IN_MAIL_POLICY).toEqual({ morning_summary: 'morning_summary' })
+  })
+
+  it('keeps the morning summary opt-in: off unless switched on, never sendable by a parent (O-38)', () => {
+    expect(OPT_IN_COLUMN).toEqual({ morning_summary: 'morning_summary_enabled' })
+    expect(allowsNotification('summary', DEFAULT_NOTIFICATION_PREFERENCES)).toBe(false)
+    expect(allowsNotification('summary', DEFAULT_NOTIFICATION_PREFERENCES, { morning_summary: false })).toBe(false)
+    expect(allowsNotification('summary', DEFAULT_NOTIFICATION_PREFERENCES, { morning_summary: true })).toBe(true)
+    expect(isParentSendableType('summary')).toBe(false)
+    for (const type of ['chore', 'reward', 'event', 'message', 'system']) expect(isParentSendableType(type)).toBe(true)
+    expect(isParentSendableType('nope')).toBe(false)
+    expect(morningSummaryFromRow(null)).toEqual({ enabled: false, timeZone: null })
+    expect(morningSummaryFromRow({ morning_summary_enabled: null })).toEqual({ enabled: false, timeZone: null })
+    expect(
+      morningSummaryFromRow({ morning_summary_enabled: true, morning_summary_time_zone: 'America/Toronto' })
+    ).toEqual({ enabled: true, timeZone: 'America/Toronto' })
+    // An unknown stored zone reads as none.
+    expect(morningSummaryFromRow({ morning_summary_enabled: true, morning_summary_time_zone: 'Mars/Base' })).toEqual({
+      enabled: true,
+      timeZone: null,
     })
   })
 
@@ -121,8 +148,9 @@ describe('notification policy table', () => {
     expect(allowsNotification('event', allOff)).toBe(false)
     expect(allowsNotification('message', allOff)).toBe(false)
     expect(allowsNotification('system', allOff)).toBe(true)
+    // With default switches every type arrives except opt-in ones (off until turned on).
     for (const type of IN_APP_NOTIFICATION_TYPES) {
-      expect(allowsNotification(type, DEFAULT_NOTIFICATION_PREFERENCES)).toBe(true)
+      expect(allowsNotification(type, DEFAULT_NOTIFICATION_PREFERENCES)).toBe(type !== 'summary')
     }
   })
 })

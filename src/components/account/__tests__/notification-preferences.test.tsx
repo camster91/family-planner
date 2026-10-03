@@ -230,4 +230,78 @@ describe('NotificationPreferences', () => {
       expect(sw.getAttribute('aria-checked')).toBe('false')
     })
   })
+
+  describe('morning summary (O-38)', () => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+    it('is an Off 44px switch by default, and an older server without it reads as off', async () => {
+      mockFetch(() => ok({ preferences: ALL_ON }))
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Morning summary' })
+      expect(sw.getAttribute('aria-checked')).toBe('false')
+      expect(sw.className).toContain('min-h-[44px]')
+      expect(sw.className).toContain('min-w-[44px]')
+      expect(screen.getByText(/Off unless you turn it on/)).toBeTruthy()
+    })
+
+    it("turning it on saves only the summary, with this browser's time zone and an Idempotency-Key", async () => {
+      const save = deferred<Response>()
+      const calls = mockFetch((c) =>
+        c.method === 'GET' ? ok({ preferences: ALL_ON, morningSummary: { enabled: false, timeZone: null } }) : save.promise
+      )
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Morning summary' })
+      await userEvent.click(sw)
+      expect(sw.getAttribute('aria-checked')).toBe('true')
+      expect((sw as HTMLButtonElement).disabled).toBe(true)
+      const patch = calls.find((c) => c.method === 'PATCH')!
+      expect(patch.body).toEqual({ morningSummary: { enabled: true, timeZone: zone } })
+      expect(patch.headers['Idempotency-Key']).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
+      await act(async () =>
+        save.resolve(ok({ preferences: ALL_ON, morningSummary: { enabled: true, timeZone: zone } }))
+      )
+      expect(sw.getAttribute('aria-checked')).toBe('true')
+      expect(screen.getByText('Morning summary: on.')).toBeTruthy()
+      // The category switches were not touched.
+      expect(screen.getByRole('switch', { name: 'Chores and rewards' }).getAttribute('aria-checked')).toBe('true')
+    })
+
+    it('turns off from the keyboard', async () => {
+      const calls = mockFetch((c) =>
+        c.method === 'GET'
+          ? ok({ preferences: ALL_ON, morningSummary: { enabled: true, timeZone: 'America/Toronto' } })
+          : ok({ preferences: ALL_ON, morningSummary: { enabled: false, timeZone: zone } })
+      )
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Morning summary' })
+      expect(sw.getAttribute('aria-checked')).toBe('true')
+      sw.focus()
+      await userEvent.keyboard(' ')
+      await waitFor(() => expect(screen.getByText('Morning summary: off.')).toBeTruthy())
+      expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual({
+        morningSummary: { enabled: false, timeZone: zone },
+      })
+    })
+
+    it('puts the switch back and says so when the save fails', async () => {
+      mockFetch((c) => (c.method === 'GET' ? ok({ preferences: ALL_ON }) : fail(500)))
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Morning summary' })
+      await userEvent.click(sw)
+      await waitFor(() =>
+        expect(screen.getByText(/Couldn't save "Morning summary". It is back to off. Try again./)).toBeTruthy()
+      )
+      expect(sw.getAttribute('aria-checked')).toBe('false')
+    })
+
+    it('offline: the switch is disabled and nothing is sent', async () => {
+      setOnline(false)
+      const calls = mockFetch(() => ok({ preferences: ALL_ON }))
+      render(<NotificationPreferences />)
+      const sw = await screen.findByRole('switch', { name: 'Morning summary' })
+      expect((sw as HTMLButtonElement).disabled).toBe(true)
+      await userEvent.click(sw)
+      expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(0)
+    })
+  })
 })

@@ -76,6 +76,10 @@ function user(id: string, name: string, role: string, family_id: string | null):
     quiet_hours_start: '22:00',
     quiet_hours_end: '07:00',
     quiet_hours_time_zone: null,
+    // Morning summary (O-38): schema defaults (opt-in, off).
+    morning_summary_enabled: false,
+    morning_summary_time_zone: null,
+    morning_summary_sent_on: null,
   }
 }
 

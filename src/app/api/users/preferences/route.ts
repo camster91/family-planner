@@ -5,8 +5,10 @@ import { authenticateWithUser } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { readIdempotencyKey, withIdempotency, type EffectResult } from '@/lib/idempotency'
 import {
+  MORNING_SUMMARY_SELECT,
   NOTIFICATION_PREFERENCES_ACTION,
   NOTIFICATION_PREFERENCE_SELECT,
+  morningSummaryFromRow,
   preferencesFromRow,
   preferencesToColumns,
 } from '@/lib/notification-policy'
@@ -44,6 +46,20 @@ const quietHoursSchema = z
   .strict()
   .refine((q) => q.start !== q.end, { message: 'Quiet hours need different start and end times' })
 
+// Morning summary (O-38): opt-in switch plus the browser's IANA zone, which
+// decides the person's "today" and event times (null or missing = none saved).
+const morningSummarySchema = z
+  .object({
+    enabled: z.boolean(),
+    timeZone: z
+      .string()
+      .max(MAX_TIME_ZONE_LENGTH)
+      .refine(isValidTimeZone, { message: 'Unknown time zone' })
+      .nullable()
+      .optional(),
+  })
+  .strict()
+
 // Strict: an unknown key (including any attempt to name another member, e.g.
 // `userId`) is a 400. At least one setting must be present.
 const patchSchema = z
@@ -52,17 +68,44 @@ const patchSchema = z
     events: z.boolean().optional(),
     messages: z.boolean().optional(),
     quietHours: quietHoursSchema.optional(),
+    morningSummary: morningSummarySchema.optional(),
   })
   .strict()
   .refine(
-    (v) => v.chores !== undefined || v.events !== undefined || v.messages !== undefined || v.quietHours !== undefined,
-    { message: 'Send at least one of chores, events, messages or quietHours' }
+    (v) =>
+      v.chores !== undefined ||
+      v.events !== undefined ||
+      v.messages !== undefined ||
+      v.quietHours !== undefined ||
+      v.morningSummary !== undefined,
+    { message: 'Send at least one of chores, events, messages, quietHours or morningSummary' }
   )
 
-const SELECT = { ...NOTIFICATION_PREFERENCE_SELECT, ...QUIET_HOURS_SELECT } as const
+const SELECT = { ...NOTIFICATION_PREFERENCE_SELECT, ...QUIET_HOURS_SELECT, ...MORNING_SUMMARY_SELECT } as const
 
-function body(row: Parameters<typeof preferencesFromRow>[0] & Parameters<typeof quietHoursFromRow>[0]) {
-  return { preferences: preferencesFromRow(row), quietHours: quietHoursFromRow(row) }
+function body(
+  row: Parameters<typeof preferencesFromRow>[0] &
+    Parameters<typeof quietHoursFromRow>[0] &
+    Parameters<typeof morningSummaryFromRow>[0]
+) {
+  return {
+    preferences: preferencesFromRow(row),
+    quietHours: quietHoursFromRow(row),
+    morningSummary: morningSummaryFromRow(row),
+  }
+}
+
+/**
+ * Columns for the morning summary switch. Turning it on saves the browser's
+ * zone; turning it off keeps the saved zone (it is used only while on) unless
+ * a new one is sent. The last-sent day is never touched here, so switching
+ * off and on again the same morning cannot send a second summary.
+ */
+function morningSummaryColumns(m: { enabled: boolean; timeZone?: string | null }) {
+  return {
+    morning_summary_enabled: m.enabled,
+    ...(m.timeZone !== undefined ? { morning_summary_time_zone: m.timeZone } : {}),
+  }
 }
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
@@ -74,7 +117,7 @@ function error(status: number, code: string, message: string, requestId: string)
 }
 
 // GET /api/users/preferences — the caller's own notification preferences
-// (#286, PR101 D-5) and quiet hours (#141, O-32). Any role; there is no way to
+// (#286, PR101 D-5), quiet hours (#141, O-32) and morning summary (O-38). Any role; there is no way to
 // name another member.
 async function getPreferences(request: NextRequest) {
   const requestId = getRequestId(request)
@@ -98,7 +141,7 @@ async function getPreferences(request: NextRequest) {
 
 export const GET = withRouteTelemetry('/api/users/preferences', getPreferences)
 
-// PATCH /api/users/preferences { chores?, events?, messages?, quietHours? } —
+// PATCH /api/users/preferences { chores?, events?, messages?, quietHours?, morningSummary? } —
 // change the caller's own switches and quiet hours. Any role. Optional `Idempotency-Key`: the update sets
 // explicit values, so a replay or a re-run converges. A member without a
 // household has no idempotency scope (records belong to a household), so their
@@ -126,12 +169,13 @@ async function patchPreferences(request: NextRequest) {
 
     const userId = auth.user.id
     const effect = async (): Promise<EffectResult> => {
-      const { quietHours, ...switches } = parsed.data
+      const { quietHours, morningSummary, ...switches } = parsed.data
       const row = await prisma!.user.update({
         where: { id: userId },
         data: {
           ...preferencesToColumns(switches),
           ...(quietHours ? quietHoursToColumns({ ...quietHours, timeZone: quietHours.timeZone ?? null }) : {}),
+          ...(morningSummary ? morningSummaryColumns(morningSummary) : {}),
         },
         select: SELECT,
       })

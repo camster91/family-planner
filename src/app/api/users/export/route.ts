@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { BACKFILL_SOURCE_APP } from '@/lib/backfill/meals-groceries'
-import { NOTIFICATION_PREFERENCE_SELECT, preferencesFromRow } from '@/lib/notification-policy'
+import {
+  MORNING_SUMMARY_SELECT,
+  NOTIFICATION_PREFERENCE_SELECT,
+  morningSummaryFromRow,
+  preferencesFromRow,
+} from '@/lib/notification-policy'
 import { QUIET_HOURS_SELECT, quietHoursFromRow } from '@/lib/quiet-hours'
 import { AUDIT_RETENTION_MS } from '@/lib/household-audit'
 import { logRouteError } from '@/lib/api-error'
@@ -93,6 +98,8 @@ export async function GET(request: NextRequest) {
           ...NOTIFICATION_PREFERENCE_SELECT,
           // Quiet hours (#141, O-32); exported as `quietHours`.
           ...QUIET_HOURS_SELECT,
+          // Morning summary switch and zone (O-38); exported as `morningSummary`.
+          ...MORNING_SUMMARY_SELECT,
           // Explicitly EXCLUDE password
         },
       }),
@@ -467,6 +474,7 @@ export async function GET(request: NextRequest) {
       // Same shape as GET /api/users/preferences (#286).
       notificationPreferences: user ? preferencesFromRow(user) : null,
       quietHours: user ? quietHoursFromRow(user) : null,
+      morningSummary: user ? morningSummaryFromRow(user) : null,
       family,
       chores,
       lists,

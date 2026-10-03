@@ -170,6 +170,12 @@ export default function PrivacyPage() {
               You can turn notification emails off in Settings.
             </p>
             <p className="mt-3">
+              If you turn on the optional morning summary (Settings → Notifications; it is off
+              unless you turn it on), we also send you one short email a day, to a verified
+              address only, with your own chores for the day, today&apos;s family events and
+              tonight&apos;s dinner. Every summary email tells you how to turn it off.
+            </p>
+            <p className="mt-3">
               These emails are sent through Mailgun, our email provider. To deliver a message, Mailgun
               receives the recipient&apos;s address and name and the message itself. We have turned off
               Mailgun&apos;s open and click tracking, so it does not track whether you open an email or

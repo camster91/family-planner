@@ -71,3 +71,41 @@ export function familyInviteEmail(options: {
   ].join('\n')
   return { subject, html, text }
 }
+
+/**
+ * Morning summary email (O-38). Every user-controlled value (name, chore and
+ * event titles, dinner) is escaped in the HTML part. Ends with the plain
+ * "Turn this off" line and a link to where the switch lives.
+ */
+export function morningSummaryEmail(options: {
+  name: string
+  dayLabel: string
+  lines: readonly string[]
+  todayUrl: string
+  settingsUrl: string
+  /** Where the switch is, in words, e.g. "Settings → Notifications". */
+  settingsLabel: string
+}): { subject: string; html: string; text: string } {
+  const firstName = options.name.trim().split(/\s+/)[0] || 'there'
+  const subject = `Your day: ${options.dayLabel}`
+  const html = [
+    `<p>Good morning, ${escapeHtml(firstName)}.</p>`,
+    `<p>Here is ${escapeHtml(options.dayLabel)}:</p>`,
+    '<ul>',
+    ...options.lines.map((line) => `<li>${escapeHtml(line)}</li>`),
+    '</ul>',
+    `<p><a href="${escapeHtml(options.todayUrl)}">Open Today</a></p>`,
+    `<p style="color:#6b7280;font-size:13px;">Turn this off in ${escapeHtml(options.settingsLabel)}: <a href="${escapeHtml(options.settingsUrl)}">${escapeHtml(options.settingsUrl)}</a></p>`,
+  ].join('\n')
+  const text = [
+    `Good morning, ${firstName}.`,
+    '',
+    `Here is ${options.dayLabel}:`,
+    ...options.lines.map((line) => `- ${line}`),
+    '',
+    `Open Today: ${options.todayUrl}`,
+    '',
+    `Turn this off in ${options.settingsLabel}: ${options.settingsUrl}`,
+  ].join('\n')
+  return { subject, html, text }
+}
