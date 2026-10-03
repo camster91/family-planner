@@ -10,6 +10,8 @@
  * Only variable names and fixed reasons are logged, never values.
  */
 
+import { calendarSyncConfigProblems } from '@/lib/calendar-sync/config'
+
 type Env = Record<string, string | undefined>
 
 export interface EnvCheckResult {
@@ -44,6 +46,12 @@ export function checkProductionEnv(env: Env): EnvCheckResult {
     )
   } else if (!/^\d+$/.test(hops.trim()) || Number(hops) < 1) {
     warnings.push('TRUSTED_PROXY_HOPS is not a whole number of at least 1: rate limits may read the wrong client address. Fix the value.')
+  }
+
+  // Two-way calendar sync is optional and off unless configured; a half-done
+  // setup otherwise fails silently (no Settings card), so say what is missing.
+  for (const problem of calendarSyncConfigProblems(env)) {
+    warnings.push(`Calendar sync: ${problem} See docs/runbooks/CALENDAR_SYNC.md.`)
   }
 
   return { errors, warnings }

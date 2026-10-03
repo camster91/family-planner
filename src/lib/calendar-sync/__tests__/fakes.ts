@@ -207,6 +207,9 @@ export class FakeOAuth implements OAuthClient {
     this.exchanged.push({ code, verifier });
     return this.exchangeResult;
   }
+  hasRequiredScopes(granted: string | null) {
+    return granted === null || granted.split(" ").includes("scope-a");
+  }
   async refresh() {
     this.refreshCalls++;
     if (this.grantRevoked) throw new OAuthGrantError();

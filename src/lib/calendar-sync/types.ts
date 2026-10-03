@@ -130,6 +130,12 @@ export interface OAuthClient {
     codeVerifier: string,
   ): Promise<TokenSet>;
   refresh(config: ProviderConfig, refreshToken: string): Promise<TokenSet>;
+  /**
+   * False when the token response says the member did not grant every scope
+   * the app needs (Google lets people untick boxes on the consent screen).
+   * True when the response does not list scopes.
+   */
+  hasRequiredScopes(granted: string | null): boolean;
   /** Best effort; resolves even when the provider has no revocation endpoint. */
   revoke(config: ProviderConfig, token: string): Promise<void>;
 }

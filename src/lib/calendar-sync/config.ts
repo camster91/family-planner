@@ -6,7 +6,7 @@
 // every connection route answers 404 and the settings UI hides the section.
 // See docs/runbooks/CALENDAR_SYNC.md.
 
-import { isTokenKeyConfigured } from "./token-crypto";
+import { isTokenKeyConfigured, isValidTokenKey } from "./token-crypto";
 
 export const PROVIDERS = ["google", "microsoft"] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -32,6 +32,8 @@ export function isProvider(value: unknown): value is Provider {
   );
 }
 
+type Env = Record<string, string | undefined>;
+
 const env = (name: string): string => (process.env[name] ?? "").trim();
 
 /**
@@ -41,7 +43,12 @@ const env = (name: string): string => (process.env[name] ?? "").trim();
  * except http://localhost for local development.
  */
 export function appOrigin(): string | null {
-  const raw = env("APP_URL") || env("NEXT_PUBLIC_APP_URL");
+  return appOriginFrom(process.env);
+}
+
+function appOriginFrom(source: Env): string | null {
+  const raw =
+    (source.APP_URL ?? "").trim() || (source.NEXT_PUBLIC_APP_URL ?? "").trim();
   if (!raw) return null;
   let url: URL;
   try {
@@ -81,6 +88,72 @@ export function getProviderConfig(provider: Provider): ProviderConfig | null {
   if (!clientId || !clientSecret || !tenant || !TENANT_RE.test(tenant))
     return null;
   return { provider, clientId, clientSecret, tenant, redirectUri };
+}
+
+/**
+ * Why calendar sync is not (fully) on, for the start-up log. Empty when
+ * nothing calendar-related is set (dormant on purpose) or when every provider
+ * that has any setting is complete. Variable names and fixed reasons only,
+ * never values.
+ */
+export function calendarSyncConfigProblems(source: Env): string[] {
+  const has = (name: string) => (source[name] ?? "").trim() !== "";
+  const google = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
+  const microsoft = ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET"];
+  const touched = [
+    "CALENDAR_TOKEN_KEY",
+    ...google,
+    ...microsoft,
+  ].some(has);
+  if (!touched) return [];
+
+  const problems: string[] = [];
+  if (!has("CALENDAR_TOKEN_KEY")) {
+    problems.push("CALENDAR_TOKEN_KEY is not set.");
+  } else if (!isValidTokenKey(source.CALENDAR_TOKEN_KEY)) {
+    problems.push(
+      "CALENDAR_TOKEN_KEY is not base64 of exactly 32 bytes. Make one with: openssl rand -base64 32",
+    );
+  }
+  if (
+    has("CALENDAR_TOKEN_KEY_PREVIOUS") &&
+    !isValidTokenKey(source.CALENDAR_TOKEN_KEY_PREVIOUS)
+  ) {
+    problems.push(
+      "CALENDAR_TOKEN_KEY_PREVIOUS is not base64 of exactly 32 bytes, so it is ignored.",
+    );
+  }
+  if (!appOriginFrom(source)) {
+    problems.push(
+      "APP_URL (or NEXT_PUBLIC_APP_URL) is not set to an https address at runtime, so no redirect URI can be built.",
+    );
+  }
+  for (const [label, names] of [
+    ["Google", google],
+    ["Outlook", microsoft],
+  ] as const) {
+    const set = names.filter(has);
+    if (set.length > 0 && set.length < names.length) {
+      const missing = names.filter((n) => !has(n)).join(", ");
+      problems.push(`${label} is off: ${missing} is not set.`);
+    }
+  }
+  if (microsoft.every(has)) {
+    const tenant = (source.MICROSOFT_TENANT ?? "").trim();
+    if (!tenant) {
+      problems.push(
+        "Outlook is off: MICROSOFT_TENANT is not set (use common for personal and work accounts).",
+      );
+    } else if (!TENANT_RE.test(tenant)) {
+      problems.push("Outlook is off: MICROSOFT_TENANT is not a valid tenant id or name.");
+    }
+  }
+  if (!google.every(has) && !microsoft.every(has)) {
+    problems.push(
+      "No provider has both a client id and a client secret, so calendar sync stays off.",
+    );
+  }
+  return problems;
 }
 
 export function enabledProviders(): Provider[] {

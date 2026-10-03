@@ -344,6 +344,12 @@ export function createMicrosoftOAuth(deps: HttpDeps = {}): OAuthClient {
       );
     },
 
+    // Microsoft consent is all or nothing (and Graph may report scopes as
+    // full URLs), so there is nothing partial to detect here.
+    hasRequiredScopes() {
+      return true;
+    },
+
     refresh(config, refreshToken) {
       return postTokenForm(
         microsoftTokenUrl(tenantOf(config)),

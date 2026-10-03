@@ -49,6 +49,34 @@ export const PUSH_MODES = ["linked", "all"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOKEN_SKEW_MS = 60 * 1000;
+/**
+ * A stored cursor older than this is dropped and the window is listed in full
+ * again. Graph's calendarView delta only ever reports changes inside the
+ * window it was started with, and Google's sync token follows the first
+ * listing too, so without this the sync window would stay frozen at the first
+ * sync and events further out than 180 days from then would never arrive.
+ */
+export const CURSOR_MAX_AGE_MS = 7 * DAY_MS;
+
+// Stored cursor format: "c1.<issued ms>.<provider cursor>". The prefix is
+// internal; adapters only ever see the provider cursor. A value without it
+// (written before this format) counts as expired: one full listing, which is
+// idempotent.
+const CURSOR_RE = /^c1\.(\d{1,15})\.([\s\S]+)$/;
+
+export function packCursor(cursor: string | null, issuedAt: Date): string | null {
+  return cursor ? `c1.${issuedAt.getTime()}.${cursor}` : null;
+}
+
+/** The provider cursor to resume from, or null when a full listing is due. */
+export function usableCursor(stored: string | null | undefined, now: Date): string | null {
+  if (!stored) return null;
+  const m = CURSOR_RE.exec(stored);
+  if (!m) return null;
+  const age = now.getTime() - Number(m[1]);
+  if (age < 0 || age > CURSOR_MAX_AGE_MS) return null;
+  return m[2];
+}
 
 export interface EngineDeps {
   db?: any;
@@ -125,6 +153,8 @@ const MESSAGES: Record<string, string> = {
   calendar_gone:
     "This calendar can no longer be reached. Choose another calendar.",
   reauth: "Reconnect this calendar to keep it in sync.",
+  reauth_scope:
+    "Reconnect this calendar and allow access to your calendar events.",
   not_configured: "This calendar provider is not available.",
   token_unreadable: "Reconnect this calendar to keep it in sync.",
   unknown: "Sync failed. Try again later.",
@@ -504,6 +534,10 @@ async function applyRemote(
     }
 
     if (r.end.getTime() < window.start.getTime()) continue; // history, not imported
+    // An incremental pull can carry events far beyond the window (Google
+    // expands a new endless series into many instances). They are imported by
+    // the periodic full listing once they come inside the window.
+    if (!pulled.full && r.start.getTime() >= window.end.getTime()) continue;
     const incoming = remoteFields(r);
     try {
       await inGeneration(ctx, async (tx: any) => {
@@ -739,9 +773,12 @@ export async function syncConnection(
 
   try {
     let pulled: PullResult;
+    const cursor = usableCursor(conn.sync_cursor, now);
+    // A periodic full listing (cursor too old) is a routine refresh, not a
+    // 410 resync, so `resynced` stays false for it.
     try {
       pulled = await withAuth(ctx, (t) =>
-        ctx.adapter.pull(t, conn.calendar_id, conn.sync_cursor, window, ctx.timeZone),
+        ctx.adapter.pull(t, conn.calendar_id, cursor, window, ctx.timeZone),
       );
     } catch (err) {
       if (!(err instanceof CursorExpiredError)) throw err;
@@ -756,7 +793,7 @@ export async function syncConnection(
     await inGeneration(ctx, (tx) =>
       tx.calendarConnection.updateMany({
         where: { id: conn.id, family_id: familyId, generation: conn.generation },
-        data: { sync_cursor: pulled.nextCursor },
+        data: { sync_cursor: packCursor(pulled.nextCursor, now) },
       }),
     );
     await pushLocal(ctx, window, summary);
@@ -768,6 +805,8 @@ export async function syncConnection(
     if (err instanceof OAuthGrantError) return finish("reauth_required", "reauth");
     if (err instanceof ProviderHttpError && err.code === "unauthorized")
       return finish("reauth_required", "reauth");
+    if (err instanceof ProviderHttpError && err.code === "insufficient_scope")
+      return finish("reauth_required", "reauth_scope");
     return finish("error", errorCode(err));
   }
   return finish("ok", null);
@@ -882,13 +921,17 @@ export async function listConnectionCalendars(
   } catch (err) {
     if (
       err instanceof OAuthGrantError ||
-      (err instanceof ProviderHttpError && err.code === "unauthorized")
+      (err instanceof ProviderHttpError &&
+        (err.code === "unauthorized" || err.code === "insufficient_scope"))
     ) {
       await db.calendarConnection.updateMany({
         where: { id: conn.id, family_id: familyId },
         data: {
           status: "reauth_required",
-          last_error: MESSAGES.reauth,
+          last_error:
+            err instanceof ProviderHttpError && err.code === "insufficient_scope"
+              ? MESSAGES.reauth_scope
+              : MESSAGES.reauth,
           access_token_enc: null,
         },
       });

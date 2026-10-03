@@ -81,3 +81,45 @@ describe('instrumentation register()', () => {
     await expect(register()).rejects.toThrow(/Refusing to start/)
   })
 })
+
+describe('calendar sync settings (#264)', () => {
+  const KEY = Buffer.alloc(32, 7).toString('base64')
+  const FULL = {
+    ...GOOD,
+    APP_URL: 'https://family.ashbi.ca',
+    CALENDAR_TOKEN_KEY: KEY,
+    GOOGLE_CLIENT_ID: 'id',
+    GOOGLE_CLIENT_SECRET: 'secret-VALUE',
+  }
+  const calendarWarnings = (env: Record<string, string | undefined>) =>
+    checkProductionEnv(env).warnings.filter((w) => w.startsWith('Calendar sync:'))
+
+  it('says nothing when calendar sync is not set up at all, or is set up completely', () => {
+    expect(calendarWarnings(GOOD)).toEqual([])
+    expect(calendarWarnings(FULL)).toEqual([])
+    expect(
+      calendarWarnings({ ...FULL, MICROSOFT_CLIENT_ID: 'm', MICROSOFT_CLIENT_SECRET: 's', MICROSOFT_TENANT: 'common' })
+    ).toEqual([])
+  })
+
+  it('names what is missing or malformed in a half-done setup', () => {
+    expect(calendarWarnings({ ...FULL, CALENDAR_TOKEN_KEY: 'a'.repeat(64) }).join(' ')).toMatch(
+      /CALENDAR_TOKEN_KEY is not base64 of exactly 32 bytes/
+    )
+    expect(calendarWarnings({ ...FULL, CALENDAR_TOKEN_KEY: undefined }).join(' ')).toMatch(/CALENDAR_TOKEN_KEY is not set/)
+    expect(calendarWarnings({ ...FULL, APP_URL: 'http://family.ashbi.ca' }).join(' ')).toMatch(/APP_URL/)
+    expect(calendarWarnings({ ...FULL, GOOGLE_CLIENT_SECRET: '' }).join(' ')).toMatch(/GOOGLE_CLIENT_SECRET is not set/)
+    expect(calendarWarnings({ ...FULL, MICROSOFT_CLIENT_ID: 'm', MICROSOFT_CLIENT_SECRET: 's' }).join(' ')).toMatch(
+      /MICROSOFT_TENANT is not set/
+    )
+    expect(calendarWarnings({ ...FULL, CALENDAR_TOKEN_KEY_PREVIOUS: 'nope' }).join(' ')).toMatch(
+      /CALENDAR_TOKEN_KEY_PREVIOUS/
+    )
+  })
+
+  it('never includes a calendar secret or key in a message', () => {
+    const text = calendarWarnings({ ...FULL, CALENDAR_TOKEN_KEY: 'BAD-KEY-VALUE', GOOGLE_CLIENT_ID: undefined }).join(' ')
+    expect(text).not.toContain('BAD-KEY-VALUE')
+    expect(text).not.toContain('secret-VALUE')
+  })
+})

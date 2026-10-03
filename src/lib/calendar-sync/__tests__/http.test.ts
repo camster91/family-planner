@@ -3,6 +3,7 @@
 
 import {
   assertProviderUrl,
+  ensureOk,
   parseRetryAfter,
   providerFetch,
   ProviderHttpError,
@@ -104,5 +105,43 @@ describe("providerFetch", () => {
     const err = await providerFetch("https://www.googleapis.com/x", {}, { fetchImpl }).catch((e) => e);
     expect(err).toMatchObject({ code: "network" });
     expect(String(err.message)).not.toContain("token");
+  });
+});
+
+describe("ensureOk", () => {
+  const googleError = (reason: string) =>
+    new Response(
+      JSON.stringify({ error: { code: 403, errors: [{ reason, domain: "usageLimits" }] } }),
+      { status: 403 },
+    );
+
+  it.each(["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded"])(
+    "a Google 403 %s is a rate limit",
+    async (reason) => {
+      await expect(ensureOk(googleError(reason))).rejects.toMatchObject({ code: "rate_limited", status: 403 });
+    },
+  );
+
+  it("a Google 403 for a missing scope is insufficient_scope", async () => {
+    await expect(ensureOk(googleError("insufficientPermissions"))).rejects.toMatchObject({
+      code: "insufficient_scope",
+    });
+    const scope = new Response(
+      JSON.stringify({ error: { status: "PERMISSION_DENIED", details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] } }),
+      { status: 403 },
+    );
+    await expect(ensureOk(scope)).rejects.toMatchObject({ code: "insufficient_scope" });
+  });
+
+  it("any other 403 stays a plain http error, and the body is not in the message", async () => {
+    const err = await ensureOk(googleError("forbidden SECRET-BODY")).catch((e) => e);
+    expect(err).toMatchObject({ code: "http", status: 403 });
+    expect(String(err.message)).not.toContain("SECRET-BODY");
+  });
+
+  it("401 is unauthorized; 2xx passes through", async () => {
+    await expect(ensureOk(new Response("", { status: 401 }))).rejects.toMatchObject({ code: "unauthorized" });
+    const ok = new Response("{}", { status: 200 });
+    await expect(ensureOk(ok)).resolves.toBe(ok);
   });
 });

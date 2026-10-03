@@ -140,6 +140,36 @@ describe("Google adapter", () => {
     expect(url.toString()).not.toContain("SECRET-VALUE");
   });
 
+  it("OAuth: the scopes are exactly the two the runbook lists", () => {
+    expect(GOOGLE_SCOPES).toEqual([
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    ]);
+  });
+
+  it("OAuth: a code exchange reports the granted scopes; a missing calendar box is detected", async () => {
+    const http = scripted([
+      json({
+        access_token: "AT",
+        refresh_token: "RT",
+        expires_in: 3599,
+        scope: "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+        token_type: "Bearer",
+      }),
+    ]);
+    const config = { provider: "google" as const, clientId: "c", clientSecret: "s", redirectUri: "https://x.test/cb" };
+    const oauth = createGoogleOAuth(http);
+    const tokens = await oauth.exchangeCode(config, "code", "verifier");
+    expect(tokens).toMatchObject({ accessToken: "AT", refreshToken: "RT" });
+    const form = new URLSearchParams(String(http.calls[0].init.body));
+    expect(form.get("code_verifier")).toBe("verifier");
+    expect(form.get("redirect_uri")).toBe("https://x.test/cb");
+    expect(oauth.hasRequiredScopes(tokens.scope)).toBe(false);
+    expect(oauth.hasRequiredScopes(GOOGLE_SCOPES.join(" "))).toBe(true);
+    expect(oauth.hasRequiredScopes(`openid ${[...GOOGLE_SCOPES].reverse().join(" ")}`)).toBe(true);
+    expect(oauth.hasRequiredScopes(null)).toBe(true);
+  });
+
   it("OAuth: refresh with invalid_grant is a grant error", async () => {
     const http = scripted([json({ error: "invalid_grant" }, 400)]);
     const config = { provider: "google" as const, clientId: "c", clientSecret: "s", redirectUri: "https://x.test/cb" };
