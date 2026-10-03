@@ -64,14 +64,14 @@ export default function BetaMetricsSwitch({ initialEnabled }: { initialEnabled: 
       )}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p id={labelId} className="font-medium text-gray-700">
+          <p id={labelId} className="font-medium text-foreground">
             {LABEL}
           </p>
-          <p id={descId} className="text-xs text-gray-500">
+          <p id={descId} className="text-xs text-label-tertiary">
             Helps us check the beta works. Each day we count how many events and meals your household adds, chores
             it assigns, completes and checks, rewards claimed and members who joined. Only numbers: no names,
             messages or other content. Off unless a parent turns it on; turning it off deletes the counts.{' '}
-            <Link href="/privacy#beta-usage-counts" className="text-blue-600 underline">
+            <Link href="/privacy#beta-usage-counts" className="text-primary underline">
               What is counted
             </Link>
           </p>
@@ -109,7 +109,7 @@ export default function BetaMetricsSwitch({ initialEnabled }: { initialEnabled: 
       </div>
       <p aria-live="polite" className="min-h-[1.5em] pt-2 text-[14px]">
         {status && (
-          <span className={status.kind === 'error' ? 'text-red-700 dark:text-red-400' : 'text-label-secondary'}>
+          <span className={status.kind === 'error' ? 'text-danger-text' : 'text-label-secondary'}>
             {status.text}
           </span>
         )}

@@ -143,45 +143,45 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   }
 
   const icons: Record<ToastType, React.ReactNode> = {
-    success: <CheckCircle className="w-5 h-5 text-green-500" />,
-    error: <AlertCircle className="w-5 h-5 text-red-500" />,
-    info: <Info className="w-5 h-5 text-blue-500" />,
-    achievement: <Trophy className="w-5 h-5 text-amber-500" />,
-    streak: <Flame className="w-5 h-5 text-orange-500" />,
-    levelup: <Star className="w-5 h-5 text-purple-500" />,
+    success: <CheckCircle className="w-5 h-5 text-success" />,
+    error: <AlertCircle className="w-5 h-5 text-danger-text" />,
+    info: <Info className="w-5 h-5 text-primary" />,
+    achievement: <Trophy className="w-5 h-5 text-warning-text" />,
+    streak: <Flame className="w-5 h-5 text-primary" />,
+    levelup: <Star className="w-5 h-5 text-[var(--tint-rewards-text)]" />,
     undo: null,
   }
 
   const bgColors: Record<ToastType, string> = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-red-50 border-red-200',
-    info: 'bg-blue-50 border-blue-200',
-    achievement: 'bg-amber-50 border-amber-300',
-    streak: 'bg-orange-50 border-orange-300',
-    levelup: 'bg-purple-50 border-purple-300',
+    success: 'border-[var(--success)]',
+    error: 'border-[var(--danger)]',
+    info: 'border-primary',
+    achievement: 'border-[var(--warning)]',
+    streak: 'border-[var(--brand-terracotta)]',
+    levelup: 'border-[var(--tint-rewards-text)]',
     undo: '',
   }
 
   return (
     <div
       className={cn(
-        'flex items-start gap-3 rounded-lg border p-4 shadow-lg animate-slide-in',
+        'flex items-start gap-3 rounded-lg border bg-card p-4 shadow-lg animate-slide-in',
         bgColors[toast.type]
       )}
       role="alert"
     >
       <div className="flex-shrink-0 mt-0.5">{icons[toast.type]}</div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm text-gray-900">{toast.title}</p>
+        <p className="font-semibold text-sm text-foreground">{toast.title}</p>
         {toast.message && (
-          <p className="text-sm text-gray-600 mt-0.5">{toast.message}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{toast.message}</p>
         )}
       </div>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="-my-3 -mr-3 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center text-gray-400 hover:text-gray-600"
+        className="-my-3 -mr-3 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center text-label-tertiary hover:text-muted-foreground"
       >
         <X className="w-4 h-4" aria-hidden="true" />
       </button>

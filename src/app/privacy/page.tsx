@@ -8,14 +8,14 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-12 px-4">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm p-8 md:p-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-500 mb-8">Last updated: September 2026</p>
+    <div className="min-h-screen bg-background py-12 px-4">
+      <div className="max-w-3xl mx-auto bg-card rounded-2xl shadow-sm p-8 md:p-12">
+        <h1 className="text-3xl font-bold text-foreground mb-2">Privacy Policy</h1>
+        <p className="text-sm text-label-tertiary mb-8">Last updated: September 2026</p>
 
-        <div className="prose prose-gray max-w-none space-y-6 text-gray-700">
+        <div className="prose prose-gray max-w-none space-y-6 text-foreground">
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">What we collect</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">What we collect</h2>
             <p>
               Family Planner is a self-hosted family organizer. We store the data you
               enter: your name, email, family member names, the chores/events/lists/
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Where your data lives</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Where your data lives</h2>
             <p>
               Your data is stored in a PostgreSQL database hosted on our infrastructure.
               Passwords are hashed with bcrypt (cost factor 12). Session cookies are
@@ -41,7 +41,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Food inventory</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Food inventory</h2>
             <p>
               If your family turns on the food inventory, we store the items you add (name, amount,
               where it is kept, category, best-before or use-by date, and when it was bought or
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Fridge photo scan</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Fridge photo scan</h2>
             <p>
               If the fridge photo scan is turned on, a parent can photograph the fridge,
               freezer or pantry to get suggested food items. That photo is sent to our AI
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Weather on the Today board (optional)</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Weather on the Today board (optional)</h2>
             <p>
               Weather is off unless a parent turns it on in Family settings. When it is on, our server
               sends the place the parent chose, as an approximate location rounded to about 1 km, to
@@ -76,7 +76,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Family photos on the fridge board (optional)</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Family photos on the fridge board (optional)</h2>
             <p>
               A parent can choose photos your household has already uploaded to show on the calm screen
               of the fridge board when it is left alone. They are shown only to signed-in members of your
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Household change history</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Household change history</h2>
             <p>
               When someone changes household settings (turns a feature on or off, sends or cancels an
               invite, joins the household or deletes their account, changes the Today board, turns beta usage counts on or off, or pairs, renames or removes a family
@@ -99,7 +99,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="beta-usage-counts">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Beta usage counts (optional)</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Beta usage counts (optional)</h2>
             <p>
               While Family Planner is in a small beta, a parent can choose to share usage counts so we can check the
               app is working for families. They are off unless a parent turns them on under Settings, Privacy &amp;
@@ -119,7 +119,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Your rights</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>
               <li><strong>Export</strong>: Settings → Data Export (GET <code>/api/users/export</code>) downloads a JSON file with all your data.</li>
@@ -140,7 +140,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Children&apos;s data (COPPA)</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Children&apos;s data (COPPA)</h2>
             <p>
               Family Planner is designed for use by families with children. Child
               accounts (under 13) must be created by a parent. We do not knowingly
@@ -150,7 +150,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Importing events from text, photos or PDFs</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Importing events from text, photos or PDFs</h2>
             <p>
               If event import is turned on, a parent can paste the text of a school email or
               flyer, or choose a photo or PDF of it, to get suggested calendar events. That
@@ -163,7 +163,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Connected Google or Outlook calendars (optional)</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Connected Google or Outlook calendars (optional)</h2>
             <p>
               A parent can connect their own Google Calendar or Outlook calendar in Settings. Only then,
               and only for the one calendar they choose, Family Planner reads and writes events with
@@ -178,7 +178,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Email</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Email</h2>
             <p>
               We send transactional emails only: email verification, password reset,
               household invites and the notifications you have left on. No marketing email, ever.
@@ -199,7 +199,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Backups</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Backups</h2>
             <p>
               Database is backed up daily. Backups are retained for 14 days (rolling)
               plus 4 weekly snapshots. Backups are integrity-tested on every run.
@@ -207,15 +207,15 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Contact</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Contact</h2>
             <p>
-              For privacy questions or to exercise your rights: <a href="mailto:privacy@ashbi.ca" className="text-blue-600 underline underline-offset-2">privacy@ashbi.ca</a>
+              For privacy questions or to exercise your rights: <a href="mailto:privacy@ashbi.ca" className="text-primary underline underline-offset-2">privacy@ashbi.ca</a>
             </p>
           </section>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-gray-200 text-center">
-          <Link href="/" className="text-blue-600 hover:text-blue-500 font-medium">
+        <div className="mt-10 pt-6 border-t border-border text-center">
+          <Link href="/" className="text-primary hover:underline font-medium">
             ← Back to home
           </Link>
         </div>

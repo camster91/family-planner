@@ -42,13 +42,13 @@ import {
 export type SettingsViewerRole = 'parent' | 'teen'
 
 const rowClass =
-  'flex min-h-[44px] w-full items-center gap-3 rounded-lg p-3 text-left text-gray-700 hover:bg-gray-50'
+  'flex min-h-[44px] w-full items-center gap-3 rounded-lg p-3 text-left text-foreground hover:bg-muted'
 
 /** One of the three Settings groups: Your account, Family, Privacy & data. */
 function SettingsGroup({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section aria-labelledby={id} className="space-y-4">
-      <h2 id={id} className="px-1 text-xl font-semibold text-gray-900">
+      <h2 id={id} className="px-1 text-xl font-semibold text-foreground">
         {title}
       </h2>
       {children}
@@ -71,8 +71,8 @@ function CardHeader({
     <div className="mb-4 flex items-center gap-3">
       <SettingsIcon icon={icon} tone={tone} />
       <div className="min-w-0">
-        <h3 className="text-[17px] font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-sm text-gray-600">{description}</p>}
+        <h3 className="text-[17px] font-semibold text-foreground">{title}</h3>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
     </div>
   )
@@ -397,8 +397,8 @@ export default function SettingsClient({
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Loading settings...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+        <p className="mt-4 text-muted-foreground">Loading settings...</p>
       </div>
     )
   }
@@ -406,15 +406,15 @@ export default function SettingsClient({
   return (
     <div className="mx-auto max-w-3xl space-y-10">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-2 text-gray-600">
+        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <p className="mt-2 text-muted-foreground">
           {isParent ? 'Your account, your family and your data.' : 'Your account and your data.'}
         </p>
       </div>
 
       {message && (
         <div className={`p-4 rounded-md ${
-          message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+          message.type === 'success' ? 'bg-[var(--success-tint)] text-foreground border border-[var(--success)]' : 'bg-[var(--danger-tint)] text-danger-text border border-[var(--danger-tint)]'
         }`}>
           {message.text}
         </div>
@@ -427,7 +427,7 @@ export default function SettingsClient({
 
           <form onSubmit={handleSaveProfile} className="space-y-5">
             <div>
-              <label htmlFor="profileName" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="profileName" className="block text-sm font-medium text-foreground mb-2">
                 Full Name
               </label>
               <input
@@ -440,8 +440,8 @@ export default function SettingsClient({
               />
             </div>
             <div>
-              <label htmlFor="profileAge" className="block text-sm font-medium text-gray-700 mb-2">
-                Age <span className="font-normal text-gray-500">(optional)</span>
+              <label htmlFor="profileAge" className="block text-sm font-medium text-foreground mb-2">
+                Age <span className="font-normal text-label-tertiary">(optional)</span>
               </label>
               <input
                 id="profileAge"
@@ -455,14 +455,14 @@ export default function SettingsClient({
               />
             </div>
             {/* Read-only facts: email changes go through support, roles through a parent. */}
-            <dl className="space-y-1 text-sm text-gray-600">
+            <dl className="space-y-1 text-sm text-muted-foreground">
               <div className="flex flex-wrap gap-x-2">
-                <dt className="font-medium text-gray-700">Email</dt>
+                <dt className="font-medium text-foreground">Email</dt>
                 <dd className="min-w-0 break-words">{email}</dd>
               </div>
               {role && (
                 <div className="flex flex-wrap gap-x-2">
-                  <dt className="font-medium text-gray-700">Role</dt>
+                  <dt className="font-medium text-foreground">Role</dt>
                   <dd className="capitalize">{role}</dd>
                 </div>
               )}
@@ -508,15 +508,15 @@ export default function SettingsClient({
                 type="button"
                 onClick={() => setTheme(themeOption)}
                 aria-pressed={theme === themeOption}
-                className={`min-h-[44px] rounded-lg border-2 px-2 py-2 text-center font-medium text-gray-900 ${
-                  theme === themeOption ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                className={`min-h-[44px] rounded-lg border-2 px-2 py-2 text-center font-medium text-foreground ${
+                  theme === themeOption ? 'border-primary bg-[var(--accent-tint)]' : 'border-border hover:border-input'
                 }`}
               >
                 {themeOption === 'light' ? 'Light' : themeOption === 'dark' ? 'Dark' : 'Auto'}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-gray-500">Auto follows your phone or computer.</p>
+          <p className="mt-2 text-xs text-label-tertiary">Auto follows your phone or computer.</p>
         </div>
 
         <div className="card">
@@ -538,46 +538,46 @@ export default function SettingsClient({
           <div className="card">
             <div className="-mx-3 space-y-1">
               <Link href="/dashboard/family/settings" className={rowClass}>
-                <Home className="w-4 h-4 shrink-0 text-sky-600" aria-hidden="true" />
+                <Home className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <div className="font-medium">Household</div>
-                  <div className="text-xs text-gray-500">Family name and the fridge board</div>
+                  <div className="text-xs text-label-tertiary">Family name and the fridge board</div>
                 </div>
               </Link>
               <Link href="/dashboard/family" className={rowClass}>
-                <Users className="w-4 h-4 shrink-0 text-blue-600" aria-hidden="true" />
+                <Users className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <div className="font-medium">Members</div>
-                  <div className="text-xs text-gray-500">See and manage who is in your family</div>
+                  <div className="text-xs text-label-tertiary">See and manage who is in your family</div>
                 </div>
               </Link>
               <Link href="/dashboard/family/invite" className={rowClass}>
-                <UserPlus className="w-4 h-4 shrink-0 text-green-600" aria-hidden="true" />
+                <UserPlus className="w-4 h-4 shrink-0 text-success-text" aria-hidden="true" />
                 <div>
                   <div className="font-medium">Invite and family code</div>
-                  <div className="text-xs text-gray-500">Add a parent, teen or child</div>
+                  <div className="text-xs text-label-tertiary">Add a parent, teen or child</div>
                 </div>
               </Link>
               <Link href="/dashboard/features" className={rowClass}>
-                <Sliders className="w-4 h-4 shrink-0 text-blue-600" aria-hidden="true" />
+                <Sliders className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <div className="font-medium">Features</div>
-                  <div className="text-xs text-gray-500">Turn modules on or off (meals, notes, pickups, allowance…)</div>
+                  <div className="text-xs text-label-tertiary">Turn modules on or off (meals, notes, pickups, allowance…)</div>
                 </div>
               </Link>
               <Link href="/dashboard/settings/imports" className={rowClass}>
-                <Database className="w-4 h-4 shrink-0 text-violet-600" aria-hidden="true" />
+                <Database className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <div className="font-medium">Import family apps</div>
-                  <div className="text-xs text-gray-500">Bring in ChoreChamps, Meal Planner or Budget App exports</div>
+                  <div className="text-xs text-label-tertiary">Bring in ChoreChamps, Meal Planner or Budget App exports</div>
                 </div>
               </Link>
               {/* Household audit history, #285. The page and API are parent-only too. */}
               <Link href="/dashboard/settings/activity" className={rowClass}>
-                <History className="w-4 h-4 shrink-0 text-teal-600" aria-hidden="true" />
+                <History className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <div className="font-medium">Recent changes</div>
-                  <div className="text-xs text-gray-500">Who changed features, invites, the Today board or tablets</div>
+                  <div className="text-xs text-label-tertiary">Who changed features, invites, the Today board or tablets</div>
                 </div>
               </Link>
             </div>
@@ -603,7 +603,7 @@ export default function SettingsClient({
             {feedToken ? (
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="feedUrl" className="block text-sm font-medium text-gray-900 mb-2">
+                  <label htmlFor="feedUrl" className="block text-sm font-medium text-foreground mb-2">
                     Your private link
                   </label>
                   <input
@@ -613,7 +613,7 @@ export default function SettingsClient({
                     onFocus={(e) => e.currentTarget.select()}
                     className="input-field w-full text-xs font-mono"
                   />
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-label-tertiary mt-2">
                     Anyone with this link can read your family calendar. Keep it private.
                   </p>
                 </div>
@@ -626,19 +626,19 @@ export default function SettingsClient({
                   <button
                     onClick={() => handleFeedToken(true)}
                     disabled={feedBusy}
-                    className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-lg border border-input text-foreground hover:bg-muted"
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${feedBusy ? 'animate-spin' : ''}`} />
                     Reset link
                   </button>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-label-tertiary">
                   Resetting makes a new link and instantly stops the old one working.
                 </p>
 
-                <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
-                  <div className="font-medium text-gray-900 mb-1">How to add it</div>
+                <div className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
+                  <div className="font-medium text-foreground mb-1">How to add it</div>
                   <div>Google Calendar: Other calendars then From URL, paste the link.</div>
                   <div>Apple Calendar: File then New Calendar Subscription, paste the link.</div>
                   <div>Outlook: Add calendar then Subscribe from web, paste the link.</div>
@@ -646,7 +646,7 @@ export default function SettingsClient({
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Create a private link so your family calendar shows up in the calendar app you already use.
                 </p>
                 <button
@@ -660,7 +660,7 @@ export default function SettingsClient({
               </div>
             )}
 
-            {feedError && <p className="text-sm text-red-600 mt-3">{feedError}</p>}
+            {feedError && <p className="text-sm text-danger-text mt-3">{feedError}</p>}
           </SettingsDisclosure>
 
           {/* Subscribed (read-only ICS) calendars, #232. The API enforces parent-only too. */}
@@ -680,7 +680,7 @@ export default function SettingsClient({
             >
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="aiKey" className="block text-sm font-medium text-gray-900 mb-2">
+                  <label htmlFor="aiKey" className="block text-sm font-medium text-foreground mb-2">
                     API key
                   </label>
                   <input
@@ -692,14 +692,14 @@ export default function SettingsClient({
                     placeholder={aiConfigured ? `Saved: ${aiKeyHint}` : 'Paste your key'}
                     className="input-field w-full font-mono text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-label-tertiary mt-2">
                     Stored encrypted. Never shown again after saving.
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-gray-900 mb-2">
-                    Provider URL <span className="text-gray-600 font-normal">(optional)</span>
+                  <label htmlFor="aiBaseUrl" className="block text-sm font-medium text-foreground mb-2">
+                    Provider URL <span className="text-muted-foreground font-normal">(optional)</span>
                   </label>
                   <input
                     id="aiBaseUrl"
@@ -711,8 +711,8 @@ export default function SettingsClient({
                 </div>
 
                 <div>
-                  <label htmlFor="aiModel" className="block text-sm font-medium text-gray-900 mb-2">
-                    Model <span className="text-gray-600 font-normal">(optional)</span>
+                  <label htmlFor="aiModel" className="block text-sm font-medium text-foreground mb-2">
+                    Model <span className="text-muted-foreground font-normal">(optional)</span>
                   </label>
                   <input
                     id="aiModel"
@@ -723,8 +723,8 @@ export default function SettingsClient({
                   />
                 </div>
 
-                <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
-                  <div className="font-medium text-gray-900 mb-1">For photos of flyers, pick a vision model</div>
+                <div className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
+                  <div className="font-medium text-foreground mb-1">For photos of flyers, pick a vision model</div>
                   <div>Google Gemini Flash — free tier, reads photos. Use the URL and model above.</div>
                   <div>OpenAI — paste the key and leave URL and model blank.</div>
                   <div>DeepSeek — paste the key. Text only; photos will not work.</div>
@@ -743,19 +743,19 @@ export default function SettingsClient({
                     <button
                       onClick={() => saveAiSettings(true)}
                       disabled={aiBusy}
-                      className="min-h-[44px] px-2 text-sm text-red-600 hover:underline"
+                      className="min-h-[44px] px-2 text-sm text-danger-text hover:underline"
                     >
                       Remove key
                     </button>
                   )}
                   {aiMessage && (
-                    <span className="text-sm text-green-700 inline-flex items-center">
+                    <span className="text-sm text-success-text inline-flex items-center">
                       <Check className="w-4 h-4 mr-1" /> {aiMessage}
                     </span>
                   )}
                 </div>
 
-                {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+                {aiError && <p className="text-sm text-danger-text">{aiError}</p>}
               </div>
             </SettingsDisclosure>
           )}
@@ -772,14 +772,14 @@ export default function SettingsClient({
               disabled={exportState === 'working'}
               className={rowClass}
             >
-              <Download className="w-4 h-4 shrink-0 text-blue-600" aria-hidden="true" />
+              <Download className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
               <div>
                 <div className="font-medium">{exportState === 'working' ? 'Preparing your data…' : 'Data Export'}</div>
-                <div className="text-xs text-gray-500">Download everything the app holds about you as a JSON file</div>
+                <div className="text-xs text-label-tertiary">Download everything the app holds about you as a JSON file</div>
               </div>
             </button>
             {exportState === 'error' && (
-              <p role="alert" className="px-3 text-sm text-red-600">
+              <p role="alert" className="px-3 text-sm text-danger-text">
                 The download did not work. Try again.
               </p>
             )}
@@ -788,7 +788,7 @@ export default function SettingsClient({
             <button
               type="button"
               onClick={() => setShowDeleteDialog(true)}
-              className={`${rowClass} text-red-600 hover:bg-red-50`}
+              className={`${rowClass} !text-danger-text hover:bg-[var(--danger-tint)]`}
             >
               <Trash2 className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span className="font-medium">Delete Account</span>
@@ -798,10 +798,10 @@ export default function SettingsClient({
       </SettingsGroup>
 
       {/* App Info */}
-      <div className="rounded-xl bg-gray-50 p-5 text-sm text-gray-600">
-        <p className="font-semibold text-gray-900">Family Planner</p>
+      <div className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">
+        <p className="font-semibold text-foreground">Family Planner</p>
         {build && <p>Version {build}</p>}
-        <p className="mt-1 text-gray-500">&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>
+        <p className="mt-1 text-label-tertiary">&copy; {new Date().getFullYear()} Family Planner. All rights reserved.</p>
       </div>
 
       {/* A teen deletes only their own account; the household option is a parent's. */}
@@ -815,21 +815,21 @@ export default function SettingsClient({
       >
             {passwordSuccess ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <KeyRound className="w-8 h-8 text-green-600" aria-hidden="true" />
+                <div className="w-16 h-16 bg-[var(--success-tint)] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <KeyRound className="w-8 h-8 text-success-text" aria-hidden="true" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Password Changed</h3>
-                <p className="text-gray-600 mt-2">Your password has been updated successfully.</p>
+                <h3 className="text-lg font-semibold text-foreground">Password Changed</h3>
+                <p className="text-muted-foreground mt-2">Your password has been updated successfully.</p>
               </div>
             ) : (
               <form onSubmit={handleChangePassword} className="space-y-4">
                 {passwordError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+                  <div className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">
                     {passwordError}
                   </div>
                 )}
                 <div>
-                  <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="currentPassword" className="block text-sm font-medium text-foreground mb-2">
                     Current Password
                   </label>
                   <input
@@ -842,7 +842,7 @@ export default function SettingsClient({
                   />
                 </div>
                 <div>
-                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="newPassword" className="block text-sm font-medium text-foreground mb-2">
                     New Password
                   </label>
                   <input
@@ -854,10 +854,10 @@ export default function SettingsClient({
                     autoComplete="new-password"
                     minLength={8}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
+                  <p className="mt-1 text-xs text-label-tertiary">Must be at least 8 characters</p>
                 </div>
                 <div>
-                  <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-foreground mb-2">
                     Confirm New Password
                   </label>
                   <input

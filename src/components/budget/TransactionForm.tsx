@@ -211,7 +211,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
             className={cn(
               'flex-1 min-h-[44px] py-2.5 px-4 rounded-xl text-subhead font-medium transition-all border-2',
               type === 'income'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                ? 'border-[var(--success)] bg-[var(--success-tint)] text-success-text'
                 : 'border-[var(--surface-separator)] text-label-secondary'
             )}
           >
@@ -343,7 +343,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
               <span
                 className={cn(
                   'relative block w-10 h-6 rounded-full transition-colors',
-                  isRecurring ? 'bg-[var(--accent-fill)]' : 'bg-gray-300'
+                  isRecurring ? 'bg-[var(--accent-fill)]' : 'bg-[var(--label-tertiary)]'
                 )}
               >
                 <span
@@ -390,7 +390,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
             disabled={busy}
             className={cn(
               'flex-1 min-h-[44px] px-4 py-2.5 text-subhead font-semibold text-white rounded-xl transition-all flex items-center justify-center gap-2',
-              type === 'income' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700',
+              type === 'income' ? 'bg-tint-lists hover:opacity-90' : 'bg-accent-fill hover:bg-accent-fill-hover',
               busy && 'opacity-70 cursor-not-allowed'
             )}
           >

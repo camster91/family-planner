@@ -92,6 +92,8 @@ const pairs: Pair[] = [
   { fg: '--accent-text', bg: ['--accent-tint', '--surface-elevated'], min: TEXT, use: 'tinted button' },
   { fg: '--accent-text', bg: ['--accent-tint', '--surface-grouped'], min: TEXT, use: 'tinted button on page' },
   { fg: '--accent-text', bg: ['--accent-tint-strong', '--surface-elevated'], min: TEXT, use: 'tinted button hover' },
+  { fg: '--accent-text', bg: ['--accent-tint-strong', '--surface-grouped'], min: TEXT, use: 'tinted button hover on page' },
+  { fg: '--label-secondary', bg: ['--surface-fill', '--surface-grouped'], min: TEXT, use: 'text on fills on page' },
   ...['--accent-fill', '--accent-fill-hover', '--accent-fill-pressed'].map((bg) => ({
     fg: '--on-accent',
     bg,
@@ -103,12 +105,14 @@ const pairs: Pair[] = [
   { fg: '--on-accent', bg: '--danger-fill-pressed', min: TEXT, use: 'destructive pressed' },
   ...SURFACES.map((bg) => ({ fg: '--danger-text', bg, min: TEXT, use: 'error text' })),
   { fg: '--danger-text', bg: ['--danger-tint', '--surface-elevated'], min: TEXT, use: 'error banner' },
+  { fg: '--danger-text', bg: ['--danger-tint', '--surface-grouped'], min: TEXT, use: 'error banner on page' },
   ...SURFACES.map((bg) => ({ fg: '--warning-text', bg, min: TEXT, use: 'warning text' })),
   { fg: '--warning-text', bg: ['--warning-tint', '--surface-elevated'], min: TEXT, use: 'warning banner' },
   { fg: '--on-warning', bg: '--warning', min: TEXT, use: 'text on mustard fill' },
   ...SURFACES.map((bg) => ({ fg: '--success-text', bg, min: TEXT, use: 'success text' })),
   ...SURFACES.map((bg) => ({ fg: '--success', bg, min: UI, use: 'sage check fill' })),
   { fg: '--success-text', bg: ['--success-tint', '--surface-elevated'], min: TEXT, use: 'success banner' },
+  { fg: '--label-primary', bg: ['--success-tint', '--surface-grouped'], min: TEXT, use: 'success banner on page' },
   { fg: '#FFFFFF', bg: '--success', min: UI, use: 'check mark on sage' },
   ...[
     '--tint-chore',

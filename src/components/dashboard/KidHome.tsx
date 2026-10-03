@@ -493,7 +493,7 @@ export default function KidHome({
                     celebratingThis
                       ? 'bg-success animate-check-pop'
                       : !canClaimReward
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      ? 'bg-muted text-label-tertiary cursor-not-allowed'
                       : claimingReward
                       ? 'opacity-50'
                       : ''

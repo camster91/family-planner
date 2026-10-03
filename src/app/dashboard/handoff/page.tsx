@@ -305,7 +305,7 @@ function HandoffForm({
           <button
             type="button"
             onClick={onDelete}
-            className="min-h-[44px] px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-red-50"
+            className="min-h-[44px] px-3 py-2 rounded-lg text-label-destructive text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
             {t('handoff.deleteHandoff')}

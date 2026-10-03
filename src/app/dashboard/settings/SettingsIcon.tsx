@@ -2,15 +2,15 @@ import type { LucideIcon } from 'lucide-react'
 
 // Full class strings so Tailwind keeps them.
 const TONES = {
-  blue: 'bg-blue-100 text-blue-600',
-  yellow: 'bg-yellow-100 text-yellow-700',
-  purple: 'bg-purple-100 text-purple-600',
-  violet: 'bg-violet-100 text-violet-600',
-  sky: 'bg-sky-100 text-sky-600',
-  emerald: 'bg-emerald-100 text-emerald-700',
-  green: 'bg-green-100 text-green-600',
-  red: 'bg-red-100 text-red-600',
-  teal: 'bg-teal-100 text-teal-700',
+  blue: 'bg-tint-budget text-white',
+  yellow: 'bg-tint-meals text-white',
+  purple: 'bg-tint-family text-white',
+  violet: 'bg-chore text-white',
+  sky: 'bg-tint-calendar text-white',
+  emerald: 'bg-tint-lists text-white',
+  green: 'bg-tint-lists text-white',
+  red: 'bg-tint-messages text-white',
+  teal: 'bg-tint-projects text-white',
 } as const
 
 /** The small tinted icon tile at the start of each Settings card. Decorative. */

@@ -37,16 +37,16 @@ export default function SettingsDisclosure({
 
   return (
     <details ref={ref} id={id} className="card group" aria-labelledby={headingId}>
-      <summary className="-m-2 flex min-h-[44px] cursor-pointer list-none items-center gap-3 rounded-lg p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 [&::-webkit-details-marker]:hidden">
+      <summary className="-m-2 flex min-h-[44px] cursor-pointer list-none items-center gap-3 rounded-lg p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] [&::-webkit-details-marker]:hidden">
         {icon}
         <span className="min-w-0 flex-1">
-          <h3 id={headingId} className="text-[17px] font-semibold text-gray-900">
+          <h3 id={headingId} className="text-[17px] font-semibold text-foreground">
             {title}
           </h3>
-          {description && <span className="block text-sm text-gray-600">{description}</span>}
+          {description && <span className="block text-sm text-muted-foreground">{description}</span>}
         </span>
         <ChevronDown
-          className="h-5 w-5 shrink-0 text-gray-500 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          className="h-5 w-5 shrink-0 text-label-tertiary transition-transform group-open:rotate-180 motion-reduce:transition-none"
           aria-hidden="true"
         />
       </summary>

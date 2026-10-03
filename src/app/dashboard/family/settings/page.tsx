@@ -128,12 +128,12 @@ export default function FamilySettingsPage() {
         <form onSubmit={handleSaveSettings}>
           <div className="card-apple overflow-hidden">
             {error && (
-              <div role="alert" className="mx-4 mt-4 bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-subhead">
+              <div role="alert" className="mx-4 mt-4 bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-xl text-subhead">
                 {error}
               </div>
             )}
             {success && (
-              <div role="status" className="mx-4 mt-4 bg-green-500/10 border border-green-500/20 text-green-500 px-4 py-3 rounded-xl text-subhead">
+              <div role="status" className="mx-4 mt-4 bg-[var(--success-tint)] border border-[var(--success-tint)] text-success-text px-4 py-3 rounded-xl text-subhead">
                 {success}
               </div>
             )}
@@ -171,10 +171,10 @@ export default function FamilySettingsPage() {
         {userRole === 'parent' && <BoardSettings />}
 
         {/* Danger zone */}
-        <div className="card-apple overflow-hidden border border-red-500/20">
+        <div className="card-apple overflow-hidden border border-[var(--danger-tint)]">
           <div className="p-4">
             <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <AlertTriangle className="w-5 h-5 text-danger-text" />
               <h2 className="text-title-3 text-label-primary font-semibold">Danger Zone</h2>
             </div>
 
@@ -182,7 +182,7 @@ export default function FamilySettingsPage() {
                 One dialog decides what this member may delete: their own
                 account, or, for the only parent, the whole household. It asks
                 for the password and a typed confirmation in the page. */}
-            <div className="flex items-center justify-between gap-3 p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
+            <div className="flex items-center justify-between gap-3 p-3 bg-[var(--danger-tint)] border border-[var(--danger-tint)] rounded-xl">
               <div>
                 <p className="text-subhead font-medium text-label-primary">Delete account or household</p>
                 <p className="text-caption-1 text-label-secondary mt-0.5">
@@ -192,7 +192,7 @@ export default function FamilySettingsPage() {
               <button
                 type="button"
                 onClick={() => setShowDeleteDialog(true)}
-                className="btn-secondary shrink-0 min-h-[44px] border-red-500/30 text-red-500 hover:bg-red-500/10"
+                className="btn-secondary shrink-0 min-h-[44px] border-[var(--danger)] text-danger-text hover:bg-[var(--danger-tint)]"
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
                 <span>Delete…</span>

@@ -31,8 +31,8 @@ export default async function DashboardLayout({
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Not Authenticated</h1>
-          <p className="mt-2 text-gray-600">Please sign in to access the dashboard.</p>
+          <h1 className="text-2xl font-bold text-foreground">Not Authenticated</h1>
+          <p className="mt-2 text-muted-foreground">Please sign in to access the dashboard.</p>
         </div>
       </div>
     )

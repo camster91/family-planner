@@ -110,12 +110,12 @@ function Input({
 
 function SeverityBadge({ severity }: { severity: string }) {
   const colors: Record<string, string> = {
-    mild: 'bg-green-100 text-green-700',
-    moderate: 'bg-yellow-100 text-yellow-700',
-    severe: 'bg-red-100 text-red-700',
+    mild: 'bg-[var(--success-tint)] text-success-text',
+    moderate: 'bg-[var(--warning-tint)] text-warning-text',
+    severe: 'bg-[var(--danger-tint)] text-danger-text',
   }
   return (
-    <span className={`px-2 py-0.5 rounded-full text-caption-1 font-semibold ${colors[severity] ?? 'bg-gray-100 text-gray-600'}`}>
+    <span className={`px-2 py-0.5 rounded-full text-caption-1 font-semibold ${colors[severity] ?? 'bg-muted text-muted-foreground'}`}>
       {severity}
     </span>
   )

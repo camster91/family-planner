@@ -58,7 +58,7 @@ const CONNECT_LABELS: Record<string, string> = {
 };
 
 const BUTTON =
-  "inline-flex items-center min-h-[44px] px-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60";
+  "inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground hover:bg-muted disabled:opacity-60";
 
 /** Last sync and any problem, in words (#271). */
 function statusText(c: Connection, now: number): string {
@@ -271,28 +271,28 @@ export default function CalendarSyncSection() {
       forceOpen={Boolean(notice || error)}
     >
       {connections.length === 0 ? (
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           Connect your own Google or Outlook calendar and events show up in both places.
         </p>
       ) : (
         <ul className="space-y-3 mb-6">
           {connections.map((c) => (
-            <li key={c.id} className="rounded-lg border border-gray-200 p-3">
+            <li key={c.id} className="rounded-lg border border-border p-3">
               <div className="min-w-0">
-                <div className="font-medium text-gray-900 break-words">
+                <div className="font-medium text-foreground break-words">
                   {c.provider_label}
                   {c.calendar_name ? ` · ${c.calendar_name}` : ""}
                 </div>
-                {!c.is_mine && <div className="text-xs text-gray-600">Connected by {c.owner.name}</div>}
+                {!c.is_mine && <div className="text-xs text-muted-foreground">Connected by {c.owner.name}</div>}
                 <div
-                  className={`text-xs mt-1 ${c.status === "error" || c.status === "reauth_required" ? "text-red-700" : "text-gray-600"}`}
+                  className={`text-xs mt-1 ${c.status === "error" || c.status === "reauth_required" ? "text-danger-text" : "text-muted-foreground"}`}
                   role={c.status === "error" || c.status === "reauth_required" ? "status" : undefined}
                 >
                   {c.status === "error" || c.status === "reauth_required" ? "Problem: " : ""}
                   {statusText(c, now)}
                 </div>
                 {c.conflicts_count > 0 && (
-                  <div className="text-xs text-gray-600 mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     {c.conflicts_count} edit conflict{c.conflicts_count === 1 ? "" : "s"} resolved (latest change kept).
                   </div>
                 )}
@@ -301,11 +301,11 @@ export default function CalendarSyncSection() {
               {picking?.id === c.id && (
                 <div className="mt-3 flex flex-wrap items-end gap-2">
                   <div className="flex-1 min-w-[12rem]">
-                    <label htmlFor={`cal-pick-${c.id}`} className="block text-sm font-medium text-gray-900 mb-1">
+                    <label htmlFor={`cal-pick-${c.id}`} className="block text-sm font-medium text-foreground mb-1">
                       Calendar to sync
                     </label>
                     {picking.calendars.length === 0 ? (
-                      <p className="text-sm text-gray-600">No calendars you can edit were found.</p>
+                      <p className="text-sm text-muted-foreground">No calendars you can edit were found.</p>
                     ) : (
                       <select
                         id={`cal-pick-${c.id}`}
@@ -344,7 +344,7 @@ export default function CalendarSyncSection() {
 
               {c.is_mine && c.calendar_id && picking?.id !== c.id && (
                 <fieldset className="mt-3">
-                  <legend className="text-sm font-medium text-gray-900 mb-1">What goes to {c.provider_label}</legend>
+                  <legend className="text-sm font-medium text-foreground mb-1">What goes to {c.provider_label}</legend>
                   <div className="flex flex-col gap-1">
                     {[
                       { value: "linked", label: "Only changes to events that came from this calendar" },
@@ -367,7 +367,7 @@ export default function CalendarSyncSection() {
                             )
                           }
                         />
-                        <span className="text-sm text-gray-800">{opt.label}</span>
+                        <span className="text-sm text-foreground">{opt.label}</span>
                       </label>
                     ))}
                   </div>
@@ -411,7 +411,7 @@ export default function CalendarSyncSection() {
                   type="button"
                   onClick={() => disconnect(c)}
                   disabled={busy !== null}
-                  className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                  className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[var(--danger-tint)] text-danger-text hover:bg-[var(--danger-tint)] disabled:opacity-60"
                   aria-label={`Disconnect ${c.provider_label}`}
                 >
                   <Unlink className="w-4 h-4 mr-2" aria-hidden="true" />
@@ -439,14 +439,14 @@ export default function CalendarSyncSection() {
           ))}
         </div>
       )}
-      <p className="text-xs text-gray-600 mt-3">
+      <p className="text-xs text-muted-foreground mt-3">
         Only the member who connected a calendar can change which calendar syncs. Disconnecting removes the app&apos;s access and
         the imported events here; nothing is deleted from your own calendar.
       </p>
 
       <div aria-live="polite" className="mt-3">
-        {error && <p className="text-sm text-red-700">{error}</p>}
-        {notice && <p className="text-sm text-green-700">{notice}</p>}
+        {error && <p className="text-sm text-danger-text">{error}</p>}
+        {notice && <p className="text-sm text-success-text">{notice}</p>}
       </div>
     </SettingsDisclosure>
   );

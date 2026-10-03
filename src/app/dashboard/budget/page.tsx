@@ -80,8 +80,8 @@ export default async function BudgetPage() {
   if (!user?.family_id) {
     return (
       <div className="text-center py-16">
-        <h2 className="text-xl font-semibold text-gray-900">No Family Yet</h2>
-        <p className="text-gray-600 mt-2">
+        <h2 className="text-xl font-semibold text-foreground">No Family Yet</h2>
+        <p className="text-muted-foreground mt-2">
           Join or create a family to start tracking your budget.
         </p>
       </div>

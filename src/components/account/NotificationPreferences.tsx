@@ -415,7 +415,7 @@ export default function NotificationPreferences({ className }: { className?: str
             </button>
           </div>
           {quietError ? (
-            <p id={`${idBase}-quiet-error`} role="alert" className="pt-2 text-[14px] text-red-700 dark:text-red-400">
+            <p id={`${idBase}-quiet-error`} role="alert" className="pt-2 text-[14px] text-danger-text">
               {quietError}
             </p>
           ) : (
@@ -429,7 +429,7 @@ export default function NotificationPreferences({ className }: { className?: str
 
       <p aria-live="polite" className="min-h-[1.5em] pt-2 text-[14px]">
         {status && (
-          <span className={status.kind === 'error' ? 'text-red-700 dark:text-red-400' : 'text-label-secondary'}>
+          <span className={status.kind === 'error' ? 'text-danger-text' : 'text-label-secondary'}>
             {status.text}
           </span>
         )}

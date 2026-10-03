@@ -166,7 +166,7 @@ export function AddProjectTaskForm({ projectId, familyMembers = [] }: AddProject
       </div>
 
       {error && (
-        <p id={errorId} role="alert" className="text-[15px] text-red-700 dark:text-red-400">
+        <p id={errorId} role="alert" className="text-[15px] text-danger-text">
           {error}
         </p>
       )}

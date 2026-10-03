@@ -146,7 +146,7 @@ function ResetPasswordForm() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-label-tertiary">
                 {t('auth.passwordHint')}
               </p>
             </div>
@@ -192,7 +192,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)]"><div className="text-gray-500">Loading...</div></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)]"><div className="text-label-tertiary">Loading...</div></div>}>
       <ResetPasswordForm />
     </Suspense>
   )

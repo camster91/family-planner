@@ -68,7 +68,7 @@ function CreateRewardPageContent() {
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-5 px-4">
         {error && (
-          <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm">{error}</div>
+          <div className="rounded-xl bg-[var(--danger-tint)] border border-[var(--danger-tint)] p-4 text-danger-text text-sm">{error}</div>
         )}
 
         <div className="space-y-1.5">
@@ -123,7 +123,7 @@ function CreateRewardPageContent() {
                 className={`w-11 h-11 rounded-xl text-xl flex items-center justify-center transition-all duration-150 ${
                   icon === emoji
                     ? 'bg-rewards text-white ring-2 ring-rewards ring-offset-1'
-                    : 'bg-surface-fill text-label-secondary hover:bg-gray-200'
+                    : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
                 }`}
               >
                 {emoji}

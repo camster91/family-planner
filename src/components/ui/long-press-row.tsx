@@ -222,7 +222,7 @@ export function LongPressRow({
                     'transition-colors duration-150',
                     action.disabled && 'opacity-40 pointer-events-none',
                     action.destructive
-                      ? 'text-red-500'
+                      ? 'text-danger-text'
                       : 'text-[var(--accent)]'
                   )}
                 >
