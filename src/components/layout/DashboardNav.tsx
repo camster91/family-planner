@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { BrandMark } from '@/components/ui/brand-illustration'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Users,
   Search,
   Bell,
   ChevronDown,
@@ -102,9 +102,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {/* Logo + name */}
           {/* aria-label: below `sm` the wordmark is hidden and the link would have no name (axe link-name, #155). */}
           <Link href={homeHref} aria-label="Family Planner home" className="flex min-h-[44px] items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 bg-accent-fill rounded-[22px] flex items-center justify-center shadow-sm">
-              <Users className="w-5 h-5 text-white" aria-hidden="true" />
-            </div>
+            <BrandMark size={36} className="h-9 w-9 rounded-[10px] shadow-sm" />
             <span className="text-[17px] font-semibold text-label-primary hidden lg:block">
               Family Planner
             </span>

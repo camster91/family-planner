@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { Glyph } from '@/components/ui/glyph'
 import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { LargeHeader } from '@/components/ui/large-header'
 import { listTypeFilter, listsFilterHref, type ListTypeKey } from '@/lib/list-type-filter'
 
@@ -181,6 +182,13 @@ export default function ListsClient({ lists, familyName, canCreate = true, initi
           <EmptyState
             icon={typeFilter ? ICONS[typeFilter] : List}
             glyphColor={filterCfg ? filterCfg.color : 'lists'}
+            illustration={
+              typeFilter === 'grocery'
+                ? ILLUSTRATIONS.groceriesClear
+                : typeFilter === 'meal_plan'
+                  ? ILLUSTRATIONS.mealsEmpty
+                  : ILLUSTRATIONS.listsEmpty
+            }
             title={filterCfg ? `No ${filterCfg.name.toLowerCase()} lists` : 'No lists yet'}
             description={
               typeFilter === 'meal_plan'

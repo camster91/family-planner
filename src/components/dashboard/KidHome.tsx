@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Star, Gift, Calendar, Sparkles } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
+import { BrandMotion } from '@/components/ui/brand-motion'
+import { MOTION } from '@/lib/brand-illustrations'
 import { Avatar } from '@/components/ui/avatar'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { ProgressRing } from '@/components/ui/progress-ring'
@@ -287,7 +289,7 @@ export default function KidHome({
           )}
         </div>
         {isDone && (
-          <span className="text-body text-success font-medium shrink-0">
+          <span className="text-body text-success-text font-medium shrink-0">
             You did it!
           </span>
         )}
@@ -397,7 +399,10 @@ export default function KidHome({
         {/* No chores state (a routine shows its own progress instead) */}
         {now && todayChores.length === 0 && routines.length === 0 && (
           <div className="card-apple p-6 text-center">
-            <div className="text-4xl mb-2">🎉</div>
+            <BrandMotion
+              motion={MOTION.celebrate}
+              className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
+            />
             <p className="text-title-3 text-label-primary">All done for today!</p>
             <p className="text-subhead text-label-secondary mt-1">Enjoy your day, superstar!</p>
           </div>
@@ -504,7 +509,7 @@ export default function KidHome({
               {celebratingReward === claimableReward.id && (
                 <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up">
                   <span className="text-xl">🎉</span>
-                  <span className="text-title-3 text-success font-semibold">You got it!</span>
+                  <span className="text-title-3 text-success-text font-semibold">You got it!</span>
                   <span className="text-xl">🎉</span>
                 </div>
               )}

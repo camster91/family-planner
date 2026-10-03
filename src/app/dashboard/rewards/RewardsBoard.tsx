@@ -7,6 +7,7 @@ import { Gift } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Dialog } from '@/components/ui/dialog'
 import { useMaybeToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
@@ -171,6 +172,7 @@ export default function RewardsBoard({
           <EmptyState
             icon={Gift}
             glyphColor="rewards"
+            illustration={ILLUSTRATIONS.rewards}
             headingLevel="h3"
             title="No rewards yet"
             description={isParent ? 'Create your first reward for the family.' : 'Ask a parent to create rewards.'}

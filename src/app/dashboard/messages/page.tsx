@@ -5,6 +5,7 @@ import { Send, Plus, MessageSquare } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { cn, formatDate } from '@/lib/utils'
 import { mergeLatest, prependEarlier } from './thread'
@@ -229,6 +230,7 @@ function MessagesContent() {
               <EmptyState
                 icon={MessageSquare}
                 glyphColor="messages"
+                illustration={ILLUSTRATIONS.messagesEmpty}
                 title="No messages yet"
                 description="Start the conversation with your family."
               />

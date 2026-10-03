@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { UserPlus, CheckCircle, Users } from 'lucide-react'
+import { UserPlus, CheckCircle } from 'lucide-react'
 import { useTranslation } from '@/i18n'
+import { BrandMark } from '@/components/ui/brand-illustration'
 
 export default function RegisterPage() {
   const { t } = useTranslation()
@@ -149,9 +150,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         {/* Logo glyph */}
         <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
-            <Users className="w-8 h-8 text-white" />
-          </div>
+          <BrandMark size={64} className="h-16 w-16 rounded-[var(--radius-xl)] shadow-[var(--shadow-md)]" />
         </div>
 
         <div className="card-apple p-6">
