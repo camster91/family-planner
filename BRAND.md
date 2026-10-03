@@ -3,6 +3,8 @@
 ## Brand idea
 Family Planner should feel like a calm household operating system: warm enough for family life, precise enough to trust every day, and polished enough to deserve a permanent place on the wall or fridge.
 
+The visual system (Warm Paper palette, type, illustrations, motion, contrast) is in `docs/product/BRAND.md`.
+
 ## Personality
 - Calm, clear, capable, kind.
 - Never childish just because children can use it.

@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
 import { Dialog } from '@/components/ui/dialog'
+import { BrandIllustration, BrandMark } from '@/components/ui/brand-illustration'
+import { BrandMotion } from '@/components/ui/brand-motion'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Glyph } from '@/components/ui/glyph'
 import { LargeHeader } from '@/components/ui/large-header'
@@ -40,6 +42,7 @@ import { RecipeDetail } from '@/components/meals/RecipeDetail'
 import DashboardError from '@/app/dashboard/error'
 import { MoveToSectionDialog, type MoveTarget } from '@/app/dashboard/lists/[listId]/MoveToSectionDialog'
 import { SyncBanner, syncStatusText } from '@/app/dashboard/lists/[listId]/ListDetailClient'
+import { ILLUSTRATIONS, MOTION, type BrandIllustrationName } from '@/lib/brand-illustrations'
 import { groceryDetailText } from '@/lib/grocery-display'
 import { GROCERY_SECTIONS, grocerySectionLabel, type GrocerySectionId } from '@/lib/grocery-sections'
 import { MEMBER_COLOR_CSS, MEMBER_COLOR_KEYS, MEMBER_COLOR_LABELS } from '@/lib/member-colors'
@@ -63,14 +66,19 @@ const MINUTE = 60 * 1000
 
 const TOKEN_GROUPS: Array<{ name: string; tokens: string[] }> = [
   {
+    // Warm Paper brand colours (docs/product/BRAND.md): decoration only.
+    name: 'Warm Paper palette',
+    tokens: ['--brand-cream', '--brand-navy', '--brand-terracotta', '--brand-sage', '--brand-mustard'],
+  },
+  {
     name: 'Surfaces',
     tokens: ['--surface-base', '--surface-elevated', '--surface-grouped', '--surface-fill', '--surface-separator'],
   },
   { name: 'Labels', tokens: ['--label-primary', '--label-secondary', '--label-tertiary'] },
-  { name: 'Accent', tokens: ['--accent-text', '--accent-fill', '--accent-tint'] },
+  { name: 'Accent', tokens: ['--accent-text', '--accent-fill', '--on-accent', '--accent-tint', '--focus-ring'] },
   {
     name: 'Semantic',
-    tokens: ['--success', '--warning', '--warning-text', '--danger', '--danger-text', '--danger-fill'],
+    tokens: ['--success', '--success-text', '--warning', '--warning-text', '--danger', '--danger-text', '--danger-fill'],
   },
   {
     name: 'Module tints',
@@ -124,6 +132,34 @@ export function FoundationsSection({ fx }: SectionProps) {
               </ul>
             </div>
           ))}
+        </div>
+      </Specimen>
+
+      <Specimen
+        name="Typefaces"
+        source="src/app/layout.tsx (next/font) and src/app/globals.css"
+        note="Fraunces for titles (title-3 and up, .font-display), Inter for everything else. Both are self-hosted at build time."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="card-apple p-5">
+            <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Fraunces · serif</p>
+            <p className="font-display text-[40px] leading-tight text-label-primary">Dinner at six</p>
+            <p className="text-title-3 mt-2 text-label-primary">Everyone&apos;s week, on one page</p>
+          </div>
+          <div className="card-apple p-5">
+            <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Inter · sans</p>
+            <p className="text-headline text-label-primary">Take out the recycling</p>
+            <p className="text-body mt-1 text-label-secondary">Due today · 10 XP · tap to tick it off</p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <BrandMark size={44} className="h-11 w-11 rounded-[var(--radius-md)]" />
+              <button type="button" className="btn-filled">
+                Primary
+              </button>
+              <button type="button" className="btn-tinted">
+                Tinted
+              </button>
+            </div>
+          </div>
         </div>
       </Specimen>
 
@@ -719,6 +755,22 @@ export function StatesSection({ fx }: SectionProps) {
             />
           </div>
         </Specimen>
+        <Specimen
+          name="EmptyState with illustration"
+          source="src/components/ui/empty-state.tsx (illustration prop)"
+          note="A Warm Paper spot illustration replaces the glyph. Decorative: empty alt, hidden from screen readers, lazy."
+        >
+          <div className="card-apple">
+            <EmptyState
+              icon={CheckSquare}
+              glyphColor="chore"
+              illustration={ILLUSTRATIONS.choresClear}
+              headingLevel="h4"
+              title="All clear!"
+              description="No chores due today."
+            />
+          </div>
+        </Specimen>
         <Specimen name="Skeletons" source="src/components/ui/Skeleton.tsx">
           <div aria-hidden="true" className="space-y-3">
             <Skeleton className="h-6 w-40" />
@@ -797,12 +849,69 @@ export function StatesSection({ fx }: SectionProps) {
 // ---------------------------------------------------------------------------
 // Original graphics
 
+/** Where each Warm Paper illustration is used (docs/product/BRAND.md). */
+const ILLUSTRATION_USES: Record<BrandIllustrationName, string> = {
+  choresClear: 'Chores: all clear',
+  calendarEmpty: 'Calendar: no events',
+  mealsEmpty: 'Meals: nothing planned',
+  groceriesClear: 'Grocery list: empty',
+  listsEmpty: 'Lists: empty',
+  rewards: 'Rewards: none yet',
+  celebrate: 'Kid home: all done',
+  notificationsQuiet: 'Notifications: none',
+  invite: 'Invite header',
+  messagesEmpty: 'Messages: none',
+  help: 'Help header',
+  getStarted: 'Get started card',
+  housesBanner: 'Landing footer divider',
+  authEntryway: 'Sign-in pages (md and up)',
+  heroKitchen: 'Landing hero (1600w)',
+  heroKitchenSmall: 'Landing hero (800w)',
+}
+
 export function GraphicsSection() {
   return (
+    <>
+    <Specimen
+      name="Warm Paper illustrations"
+      source="src/lib/brand-illustrations.ts (public/brand/illustrations)"
+      note="Paper-cut and risograph spot art in cream, terracotta, sage, navy and mustard. Always decorative next to text that says the same thing."
+    >
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+        {(Object.keys(ILLUSTRATIONS) as BrandIllustrationName[]).map((key) => (
+          <li
+            key={key}
+            data-illustration={key}
+            className="flex flex-col items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated)] p-3 text-center"
+          >
+            <BrandIllustration source={ILLUSTRATIONS[key]} className="h-24 w-full object-contain" />
+            <span className="text-caption-1 break-words text-label-primary">{ILLUSTRATION_USES[key]}</span>
+          </li>
+        ))}
+      </ul>
+    </Specimen>
+    <Specimen
+      name="Warm Paper loops"
+      source="src/components/ui/brand-motion.tsx (public/brand/motion)"
+      note="Short seamless loops on flat cream. They play only in light mode, in view, without reduced motion or data saver; otherwise the still illustration shows. The gallery's dark theme only darkens this subtree, so loops still play here."
+    >
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+        {(Object.keys(MOTION) as Array<keyof typeof MOTION>).map((key) => (
+          <li
+            key={key}
+            data-motion={key}
+            className="flex flex-col items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated)] p-3 text-center"
+          >
+            <BrandMotion motion={MOTION[key]} className="h-28 w-full rounded-[var(--radius-sm)] object-contain" />
+            <span className="text-caption-1 break-words text-label-primary">{key}</span>
+          </li>
+        ))}
+      </ul>
+    </Specimen>
     <Specimen
       name="RoutineIcon"
       source="src/components/chores/RoutineIcon.tsx"
-      note="The original chore picture set for young kids (#272), drawn in-house on a 24px grid. There are no other illustrations in the repository yet (#163)."
+      note="The original chore picture set for young kids (#272), drawn in-house on a 24px grid. The Warm Paper illustrations and loops are above."
     >
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
         {DRAWN_ICON_KEYS.map((key) => (
@@ -817,6 +926,7 @@ export function GraphicsSection() {
         ))}
       </ul>
     </Specimen>
+    </>
   )
 }
 

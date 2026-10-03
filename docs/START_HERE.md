@@ -42,7 +42,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Agent workflow: `docs/engineering/AGENT_WORKFLOW.md`
 - Architecture: `docs/architecture/**`
 - Testing: `docs/testing/**`
-- Design: `design/**` and `BRAND.md`
+- Design: `design/**`, `BRAND.md` and the Warm Paper visual system `docs/product/BRAND.md`
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
 - Chores (parent check, picture routines for young kids, taking turns): `docs/product/CHORES.md`
 - Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md`, `TRANSACTIONAL_EMAIL.md` and `SUPPORT.md`)
