@@ -533,7 +533,8 @@ export default function ListDetailClient({
             <button
               onClick={handleAdd}
               disabled={loading}
-              className="text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
+              type="button"
+              className="min-h-[44px] min-w-[44px] px-2 -mr-2 text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
             >
               Add
             </button>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useId } from 'react'
 import { useRouter } from 'next/navigation'
+import { missingFieldsHint } from '@/lib/form-hints'
 import { ArrowLeft, Plus, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -54,6 +55,17 @@ export default function CreateChorePage() {
   const [takeTurns, setTakeTurns] = useState(false)
   const [rotation, setRotation] = useState<string[]>([])
   const rotating = frequency !== 'once' && takeTurns
+  const submitHint = missingFieldsHint([
+    ...(title.trim() ? [] : ['a title']),
+    ...(dueDate ? [] : ['a due date']),
+    ...(rotating
+      ? rotation.length < ROTATION_MIN
+        ? [`at least ${ROTATION_MIN} people to take turns`]
+        : []
+      : assignedTo
+        ? []
+        : ['who does it']),
+  ])
 
   useEffect(() => {
     const loadFamilyMembers = async () => {
@@ -373,13 +385,17 @@ export default function CreateChorePage() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={
-              loading || !title || !dueDate || (rotating ? rotation.length < ROTATION_MIN : !assignedTo)
-            }
+            disabled={loading || submitHint !== null}
+            aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
             className="btn-filled w-full"
           >
             {loading ? 'Creating...' : 'Create Chore'}
           </button>
+          {submitHint && (
+            <p id={`${fieldId}-submit-hint`} className="text-footnote text-label-secondary mt-2 text-center">
+              {submitHint}
+            </p>
+          )}
         </div>
       </form>
     </div>

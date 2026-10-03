@@ -428,7 +428,9 @@ test.describe("new household sign-up journey", () => {
         // The kid home, not the parent's board.
         await kid.waitForURL(/\/dashboard$/, { timeout: 15_000 });
         await expect(
-          kid.getByRole("heading", { name: `Hi, ${x.child.name}!` }),
+          kid.getByRole("heading", {
+            name: `Hi, ${x.child.name.split(" ")[0]}!`,
+          }),
         ).toBeVisible();
         await expect(kid.getByText("All done for today!")).toBeVisible();
         await expectNoHorizontalOverflow(kid, "kid home (no chores)");

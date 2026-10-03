@@ -94,6 +94,12 @@ function wasDueLabel(dueDate: string, now: Date): string {
 // (gamification.ts xpForNextLevel) so the ring matches awardChoreXP.
 const xpForLevel = xpForNextLevel
 
+/** "Casey Smith" → "Casey": a kid is greeted by first name. */
+export function firstName(name: string | null | undefined): string | null {
+  const first = name?.trim().split(/\s+/)[0]
+  return first ? first : null
+}
+
 export default function KidHome({
   user,
   chores,
@@ -255,14 +261,14 @@ export default function KidHome({
         className={cn(
           'w-full flex items-center gap-3 px-4 py-4 min-h-[64px] text-left',
           'transition-all duration-200',
-          isDone
-            ? 'opacity-60'
-            : 'active:bg-[var(--surface-fill-secondary)]'
+          !isDone && 'active:bg-[var(--surface-fill-secondary)]'
         )}
       >
-        {/* Big check circle */}
+        {/* Big check circle. Only the check and title fade when done, so
+            "You did it!" keeps its full sage contrast. */}
         <div className={cn(
           'w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300',
+          isDone && 'opacity-60',
           isDone
             ? 'bg-success border-success animate-check-pop'
             : 'border-label-tertiary'
@@ -273,9 +279,9 @@ export default function KidHome({
             </svg>
           )}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className={cn('flex-1 min-w-0', isDone && 'opacity-60')}>
           <div className={cn(
-            'text-title-3 truncate leading-tight',
+            'text-title-3 leading-tight [overflow-wrap:anywhere]',
             isDone ? 'text-label-tertiary line-through' : 'text-label-primary'
           )}>
             {chore.title}
@@ -283,7 +289,7 @@ export default function KidHome({
           {note && <div className="text-footnote text-label-secondary mt-1">{note}</div>}
           {gamification && chore.points && (
             <div className="flex items-center gap-1 mt-1">
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
               <span className="text-footnote text-label-secondary">{chore.points} XP</span>
             </div>
           )}
@@ -301,7 +307,7 @@ export default function KidHome({
     <div className="pb-20">
       {/* Large Header: "Hi, {name}!" + big avatar */}
       <LargeHeader
-        title={`Hi, ${user?.name ?? 'there'}!`}
+        title={`Hi, ${firstName(user?.name) ?? 'there'}!`}
         trailing={
           <Avatar
             name={user?.name ?? '?'}
@@ -351,7 +357,7 @@ export default function KidHome({
               </p>
               <div className="mt-3 flex items-center gap-1.5">
                 {[...Array(Math.min(userLevel, 5))].map((_, i) => (
-                  <Sparkles key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <Sparkles key={i} className="w-4 h-4 text-brand-mustard fill-brand-mustard" />
                 ))}
                 {userLevel > 5 && (
                   <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
@@ -403,8 +409,18 @@ export default function KidHome({
               motion={MOTION.celebrate}
               className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
             />
-            <p className="text-title-3 text-label-primary">All done for today!</p>
-            <p className="text-subhead text-label-secondary mt-1">Enjoy your day, superstar!</p>
+            {earlierChores.length > 0 ? (
+              // Not "all done" while older chores are still waiting above.
+              <>
+                <p className="text-title-3 text-label-primary">Nothing new today!</p>
+                <p className="text-subhead text-label-secondary mt-1">Finish the ones above when you can.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-title-3 text-label-primary">All done for today!</p>
+                <p className="text-subhead text-label-secondary mt-1">Enjoy your day, superstar!</p>
+              </>
+            )}
           </div>
         )}
 
@@ -480,7 +496,7 @@ export default function KidHome({
                     </p>
                   )}
                   <div className="flex items-center gap-1 mt-1">
-                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
                     <span className="text-footnote text-label-secondary">{claimableReward.cost} XP</span>
                   </div>
                 </div>

@@ -31,7 +31,7 @@ export function SearchField({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onSubmit?.()}
         placeholder={placeholder}
-        className="w-full h-9 pl-9 pr-9 rounded-full bg-surface-fill text-subhead text-label-primary placeholder:text-label-tertiary focus:outline-none focus:bg-surface-fill-secondary transition-colors"
+        className="no-native-clear w-full h-9 pl-9 pr-9 rounded-full bg-surface-fill text-subhead text-label-primary placeholder:text-label-tertiary focus:outline-none focus:bg-surface-fill-secondary transition-colors"
       />
       {value && (
         <button

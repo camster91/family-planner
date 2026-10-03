@@ -87,6 +87,20 @@ describe('KidHome missions by due day', () => {
     expect(screen.getAllByText('Pack school bag')).toHaveLength(1)
   })
 
+  it('does not say "All done for today!" while earlier chores are still to do', () => {
+    renderHome([{ id: 'y', title: 'Water plants', due_date: day(-1) }])
+    expect(screen.queryByText('All done for today!')).toBeNull()
+    expect(screen.getByText('Nothing new today!')).toBeTruthy()
+    expect(within(section('Still to do')).getByText('Water plants')).toBeTruthy()
+  })
+
+  it('greets the kid by first name, and a long name is not cut off', () => {
+    renderHome([], { user: { name: 'Maximiliana-Josephine Featherstonehaugh', role: 'child' } })
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading.textContent).toBe('Hi, Maximiliana-Josephine!')
+    expect(heading.className).not.toContain('truncate')
+  })
+
   it('puts earlier open chores in their own group, labelled with when they were due, and still tickable', async () => {
     renderHome([
       { id: 'today', title: 'Tidy bedroom', status: 'in_progress', due_date: day(0) },

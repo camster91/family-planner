@@ -128,7 +128,7 @@ test.describe("a11y: Family A child", () => {
   test("kid home", async ({ page }, testInfo) => {
     await page.goto("/dashboard");
     await expect(
-      page.locator("#main-content").getByText("Hi, Casey Fixture-A!"),
+      page.locator("#main-content").getByText("Hi, Casey!"),
     ).toBeVisible();
     await settle(page);
     await scan(page, testInfo, "/dashboard (kid)");

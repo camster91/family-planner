@@ -185,7 +185,7 @@ describe('NotificationPreferences', () => {
       render(<NotificationPreferences />)
       const sw = await screen.findByRole('switch', { name: 'Quiet hours' })
       await userEvent.click(sw)
-      await waitFor(() => expect(screen.getByText('Quiet hours: on, 22:00 to 07:00.')).toBeTruthy())
+      await waitFor(() => expect(screen.getByText('Quiet hours: on, 10:00 PM to 7:00 AM.')).toBeTruthy())
       expect(sw.getAttribute('aria-checked')).toBe('true')
       const patch = calls.find((c) => c.method === 'PATCH')!
       expect(patch.body).toEqual({ quietHours: { enabled: true, start: '22:00', end: '07:00', timeZone: zone } })
@@ -215,7 +215,7 @@ describe('NotificationPreferences', () => {
       await userEvent.clear(from)
       await userEvent.type(from, '21:30')
       await userEvent.click(save)
-      await waitFor(() => expect(screen.getByText('Quiet hours: on, 21:30 to 22:00.')).toBeTruthy())
+      await waitFor(() => expect(screen.getByText('Quiet hours: on, 9:30 PM to 10:00 PM.')).toBeTruthy())
       expect(calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
         { quietHours: { enabled: true, start: '21:30', end: '22:00', timeZone: zone } },
       ])

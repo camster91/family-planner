@@ -24,7 +24,8 @@ export function LargeHeader({
         {greeting && (
           <p className="text-subhead text-label-secondary mb-0.5">{greeting}</p>
         )}
-        <h1 className="text-large-title text-label-primary truncate">{title}</h1>
+        {/* Wraps instead of cutting off: a long household or kid name stays readable at 390px. */}
+        <h1 className="text-large-title text-label-primary [overflow-wrap:anywhere]">{title}</h1>
         {subtitle && (
           <p className="text-subhead text-label-secondary mt-1">{subtitle}</p>
         )}

@@ -140,3 +140,29 @@ describe('ChoresContent reassign dialog', () => {
     )
   })
 })
+
+describe('ChoresContent range filter', () => {
+  const dayOffset = (n: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + n)
+    const pad = (x: number) => String(x).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }
+
+  it('names the picked range in the list heading and marks the picked button', async () => {
+    const user = userEvent.setup()
+    render(page([chore('c1', 'Feed the cat', dayOffset(0)), chore('c2', 'Water plants', dayOffset(3))]))
+    expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('Today', { selector: 'p' })).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Week' }))
+    expect(screen.getByRole('button', { name: 'Week' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('false')
+    const week = screen.getByText('This week', { selector: 'p' }).closest('section') as HTMLElement
+    expect(within(week).getByText('Water plants')).toBeTruthy()
+    expect(screen.queryByText('Today', { selector: 'p' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'All' }))
+    expect(screen.getByText('To do', { selector: 'p' })).toBeTruthy()
+  })
+})
