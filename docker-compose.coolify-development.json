@@ -22,7 +22,8 @@
         }
       ],
       "networks": [
-        "retained-database"
+        "retained-database",
+        "managed-database"
       ],
       "restart": "unless-stopped",
       "expose": [
@@ -34,6 +35,10 @@
     "retained-database": {
       "external": true,
       "name": "family-planner-internal"
+    },
+    "managed-database": {
+      "external": true,
+      "name": "coolify"
     }
   }
 }
