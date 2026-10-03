@@ -40,6 +40,10 @@ answers `404` before authentication (whoever calls), the settings page does not 
 page does not start opportunistic syncs. One provider can be on while the other is off; the off provider's routes
 are `404`. Removing the variables later turns everything off again; stored rows stay (see the runbook for cleanup).
 
+A half-done setup would otherwise fail silently, so the production start-up check (`src/lib/env-check.ts`, via
+`calendarSyncConfigProblems` in `config.ts`) logs `[env] WARNING: Calendar sync: …` naming each missing or malformed
+variable (never a value) whenever any calendar variable is set but a provider is still off.
+
 ## Data model (expand-only)
 
 - `CalendarConnection`: `id, family_id, user_id` (connecting member), `provider` (`google`|`microsoft`),
@@ -89,8 +93,12 @@ Authorization code + PKCE (S256) + single-use `state`:
    not apply); the state is the CSRF defence. The callback requires the same signed-in parent, consumes the state
    atomically (`updateMany … used_at = NULL`), and refuses unknown, used, expired, other-member,
    other-household and other-provider states. Any matching state is burnt even when refused.
-3. The code is exchanged with the verifier; tokens are encrypted and stored; the browser is sent to
-   `/dashboard/settings?calendar_sync=<outcome>#calendar-sync` with `Referrer-Policy: no-referrer`.
+3. The code is exchanged with the verifier. Google's consent screen lets people untick individual scopes, so the
+   granted `scope` in the token response is checked (`OAuthClient.hasRequiredScopes`); a grant missing either
+   calendar scope is revoked, nothing is stored, and the outcome is `scope` ("tick every box"). Microsoft consent is
+   all or nothing. Otherwise tokens are encrypted and stored; the browser is sent to
+   `/dashboard/settings?calendar_sync=<outcome>#calendar-sync` with `Referrer-Policy: no-referrer`. On `connected`
+   the settings section opens the calendar picker by itself when the member's connection has no calendar yet.
 
 The redirect URI is always `${APP_URL}/api/calendar/connections/<provider>/callback`, built from configuration and
 never from request headers. Scopes are minimal:
@@ -129,7 +137,12 @@ anywhere else. (Browser-only: `accounts.google.com` for the consent page.)
 
 Rate limits: `429` and `503` are retried up to 3 times, honouring `Retry-After` (seconds or HTTP date) or
 exponential backoff; a `Retry-After` above 20 s is not waited out inside a request — the run ends with
-`status = error`, "The calendar provider is busy…", and the next run retries.
+`status = error`, "The calendar provider is busy…", and the next run retries. Google also answers rate limits with
+`403` (`rateLimitExceeded`, `userRateLimitExceeded`, `quotaExceeded`, `dailyLimitExceeded`); `ensureOk` reads only
+those reason words from a 403 body and reports them as `rate_limited`, and a 403 for a missing scope
+(`insufficientPermissions`, `ACCESS_TOKEN_SCOPE_INSUFFICIENT`) as `insufficient_scope`, which sets
+`reauth_required` ("Reconnect this calendar and allow access…"). Any other 403/404 stays "choose another
+calendar". The body is never logged or returned.
 
 - Google: `events.list` with `singleEvents=true&showDeleted=true`, `timeMin/timeMax` = sync window on a full
   listing and `syncToken` afterwards, paging via `nextPageToken` (max 50 pages). `410` = cursor expired.
@@ -150,7 +163,15 @@ push. A `401` from the provider forces one refresh and retry; `invalid_grant` se
 clears the access token and shows "Reconnect".
 
 **Window.** The same window as ICS import: now − 30 days to now + 180 days (`importWindow`). Full listings are
-limited to it; incremental changes are applied whenever they arrive, except new events that ended before the window.
+limited to it. Incremental changes to linked events are applied whenever they arrive; new events from an incremental
+pull are imported only when they overlap the window (an endless new Google series is not expanded into hundreds of
+far-future rows).
+
+**Moving window.** Graph `calendarView/delta` only reports changes inside the window it started with, and Google's
+sync token follows its first listing, so a cursor kept forever would freeze the window at the first sync. The stored
+cursor is `c1.<issued ms>.<provider cursor>` (`packCursor` / `usableCursor` in `sync.ts`); once it is older than
+`CURSOR_MAX_AGE_MS` (7 days) the run does a full listing of the current window instead (idempotent: links match by
+external id; `resynced` stays false). A value without the prefix (written before this format) counts as expired once.
 
 **Pull / apply** (per provider event, keyed by `(connection, external id)`):
 
