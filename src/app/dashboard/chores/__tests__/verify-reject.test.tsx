@@ -10,6 +10,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChoresContent from '../ChoresContent'
 import { ToastProvider } from '@/components/ui/toast'
+import { format } from 'date-fns'
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }),
@@ -32,22 +33,22 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks())
 
-const TODAY = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'
-
 function completedChore(id: string, title: string) {
+  // These are today's calendar-date chores, not the current UTC day's chores.
+  const today = format(new Date(), 'yyyy-MM-dd') + 'T00:00:00.000Z'
   return {
     id,
     family_id: 'fam',
     title,
     points: 10,
     assigned_to: 'kid',
-    due_date: TODAY,
+    due_date: today,
     status: 'completed' as const,
     frequency: 'once' as const,
     difficulty: 'easy' as const,
     photo_verified: false,
     completed_at: new Date().toISOString(),
-    created_at: TODAY,
+    created_at: today,
     assignee: { name: 'Casey' },
     creator: { name: 'Pat' },
   }
