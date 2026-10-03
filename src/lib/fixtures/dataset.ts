@@ -254,8 +254,10 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
   const B = FIXTURE_IDS.familyB
   const E = FIXTURE_IDS.familyEmpty
 
-  // Fixture households model EXISTING households (#248): Points & streaks on,
-  // every other flag at its default (normalizeFeatures fills missing keys). The
+  // Fixture households model EXISTING households (#248, O-38): Points & streaks
+  // on, every other flag at its existing-household value (normalizeFeatures
+  // fills missing keys from `legacyDefault`, so Notes, Budget, Projects, Family
+  // chat, Rewards etc. stay on even though a NEW household starts without). The
   // seed writes this on every run, so a test that toggles a flag is reset.
   const features = { ...FIXTURE_FEATURES }
   const families: FixtureFamily[] = [

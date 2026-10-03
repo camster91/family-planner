@@ -333,6 +333,12 @@ export function createGoogleOAuth(deps: HttpDeps = {}): OAuthClient {
       );
     },
 
+    hasRequiredScopes(granted) {
+      if (granted === null) return true;
+      const have = new Set(granted.split(/\s+/).filter(Boolean));
+      return GOOGLE_SCOPES.every((s) => have.has(s));
+    },
+
     refresh(config, refreshToken) {
       return postTokenForm(
         GOOGLE_TOKEN_URL,

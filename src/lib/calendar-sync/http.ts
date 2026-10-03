@@ -32,7 +32,9 @@ export type ProviderErrorCode =
   | "rate_limited"
   | "unauthorized"
   | "too_large"
-  | "bad_response";
+  | "bad_response"
+  /** 403 because the grant lacks a scope (e.g. a Google box left unticked). */
+  | "insufficient_scope";
 
 export class ProviderHttpError extends Error {
   readonly code: ProviderErrorCode;
@@ -152,9 +154,28 @@ export async function readJson<T = any>(res: Response): Promise<T> {
   }
 }
 
+// Google answers some rate limits with 403 (not 429), and a missing scope
+// with 403 too. Only these fixed reason words are looked for; the body is
+// never logged or surfaced.
+const RATE_LIMIT_403 =
+  /"(rateLimitExceeded|userRateLimitExceeded|quotaExceeded|dailyLimitExceeded)"/;
+const SCOPE_403 = /"(insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT)"/;
+const MAX_ERROR_BODY = 16 * 1024;
+
 /** Throw a ProviderHttpError for a non-2xx response (body is discarded). */
 export async function ensureOk(res: Response): Promise<Response> {
   if (res.ok) return res;
+  if (res.status === 403) {
+    let text = "";
+    try {
+      text = (await res.text()).slice(0, MAX_ERROR_BODY);
+    } catch {
+      // ignore
+    }
+    if (RATE_LIMIT_403.test(text)) throw new ProviderHttpError("rate_limited", 403);
+    if (SCOPE_403.test(text)) throw new ProviderHttpError("insufficient_scope", 403);
+    throw new ProviderHttpError("http", 403);
+  }
   try {
     await res.body?.cancel();
   } catch {

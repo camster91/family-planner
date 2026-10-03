@@ -38,13 +38,23 @@ interface RemoteCalendar {
 }
 
 const OUTCOMES: Record<string, { ok: boolean; text: string }> = {
-  connected: { ok: true, text: "Calendar connected. Choose which calendar to sync." },
+  connected: { ok: true, text: "Calendar connected." },
   denied: { ok: false, text: "Connection cancelled. Nothing was connected." },
   state: { ok: false, text: "That connection link expired or was already used. Try again." },
   exchange: { ok: false, text: "The provider did not complete the connection. Try again." },
   forbidden: { ok: false, text: "Only parents can connect calendars." },
   limit: { ok: false, text: "This household already has the maximum number of connected calendars." },
+  scope: {
+    ok: false,
+    text: "Nothing was connected because calendar access was not allowed. Try again and tick every box on the permission screen.",
+  },
   error: { ok: false, text: "Could not connect the calendar. Try again." },
+};
+
+// Short, familiar button names; the provider label stays for everything else.
+const CONNECT_LABELS: Record<string, string> = {
+  google: "Connect Google Calendar",
+  microsoft: "Connect Outlook",
 };
 
 const BUTTON =
@@ -52,7 +62,10 @@ const BUTTON =
 
 /** Last sync and any problem, in words (#271). */
 function statusText(c: Connection, now: number): string {
-  if (!c.calendar_id) return "Choose a calendar to start syncing.";
+  if (!c.calendar_id)
+    return c.is_mine ? "Choose a calendar to start syncing." : `Waiting for ${c.owner.name} to choose a calendar.`;
+  // Only the member who connected can reconnect: tell everyone else who to ask.
+  if (c.status === "reauth_required" && !c.is_mine) return `${c.owner.name} needs to reconnect this calendar.`;
   return describeCalendarSync({
     lastAttemptAt: c.last_synced_at,
     failed: c.status === "error" || c.status === "reauth_required",
@@ -75,26 +88,38 @@ export default function CalendarSyncSection() {
   const [notice, setNotice] = useState<string | null>(null);
   const [picking, setPicking] = useState<{ id: string; calendars: RemoteCalendar[]; value: string } | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<Connection[] | null> => {
     try {
       const res = await fetch("/api/calendar/connections");
       if (!res.ok) {
         setAvailable(false);
-        return;
+        return null;
       }
       const data = await res.json();
+      const list: Connection[] = Array.isArray(data.connections) ? data.connections : [];
       setProviders(Array.isArray(data.providers) ? data.providers : []);
-      setConnections(Array.isArray(data.connections) ? data.connections : []);
+      setConnections(list);
       setAvailable(true);
+      return list;
     } catch {
       setAvailable(false);
+      return null;
     }
   }, []);
 
   useEffect(() => {
-    load();
+    let outcome: string | null = null;
     try {
-      const outcome = new URLSearchParams(window.location.search).get("calendar_sync");
+      outcome = new URLSearchParams(window.location.search).get("calendar_sync");
+    } catch {
+      // ignore
+    }
+    load().then((list) => {
+      // Straight back from the provider: go on to the calendar choice.
+      const waiting = outcome === "connected" ? list?.find((c) => c.is_mine && !c.calendar_id) : undefined;
+      if (waiting) void openPicker(waiting);
+    });
+    try {
       const known = outcome ? OUTCOMES[outcome] : undefined;
       if (known) {
         if (known.ok) setNotice(known.text);
@@ -208,7 +233,7 @@ export default function CalendarSyncSection() {
   const disconnect = async (c: Connection) => {
     if (
       !window.confirm(
-        `Disconnect ${c.provider_label}${c.calendar_name ? ` (${c.calendar_name})` : ""}? Events imported from it will be removed from the family calendar. Your ${c.provider_label} calendar is not changed.`
+        `Disconnect ${c.provider_label}${c.calendar_name ? ` (${c.calendar_name})` : ""}? Events imported from it will be removed from the family calendar. ${c.is_mine ? "Your" : `${c.owner.name}'s`} ${c.provider_label} calendar is not changed.`
       )
     )
       return;
@@ -245,10 +270,10 @@ export default function CalendarSyncSection() {
       icon={<SettingsIcon icon={CalendarSync} tone="emerald" />}
       forceOpen={Boolean(notice || error)}
     >
-      <p className="text-sm text-gray-600 mb-4">Changes on either side show up on both.</p>
-
       {connections.length === 0 ? (
-        <p className="text-sm text-gray-600 mb-4">No connected calendars yet.</p>
+        <p className="text-sm text-gray-600 mb-4">
+          Connect your own Google or Outlook calendar and events show up in both places.
+        </p>
       ) : (
         <ul className="space-y-3 mb-6">
           {connections.map((c) => (
@@ -409,7 +434,7 @@ export default function CalendarSyncSection() {
               className="btn-primary inline-flex items-center min-h-[44px]"
             >
               <Link2 className="w-4 h-4 mr-2" aria-hidden="true" />
-              {busy === `connect:${p.id}` ? "Opening…" : `Connect ${p.label}`}
+              {busy === `connect:${p.id}` ? "Opening…" : (CONNECT_LABELS[p.id] ?? `Connect ${p.label}`)}
             </button>
           ))}
         </div>

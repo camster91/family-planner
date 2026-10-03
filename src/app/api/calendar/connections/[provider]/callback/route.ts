@@ -28,6 +28,7 @@ type Outcome =
   | "exchange"
   | "forbidden"
   | "limit"
+  | "scope"
   | "error";
 
 function back(outcome: Outcome): NextResponse {
@@ -76,9 +77,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!consumed.ok) return back("state");
     if (providerError || !code || code.length > 4096) return back("denied");
 
+    const oauth = oauthFor(provider);
     let tokens;
     try {
-      tokens = await oauthFor(provider).exchangeCode(
+      tokens = await oauth.exchangeCode(
         config,
         code,
         consumed.codeVerifier,
@@ -89,6 +91,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const familyId = auth.user.family_id;
+    if (!oauth.hasRequiredScopes(tokens.scope)) {
+      // The member unticked a calendar permission on Google's consent screen.
+      // Sync could not work, so store nothing and give the grant back.
+      await revokeProviderGrant(
+        {
+          id: "unsaved",
+          provider,
+          access_token_enc: encryptToken(tokens.accessToken, tokenAad.access(familyId)),
+          refresh_token_enc: tokens.refreshToken
+            ? encryptToken(tokens.refreshToken, tokenAad.refresh(familyId))
+            : null,
+        },
+        familyId,
+      );
+      return back("scope");
+    }
     const data: Record<string, unknown> = {
       access_token_enc: encryptToken(
         tokens.accessToken,

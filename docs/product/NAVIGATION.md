@@ -16,6 +16,11 @@ tabs, everything else one level down, undo instead of "are you sure", colour onl
   chores due today, tickable in place (#268): a parent reads the household ("3 chores left today · Casey 2,
   Taylor 1"); anyone else reads their own list ("You have 2 chores left", "You're done for today"). The board
   follows. Fridge mode (`?mode=fridge`) is the shared surface and shows the board alone.
+- A parent of a household that is not set up yet sees a "Get started" card first (invite, first chore, first
+  event; Hide with Undo). Once it is done or hidden, a "Turn on more" card (O-38) offers up to three popular
+  sections that are still off (Rewards & points, Budget, Family chat, Pinned notes, in that order), each with
+  one plain line and a "Turn on" button that calls `PATCH /api/family/features` with Undo, plus "See all
+  features" and "Not now" (remembered per household in this browser). Parents only; never in fridge mode.
 - Children and teens keep the kid home at `/dashboard` (their missions, and level and rewards when Points &
   streaks is on). It is a different, simpler view on purpose, so their Today tab points there and the board is
   one tap away in the user menu ("Today board"). If the kid home is later folded into the board, change

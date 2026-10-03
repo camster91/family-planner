@@ -1,111 +1,182 @@
-# Runbook: enable two-way Google / Outlook calendar sync (#264)
+# Runbook: turn on two-way Google / Outlook calendar sync (#264)
 
-Calendar sync ships **dormant**. It stays off until every variable below is set in the production environment.
-Setting production secrets is an environment change that needs Cameron's explicit approval (`AGENTS.md`); agents
-must not do it. Design and semantics: [`docs/architecture/CALENDAR_SYNC.md`](../architecture/CALENDAR_SYNC.md).
+Calendar sync is built but **off**. It turns on only when the settings below are in the production environment.
+Creating the Google / Microsoft apps and setting production secrets is Cameron's job (`AGENTS.md`); agents must not
+do it. How it works: [`docs/architecture/CALENDAR_SYNC.md`](../architecture/CALENDAR_SYNC.md).
 
-## 0. What you need
+You can turn on Google only, Outlook only, or both. Skip the part you do not need.
 
-| Variable | Value | Notes |
-| --- | --- | --- |
-| `APP_URL` | `https://family.ashbi.ca` | Public origin. Falls back to `NEXT_PUBLIC_APP_URL`. Must be https (http only for `localhost`). Redirect URIs are built from it, never from request headers. |
-| `CALENDAR_TOKEN_KEY` | base64 of 32 random bytes | `openssl rand -base64 32`. Encrypts OAuth tokens at rest. Keep it separate from `JWT_SECRET`. Losing it disconnects every calendar (members reconnect). |
-| `CALENDAR_TOKEN_KEY_PREVIOUS` | optional | Only during a key rotation (section 6). |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | from Google Cloud | Enables Google. |
-| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT` | from Microsoft Entra | Enables Outlook / Microsoft 365. `MICROSOFT_TENANT=common` for personal + work accounts. |
+## Checklist (about 30 minutes)
 
-A provider is enabled only when its client id and secret, a valid `CALENDAR_TOKEN_KEY` and a valid `APP_URL` are
-all present. Missing anything = that provider's routes are 404 and it is not offered in Settings.
+### A. Google Calendar
 
-These are server-only variables. Do **not** prefix them with `NEXT_PUBLIC_` and do not put them in the Android /
-Capacitor build.
-
-## 1. Register the Google OAuth app
-
-1. Google Cloud Console → create (or pick) a project for Family Planner.
-2. **APIs & Services → Library → Google Calendar API → Enable.**
-3. **OAuth consent screen**: User type External; app name "Family Planner"; support email; authorised domain
-   `ashbi.ca`; privacy policy URL. Add scopes:
+1. Open <https://console.cloud.google.com> and sign in with the Google account that should own the app.
+2. Top bar → project picker → **New project**. Name it `Family Planner`. Select it.
+3. **APIs & Services → Library**. Search `Google Calendar API`. Click **Enable**.
+4. **Google Auth Platform** (older screens call it **OAuth consent screen**) → **Get started**:
+   - App name: `Family Planner`. User support email: your email.
+   - Audience: **External**.
+   - Contact email: your email. Agree and **Create**.
+5. **Branding**: app home page `https://family.ashbi.ca`, privacy policy `https://family.ashbi.ca/privacy`,
+   authorised domain `ashbi.ca`. Save.
+6. **Data Access → Add or remove scopes**. Paste these two into "Manually add scopes", then **Update** and **Save**.
+   Add nothing else:
    - `https://www.googleapis.com/auth/calendar.events`
    - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
-   These are "sensitive" scopes. While the app is in **Testing**, add each family member's Google account as a test
-   user (limit 100; refresh tokens of testing apps expire after 7 days, so members must reconnect weekly). For
-   long-lived use, submit the app for verification (publishing status: In production).
-4. **Credentials → Create credentials → OAuth client ID → Web application.**
-   - Authorised redirect URI: `https://family.ashbi.ca/api/calendar/connections/google/callback`
-   - (Local development, optional, separate client: `http://localhost:3000/api/calendar/connections/google/callback`)
-   - No JavaScript origins are needed.
-5. Copy the client id and secret into the production secret store as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+7. **Audience**: choose one (see "Google review" below):
+   - **Testing** (fastest): under **Test users** add the Google account of every family member who will connect.
+     Each person must reconnect every 7 days.
+   - **In production**: click **Publish app**. No weekly reconnect.
+8. **Clients → Create client**:
+   - Application type: **Web application**. Name: `Family Planner web`.
+   - Authorised JavaScript origins: leave empty.
+   - Authorised redirect URIs → **Add URI** → exactly:
+     `https://family.ashbi.ca/api/calendar/connections/google/callback`
+   - **Create**. Copy the **Client ID** and **Client secret** now (the secret is shown once).
 
-## 2. Register the Microsoft app
+**Google review, honestly.** Both scopes are "sensitive" (not "restricted"), so no paid security audit is needed.
 
-1. Microsoft Entra admin center → **App registrations → New registration**.
-   - Name "Family Planner".
-   - Supported account types: "Accounts in any organizational directory and personal Microsoft accounts" (then
-     `MICROSOFT_TENANT=common`). For one organisation only, pick single tenant and set `MICROSOFT_TENANT` to its
-     tenant id.
-   - Redirect URI: platform **Web**, `https://family.ashbi.ca/api/calendar/connections/microsoft/callback`.
-2. **API permissions → Add → Microsoft Graph → Delegated**: `Calendars.ReadWrite` and `offline_access`. Remove
-   `User.Read` if you do not want it (the app does not use it). No admin consent is required for these for
-   personal accounts; work tenants may require an admin to consent.
-3. **Certificates & secrets → New client secret**. Note its expiry date and set a reminder to rotate it before then.
-4. Set `MICROSOFT_CLIENT_ID` (Application (client) ID), `MICROSOFT_CLIENT_SECRET` (the secret **value**) and
-   `MICROSOFT_TENANT`.
+- In **Testing**: only the test users (up to 100) can connect, and Google ends their access after 7 days. The app
+  then shows "Reconnect" on that calendar.
+- **In production without verification**: anyone can connect, but Google shows a "Google hasn't verified this app"
+  screen first (click **Advanced → Go to Family Planner**). Limit 100 users. Fine for one family.
+- **Verified**: no warning screen. Click **Prepare for verification**. Google asks for the privacy policy, a short
+  screen recording of the connect flow, and why each scope is needed. It can take a few days to weeks. Before you
+  ask: `https://family.ashbi.ca/privacy` does **not** yet mention Google or Outlook calendar data. Google requires
+  the policy to say what calendar data the app reads and writes, that it is stored encrypted only to sync, never sold
+  or shared, and that its use follows the Google API Services User Data Policy (Limited Use). Add that first.
 
-## 3. Configure the deployment
+### B. Outlook / Microsoft 365
 
-1. Generate the token key once: `openssl rand -base64 32` → `CALENDAR_TOKEN_KEY`. Store it with the other
-   production secrets and in the password manager; it is needed to read existing connections after a restore.
-2. Add the variables to the production environment (the same place `JWT_SECRET` lives). `docker-compose.yml`
-   passes them through for self-hosted runs.
-3. No schema step: `scripts/migrate.js` already created the tables on deploy (they stay empty while dormant).
-4. Redeploy / restart so the server reads the new environment.
+1. Open <https://entra.microsoft.com> (any Microsoft account works; a free one is fine).
+2. **Applications → App registrations → New registration**:
+   - Name: `Family Planner`.
+   - Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**.
+   - Redirect URI: platform **Web**, exactly:
+     `https://family.ashbi.ca/api/calendar/connections/microsoft/callback`
+   - **Register**. Copy the **Application (client) ID**.
+3. **API permissions → Add a permission → Microsoft Graph → Delegated permissions**. Tick `Calendars.ReadWrite` and
+   `offline_access`. **Add permissions**. You may remove `User.Read`; the app does not use it.
+4. **Certificates & secrets → Client secrets → New client secret**. Pick 24 months. Copy the **Value** (not the
+   Secret ID) now. Put a reminder in your calendar to make a new one before it expires.
 
-## 4. Verify (staging first if available)
+**Microsoft review, honestly.** Personal accounts (outlook.com, hotmail.com) can connect right away; they see an
+"unverified" label. Work or school accounts may be blocked until that organisation's admin approves the app, or
+until you finish **Publisher verification** (needs a Microsoft Partner Network ID). No admin consent is needed for
+these permissions on personal accounts.
 
-1. As a parent, open **Settings**. A "Connected calendars" card appears with "Connect Google Calendar" / "Connect
-   Outlook / Microsoft 365". As a teen/child: no card (and `GET /api/calendar/connections` → 403).
-2. Connect Google with a test account. Consent screen shows only the two calendar scopes. You land back on
-   Settings with "Calendar connected".
-3. Choose a calendar → "Syncing starts now" → counts shown. Check the family calendar shows the account's events
-   for the next weeks.
-4. Edit one imported event in the app → Sync now → the change appears in Google Calendar. Delete one in the app →
-   Sync now → gone in Google. Edit / delete one in Google → reload `/dashboard/calendar` after 5 minutes or press
-   Sync now → reflected in the app.
-5. Switch "Also add new family calendar events to this calendar" on, create a family event, Sync now → it appears in
-   Google once (Sync now again: still once).
-6. Repeat 2–5 for Microsoft (confirm `calendarView/delta` works for a non-default calendar).
-7. Check logs contain only `[calendar-sync]` lines with ids and codes — no tokens, titles or URLs with codes.
-8. Database spot check: `SELECT provider, status, left(access_token_enc, 4) FROM "CalendarConnection";` → `ct1.`
-   prefixes only, never plaintext.
+### C. Make the token key
 
-## 5. Revocation and disconnect
+The app encrypts every calendar token with this key. Run once, on any computer:
 
-- **A member disconnects** in Settings: the app revokes the Google grant (best effort), deletes the tokens, the
-  events imported from that calendar and the connection. Nothing is deleted from the member's own calendar.
-- **Microsoft has no app-side revocation endpoint** for delegated consent. After disconnecting, the member can
-  remove the app at <https://account.live.com/consent/Manage> (personal) or <https://myapps.microsoft.com>
-  (work/school). Deleting our copy of the refresh token already stops all access from Family Planner.
-- **A member revokes access at Google/Microsoft first**: the next sync fails the token refresh, the connection shows
-  "Reconnect this calendar", and the member can reconnect or disconnect.
-- **Emergency: stop all sync immediately**: unset `GOOGLE_CLIENT_SECRET` / `MICROSOFT_CLIENT_SECRET` (or
-  `CALENDAR_TOKEN_KEY`) and restart. Every route 404s and no sync runs. To also delete stored tokens (irreversible,
-  production data change → needs Cameron's approval):
+```bash
+openssl rand -base64 32
+```
+
+It prints 44 characters ending in `=`, for example `q3V...Zk=`. That whole line is `CALENDAR_TOKEN_KEY`. It must
+be base64 of exactly 32 bytes; anything else (hex, a password) keeps sync off. No openssl? Use
+`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+
+Save it in the password manager. If it is lost, every connected calendar must be reconnected.
+
+### D. Add the settings in Coolify
+
+Coolify → the Family Planner app → **Environment Variables**. Add these as **runtime** variables. Do **not** tick
+"Build variable" for any of them, and never prefix them with `NEXT_PUBLIC_`. (Still on the old VPS path? Put the same
+lines in the `.env` file that `docker-compose.yml` reads.)
+
+| Variable | Value |
+| --- | --- |
+| `APP_URL` | `https://family.ashbi.ca` (no slash at the end) |
+| `CALENDAR_TOKEN_KEY` | the line from step C |
+| `GOOGLE_CLIENT_ID` | from A8 (Google only) |
+| `GOOGLE_CLIENT_SECRET` | from A8 (Google only) |
+| `MICROSOFT_CLIENT_ID` | from B2 (Outlook only) |
+| `MICROSOFT_CLIENT_SECRET` | from B4, the secret **Value** (Outlook only) |
+| `MICROSOFT_TENANT` | `common` (Outlook only; see below) |
+
+Then **Redeploy** (a restart is enough; nothing needs rebuilding). The database tables already exist.
+
+`MICROSOFT_TENANT`: `common` = personal and work accounts (matches B2). Use `consumers` for personal accounts only,
+or your organisation's tenant id if you chose "single tenant" in B2.
+
+If the Settings card does not appear after the restart, look in the app logs for lines starting with
+`[env] WARNING: Calendar sync:`. They name the missing or wrong setting (never its value).
+
+### E. Test it (5 minutes)
+
+1. Sign in as a parent → **Settings → Connected calendars**. You see one line of text and **Connect Google Calendar**
+   / **Connect Outlook**. (Teens and children never see this card.)
+2. Click **Connect Google Calendar**. Google shows only the two calendar permissions. Tick both and continue.
+3. You come back to Settings with "Calendar connected." and a calendar list. Pick a calendar → **Save**. You see
+   "Synced: N changes in, 0 out."
+4. Open the family calendar. Your events for the next 6 months are there.
+5. Edit one of those events in the app → Settings → **Sync now** → the change is in Google Calendar.
+6. Change an event in Google Calendar → open the family calendar (it syncs at most every 5 minutes) or press
+   **Sync now** → the change shows in the app.
+7. Optional: choose "Also add new family calendar events to this calendar", add a family event, **Sync now** twice.
+   It appears in Google once.
+8. Repeat 2–6 with **Connect Outlook**.
+9. Logs: only `[calendar-sync]` lines with ids and short codes. No tokens, titles or links with codes.
+10. Database spot check: `SELECT provider, status, left(access_token_enc, 4) FROM "CalendarConnection";` shows
+    `ct1.` only, never a readable token.
+
+### F. Turn it off
+
+- **Everything, now:** remove `GOOGLE_CLIENT_SECRET` and `MICROSOFT_CLIENT_SECRET` (or `CALENDAR_TOKEN_KEY`) and
+  restart. The card disappears, every calendar route answers 404 and no sync runs. Stored connections stay, unused.
+- **One provider:** remove only that provider's client secret and restart.
+- To also delete the stored tokens (cannot be undone; a production data change, so Cameron approves it first):
   `UPDATE "CalendarConnection" SET access_token_enc = NULL, refresh_token_enc = NULL, status = 'reauth_required';`
-- **Suspected client-secret leak**: rotate the secret at Google / Microsoft (existing refresh tokens keep working
-  with the new secret), update the env var, restart.
 
-## 6. Rotate `CALENDAR_TOKEN_KEY`
+## How syncing is started (no scheduled job)
 
-1. Set `CALENDAR_TOKEN_KEY_PREVIOUS` to the current key and `CALENDAR_TOKEN_KEY` to a new `openssl rand -base64 32`.
-2. Restart. Existing rows decrypt with the previous key; the next access-token refresh of each connection (at most
-   about an hour after its next sync) re-encrypts both the access and the refresh token with the new key.
-3. When no row still uses the old key, remove `CALENDAR_TOKEN_KEY_PREVIOUS`. Check with
-   `SELECT count(*) FROM "CalendarConnection" WHERE split_part(refresh_token_enc, '.', 2) <> '<new kid>';` — the
-   new key's `kid` is the second dot-separated part of any freshly written value. Connections still on the old key
-   after removal show "Reconnect".
+There is no cron job and none is needed to turn this on (`AGENTS.md` forbids adding one without approval). A
+calendar syncs when:
 
-## 7. Rollback
+- someone presses **Sync now** in Settings (any parent; at most 6 times in 10 minutes per calendar), or
+- anyone signed in opens the family calendar page (`/dashboard/calendar`) and that calendar has not synced in the last
+  5 minutes. The sync runs after the page is sent, so the page is not slower.
 
-Unset the provider variables (dormant again). The code can be reverted without touching the new tables; imported
-events then look like ordinary events. Removing the tables is a separate, approval-gated contract migration.
+So a change made in Google shows up the next time someone opens the calendar page. The fridge tablet's home screen
+does not start a sync. Keeping calendars fresh with nobody using the app would need a scheduled job; that is not
+built and needs Cameron's approval first.
+
+## Disconnect and revoked access
+
+- **A parent disconnects** in Settings: the app gives back the Google access (Microsoft has no way to do this from the
+  app), deletes the tokens, the events that came from that calendar, and the connection. Nothing is deleted from the
+  person's own calendar.
+- **Outlook:** after disconnecting, the person can also remove the app at <https://account.live.com/consent/Manage>
+  (personal) or <https://myapps.microsoft.com> (work/school). Deleting our copy of the token already stops all
+  access.
+- **Access removed at Google/Microsoft first, or a Testing-mode token expired after 7 days:** the next sync fails,
+  the calendar shows "Reconnect this calendar to keep it in sync." and a **Reconnect** button for the person who
+  connected it. Other parents see "<name> needs to reconnect this calendar."
+- **A Google permission box was left unticked:** nothing is connected; Settings says to try again and tick every box.
+- **Client secret leaked:** make a new secret at Google / Microsoft, update the variable, restart. Existing
+  connections keep working.
+
+## Rotate `CALENDAR_TOKEN_KEY`
+
+1. In Coolify set `CALENDAR_TOKEN_KEY_PREVIOUS` to the current key and `CALENDAR_TOKEN_KEY` to a new
+   `openssl rand -base64 32`. Restart.
+2. Old tokens still open with the previous key. Each connection is re-saved with the new key the next time it
+   syncs and its hour-long access token is renewed. A calendar nobody syncs stays on the old key.
+3. Find the new key's short id from the app container's terminal:
+   `node -e "const c=require('crypto');const k=Buffer.from(process.env.CALENDAR_TOKEN_KEY,'base64');console.log(c.createHash('sha256').update('family-planner:calendar-token-key:').update(k).digest('hex').slice(0,8))"`
+4. Check what is left on the old key:
+   `SELECT count(*) FROM "CalendarConnection" WHERE refresh_token_enc IS NOT NULL AND split_part(refresh_token_enc, '.', 2) <> '<new id>';`
+   Press **Sync now** on any that remain (or wait), until the count is 0.
+5. Remove `CALENDAR_TOKEN_KEY_PREVIOUS` and restart. Anything still on the old key shows "Reconnect".
+
+## Rollback
+
+Remove the provider variables (off again). The code can be reverted without touching the tables; imported events
+then look like ordinary events. Dropping the tables is a separate migration that needs approval.
+
+## Local development (optional)
+
+Use a **separate** Google client / Microsoft app with redirect URI
+`http://localhost:3000/api/calendar/connections/<google|microsoft>/callback` and `APP_URL=http://localhost:3000`
+(plain http is accepted only for `localhost`).

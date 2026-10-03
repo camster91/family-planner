@@ -12,6 +12,12 @@
 -- (POST_FEATURE_SQL) then sets gamification=true on rows lacking the key.
 -- "inventory" (#263) is off for new and existing households alike, so a
 -- stored blob without the key already reads as off and needs no stamp.
+-- New households start simple (O-38, 2026-10-03): the SET DEFAULT below has
+-- notes, anniversaries, rewards, budget, projects, messages and analytics
+-- OFF. SET DEFAULT only affects rows inserted afterwards; existing rows keep
+-- their stored values, and a stored blob without one of those keys reads as
+-- ON (`legacyDefault` in src/lib/features.ts). The ADD COLUMN default above
+-- must keep them ON: it is written into every row that exists at that time.
 ALTER TABLE "Family"
   ADD COLUMN IF NOT EXISTS "features" JSONB
   DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false}'::jsonb;
@@ -20,7 +26,7 @@ ALTER TABLE "Family"
 -- EXISTS above is skipped in its entirety (default included). Re-assert the
 -- full default on the existing column; existing row values are untouched.
 ALTER TABLE "Family"
-  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":true,"anniversaries":true,"rewards":true,"budget":true,"projects":true,"messages":true,"analytics":true,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false,"gamification":false,"inventory":false}'::jsonb;
+  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":false,"anniversaries":false,"rewards":false,"budget":false,"projects":false,"messages":false,"analytics":false,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false,"gamification":false,"inventory":false}'::jsonb;
 
 -- 2. Family meals (the meal planning feature)
 CREATE TABLE IF NOT EXISTS "FamilyMeal" (

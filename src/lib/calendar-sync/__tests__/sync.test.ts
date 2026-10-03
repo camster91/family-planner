@@ -26,6 +26,10 @@ import {
   FOREIGN,
 } from "@/__tests__/helpers/two-household";
 import {
+  CURSOR_MAX_AGE_MS,
+  cursorIssuedAt,
+  packCursor,
+  usableCursor,
   refreshStaleConnections,
   removeConnection,
   syncConnection,
@@ -33,6 +37,7 @@ import {
   type EngineDeps,
 } from "../sync";
 import { decryptToken, encryptToken, tokenAad } from "../token-crypto";
+import { ProviderHttpError } from "../http";
 import {
   clearSyncEnv,
   FakeOAuth,
@@ -118,7 +123,7 @@ describe("pull", () => {
     expect(imported()).toHaveLength(2);
     expect(imported().every((e) => e.family_id === FAMILY_A && e.created_by === "parent-a")).toBe(true);
     expect(links().map((l) => l.external_id).sort()).toEqual(["r1", "r2"]);
-    expect(conn().sync_cursor).toBe(String(provider.seq));
+    expect(conn().sync_cursor).toBe(`c1.${NOW.getTime()}.${provider.seq}`);
     expect(conn().status).toBe("ok");
 
     // Re-running (incremental and full) creates nothing new.
@@ -159,6 +164,60 @@ describe("pull", () => {
       "pull:full",
     ]);
     expect(imported().map((e) => e.title)).toEqual(["Keep"]);
+  });
+
+  it("lists the window in full again once the cursor is a week old, so the window moves forward", async () => {
+    provider.remoteUpsert("r1", { title: "Soon", start: inDays(2) });
+    await syncConnection("conn-a", FAMILY_A, deps);
+    // Comes into view only after the window has moved on.
+    provider.remoteUpsert("far", { title: "Far", start: inDays(200) });
+
+    const day = 86400000;
+    await syncConnection("conn-a", FAMILY_A, { ...deps, now: new Date(NOW.getTime() + day) });
+    expect(imported().map((e) => e.title)).toEqual(["Soon"]); // incremental: beyond the window, skipped
+
+    const later = new Date(NOW.getTime() + 30 * day);
+    provider.calls = [];
+    const res = await syncConnection("conn-a", FAMILY_A, { ...deps, now: later });
+    expect(res).toMatchObject({ status: "ok", resynced: false });
+    expect(provider.calls.filter((c) => c.startsWith("pull"))).toEqual(["pull:full"]);
+    expect(conn().sync_cursor).toBe(`c1.${later.getTime()}.${provider.seq}`);
+    expect(imported().map((e) => e.title).sort()).toEqual(["Far", "Soon"]);
+    expect(links()).toHaveLength(2);
+  });
+
+  it("daily incremental syncs keep the cursor's age, so the weekly full listing still happens", async () => {
+    provider.remoteUpsert("r1", { title: "Soon", start: inDays(2) });
+    await syncConnection("conn-a", FAMILY_A, deps);
+    provider.remoteUpsert("far", { title: "Far", start: inDays(200) });
+
+    const day = 86400000;
+    for (let d = 1; d <= 7; d++) {
+      provider.calls = [];
+      await syncConnection("conn-a", FAMILY_A, { ...deps, now: new Date(NOW.getTime() + d * day) });
+      expect(provider.calls.filter((c) => c.startsWith("pull"))).not.toContain("pull:full");
+      // Incremental pulls keep the time of the last full listing.
+      expect(conn().sync_cursor).toMatch(new RegExp(`^c1\\.${NOW.getTime()}\\.`));
+    }
+    expect(imported().map((e) => e.title)).toEqual(["Soon"]);
+
+    const day8 = new Date(NOW.getTime() + 8 * day);
+    provider.calls = [];
+    await syncConnection("conn-a", FAMILY_A, { ...deps, now: day8 });
+    expect(provider.calls.filter((c) => c.startsWith("pull"))).toEqual(["pull:full"]);
+    expect(conn().sync_cursor).toBe(`c1.${day8.getTime()}.${provider.seq}`);
+    expect(imported().map((e) => e.title).sort()).toEqual(["Far", "Soon"]);
+  });
+
+  it("cursor helpers: old-format, future and expired cursors force a full listing", () => {
+    expect(usableCursor(null, NOW)).toBeNull();
+    expect(usableCursor("legacy-token", NOW)).toBeNull();
+    expect(usableCursor(packCursor("tok.with.dots", NOW), NOW)).toBe("tok.with.dots");
+    expect(usableCursor(packCursor("t", NOW), new Date(NOW.getTime() + CURSOR_MAX_AGE_MS + 1))).toBeNull();
+    expect(usableCursor(packCursor("t", new Date(NOW.getTime() + 60000)), NOW)).toBeNull();
+    expect(packCursor(null, NOW)).toBeNull();
+    expect(cursorIssuedAt(packCursor("t", NOW))).toEqual(NOW);
+    expect(cursorIssuedAt("legacy-token")).toBeNull();
   });
 
   it("does not import events that ended before the sync window", async () => {
@@ -375,6 +434,21 @@ describe("errors, tokens and rate limits", () => {
     expect(res).toMatchObject({ status: "reauth_required" });
     expect(conn().status).toBe("reauth_required");
     expect(conn().access_token_enc).toBeNull();
+  });
+
+  it("a missing scope (403 insufficientPermissions) asks the member to reconnect, not to pick another calendar", async () => {
+    provider.failNext = new ProviderHttpError("insufficient_scope", 403);
+    const res = await syncConnection("conn-a", FAMILY_A, deps);
+    expect(res).toMatchObject({ status: "reauth_required" });
+    expect(conn().status).toBe("reauth_required");
+    expect(conn().last_error).toMatch(/^Reconnect this calendar/);
+  });
+
+  it("a Google 403 rate limit is reported as busy, not as a lost calendar", async () => {
+    provider.failNext = new ProviderHttpError("rate_limited", 403);
+    const res = await syncConnection("conn-a", FAMILY_A, deps);
+    expect(res).toMatchObject({ status: "error" });
+    expect(conn().last_error).toMatch(/busy/);
   });
 
   it("does nothing until a calendar is chosen", async () => {

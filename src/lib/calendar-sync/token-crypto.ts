@@ -52,6 +52,11 @@ function keysById(): Map<string, Buffer> {
   return out;
 }
 
+/** True when `raw` is a usable key: base64 of exactly 32 bytes. */
+export function isValidTokenKey(raw: string | undefined): boolean {
+  return parseKey(raw) !== null;
+}
+
 /** True when CALENDAR_TOKEN_KEY is set to a base64-encoded 32-byte key. */
 export function isTokenKeyConfigured(): boolean {
   return currentKey() !== null;

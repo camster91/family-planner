@@ -223,6 +223,16 @@ describe("OAuth start + callback", () => {
     expect(providerState.oauth.exchanged).toHaveLength(0);
   });
 
+  it("a grant missing a calendar permission (box unticked) stores nothing and is revoked", async () => {
+    providerState.oauth.exchangeResult = { ...providerState.oauth.exchangeResult, scope: "openid" };
+    const before = JSON.stringify(db.rows("calendarConnection"));
+    const { state } = await startFlow("parentA");
+    const cb = await callbackReq("parentA", { code: "c", state: state! });
+    expect(cb.headers.get("location")).toContain("calendar_sync=scope");
+    expect(JSON.stringify(db.rows("calendarConnection"))).toBe(before);
+    expect(providerState.oauth.revoked).toEqual(["REFRESH-FROM-CODE"]);
+  });
+
   it("reconnecting updates the same connection and resets the cursor", async () => {
     const { state } = await startFlow();
     await callbackReq("parentA", { code: "c", state: state! });
