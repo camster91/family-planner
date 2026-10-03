@@ -85,6 +85,7 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
   'GET /api/handoff/share/[token]': [404],
   'GET /api/calendar/feed': [400, 401, 404],
   'POST /api/cron/recurring-chores': [401, 500],
+  'POST /api/cron/morning-summary': [401, 500], // O-40: cron secret only, fail closed
 }
 
 /**

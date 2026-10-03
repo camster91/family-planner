@@ -325,6 +325,24 @@ describe("push", () => {
     await syncConnection("conn-a", FAMILY_A, deps);
     expect(db.find("event", "native-1")).toBeUndefined();
   });
+
+  it("a pushed event found gone while pushing an edit is deleted for the family, not pushed again", async () => {
+    conn().push_mode = "all";
+    db.rows("event").push({
+      id: "native-2", family_id: FAMILY_A, title: "Swim", description: null, location: null,
+      start_time: inDays(6), end_time: new Date(inDays(6).getTime() + HOUR), event_type: "appointment",
+      created_by: "parent-a", source_subscription_id: null, source_connection_id: null, is_task: false,
+      created_at: NOW, updated_at: NOW,
+    });
+    await syncConnection("conn-a", FAMILY_A, deps);
+    const remoteId = provider.live().find((e) => e.marker?.eventId === "native-2")!.id;
+    // Gone at the provider without a delete the pull can see; then edited here.
+    provider.items.delete(remoteId);
+    (db.find("event", "native-2") as { title: string }).title = "Swim (moved)";
+    await syncConnection("conn-a", FAMILY_A, deps);
+    expect(db.find("event", "native-2")).toBeUndefined();
+    expect(provider.live().filter((e) => e.title?.startsWith("Swim"))).toHaveLength(0);
+  });
 });
 
 describe("conflicts (last writer wins)", () => {

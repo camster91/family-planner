@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { updateNotificationSchema, deleteNotificationSchema, sendNotificationSchema } from '@/lib/validations'
 import { deliverNotification } from '@/lib/notification-delivery'
-import { isInAppNotificationType } from '@/lib/notification-policy'
+import { isParentSendableType } from '@/lib/notification-policy'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
     }
     const { userId, title, message, type } = parsed.data
     // Only types in the notification policy table (#286), so every row has a
-    // category or is explicitly always-send.
-    if (!isInAppNotificationType(type)) {
+    // category or is explicitly always-send. Opt-in types (the morning
+    // summary, O-40) come only from their own server sender.
+    if (!isParentSendableType(type)) {
       return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 })
     }
 

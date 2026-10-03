@@ -4,6 +4,7 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { createChoreSchema } from '@/lib/validations'
 import { expandSeriesInTx } from '@/lib/recurringChores'
+import { rotationMembersInHousehold } from '@/lib/chore-rotation'
 import { normalizeDateOnlyInput } from '@/lib/dates'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
@@ -34,8 +35,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, points, assigned_to, due_date, difficulty, frequency, photo_url, icon, routine, routine_order } =
+    const { title, description, points, due_date, difficulty, frequency, photo_url, icon, routine, routine_order } =
       parsed.data
+    // Take turns (O-39): the first person in the order takes the first one,
+    // whatever `assigned_to` says.
+    const rotation = parsed.data.rotation ?? null
+    const assigned_to = rotation ? rotation[0] : parsed.data.assigned_to!
 
     // due_date is a date-only value: store the UTC calendar day at midnight.
     const dueDate = normalizeDateOnlyInput(due_date)
@@ -51,6 +56,12 @@ export async function POST(request: NextRequest) {
 
     if (!assignee || assignee.family_id !== auth.user.family_id) {
       return NextResponse.json({ error: 'Assigned user must be in your family' }, { status: 400 })
+    }
+
+    // Everyone taking turns must be in the caller's household (another
+    // household's member reads the same as a missing one).
+    if (rotation && !(await rotationMembersInHousehold(prisma!, auth.user.family_id, rotation))) {
+      return NextResponse.json({ error: 'Everyone taking turns must be in your family' }, { status: 400 })
     }
 
     // D3 (#102): a photo must be an upload owned by the caller's family.
@@ -93,7 +104,12 @@ export async function POST(request: NextRequest) {
       if (frequency === 'once') return created
       const template = await tx.chore.update({
         where: { id: created.id },
-        data: { recurrence_id: created.id, is_template: true },
+        data: {
+          recurrence_id: created.id,
+          is_template: true,
+          // The template is the series' first occurrence: the first turn.
+          ...(rotation ? { rotation_member_ids: rotation, rotation_index: 0 } : {}),
+        },
         include,
       })
       await expandSeriesInTx(tx, created.id, auth.user.family_id)

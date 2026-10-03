@@ -341,6 +341,37 @@ describe('deleteMemberAccount', () => {
     expect(snapshot((m, r) => !belongsToA(m, r))).toEqual(beforeB)
   })
 
+  it('take turns (O-39): a rotating series assigned to the leaving child keeps going with the next person', async () => {
+    const t = new Date('2026-09-01T00:00:00Z')
+    const row = (id: string, assigned_to: string, rotation_index: number | null, extra: Row = {}) => ({
+      id,
+      family_id: FAMILY_A,
+      title: 'Dishes',
+      assigned_to,
+      created_by: 'parent-a',
+      due_date: t,
+      status: 'pending',
+      frequency: 'weekly',
+      recurrence_id: 'rot-tmpl',
+      rotation_index,
+      rotation_member_ids: [],
+      created_at: t,
+      ...extra,
+    })
+    db.rows('chore').push(
+      row('rot-tmpl', 'child-a', 0, { is_template: true, rotation_member_ids: ['child-a', 'teen-a'] }),
+      row('rot-teen', 'teen-a', 1),
+      row('rot-child', 'child-a', 0)
+    )
+    const { d } = deps()
+    await deleteMemberAccount('child-a', d)
+
+    // The series is handed to the next person; only the child's own copy goes.
+    expect(db.find('chore', 'rot-tmpl')).toMatchObject({ assigned_to: 'teen-a', rotation_member_ids: ['teen-a'] })
+    expect(db.find('chore', 'rot-teen')).toMatchObject({ assigned_to: 'teen-a' })
+    expect(db.find('chore', 'rot-child')).toBeUndefined()
+  })
+
   it("household audit history (#285): a line that a member left, without their name; their actor refs cleared", async () => {
     const { d } = deps()
     await deleteMemberAccount('child-a', d)

@@ -1,9 +1,9 @@
 # Role and isolation matrix
 
-Status: current as of 2026-10-02. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
-(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`), and owner decision O-37
+Status: current as of 2026-10-03. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
+(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`), owner decision O-37
 (teens see the calendar, meals, Help, their notifications and their own Settings; see "Teen pages and personal
-Settings" below).
+Settings" below) and owner decision O-40 (the opt-in morning summary; see "Morning summary" below).
 Authority: `docs/architecture/AUTHORIZATION.md` (model and decision order) points here for per-domain
 capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md`.
 
@@ -162,14 +162,15 @@ may open `/dashboard/meals/recipes/[id]` (parents and teens, O-37). "Scan fridge
 | Events (calendar) | all | all | parent | parent | R: `id`, title, start/end, is-task, imported-calendar name/colour only; C/U/D: elevated only (when tablet flows exist) | Pages: `/dashboard/calendar` and `/dashboard/calendar/create` are open to parents and teens (O-37); the teen month view serialises the same event fields `GET /api/events` already returns to them and has no edit link, because PATCH/DELETE are parent-only. `/dashboard/calendar/edit` stays parent-only (kid-access). Children: no calendar page. Device never reads `location` or `description`. |
 | Event import (`POST /api/calendar/import-suggestions`, `…/commit`, `…/undo`, #270) | — | parent, teen: suggest (child 403 `EVENT_IMPORT_FORBIDDEN`); commit the reviewed events in one transaction (child 403) | — | own import only: `…/undo` takes the commit's signed undo token (HMAC over user, household, event ids and time), ≤ 10 min; 403 `UNDO_TOKEN_INVALID` for a forged, edited, another person's or another household's token, 409 late; never accepts event ids, so it cannot reach events made by hand; child 403 | no (403 `DEVICE_WRITE_NOT_ALLOWED` on all three, before person auth) | Suggestions are off (404 `EVENT_IMPORT_DISABLED`) until the deployment sets `EVENT_IMPORT_ANTHROPIC_API_KEY`; all three need `featureGate('calendar')`. Suggestions write nothing and read no household rows. Commit applies the `POST /api/events` field rules, writes only to the session household with `created_by` = caller, and is idempotent per batch key. Rate limits on suggestions per user and household; the text/photo/PDF is sent to the provider and never stored. Undo is the only event delete open to teens, and only for their own import of the last 10 minutes (same idea as the grocery undo, O-5); `DELETE /api/events` stays parent-only. The button is on `/dashboard/calendar`, which parents and teens open (O-37); it shows only when the provider is configured and the role may import. `docs/architecture/CALENDAR_IMPORT.md`. |
 | Chores | all | parent | parent, or assignee for status | parent, or assignee | R: title, due day, status, assignee name, picture key (`icon`, #272); complete: device writes (opt-in), chores due today only, waits for a parent's check (O-4, #274), plus Undo of the tablet's own completion within 2 minutes; verify: elevated only (not built) | Completion open to any member for any household chore. Check (`POST /api/chores/verify`): parent only; `decision: 'approve'` verifies, `decision: 'reject'` sends a `completed` chore back to `pending` with the reason (a verified chore is 409). Undo (`POST /api/chores/uncomplete`, #268): parent, or the assignee (a sibling 403); only from `completed` (a parent-verified chore is 409 `CHORE_ALREADY_VERIFIED`), an open chore is a no-op success, a foreign chore 403. a legacy recurring chore's next occurrence is removed only by the id completion recorded (`successor_id`). Photo (D3): must be an `/api/upload` result owned by the household, else 400; see audit. Picture routines (#272): `icon`, `routine`, `routine_order` follow the chore's rules (create: parent; PATCH: parent or the assignee, a sibling 403, another household 403); the kid home groups the caller's own chores due today by routine. The shared device gets only the `icon` catalogue key, never the routine name. |
+| Take turns on a repeating chore (`rotation` on `POST /api/chores/create` and `PATCH /api/chores`, O-39) | all (`GET /api/chores?id=` returns the series' `rotation`; the chores page shows "Takes turns · next: Alex") | parent | parent (the chore's own assignee 403, like `assigned_to`; another household 403/404) | parent (`rotation: null`) | no: the tablet and kid views only see each occurrence's assignee, as before | 2–8 distinct members, **all of the caller's household** (another household's member or an unknown id: 400 `Everyone taking turns must be in your family`, nothing written); repeating chores only (400 `Taking turns needs a chore that repeats`). The order is stored on the series template (`Chore.rotation_member_ids`), each occurrence's place in `rotation_index`; generation (`expandSeriesInTx`) only reads members of the template's household and skips anyone who left. Removing a member (O-34) or deleting an account drops them from every rotation of that household in the same transaction. `src/lib/chore-rotation.ts`; tests `src/app/api/chores/__tests__/rotation.test.ts` (two households), `src/lib/__tests__/chore-rotation*.test.ts`. |
 | Rewards | all | parent | parent | — | no | Claim: all. Approve: parent. Every handler 403s unless Rewards AND Points & streaks are on (#248). |
 | Wishlist | all | all | requester or parent | requester or parent | no | Status changes: parent. |
 | Meals | all | all | all | all | see "Meals and recipes" above | `cook_id` and `recipe_id` verified in household. Device never reads `notes`. |
 | Projects and tasks | all | all | parent | parent | no | Adding a task to an existing, active project (`POST /api/projects/[id]/tasks`, "Add task" on the project page, #289) is open to every member; the project and any assignee must be in the caller's household (404, foreign and missing alike). |
 | Messages | all | all | all (mark read) | — | no | |
 | Activity, analytics | all | — | — | — | no | `/api/analytics` (the leaderboard) 403s unless Analytics AND Points & streaks are on (#248). |
-| Notifications | own | parent (to a household member) | own | own | no | Every row goes through `src/lib/notification-delivery.ts`, which honours the recipient's preferences (below). |
-| Notification preferences (`/api/users/preferences`, #286) | own | — | own | — | no (403 `DEVICE_WRITE_NOT_ALLOWED` on GET and PATCH, before person auth) | Three switches: "Chores and rewards", "Calendar events", "Family messages" (default on). Strict body: nobody can read or change another member's, a parent included. Parents and teens (O-37) change theirs in Settings → Notifications (with quiet hours); children, who cannot open Settings, from the user menu → Notifications. Password reset, email verification, invites and a parent's `system` notices are always sent. |
+| Notifications | own | parent (to a household member) | own | own | no | Every row goes through `src/lib/notification-delivery.ts`, which honours the recipient's preferences (below). A parent cannot send the `summary` type (400): only the morning summary sender creates it (O-40). |
+| Notification preferences (`/api/users/preferences`, #286) | own | — | own | — | no (403 `DEVICE_WRITE_NOT_ALLOWED` on GET and PATCH, before person auth) | Three switches: "Chores and rewards", "Calendar events", "Family messages" (default on). Strict body: nobody can read or change another member's, a parent included. Parents and teens (O-37) change theirs in Settings → Notifications (with quiet hours); children, who cannot open Settings, from the user menu → Notifications. Password reset, email verification, invites and a parent's `system` notices are always sent. A fourth switch, "Morning summary" (O-40), is opt-in (default **off**) and saves the browser's time zone with it; the body cannot set the last-sent day. |
 | Locations | parent | parent | — | parent | no | Precise addresses. |
 | Travel mode | parent | — | parent | — | no | |
 | Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | Feature toggles, including Points & streaks (`gamification`, #248): PATCH is parent-only, teen/child 403. |
@@ -184,6 +185,27 @@ may open `/dashboard/meals/recipes/[id]` (parents and teens, O-37). "Scan fridge
 
 Teen and child: identical in this table unless a column names them, which is the D8 audit result for these
 domains.
+
+### Morning summary (O-40)
+
+One short daily message per opted-in member (default off), as an in-app notification and, to a verified address,
+an email (Mailgun). Sent only by `POST /api/cron/morning-summary`, which authenticates nobody by cookie: it needs the
+`x-cron-secret` header (500 when `CRON_SECRET` is unset, 401 otherwise) and runs only when the owner schedules it. Each
+household's rows are read once, with an explicit `select`, scoped by that household's `family_id`; one household's
+summary never includes another's rows (tested with two households in
+`src/app/api/cron/morning-summary/__tests__/route.test.ts`).
+
+| Part of the summary | Parent | Teen | Child | Fields read |
+| --- | --- | --- | --- | --- |
+| Own open chores due on their local today (count, up to 3 titles) | yes | yes | yes | chore title, due day, status, assignee id; never another member's chore titles |
+| Household events on their local today (up to 3, then "and N more") | yes | yes | yes | event title, start, end; never location or description |
+| Tonight's dinner | yes | yes | yes | meal recipe name or linked recipe title; never notes or instructions |
+| "N chores to check" (household count of chores waiting for a check) | yes | no | no | a count only, as in the home summary |
+
+Each part needs its household feature (`chores`, `calendar`, `meals`). Every role already reads these fields
+(Chores, Events and Meals rows above); the summary adds no new read. The email's off-switch line points parents and
+teens to Settings → Notifications and children to the menu under their name (they cannot open Settings). A paired
+shared device never gets a summary (it is not a member) and cannot change the switch.
 
 ### Household search (route inventory F-3)
 

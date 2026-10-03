@@ -109,9 +109,11 @@ describe('calendar sync settings (#264)', () => {
     expect(calendarWarnings({ ...FULL, CALENDAR_TOKEN_KEY: undefined }).join(' ')).toMatch(/CALENDAR_TOKEN_KEY is not set/)
     expect(calendarWarnings({ ...FULL, APP_URL: 'http://family.ashbi.ca' }).join(' ')).toMatch(/APP_URL/)
     expect(calendarWarnings({ ...FULL, GOOGLE_CLIENT_SECRET: '' }).join(' ')).toMatch(/GOOGLE_CLIENT_SECRET is not set/)
-    expect(calendarWarnings({ ...FULL, MICROSOFT_CLIENT_ID: 'm', MICROSOFT_CLIENT_SECRET: 's' }).join(' ')).toMatch(
-      /MICROSOFT_TENANT is not set/
-    )
+    // No tenant means "common" (personal and work accounts): not a problem.
+    expect(calendarWarnings({ ...FULL, MICROSOFT_CLIENT_ID: 'm', MICROSOFT_CLIENT_SECRET: 's' })).toEqual([])
+    expect(
+      calendarWarnings({ ...FULL, MICROSOFT_CLIENT_ID: 'm', MICROSOFT_CLIENT_SECRET: 's', MICROSOFT_TENANT: 'not a tenant!' }).join(' ')
+    ).toMatch(/MICROSOFT_TENANT is not a valid tenant/)
     expect(calendarWarnings({ ...FULL, CALENDAR_TOKEN_KEY_PREVIOUS: 'nope' }).join(' ')).toMatch(
       /CALENDAR_TOKEN_KEY_PREVIOUS/
     )

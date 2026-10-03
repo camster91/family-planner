@@ -49,6 +49,15 @@ model User {
   quiet_hours_end               String             @default("07:00")
   /// IANA zone the times are in (the browser's when saved). NULL = UTC.
   quiet_hours_time_zone         String?
+  /// Morning summary (O-40): one short message a day, opt-in (default off).
+  /// Sent only when an operator calls POST /api/cron/morning-summary on a
+  /// schedule they set up (src/lib/morning-summary.ts). The time zone is the
+  /// browser's IANA zone saved with the switch (NULL = the caller's `tz`, else
+  /// UTC). `morning_summary_sent_on` is the local `YYYY-MM-DD` of the last
+  /// send: the once-a-day dedupe key.
+  morning_summary_enabled       Boolean            @default(false)
+  morning_summary_time_zone     String?
+  morning_summary_sent_on       String?
   created_at                    DateTime           @default(now())
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
@@ -433,6 +442,16 @@ model Chore {
   icon           String?
   routine        String?
   routine_order  Int?
+
+  // Take turns (O-39). On a series template: the members who take turns, in
+  // order (empty = no rotation, every copy goes to the template's assignee).
+  // On every row of a rotating series: which place in that list this
+  // occurrence's turn belongs to (0-based). The next generated copy takes the
+  // place after the latest one by due date, so a hand reassign of one copy
+  // never changes the order. Additive: the list defaults to empty and the
+  // place is nullable, so older app versions keep working.
+  rotation_member_ids String[] @default([])
+  rotation_index      Int?
 
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)

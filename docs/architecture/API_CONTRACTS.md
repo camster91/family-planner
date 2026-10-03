@@ -314,7 +314,9 @@ Every change here is additive: old request bodies stay valid and old response fi
 | `POST /api/chores/create` (repeating) | A `daily`/`weekly`/`monthly` chore is created, made the template of its own series (`recurrence_id` = its id, `is_template` true, both now in the response) and given its first window of copies in one transaction. Before, the link and the copies were written after the response's chore and a failure was only logged. | 500 when any part fails; nothing is written, so the client can retry |
 | `GET /api/chores?limit=&cursor=&order=` (O-19) | Opt-in paging. Without `limit` the response shape is unchanged (installed Android builds): chores of the household ordered by `due_date`, no `nextCursor`, but now **capped at the latest 500 by due date** (`CHORE_UNPAGED_MAX` in `src/lib/chore-paging.ts`; the oldest are left out, the list is still oldest first). A client that needs older chores pages with `limit`. With `limit` (1–200) at most that many chores ordered by `due_date` then `id`, plus `nextCursor`: an opaque string to pass back as `cursor`, or `null` on the last page. `status` and `assigned_to` filters still apply. New, optional `order`: `asc` (default, unchanged for existing callers) or `desc` (newest first; the next page is older). Send the same `order` with every page. The web chores page pages verified history with `order=desc`: its server-rendered first page is the newest history and "Load more" continues from that cursor. | 400 `INVALID_QUERY` for a bad `limit`, a bad `cursor`, a `cursor` without `limit`, an `order` other than `asc`/`desc`, or an `order` without `limit` |
 | `GET /api/chores?from=&to=` | New, optional. `YYYY-MM-DD` days, both inclusive, filter on the date-only `due_date`; either may be sent alone and both combine with paging, `status` and `assigned_to`. The travel page asks only for the trip's window. | 400 `INVALID_QUERY` for a bad date or `from` after `to` |
-| `GET /api/chores?id=` | New. One chore of the caller's household: `{ chore, template }`, where `template` is `{ id, frequency }` of the series' template when the chore is a generated copy (stored as `once`), else `null`. Points are left out when Points & streaks is off, like the list. The edit page uses it instead of downloading the list. Other query parameters are ignored. | 404 (a missing id and another household's chore alike) |
+| `GET /api/chores?id=` | New. One chore of the caller's household: `{ chore, template, rotation }` (`rotation`: O-39, below), where `template` is `{ id, frequency }` of the series' template when the chore is a generated copy (stored as `once`), else `null`. Points are left out when Points & streaks is off, like the list. The edit page uses it instead of downloading the list. Other query parameters are ignored. | 404 (a missing id and another household's chore alike) |
+| `POST /api/chores/create`, `PATCH /api/chores` `rotation` (take turns, O-39) | New, optional. `rotation`: 2–8 distinct member ids of the caller's household, in the order they take turns; repeating chores only. Create: the first person takes the first occurrence (`assigned_to` may be left out and is ignored when `rotation` is sent). PATCH (parent only; on the template or any copy, it applies to the whole series, and after a `frequency` change in the same request): a new order re-plans the series' rows due after today that are still `pending`, starting from the first person; `null` stops taking turns and leaves every row's person as it is; an unchanged list is a no-op. Older clients that never send it are unaffected. | 400 bad list, another household's member or unknown id, or a chore that does not repeat; 403 non-parent |
+| `GET /api/chores?id=`, chore rows (O-39) | `GET ?id=` adds `rotation`: the series' order (`string[]`) or `null`, and `template` adds `rotation_member_ids`. Chore rows (list, create/PATCH responses) add `rotation_member_ids` (`string[]`, empty unless the row is a rotating template) and `rotation_index` (place in the order, nullable). A one-person list (left after a member was removed) means every new copy goes to that person; clients show it as not taking turns. | unchanged |
 | `GET /api/device/today`, the Today board DTO (#272) | Each `chores[]` item adds `icon`: a catalogue key or `null` (a stored key the build does not know is sent as `null`). Not the routine name or step. | unchanged |
 
 ## Account and household deletion (D-3)
@@ -373,6 +375,7 @@ explicitly:
 | `event` | `events` |
 | `message` | `messages` |
 | `system` (a parent's notice through `POST /api/notifications`) | **always sent** |
+| `summary` (the morning summary, O-40; in-app and opt-in email) | **opt-in**: its own switch, default off (see "Morning summary") |
 | Account email: `password_reset`, `email_verification`, `family_invite` | **always sent** |
 
 Always-sent types ignore every switch. They are account and safety messages: muting them could lock a person out of
@@ -410,6 +413,36 @@ always-sent account mail), so quiet hours are a stored preference that the first
 
 "Local" time: the Settings form saves the browser's own time zone with the times (O-31: dates use the browser's
 local time; there is no per-household zone yet). Moving to another zone needs a save from a browser there.
+
+### Morning summary (decision O-40)
+
+One short daily message per member who opts in: in-app (`Notification.type = 'summary'`) and, to a verified address,
+email. Stored on `User` as `morning_summary_enabled` (Boolean, `NOT NULL DEFAULT false`: opt-in),
+`morning_summary_time_zone` (Text, nullable: the browser's IANA zone saved with the switch) and
+`morning_summary_sent_on` (Text, nullable: the local `YYYY-MM-DD` of the last send, the once-a-day dedupe key), added
+by `scripts/migrate.js` with `ADD COLUMN IF NOT EXISTS`. Additive and off by default: existing rows and old clients
+get nothing new.
+
+Policy: `summary` maps to the opt-in kind `morning_summary` (not a muteable category, not ALWAYS). `deliverNotification`
+stores it only when the recipient's own switch is on; `sendOptInMail` emails it only when the switch is on, the address
+is verified, the recipient is outside quiet hours and mail is configured.
+
+| Route | Change | Old clients |
+| --- | --- | --- |
+| `GET /api/users/preferences` | Adds `morningSummary: { enabled, timeZone }`. | Extra key, ignored |
+| `PATCH /api/users/preferences` | Body may add `morningSummary: { enabled, timeZone? }` (strict). `timeZone`: an IANA zone the server knows (max 64), or null; missing keeps the saved zone. The last-sent day cannot be set. The response adds `morningSummary`. | Unchanged bodies still valid |
+| `POST /api/notifications` | `type: 'summary'` is `400` (only the summary sender creates it). | No browser code sends it |
+| `GET /api/users/export` | Adds `morningSummary` (same shape as the GET) and the two preference columns on `user`. | unchanged |
+| `POST /api/cron/morning-summary[?tz=<IANA zone>]` | New. Machine-only: `x-cron-secret` must equal `CRON_SECRET` (constant-time); unset `500 { error: 'Cron not configured' }`, missing/wrong `401`; unknown `tz` `400`. CSRF-exempt like the recurring-chores cron (no cookie auth). Answers counts only: `{ success, households: { processed, failed }, sent: { inApp, email }, skipped: { alreadySent, quietHours, nothingToday, noEmail }, failedRecipients, truncated }`. | n/a |
+
+Run rules (`src/lib/morning-summary-server.ts`): opted-in members only, read in pages by id (at most 5000 per run);
+each household's rows read once; a household that fails is logged (content-free) and the others carry on. A person's
+day is their saved zone, else `tz`, else UTC. Before sending, the day is claimed with a conditional update
+(`morning_summary_enabled = true AND (sent_on IS NULL OR sent_on <> day)`), so a retried, overlapping or doubled run
+sends nothing more; a send that fails after the claim is not retried that day. Inside quiet hours nothing is sent and
+the day is not claimed (a later run that day sends it). No summary when there is nothing to say (not claimed either).
+At most 1000 summaries per run; then `truncated: true` and the next run continues. Content rules: `src/lib/morning-summary.ts`
+and `ROLE_AND_ISOLATION_MATRIX.md` "Morning summary".
 
 ## Household audit history (#285, PR101 D-4)
 Additive: one new route and one new export key; no existing request or response changes. Roles:

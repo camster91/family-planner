@@ -14,6 +14,7 @@ import { deviceReq, enableSharedDevice, disableSharedDevice, seedDevices } from 
 const PATH = '/api/users/preferences'
 const ALL_ON = { chores: true, events: true, messages: true }
 const QUIET_OFF = { enabled: false, start: '22:00', end: '07:00', timeZone: null }
+const SUMMARY_OFF = { enabled: false, timeZone: null }
 
 function get(as: UserKey | null) {
   return GET(req({ as, path: PATH }))
@@ -49,7 +50,7 @@ describe('/api/users/preferences', () => {
       expect(res.status).toBe(200)
       expect(res.headers.get('Cache-Control')).toBe('private, no-store')
       // Only the three booleans: no id, name, email or household.
-      expect(await res.json()).toEqual({ quietHours: QUIET_OFF, preferences: ALL_ON })
+      expect(await res.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: ALL_ON })
       expect(db.writes).toHaveLength(0)
     }
   )
@@ -57,16 +58,16 @@ describe('/api/users/preferences', () => {
   it("reads the caller's own row, never another member's", async () => {
     db.find('user', USER_IDS.childA)!.notify_chores = false
     db.find('user', USER_IDS.parentB)!.notify_events = false
-    expect(await (await get('parentA')).json()).toEqual({ quietHours: QUIET_OFF, preferences: ALL_ON })
-    expect(await (await get('childA')).json()).toEqual({ quietHours: QUIET_OFF, preferences: { ...ALL_ON, chores: false } })
-    expect(await (await get('parentB')).json()).toEqual({ quietHours: QUIET_OFF, preferences: { ...ALL_ON, events: false } })
+    expect(await (await get('parentA')).json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: ALL_ON })
+    expect(await (await get('childA')).json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { ...ALL_ON, chores: false } })
+    expect(await (await get('parentB')).json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { ...ALL_ON, events: false } })
   })
 
   it.each(['parentA', 'teenA', 'childA'] as UserKey[])('%s changes only their own switches', async (who) => {
     const res = await patch(who, { chores: false, messages: false })
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: false, events: true, messages: false } })
+    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { chores: false, events: true, messages: false } })
     expect(columns(who)).toEqual({ chores: false, events: true, messages: false })
 
     // Everyone else, in both households, is untouched.
@@ -79,7 +80,7 @@ describe('/api/users/preferences', () => {
 
     // Turning one back on leaves the others as they were.
     const again = await patch(who, { chores: true })
-    expect(await again.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: true, events: true, messages: false } })
+    expect(await again.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { chores: true, events: true, messages: false } })
   })
 
   it('cannot name another member, in this household or another (strict body)', async () => {
@@ -139,7 +140,7 @@ describe('/api/users/preferences', () => {
     const replay = await patch('childA', { messages: false }, key)
     expect(replay.status).toBe(200)
     expect(replay.headers.get('Idempotency-Replayed')).toBe('true')
-    expect(await replay.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: true, events: true, messages: false } })
+    expect(await replay.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { chores: true, events: true, messages: false } })
     expect(writesTo('user')).toHaveLength(userWrites)
 
     const reused = await patch('childA', { messages: true }, key)
@@ -201,7 +202,7 @@ describe('/api/users/preferences', () => {
         const res = await patch(who, { quietHours: NIGHT })
         expect(res.status).toBe(200)
         expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-        expect(await res.json()).toEqual({ preferences: ALL_ON, quietHours: NIGHT })
+        expect(await res.json()).toEqual({ preferences: ALL_ON, quietHours: NIGHT, morningSummary: SUMMARY_OFF })
         expect(quietColumns(who)).toEqual(NIGHT)
         for (const other of ['parentA', 'teenA', 'childA', 'parentB', 'childB', 'loner'] as UserKey[]) {
           if (other !== who) expect(quietColumns(other)).toEqual(QUIET_OFF)
@@ -210,7 +211,7 @@ describe('/api/users/preferences', () => {
         expect(updates).toHaveLength(1)
         expect(updates[0].args.where).toEqual({ id: USER_IDS[who] })
         // A fresh read sees it.
-        expect(await (await get(who)).json()).toEqual({ preferences: ALL_ON, quietHours: NIGHT })
+        expect(await (await get(who)).json()).toEqual({ preferences: ALL_ON, quietHours: NIGHT, morningSummary: SUMMARY_OFF })
       }
     )
 
@@ -227,6 +228,7 @@ describe('/api/users/preferences', () => {
       expect(await res.json()).toEqual({
         preferences: { ...ALL_ON, events: false },
         quietHours: { ...NIGHT, enabled: false },
+        morningSummary: SUMMARY_OFF,
       })
     })
 
@@ -266,6 +268,80 @@ describe('/api/users/preferences', () => {
         )
         expect(res.status).toBe(403)
         expect(quietColumns('parentA')).toEqual(QUIET_OFF)
+      } finally {
+        disableSharedDevice()
+      }
+    })
+  })
+
+  describe('morning summary (O-40)', () => {
+    const ON = { enabled: true, timeZone: 'America/Vancouver' }
+
+    function summaryColumns(who: UserKey) {
+      const u = db.find('user', USER_IDS[who])!
+      return {
+        enabled: u.morning_summary_enabled,
+        timeZone: u.morning_summary_time_zone,
+        sentOn: u.morning_summary_sent_on,
+      }
+    }
+
+    it('is off for everyone by default (opt-in)', async () => {
+      for (const who of ['parentA', 'teenA', 'childA', 'parentB', 'loner'] as UserKey[]) {
+        expect((await (await get(who)).json()).morningSummary).toEqual(SUMMARY_OFF)
+      }
+    })
+
+    it.each(['parentA', 'teenA', 'childA'] as UserKey[])(
+      '%s turns their own summary on with their zone; nobody else changes',
+      async (who) => {
+        const res = await patch(who, { morningSummary: ON })
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ preferences: ALL_ON, quietHours: QUIET_OFF, morningSummary: ON })
+        expect(summaryColumns(who)).toEqual({ enabled: true, timeZone: 'America/Vancouver', sentOn: null })
+        for (const other of ['parentA', 'teenA', 'childA', 'parentB', 'childB', 'loner'] as UserKey[]) {
+          if (other !== who) expect(summaryColumns(other)).toEqual({ enabled: false, timeZone: null, sentOn: null })
+        }
+        expect(writesTo('user')).toHaveLength(1)
+        expect(writesTo('user')[0].args.where).toEqual({ id: USER_IDS[who] })
+      }
+    )
+
+    it('turning it off keeps the saved zone and never resets the last-sent day', async () => {
+      await patch('teenA', { morningSummary: ON })
+      db.find('user', USER_IDS.teenA)!.morning_summary_sent_on = '2026-10-03'
+      const res = await patch('teenA', { morningSummary: { enabled: false } })
+      expect((await res.json()).morningSummary).toEqual({ enabled: false, timeZone: 'America/Vancouver' })
+      expect(summaryColumns('teenA')).toEqual({ enabled: false, timeZone: 'America/Vancouver', sentOn: '2026-10-03' })
+      // On again the same day: the sent day is still there, so no second summary.
+      await patch('teenA', { morningSummary: ON })
+      expect(summaryColumns('teenA').sentOn).toBe('2026-10-03')
+    })
+
+    it.each([
+      ['an unknown time zone', { enabled: true, timeZone: 'Mars/Olympus' }],
+      ['a non-boolean enabled', { enabled: 'yes' }],
+      ['a missing enabled flag', { timeZone: 'America/Toronto' }],
+      ['an unknown key inside', { enabled: true, userId: USER_IDS.childA }],
+      ['a sent-day write attempt', { enabled: true, sentOn: '2026-10-03' }],
+      ['a bare boolean', true],
+    ])('400 VALIDATION_ERROR for %s, writing nothing', async (_label, morningSummary) => {
+      const res = await patch('childA', { morningSummary })
+      expect(res.status).toBe(400)
+      expect((await res.json()).error.code).toBe('VALIDATION_ERROR')
+      expect(db.writes).toHaveLength(0)
+      expect(summaryColumns('childA')).toEqual({ enabled: false, timeZone: null, sentOn: null })
+    })
+
+    it('a paired shared device cannot turn it on', async () => {
+      enableSharedDevice()
+      try {
+        const fx = seedDevices()
+        const res = await PATCH(
+          deviceReq({ as: 'parentA', path: PATH, method: 'PATCH', body: { morningSummary: ON }, cookies: fx.d1.cookies })
+        )
+        expect(res.status).toBe(403)
+        expect(summaryColumns('parentA').enabled).toBe(false)
       } finally {
         disableSharedDevice()
       }

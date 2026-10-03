@@ -36,6 +36,7 @@ describeWithDatabase('notification preferences against Postgres', () => {
   const OTHER = 'prefint-other'
   const ALL_ON = { chores: true, events: true, messages: true }
   const QUIET_OFF = { enabled: false, start: '22:00', end: '07:00', timeZone: null }
+  const SUMMARY_OFF = { enabled: false, timeZone: null }
 
   function request(as: string, method: 'GET' | 'PATCH', body?: unknown, headers: Record<string, string> = {}): any {
     const url = new URL('http://localhost/api/users/preferences')
@@ -103,20 +104,20 @@ describeWithDatabase('notification preferences against Postgres', () => {
     const res = await route.GET(request(TEEN, 'GET'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, preferences: ALL_ON })
+    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: ALL_ON })
   })
 
   it("PATCH persists the caller's own switches and nobody else's", async () => {
     const res = await route.PATCH(request(TEEN, 'PATCH', { chores: false, messages: false }))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: false, events: true, messages: false } })
+    expect(await res.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { chores: false, events: true, messages: false } })
     expect(await columns(TEEN)).toEqual({ chores: false, events: true, messages: false })
     expect(await columns(PARENT)).toEqual(ALL_ON)
     expect(await columns(OTHER)).toEqual(ALL_ON)
 
     // A fresh read (new request) sees the stored values.
     const read = await route.GET(request(TEEN, 'GET'))
-    expect(await read.json()).toEqual({ quietHours: QUIET_OFF, preferences: { chores: false, events: true, messages: false } })
+    expect(await read.json()).toEqual({ quietHours: QUIET_OFF, morningSummary: SUMMARY_OFF, preferences: { chores: false, events: true, messages: false } })
   })
 
   it('an unknown key is refused before anything is written', async () => {
@@ -170,7 +171,7 @@ describeWithDatabase('notification preferences against Postgres', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).quietHours).toEqual(night)
     const read = await route.GET(request(OTHER, 'GET'))
-    expect(await read.json()).toEqual({ preferences: ALL_ON, quietHours: night })
+    expect(await read.json()).toEqual({ preferences: ALL_ON, quietHours: night, morningSummary: SUMMARY_OFF })
 
     // 23:30 in Toronto (summer).
     const result = await delivery.deliverNotification(

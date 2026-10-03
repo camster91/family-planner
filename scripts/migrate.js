@@ -102,6 +102,11 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_enabled" BOOLEAN NOT NU
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_start" TEXT NOT NULL DEFAULT '22:00';
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_end" TEXT NOT NULL DEFAULT '07:00';
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_time_zone" TEXT;
+-- Morning summary (O-40). Additive, default off (opt-in): existing rows get nothing.
+-- sent_on is the local YYYY-MM-DD of the last send (once-a-day dedupe key).
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "morning_summary_enabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "morning_summary_time_zone" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "morning_summary_sent_on" TEXT;
 
 -- ============ Chore ============
 CREATE TABLE IF NOT EXISTS "Chore" (
@@ -126,7 +131,9 @@ CREATE TABLE IF NOT EXISTS "Chore" (
   "is_template" BOOLEAN NOT NULL DEFAULT false,
   "icon" TEXT,
   "routine" TEXT,
-  "routine_order" INTEGER
+  "routine_order" INTEGER,
+  "rotation_member_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  "rotation_index" INTEGER
 );
 
 -- Backfill the #184 recurrence columns for deployments whose Chore table predates them
@@ -138,6 +145,10 @@ ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "successor_id" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "icon" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_order" INTEGER;
+-- Take turns (O-39): additive. Empty list = no rotation (today's behaviour);
+-- a constant default is a metadata-only change, so this is cheap on a big table.
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "rotation_member_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "rotation_index" INTEGER;
 
 -- ============ Event ============
 CREATE TABLE IF NOT EXISTS "Event" (

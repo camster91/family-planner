@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { describeError, log } from '@/lib/logger'
 import type { ChoreFrequency } from '@/types'
+import { planRotationTurns } from '@/lib/chore-rotation'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
   daily: { occurrences: 7, unit: 'day', amount: 1 },
@@ -101,6 +102,7 @@ export async function expandSeriesInTx(
       icon: true,
       routine: true,
       routine_order: true,
+      rotation_member_ids: true,
     },
   })
 
@@ -137,7 +139,7 @@ export async function expandSeriesInTx(
   const latest = await tx.chore.findFirst({
     where: { recurrence_id: seriesId },
     orderBy: { due_date: 'desc' },
-    select: { due_date: true },
+    select: { due_date: true, rotation_index: true },
   })
   const anchorDate = latest?.due_date ?? original.due_date
 
@@ -153,7 +155,22 @@ export async function expandSeriesInTx(
 
   if (candidates.length === 0) return 0
 
-  const occurrences = candidates.map((due_date) => ({
+  // Take turns (O-39, src/lib/chore-rotation.ts): each new copy takes the
+  // place after the latest occurrence, in due-date order. Members no longer
+  // in the household are skipped; if nobody in the list is, the copy goes to
+  // the template's assignee like any series.
+  const rotation = original.rotation_member_ids ?? []
+  let turns: Array<{ index: number; assignee: string | null }> = []
+  if (rotation.length > 0) {
+    const members = await tx.user.findMany({
+      where: { id: { in: rotation }, family_id: familyId },
+      select: { id: true },
+    })
+    const active = new Set(members.map((m) => m.id))
+    turns = planRotationTurns(rotation, latest?.rotation_index ?? null, candidates.length, (id) => active.has(id))
+  }
+
+  const occurrences = candidates.map((due_date, i) => ({
     family_id: familyId,
     title: original.title,
     description: original.description,
@@ -162,7 +179,8 @@ export async function expandSeriesInTx(
     // Instances are one-offs: only the template recurs, so the cron can
     // never mistake a generated row for a template.
     frequency: 'once',
-    assigned_to: original.assigned_to,
+    assigned_to: turns[i]?.assignee ?? original.assigned_to,
+    rotation_index: turns[i]?.index ?? null,
     created_by: original.created_by,
     // Picture routines (#272): every occurrence keeps the template's picture and step.
     icon: original.icon,

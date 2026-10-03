@@ -32,6 +32,8 @@ All account email goes through `sendAccountMail` (`src/lib/notification-delivery
 
 Tokens are single use. A used reset token also signs out every existing session of that account (`token_version` goes up).
 
+**Optional: morning summary (O-40).** Not account mail. Sent through `sendOptInMail` (`src/lib/notification-delivery.ts`) only to a member who turned on Settings → Notifications → Morning summary (default off), whose address is verified, who is outside their quiet hours, and only when `MAILGUN_API_KEY` is set (otherwise in-app only; nothing is logged). It is sent only when the owner's schedule calls `POST /api/cron/morning-summary` (`COOLIFY_DEPLOY.md` "Scheduled tasks"); at most once per person per local day. Subject `Your day: <weekday, month day>`; plain text plus simple HTML with every user value escaped; it ends with "Turn this off in Settings → Notifications" and a link to `<APP_URL>/dashboard/settings` (children, who have no Settings page: the menu under their name). No one-time links. To test: turn it on for the owner's own account, run the endpoint once by hand with the secret, and check the email and the in-app notification.
+
 ## Settings
 
 Server-only. Never prefix these with `NEXT_PUBLIC_`.
@@ -109,4 +111,4 @@ Use an owner-controlled test inbox and a throwaway account. Record only non-secr
 
 ## Privacy
 
-Mailgun receives each recipient's email address, the account name in the greeting, and the email body with its link. It is a data processor and should be listed in `docs/product/THIRD_PARTY_PROCESSORS.md`, which currently has only a generic "Notification provider" row (owner follow-up).
+Mailgun receives each recipient's email address, the account name in the greeting, and the email body with its link. For a member who turned on the morning summary it also receives that member's chore titles, the household's event titles and times for the day, and tonight's dinner name. It is a data processor and is listed in `docs/product/THIRD_PARTY_PROCESSORS.md`.

@@ -8,6 +8,8 @@ import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { RoutineFields, RoutineIconPicker, routineRequestFields } from '@/components/chores/RoutineIconPicker'
+import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
+import { ROTATION_MIN, isRotating } from '@/lib/chore-rotation'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Frequency = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -56,6 +58,12 @@ function EditChoreForm() {
   const [icon, setIcon] = useState<string | null>(null)
   const [routine, setRoutine] = useState('')
   const [routineOrder, setRoutineOrder] = useState('')
+  // Take turns (O-39), a series setting. Sent only when changed here, so a
+  // plain save never re-plans the turns.
+  const [takeTurns, setTakeTurns] = useState(false)
+  const [rotation, setRotation] = useState<string[]>([])
+  const [rotationDirty, setRotationDirty] = useState(false)
+  const rotating = frequency !== 'once' && takeTurns
 
   useEffect(() => {
     if (!choreId) {
@@ -87,6 +95,11 @@ function EditChoreForm() {
             setSeriesCopy(Boolean(template))
             setFrequency(shownFrequency)
             setLoadedFrequency(shownFrequency)
+            // A one-person list (left after someone was removed) reads as a
+            // plain chore here; it stays as it is unless changed.
+            const loadedRotation: string[] = Array.isArray(choresData.rotation) ? choresData.rotation : []
+            setTakeTurns(isRotating(loadedRotation))
+            setRotation(isRotating(loadedRotation) ? loadedRotation : [])
             setIcon(typeof chore.icon === 'string' ? chore.icon : null)
             setRoutine(chore.routine ?? '')
             setRoutineOrder(typeof chore.routine_order === 'number' ? String(chore.routine_order) : '')
@@ -147,6 +160,8 @@ function EditChoreForm() {
           photo_url: photoUrl,
           icon,
           ...routineRequestFields(routine, routineOrder),
+          // Take turns: for the whole series; null stops taking turns.
+          ...(rotationDirty && frequency !== 'once' ? { rotation: takeTurns ? rotation : null } : {}),
         }),
       })
 
@@ -253,7 +268,7 @@ function EditChoreForm() {
             </div>
           )}
           <div>
-            <label className="label-apple" htmlFor="assignedTo">Assign To</label>
+            <label className="label-apple" htmlFor="assignedTo">{rotating ? 'This time' : 'Assign To'}</label>
             <select
               id="assignedTo"
               required
@@ -343,6 +358,23 @@ function EditChoreForm() {
           </div>
         </div>
 
+        {/* Take turns (O-39): repeating chores only, for the whole series */}
+        {frequency !== 'once' && (
+          <TakeTurnsPicker
+            members={familyMembers}
+            on={takeTurns}
+            onToggle={(next) => {
+              setTakeTurns(next)
+              setRotationDirty(true)
+            }}
+            order={rotation}
+            onOrderChange={(next) => {
+              setRotation(next)
+              setRotationDirty(true)
+            }}
+          />
+        )}
+
         {/* Picture routines (#272): picture, routine and step */}
         <RoutineIconPicker value={icon} onChange={setIcon} />
         <RoutineFields
@@ -431,7 +463,9 @@ function EditChoreForm() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={loading || !title || !assignedTo || !dueDate}
+            disabled={
+              loading || !title || !assignedTo || !dueDate || (rotating && rotation.length < ROTATION_MIN)
+            }
             className="btn-filled w-full"
           >
             {loading ? 'Saving...' : 'Save Changes'}

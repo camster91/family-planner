@@ -76,6 +76,10 @@ function user(id: string, name: string, role: string, family_id: string | null):
     quiet_hours_start: '22:00',
     quiet_hours_end: '07:00',
     quiet_hours_time_zone: null,
+    // Morning summary (O-40): schema defaults (opt-in, off).
+    morning_summary_enabled: false,
+    morning_summary_time_zone: null,
+    morning_summary_sent_on: null,
   }
 }
 
@@ -714,6 +718,11 @@ function delegate(model: string) {
   const log = (op: string, args: any) => db.writes.push({ model, op, args })
   return {
     findUnique: async (args: any) => project(model, all().find((r) => matches(model, r, args.where)), args),
+    findUniqueOrThrow: async (args: any) => {
+      const row = all().find((r) => matches(model, r, args.where))
+      if (!row) throw notFound(model)
+      return project(model, row, args)
+    },
     findFirst: async (args: any = {}) =>
       project(model, sortRows(all().filter((r) => matches(model, r, args.where)), args.orderBy)[0], args),
     findMany: async (args: any = {}) => {

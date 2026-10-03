@@ -208,6 +208,7 @@ test.describe("notification preferences (Family A child, user menu)", () => {
         end: "07:00",
         timeZone: null,
       },
+      morningSummary: { enabled: false, timeZone: null },
     });
     const other = await browserSend(page, "PATCH", "/api/users/preferences", {
       userId: A.parent,
