@@ -3,8 +3,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 /** Run real shell guard/backup tests with native Git Bash on Windows, never WSL. */
-export function runBash(script: string, args: string[], env: Record<string, string>) {
-  const testEnv: NodeJS.ProcessEnv = { ...env, NODE_ENV: 'test' }
+export function runBash(script: string, args: string[], env: Record<string, string> & Pick<NodeJS.ProcessEnv, 'NODE_ENV'>) {
+  // Preserve explicit production markers: negative guard tests must refuse them.
+  const testEnv: NodeJS.ProcessEnv = { ...env }
   if (process.platform !== 'win32') {
     return spawnSync('bash', [script, ...args], { env: testEnv, encoding: 'utf8', timeout: 20_000 })
   }
