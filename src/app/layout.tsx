@@ -1,10 +1,35 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
+import { Fraunces, Inter } from 'next/font/google'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import './globals.css'
+
+// Warm Paper type (docs/product/BRAND.md): Fraunces for headings, Inter for
+// everything else. next/font downloads both at build time and serves them
+// from this origin, so there is no runtime request to Google (CSP font-src
+// 'self' is enough). The CSS variables feed the type classes in globals.css.
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-fraunces',
+  axes: ['opsz', 'SOFT'],
+})
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#FBF7F0' },
+    { media: '(prefers-color-scheme: dark)', color: '#121A2B' },
+  ],
+}
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://family.ashbi.ca'),
@@ -37,10 +62,11 @@ export const metadata: Metadata = {
     description: 'Free family organizer with chore tracking, budget, shopping lists, shared calendar, and projects. No ads, no data selling.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Family Planner — Chores, budget, calendar, and projects in one app',
+        type: 'image/jpeg',
+        alt: 'Family Planner: chores, calendar, meals and lists, together. A paper-cut house beside a checklist.',
       },
     ],
   },
@@ -48,20 +74,27 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Family Planner — All-in-One Family Organizer',
     description: 'Free family organizer with chores, budget, shopping lists, shared calendar, and projects.',
-    images: ['/og-image.png'],
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Family Planner: chores, calendar, meals and lists, together. A paper-cut house beside a checklist.',
+      },
+    ],
     creator: '@ashbidesign',
   },
   alternates: {
     canonical: 'https://family.ashbi.ca',
   },
   icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
-    apple: '/icon-192.png',
-    other: {
-      rel: 'apple-touch-icon',
-      url: '/icon-192.png',
-    },
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/brand/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/brand/favicon-48.png', sizes: '48x48', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
   },
   manifest: '/manifest.json',
   category: 'productivity',
@@ -74,7 +107,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
       <body className="font-sans">
         <CsrfFetchPatch />
         <ThemeProvider>

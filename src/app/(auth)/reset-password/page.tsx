@@ -56,16 +56,16 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <KeyRound className="w-8 h-8 text-green-600" />
+              <div className="w-16 h-16 bg-[var(--success-tint)] rounded-[var(--radius-xl)] flex items-center justify-center">
+                <KeyRound className="w-8 h-8 text-success-text" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">{t('auth.resetPasswordTitle')}</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-title-2 text-label-primary">{t('auth.resetPasswordTitle')}</h1>
+            <p className="mt-2 text-[var(--label-secondary)]">
               Your password has been reset successfully.
             </p>
           </div>
@@ -82,16 +82,16 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">Invalid Link</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-title-2 text-label-primary">Invalid Link</h1>
+            <p className="mt-2 text-[var(--label-secondary)]">
               This password reset link is invalid or has expired.
             </p>
           </div>
           <div className="text-center">
-            <Link href="/forgot-password" className="text-blue-600 hover:text-blue-500 font-medium">
+            <Link href="/forgot-password" className="text-[var(--accent-text)] hover:underline font-medium">
               {t('auth.sendResetLink')}
             </Link>
           </div>
@@ -101,16 +101,16 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] shadow-[var(--shadow-md)] flex items-center justify-center">
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('auth.setNewPassword')}</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-title-2 text-label-primary">{t('auth.setNewPassword')}</h1>
+          <p className="mt-2 text-[var(--label-secondary)]">
             {t('auth.setNewPassword')}
           </p>
         </div>
@@ -118,13 +118,13 @@ function ResetPasswordForm() {
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              <div className="bg-[var(--danger-tint)] text-[var(--danger-text)] px-4 py-3 rounded-[var(--radius-md)]">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-[var(--label-primary)] mb-2">
                 {t('auth.password')}
               </label>
               <div className="relative">
@@ -140,7 +140,7 @@ function ResetPasswordForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--label-tertiary)] hover:text-[var(--accent-text)] transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -152,7 +152,7 @@ function ResetPasswordForm() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--label-primary)] mb-2">
                 {t('auth.confirmPassword')}
               </label>
               <div className="relative">
@@ -168,7 +168,7 @@ function ResetPasswordForm() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--label-tertiary)] hover:text-[var(--accent-text)] transition-colors"
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                 >
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -192,7 +192,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50"><div className="text-gray-500">Loading...</div></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)]"><div className="text-gray-500">Loading...</div></div>}>
       <ResetPasswordForm />
     </Suspense>
   )

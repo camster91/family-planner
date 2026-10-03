@@ -314,7 +314,7 @@ function AllowanceRow({
             <button
               type="button"
               onClick={() => onMarkPaid(item.id)}
-              className="inline-flex h-11 w-11 items-center justify-center text-[var(--success)] active:opacity-60"
+              className="inline-flex h-11 w-11 items-center justify-center text-success-text active:opacity-60"
               aria-label="Mark paid"
             >
               <Check className="w-5 h-5" aria-hidden="true" />
@@ -330,7 +330,7 @@ function AllowanceRow({
           </div>
         )}
         {item.status === 'paid' && (
-          <span className="text-caption-1 font-semibold text-[var(--success)] uppercase tracking-wide">Paid</span>
+          <span className="text-caption-1 font-semibold text-success-text uppercase tracking-wide">Paid</span>
         )}
         {item.status === 'cancelled' && (
           <span className="text-caption-1 font-semibold text-label-tertiary uppercase tracking-wide">Cancelled</span>
