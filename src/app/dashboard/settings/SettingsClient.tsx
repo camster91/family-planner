@@ -406,7 +406,7 @@ export default function SettingsClient({
   return (
     <div className="mx-auto max-w-3xl space-y-10">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <h1 className="text-large-title text-label-primary">Settings</h1>
         <p className="mt-2 text-muted-foreground">
           {isParent ? 'Your account, your family and your data.' : 'Your account and your data.'}
         </p>

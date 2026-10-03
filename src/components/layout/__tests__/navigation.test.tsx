@@ -4,7 +4,7 @@
 // Shell (#269): one home, five tabs (phone tab bar and top bar), Emergency in
 // Family, everything else under Family → More. Kid tabs follow the allowlist.
 import * as React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { defaultFeatures, type FamilyFeatures } from '@/lib/features'
 import { KID_ALLOWED_PREFIXES, canRoleAccessPath } from '@/lib/kid-access'
 import { isTabActive, moreItemsFor, tabsFor, PRIMARY_TABS, navItems, homeHrefFor } from '@/lib/nav-items'
@@ -250,5 +250,31 @@ describe('Family page', () => {
     render(<FamilyPage />)
     await screen.findByRole('link', { name: /More/ })
     expect(screen.queryByRole('link', { name: /Emergency/ })).toBeNull()
+  })
+
+  it('does not say "0 members" while loading', async () => {
+    render(<FamilyPage />)
+    expect(screen.queryByText('0 members')).toBeNull()
+    expect(await screen.findByText('1 member')).toBeTruthy()
+  })
+
+  it('shows a retryable error, not "No family members yet", when loading fails', async () => {
+    let fail = true
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      if (fail) throw new TypeError('Failed to fetch')
+      const url = String(input)
+      const body =
+        url === '/api/auth/me'
+          ? { user: { id: 'u1', role: 'parent', family_id: 'f1', family: { name: 'Example' } } }
+          : { members: [{ id: 'u1', name: 'Sam Example', role: 'parent', email: 's@example.test' }] }
+      return { ok: true, status: 200, json: async () => body } as Response
+    }) as unknown as typeof fetch
+    render(<FamilyPage />)
+    expect((await screen.findByRole('alert')).textContent).toContain("Couldn't load your family")
+    expect(screen.queryByText('No family members yet')).toBeNull()
+    expect(screen.queryByText('0 members')).toBeNull()
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Sam Example')).toBeTruthy()
   })
 })

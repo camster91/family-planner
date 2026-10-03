@@ -24,6 +24,10 @@ import type { Chore } from '@/types'
 
 type FilterMode = 'today' | 'week' | 'all'
 
+// The open-chores heading names the range picked above, so a Week or All list
+// (chores due on many days) is not labelled "Today".
+const OPEN_HEADING: Record<FilterMode, string> = { today: 'Today', week: 'This week', all: 'To do' }
+
 interface ChoresContentProps {
   chores: (Chore & { assignee: { name: string } | null; creator: { name: string } | null; streak?: number })[]
   familyMembers: { id: string; name: string; role: string; age?: number }[]
@@ -355,10 +359,12 @@ export default function ChoresContent({
           key={opt}
           type="button"
           onClick={() => onChange(opt)}
+          aria-pressed={value === opt}
           className={cn(
-            'flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200',
+            // 44px tall; the picked one also gets a hairline ring so it reads in dark mode.
+            'flex-1 min-h-[44px] py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200',
             value === opt
-              ? 'bg-[var(--surface-elevated)] text-label-primary shadow-sm'
+              ? 'bg-[var(--surface-elevated)] text-label-primary font-semibold shadow-sm ring-1 ring-[var(--surface-separator)]'
               : 'text-label-secondary hover:text-label-primary'
           )}
         >
@@ -412,7 +418,7 @@ export default function ChoresContent({
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-body text-label-primary truncate">{chore.title}</p>
+                      <p className="text-body text-label-primary [overflow-wrap:anywhere]">{chore.title}</p>
                       <p className="text-footnote text-label-secondary">
                         {chore.assignee?.name ? `Done by ${chore.assignee.name}` : 'Done, waiting for your check'}
                       </p>
@@ -447,7 +453,7 @@ export default function ChoresContent({
           </section>
         ) : todayChores.length > 0 ? (
           <section>
-            <p className="section-header">Today</p>
+            <p className="section-header">{OPEN_HEADING[filter]}</p>
             <div className="list-inset stagger">
               {todayChores.map((chore, i) => (
                 // A visible "⋯" opens the actions (they used to be long-press
@@ -510,8 +516,8 @@ export default function ChoresContent({
                           <span className="flex items-center gap-1">
                             {chore.points > 0 && <span className="text-footnote text-label-tertiary">+{chore.points}</span>}
                             {(chore.streak ?? 0) >= 3 && (
-                              <span className="flex items-center text-orange-500" title={`${chore.streak} day streak`}>
-                                <Flame className="w-3 h-3 fill-orange-500" />
+                              <span className="flex items-center text-warning-text" title={`${chore.streak} day streak`}>
+                                <Flame className="w-3 h-3 fill-brand-mustard" />
                                 <span className="text-footnote">{chore.streak}</span>
                               </span>
                             )}

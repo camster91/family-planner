@@ -198,7 +198,7 @@ export default function SearchClient({ initialQuery = '' }: { initialQuery?: str
           enterKeyHint="search"
           placeholder="Search your household"
           aria-describedby={`${inputId}-status`}
-          className="w-full input-apple min-h-[44px] pl-9 pr-12"
+          className="no-native-clear w-full input-apple min-h-[44px] pl-9 pr-12"
         />
         {query && (
           <button

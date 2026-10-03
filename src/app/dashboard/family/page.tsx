@@ -32,6 +32,7 @@ export default function FamilyPage() {
   const [familyName, setFamilyName] = useState('')
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const { features } = useFeatures()
   const emergencyOn = isFeatureEnabled(features, 'emergency')
   // Chores and Emergency have their own rows; count what else More holds.
@@ -42,10 +43,15 @@ export default function FamilyPage() {
   }, [])
 
   const loadFamilyData = async () => {
+    setLoading(true)
+    setLoadError(false)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
-      if (!meRes.ok || !meData.user) return
+      if (!meRes.ok || !meData.user) {
+        setLoadError(true)
+        return
+      }
 
       const user = meData.user
       setUserRole(user.role || '')
@@ -58,9 +64,12 @@ export default function FamilyPage() {
       const membersData = await membersRes.json()
       if (membersRes.ok && membersData.members) {
         setFamilyMembers(membersData.members)
+      } else {
+        setLoadError(true)
       }
-    } catch (err) {
-      console.error('Error loading family data:', err)
+    } catch {
+      // A failed load is shown on the page (below), not as "no members".
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -98,7 +107,11 @@ export default function FamilyPage() {
     <div className="pb-20">
       <LargeHeader
         title={familyName || 'Your Family'}
-        subtitle={`${familyMembers.length} member${familyMembers.length !== 1 ? 's' : ''}`}
+        subtitle={
+          loading || loadError
+            ? undefined
+            : `${familyMembers.length} member${familyMembers.length !== 1 ? 's' : ''}`
+        }
         className="px-4"
       />
 
@@ -125,6 +138,14 @@ export default function FamilyPage() {
           <div className="text-center py-12">
             <div className="text-subhead text-label-secondary">Loading…</div>
           </div>
+        ) : loadError ? (
+          <div role="alert" className="card-apple p-5 flex flex-col items-start gap-3">
+            <p className="text-headline text-label-primary">Couldn&apos;t load your family</p>
+            <p className="text-subhead text-label-secondary">Check your connection and try again.</p>
+            <button type="button" onClick={() => void loadFamilyData()} className="btn-tinted min-h-[44px]">
+              Try again
+            </button>
+          </div>
         ) : familyMembers.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -148,11 +169,11 @@ export default function FamilyPage() {
                 <Avatar name={member.name} src={member.avatar_url} size="md" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-body text-label-primary font-medium truncate">
+                    <span className="text-body text-label-primary font-medium min-w-0 [overflow-wrap:anywhere]">
                       {member.name}
                     </span>
                     {member.role && (
-                      <span className="px-2 py-0.5 rounded-full text-caption-1 font-medium bg-[var(--surface-secondary)] text-label-secondary">
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-caption-1 font-medium bg-[var(--surface-secondary)] text-label-secondary">
                         {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                       </span>
                     )}

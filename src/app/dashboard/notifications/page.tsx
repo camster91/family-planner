@@ -197,6 +197,8 @@ export default function NotificationsPage() {
   return (
     <div className="pb-20">
       {/* Header */}
+      {/* No decorative bell beside the title: where other pages put their "+"
+          button it looked tappable and did nothing. */}
       <div className="px-4 pt-2 pb-3">
         <div className="flex items-end justify-between">
           <div>
@@ -205,9 +207,6 @@ export default function NotificationsPage() {
               {loadError ? ' ' : unreadCount > 0 ? `${unreadCount} unread` : loading ? ' ' : 'All caught up'}
             </p>
           </div>
-          <Glyph color="family" size="md">
-            <Bell className="w-4 h-4" />
-          </Glyph>
         </div>
       </div>
 

@@ -547,6 +547,14 @@
 }
 
 @layer utilities {
+  /* Search boxes that draw their own clear (×) button: hide the browser's
+     blue one, so there is a single on-brand clear button. */
+  .no-native-clear::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
+
   /* Light "paper" tokens for a subtree that always sits on cream artwork
      (the landing hero text over the kitchen scene), in either theme.
      Ratios on the darkest wall tone (#E6CBA2): ink 9.12:1, secondary
