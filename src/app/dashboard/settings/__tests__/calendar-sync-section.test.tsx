@@ -94,4 +94,57 @@ describe('CalendarSyncSection', () => {
     expect(screen.queryByRole('radio')).toBeNull()
     expect(screen.getByRole('button', { name: 'Sync Google Calendar now' })).toBeTruthy()
   })
+
+  it('with no connection: one plain line and the two connect buttons', async () => {
+    mockApi(200, [])
+    render(<CalendarSyncSection />)
+    expect(await screen.findByText('Connect your own Google or Outlook calendar and events show up in both places.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Connect Google Calendar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Connect Outlook' })).toBeTruthy()
+  })
+
+  it('straight back from the provider, the calendar choice opens by itself', async () => {
+    mockApi()
+    window.history.replaceState(null, '', '/dashboard/settings?calendar_sync=connected')
+    try {
+      render(<CalendarSyncSection />)
+      expect(await screen.findByText('Calendar connected.')).toBeTruthy()
+      expect((await screen.findByLabelText<HTMLSelectElement>('Calendar to sync')).value).toBe('primary')
+      expect(window.location.search).toBe('')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('a refused permission says what to do', async () => {
+    mockApi(200, [])
+    window.history.replaceState(null, '', '/dashboard/settings?calendar_sync=scope')
+    try {
+      render(<CalendarSyncSection />)
+      expect(await screen.findByText(/Try again and tick every box/)).toBeTruthy()
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('revoked access: the owner gets Reconnect, another parent is told who to ask', async () => {
+    const revoked = {
+      ...MINE,
+      calendar_id: 'primary',
+      calendar_name: 'Home',
+      status: 'reauth_required',
+      last_error: 'Reconnect this calendar to keep it in sync.',
+    }
+    mockApi(200, [revoked])
+    const { unmount } = render(<CalendarSyncSection />)
+    expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeTruthy()
+    expect(screen.getByText(/Reconnect this calendar to keep it in sync/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Sync Google Calendar now/ })).toBeNull()
+    unmount()
+
+    mockApi(200, [{ ...revoked, is_mine: false, owner: { id: 'u2', name: 'Sam' } }])
+    render(<CalendarSyncSection />)
+    expect(await screen.findByText(/Sam needs to reconnect this calendar\./)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull()
+  })
 })
