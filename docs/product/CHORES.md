@@ -99,7 +99,8 @@ Kids and the tablet see nothing new: each occurrence simply has its person.
 - **Deterministic and idempotent.** The same series always produces the same people; the read-time top-up and a
   completion refill never reshuffle copies already made (the `(recurrence_id, due_date)` key still guards races).
 - **Changing the order** (or turning it on for an existing series) re-plans the rows due after today that nobody
-  has started, from the first person. Rows due today or earlier, and anything started or done, keep their person.
+  has started, from the first person. Rows due today or earlier, anything started or done, and any copy a parent gave
+  to someone by hand keep their person and take no turn (Cameron's choice, 2026-10-03: a hand pick is never undone).
   Turning it off leaves everyone's chores where they are; new copies then go to the series' own assignee.
 - **Someone leaves.** Removing a member (O-34) or deleting an account drops them from every rotation in the
   household, in the same transaction. Their turn passes to the person after them. Their open chores already made

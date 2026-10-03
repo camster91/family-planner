@@ -230,18 +230,18 @@ The app runs **no scheduler of its own** (`AGENTS.md`). Work that should happen 
 **Morning summary (O-40).** One short daily message ("Today: 2 chores (Feed the cat, Make bed), Dentist at 3pm, Tacos for dinner.") by email and in-app, to members who turned on Settings → Notifications → Morning summary (off for everyone by default). It is **off** until **both** of these are true:
 
 1. `CRON_SECRET` is set on the app (runtime variable, above). Without it the endpoint answers 500 and sends nothing.
-2. A schedule calls the endpoint once a day.
+2. A schedule calls the endpoint each morning: every hour from 06:45 to 10:45 (one scheduled task). Each person still gets at most one summary a day; the later runs reach people whose quiet hours end after 06:45 (O-40).
 
 Owner steps (Cameron's approval needed; a scheduler is a production change):
 
 1. Generate a secret and set it as the runtime variable `CRON_SECRET` in Coolify → the application → Environment Variables. Do not mark it as a build variable. Redeploy or restart so the container reads it.
-2. In Coolify → the application → **Scheduled Tasks** → Add: name `morning-summary`, frequency `45 6 * * *`, container: the app container, command:
+2. In Coolify → the application → **Scheduled Tasks** → Add: name `morning-summary`, frequency `45 6-10 * * *` (06:45, 07:45, 08:45, 09:45 and 10:45), container: the app container, command:
 
    ```sh
    wget -q -O - --header="x-cron-secret: $CRON_SECRET" --post-data='' 'http://localhost:3000/api/cron/morning-summary?tz=America/Toronto'
    ```
 
-   The image has `wget`; the task runs inside the app container, so `$CRON_SECRET` comes from its environment and is never typed into the task. Coolify reads the frequency in the **server's** time zone (often UTC); set the task's time zone to `America/Toronto` if your Coolify version offers it, otherwise convert 06:45 Toronto to server time (`45 10 * * *` in summer, `45 11 * * *` in winter UTC).
+   The image has `wget`; the task runs inside the app container, so `$CRON_SECRET` comes from its environment and is never typed into the task. Coolify reads the frequency in the **server's** time zone (often UTC); set the task's time zone to `America/Toronto` if your Coolify version offers it, otherwise convert to server time (`45 10-14 * * *` in summer, `45 11-15 * * *` in winter UTC).
 3. Or, from a host cron instead of Coolify (also a scheduler; same approval):
 
    `CRON_TZ` works with cronie; Debian/Ubuntu cron ignores it, so there write the time in the server's zone.
@@ -249,7 +249,7 @@ Owner steps (Cameron's approval needed; a scheduler is a production change):
    ```sh
    # /etc/cron.d/family-planner-morning-summary — the secret lives in a root-only file, not in the crontab line
    CRON_TZ=America/Toronto
-   45 6 * * * root curl -fsS -X POST -H "x-cron-secret: $(cat /etc/family-planner/cron-secret)" 'https://family.ashbi.ca/api/cron/morning-summary?tz=America/Toronto' >/dev/null
+   45 6-10 * * * root curl -fsS -X POST -H "x-cron-secret: $(cat /etc/family-planner/cron-secret)" 'https://family.ashbi.ca/api/cron/morning-summary?tz=America/Toronto' >/dev/null
    ```
 
 4. Check the first run: the response is JSON counts only, for example `{"success":true,"households":{"processed":1,"failed":0},"sent":{"inApp":2,"email":2},"skipped":{...},"failedRecipients":0,"truncated":false}`. Turn the switch on for your own account first and confirm the email and the in-app notification arrive.
@@ -257,8 +257,9 @@ Owner steps (Cameron's approval needed; a scheduler is a production change):
 What the endpoint guarantees (`src/lib/morning-summary-server.ts`):
 
 - **Safe to retry.** Each person gets at most one summary per local day, so a retried, overlapping or doubled call sends nothing more.
-- **Time zone.** Each person's "today" and event times use the browser zone saved when they turned the switch on; `?tz=` is only the fallback for anyone without one (else UTC). One run at about 06:45 household time suits a household in one zone.
-- **Quiet hours.** Someone inside their quiet hours at run time is skipped for that run (not marked sent). With one run a day, they get no summary that day; a second, later run (for example `30 7 * * *`) would reach them.
+- **Time zone.** Each person's "today" and event times use the browser zone saved when they turned the switch on; `?tz=` is only the fallback for anyone without one (else UTC). Runs from about 06:45 household time suit a household in one zone.
+- **Quiet hours.** Someone inside their quiet hours at run time is skipped for that run and not marked sent, so the first run after their quiet hours end sends it (Cameron's choice, O-40: send it after quiet hours, not skip the day). Quiet hours that end after 10:45 mean no summary that day.
+- **Nothing today.** Someone with nothing today is not marked sent either, so a later run that morning sends a summary if something was added meanwhile.
 - **Bounded.** At most 1000 summaries per call; if more are due the answer says `"truncated":true` and the next call continues.
 - **Email** goes only to verified addresses and only when `MAILGUN_API_KEY` is set; otherwise the summary is in-app only.
 
