@@ -18,5 +18,9 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ system splash: Warm Paper cream behind the launcher icon. -->
+        <item name="windowSplashScreenBackground">#FBF7F0</item>
+        <!-- Show the house icon itself, not the default glyph Theme.SplashScreen falls back to. -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>
 </resources>
