@@ -151,8 +151,13 @@ export async function applyRotationEditInTx(
     orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
     select: { id: true, assigned_to: true, rotation_index: true },
   })
-  const future = pending.filter(
-    (row) => row.rotation_index == null || oldRotation[row.rotation_index] === row.assigned_to
+  // In a series that already takes turns, every copy it planned has a place,
+  // so a copy without one was set aside (a hand pick from an earlier edit)
+  // and stays set aside. Only a series starting to take turns plans them all.
+  const future = pending.filter((row) =>
+    oldRotation.length === 0
+      ? true
+      : row.rotation_index != null && oldRotation[row.rotation_index] === row.assigned_to
   )
 
   await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: [...rotation] } })

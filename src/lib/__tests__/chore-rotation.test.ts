@@ -261,6 +261,10 @@ describe('series generation with take turns (fake database)', () => {
       // J keeps it and takes no place; the other not-started copies go A, S.
       expect(people()).toEqual([S, A, J, S])
       expect(series().map((c) => c.rotation_index)).toEqual([null, 0, null, 1])
+      // A second change still leaves J's copy alone.
+      await applyRotationEditInTx(fakePrisma, TEMPLATE, FAMILY_A, [S, J, A], NOW)
+      expect(people()).toEqual([S, S, J, J])
+      expect(series().map((c) => c.rotation_index)).toEqual([null, 0, null, 1])
     })
 
     it('an unchanged list is a no-op', async () => {
