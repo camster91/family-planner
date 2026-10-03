@@ -19,6 +19,7 @@ jest.mock('@/lib/mail', () => {
 })
 
 import { POST } from '../route'
+import { runMorningSummary } from '@/lib/morning-summary-server'
 import { db, fakePrisma, FAMILY_A, FAMILY_B, FOREIGN, USER_IDS, type UserKey } from '@/__tests__/helpers/two-household'
 import { isMailConfigured, sendMail } from '@/lib/mail'
 
@@ -316,6 +317,39 @@ describe('POST /api/cron/morning-summary: sending', () => {
     // The chore waiting for a check still waits, so the parent hears about it again.
     expect(notifications('parentA').map((n) => n.message)).toContain('Today: 1 chore to check.')
     expect(db.find('user', USER_IDS.childA)!.morning_summary_sent_on).toBe('2026-10-04')
+  })
+
+  it('people already sent today do not use up the cap, so later ids still get theirs', async () => {
+    seedToday()
+    // In id order: child-a, parent-a (both already sent today), then teen-a.
+    optIn('childA', { morning_summary_sent_on: DAY })
+    optIn('parentA', { morning_summary_sent_on: DAY })
+    optIn('teenA')
+    const result = await runMorningSummary(fakePrisma as any, {
+      now: MORNING,
+      limits: { pageSize: 1, maxScanned: 1 },
+    })
+    expect(result.skipped.alreadySent).toBe(2)
+    expect(result.sent.inApp).toBe(1)
+    expect(result.truncated).toBe(false)
+    expect(notifications('teenA')).toHaveLength(1)
+
+    // A due person past the cap is reported, and a later run reaches them.
+    db.find('user', USER_IDS.teenA)!.morning_summary_sent_on = null
+    optIn('childA', { morning_summary_sent_on: null })
+    const capped = await runMorningSummary(fakePrisma as any, {
+      now: MORNING,
+      limits: { pageSize: 1, maxScanned: 1 },
+    })
+    expect(capped.sent.inApp).toBe(1)
+    expect(capped.truncated).toBe(true)
+    const next = await runMorningSummary(fakePrisma as any, {
+      now: MORNING,
+      limits: { pageSize: 1, maxScanned: 1 },
+    })
+    expect(next.sent.inApp).toBe(1)
+    expect(notifications('childA')).toHaveLength(1)
+    expect(notifications('teenA')).toHaveLength(2)
   })
 
   it('claims the day before sending, so two overlapping runs cannot both send', async () => {

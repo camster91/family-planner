@@ -5,7 +5,11 @@
 // every member's switch defaults to off.
 //
 // Per run:
-//   * Reads opted-in members only, in pages (by id), up to MAX_SCANNED_PER_RUN.
+//   * Reads opted-in members only, in pages (by id). People already sent today
+//     or inside quiet hours are skipped without loading anything and do not
+//     count toward MAX_SCANNED_PER_RUN (the people who need household data),
+//     so they cannot use up the cap and starve people later in the id order.
+//     MAX_ROWS_READ_PER_RUN bounds the cheap reads.
 //   * Loads each household's rows ONCE per page (the Today board's fields:
 //     chore title/due day/status/assignee, event title/start/end, dinner name)
 //     and builds each member's summary with the pure builder.
@@ -39,8 +43,10 @@ import { logRouteError } from '@/lib/api-error'
 
 /** Opted-in members read per page. */
 export const PAGE_SIZE = 200
-/** Most opted-in members looked at in one run. */
+/** Most opted-in members needing household data in one run. */
 export const MAX_SCANNED_PER_RUN = 5000
+/** Most opted-in member rows read in one run, including cheap skips. */
+export const MAX_ROWS_READ_PER_RUN = 50_000
 /** Most people sent a summary in one run (bounds email volume per call). */
 export const MAX_SENDS_PER_RUN = 1000
 /** Upper bounds on rows read per household (the summary names far fewer). */
@@ -59,6 +65,8 @@ export interface MorningSummaryRunOptions {
   requestId?: string
   /** Public origin for links. Defaults to NEXT_PUBLIC_APP_URL. */
   appUrl?: string
+  /** Test hook: smaller page size and caps. */
+  limits?: { pageSize?: number; maxScanned?: number; maxRowsRead?: number }
 }
 
 export interface MorningSummaryRunResult {
@@ -206,11 +214,15 @@ export async function runMorningSummary(
     failedRecipients: 0,
     truncated: false,
   }
+  const pageSize = options.limits?.pageSize ?? PAGE_SIZE
+  const maxScanned = options.limits?.maxScanned ?? MAX_SCANNED_PER_RUN
+  const maxRowsRead = options.limits?.maxRowsRead ?? MAX_ROWS_READ_PER_RUN
   let sends = 0
   let scanned = 0
+  let rowsRead = 0
   let cursor: string | null = null
 
-  pages: while (scanned < MAX_SCANNED_PER_RUN) {
+  pages: while (rowsRead < maxRowsRead) {
     const page: Recipient[] = await db.user.findMany({
       where: {
         morning_summary_enabled: true,
@@ -227,10 +239,10 @@ export async function runMorningSummary(
         ...QUIET_HOURS_SELECT,
       },
       orderBy: { id: 'asc' },
-      take: Math.min(PAGE_SIZE, MAX_SCANNED_PER_RUN - scanned),
+      take: Math.min(pageSize, maxRowsRead - rowsRead),
     })
     if (page.length === 0) break
-    scanned += page.length
+    rowsRead += page.length
     cursor = page[page.length - 1].id
 
     // Who is due now, before loading any household data.
@@ -246,6 +258,12 @@ export async function runMorningSummary(
         result.skipped.quietHours++
         continue
       }
+      // Only people who need household data count toward the cap.
+      if (scanned >= maxScanned) {
+        result.truncated = true
+        break
+      }
+      scanned++
       const list = due.get(user.family_id!) ?? []
       list.push({ user, dayKey, timeZone })
       due.set(user.family_id!, list)
@@ -333,10 +351,11 @@ export async function runMorningSummary(
       }
     }
 
-    if (page.length < PAGE_SIZE) break
+    if (result.truncated) break
+    if (page.length < pageSize) break
   }
 
-  if (scanned >= MAX_SCANNED_PER_RUN) result.truncated = true
+  if (rowsRead >= maxRowsRead) result.truncated = true
   result.success = result.households.failed === 0 && result.failedRecipients === 0
   return result
 }

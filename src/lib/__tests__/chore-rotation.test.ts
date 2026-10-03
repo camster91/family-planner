@@ -204,6 +204,16 @@ describe('series generation with take turns (fake database)', () => {
       expect(series()[4].assigned_to).toBe(A)
     })
 
+    it('the series itself passes to the next person, so it survives their leaving', async () => {
+      addTemplate([S, A, J]) // the template is assigned to S, the first person
+      await expandSeriesInTx(fakePrisma, TEMPLATE, FAMILY_A, NOW)
+      await dropMemberFromRotationsInTx(fakePrisma, FAMILY_A, S)
+      expect(db.find('chore', TEMPLATE)!.assigned_to).toBe(A)
+      // Someone else's template stays theirs.
+      await dropMemberFromRotationsInTx(fakePrisma, FAMILY_A, J)
+      expect(db.find('chore', TEMPLATE)!.assigned_to).toBe(A)
+    })
+
     it('down to one person: every new copy goes to them', async () => {
       addTemplate([S, A])
       await expandSeriesInTx(fakePrisma, TEMPLATE, FAMILY_A, NOW)
@@ -234,9 +244,13 @@ describe('series generation with take turns (fake database)', () => {
       series()[2].status = 'in_progress' // someone started the 2099-01-19 one
       const changed = await applyRotationEditInTx(fakePrisma, TEMPLATE, FAMILY_A, [J, A, S], NOW)
       expect(changed).toBe(true)
-      // Today's (template) keeps its person; the started one keeps its person but takes a place.
-      expect(people()).toEqual([S, J, S, S])
-      expect(series().map((c) => c.rotation_index)).toEqual([null, 0, 1, 2])
+      // Today's (template) keeps its person; the started one keeps its person
+      // and takes no place, so nobody's turn is used up: J, then A.
+      expect(people()).toEqual([S, J, S, A])
+      expect(series().map((c) => c.rotation_index)).toEqual([null, 0, null, 1])
+      // The next copy carries on after A.
+      await expandSeriesInTx(fakePrisma, TEMPLATE, FAMILY_A, new Date('2099-01-12T12:00:00Z'))
+      expect(series()[4].assigned_to).toBe(S)
     })
 
     it('an unchanged list is a no-op', async () => {

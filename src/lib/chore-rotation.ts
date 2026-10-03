@@ -119,8 +119,9 @@ export async function rotationMembersInHousehold(
  * the list back on every save never reshuffles anything.
  *
  * On a change: every row of the series loses its place, then the rows due
- * after today get places 0, 1, 2, ... in due-date order, and those still
- * `pending` get that person. The next generated copy carries on from the
+ * after today that are still `pending` get places 0, 1, 2, ... in due-date
+ * order and that person. Started or finished rows keep their person and no
+ * place, so they never use up someone's turn. The next generated copy carries on from the
  * latest row. Clearing the list leaves every row's person as it is.
  */
 export async function applyRotationEditInTx(
@@ -146,20 +147,21 @@ export async function applyRotationEditInTx(
 
   // Due dates are stored at UTC midnight (src/lib/recurringChores.ts).
   const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+  // Only copies nobody started take turns. A started or finished copy keeps
+  // its person and no place, so it does not use up someone else's turn.
   const future = await tx.chore.findMany({
-    where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow } },
+    where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending' },
     orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
-    select: { id: true, status: true },
+    select: { id: true },
   })
   const turns = planRotationTurns(rotation, null, future.length)
   for (let i = 0; i < future.length; i++) {
     const turn = turns[i]
-    const row = future[i]
     await tx.chore.update({
-      where: { id: row.id },
+      where: { id: future[i].id },
       data: {
         rotation_index: turn.index,
-        ...(row.status === 'pending' && turn.assignee ? { assigned_to: turn.assignee } : {}),
+        ...(turn.assignee ? { assigned_to: turn.assignee } : {}),
       },
     })
   }
@@ -176,8 +178,11 @@ export async function applyRotationEditInTx(
  * followed them. A list left with one person stays as that one person (every
  * new copy goes to them, a plain assignment; the forms show it as not taking
  * turns). A list left empty is cleared, and new copies follow the template's
- * assignee as for any series. Chores already made are not touched here: the
- * caller's open-chore rule (O-34: to the removing parent) applies to them.
+ * assignee as for any series. If the leaving member was the series' own
+ * assignee (the template, usually the first person), the series goes to the
+ * person who takes their place, so it keeps making copies after they leave.
+ * Other chores already made are not touched here: the caller's open-chore
+ * rule (O-34: to the removing parent; account deletion: removed) applies.
  */
 export async function dropMemberFromRotationsInTx(
   tx: Prisma.TransactionClient,
@@ -186,7 +191,7 @@ export async function dropMemberFromRotationsInTx(
 ): Promise<number> {
   const templates = await tx.chore.findMany({
     where: { family_id: familyId, rotation_member_ids: { has: memberId } },
-    select: { id: true, rotation_member_ids: true },
+    select: { id: true, rotation_member_ids: true, assigned_to: true },
   })
   for (const template of templates) {
     const removedAt = template.rotation_member_ids.indexOf(memberId)
@@ -204,7 +209,15 @@ export async function dropMemberFromRotationsInTx(
     if (rest.length === 0) {
       await tx.chore.updateMany({ where: series, data: { rotation_index: null } })
     }
-    await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: rest } })
+    await tx.chore.update({
+      where: { id: template.id },
+      data: {
+        rotation_member_ids: rest,
+        // The series itself goes to the next person, so it is not removed or
+        // handed over with the leaving member's own chores.
+        ...(template.assigned_to === memberId && rest.length > 0 ? { assigned_to: rest[removedAt % rest.length] } : {}),
+      },
+    })
   }
   return templates.length
 }
