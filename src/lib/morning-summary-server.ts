@@ -1,4 +1,4 @@
-// Morning summary sender (O-38). Called only by POST /api/cron/morning-summary,
+// Morning summary sender (O-40). Called only by POST /api/cron/morning-summary,
 // which runs only when an operator schedules it (AGENTS.md: no scheduler is
 // added by the app). Off by default three ways: the endpoint is closed until
 // CRON_SECRET is set, nothing calls it until the operator adds a schedule, and

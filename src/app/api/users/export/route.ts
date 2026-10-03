@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
           ...NOTIFICATION_PREFERENCE_SELECT,
           // Quiet hours (#141, O-32); exported as `quietHours`.
           ...QUIET_HOURS_SELECT,
-          // Morning summary switch and zone (O-38); exported as `morningSummary`.
+          // Morning summary switch and zone (O-40); exported as `morningSummary`.
           ...MORNING_SUMMARY_SELECT,
           // Explicitly EXCLUDE password
         },

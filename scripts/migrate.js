@@ -102,7 +102,7 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_enabled" BOOLEAN NOT NU
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_start" TEXT NOT NULL DEFAULT '22:00';
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_end" TEXT NOT NULL DEFAULT '07:00';
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "quiet_hours_time_zone" TEXT;
--- Morning summary (O-38). Additive, default off (opt-in): existing rows get nothing.
+-- Morning summary (O-40). Additive, default off (opt-in): existing rows get nothing.
 -- sent_on is the local YYYY-MM-DD of the last send (once-a-day dedupe key).
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "morning_summary_enabled" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "morning_summary_time_zone" TEXT;

@@ -84,7 +84,7 @@ describe('deliverNotification', () => {
     expect(rowsFor(CHILD)).toHaveLength(IN_APP_NOTIFICATION_TYPES.length - 1)
   })
 
-  it('the morning summary (opt-in, O-38) is stored only once the member turns it on', async () => {
+  it('the morning summary (opt-in, O-40) is stored only once the member turns it on', async () => {
     const input = { userId: CHILD, title: 'Your morning summary', message: 'Today: 1 chore (Dishes).', type: 'summary' as const }
     expect(await deliverNotification(input)).toEqual({ delivered: false, notification: null })
     // Muting every category does not matter; only its own switch does.
@@ -165,7 +165,7 @@ describe('deliverNotification and quiet hours (#141, O-32)', () => {
   })
 })
 
-describe('sendOptInMail (morning summary, O-38)', () => {
+describe('sendOptInMail (morning summary, O-40)', () => {
   const mail = { userId: CHILD, subject: 'Your day', html: '<p>x</p>', text: 'x' }
   const optIn = (extra: Record<string, unknown> = {}) =>
     Object.assign(db.find('user', CHILD)!, { morning_summary_enabled: true, ...extra })

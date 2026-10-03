@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const { userId, title, message, type } = parsed.data
     // Only types in the notification policy table (#286), so every row has a
     // category or is explicitly always-send. Opt-in types (the morning
-    // summary, O-38) come only from their own server sender.
+    // summary, O-40) come only from their own server sender.
     if (!isParentSendableType(type)) {
       return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 })
     }

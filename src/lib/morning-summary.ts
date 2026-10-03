@@ -1,4 +1,4 @@
-// Morning summary (decision O-38): one short daily message per person, e.g.
+// Morning summary (decision O-40): one short daily message per person, e.g.
 // "Today: 2 chores (Feed the cat, Make bed), Dentist at 3pm, Tacos for dinner."
 //
 // Pure and side-effect free: the sender (src/lib/morning-summary-server.ts)

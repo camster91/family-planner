@@ -48,7 +48,7 @@ const CSRF_EXEMPT_PATHS = new Set([
   // header an attacker cannot set cross-origin is not the threat model this
   // check addresses.
   '/api/cron/recurring-chores',
-  // Morning summary (O-38): the same machine-called, `x-cron-secret`-only,
+  // Morning summary (O-40): the same machine-called, `x-cron-secret`-only,
   // fail-closed shape as the route above.
   '/api/cron/morning-summary',
 ])

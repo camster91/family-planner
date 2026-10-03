@@ -46,7 +46,7 @@ const quietHoursSchema = z
   .strict()
   .refine((q) => q.start !== q.end, { message: 'Quiet hours need different start and end times' })
 
-// Morning summary (O-38): opt-in switch plus the browser's IANA zone, which
+// Morning summary (O-40): opt-in switch plus the browser's IANA zone, which
 // decides the person's "today" and event times (null or missing = none saved).
 const morningSummarySchema = z
   .object({
@@ -117,7 +117,7 @@ function error(status: number, code: string, message: string, requestId: string)
 }
 
 // GET /api/users/preferences — the caller's own notification preferences
-// (#286, PR101 D-5), quiet hours (#141, O-32) and morning summary (O-38). Any role; there is no way to
+// (#286, PR101 D-5), quiet hours (#141, O-32) and morning summary (O-40). Any role; there is no way to
 // name another member.
 async function getPreferences(request: NextRequest) {
   const requestId = getRequestId(request)

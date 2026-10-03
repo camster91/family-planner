@@ -84,7 +84,7 @@ describe('notification policy table', () => {
     expect(OPT_IN_MAIL_POLICY).toEqual({ morning_summary: 'morning_summary' })
   })
 
-  it('keeps the morning summary opt-in: off unless switched on, never sendable by a parent (O-38)', () => {
+  it('keeps the morning summary opt-in: off unless switched on, never sendable by a parent (O-40)', () => {
     expect(OPT_IN_COLUMN).toEqual({ morning_summary: 'morning_summary_enabled' })
     expect(allowsNotification('summary', DEFAULT_NOTIFICATION_PREFERENCES)).toBe(false)
     expect(allowsNotification('summary', DEFAULT_NOTIFICATION_PREFERENCES, { morning_summary: false })).toBe(false)

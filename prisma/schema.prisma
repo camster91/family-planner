@@ -49,7 +49,7 @@ model User {
   quiet_hours_end               String             @default("07:00")
   /// IANA zone the times are in (the browser's when saved). NULL = UTC.
   quiet_hours_time_zone         String?
-  /// Morning summary (O-38): one short message a day, opt-in (default off).
+  /// Morning summary (O-40): one short message a day, opt-in (default off).
   /// Sent only when an operator calls POST /api/cron/morning-summary on a
   /// schedule they set up (src/lib/morning-summary.ts). The time zone is the
   /// browser's IANA zone saved with the switch (NULL = the caller's `tz`, else

@@ -173,7 +173,7 @@ Set these in Coolify → Environment Variables. Mark only `NEXT_PUBLIC_APP_URL` 
 | Variable | Default | What it does | Production value |
 | --- | --- | --- | --- |
 | `TRUSTED_PROXY_HOPS` | `1` | Which `X-Forwarded-For` entry is the client IP for rate limits (section 8). | `1` for Coolify Traefik with no CDN in front. |
-| `MAILGUN_API_KEY` | unset | Sends verification and password-reset email. Unset in production: those sends fail (caught and logged), so users get no email. | Copy from current production. |
+| `MAILGUN_API_KEY` | unset | Sends verification and password-reset email, and the opt-in morning summary (O-40). Unset in production: account sends fail (caught and logged), so users get no email; the morning summary is then in-app only. | Copy from current production. |
 | `MAILGUN_DOMAIN` | `ashbi.ca` | Mailgun sending domain. | `ashbi.ca` |
 | `MAILGUN_FROM` | `Family Planner <noreply@ashbi.ca>` | From address. | `Family Planner <noreply@ashbi.ca>` |
 | `FROM_EMAIL` | unset | Older fallback for `MAILGUN_FROM`. | Leave unset. |
@@ -198,7 +198,7 @@ Set these in Coolify → Environment Variables. Mark only `NEXT_PUBLIC_APP_URL` 
 | `LOG_LEVEL` | unset | `debug` prints debug log lines. | Leave unset. |
 | `ROUTE_TIMING_LOG` / `ROUTE_TIMING_SAMPLE_RATE` | off / `1` | Opt-in per-request timing log lines (`src/lib/route-telemetry.ts`). | Leave unset unless investigating performance. |
 | `TZ` | unset (UTC in the container) | Process time zone. The AI capture prompt falls back to `America/Toronto` when unset. | Match what current production has; if unsure, leave unset. |
-| `CRON_SECRET` | unset | Shared secret for `POST /api/cron/recurring-chores`; unset keeps the endpoint closed (500). | **Keep off.** Any scheduler calling it needs Cameron's approval (`AGENTS.md`). |
+| `CRON_SECRET` | unset | Shared secret (`x-cron-secret` header) for `POST /api/cron/recurring-chores` and `POST /api/cron/morning-summary` (O-40). Unset keeps both endpoints closed (500); a wrong or missing header is 401. Setting it schedules nothing by itself. | **Keep off** until Cameron sets up a schedule ("Scheduled tasks" below). Any scheduler calling these needs Cameron's approval (`AGENTS.md`). At least 32 random characters: `openssl rand -hex 32`. |
 | `SHARED_DEVICE_ENABLED` | off | Shared fridge-tablet device routes. Off: every device route is 404. | `false`. **Keep off** until approved. |
 
 ### Keep off until Cameron approves (paid providers or data leaving the server)
@@ -222,6 +222,49 @@ Beta usage metrics have no environment switch. They are a per-household setting 
 ### Never set in production
 
 `SKIP_ENV_VALIDATION` (build-only), `FIXTURES_ALLOW`, `FIXTURES_ANCHOR_DATE`, `RUN_DB_INTEGRATION`, `PRISMA_QUERY_TIMING`, `PRISMA_SLOW_QUERY_MS`, `PERF_BASE_URL`, `PERF_ITERATIONS`, `PERF_WARMUP`, `E2E_*`, `REHEARSAL_*`, `CI`. These belong to tests, fixtures and local tooling; several are refused in production anyway.
+
+### Scheduled tasks
+
+The app runs **no scheduler of its own** (`AGENTS.md`). Work that should happen on a clock is a protected endpoint the owner calls on a schedule they create. Nothing below runs until Cameron sets it up.
+
+**Morning summary (O-40).** One short daily message ("Today: 2 chores (Feed the cat, Make bed), Dentist at 3pm, Tacos for dinner.") by email and in-app, to members who turned on Settings → Notifications → Morning summary (off for everyone by default). It is **off** until **both** of these are true:
+
+1. `CRON_SECRET` is set on the app (runtime variable, above). Without it the endpoint answers 500 and sends nothing.
+2. A schedule calls the endpoint once a day.
+
+Owner steps (Cameron's approval needed; a scheduler is a production change):
+
+1. Generate a secret and set it as the runtime variable `CRON_SECRET` in Coolify → the application → Environment Variables. Do not mark it as a build variable. Redeploy or restart so the container reads it.
+2. In Coolify → the application → **Scheduled Tasks** → Add: name `morning-summary`, frequency `45 6 * * *`, container: the app container, command:
+
+   ```sh
+   wget -q -O - --header="x-cron-secret: $CRON_SECRET" --post-data='' 'http://localhost:3000/api/cron/morning-summary?tz=America/Toronto'
+   ```
+
+   The image has `wget`; the task runs inside the app container, so `$CRON_SECRET` comes from its environment and is never typed into the task. Coolify reads the frequency in the **server's** time zone (often UTC); set the task's time zone to `America/Toronto` if your Coolify version offers it, otherwise convert 06:45 Toronto to server time (`45 10 * * *` in summer, `45 11 * * *` in winter UTC).
+3. Or, from a host cron instead of Coolify (also a scheduler; same approval):
+
+   `CRON_TZ` works with cronie; Debian/Ubuntu cron ignores it, so there write the time in the server's zone.
+
+   ```sh
+   # /etc/cron.d/family-planner-morning-summary — the secret lives in a root-only file, not in the crontab line
+   CRON_TZ=America/Toronto
+   45 6 * * * root curl -fsS -X POST -H "x-cron-secret: $(cat /etc/family-planner/cron-secret)" 'https://family.ashbi.ca/api/cron/morning-summary?tz=America/Toronto' >/dev/null
+   ```
+
+4. Check the first run: the response is JSON counts only, for example `{"success":true,"households":{"processed":1,"failed":0},"sent":{"inApp":2,"email":2},"skipped":{...},"failedRecipients":0,"truncated":false}`. Turn the switch on for your own account first and confirm the email and the in-app notification arrive.
+
+What the endpoint guarantees (`src/lib/morning-summary-server.ts`):
+
+- **Safe to retry.** Each person gets at most one summary per local day, so a retried, overlapping or doubled call sends nothing more.
+- **Time zone.** Each person's "today" and event times use the browser zone saved when they turned the switch on; `?tz=` is only the fallback for anyone without one (else UTC). One run at about 06:45 household time suits a household in one zone.
+- **Quiet hours.** Someone inside their quiet hours at run time is skipped for that run (not marked sent). With one run a day, they get no summary that day; a second, later run (for example `30 7 * * *`) would reach them.
+- **Bounded.** At most 1000 summaries per call; if more are due the answer says `"truncated":true` and the next call continues.
+- **Email** goes only to verified addresses and only when `MAILGUN_API_KEY` is set; otherwise the summary is in-app only.
+
+**To turn it off at once:** delete or disable the scheduled task (or unset `CRON_SECRET`, which also closes `POST /api/cron/recurring-chores`).
+
+`POST /api/cron/recurring-chores` uses the same secret but needs no schedule: recurring chores refill on use and on read (O-33).
 
 ## 11. Backups
 
@@ -270,3 +313,4 @@ Halt and rollback triggers are the same as in `RELEASE_AND_ROLLBACK.md`.
 - The Dockerfile `SOURCE_COMMIT` fallback and the uploads directory ownership were not built locally; CI's `Build container image` and smoke test are the check.
 - Traefik's default handling of client-sent `X-Forwarded-For` should be confirmed with the whoami check in section 8 before relying on `TRUSTED_PROXY_HOPS=1`.
 - Whether current production sets `TZ` or other optional variables is unknown here; copy what the running container actually has.
+- Coolify scheduled tasks ("Scheduled tasks" in section 10): whether the command runs through a shell (so `$CRON_SECRET` expands) and whether a per-task time zone exists depend on the Coolify version. Check the first run's output in the task's log; if the variable is not expanded the answer is 401 and nothing is sent.

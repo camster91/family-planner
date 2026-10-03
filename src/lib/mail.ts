@@ -73,7 +73,7 @@ export function familyInviteEmail(options: {
 }
 
 /**
- * Morning summary email (O-38). Every user-controlled value (name, chore and
+ * Morning summary email (O-40). Every user-controlled value (name, chore and
  * event titles, dinner) is escaped in the HTML part. Ends with the plain
  * "Turn this off" line and a link to where the switch lives.
  */

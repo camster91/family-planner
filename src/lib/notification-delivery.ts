@@ -11,7 +11,7 @@
 // * sendAccountMail: password reset, email verification and family invites.
 //   Always sent; routed here so the policy table is the full list of what the
 //   app sends, and so a new kind has to be added to that table.
-// * sendOptInMail: opt-in email (the morning summary, O-38). Sent only to a
+// * sendOptInMail: opt-in email (the morning summary, O-40). Sent only to a
 //   member who turned it on, with a verified address, outside quiet hours.
 //
 // src/lib/__tests__/notification-policy.test.ts fails if any other source file
@@ -61,7 +61,7 @@ export async function deliverNotification(input: NotificationInput, now: Date = 
     boolean | string | null
   > | null
   if (isOptInPolicy(policy)) {
-    // Opt-in (O-38): only an explicit `true` lets it through.
+    // Opt-in (O-40): only an explicit `true` lets it through.
     if (row?.[OPT_IN_COLUMN[policy]] !== true) return { delivered: false, notification: null } as const
   } else if (policy !== ALWAYS_SEND && !preferencesFromRow(row as Record<string, boolean> | null)[policy]) {
     return { delivered: false, notification: null } as const
@@ -96,7 +96,7 @@ export type OptInMailResult =
   | { sent: false; reason: 'opted_out' | 'unverified' | 'quiet_hours' | 'mail_not_configured' }
 
 /**
- * Opt-in email (O-38), e.g. the morning summary. Unlike account mail it is
+ * Opt-in email (O-40), e.g. the morning summary. Unlike account mail it is
  * sent only when, read fresh from the recipient's own row:
  *   * their switch for the kind is on (opt-in, default off);
  *   * their address is verified (an unverified address may not be theirs);

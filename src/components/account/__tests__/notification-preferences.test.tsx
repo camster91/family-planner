@@ -231,7 +231,7 @@ describe('NotificationPreferences', () => {
     })
   })
 
-  describe('morning summary (O-38)', () => {
+  describe('morning summary (O-40)', () => {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
     it('is an Off 44px switch by default, and an older server without it reads as off', async () => {

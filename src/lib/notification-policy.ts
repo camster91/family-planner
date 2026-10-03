@@ -9,7 +9,7 @@
 //   * a category a member can mute (a boolean column on User, default true);
 //   * ALWAYS: account and safety messages that ignore every switch;
 //   * an OPT-IN kind a member must turn on (a boolean column on User, default
-//     false). Today only the morning summary (O-38).
+//     false). Today only the morning summary (O-40).
 //
 // ALWAYS types (documented in docs/architecture/API_CONTRACTS.md):
 //   * `system`: household notices a parent sends through POST /api/notifications
@@ -31,7 +31,7 @@ export const ALWAYS_SEND = 'always' as const
 
 /**
  * Opt-in kinds (default OFF): nothing is sent until the member turns the
- * switch on. The morning summary (O-38) is the only one.
+ * switch on. The morning summary (O-40) is the only one.
  */
 export const OPT_IN_KINDS = ['morning_summary'] as const
 export type OptInKind = (typeof OPT_IN_KINDS)[number]
@@ -57,7 +57,7 @@ export const IN_APP_NOTIFICATION_POLICY = {
   message: 'messages',
   // A parent's household notice. Always sent (see above).
   system: ALWAYS_SEND,
-  // The daily morning summary (O-38). Opt-in; only the operator-scheduled
+  // The daily morning summary (O-40). Opt-in; only the operator-scheduled
   // POST /api/cron/morning-summary sends it (a parent cannot: see
   // isParentSendableType).
   summary: 'morning_summary',
@@ -73,7 +73,7 @@ export const ACCOUNT_MAIL_POLICY = {
 /**
  * Opt-in email (src/lib/mail.ts), sent through `sendOptInMail` only to a
  * member who turned the kind on, whose address is verified and who is not in
- * quiet hours (O-32, O-38).
+ * quiet hours (O-32, O-40).
  */
 export const OPT_IN_MAIL_POLICY = {
   morning_summary: 'morning_summary',
@@ -168,7 +168,7 @@ export function allowsNotification(
 }
 
 /**
- * Morning summary switch (O-38) as the API returns it. `timeZone` is the
+ * Morning summary switch (O-40) as the API returns it. `timeZone` is the
  * browser's IANA zone saved with the switch (null: none saved).
  */
 export interface MorningSummaryPreference {

@@ -1,9 +1,9 @@
 # Role and isolation matrix
 
-Status: current as of 2026-10-02. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
-(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`), and owner decision O-37
+Status: current as of 2026-10-03. Records Cameron's decisions D1–D9 on issue #102 as implemented, including D3
+(chore photo ownership, expand phase) and anniversary own-edit (`Anniversary.created_by`), owner decision O-37
 (teens see the calendar, meals, Help, their notifications and their own Settings; see "Teen pages and personal
-Settings" below).
+Settings" below) and owner decision O-40 (the opt-in morning summary; see "Morning summary" below).
 Authority: `docs/architecture/AUTHORIZATION.md` (model and decision order) points here for per-domain
 capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md`.
 
@@ -169,8 +169,8 @@ may open `/dashboard/meals/recipes/[id]` (parents and teens, O-37). "Scan fridge
 | Projects and tasks | all | all | parent | parent | no | Adding a task to an existing, active project (`POST /api/projects/[id]/tasks`, "Add task" on the project page, #289) is open to every member; the project and any assignee must be in the caller's household (404, foreign and missing alike). |
 | Messages | all | all | all (mark read) | — | no | |
 | Activity, analytics | all | — | — | — | no | `/api/analytics` (the leaderboard) 403s unless Analytics AND Points & streaks are on (#248). |
-| Notifications | own | parent (to a household member) | own | own | no | Every row goes through `src/lib/notification-delivery.ts`, which honours the recipient's preferences (below). |
-| Notification preferences (`/api/users/preferences`, #286) | own | — | own | — | no (403 `DEVICE_WRITE_NOT_ALLOWED` on GET and PATCH, before person auth) | Three switches: "Chores and rewards", "Calendar events", "Family messages" (default on). Strict body: nobody can read or change another member's, a parent included. Parents and teens (O-37) change theirs in Settings → Notifications (with quiet hours); children, who cannot open Settings, from the user menu → Notifications. Password reset, email verification, invites and a parent's `system` notices are always sent. |
+| Notifications | own | parent (to a household member) | own | own | no | Every row goes through `src/lib/notification-delivery.ts`, which honours the recipient's preferences (below). A parent cannot send the `summary` type (400): only the morning summary sender creates it (O-40). |
+| Notification preferences (`/api/users/preferences`, #286) | own | — | own | — | no (403 `DEVICE_WRITE_NOT_ALLOWED` on GET and PATCH, before person auth) | Three switches: "Chores and rewards", "Calendar events", "Family messages" (default on). Strict body: nobody can read or change another member's, a parent included. Parents and teens (O-37) change theirs in Settings → Notifications (with quiet hours); children, who cannot open Settings, from the user menu → Notifications. Password reset, email verification, invites and a parent's `system` notices are always sent. A fourth switch, "Morning summary" (O-40), is opt-in (default **off**) and saves the browser's time zone with it; the body cannot set the last-sent day. |
 | Locations | parent | parent | — | parent | no | Precise addresses. |
 | Travel mode | parent | — | parent | — | no | |
 | Family settings, features, invites, AI settings, feed token | parent (members list and features read: all) | parent | parent | parent | members: names only; features: calendar/chores/meals/lists booleans only; everything else no | Feature toggles, including Points & streaks (`gamification`, #248): PATCH is parent-only, teen/child 403. |
@@ -185,6 +185,27 @@ may open `/dashboard/meals/recipes/[id]` (parents and teens, O-37). "Scan fridge
 
 Teen and child: identical in this table unless a column names them, which is the D8 audit result for these
 domains.
+
+### Morning summary (O-40)
+
+One short daily message per opted-in member (default off), as an in-app notification and, to a verified address,
+an email (Mailgun). Sent only by `POST /api/cron/morning-summary`, which authenticates nobody by cookie: it needs the
+`x-cron-secret` header (500 when `CRON_SECRET` is unset, 401 otherwise) and runs only when the owner schedules it. Each
+household's rows are read once, with an explicit `select`, scoped by that household's `family_id`; one household's
+summary never includes another's rows (tested with two households in
+`src/app/api/cron/morning-summary/__tests__/route.test.ts`).
+
+| Part of the summary | Parent | Teen | Child | Fields read |
+| --- | --- | --- | --- | --- |
+| Own open chores due on their local today (count, up to 3 titles) | yes | yes | yes | chore title, due day, status, assignee id; never another member's chore titles |
+| Household events on their local today (up to 3, then "and N more") | yes | yes | yes | event title, start, end; never location or description |
+| Tonight's dinner | yes | yes | yes | meal recipe name or linked recipe title; never notes or instructions |
+| "N chores to check" (household count of chores waiting for a check) | yes | no | no | a count only, as in the home summary |
+
+Each part needs its household feature (`chores`, `calendar`, `meals`). Every role already reads these fields
+(Chores, Events and Meals rows above); the summary adds no new read. The email's off-switch line points parents and
+teens to Settings → Notifications and children to the menu under their name (they cannot open Settings). A paired
+shared device never gets a summary (it is not a member) and cannot change the switch.
 
 ### Household search (route inventory F-3)
 

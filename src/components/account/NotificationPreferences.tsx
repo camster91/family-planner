@@ -12,7 +12,7 @@
 // The times are saved with this browser's time zone (O-31: dates use the
 // browser's local time).
 //
-// Morning summary (O-38): an opt-in switch (default off), also saved with this
+// Morning summary (O-40): an opt-in switch (default off), also saved with this
 // browser's time zone. It arrives only if the operator has scheduled it.
 
 import * as React from 'react'
@@ -139,7 +139,7 @@ export default function NotificationPreferences({ className }: { className?: str
     }
   }
 
-  // Morning summary (O-38): opt-in, saved with this browser's time zone so
+  // Morning summary (O-40): opt-in, saved with this browser's time zone so
   // "today" and event times match this device's clock (O-31).
   const toggleSummary = async () => {
     if (load.state !== 'ready' || summarySaving || !online) return

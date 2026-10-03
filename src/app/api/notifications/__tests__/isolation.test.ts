@@ -44,7 +44,7 @@ describe("notifications — two households", () => {
     expect(db.find("notification", "notif-b")?.read).toBe(false);
   });
 
-  it("a parent cannot write a fake morning summary (opt-in type, O-38)", async () => {
+  it("a parent cannot write a fake morning summary (opt-in type, O-40)", async () => {
     const opted = db.find("user", "child-a")!;
     opted.morning_summary_enabled = true;
     const res = await notifications.POST(req({ as: "parentA", body: { ...note, type: "summary" } }));

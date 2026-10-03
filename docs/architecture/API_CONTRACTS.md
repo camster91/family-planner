@@ -375,6 +375,7 @@ explicitly:
 | `event` | `events` |
 | `message` | `messages` |
 | `system` (a parent's notice through `POST /api/notifications`) | **always sent** |
+| `summary` (the morning summary, O-40; in-app and opt-in email) | **opt-in**: its own switch, default off (see "Morning summary") |
 | Account email: `password_reset`, `email_verification`, `family_invite` | **always sent** |
 
 Always-sent types ignore every switch. They are account and safety messages: muting them could lock a person out of
@@ -412,6 +413,36 @@ always-sent account mail), so quiet hours are a stored preference that the first
 
 "Local" time: the Settings form saves the browser's own time zone with the times (O-31: dates use the browser's
 local time; there is no per-household zone yet). Moving to another zone needs a save from a browser there.
+
+### Morning summary (decision O-40)
+
+One short daily message per member who opts in: in-app (`Notification.type = 'summary'`) and, to a verified address,
+email. Stored on `User` as `morning_summary_enabled` (Boolean, `NOT NULL DEFAULT false`: opt-in),
+`morning_summary_time_zone` (Text, nullable: the browser's IANA zone saved with the switch) and
+`morning_summary_sent_on` (Text, nullable: the local `YYYY-MM-DD` of the last send, the once-a-day dedupe key), added
+by `scripts/migrate.js` with `ADD COLUMN IF NOT EXISTS`. Additive and off by default: existing rows and old clients
+get nothing new.
+
+Policy: `summary` maps to the opt-in kind `morning_summary` (not a muteable category, not ALWAYS). `deliverNotification`
+stores it only when the recipient's own switch is on; `sendOptInMail` emails it only when the switch is on, the address
+is verified, the recipient is outside quiet hours and mail is configured.
+
+| Route | Change | Old clients |
+| --- | --- | --- |
+| `GET /api/users/preferences` | Adds `morningSummary: { enabled, timeZone }`. | Extra key, ignored |
+| `PATCH /api/users/preferences` | Body may add `morningSummary: { enabled, timeZone? }` (strict). `timeZone`: an IANA zone the server knows (max 64), or null; missing keeps the saved zone. The last-sent day cannot be set. The response adds `morningSummary`. | Unchanged bodies still valid |
+| `POST /api/notifications` | `type: 'summary'` is `400` (only the summary sender creates it). | No browser code sends it |
+| `GET /api/users/export` | Adds `morningSummary` (same shape as the GET) and the two preference columns on `user`. | unchanged |
+| `POST /api/cron/morning-summary[?tz=<IANA zone>]` | New. Machine-only: `x-cron-secret` must equal `CRON_SECRET` (constant-time); unset `500 { error: 'Cron not configured' }`, missing/wrong `401`; unknown `tz` `400`. CSRF-exempt like the recurring-chores cron (no cookie auth). Answers counts only: `{ success, households: { processed, failed }, sent: { inApp, email }, skipped: { alreadySent, quietHours, nothingToday, noEmail }, failedRecipients, truncated }`. | n/a |
+
+Run rules (`src/lib/morning-summary-server.ts`): opted-in members only, read in pages by id (at most 5000 per run);
+each household's rows read once; a household that fails is logged (content-free) and the others carry on. A person's
+day is their saved zone, else `tz`, else UTC. Before sending, the day is claimed with a conditional update
+(`morning_summary_enabled = true AND (sent_on IS NULL OR sent_on <> day)`), so a retried, overlapping or doubled run
+sends nothing more; a send that fails after the claim is not retried that day. Inside quiet hours nothing is sent and
+the day is not claimed (a later run that day sends it). No summary when there is nothing to say (not claimed either).
+At most 1000 summaries per run; then `truncated: true` and the next run continues. Content rules: `src/lib/morning-summary.ts`
+and `ROLE_AND_ISOLATION_MATRIX.md` "Morning summary".
 
 ## Household audit history (#285, PR101 D-4)
 Additive: one new route and one new export key; no existing request or response changes. Roles:

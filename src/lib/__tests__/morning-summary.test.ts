@@ -1,4 +1,4 @@
-// Morning summary builder (O-38): each part, empty -> nothing, role rules
+// Morning summary builder (O-40): each part, empty -> nothing, role rules
 // (only your own chores; "to check" for parents only), features, and the
 // person's local day and clock (O-31), including date-line and DST edges.
 import {

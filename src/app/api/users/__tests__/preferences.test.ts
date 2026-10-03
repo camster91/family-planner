@@ -274,7 +274,7 @@ describe('/api/users/preferences', () => {
     })
   })
 
-  describe('morning summary (O-38)', () => {
+  describe('morning summary (O-40)', () => {
     const ON = { enabled: true, timeZone: 'America/Vancouver' }
 
     function summaryColumns(who: UserKey) {

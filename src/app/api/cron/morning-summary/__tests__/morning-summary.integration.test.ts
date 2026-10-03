@@ -1,4 +1,4 @@
-// Morning summary against real Postgres (O-38): the new columns default to
+// Morning summary against real Postgres (O-40): the new columns default to
 // off for a row written without them, the once-a-day claim is a real
 // conditional UPDATE (concurrent calls send once), households stay apart, and
 // the in-app row and email go through the one delivery helper. Mail sending is
@@ -84,7 +84,7 @@ describeWithDatabase('morning summary against Postgres', () => {
         { id: FAM2, name: 'Summary other', invite_code: 'msint-invite-2' },
       ],
     })
-    // Written the way a row from before O-38 looks: the INSERT names none of
+    // Written the way a row from before O-40 looks: the INSERT names none of
     // the morning_summary_* columns, so only the column DEFAULT can fill them.
     await prisma.$executeRawUnsafe(
       `INSERT INTO "User" (id, email, name, role, family_id, email_verified) VALUES

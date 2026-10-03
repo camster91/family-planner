@@ -9,7 +9,7 @@ import { runMorningSummary } from '@/lib/morning-summary-server'
 export const dynamic = 'force-dynamic'
 
 // POST /api/cron/morning-summary[?tz=America/Toronto] — send today's morning
-// summary (O-38) to every member who turned it on. Protected exactly like
+// summary (O-40) to every member who turned it on. Protected exactly like
 // /api/cron/recurring-chores: the `x-cron-secret` header must match
 // CRON_SECRET; unset is 500 (fail closed), wrong or missing is 401. The secret
 // is never logged or echoed.

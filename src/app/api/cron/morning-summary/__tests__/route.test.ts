@@ -1,4 +1,4 @@
-// POST /api/cron/morning-summary (O-38) against the two-household fake
+// POST /api/cron/morning-summary (O-40) against the two-household fake
 // database: fail-closed auth like the recurring-chores cron, opt-in only,
 // once per person per local day (retries and double calls send nothing more),
 // quiet hours hold it, an unverified address gets in-app only, one household's

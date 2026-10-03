@@ -110,7 +110,7 @@ describe('/api/users/preferences (nested envelope)', () => {
     expect(typeof body.error.message).toBe('string')
   })
 
-  it('200 body is unchanged (preferences, plus quietHours added by #141 and morningSummary by O-38)', async () => {
+  it('200 body is unchanged (preferences, plus quietHours added by #141 and morningSummary by O-40)', async () => {
     const res = await prefsGET(req({ as: 'parentA', path: '/api/users/preferences' }))
     expect(res.status).toBe(200)
     expect(Object.keys(await res.json())).toEqual(['preferences', 'quietHours', 'morningSummary'])
