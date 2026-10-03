@@ -253,6 +253,16 @@ describe('series generation with take turns (fake database)', () => {
       expect(series()[4].assigned_to).toBe(S)
     })
 
+    it('a copy given to someone by hand keeps that person when the order changes', async () => {
+      addTemplate([S, A])
+      await expandSeriesInTx(fakePrisma, TEMPLATE, FAMILY_A, NOW) // S A S A
+      series()[2].assigned_to = J // a parent gave the 2099-01-19 one to J
+      await applyRotationEditInTx(fakePrisma, TEMPLATE, FAMILY_A, [A, S], NOW)
+      // J keeps it and takes no place; the other not-started copies go A, S.
+      expect(people()).toEqual([S, A, J, S])
+      expect(series().map((c) => c.rotation_index)).toEqual([null, 0, null, 1])
+    })
+
     it('an unchanged list is a no-op', async () => {
       addTemplate([S, A])
       await expandSeriesInTx(fakePrisma, TEMPLATE, FAMILY_A, NOW)

@@ -120,8 +120,9 @@ export async function rotationMembersInHousehold(
  *
  * On a change: every row of the series loses its place, then the rows due
  * after today that are still `pending` get places 0, 1, 2, ... in due-date
- * order and that person. Started or finished rows keep their person and no
- * place, so they never use up someone's turn. The next generated copy carries on from the
+ * order and that person. Started or finished rows, and rows a parent gave
+ * to someone by hand, keep their person and no place, so they never use up
+ * someone's turn and a hand pick is never undone (O-39). The next generated copy carries on from the
  * latest row. Clearing the list leaves every row's person as it is.
  */
 export async function applyRotationEditInTx(
@@ -138,22 +139,28 @@ export async function applyRotationEditInTx(
   if (!template) return false
   if (sameRotation(template.rotation_member_ids, rotation)) return false
 
+  // Due dates are stored at UTC midnight (src/lib/recurringChores.ts).
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+  // Only copies nobody started take turns. A started or finished copy keeps
+  // its person and no place, so it does not use up someone else's turn. A
+  // copy a parent gave to someone by hand (its person is not the one its place
+  // names) keeps that person too: the new order never undoes a hand pick.
+  const oldRotation = template.rotation_member_ids ?? []
+  const pending = await tx.chore.findMany({
+    where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending' },
+    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+    select: { id: true, assigned_to: true, rotation_index: true },
+  })
+  const future = pending.filter(
+    (row) => row.rotation_index == null || oldRotation[row.rotation_index] === row.assigned_to
+  )
+
   await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: [...rotation] } })
   await tx.chore.updateMany({
     where: { family_id: familyId, recurrence_id: template.id },
     data: { rotation_index: null },
   })
   if (rotation.length === 0) return true
-
-  // Due dates are stored at UTC midnight (src/lib/recurringChores.ts).
-  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
-  // Only copies nobody started take turns. A started or finished copy keeps
-  // its person and no place, so it does not use up someone else's turn.
-  const future = await tx.chore.findMany({
-    where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending' },
-    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
-    select: { id: true },
-  })
   const turns = planRotationTurns(rotation, null, future.length)
   for (let i = 0; i < future.length; i++) {
     const turn = turns[i]
