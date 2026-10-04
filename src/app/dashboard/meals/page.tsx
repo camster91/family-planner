@@ -7,11 +7,11 @@ import { FeatureGate } from '@/components/ui/feature-gate'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { Dialog } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RecipePicker, type RecipeOption } from '@/components/meals/RecipePicker'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { useToast, useUndoToast } from '@/components/ui/toast'
@@ -202,7 +202,10 @@ function MealsPageInner() {
   const { t } = useTranslation()
   // Food inventory (#263) is a separate, opt-in feature; link to it when on.
   const inventoryOn = useFeatureEnabled('inventory')
-  const [week, setWeek] = React.useState<DayPlan[]>(() => buildDayPlans([]))
+  const displayLocale = useDisplayLocale()
+  const [meals, setMeals] = React.useState<MealSlot[]>([])
+  // Labels follow the viewer's locale; rebuilt when the meals or locale change.
+  const week = React.useMemo(() => buildDayPlans(meals, new Date(), displayLocale), [meals, displayLocale])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -229,7 +232,7 @@ function MealsPageInner() {
       const res = await fetch(`/api/meals?start=${start}&end=${end}`)
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
-      setWeek(buildDayPlans(data.meals ?? []))
+      setMeals(data.meals ?? [])
     } catch {
       setError(t('meals.errorLoad'))
     } finally {
@@ -328,7 +331,7 @@ function MealsPageInner() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -346,7 +349,7 @@ function MealsPageInner() {
         </div>
         <button
           type="button"
-          className="btn-tinted min-h-[44px]"
+          className="btn-filled min-h-[44px] shrink-0"
           onClick={() => setModal({ mode: 'add' })}
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
@@ -390,18 +393,9 @@ function MealsPageInner() {
           />
         ) : (
           <>
-            {/* Nothing planned all week: a quiet illustrated note above the
-                days, which stay below as the way to add a meal. */}
-            {week.every(day => day.slots.every(slot => slot.meals.length === 0)) && (
-              <EmptyState
-                icon={UtensilsCrossed}
-                glyphColor="meals"
-                illustration={ILLUSTRATIONS.mealsEmpty}
-                headingLevel="h3"
-                title={t('meals.empty')}
-                className="pt-2 pb-6"
-              />
-            )}
+            {/* One empty state: an empty week is the week of "Nothing planned"
+                rows, each one the way to add that meal. No separate
+                illustrated "No meals planned yet" above it. */}
             <div className="space-y-3 stagger">
               {week.map(day => (
                 <DayCard key={day.dateKey} day={day} onAdd={openAdd} onEdit={openEdit} />

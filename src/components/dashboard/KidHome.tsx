@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Star, Gift, Calendar, Sparkles } from 'lucide-react'
+import { Star, Gift, Calendar, Sparkles, X } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { BrandMotion } from '@/components/ui/brand-motion'
 import { MOTION } from '@/lib/brand-illustrations'
@@ -90,6 +90,9 @@ function wasDueLabel(dueDate: string, now: Date): string {
   return `Was due ${label === 'Yesterday' ? 'yesterday' : label}`
 }
 
+/** How long the "You did it!" celebration stays before settling into "All done". */
+export const CELEBRATE_MS = 6000
+
 // XP threshold to level up from `level` — shared with the server logic
 // (gamification.ts xpForNextLevel) so the ring matches awardChoreXP.
 const xpForLevel = xpForNextLevel
@@ -119,6 +122,12 @@ export default function KidHome({
   // XP balance returned by the claim, until fresh props arrive. Keyed to the
   // prop it replaced so a later refresh always wins.
   const [xpAfterClaim, setXpAfterClaim] = useState<{ from: number | null | undefined; xp: number } | null>(null)
+  // Finishing the last to-do on this page (O-42): a short "You did it!" burst
+  // that settles into the "All done for today!" card. Only shown while
+  // nothing is left, so an Undo (or a failed tick) takes it away again.
+  const [celebration, setCelebration] = useState<'burst' | 'settled' | null>(null)
+  const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const celebrationRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { addToast } = useToast()
   const showUndo = useUndoToast()
@@ -158,6 +167,34 @@ export default function KidHome({
     .sort((a, b) => toDateOnlyUTC(b.due_date).localeCompare(toDateOnlyUTC(a.due_date)))
     .slice(0, 3)
   const tomorrowChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey).slice(0, 3)
+
+  // Everything the child can still tick here: open chores due today or
+  // earlier (all of them, not just the few shown) and today's routine steps.
+  const todoIds = [
+    ...openChores.filter((c) => toDateOnlyUTC(c.due_date) <= (todayKey ?? '')).map((c) => c.id),
+    ...routineChores.filter((c) => c.status !== 'completed' && c.status !== 'verified').map((c) => c.id),
+  ]
+  const remainingTodos = todoIds.filter((id) => !completedChores.has(id)).length
+  const finishedHere = !!now && celebration !== null && todoIds.length > 0 && remainingTodos === 0
+  // Read after a tick's request returns, so it sees that tick's optimistic state.
+  const remainingRef = useRef(remainingTodos)
+  useEffect(() => {
+    remainingRef.current = remainingTodos
+  })
+  useEffect(
+    () => () => {
+      if (celebrateTimer.current) clearTimeout(celebrateTimer.current)
+    },
+    []
+  )
+  // The card appears below the list the child just finished: bring it into
+  // view (gently, unless they asked for reduced motion).
+  useEffect(() => {
+    if (!finishedHere || celebration !== 'burst') return
+    const reduce =
+      typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    celebrationRef.current?.scrollIntoView?.({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
+  }, [finishedHere, celebration])
 
   // Today's events (the viewer's local day) — up to 2
   const todayEvents = todayKey
@@ -237,6 +274,12 @@ export default function KidHome({
       addToast({ type: 'error', title: "Couldn't mark it done", message: 'Check your connection and try again.' })
       return
     }
+    // That was the last one: celebrate, then settle into "All done".
+    if (remainingRef.current === 0) {
+      setCelebration('burst')
+      if (celebrateTimer.current) clearTimeout(celebrateTimer.current)
+      celebrateTimer.current = setTimeout(() => setCelebration((c) => (c === 'burst' ? 'settled' : c)), CELEBRATE_MS)
+    }
     // Undo over confirm (#269): a mis-tap is one tap to reverse.
     const title = (chores ?? []).find((c) => c.id === choreId)?.title
     showUndo({
@@ -290,7 +333,7 @@ export default function KidHome({
           {gamification && chore.points && (
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-              <span className="text-footnote text-label-secondary">{chore.points} XP</span>
+              <span className="text-footnote text-label-secondary">{chore.points} points</span>
             </div>
           )}
         </div>
@@ -304,7 +347,9 @@ export default function KidHome({
   }
 
   return (
-    <div className="pb-20">
+    // Bottom room so the Undo card (fixed above the phone tab bar) never covers
+    // the last row when scrolled to the end (O-42).
+    <div className="pb-28 md:pb-20">
       {/* Large Header: "Hi, {name}!" + big avatar */}
       <LargeHeader
         title={`Hi, ${firstName(user?.name) ?? 'there'}!`}
@@ -353,7 +398,7 @@ export default function KidHome({
                 Level {userLevel}
               </p>
               <p className="text-subhead text-label-secondary mt-1">
-                {xpNextLevel - userXp} XP to go!
+                {xpNextLevel - userXp} points to go!
               </p>
               <div className="mt-3 flex items-center gap-1.5">
                 {[...Array(Math.min(userLevel, 5))].map((_, i) => (
@@ -402,8 +447,47 @@ export default function KidHome({
           </section>
         )}
 
+        {/* Just ticked the last one (O-42): a short celebration, then the
+            plain "All done" card. Inline, so nothing is blocked; the brand
+            motion shows its still under reduced motion, data saver or dark. */}
+        {finishedHere && celebration === 'burst' && (
+          <div
+            ref={celebrationRef}
+            className="card-apple relative p-6 text-center animate-spring-up scroll-mt-20 scroll-mb-44 md:scroll-mb-4"
+            role="status"
+            data-testid="kid-celebration"
+          >
+            <button
+              type="button"
+              onClick={() => setCelebration('settled')}
+              aria-label="Close"
+              className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-label-tertiary hover:text-label-secondary"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <BrandMotion
+              motion={MOTION.celebrate}
+              play="immediate"
+              className="mx-auto mb-3 h-auto w-[192px] rounded-[var(--radius-lg)] md:w-[224px]"
+            />
+            <p className="text-title-2 font-semibold text-label-primary">You did it!</p>
+            <p className="text-body text-label-secondary mt-1">All done for today.</p>
+          </div>
+        )}
+
+        {finishedHere && celebration === 'settled' && (
+          <div className="card-apple p-6 text-center" data-testid="kid-all-done">
+            <BrandMotion
+              motion={MOTION.celebrate}
+              className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
+            />
+            <p className="text-title-3 text-label-primary">All done for today!</p>
+            <p className="text-subhead text-label-secondary mt-1">Enjoy your day, superstar!</p>
+          </div>
+        )}
+
         {/* No chores state (a routine shows its own progress instead) */}
-        {now && todayChores.length === 0 && routines.length === 0 && (
+        {now && !finishedHere && todayChores.length === 0 && routines.length === 0 && (
           <div className="card-apple p-6 text-center">
             <BrandMotion
               motion={MOTION.celebrate}
@@ -497,7 +581,7 @@ export default function KidHome({
                   )}
                   <div className="flex items-center gap-1 mt-1">
                     <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-                    <span className="text-footnote text-label-secondary">{claimableReward.cost} XP</span>
+                    <span className="text-footnote text-label-secondary">{claimableReward.cost} points</span>
                   </div>
                 </div>
                 <button
@@ -519,7 +603,7 @@ export default function KidHome({
                     ? '🎉 Claimed!'
                     : canClaimReward
                     ? 'Claim'
-                    : `Need ${claimableReward.cost - userXp} more XP`}
+                    : `Need ${claimableReward.cost - userXp} more points`}
                 </button>
               </div>
               {celebratingReward === claimableReward.id && (

@@ -15,6 +15,11 @@ import { canRoleAccessPath } from '@/lib/kid-access'
  * home. The support address comes from src/lib/support.ts.
  */
 
+// Links sit inside sentences, so they keep the text's own size. Inline links
+// are exempt from the target-size rule (WCAG 2.5.8 "inline"); padding them
+// would make each tap area overlap the lines above and below, so a tap on
+// nearby text could open the link. The 44px rule applies to buttons and
+// primary controls (AGENTS.md).
 const linkClass = 'font-medium text-accent underline underline-offset-2'
 
 /** A link to `href`, or just its text when `role` may not open that page. */
@@ -99,15 +104,15 @@ export default function HelpContent({
             <PageLink href="/dashboard/chores" role={role}>
               Chores
             </PageLink>{' '}
-            and choose who does it. When it is ticked off, it waits for a parent to check. Verify gives the points
-            (XP). Reject sends it back with a short reason, so they can try again.
+            and choose who does it. When it is ticked off, it waits for a parent to check. Verify gives the
+            points. Reject sends it back with a short reason, so they can try again.
           </Item>
           <Item title="Rewards">
             Add rewards on{' '}
             <PageLink href="/dashboard/rewards" role={role}>
               Rewards
             </PageLink>
-            . Each one costs some XP. Kids save up their points and claim them.
+            . Each one costs some points. Kids save up their points and claim them.
           </Item>
         </Section>
 

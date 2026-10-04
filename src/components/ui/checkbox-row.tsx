@@ -11,6 +11,10 @@ import { Check, Circle } from 'lucide-react'
  * With `toggleArea="control"` only the round check (a 44px target) toggles;
  * the title and subtitle are plain text, so a row that also has other actions
  * (edit, reassign...) is not ticked off by a tap on its name.
+ *
+ * The subtitle (who / when / "Takes turns · next: Alex") wraps onto a second
+ * line at phone width and is clamped there, so the useful end of it is not
+ * cut off. `wrap` lets both the title and the subtitle grow without a limit.
  */
 export function CheckboxRow({
   checked,
@@ -62,7 +66,12 @@ export function CheckboxRow({
           {title}
         </div>
         {subtitle && (
-          <div id={toggleArea === 'control' ? subtitleId : undefined} className={cn('text-footnote text-label-secondary', wrap ? 'break-words' : 'truncate')}>{subtitle}</div>
+          <div
+            id={toggleArea === 'control' ? subtitleId : undefined}
+            className={cn('text-footnote text-label-secondary break-words', !wrap && 'line-clamp-2')}
+          >
+            {subtitle}
+          </div>
         )}
       </div>
       {meta && (

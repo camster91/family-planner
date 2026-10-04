@@ -111,6 +111,20 @@ describe('Help page', () => {
     expect(screen.queryByText(SUPPORT_EMAIL_PENDING_TEXT)).toBeNull()
   })
 
+  it('keeps in-text links inline, with no padding that would overlap nearby lines', async () => {
+    render(await HelpPage())
+    for (const link of screen.getAllByRole('link')) {
+      expect(link.className).not.toMatch(/\bpy-|\bp-|block\b/)
+    }
+  })
+
+  it('says "points" in plain words, never "XP"', async () => {
+    render(await HelpPage())
+    const chores = screen.getByRole('region', { name: 'Chores and rewards' })
+    expect(chores.textContent).toContain('points')
+    expect(document.body.textContent).not.toMatch(/\bXP\b/)
+  })
+
   it('treats a blank support email as unset', () => {
     expect(supportEmail('')).toBeNull()
     expect(supportEmail('   ')).toBeNull()

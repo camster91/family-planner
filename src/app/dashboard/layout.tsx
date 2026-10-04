@@ -5,6 +5,7 @@ import DashboardNav, { TabBar } from '@/components/layout/DashboardNav'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { OfflineBanner } from '@/components/ui/offline-banner'
 import CommandPaletteHost from '@/components/layout/CommandPaletteHost'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { defaultFeatures, normalizeFeatures } from '@/lib/features'
@@ -116,6 +117,8 @@ export default async function DashboardLayout({
           className="pt-16 pb-20 md:pb-8"
           aria-label="Family planner dashboard"
         >
+          {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
+          <OfflineBanner className="top-16" />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <ErrorBoundary>
               {children}

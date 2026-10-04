@@ -125,6 +125,13 @@ describe('/dashboard/lists ?type=', () => {
     expect(screen.queryByRole('link', { name: /Create List/ })).toBeNull()
   })
 
+  it('"Add list" is the same filled primary "+" as Chores and Calendar', () => {
+    render(<ListsClient lists={lists} familyName="Home" canCreate />)
+    const add = screen.getByRole('link', { name: 'Add list' })
+    expect(add.className).toContain('btn-filled')
+    expect(add.className).not.toContain('btn-tinted')
+  })
+
   it('a child sees the filter but no create action', () => {
     render(<ListsClient lists={lists} familyName="Home" initialType="grocery" canCreate={false} />)
     expect(screen.getByText('Weekly shop')).toBeTruthy()

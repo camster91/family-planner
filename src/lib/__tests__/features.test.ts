@@ -14,6 +14,12 @@ import {
 
 const ROOT = path.join(__dirname, '..', '..', '..')
 
+describe('Features page copy', () => {
+  it('describes every feature in plain words parents know (no "XP")', () => {
+    for (const f of FEATURES) expect(`${f.title} ${f.description}`).not.toMatch(/\bXP\b/)
+  })
+})
+
 describe('gamification feature flag (#248)', () => {
   it('is a toggleable (non-core) feature', () => {
     const meta = FEATURES.find((f) => f.key === 'gamification')

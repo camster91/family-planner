@@ -216,26 +216,37 @@ function ToggleSwitch({
       aria-label={featureTitle ? `${checked ? 'Disable' : 'Enable'} ${featureTitle}` : undefined}
       onClick={disabled ? undefined : onChange}
       disabled={disabled || pending}
+      // The button is the 44px-tall tap target (with a 51px-wide track, >= 44
+      // both ways); the 51x31 track inside is only the picture of the switch.
       className={`
-        relative inline-flex h-[31px] w-[51px] shrink-0 rounded-full
-        transition-colors duration-[var(--duration-fast)] ease-[var(--spring-default)]
-        ${checked ? 'bg-[var(--success)]' : 'bg-[var(--surface-fill-secondary)]'}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:opacity-80'}
-        focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]
+        group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center
+        ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
+        focus-visible:outline-none
       `}
     >
       <span
+        aria-hidden="true"
         className={`
-          absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)]
-          transition-transform duration-[var(--duration-fast)] ease-[var(--spring-default)]
-          ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}
+          relative block h-[31px] w-[51px] rounded-full
+          transition-colors duration-[var(--duration-fast)] ease-[var(--spring-default)]
+          ${checked ? 'bg-[var(--success)]' : 'bg-[var(--surface-fill-secondary)]'}
+          ${disabled ? 'opacity-50' : 'group-active:opacity-80'}
+          group-focus-visible:shadow-[var(--shadow-focus)]
         `}
       >
-        {pending && (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <span className="block h-3 w-3 rounded-full border-2 border-label-tertiary border-t-transparent animate-spin" />
-          </span>
-        )}
+        <span
+          className={`
+            absolute left-0 top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)]
+            transition-transform duration-[var(--duration-fast)] ease-[var(--spring-default)]
+            ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}
+          `}
+        >
+          {pending && (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <span className="block h-3 w-3 rounded-full border-2 border-label-tertiary border-t-transparent animate-spin" />
+            </span>
+          )}
+        </span>
       </span>
     </button>
   )
