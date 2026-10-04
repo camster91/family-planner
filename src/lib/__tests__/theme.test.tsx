@@ -11,6 +11,8 @@ import userEvent from '@testing-library/user-event'
 import {
   DEFAULT_THEME,
   THEME_INIT_SCRIPT,
+  LEGACY_THEME_STORAGE_KEY,
+  resolveStoredPreference,
   THEME_STORAGE_KEY,
   parseThemePreference,
   resolveIsDark,
@@ -101,6 +103,21 @@ describe('pre-paint script (root layout <head>)', () => {
     runInitScript()
     expect(isDark()).toBe(expected)
     expect(resolveIsDark(parseThemePreference(saved), device)).toBe(expected)
+  })
+
+  it.each([
+    // [old key, new key, device dark, expected dark]
+    ['light', null, true, true], // old "light" was saved just by opening Settings: Auto
+    ['dark', null, false, true], // old "dark" was a real choice: kept
+    ['dark', 'light', true, false], // the new key always wins
+    ['light', 'dark', false, true],
+  ])('old key %s, new key %s, device dark %s -> dark %s', (legacy, saved, device, expected) => {
+    if (legacy) window.localStorage.setItem(LEGACY_THEME_STORAGE_KEY, legacy)
+    if (saved) window.localStorage.setItem(THEME_STORAGE_KEY, saved)
+    systemDark = device
+    runInitScript()
+    expect(isDark()).toBe(expected)
+    expect(resolveIsDark(resolveStoredPreference(saved, legacy), device)).toBe(expected)
   })
 
   it('does not throw when storage is blocked, and falls back to Auto', () => {

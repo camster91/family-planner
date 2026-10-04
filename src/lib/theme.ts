@@ -3,12 +3,17 @@
  *
  * Saved per device in localStorage under THEME_STORAGE_KEY, only when someone
  * picks one in Settings. With nothing saved the theme is Auto, so a phone in
- * dark mode opens the app dark. A choice already saved (light, dark or auto)
- * is read as-is and never rewritten.
+ * dark mode opens the app dark.
+ *
+ * Before O-43, merely opening Settings saved "light" under the old key
+ * (LEGACY_THEME_STORAGE_KEY), so a stored "light" there is not a real choice.
+ * Only a stored "dark" carries over from it; anything else reads as Auto.
+ * Choices are now saved under the new key, which always wins.
  */
 export type ThemePreference = 'light' | 'dark' | 'auto'
 
-export const THEME_STORAGE_KEY = 'familyPlanner_theme'
+export const THEME_STORAGE_KEY = 'familyPlanner_theme_v2'
+export const LEGACY_THEME_STORAGE_KEY = 'familyPlanner_theme'
 export const DEFAULT_THEME: ThemePreference = 'auto'
 
 export function isThemePreference(value: unknown): value is ThemePreference {
@@ -20,6 +25,15 @@ export function parseThemePreference(saved: string | null | undefined): ThemePre
   return isThemePreference(saved) ? saved : DEFAULT_THEME
 }
 
+/** New key first; from the old key only "dark" counts (see the note above). */
+export function resolveStoredPreference(
+  saved: string | null | undefined,
+  legacy: string | null | undefined
+): ThemePreference {
+  if (isThemePreference(saved)) return saved
+  return legacy === 'dark' ? 'dark' : DEFAULT_THEME
+}
+
 /** Whether `pref` means dark right now, given the device's dark-mode setting. */
 export function resolveIsDark(pref: ThemePreference, systemDark: boolean): boolean {
   return pref === 'dark' || (pref === 'auto' && systemDark)
@@ -28,7 +42,10 @@ export function resolveIsDark(pref: ThemePreference, systemDark: boolean): boole
 /** The saved preference on this device; Auto when none or storage is blocked. */
 export function readThemePreference(): ThemePreference {
   try {
-    return parseThemePreference(window.localStorage.getItem(THEME_STORAGE_KEY))
+    return resolveStoredPreference(
+      window.localStorage.getItem(THEME_STORAGE_KEY),
+      window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY)
+    )
   } catch {
     return DEFAULT_THEME
   }
@@ -61,6 +78,8 @@ export function applyThemePreference(pref: ThemePreference): void {
  * the wrong theme before React hydrates. Same rules as above, kept tiny and
  * dependency-free; a test checks it against resolveIsDark.
  */
-export const THEME_INIT_SCRIPT = `(function(){try{var p=null;try{p=localStorage.getItem(${JSON.stringify(
+export const THEME_INIT_SCRIPT = `(function(){try{var p=null,l=null;try{p=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY
-)})}catch(e){}if(p!=="light"&&p!=="dark")p="auto";var d=p==="dark"||(p==="auto"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`
+)});l=localStorage.getItem(${JSON.stringify(
+  LEGACY_THEME_STORAGE_KEY
+)})}catch(e){}if(p!=="light"&&p!=="dark"&&p!=="auto")p=l==="dark"?"dark":"auto";var d=p==="dark"||(p==="auto"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`
