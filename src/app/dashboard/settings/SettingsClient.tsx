@@ -761,7 +761,7 @@ export default function SettingsClient({
               <Download className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" />
               <div>
                 <div className="font-medium">{exportState === 'working' ? 'Preparing your data…' : 'Data Export'}</div>
-                <div className="text-xs text-label-tertiary">Download everything the app holds about you as a JSON file</div>
+                <div className="text-xs text-label-tertiary">Download everything the app holds about you, in one file you can open or keep</div>
               </div>
             </button>
             {exportState === 'error' && (

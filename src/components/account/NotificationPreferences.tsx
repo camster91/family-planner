@@ -326,7 +326,8 @@ export default function NotificationPreferences({ className }: { className?: str
               {MORNING_SUMMARY_COPY.label}
             </p>
             <p id={`${idBase}-summary-desc`} className="text-[14px] leading-snug text-label-secondary">
-              {MORNING_SUMMARY_COPY.description} Off unless you turn it on.
+              {MORNING_SUMMARY_COPY.description}{' '}
+              {load.summary.enabled ? MORNING_SUMMARY_COPY.whenOn : MORNING_SUMMARY_COPY.whenOff}
             </p>
           </div>
           <button

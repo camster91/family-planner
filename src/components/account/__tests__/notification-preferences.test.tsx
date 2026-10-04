@@ -253,6 +253,9 @@ describe('NotificationPreferences', () => {
       const sw = await screen.findByRole('switch', { name: 'Morning summary' })
       await userEvent.click(sw)
       expect(sw.getAttribute('aria-checked')).toBe('true')
+      // The note under it follows the switch: never "Off unless…" while on.
+      expect(screen.queryByText(/Off unless you turn it on/)).toBeNull()
+      expect(screen.getByText(/On\. Turn it off any time\./)).toBeTruthy()
       expect((sw as HTMLButtonElement).disabled).toBe(true)
       const patch = calls.find((c) => c.method === 'PATCH')!
       expect(patch.body).toEqual({ morningSummary: { enabled: true, timeZone: zone } })

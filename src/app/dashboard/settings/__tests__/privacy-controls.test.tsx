@@ -69,6 +69,14 @@ describe('Settings privacy controls', () => {
     click.mockRestore()
   })
 
+  it('describes the export in plain words, not "JSON file"', async () => {
+    mockApi()
+    render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
+    const button = await screen.findByRole('button', { name: /Data Export/ })
+    expect(button.textContent).toContain('one file you can open or keep')
+    expect(button.textContent).not.toMatch(/JSON/)
+  })
+
   it('Delete Account opens the confirmation dialog in the page', async () => {
     mockApi()
     window.confirm = jest.fn(() => true)
