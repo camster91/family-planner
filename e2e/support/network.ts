@@ -29,7 +29,7 @@ export async function useStoredTheme(page: Page, theme: "light" | "dark") {
     try {
       window.localStorage.setItem("familyPlanner_theme", t);
     } catch {
-      // Storage blocked: the app falls back to light.
+      // Storage blocked: the app falls back to Auto (the device setting).
     }
   }, theme);
 }

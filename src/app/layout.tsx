@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Fraunces, Inter } from 'next/font/google'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
+import { THEME_INIT_SCRIPT } from '@/lib/theme'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
@@ -108,7 +109,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    // suppressHydrationWarning: THEME_INIT_SCRIPT adds `dark` to <html> before
+    // React hydrates, so its class can differ from the server HTML.
+    <html lang="en" className={`${fraunces.variable} ${inter.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Theme before first paint (O-43): Auto unless this device saved Light or Dark. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="font-sans">
         <CsrfFetchPatch />
         <ServiceWorkerRegistration />

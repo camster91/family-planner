@@ -9,6 +9,7 @@ import SharedDeviceSettings from './SharedDeviceSettings'
 import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
 import { Dialog } from '@/components/ui/dialog'
 import { downloadMyData } from '@/lib/data-export-client'
+import { DEFAULT_THEME, applyThemePreference, readThemePreference, writeThemePreference, type ThemePreference } from '@/lib/theme'
 import { isLocale, useTranslation } from '@/i18n'
 import NotificationPreferences from '@/components/account/NotificationPreferences'
 import BetaMetricsSwitch from '@/components/account/BetaMetricsSwitch'
@@ -120,35 +121,20 @@ export default function SettingsClient({
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('')
   const [age, setAge] = useState('')
-  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light')
+  // Auto (follow the device) unless this device saved a choice (O-43). Read
+  // after mount: localStorage does not exist on the server.
+  const [theme, setTheme] = useState<ThemePreference>(DEFAULT_THEME)
 
   useEffect(() => {
-    // Read saved theme from localStorage on mount (client only — localStorage doesn't exist on the server)
-    // Storage can be blocked (private mode, site data off); the theme then just isn't remembered.
-    let saved: string | null = null
-    try {
-      saved = localStorage.getItem('familyPlanner_theme')
-    } catch {}
-    if (saved === 'light' || saved === 'dark' || saved === 'auto') setTheme(saved)
+    setTheme(readThemePreference())
   }, [])
 
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else if (theme === 'light') {
-      document.documentElement.classList.remove('dark')
-    } else {
-      // 'auto' — follow system preference
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      document.documentElement.classList.toggle('dark', isDark)
-    }
-    try {
-      localStorage.setItem('familyPlanner_theme', theme)
-    } catch {}
-  }, [theme])
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+  // Saved only when the person picks one, so opening Settings never turns
+  // the default (Auto) into a stored choice.
+  const chooseTheme = (next: ThemePreference) => {
+    setTheme(next)
+    writeThemePreference(next)
+    applyThemePreference(next)
   }
   const { locale, setLocale } = useTranslation()
   const [loading, setLoading] = useState(false)
@@ -500,13 +486,13 @@ export default function SettingsClient({
         </div>
 
         <div className="card">
-          <CardHeader icon={Moon} tone="purple" title="Theme" description="Saved on this device" />
+          <CardHeader icon={Moon} tone="purple" title="Theme" description="Auto matches your phone or computer. Saved on this device." />
           <div className="grid grid-cols-3 gap-2" role="group" aria-label="Theme">
             {(['light', 'dark', 'auto'] as const).map((themeOption) => (
               <button
                 key={themeOption}
                 type="button"
-                onClick={() => setTheme(themeOption)}
+                onClick={() => chooseTheme(themeOption)}
                 aria-pressed={theme === themeOption}
                 className={`min-h-[44px] rounded-lg border-2 px-2 py-2 text-center font-medium text-foreground ${
                   theme === themeOption ? 'border-primary bg-[var(--accent-tint)]' : 'border-border hover:border-input'
