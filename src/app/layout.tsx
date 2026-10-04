@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/providers/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
+import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration'
 import './globals.css'
 
 // Warm Paper type (docs/product/BRAND.md): Fraunces for headings, Inter for
@@ -110,6 +111,7 @@ export default function RootLayout({
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
       <body className="font-sans">
         <CsrfFetchPatch />
+        <ServiceWorkerRegistration />
         <ThemeProvider>
           <PostHogProvider>
             <ToastProvider>

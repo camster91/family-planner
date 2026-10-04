@@ -32,6 +32,9 @@ Do not store reusable parent credentials in the shared-device session. Proposed 
 - **Old clients:** every installed build loads the live site, so device mode works on the released APK (versionCode 1) without an update. Builds without this change still work; they only lack the pause flush (a process kill right after a refresh may force a re-pair) and use system Back (which exits the app on `/device/*`). Supported window: versionCode 1 onward.
 - **Device evidence still needed** (cannot be produced in CI): on a real tablet, pair, then cold launch, warm launch, rotation and `adb shell am kill com.ashbi.familyplanner` (including right after a refresh) all return to the board without re-pairing; after revoke the next launch shows the removed screen; parent mode does not survive backgrounding or process death. Record Samsung-class and stock Android results in #242.
 
+### Offline page and the service worker (O-41)
+The web app registers a small service worker (`public/sw.js`) that shows a pre-cached offline page when a navigation fails offline. It is **not** registered inside the Capacitor shell (`src/lib/service-worker.ts` checks `window.Capacitor.isNativePlatform()` and unregisters any copy instead): the shell loads `server.url` through Capacitor's request proxy, which injects the native bridge into HTML responses and, with `resolveServiceWorkerRequests` (on by default), routes service-worker requests through the same proxy. That path is untested on a device, so the Android app's offline behaviour is unchanged: the in-page offline banner works, an offline cold start still shows the WebView error. To enable it later, test registration, an online launch (bridge still injected), an offline navigation and an offline cold start on a real device, then remove the native exclusion. Details: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md) "Offline banner and offline page".
+
 ## Lifecycle requirements
 Relevant releases should test:
 - cold/warm launch;
