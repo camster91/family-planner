@@ -345,7 +345,7 @@ function MealsPageInner() {
         </div>
         <button
           type="button"
-          className="btn-tinted min-h-[44px]"
+          className="btn-filled min-h-[44px] shrink-0"
           onClick={() => setModal({ mode: 'add' })}
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
