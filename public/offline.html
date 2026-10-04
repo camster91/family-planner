@@ -17,11 +17,15 @@
   <title>You're offline — Family Planner</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script>
-    // Same rule as src/components/providers/theme-provider.tsx: the saved
-    // choice wins, 'auto' follows the system, and the default is light.
+    // Same rule as src/lib/theme.ts (O-43): the choice under the new key wins;
+    // from the old key only 'dark' counts; otherwise Auto follows the device.
     (function () {
-      var saved = null
-      try { saved = localStorage.getItem('familyPlanner_theme') } catch (e) {}
+      var saved = null, legacy = null
+      try {
+        saved = localStorage.getItem('familyPlanner_theme_v2')
+        legacy = localStorage.getItem('familyPlanner_theme')
+      } catch (e) {}
+      if (saved !== 'light' && saved !== 'dark' && saved !== 'auto') saved = legacy === 'dark' ? 'dark' : 'auto'
       var dark = saved === 'dark' ||
         (saved === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
       if (dark) document.documentElement.classList.add('dark')

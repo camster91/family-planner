@@ -111,13 +111,10 @@ describe('Help page', () => {
     expect(screen.queryByText(SUPPORT_EMAIL_PENDING_TEXT)).toBeNull()
   })
 
-  it('gives every in-text link a 44px-tall tap area without enlarging the text', async () => {
+  it('keeps in-text links inline, with no padding that would overlap nearby lines', async () => {
     render(await HelpPage())
     for (const link of screen.getAllByRole('link')) {
-      // Inline vertical padding: hit area grows, lines do not move (text 19px + 25px).
-      expect(link.className).toContain('py-[12.5px]')
-      // Positioned, so the next line's text does not cover the lower padding.
-      expect(link.className).toContain('relative')
+      expect(link.className).not.toMatch(/\bpy-|\bp-|block\b/)
     }
   })
 

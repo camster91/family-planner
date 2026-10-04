@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration'
+import { SiteOfflineBanner } from '@/components/ui/site-offline-banner'
 import './globals.css'
 
 // Warm Paper type (docs/product/BRAND.md): Fraunces for headings, Inter for
@@ -119,6 +120,7 @@ export default function RootLayout({
       <body className="font-sans">
         <CsrfFetchPatch />
         <ServiceWorkerRegistration />
+        <SiteOfflineBanner />
         <ThemeProvider>
           <PostHogProvider>
             <ToastProvider>
