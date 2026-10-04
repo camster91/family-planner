@@ -240,6 +240,14 @@ describe('/dashboard/meals', () => {
     expect(within(card).getAllByText('Nothing planned')).toHaveLength(4)
   })
 
+  it('shows one empty state for an empty week: the days, not an extra "No meals planned yet"', async () => {
+    setup({ meals: [] })
+    await todayCard()
+    expect(screen.getAllByTestId('meal-day')).toHaveLength(7)
+    expect(screen.queryByText('No meals planned yet')).toBeNull()
+    expect(document.querySelector('img[data-brand-illustration]')).toBeNull()
+  })
+
   it("shows the server's reason in a toast when a save fails, not alert(), and keeps the dialog open", async () => {
     const user = userEvent.setup()
     setup({ meals: [], saveError: { status: 400, error: 'Recipe name is too long' } })
