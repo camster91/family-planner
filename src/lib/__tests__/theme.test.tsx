@@ -54,7 +54,6 @@ function isDark() {
 }
 
 function runInitScript() {
-  // eslint-disable-next-line no-new-func
   new Function(THEME_INIT_SCRIPT)()
 }
 
