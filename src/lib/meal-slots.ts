@@ -77,12 +77,15 @@ function isMealType(value: unknown): value is MealType {
  * never by parsing into a local Date (which shifts the day off UTC). Rows with
  * a meal type the page does not know are left out, as before.
  */
-export function buildDayPlans(meals: readonly PlannedMeal[], from: Date = new Date()): DayPlan[] {
+export function buildDayPlans(meals: readonly PlannedMeal[], from: Date = new Date(), locale: string = 'en'): DayPlan[] {
   return getWeekDates(from).map((d, i) => {
     const isToday = i === 0
     const dateKey = toDateOnlyLocal(d)
-    const label = isToday ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
-    const longLabel = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    // Display only, in the viewer's locale (src/lib/display-locale.ts): a
+    // short month name, so "Sun, Oct 4" / "Sun 4 Oct" is never misread the
+    // way "10/4" can be. dateKey stays YYYY-MM-DD.
+    const label = isToday ? 'Today' : d.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
+    const longLabel = d.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })
     const dayMeals = meals.filter((m) => isMealType(m.meal_type) && toDateOnlyUTC(m.date) === dateKey)
     const slots = MEAL_TYPES.map((type) => ({ type, meals: dayMeals.filter((m) => m.meal_type === type) }))
     return { dateKey, label, longLabel, isToday, slots }

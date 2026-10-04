@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { RecipePicker, type RecipeOption } from '@/components/meals/RecipePicker'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { useToast, useUndoToast } from '@/components/ui/toast'
@@ -201,7 +202,10 @@ function MealsPageInner() {
   const { t } = useTranslation()
   // Food inventory (#263) is a separate, opt-in feature; link to it when on.
   const inventoryOn = useFeatureEnabled('inventory')
-  const [week, setWeek] = React.useState<DayPlan[]>(() => buildDayPlans([]))
+  const displayLocale = useDisplayLocale()
+  const [meals, setMeals] = React.useState<MealSlot[]>([])
+  // Labels follow the viewer's locale; rebuilt when the meals or locale change.
+  const week = React.useMemo(() => buildDayPlans(meals, new Date(), displayLocale), [meals, displayLocale])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -228,7 +232,7 @@ function MealsPageInner() {
       const res = await fetch(`/api/meals?start=${start}&end=${end}`)
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
-      setWeek(buildDayPlans(data.meals ?? []))
+      setMeals(data.meals ?? [])
     } catch {
       setError(t('meals.errorLoad'))
     } finally {

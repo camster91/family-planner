@@ -13,6 +13,8 @@ import { CaptureBox } from '@/components/capture/CaptureBox'
 import { cn } from '@/lib/utils'
 import { isInLocalMonth, isInUtcMonth, shiftMonth, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { useLocalNow } from '@/components/ui/use-hydrated'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { formatMonthYear } from '@/lib/display-locale'
 import { IMPORT_UNDO_WINDOW_MS, type ImportCommitResult } from '@/lib/event-import-client'
 import { ImportEventsDialog } from './ImportEventsDialog'
 import { SyncNotice, UpdatedLine, useNow } from '@/components/fridge/sync-status'
@@ -58,12 +60,15 @@ export function calendarMonthHref(year: number, month: number): string {
   return `/dashboard/calendar?year=${year}&month=${month}`
 }
 
-function monthLabel(year: number, month: number): string {
-  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+// Month, day and time labels are display only, in the viewer's locale
+// (useDisplayLocale: the app language plus the device's region). The URL keeps
+// numeric year/month and day keys stay YYYY-MM-DD.
+function monthLabel(year: number, month: number, locale: string): string {
+  return formatMonthYear(year, month, locale)
 }
 
 /** Previous/next month links (44px targets), each naming the month it opens. */
-function MonthNav({ year, month }: { year: number; month: number }) {
+function MonthNav({ year, month, locale }: { year: number; month: number; locale: string }) {
   const prev = shiftMonth(year, month, -1)
   const next = shiftMonth(year, month, 1)
   const linkClass =
@@ -73,7 +78,7 @@ function MonthNav({ year, month }: { year: number; month: number }) {
       <Link
         href={calendarMonthHref(prev.year, prev.month)}
         className={linkClass}
-        aria-label={`Previous month, ${monthLabel(prev.year, prev.month)}`}
+        aria-label={`Previous month, ${monthLabel(prev.year, prev.month, locale)}`}
         data-testid="calendar-prev-month"
       >
         <ChevronLeft className="w-5 h-5" aria-hidden="true" />
@@ -82,7 +87,7 @@ function MonthNav({ year, month }: { year: number; month: number }) {
       <Link
         href={calendarMonthHref(next.year, next.month)}
         className={linkClass}
-        aria-label={`Next month, ${monthLabel(next.year, next.month)}`}
+        aria-label={`Next month, ${monthLabel(next.year, next.month, locale)}`}
         data-testid="calendar-next-month"
       >
         <span>Next</span>
@@ -98,8 +103,8 @@ function MonthNav({ year, month }: { year: number; month: number }) {
 // the server HTML and the first client render match. After hydration they
 // switch to the viewer's local day and time.
 
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString('en-US', {
+function formatTime(dateStr: string, locale: string): string {
+  return new Date(dateStr).toLocaleTimeString(locale, {
     hour: 'numeric',
     minute: '2-digit',
   })
@@ -107,14 +112,14 @@ function formatTime(dateStr: string): string {
 
 const DAY_LABEL: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
 
-function formatDayLabel(dateStr: string, now: Date | null): string {
+function formatDayLabel(dateStr: string, now: Date | null, locale: string): string {
   const d = new Date(dateStr)
-  if (!now) return d.toLocaleDateString('en-US', { ...DAY_LABEL, timeZone: 'UTC' })
+  if (!now) return d.toLocaleDateString(locale, { ...DAY_LABEL, timeZone: 'UTC' })
   const tomorrow = new Date(now)
   tomorrow.setDate(now.getDate() + 1)
   if (d.toDateString() === now.toDateString()) return 'Today'
   if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
-  return d.toLocaleDateString('en-US', DAY_LABEL)
+  return d.toLocaleDateString(locale, DAY_LABEL)
 }
 
 /** `YYYY-MM-DD` of the event's day: local once hydrated, UTC before. Sorts as text. */
@@ -229,6 +234,7 @@ export default function CalendarPageClient({
   const [importOpen, setImportOpen] = React.useState(false)
   const [imported, setImported] = React.useState<{ result: ImportCommitResult; at: number } | null>(null)
   const router = useRouter()
+  const displayLocale = useDisplayLocale()
 
   // No month in the URL: the server used its UTC month. Move to the viewer's
   // local month when that differs (near a month boundary, O-31).
@@ -263,7 +269,7 @@ export default function CalendarPageClient({
     <div className="pb-20">
       <LargeHeader
         title="Calendar"
-        subtitle={monthLabel(currentYear, currentMonth)}
+        subtitle={monthLabel(currentYear, currentMonth, displayLocale)}
         trailing={
           <Link href="/dashboard/calendar/create" className="btn-filled shrink-0" aria-label="Add event">
             <Plus className="w-4 h-4" aria-hidden="true" />
@@ -275,7 +281,7 @@ export default function CalendarPageClient({
       <CalendarSyncLine events={events} />
 
       <div className="px-4 mb-4">
-        <MonthNav year={currentYear} month={currentMonth} />
+        <MonthNav year={currentYear} month={currentMonth} locale={displayLocale} />
       </div>
 
       <div className="px-4 mb-5">
@@ -321,10 +327,10 @@ export default function CalendarPageClient({
             const dayEvents = grouped.get(dayKey) || []
             return (
               <section key={dayKey}>
-                <p className="section-header">{formatDayLabel(dayEvents[0].start_time, now)}</p>
+                <p className="section-header">{formatDayLabel(dayEvents[0].start_time, now, displayLocale)}</p>
                 <div className="list-inset stagger">
                   {dayEvents.map((event, i) => {
-                    const time = now ? formatTime(event.start_time) : null
+                    const time = now ? formatTime(event.start_time, displayLocale) : null
                     const subtitle = [time, event.location].filter(Boolean).join(' · ') || undefined
                     // Imported events are read-only: no edit link, and a text
                     // badge naming the source (not colour alone).
