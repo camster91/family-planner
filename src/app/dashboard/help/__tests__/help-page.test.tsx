@@ -111,6 +111,16 @@ describe('Help page', () => {
     expect(screen.queryByText(SUPPORT_EMAIL_PENDING_TEXT)).toBeNull()
   })
 
+  it('gives every in-text link a 44px-tall tap area without enlarging the text', async () => {
+    render(await HelpPage())
+    for (const link of screen.getAllByRole('link')) {
+      // Inline vertical padding: hit area grows, lines do not move (text 19px + 25px).
+      expect(link.className).toContain('py-[12.5px]')
+      // Positioned, so the next line's text does not cover the lower padding.
+      expect(link.className).toContain('relative')
+    }
+  })
+
   it('says "points" in plain words, never "XP"', async () => {
     render(await HelpPage())
     const chores = screen.getByRole('region', { name: 'Chores and rewards' })

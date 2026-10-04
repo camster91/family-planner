@@ -15,7 +15,12 @@ import { canRoleAccessPath } from '@/lib/kid-access'
  * home. The support address comes from src/lib/support.ts.
  */
 
-const linkClass = 'font-medium text-accent underline underline-offset-2'
+// Links sit inside sentences, so the text stays its normal size. Vertical
+// padding on an inline link does not move the lines, but it is part of what a
+// tap hits: 19px of text + 2 x 12.5px = a 44px-tall target, on every line a
+// wrapped link spans. `relative` lifts it above the next line's text so that
+// text does not cover the lower padding.
+const linkClass = 'relative py-[12.5px] font-medium text-accent underline underline-offset-2'
 
 /** A link to `href`, or just its text when `role` may not open that page. */
 function PageLink({ href, role, children }: { href: string; role?: string | null; children: React.ReactNode }) {
