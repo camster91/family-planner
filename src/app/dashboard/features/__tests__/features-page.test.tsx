@@ -26,6 +26,9 @@ describe('Features page switches', () => {
       expect(track.getAttribute('aria-hidden')).toBe('true')
       expect(track.className).toContain('h-[31px]')
       expect(track.className).toContain('w-[51px]')
+      // Pinned left: inside a <button> (text-align: center) an absolute knob
+      // with no `left` would start from the centre and stick out.
+      expect((track.firstElementChild as HTMLElement).className).toMatch(/\bleft-0\b/)
     }
   })
 

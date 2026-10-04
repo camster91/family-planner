@@ -236,7 +236,7 @@ function ToggleSwitch({
       >
         <span
           className={`
-            absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)]
+            absolute left-0 top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)]
             transition-transform duration-[var(--duration-fast)] ease-[var(--spring-default)]
             ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}
           `}
