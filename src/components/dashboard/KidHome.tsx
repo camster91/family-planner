@@ -333,7 +333,7 @@ export default function KidHome({
           {gamification && chore.points && (
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-              <span className="text-footnote text-label-secondary">{chore.points} XP</span>
+              <span className="text-footnote text-label-secondary">{chore.points} points</span>
             </div>
           )}
         </div>
@@ -398,7 +398,7 @@ export default function KidHome({
                 Level {userLevel}
               </p>
               <p className="text-subhead text-label-secondary mt-1">
-                {xpNextLevel - userXp} XP to go!
+                {xpNextLevel - userXp} points to go!
               </p>
               <div className="mt-3 flex items-center gap-1.5">
                 {[...Array(Math.min(userLevel, 5))].map((_, i) => (
@@ -581,7 +581,7 @@ export default function KidHome({
                   )}
                   <div className="flex items-center gap-1 mt-1">
                     <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-                    <span className="text-footnote text-label-secondary">{claimableReward.cost} XP</span>
+                    <span className="text-footnote text-label-secondary">{claimableReward.cost} points</span>
                   </div>
                 </div>
                 <button
@@ -603,7 +603,7 @@ export default function KidHome({
                     ? '🎉 Claimed!'
                     : canClaimReward
                     ? 'Claim'
-                    : `Need ${claimableReward.cost - userXp} more XP`}
+                    : `Need ${claimableReward.cost - userXp} more points`}
                 </button>
               </div>
               {celebratingReward === claimableReward.id && (

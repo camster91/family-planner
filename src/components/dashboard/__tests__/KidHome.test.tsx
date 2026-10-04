@@ -146,7 +146,7 @@ describe('KidHome reward claim', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
     expect(await screen.findByText('You got it!')).toBeTruthy()
     expect(screen.getByText('30')).toBeTruthy()
-    expect(screen.getByText('70 XP to go!')).toBeTruthy()
+    expect(screen.getByText('70 points to go!')).toBeTruthy()
 
     await act(async () => {
       jest.advanceTimersByTime(2000)
@@ -197,7 +197,7 @@ describe('KidHome reward claim', () => {
     })
     expect(screen.getByText('Movie night')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Claim' })).toBeNull()
-    const button = screen.getByRole('button', { name: 'Need 40 more XP' }) as HTMLButtonElement
+    const button = screen.getByRole('button', { name: 'Need 40 more points' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
     expect(button.className).toMatch(/min-h-\[44px\]/)
     await userEvent.click(button)
