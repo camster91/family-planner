@@ -3,6 +3,7 @@
 import * as React from 'react'
 import type { BoardPhoto } from '@/app/dashboard/today/today-board-data'
 import { AMBIENT_PHOTO_MS, ambientState, type AmbientState, type BoardDisplay } from '@/lib/ambient'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { formatLongDate, formatTime, type NextEventView, type WeatherView } from './board-model'
 import { iconFor } from './weather-tile'
 
@@ -96,6 +97,7 @@ export function AmbientCover({
   onWake: () => void
 }) {
   const [shown, setShown] = React.useState(false)
+  const locale = useDisplayLocale()
   const [broken, setBroken] = React.useState<Set<string>>(() => new Set())
   const buttonRef = React.useRef<HTMLButtonElement>(null)
 
@@ -154,10 +156,10 @@ export function AmbientCover({
                 className="text-[88px] font-semibold leading-none tabular-nums md:text-[120px] 2xl:text-[160px]"
               >
                 <span className="sr-only">Time: </span>
-                {formatTime(now)}
+                {formatTime(now, locale)}
               </p>
               <p data-testid="ambient-date" className="mt-3 text-[28px] font-medium md:text-[36px] 2xl:text-[44px]">
-                {formatLongDate(now)}
+                {formatLongDate(now, locale)}
               </p>
               {current && WeatherIcon && (
                 <p

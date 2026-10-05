@@ -182,6 +182,21 @@ describe('/dashboard/inventory', () => {
     }
   })
 
+  it("writes dates in the viewer's locale (en-GB: day before month), keeping the month name", async () => {
+    const spy = jest.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['en-GB'])
+    try {
+      const { calls } = setup()
+      const fridge = await screen.findByRole('region', { name: /Fridge/ })
+      const rows = within(fridge).getAllByTestId('inventory-item')
+      await waitFor(() => expect(rows[0].textContent).toContain('Best before 4 Jan · Dairy & eggs · Opened 2 Jan'))
+      expect(within(screen.getByTestId('use-soon')).getAllByTestId('use-soon-item')[0].textContent).toContain('4 Jan')
+      // The request still sends the YYYY-MM-DD day, not a display date.
+      expect(calls.find((c) => c.url.startsWith('/api/inventory?'))!.url).toContain(`today=${today}`)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('shows use-soon items and ranked recipes, and adds only the missing ingredients to groceries', async () => {
     const user = userEvent.setup()
     const { calls } = setup()

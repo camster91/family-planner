@@ -16,6 +16,7 @@ import { checkChore, setChoreDone, type CheckedChoreState } from '@/lib/chore-ti
 import { LongPressRow } from '@/components/ui/long-press-row'
 import { Dialog } from '@/components/ui/dialog'
 import { useLocalNow } from '@/components/ui/use-hydrated'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { cn } from '@/lib/utils'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { formatDateOnly, formatRelativeDueDate, isDueToday, isDueWithinDays, snoozedDueDate } from '@/lib/dates'
@@ -124,6 +125,9 @@ export default function ChoresContent({
   const [nextCursor, setNextCursor] = React.useState(historyCursor)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [loadMoreError, setLoadMoreError] = React.useState<string | null>(null)
+  // Due dates are shown in the viewer's locale ("Oct 5", "5 Oct"); stored
+  // due_date values and the snooze payload stay YYYY-MM-DD.
+  const displayLocale = useDisplayLocale()
 
   React.useEffect(() => {
     setLocalChores(chores)
@@ -273,7 +277,7 @@ export default function ChoresContent({
       addToast({
         type: 'success',
         title: 'Snoozed a day',
-        message: `Now due ${formatRelativeDueDate(storedDueDate).replace('Tomorrow', 'tomorrow')}.`,
+        message: `Now due ${formatRelativeDueDate(storedDueDate, new Date(), displayLocale).replace('Tomorrow', 'tomorrow')}.`,
       })
     } catch (error) {
       addToast({
@@ -282,7 +286,7 @@ export default function ChoresContent({
         message: error instanceof Error ? error.message : 'Please try again.',
       })
     }
-  }, [addToast])
+  }, [addToast, displayLocale])
 
   const handleReassignChore = React.useCallback(async (choreId: string, assigneeId: string) => {
     try {
@@ -497,7 +501,7 @@ export default function ChoresContent({
                     title={chore.title}
                     subtitle={[
                       chore.assignee?.name,
-                      formatRelativeDueDate(chore.due_date, now),
+                      formatRelativeDueDate(chore.due_date, now, displayLocale),
                       routineLabel(chore),
                       chore.rotation_next_name ? `Takes turns · next: ${chore.rotation_next_name}` : null,
                     ].filter(Boolean).join(' · ')}
@@ -567,7 +571,7 @@ export default function ChoresContent({
                     icon={CheckSquare}
                     glyphColor="chore"
                     title={chore.title}
-                    subtitle={formatDateOnly(chore.due_date)}
+                    subtitle={formatDateOnly(chore.due_date, undefined, displayLocale)}
                     showChevron={false}
                     trailing={gamification ? <span className="text-footnote text-label-tertiary">+{chore.points}</span> : undefined}
                     className={cn(i === doneChores.length - 1 && 'border-b-0')}

@@ -45,6 +45,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useUndoToast } from '@/components/ui/toast'
 import { useOnline } from '@/components/ui/use-online'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
@@ -125,8 +126,11 @@ function todayQuery(): string {
   return `today=${encodeURIComponent(toDateOnlyLocal(new Date()))}`
 }
 
-function formatClock(date: Date): string {
-  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+// Dates and times on this page are display only, in the viewer's locale
+// (useDisplayLocale): "Use by Oct 5" / "Use by 5 Oct", "10:42 AM" / "10:42".
+// Stored day keys and form values stay YYYY-MM-DD.
+function formatClock(date: Date, locale: string): string {
+  return date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
 }
 
 function formatAmount(n: number): string {
@@ -205,6 +209,7 @@ export default function InventoryClient({
 }) {
   const mealsOn = useFeatureEnabled('meals')
   const online = useOnline()
+  const displayLocale = useDisplayLocale()
   const showUndo = useUndoToast()
   const [data, setData] = React.useState<Load<PageData>>({ state: 'loading' })
   const [loadedAt, setLoadedAt] = React.useState<Date | null>(null)
@@ -455,8 +460,8 @@ export default function InventoryClient({
           <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
           <span className="flex-1 min-w-[12rem]">
             {!online
-              ? `You're offline. Showing what was loaded at ${formatClock(loadedAt)}. Changes need a connection; the list refreshes when you're back online.`
-              : `Couldn't refresh. Showing what was loaded at ${formatClock(loadedAt)}, which may be out of date.`}
+              ? `You're offline. Showing what was loaded at ${formatClock(loadedAt, displayLocale)}. Changes need a connection; the list refreshes when you're back online.`
+              : `Couldn't refresh. Showing what was loaded at ${formatClock(loadedAt, displayLocale)}, which may be out of date.`}
           </span>
           {online && (
             <button type="button" className="btn-tinted min-h-[44px]" onClick={load}>
@@ -619,6 +624,7 @@ function PastUseBySection({
   busy: string | null
   onDiscard: (target: AdjustTarget) => void
 }) {
+  const locale = useDisplayLocale()
   return (
     <section aria-labelledby="inventory-past-use-by" data-testid="past-use-by">
       <h2 id="inventory-past-use-by" className="section-header">
@@ -638,7 +644,7 @@ function PastUseBySection({
               <span className="flex-1 min-w-[10rem]">
                 <span className="block text-body text-label-primary break-words">{item.name}</span>
                 <span className="block text-footnote text-label-secondary">
-                  {LOCATION_LABELS[item.location]} · Use by {item.expires_on ? formatDateOnly(item.expires_on) : ''}
+                  {LOCATION_LABELS[item.location]} · Use by {item.expires_on ? formatDateOnly(item.expires_on, undefined, locale) : ''}
                 </span>
               </span>
               <ExpiryBadge status={item.expiry.status} daysLeft={item.expiry.daysLeft} dateKind={item.date_kind} />
@@ -671,6 +677,7 @@ function UseSoonSection({
   busy: string | null
   onAdjust: (target: AdjustTarget, kind: AdjustKind) => void
 }) {
+  const locale = useDisplayLocale()
   return (
     <section aria-labelledby="inventory-use-soon" data-testid="use-soon">
       <h2 id="inventory-use-soon" className="section-header">
@@ -691,7 +698,7 @@ function UseSoonSection({
                   <span className="block text-body text-label-primary break-words">{item.name}</span>
                   <span className="block text-footnote text-label-secondary">
                     {LOCATION_LABELS[item.location]} · {DATE_KIND_LABELS[asDateKind(item.dateKind)]}{' '}
-                    {formatDateOnly(item.expiresOn)}
+                    {formatDateOnly(item.expiresOn, undefined, locale)}
                   </span>
                 </span>
                 <ExpiryBadge status={item.status} daysLeft={item.daysLeft} dateKind={asDateKind(item.dateKind)} />
@@ -905,14 +912,14 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
   )
 }
 
-function itemMeta(item: InventoryItemDto): string {
+function itemMeta(item: InventoryItemDto, locale: string): string {
   const parts: string[] = []
   const amount = amountText(item)
   if (amount) parts.push(amount)
-  if (item.expires_on) parts.push(`${DATE_KIND_LABELS[asDateKind(item.date_kind)]} ${formatDateOnly(item.expires_on)}`)
+  if (item.expires_on) parts.push(`${DATE_KIND_LABELS[asDateKind(item.date_kind)]} ${formatDateOnly(item.expires_on, undefined, locale)}`)
   const category = asCategory(item.category)
   if (category) parts.push(CATEGORY_LABELS[category])
-  if (item.opened_on) parts.push(`Opened ${formatDateOnly(item.opened_on)}`)
+  if (item.opened_on) parts.push(`Opened ${formatDateOnly(item.opened_on, undefined, locale)}`)
   return parts.join(' · ') || 'No amount or date'
 }
 
@@ -930,6 +937,7 @@ function LocationSection({
   onEdit: (item: InventoryItemDto) => void
 }) {
   const headingId = `inventory-${location}`
+  const locale = useDisplayLocale()
   return (
     <section aria-labelledby={headingId} data-testid="inventory-location" data-location={location}>
       <h2 id={headingId} className="section-header">
@@ -948,7 +956,7 @@ function LocationSection({
                   {/* A minimum width lets the badge wrap under a long name on a phone instead of squeezing it. */}
                   <span className="flex-1 min-w-[9rem]">
                     <span className="block text-body text-label-primary break-words">{item.name}</span>
-                    <span className="block text-footnote text-label-secondary break-words">{itemMeta(item)}</span>
+                    <span className="block text-footnote text-label-secondary break-words">{itemMeta(item, locale)}</span>
                   </span>
                   <ExpiryBadge status={item.expiry.status} daysLeft={item.expiry.daysLeft} dateKind={asDateKind(item.date_kind)} />
                 </>
@@ -995,6 +1003,7 @@ function HistorySection({
   canWrite: boolean
   onUndo: (entry: HistoryEntry) => void
 }) {
+  const locale = useDisplayLocale()
   return (
     <section aria-labelledby="inventory-history" data-testid="inventory-history">
       <h2 id="inventory-history" className="section-header">
@@ -1008,7 +1017,7 @@ function HistorySection({
               <span className="flex-1 min-w-[10rem]">
                 <span className="block text-body text-label-primary break-words">{historyText(e)}</span>
                 <span className="block text-footnote text-label-secondary">
-                  {new Date(e.created_at).toLocaleString('en-US', {
+                  {new Date(e.created_at).toLocaleString(locale, {
                     month: 'short',
                     day: 'numeric',
                     hour: 'numeric',

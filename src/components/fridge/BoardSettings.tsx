@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { CloudSun, Search } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import {
   MEMBER_COLOR_CSS,
   MEMBER_COLOR_KEYS,
@@ -132,6 +133,7 @@ export default function BoardSettings({
   headingLevel?: 2 | 3
 } = {}) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3'
+  const displayLocale = useDisplayLocale()
   const [data, setData] = React.useState<BoardSettingsData | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<string | null>(null)
@@ -571,7 +573,8 @@ export default function BoardSettings({
                                   disabled={busy || (!chosen && (data.display!.photoIds ?? []).length >= 20)}
                                   onChange={(e) => togglePhoto(u.id, e.target.checked)}
                                 />
-                                Photo {i + 1}, uploaded {new Date(u.createdAt).toLocaleDateString()}
+                                Photo {i + 1}, uploaded{' '}
+                                {new Date(u.createdAt).toLocaleDateString(displayLocale, { month: 'short', day: 'numeric', year: 'numeric' })}
                               </span>
                             </label>
                           </li>

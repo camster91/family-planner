@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useOnline } from '@/components/ui/use-online'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Maximize2, Minimize2 } from 'lucide-react'
@@ -204,6 +205,8 @@ export default function TodayBoard({
   // board renders after mount (a brief skeleton) instead of risking a
   // hydration mismatch or a wrong-day render on a server in another zone.
   const [now, setNow] = React.useState<Date | null>(null)
+  // Date and time labels follow the viewer's locale (display only).
+  const displayLocale = useDisplayLocale()
   const router = useRouter()
   // Visible sync (#271): version polling, re-fetch on change, words for
   // "Updated …", offline and stale. Times are on the viewer's own clock.
@@ -260,13 +263,13 @@ export default function TodayBoard({
       today: eventsLeftToday(data.events, now),
       dinner: dinnerOn(data.dinners, today),
       chores: choresDueTodayByPerson(tiles.chores, withColors, now),
-      comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS),
+      comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS, displayLocale),
       people,
       weather: weatherView(data.weather, now),
       useSoon: itemsToUseSoon(data.useSoon, now),
-      next: nextEvent(data.events, now),
+      next: nextEvent(data.events, now, displayLocale),
     }
-  }, [data, now, tiles.chores])
+  }, [data, now, tiles.chores, displayLocale])
 
   // "Use soon" tile (#263): only when there is something to use (null otherwise).
   const useSoonSlot =
@@ -303,7 +306,7 @@ export default function TodayBoard({
                 data-testid="board-date"
                 className="font-display text-[34px] font-bold leading-tight text-label-primary md:text-[44px] lg:text-[48px] 2xl:text-[60px]"
               >
-                {now ? formatLongDate(now) : 'Today'}
+                {now ? formatLongDate(now, displayLocale) : 'Today'}
               </h1>
               {now && (
                 <p
@@ -311,7 +314,7 @@ export default function TodayBoard({
                   className="text-[28px] font-semibold tabular-nums text-label-secondary md:text-[36px] lg:text-[40px] 2xl:text-[52px]"
                 >
                   <span className="sr-only">Time: </span>
-                  {formatTime(now)}
+                  {formatTime(now, displayLocale)}
                 </p>
               )}
             </div>
