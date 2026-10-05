@@ -172,4 +172,14 @@ describe('syncState and syncNotice', () => {
     )
     expect(syncNotice('offline', now - 30 * 1000, now, 'calendar')).toContain('just now. The calendar refreshes')
   })
+
+  it('leaves "You\'re offline" to the app-wide banner when it is on screen', () => {
+    expect(syncNotice('offline', now - 3 * 60 * 1000, now, 'board', { bannerSaysOffline: true })).toBe(
+      'Showing what was here 3 min ago. The board refreshes when the connection returns.'
+    )
+    // Not being able to reach the server is not something the banner says.
+    expect(syncNotice('stale', now - 5 * 60 * 1000, now, 'board', { bannerSaysOffline: true })).toMatch(
+      /^Can't reach Family Planner right now\./
+    )
+  })
 })

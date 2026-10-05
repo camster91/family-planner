@@ -802,10 +802,11 @@ export function StatesSection({ fx }: SectionProps) {
       </SpecimenGrid>
 
       <SpecimenGrid>
-        <Specimen name="SyncNotice and UpdatedLine" source="src/components/fridge/sync-status.tsx" note="Board offline, then unreachable (stale).">
+        <Specimen name="SyncNotice and UpdatedLine" source="src/components/fridge/sync-status.tsx" note="Fridge board offline (no app banner), the same in the app (the banner says offline), then unreachable (stale).">
           <div className="space-y-3">
             <UpdatedLine lastSyncAt={NOW - 3 * MINUTE} now={NOW} className="text-subhead text-label-secondary" testId="gallery-updated" />
             <SyncNotice lastSyncAt={NOW - 3 * MINUTE} now={NOW} online={false} what="board" />
+            <SyncNotice lastSyncAt={NOW - 3 * MINUTE} now={NOW} online={false} what="board" appBanner />
             <SyncNotice lastSyncAt={NOW - 20 * MINUTE} now={NOW} online canGoStale what="board" />
           </div>
         </Specimen>

@@ -14,8 +14,9 @@
  *   mistake) keeps its confirm, because it deletes the item and its history.
  * - Every write sends an `Idempotency-Key`, one per logical change, reused for
  *   a retry of the same change.
- * - Offline: nothing is queued. The page says it is offline and showing what
- *   was loaded, and a write says it needs a connection. A failed refresh keeps
+ * - Offline: nothing is queued. The app-wide banner says it is offline; the
+ *   page adds when its list was loaded and that changes need a connection,
+ *   and a write says it needs a connection. A failed refresh keeps
  *   the last data and says when it was loaded.
  * - Dates are always written out, and best-before and use-by never share
  *   words ("Best before was yesterday" vs "Past use-by — don't eat"); colour
@@ -457,10 +458,15 @@ export default function InventoryClient({
           data-testid="inventory-connection"
           className="flex flex-wrap items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-3 text-subhead text-label-primary"
         >
-          <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
+          {/* Offline, the app-wide banner says so; this notice is about the saved list. */}
+          {online ? (
+            <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
+          ) : (
+            <History className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
+          )}
           <span className="flex-1 min-w-[12rem]">
             {!online
-              ? `You're offline. Showing what was loaded at ${formatClock(loadedAt, displayLocale)}. Changes need a connection; the list refreshes when you're back online.`
+              ? `Showing what was loaded at ${formatClock(loadedAt, displayLocale)}. Changes need a connection; the list refreshes when you're back online.`
               : `Couldn't refresh. Showing what was loaded at ${formatClock(loadedAt, displayLocale)}, which may be out of date.`}
           </span>
           {online && (
@@ -476,7 +482,7 @@ export default function InventoryClient({
           icon={online ? Refrigerator : WifiOff}
           glyphColor="meals"
           title="Couldn't load the inventory"
-          description={online ? 'Check your connection and try again.' : "You're offline. The inventory loads when you're back online."}
+          description={online ? 'Check your connection and try again.' : "The inventory loads when you're back online."}
           action={
             <button type="button" className="btn-tinted min-h-[44px]" onClick={load}>
               Try again

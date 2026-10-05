@@ -711,9 +711,11 @@ test.describe("inventory (Family A parent)", () => {
     await openInventory(page);
     await context.setOffline(true);
     const banner = page.getByTestId("inventory-connection");
-    await expect(banner).toContainText(
-      "You're offline. Showing what was loaded at",
-    );
+    // One offline message (OFFLINE_SYNC.md): the app banner says offline; the
+    // page adds when its list was loaded.
+    await expect(page.getByTestId("app-offline-banner")).toBeVisible();
+    await expect(banner).toContainText("Showing what was loaded at");
+    await expect(banner).not.toContainText("offline");
     await expect(banner).toContainText("Changes need a connection");
     await expect(itemRow(page, IDS.milk)).toBeVisible();
     await page

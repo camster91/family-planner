@@ -12,8 +12,10 @@
  *   tab bar. Hidden, it has no height and changes nothing on screen.
  * - Fridge mode hides it (`data-offline-banner`, TodayBoard's chrome CSS): the
  *   board has its own offline notice with the time the data was loaded.
- * - Pages with their own offline wording (lists, inventory, calendar, the
- *   board) keep it; this banner only says the connection state.
+ * - One offline message per page: this banner is the one that says
+ *   "You're offline". Lists, inventory, calendar and the Today board (app
+ *   mode) only add page-specific detail under it (queued ticks, when the
+ *   data was loaded), without repeating it (OFFLINE_SYNC.md).
  */
 import * as React from 'react'
 import { Wifi, WifiOff } from 'lucide-react'

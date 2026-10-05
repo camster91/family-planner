@@ -368,7 +368,9 @@ describe('/dashboard/inventory', () => {
     await screen.findAllByTestId('inventory-item')
     setOnline(false)
     const banner = await screen.findByTestId('inventory-connection')
-    expect(banner.textContent).toMatch(/You're offline\. Showing what was loaded at .*Changes need a connection/)
+    expect(banner.textContent).toMatch(/^Showing what was loaded at .*Changes need a connection/)
+    // One offline message per page: the app-wide banner says "You're offline", not this notice.
+    expect(banner.textContent).not.toContain('offline')
     expect(screen.getAllByTestId('inventory-item')).toHaveLength(3)
     const before = calls.length
     await user.click(within(screen.getByTestId('use-soon')).getByRole('button', { name: 'Used Milk' }))

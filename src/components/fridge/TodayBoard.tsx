@@ -361,6 +361,7 @@ export default function TodayBoard({
             online={online}
             canGoStale={failing}
             what="board"
+            appBanner={!fridgeMode}
             className="mb-5"
           />
         )}

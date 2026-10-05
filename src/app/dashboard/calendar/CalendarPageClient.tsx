@@ -218,7 +218,7 @@ function CalendarSyncLine({ events }: { events: unknown }) {
         testId="calendar-updated"
         className="text-footnote text-label-secondary"
       />
-      <SyncNotice lastSyncAt={loadedAt} now={now} online={online} what="calendar" canGoStale={false} />
+      <SyncNotice lastSyncAt={loadedAt} now={now} online={online} what="calendar" canGoStale={false} appBanner />
     </div>
   )
 }
