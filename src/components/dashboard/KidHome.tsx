@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { xpForNextLevel } from '@/lib/gamification'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import type { UserRole } from '@/types'
-import { useToast, useUndoToast } from '@/components/ui/toast'
+import { useKeepClearOfUndoToast, useToast, useUndoToast } from '@/components/ui/toast'
 import { setChoreDone } from '@/lib/chore-tick-client'
 import { formatRelativePastDate, isDueToday, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { groupByRoutine, normalizeRoutineName } from '@/lib/routine-icons'
@@ -155,6 +155,11 @@ export default function KidHome({
   const router = useRouter()
   const { addToast } = useToast()
   const showUndo = useUndoToast()
+  // A short page can end (the Rewards card) right where the Undo card sits:
+  // while one shows, reserve its height below the content and lift the end
+  // clear of it, so nothing is ever hidden under the card.
+  const contentRef = useRef<HTMLDivElement>(null)
+  const undoRoom = useKeepClearOfUndoToast(contentRef)
 
   const userXp = xpAfterClaim && xpAfterClaim.from === user.xp ? xpAfterClaim.xp : (user.xp ?? 0)
   const userLevel = user.level ?? 1
@@ -219,12 +224,32 @@ export default function KidHome({
     []
   )
   // The card appears below the list the child just finished: bring it into
-  // view (gently, unless they asked for reduced motion).
+  // view (gently, unless they asked for reduced motion), with its bottom
+  // above the Undo card. Measured by hand: Chromium's
+  // scrollIntoView({ block: 'nearest' }) left a card that was already on
+  // screen where it was, ignoring its scroll margin, so "All done for today."
+  // sat under the Undo card. The scroll margins (scroll-mt/-mb) set the room.
   useEffect(() => {
     if (!finishedHere || celebration !== 'burst') return
+    const card = celebrationRef.current
+    if (!card) return
     const reduce =
       typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    celebrationRef.current?.scrollIntoView?.({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
+    const style = window.getComputedStyle(card)
+    const roomBelow = parseFloat(style.scrollMarginBottom) || 0
+    const roomAbove = parseFloat(style.scrollMarginTop) || 0
+    const rect = card.getBoundingClientRect()
+    // Scroll up by what is hidden at the bottom...
+    let up = rect.bottom + roomBelow - window.innerHeight
+    // ...and if that brings the end of the page (the Rewards card) on screen,
+    // far enough that it clears the Undo card too...
+    const endBottom = contentRef.current?.getBoundingClientRect().bottom
+    if (endBottom !== undefined && endBottom - Math.max(up, 0) < window.innerHeight) {
+      up = Math.max(up, endBottom + roomBelow - window.innerHeight)
+    }
+    // ...but never past the card's top.
+    up = Math.min(up, rect.top - roomAbove)
+    if (up > 0) window.scrollBy?.({ top: up, behavior: reduce ? 'auto' : 'smooth' })
   }, [finishedHere, celebration])
 
   // Today's events (the viewer's local day) — up to 2
@@ -394,7 +419,7 @@ export default function KidHome({
         className="px-4"
       />
 
-      <div className="space-y-6 px-4">
+      <div ref={contentRef} className="space-y-6 px-4">
 
         {/* Picture routines (#272): first, because they say what to do next. */}
         {routines.length > 0 && (
@@ -648,6 +673,7 @@ export default function KidHome({
           </section>
         )}
       </div>
+      {undoRoom > 0 && <div aria-hidden="true" data-testid="undo-room" style={{ height: undoRoom }} />}
     </div>
   )
 }

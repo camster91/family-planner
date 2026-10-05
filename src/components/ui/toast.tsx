@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, createContext, useContext, useCallback } from 'react'
+import { useState, useEffect, useRef, createContext, useContext, useCallback } from 'react'
 import { CheckCircle, AlertCircle, Info, X, Trophy, Flame, Star, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -67,8 +67,70 @@ export function useUndoToast() {
   )
 }
 
+/** Where the toasts sit, and which Undo is up, for pages that keep their end clear of it. */
+interface ToastAreaContextType {
+  /** Id of the Undo toast showing, or null. A new Undo gets a new id. */
+  undoId: string | null
+  /** The fixed toast stack (above the phone tab bar). */
+  area: React.RefObject<HTMLDivElement | null>
+}
+
+const ToastAreaContext = createContext<ToastAreaContextType | null>(null)
+
+/**
+ * Opt-in for a page whose end can sit under the Undo card (fixed above the
+ * phone tab bar), e.g. kid home with the Rewards card last. While an Undo is
+ * showing it returns the room to reserve below the page's content (the toast
+ * stack's height plus a gap; 0 otherwise). Once that room is there, if the end
+ * of `endRef` is on screen but under the card, the page scrolls just far
+ * enough to lift it clear (instantly under reduced motion). A long page whose
+ * end is still below the screen is left alone. Other pages are unaffected.
+ */
+export function useKeepClearOfUndoToast(endRef: React.RefObject<HTMLElement | null>, gap = 12): number {
+  const ctx = useContext(ToastAreaContext)
+  const undoId = ctx?.undoId ?? null
+  const area = ctx?.area
+  const [room, setRoom] = useState(0)
+
+  // Reserve the room as soon as an Undo shows (and drop it when it goes).
+  useEffect(() => {
+    if (!undoId) {
+      setRoom(0)
+      return
+    }
+    setRoom((area?.current?.offsetHeight ?? 0) + gap)
+  }, [undoId, area, gap])
+
+  // With the room in place, lift the end of the page above the card if it
+  // is under it. Absolute target, so it also wins over a smooth scroll that
+  // is still running (the kid celebration's).
+  useEffect(() => {
+    if (!undoId || room === 0) return
+    const frame = requestAnimationFrame(() => {
+      const stack = area?.current
+      const end = endRef.current
+      if (!stack || !end) return
+      const stackRect = stack.getBoundingClientRect()
+      if (stackRect.height === 0) return
+      const endRect = end.getBoundingClientRect()
+      // Side by side (the md+ corner toast beside a narrow column): nothing to do.
+      if (endRect.right <= stackRect.left || endRect.left >= stackRect.right) return
+      const covered = endRect.bottom - (stackRect.top - gap)
+      if (covered <= 0 || endRect.bottom > window.innerHeight) return
+      const reduce =
+        typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.scrollTo({ top: window.scrollY + covered, behavior: reduce ? 'auto' : 'smooth' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [undoId, room, area, endRef, gap])
+
+  return room
+}
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const area = useRef<HTMLDivElement>(null)
+  const undoId = toasts.find((t) => t.type === 'undo')?.id ?? null
 
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id))
@@ -84,9 +146,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastContext.Provider value={{ addToast, removeToast }}>
-      {children}
+      <ToastAreaContext.Provider value={{ undoId, area }}>{children}</ToastAreaContext.Provider>
       {/* Above the phone tab bar; bottom-right from md up, where there is no tab bar. */}
-      <div className="fixed inset-x-4 bottom-24 z-[100] flex flex-col gap-2 md:inset-x-auto md:bottom-4 md:right-4 md:max-w-sm">
+      <div
+        ref={area}
+        className="fixed inset-x-4 bottom-24 z-[100] flex flex-col gap-2 md:inset-x-auto md:bottom-4 md:right-4 md:max-w-sm"
+      >
         {toasts.map(toast => (
           <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
         ))}

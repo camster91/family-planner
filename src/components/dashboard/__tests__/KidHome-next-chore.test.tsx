@@ -159,4 +159,13 @@ describe('KidHome: the next chore comes in without a reload', () => {
     expect(mission('Old one 4').disabled).toBe(false)
     expect(screen.queryByTestId('kid-celebration')).toBeNull()
   })
+
+  it('reserves room under the page while an Undo shows (kept clear of the card)', async () => {
+    renderHome(FIVE_TODAY)
+    expect(screen.queryByTestId('undo-room')).toBeNull()
+    await userEvent.click(mission('Make bed'))
+    expect(await screen.findByTestId('undo-room')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByTestId('undo-room')).toBeNull()
+  })
 })

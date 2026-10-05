@@ -69,6 +69,9 @@ A reversible action runs at once and offers Undo in a toast (`useUndoToast` in `
 8 seconds, paused while hovered or focused, 44px Undo button, above the phone tab bar).
 Only one Undo shows at a time (O-42): a newer Undo replaces the one on screen, and the earlier action stays
 done, so ticking three chores in a row leaves one card, not three.
+A page whose end can sit under the card opts in with `useKeepClearOfUndoToast` (kid home, whose Rewards
+card is last): while an Undo shows, the page reserves the card's height below its content and, if its end
+is on screen but under the card, scrolls just far enough to lift it clear. Other pages are unchanged.
 
 | Action | Behaviour |
 |---|---|
