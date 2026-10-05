@@ -97,6 +97,30 @@ export const CELEBRATE_MS = 6000
 // (gamification.ts xpForNextLevel) so the ring matches awardChoreXP.
 const xpForLevel = xpForNextLevel
 
+/** How many open chores a group (today's, or earlier ones) shows at a time. */
+export const MISSIONS_AT_ONCE = 3
+
+/**
+ * The rows a chore group shows: up to `cap` chores that are still open here,
+ * plus any the child ticked on this page (they stay, ticked, where they were).
+ * So ticking a visible chore brings the next open one in without a reload,
+ * and the list never shows more than `cap` things still to do. The order of
+ * `list` is kept.
+ */
+export function visibleMissions<T extends { id: string }>(
+  list: T[],
+  tickedHere: ReadonlySet<string>,
+  cap: number = MISSIONS_AT_ONCE
+): T[] {
+  let open = 0
+  return list.filter((c) => {
+    if (tickedHere.has(c.id)) return true
+    if (open >= cap) return false
+    open += 1
+    return true
+  })
+}
+
 /** "Casey Smith" → "Casey": a kid is greeted by first name. */
 export function firstName(name: string | null | undefined): string | null {
   const first = name?.trim().split(/\s+/)[0]
@@ -150,9 +174,11 @@ export default function KidHome({
   const routineChores = now ? (chores ?? []).filter((c) => inRoutine(c) && isDueToday(c.due_date, now)) : []
   const { routines } = groupByRoutine(routineChores)
 
-  // Missions are the child's open chores due on their local today — up to 3.
-  // Recurring chores keep future copies, so the due day matters, not just the
-  // status. Routine steps show above as picture cards, so they are never
+  // Missions are the child's open chores due on their local today, three
+  // still-to-do at a time so a young child sees a short list, not a wall.
+  // Ticking one brings the next in (visibleMissions); the ticked row stays
+  // with its "You did it!". Recurring chores keep future copies, so the due
+  // day matters, not just the status. Routine steps show above as picture cards, so they are never
   // repeated here. Earlier open chores get their own small group, and
   // tomorrow's are a read-only peek; neither counts as today's missions.
   const todayKey = now ? toDateOnlyLocal(now) : null
@@ -160,12 +186,17 @@ export default function KidHome({
   tomorrow?.setDate(tomorrow.getDate() + 1)
   const tomorrowKey = tomorrow ? toDateOnlyLocal(tomorrow) : null
   const openChores = todayKey ? (chores ?? []).filter((c) => isOpen(c) && !inRoutine(c)) : []
-  const todayChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === todayKey).slice(0, 3)
-  const earlierChores = openChores
-    .filter((c) => toDateOnlyUTC(c.due_date) < (todayKey ?? ''))
-    // Most recent first.
-    .sort((a, b) => toDateOnlyUTC(b.due_date).localeCompare(toDateOnlyUTC(a.due_date)))
-    .slice(0, 3)
+  const todayChores = visibleMissions(
+    openChores.filter((c) => toDateOnlyUTC(c.due_date) === todayKey),
+    completedChores
+  )
+  const earlierChores = visibleMissions(
+    openChores
+      .filter((c) => toDateOnlyUTC(c.due_date) < (todayKey ?? ''))
+      // Most recent first.
+      .sort((a, b) => toDateOnlyUTC(b.due_date).localeCompare(toDateOnlyUTC(a.due_date))),
+    completedChores
+  )
   const tomorrowChores = openChores.filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey).slice(0, 3)
 
   // Everything the child can still tick here: open chores due today or
