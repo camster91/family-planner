@@ -38,10 +38,10 @@ describe('Analytics page', () => {
       ],
     })
     render(<AnalyticsPage />)
-    expect(await screen.findByText('120 points')).toBeInTheDocument()
+    expect((await screen.findByTestId('member-points')).textContent).toBe('120 points')
     expect(screen.getByText('Leaderboard')).toBeInTheDocument()
-    // The top-level stat and the member's row both say "Level 3" (no "Lvl").
-    expect(screen.getAllByText('Level 3')).toHaveLength(2)
+    expect(screen.getByText('Level 3')).toBeInTheDocument()
+    expect(screen.getByText('Top level')).toBeInTheDocument()
     expect(screen.getByText('Family points')).toBeInTheDocument()
     expect(screen.queryByText(/\bXP\b|Lvl/)).not.toBeInTheDocument()
   })

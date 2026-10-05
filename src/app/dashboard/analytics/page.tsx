@@ -112,7 +112,7 @@ function AnalyticsPageContent() {
             <div className="text-caption-1 text-label-secondary">Best streak</div>
           </div>
           <div className="card-apple p-4 text-center">
-            <div className="text-2xl font-bold text-label-primary">Level {topLevel}</div>
+            <div className="text-2xl font-bold text-label-primary">{topLevel}</div>
             <div className="text-caption-1 text-label-secondary">Top level</div>
           </div>
         </div>
@@ -182,8 +182,9 @@ function AnalyticsPageContent() {
                   </div>
                 )}
                 {gamification && (
-                  <div className="text-title-3 text-label-primary font-semibold shrink-0">
-                    {member.xp || 0} points
+                  <div className="shrink-0 text-right" data-testid="member-points">
+                    <span className="text-title-3 text-label-primary font-semibold">{member.xp || 0}</span>
+                    <span className="text-footnote text-label-secondary"> points</span>
                   </div>
                 )}
               </div>
