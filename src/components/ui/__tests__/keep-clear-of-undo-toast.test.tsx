@@ -101,6 +101,24 @@ describe('useKeepClearOfUndoToast', () => {
     expect(scrollTo).not.toHaveBeenCalled()
   })
 
+  it('lifts the end again after the layout changes under a showing Undo (rotation)', async () => {
+    // Portrait: the end already clears the card.
+    await showUndoWith({ top: 500, bottom: 660 }, { top: 686, bottom: 748 })
+    expect(scrollTo).not.toHaveBeenCalled()
+    // Rotated: the screen is shorter and the card now covers the end.
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 390 })
+    setBox(screen.getByTestId('end'), { top: 250, bottom: 330 })
+    setBox(screen.getByTestId('undo-toast').parentElement as HTMLElement, { top: 300, bottom: 362 })
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    act(() => {
+      frames.splice(0).forEach((cb) => cb(0))
+    })
+    // 330 - (300 - 12) = 42 more, from scrollY 40.
+    expect(scrollTo).toHaveBeenCalledWith({ top: 82, behavior: 'smooth' })
+  })
+
   it('drops the room when the Undo goes away', async () => {
     await showUndoWith({ top: 620, bottom: 700 }, { top: 686, bottom: 748 })
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }))

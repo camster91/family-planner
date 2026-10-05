@@ -91,14 +91,31 @@ export function useKeepClearOfUndoToast(endRef: React.RefObject<HTMLElement | nu
   const undoId = ctx?.undoId ?? null
   const area = ctx?.area
   const [room, setRoom] = useState(0)
+  // Bumped when the layout changes under a showing Undo (rotation, rewrap),
+  // so the room and the lift below are worked out again.
+  const [layout, setLayout] = useState(0)
 
   // Reserve the room as soon as an Undo shows (and drop it when it goes).
+  // Measure again whenever the window or the toast stack changes size: the
+  // stack moves between the phone and md+ positions and can rewrap.
   useEffect(() => {
     if (!undoId) {
       setRoom(0)
       return
     }
-    setRoom((area?.current?.offsetHeight ?? 0) + gap)
+    const measure = () => {
+      setRoom((area?.current?.offsetHeight ?? 0) + gap)
+      setLayout((n) => n + 1)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    const stack = area?.current
+    const observer = typeof ResizeObserver === 'function' && stack ? new ResizeObserver(measure) : null
+    if (observer && stack) observer.observe(stack)
+    return () => {
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+    }
   }, [undoId, area, gap])
 
   // With the room in place, lift the end of the page above the card if it
@@ -122,7 +139,7 @@ export function useKeepClearOfUndoToast(endRef: React.RefObject<HTMLElement | nu
       window.scrollTo({ top: window.scrollY + covered, behavior: reduce ? 'auto' : 'smooth' })
     })
     return () => cancelAnimationFrame(frame)
-  }, [undoId, room, area, endRef, gap])
+  }, [undoId, room, layout, area, endRef, gap])
 
   return room
 }
