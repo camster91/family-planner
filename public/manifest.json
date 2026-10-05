@@ -1,7 +1,7 @@
 {
   "name": "Family Planner",
   "short_name": "Family Planner",
-  "description": "Turn chores into a game. Kids earn XP, build streaks, and unlock rewards.",
+  "description": "Chores, calendar, lists and meals for the whole family. Kids earn points and unlock rewards.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FBF7F0",

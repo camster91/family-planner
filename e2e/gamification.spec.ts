@@ -38,7 +38,7 @@ const GAMIFICATION_KEY =
   /\\?"(xp|level|streak|best_streak|bestStreak|last_chore_date|points)\\?":/;
 /** Visible gamification copy. */
 const GAMIFICATION_TEXT =
-  /\bXP\b|Level \d|XP to go|points to go|\d+ more points|Leaderboard|day streak/;
+  /\bXP\b|Level \d|\d+ points?\b|points to go|more points|Your points|Family points|Leaderboard|day streak/;
 
 async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
   assertFixtureTargetAllowed(process.env);
@@ -245,11 +245,11 @@ test.describe("Points & streaks setting (#248)", () => {
             GAMIFICATION_KEY,
           );
 
-          // Rewards page: the calm off state, no XP balance.
+          // Rewards page: the calm off state, no points balance.
           await page.goto("/dashboard/rewards");
           await expect(page.getByText("Rewards is off")).toBeVisible();
           expect(await rawHtml(page, "/dashboard/rewards")).not.toContain(
-            "XP Balance",
+            "Your points",
           );
         }
 

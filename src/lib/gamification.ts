@@ -60,10 +60,10 @@ export function getBadges(user: {
   const badges: UserBadge[] = []
 
   if ((user.xp || 0) >= 50) {
-    badges.push({ id: 'points_50', name: 'Point Collector', description: 'Earn 50 XP', icon: '💎' })
+    badges.push({ id: 'points_50', name: 'Point Collector', description: 'Earn 50 points', icon: '💎' })
   }
   if ((user.xp || 0) >= 200) {
-    badges.push({ id: 'points_200', name: 'XP Hunter', description: 'Earn 200 XP', icon: '👑' })
+    badges.push({ id: 'points_200', name: 'Points Hunter', description: 'Earn 200 points', icon: '👑' })
   }
   if ((user.streak || 0) >= 3) {
     badges.push({ id: 'streak_3', name: 'On Fire', description: '3-day streak', icon: '🔥' })

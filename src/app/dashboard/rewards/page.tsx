@@ -51,15 +51,15 @@ async function RewardsContent({ userId, familyId }: { userId: string; familyId: 
 
   return (
     <div className="space-y-8">
-      {/* Your XP balance */}
+      {/* Your points balance */}
       <div className="card-apple p-5 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Glyph color="rewards" size="lg">
             <span className="text-2xl" aria-hidden="true">⭐</span>
           </Glyph>
           <div>
-            <p className="text-subhead text-label-secondary">Your XP Balance</p>
-            <p className="text-title-2 text-label-primary font-bold">{userXp} XP</p>
+            <p className="text-subhead text-label-secondary">Your points</p>
+            <p className="text-title-2 text-label-primary font-bold">{userXp} points</p>
           </div>
         </div>
         <Link
@@ -108,7 +108,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
   if (!familyId) {
     return (
       <div className="space-y-6">
-        <LargeHeader title="Rewards" subtitle="Claim rewards with your earned XP" className="px-4" />
+        <LargeHeader title="Rewards" subtitle="Use the points you earn to claim rewards" className="px-4" />
         <div className="px-4">
           <EmptyState
             icon={Gift}

@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     default: 'Family Planner — All-in-One Family Organizer',
     template: '%s — Family Planner',
   },
-  description: 'Free family organizer with chore tracking, budget, shopping lists, shared calendar, and projects. Kids earn XP and rewards. No ads, no data selling.',
+  description: 'Free family organizer with chore tracking, budget, shopping lists, shared calendar, and projects. Kids earn points and rewards. No ads, no data selling.',
   keywords: ['family organizer', 'family planner', 'chore chart app', 'budget tracker', 'shopping list app', 'shared calendar', 'family budget', 'kids rewards', 'project planner', 'parenting app'],
   authors: [{ name: 'Ashbi Design' }],
   creator: 'Ashbi Design',

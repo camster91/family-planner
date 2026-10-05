@@ -149,7 +149,7 @@ export function FoundationsSection({ fx }: SectionProps) {
           <div className="card-apple p-5">
             <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Inter · sans</p>
             <p className="text-headline text-label-primary">Take out the recycling</p>
-            <p className="text-body mt-1 text-label-secondary">Due today · 10 XP · tap to tick it off</p>
+            <p className="text-body mt-1 text-label-secondary">Due today · 10 points · tap to tick it off</p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <BrandMark size={44} className="h-11 w-11 rounded-[var(--radius-md)]" />
               <button type="button" className="btn-filled">

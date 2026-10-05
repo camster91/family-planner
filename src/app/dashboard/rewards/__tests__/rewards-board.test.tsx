@@ -88,7 +88,7 @@ describe('RewardsBoard', () => {
     renderBoard()
     await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
     const dialog = screen.getByRole('dialog', { name: 'Claim Movie night?' })
-    expect(dialog.textContent).toContain('This uses 50 XP')
+    expect(dialog.textContent).toContain('This uses 50 points')
     expect(calls).toHaveLength(0)
     await user.click(within(dialog).getByRole('button', { name: 'Claim' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
@@ -117,10 +117,10 @@ describe('RewardsBoard', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Check your connection and try again.')
   })
 
-  it('cannot claim without enough XP', () => {
+  it('cannot claim without enough points', () => {
     mockFetch(() => ({ status: 200, body: {} }))
     renderBoard({ userXp: 10 })
-    const button = screen.getByRole('button', { name: 'Need 40 more XP' }) as HTMLButtonElement
+    const button = screen.getByRole('button', { name: 'Need 40 more points' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
   })
 
