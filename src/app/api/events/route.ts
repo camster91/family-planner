@@ -6,6 +6,7 @@ import { attachEventSources, EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } fro
 import { recordBetaMetric } from '@/lib/beta-metrics'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { CalendarRangeError, encodeCalendarCursor, parseCalendarRange } from '@/lib/calendar-planning/range'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,42 @@ export async function GET(request: NextRequest) {
       if (familyError) return familyError
       const [withSource] = await attachEventSources(prisma!, auth.user.family_id, [event])
       return NextResponse.json({ event: withSource })
+    }
+
+    let range
+    try {
+      range = parseCalendarRange(searchParams, auth.user.family_id)
+    } catch (error) {
+      if (error instanceof CalendarRangeError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      throw error
+    }
+    if (range) {
+      const { start, end, limit, after } = range
+      const events = await prisma!.event.findMany({
+        where: {
+          family_id: auth.user.family_id,
+          OR: [
+            { start_time: { gte: start, lt: end } },
+            { start_time: { lt: start }, end_time: { gt: start } },
+          ],
+          ...(after ? { AND: [{ OR: [
+            { start_time: { gt: after.start } },
+            { start_time: after.start, id: { gt: after.id } },
+          ] }] } : {}),
+        },
+        include: { creator: { select: { id: true, name: true } } },
+        orderBy: [{ start_time: 'asc' }, { id: 'asc' }],
+        take: limit + 1,
+      })
+      const page = events.slice(0, limit)
+      const hasMore = events.length > limit
+      return NextResponse.json({
+        events: await attachEventSources(prisma!, auth.user.family_id, page),
+        nextCursor: hasMore ? encodeCalendarCursor(auth.user.family_id, range, page[page.length - 1]) : null,
+        hasMore,
+      })
     }
 
     const upcoming = searchParams.get('upcoming') === 'true'

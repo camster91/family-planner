@@ -1,53 +1,70 @@
-/**
- * @jest-environment jsdom
- */
-// Teen calendar (owner decision O-37): a teen sees the household's events and
-// may add one (POST /api/events is open to every member), but editing and
-// deleting are parent-only in the API, so no event row links to the editor.
-import * as React from 'react'
-import { render, screen } from '@testing-library/react'
-import CalendarPageClient from '../CalendarPageClient'
-
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: jest.fn(), replace: jest.fn(), push: jest.fn() }),
-}))
-jest.mock('@/components/capture/CaptureBox', () => ({ CaptureBox: () => null }))
-
-const START = new Date(2026, 9, 15, 10, 0).toISOString()
-const EVENTS = [
-  { id: 'e1', title: 'Dentist', start_time: START, end_time: START, event_type: 'appointment' },
+/** @jest-environment jsdom */
+import * as React from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { CalendarPlanner } from "../CalendarPlanner";
+jest.mock("../calendar-planner.module.css", () => ({}));
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn() }),
+}));
+const events = [
   {
-    id: 'e2',
-    title: 'Soccer game',
-    start_time: START,
-    end_time: START,
-    event_type: 'other',
-    source: { subscription_id: 's1', name: 'Team', color: null },
+    id: "local",
+    title: "Local event",
+    start_time: "2026-01-05T10:00:00Z",
+    end_time: "2026-01-05T11:00:00Z",
+    event_type: "other",
   },
-]
-
-function editLinks(container: HTMLElement) {
-  return Array.from(container.querySelectorAll('a')).filter((a) =>
-    a.getAttribute('href')?.startsWith('/dashboard/calendar/edit')
-  )
-}
-
-describe('calendar write controls by role', () => {
-  it('a teen sees every event and Add event, but no edit links', () => {
-    const { container } = render(
-      <CalendarPageClient events={EVENTS} currentMonth={10} currentYear={2026} canEditEvents={false} />
-    )
-    expect(screen.getByText('Dentist')).toBeTruthy()
-    expect(screen.getByText('Soccer game')).toBeTruthy()
-    expect(screen.getByText('appointment')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Add event' }).getAttribute('href')).toBe('/dashboard/calendar/create')
-    expect(editLinks(container)).toHaveLength(0)
-  })
-
-  it('a parent gets the edit link on events made in the app (not imported ones)', () => {
-    const { container } = render(
-      <CalendarPageClient events={EVENTS} currentMonth={10} currentYear={2026} canEditEvents />
-    )
-    expect(editLinks(container).map((a) => a.getAttribute('href'))).toEqual(['/dashboard/calendar/edit?id=e1'])
-  })
-})
+  {
+    id: "provider",
+    title: "Provider event",
+    start_time: "2026-01-05T12:00:00Z",
+    end_time: "2026-01-05T13:00:00Z",
+    event_type: "other",
+    source: null,
+    source_connection_id: "private",
+  },
+  {
+    id: "ics",
+    title: "ICS event",
+    start_time: "2026-01-05T14:00:00Z",
+    end_time: "2026-01-05T15:00:00Z",
+    event_type: "other",
+    source_subscription_id: "subscription",
+    source: { subscription_id: "subscription", name: "School", color: null },
+  },
+];
+beforeEach(() => {
+  global.fetch = jest.fn(async (url) => ({
+    ok: true,
+    json: async () =>
+      String(url).includes("subscriptions")
+        ? { subscriptions: [] }
+        : { events, hasMore: false, nextCursor: null },
+  })) as jest.Mock;
+});
+it.each([false, true])(
+  "shows detail for every origin; canEdit=%s controls real editor links",
+  async (canEdit) => {
+    render(
+      <CalendarPlanner
+        initialDate="2026-01-05"
+        initialView="agenda"
+        canEditEvents={canEdit}
+      />,
+    );
+    await screen.findByRole("button", { name: /Local event/ });
+    for (const name of ["Local event", "Provider event", "ICS event"]) {
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+      expect(screen.getByRole("dialog")).toBeTruthy();
+      const edit = screen.queryByRole("link", { name: "Edit event" });
+      if (canEdit && name !== "ICS event") expect(edit).not.toBeNull();
+      else expect(edit).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }));
+    }
+    expect(
+      (global.fetch as jest.Mock).mock.calls.every(
+        ([url]) => !String(url).includes("connections"),
+      ),
+    ).toBe(true);
+  },
+);
