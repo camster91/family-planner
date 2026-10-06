@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { Fraunces, Inter } from 'next/font/google'
 import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
@@ -30,17 +31,17 @@ const inter = Inter({
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#FBF7F0' },
-    { media: '(prefers-color-scheme: dark)', color: '#121A2B' },
+    { media: '(prefers-color-scheme: dark)', color: '#171420' },
   ],
 }
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://family.ashbi.ca'),
   title: {
-    default: 'Family Planner — All-in-One Family Organizer',
-    template: '%s — Family Planner',
+    default: `${PRODUCT_BRAND.name} — Household organizer`,
+    template: `%s — ${PRODUCT_BRAND.name}`,
   },
-  description: 'Free family organizer with chore tracking, budget, shopping lists, shared calendar, and projects. Kids earn points and rewards. No ads, no data selling.',
+  description: PRODUCT_BRAND.description,
   keywords: ['family organizer', 'family planner', 'chore chart app', 'budget tracker', 'shopping list app', 'shared calendar', 'family budget', 'kids rewards', 'project planner', 'parenting app'],
   authors: [{ name: 'Ashbi Design' }],
   creator: 'Ashbi Design',
@@ -60,31 +61,15 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://family.ashbi.ca',
-    siteName: 'Family Planner',
-    title: 'Family Planner — All-in-One Family Organizer',
-    description: 'Free family organizer with chore tracking, budget, shopping lists, shared calendar, and projects. No ads, no data selling.',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        type: 'image/jpeg',
-        alt: 'Family Planner: chores, calendar, meals and lists, together. A paper-cut house beside a checklist.',
-      },
-    ],
+    siteName: PRODUCT_BRAND.name,
+    title: `${PRODUCT_BRAND.name} — Household organizer`,
+    description: PRODUCT_BRAND.description,
+    // Retain the original OG file, but do not advertise its baked-in legacy name.
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Family Planner — All-in-One Family Organizer',
-    description: 'Free family organizer with chores, budget, shopping lists, shared calendar, and projects.',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Family Planner: chores, calendar, meals and lists, together. A paper-cut house beside a checklist.',
-      },
-    ],
+    card: 'summary',
+    title: `${PRODUCT_BRAND.name} — Household organizer`,
+    description: PRODUCT_BRAND.description,
     creator: '@ashbidesign',
   },
   alternates: {

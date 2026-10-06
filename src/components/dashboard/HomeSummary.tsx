@@ -130,13 +130,13 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
   const rows = [...mine.filter((c) => isOpenStatus(c.status)), ...mine.filter((c) => isDoneStatus(c.status))]
 
   return (
-    <section aria-label="Your chores" data-testid="home-summary" className="mb-5 card-apple p-4 md:p-5">
-      <p role="status" data-testid="home-summary-sentence" className="text-title-3 text-label-primary">
+    <section aria-label="Your chores" data-testid="home-summary" className="mb-4 border-b border-[var(--surface-separator)] pb-3 md:flex md:flex-wrap md:items-center md:gap-x-5">
+      <p role="status" data-testid="home-summary-sentence" className="text-[16px] font-medium leading-relaxed text-label-primary md:flex-1">
         {sentence}
       </p>
 
       {rows.length > 0 && (
-        <div className="mt-3 list-inset" data-testid="my-chores">
+        <div className="mt-3 w-full list-inset" data-testid="my-chores">
           {rows.map((chore, i) => {
             const done = isDoneStatus(chore.status)
             const checked = chore.status === 'verified'
@@ -157,7 +157,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
       )}
 
       {(choresHref || (isParent && toCheckCount > 0)) && (
-        <div className="mt-2 flex flex-wrap gap-x-4">
+        <div className="mt-1 flex flex-wrap gap-x-4 md:mt-0">
           {isParent && toCheckCount > 0 && choresHref && (
             <Link
               href={choresHref}

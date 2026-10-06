@@ -63,26 +63,26 @@ export function WeatherTile({ view }: { view: WeatherView }) {
     <section
       aria-labelledby="board-weather-title"
       data-testid="board-weather"
-      className="flex min-w-0 items-center gap-4 rounded-[var(--radius-xl)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-3 shadow-[var(--shadow-sm)] 2xl:gap-6 2xl:px-6 2xl:py-4"
+      className="flex min-w-0 items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-3 py-2 md:px-4 md:py-3 2xl:gap-6 2xl:px-6 2xl:py-4"
     >
       <h2 id="board-weather-title" className="sr-only">
         Weather in {weather.label}
       </h2>
-      <CurrentIcon className="h-10 w-10 shrink-0 text-label-primary 2xl:h-14 2xl:w-14" aria-hidden="true" />
+      <CurrentIcon className="h-8 w-8 shrink-0 text-label-primary md:h-10 md:w-10 2xl:h-14 2xl:w-14" aria-hidden="true" />
       <div className="min-w-0">
         <p className="flex flex-wrap items-baseline gap-x-3">
           <span
             data-testid="weather-now"
-            className="text-[32px] font-bold leading-none tabular-nums text-label-primary md:text-[36px] 2xl:text-[48px]"
+            className="text-[24px] font-semibold leading-none tabular-nums text-label-primary md:text-[32px] 2xl:text-[48px]"
           >
             {weather.current.temperature}
             {unit}
           </span>
-          <span className="text-[18px] font-semibold leading-tight text-label-primary md:text-[19px] 2xl:text-[22px]">
+          <span className="text-[15px] font-medium leading-tight text-label-primary md:text-[19px] 2xl:text-[22px]">
             {weather.current.summary}
           </span>
         </p>
-        <p className="mt-1 text-[16px] leading-snug text-label-secondary md:text-[17px] 2xl:text-[19px]">
+        <p className="mt-1 text-[13px] leading-snug text-label-secondary md:text-[17px] 2xl:text-[19px]">
           {today && (
             <span className="tabular-nums">
               <span className="sr-only">Today: high </span>
@@ -93,7 +93,7 @@ export function WeatherTile({ view }: { view: WeatherView }) {
             </span>
           )}
           {precip && <span> · {precip}</span>}
-          <span className="block break-words text-[15px] md:text-[16px] 2xl:text-[17px]">{weather.label}</span>
+          <span className="block break-words text-[13px] md:text-[16px] 2xl:text-[17px]">{weather.label}</span>
         </p>
       </div>
       {next.length > 0 && (

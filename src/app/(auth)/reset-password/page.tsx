@@ -56,8 +56,8 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-        <div className="max-w-md w-full space-y-8">
+      <div className="auth-page">
+        <div className="auth-panel space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
               <div className="w-16 h-16 bg-[var(--success-tint)] rounded-[var(--radius-xl)] flex items-center justify-center">
@@ -82,8 +82,8 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-        <div className="max-w-md w-full space-y-8">
+      <div className="auth-page">
+        <div className="auth-panel space-y-8">
           <div className="text-center">
             <h1 className="text-title-2 text-label-primary">Invalid Link</h1>
             <p className="mt-2 text-[var(--label-secondary)]">
@@ -101,8 +101,8 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-      <div className="max-w-md w-full space-y-8">
+    <div className="auth-page">
+      <div className="auth-panel space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] shadow-[var(--shadow-md)] flex items-center justify-center">
@@ -192,7 +192,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)]"><div className="text-label-tertiary">Loading...</div></div>}>
+    <Suspense fallback={<div className="auth-page"><div className="text-label-tertiary">Loading...</div></div>}>
       <ResetPasswordForm />
     </Suspense>
   )

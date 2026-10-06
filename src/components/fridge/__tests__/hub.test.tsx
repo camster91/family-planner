@@ -76,6 +76,22 @@ afterEach(() => {
 })
 
 describe('member colours (#262)', () => {
+  it('gives the app schedule the full portrait row while retaining the four-column fridge fit', async () => {
+    await renderBoard({ fridgeMode: false })
+    expect(boardGridClass(false, false)).toContain('"today_today"_"dinner_chores"_"groceries_chores"')
+    expect(screen.getByTestId('region-today').className).toContain('md:[grid-area:today]')
+    expect(boardGridClass(true, false)).toContain('lg:landscape:[&>*]:overflow-y-auto')
+    expect(screen.getByTestId('today-board').className).toContain('[&_[data-testid=region-dinner]]:bg-accent-tint')
+  })
+  it('keeps long schedule titles readable without clamping and reserves compact phone type with a large hub scale', async () => {
+    await renderBoard({ fridgeMode: false, data: data({ events: [{ ...data().events[0], title: 'Parent-teacher conference about the interdisciplinary school project' }] }) })
+    const title = screen.getByText('Parent-teacher conference about the interdisciplinary school project')
+    expect(title.className).not.toContain('line-clamp')
+    expect(title.className).toContain('text-[17px]')
+    expect(title.className).toContain('2xl:text-[24px]')
+    expect(screen.getByTestId('region-today').className).toContain('p-4')
+  })
+
   it('resolves palette keys deterministically and cycles past the palette size', () => {
     const many = Array.from({ length: MEMBER_COLOR_KEYS.length + 2 }, (_, i) => ({ id: `m${i}`, board_color: null }))
     const out = [...resolveMemberColors(many).values()]
@@ -124,6 +140,12 @@ describe('member colours (#262)', () => {
 })
 
 describe('weather tile (#262)', () => {
+  it('keeps phone weather secondary while preserving the distance-readable hub temperature', async () => {
+    await renderBoard({ data: data({ weather: WEATHER }) })
+    const temperature = screen.getByTestId('weather-now')
+    expect(temperature.className).toContain('text-[24px]')
+    expect(temperature.className).toContain('2xl:text-[48px]')
+  })
   it('is absent when the DTO has no weather (opt-in off, unavailable, or an older server)', async () => {
     await renderBoard()
     expect(screen.queryByTestId('board-weather')).toBeNull()

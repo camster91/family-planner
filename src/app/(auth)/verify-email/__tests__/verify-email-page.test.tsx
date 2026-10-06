@@ -6,6 +6,7 @@
 import * as React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { confirmEmailToken, verifyOutcomeFor, VERIFY_MESSAGES } from '@/lib/verify-email'
 
 const replace = jest.fn()
@@ -39,6 +40,15 @@ beforeEach(() => {
 })
 
 describe('/verify-email page', () => {
+  it('names the current product account without consuming the token', async () => {
+    render(<VerifyEmailPage />)
+    expect(await screen.findByText(`Press the button to finish setting up your ${PRODUCT_BRAND.name} account.`)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login')
+    expect(screen.getByRole('button', { name: 'Confirm my email' })).toBeTruthy()
+    expect(calls).toHaveLength(0)
+    expect(replace).not.toHaveBeenCalled()
+  })
+
   it('opening the page calls nothing', async () => {
     render(<VerifyEmailPage />)
     expect(await screen.findByRole('button', { name: 'Confirm my email' })).toBeTruthy()

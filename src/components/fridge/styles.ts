@@ -12,7 +12,7 @@ const focusRing =
 /** Pill action link, at least 44x44 CSS px. Pressed state, never hover-only. */
 export const actionLinkClass = [
   'inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-full px-5',
-  'bg-accent-tint text-[17px] font-semibold text-accent',
+  'bg-accent-tint text-[15px] font-semibold text-accent md:text-[17px]',
   '2xl:min-h-[56px] 2xl:px-6 2xl:text-[19px]',
   'active:bg-accent-tint-strong',
   focusRing,
@@ -44,18 +44,18 @@ export const headerLinkClass = [
 
 export const regionClass = [
   'min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]',
-  'bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-sm)] lg:p-6 2xl:p-7',
+  'bg-[var(--surface-elevated)] p-4 md:p-5 lg:p-5 2xl:p-7',
   focusRing,
 ].join(' ')
 
 /** Region heading: readable from across the kitchen. */
-export const regionTitleClass = 'text-[24px] font-bold leading-tight text-label-primary lg:text-[26px] 2xl:text-[30px]'
+export const regionTitleClass = 'text-[20px] font-semibold tracking-tight leading-tight text-label-primary md:text-[22px] lg:text-[24px] 2xl:text-[30px]'
 
 /** Primary line inside a region (event title, grocery item, chore). */
-export const itemTextClass = 'text-[19px] leading-snug text-label-primary md:text-[21px] 2xl:text-[24px]'
+export const itemTextClass = 'text-[17px] leading-snug text-label-primary md:text-[19px] lg:text-[20px] 2xl:text-[24px]'
 
 /** Secondary line (times, counts, cook). */
-export const metaTextClass = 'text-[16px] leading-snug text-label-secondary md:text-[18px] 2xl:text-[20px]'
+export const metaTextClass = 'text-[14px] leading-snug text-label-secondary md:text-[16px] lg:text-[17px] 2xl:text-[20px]'
 
 /** Calm empty-state copy. */
-export const emptyTextClass = 'text-[19px] leading-snug text-label-secondary md:text-[21px] 2xl:text-[24px]'
+export const emptyTextClass = 'text-[16px] leading-relaxed text-label-secondary md:text-[18px] lg:text-[19px] 2xl:text-[24px]'

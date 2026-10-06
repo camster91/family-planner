@@ -124,12 +124,12 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
   }
 
   return (
-    <section aria-labelledby={headingId} data-testid="get-started" className="mb-5 card-apple p-4 md:p-5">
-      <BrandMotion
-        motion={MOTION.getStarted}
-        className="mx-auto mb-3 h-auto w-full max-w-[280px] rounded-[var(--radius-lg)] md:max-w-[320px]"
-      />
-      <div className="flex items-start gap-3">
+    <section aria-labelledby={headingId} data-testid="get-started" className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-4 md:p-5">
+      <div className="flex items-center gap-3">
+        <BrandMotion
+          motion={MOTION.getStarted}
+          className="hidden h-auto w-16 shrink-0 rounded-[var(--radius-md)] sm:block"
+        />
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">
             Get started
@@ -148,12 +148,12 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
         </button>
       </div>
 
-      <ol className="mt-3 list-inset" aria-label="Setup steps">
+      <ol className="mt-3 grid gap-1 md:grid-cols-3 md:gap-3" aria-label="Setup steps">
         {rows.map((row) => (
           <li key={row.key} data-testid={`get-started-${row.key}`}>
             <Link
               href={row.href}
-              className="row-apple min-h-[52px] focus-visible:shadow-[inset_0_0_0_3px_var(--accent-fill)]"
+              className="flex min-h-[56px] items-center gap-3 rounded-[var(--radius-md)] px-2 py-2 active:bg-[var(--surface-fill)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[var(--accent-fill)]"
             >
               <span
                 aria-hidden="true"
