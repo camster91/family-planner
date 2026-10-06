@@ -14,7 +14,7 @@
   <meta name="robots" content="noindex">
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBF7F0">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121A2B">
-  <title>You're offline — Family Planner</title>
+  <title>You're offline — Herewoven</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script>
     // Same rule as src/lib/theme.ts (O-43): the choice under the new key wins;
@@ -128,7 +128,7 @@
   <main>
     <img src="/brand/illustrations/houses-banner.webp" width="960" height="247" alt="" aria-hidden="true">
     <h1 id="offline-title">You're offline.</h1>
-    <p id="offline-message">Family Planner will reload when you're back online.</p>
+    <p id="offline-message">Herewoven will reload when you're back online.</p>
     <button type="button" id="offline-retry">Try again</button>
   </main>
   <script>
@@ -143,9 +143,9 @@
       // The browser says it is online but the page still failed: the server
       // could not be reached. Say that instead of "offline".
       if (navigator.onLine !== false && !ownPage) {
-        document.getElementById('offline-title').textContent = "Can't reach Family Planner right now."
+        document.getElementById('offline-title').textContent = "Can't reach Herewoven right now."
         document.getElementById('offline-message').textContent = 'Check your connection, then try again.'
-        document.title = "Can't reach Family Planner"
+        document.title = "Can't reach Herewoven"
       }
       document.getElementById('offline-retry').addEventListener('click', retry)
       window.addEventListener('online', retry)

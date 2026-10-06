@@ -284,7 +284,7 @@ test.describe("new household sign-up journey", () => {
       await loginViaUi(page, x.parent.email, PASSWORD);
       await page.waitForURL(/\/dashboard$/);
       await expect(
-        page.getByRole("heading", { name: "Welcome to Family Planner!" }),
+        page.getByRole("heading", { name: "Welcome to Herewoven!" }),
       ).toBeVisible();
       await expectNoHorizontalOverflow(page, "onboarding welcome");
       await page.getByRole("button", { name: "Get Started" }).click();

@@ -116,7 +116,7 @@ describe('visible sync', () => {
     await flush(3 * MIN)
     expect(screen.getByTestId('board-updated').textContent).toContain('Updated 3 min ago')
     expect(screen.getByTestId('sync-notice').textContent).toContain(
-      "Can't reach Family Planner right now. Showing what was here 3 min ago."
+      "Can't reach Herewoven right now. Showing what was here 3 min ago."
     )
   })
 
