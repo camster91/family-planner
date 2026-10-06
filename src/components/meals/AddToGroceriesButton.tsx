@@ -315,7 +315,7 @@ export function AddToGroceriesButton({
               Destination list
               <select
                 aria-label="Destination list"
-                className="input min-h-[44px] w-full"
+                className="input-apple min-h-[44px] w-full"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
               >

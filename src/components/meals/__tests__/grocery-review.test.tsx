@@ -61,6 +61,20 @@ function NestedMeal() {
   );
 }
 
+it("uses the canonical themed input style for the review destination", async () => {
+  // This is a styling-contract guard; real light/dark contrast is verified in browser evidence.
+  const user = userEvent.setup();
+  render(<AddToGroceriesButton recipeId="recipe-a" />);
+  await user.click(
+    screen.getByRole("button", { name: "Add ingredients to groceries" }),
+  );
+  const destination = await screen.findByRole("combobox", {
+    name: "Destination list",
+  });
+  expect(destination).toHaveClass("input-apple");
+  expect(destination).not.toHaveClass("input");
+});
+
 it.each(["forward Tab", "backward Tab", "Escape"])(
   "isolates nested review %s and restores both focus layers in StrictMode",
   async (key) => {
