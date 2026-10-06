@@ -352,7 +352,7 @@ test.describe("meals (parent)", () => {
     await panel.getByLabel("Amount").fill("200");
     await panel.getByLabel("Unit").fill("g");
     await panel
-      .getByRole("textbox", { name: "Ingredient" })
+      .getByRole("textbox", { name: "Ingredient", exact: true })
       .fill(`${PREFIX} almonds`);
     await panel.getByRole("button", { name: "Save recipe" }).click();
     await expect(panel).toBeHidden();
