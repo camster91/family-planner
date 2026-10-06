@@ -76,6 +76,12 @@ export default function KidRoutines({ routines, tickedIds, onComplete }: KidRout
                 {allDone ? 'All done' : `${doneCount} of ${total} done`}
               </p>
             </div>
+            <progress
+              aria-label={`${routine.name} progress`}
+              value={doneCount}
+              max={total}
+              className="mb-5 h-1.5 w-full appearance-none overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-[var(--surface-fill)] [&::-webkit-progress-value]:bg-[var(--accent-fill)] [&::-moz-progress-bar]:bg-[var(--accent-fill)]"
+            />
             <ol className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {routine.steps.map((step, i) => {
                 const base = stateOf(step)
@@ -105,10 +111,10 @@ export default function KidRoutines({ routines, tickedIds, onComplete }: KidRout
                       data-testid="routine-step"
                       data-state={state}
                       className={cn(
-                        'relative flex w-full min-h-[168px] flex-col items-center justify-start gap-2 rounded-[var(--radius-lg,16px)] border-2 px-2 pb-3 pt-4 text-center transition-colors duration-200',
+                        'relative flex w-full h-full min-h-[168px] flex-col items-center justify-start gap-2 rounded-[var(--radius-lg,16px)] border-2 px-2 pb-3 pt-4 text-center transition-colors duration-200 motion-reduce:transition-none',
                         'focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]',
                         state === 'next' &&
-                          'border-[var(--accent)] bg-[var(--accent-tint)] shadow-lg ring-4 ring-[var(--accent-tint)] active:bg-[var(--surface-fill-secondary)]',
+                          'border-[var(--accent)] bg-[var(--accent-tint)] ring-2 ring-[var(--accent-tint)] active:bg-[var(--surface-fill-secondary)]',
                         state === 'todo' &&
                           'border-[var(--surface-separator)] bg-[var(--surface-elevated)] active:bg-[var(--surface-fill-secondary)]',
                         done && 'border-[var(--success)] bg-[var(--success-tint)]'
@@ -149,7 +155,10 @@ export default function KidRoutines({ routines, tickedIds, onComplete }: KidRout
                       </span>
                       {done && (
                         <span className="text-footnote font-semibold text-label-primary" aria-hidden>
-                          Done
+                          <span className="block">Done</span>
+                          <span className="block mt-1 text-[12px] font-medium text-label-secondary">
+                            {state === 'waiting' ? 'Waiting for a parent' : 'Checked by a parent'}
+                          </span>
                         </span>
                       )}
                     </button>

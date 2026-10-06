@@ -31,7 +31,7 @@ export const dynamic = 'force-dynamic'
  * sentence and their own tickable chores above the board (#268,
  * ./home-summary-data.ts). Fridge mode is the shared surface, so it shows the
  * board alone. A parent of a household that is not set up yet also gets a
- * "Get started" card on top (./get-started-data.ts); once that is done or
+ * compact "Get started" steps below the plans (./get-started-data.ts); once that is done or
  * hidden, a "Turn on more" card suggests a few sections that are still off
  * (O-38, components/dashboard/FeatureSuggestions.tsx).
  */
@@ -96,14 +96,16 @@ export default async function TodayBoardPage({
 
   return (
     <>
-      {getStarted && !allStepsDone(getStarted) && (
-        <GetStarted viewer={viewer} familyId={familyId} steps={getStarted} />
-      )}
-      {getStarted && (
-        <FeatureSuggestions viewer={viewer} familyId={familyId} setupDone={allStepsDone(getStarted)} />
-      )}
       <HomeSummary viewer={viewer} {...home} />
       <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />
+      <div className="mt-6 space-y-4">
+        {getStarted && !allStepsDone(getStarted) && (
+          <GetStarted viewer={viewer} familyId={familyId} steps={getStarted} />
+        )}
+        {getStarted && (
+          <FeatureSuggestions viewer={viewer} familyId={familyId} setupDone={allStepsDone(getStarted)} />
+        )}
+      </div>
     </>
   )
 }

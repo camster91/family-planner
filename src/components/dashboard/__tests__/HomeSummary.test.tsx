@@ -54,6 +54,13 @@ function renderSummary(props: Partial<HomeSummaryProps> & Pick<HomeSummaryProps,
 const sentence = () => screen.getByTestId('home-summary-sentence').textContent
 
 describe('HomeSummary sentence', () => {
+  it('keeps parent context as a compact wrapping strip rather than another hero card', () => {
+    renderSummary({ viewer: { id: 'p', role: 'parent' }, toCheckCount: 1, choresHref: '/dashboard/chores' })
+    const summary = screen.getByTestId('home-summary')
+    expect(summary.className).not.toContain('card-apple')
+    expect(summary.className).toContain('md:flex')
+    expect(screen.getByTestId('home-summary-sentence').className).toContain('text-[16px]')
+  })
   it('parent: one household sentence, no progress ring, and a way to all chores', () => {
     renderSummary({
       viewer: { id: 'p', role: 'parent' },

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { BrandMark } from '@/components/ui/brand-illustration'
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Search,
@@ -78,6 +79,17 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (!avatarOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setAvatarOpen(false)
+      avatarButtonRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [avatarOpen])
+
   const handleSignOut = async () => {
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
@@ -96,15 +108,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       {/* ─── Apple HIG Desktop Top Bar ─── */}
       <nav
         aria-label="Main navigation"
-        className="glass fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
+        className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
-        <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-6">
+        <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-3 lg:gap-6">
           {/* Logo + name */}
-          {/* aria-label: below `sm` the wordmark is hidden and the link would have no name (axe link-name, #155). */}
-          <Link href={homeHref} aria-label="Family Planner home" className="flex min-h-[44px] items-center gap-2.5 shrink-0">
+          {/* Keep the home name accessible even where the wordmark is hidden to leave room for actions. */}
+          <Link href={homeHref} aria-label={PRODUCT_BRAND.homeLabel} className="flex min-h-[44px] items-center gap-2.5 shrink-0">
             <BrandMark size={36} className="h-9 w-9 rounded-[10px] shadow-sm" />
-            <span className="text-[17px] font-semibold text-label-primary hidden lg:block">
-              Family Planner
+            <span className="font-display text-[20px] font-semibold tracking-tight text-label-primary hidden min-[390px]:block md:hidden lg:block lg:text-[22px]">
+              {PRODUCT_BRAND.name}
             </span>
           </Link>
 
@@ -123,7 +135,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     'flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-[15px] transition-colors duration-200',
                     isActive
                       ? 'font-semibold text-accent bg-accent-fill/10'
-                      : 'font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-secondary)]'
+                      : 'font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]'
                   )}
                 >
                   <Icon className="hidden lg:block w-4 h-4" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
@@ -142,7 +154,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {canSee('/dashboard/search') && (
               <Link
                 href="/dashboard/search"
-                className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
+                className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors"
                 aria-label="Search"
               >
                 <Search className="w-5 h-5" />
@@ -153,7 +165,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {canSee('/dashboard/notifications') && (
               <Link
                 href="/dashboard/notifications"
-                className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-secondary)] transition-colors relative"
+                className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors relative"
                 aria-label="Notifications"
               >
                 <Bell className="w-5 h-5" />
@@ -165,7 +177,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               <button
                 ref={avatarButtonRef}
                 onClick={() => setAvatarOpen((v) => !v)}
-                className="flex min-h-[44px] items-center gap-1.5 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-secondary)] transition-colors"
+                className="flex min-h-[44px] items-center gap-1.5 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-fill)] transition-colors"
                 aria-label="User menu"
                 aria-expanded={avatarOpen}
               >
@@ -191,7 +203,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     <p className="text-[15px] font-semibold text-label-primary truncate">
                       {user?.name}
                     </p>
-                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-[var(--surface-secondary)] text-label-secondary">
+                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-[var(--surface-fill)] text-label-secondary">
                       {ROLE_LABELS[user?.role ?? 'child']}
                     </span>
                   </div>
@@ -201,7 +213,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {isKid && canSee('/dashboard/today') && (
                       <Link
                         href="/dashboard/today"
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
                         <LayoutDashboard className="w-4 h-4 text-label-secondary" />
@@ -211,7 +223,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {inventoryOn && canSee('/dashboard/inventory') && (
                       <Link
                         href="/dashboard/inventory"
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
                         <Refrigerator className="w-4 h-4 text-label-secondary" aria-hidden="true" />
@@ -221,7 +233,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {messagesOn && canSee('/dashboard/messages') && (
                       <Link
                         href="/dashboard/messages"
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
                         <MessageCircle className="w-4 h-4 text-label-secondary" />
@@ -231,7 +243,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {canSee('/dashboard/family') && (
                       <Link
                         href="/dashboard/family"
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
                         <Users2 className="w-4 h-4 text-label-secondary" />
@@ -254,7 +266,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {canSee('/dashboard/settings') && (
                       <Link
                         href="/dashboard/settings"
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
                         <Settings className="w-4 h-4 text-label-secondary" />
@@ -265,7 +277,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {canSee('/dashboard/help') && (
                       <Link
                         href="/dashboard/help"
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
                         <CircleHelp className="w-4 h-4 text-label-secondary" aria-hidden="true" />
@@ -283,7 +295,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                           setAvatarOpen(false)
                           setDeleteOpen(true)
                         }}
-                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 w-full text-[15px] text-label-secondary hover:bg-[var(--surface-secondary)] transition-colors"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 w-full text-[15px] text-label-secondary hover:bg-[var(--surface-fill)] transition-colors"
                       >
                         <Trash2 className="w-4 h-4" aria-hidden="true" />
                         Delete my account

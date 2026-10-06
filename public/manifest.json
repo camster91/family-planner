@@ -1,11 +1,11 @@
 {
-  "name": "Family Planner",
-  "short_name": "Family Planner",
-  "description": "Turn chores into a game. Kids earn XP, build streaks, and unlock rewards.",
+  "name": "Herewoven",
+  "short_name": "Herewoven",
+  "description": "A shared place for the everyday work of home.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FBF7F0",
-  "theme_color": "#1F2A44",
+  "theme_color": "#322C43",
   "icons": [
     {
       "src": "/icon-192.png",
