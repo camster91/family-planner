@@ -81,6 +81,7 @@ function MealModal({
   onDelete,
   onClose,
   saving,
+  isMealMutationPending,
 }: {
   mode: "add" | "edit";
   initial?: MealSlot;
@@ -90,6 +91,7 @@ function MealModal({
   onDelete?: () => void;
   onClose: () => void;
   saving: boolean;
+  isMealMutationPending: () => boolean;
 }) {
   const { t } = useTranslation();
   const [date, setDate] = React.useState(
@@ -141,6 +143,20 @@ function MealModal({
     initial?.recipe ?? null,
   );
   const titleId = React.useId();
+  const [recipeCreating, setRecipeCreating] = React.useState(false);
+  const recipeMutationPending = React.useRef(false);
+  const handleRecipeCreatingChange = React.useCallback((pending: boolean) => {
+    recipeMutationPending.current = pending;
+    setRecipeCreating(pending);
+  }, []);
+  const busy = saving || recipeCreating;
+  const isBusy = () => recipeMutationPending.current || isMealMutationPending();
+  const handleClose = () => {
+    if (!isBusy()) onClose();
+  };
+  const handleDelete = () => {
+    if (!isBusy()) onDelete?.();
+  };
 
   const handleRecipeChange = (next: RecipeOption | null) => {
     // Fill the name from the recipe unless the person already typed their own.
@@ -151,6 +167,7 @@ function MealModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy || isBusy()) return;
     const data: MealSaveData = {
       date,
       meal_type,
@@ -174,7 +191,7 @@ function MealModal({
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={busy ? undefined : handleClose}
       title={
         mode === "add"
           ? t("meals.addMeal")
@@ -243,6 +260,9 @@ function MealModal({
           value={recipe?.id ?? null}
           onChange={handleRecipeChange}
           initialRecipe={initial?.recipe ?? null}
+          onCreatingChange={handleRecipeCreatingChange}
+          disabled={saving}
+          isMutationPending={isMealMutationPending}
         />
         <div>
           <label
@@ -322,7 +342,7 @@ function MealModal({
             value={servings}
             onChange={(e) => setServings(e.target.value)}
             className="w-full input-apple min-h-[44px]"
-            disabled={saving}
+            disabled={busy}
           />
           <p className="text-footnote text-label-secondary">
             Leave blank if not set. Otherwise, enter 1–100.
@@ -332,9 +352,9 @@ function MealModal({
           {mode === "edit" && onDelete && (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={handleDelete}
               className="btn-destructive flex-1 min-h-[44px]"
-              disabled={saving}
+              disabled={busy}
             >
               {t("meals.deleteMeal")}
             </button>
@@ -342,7 +362,7 @@ function MealModal({
           <button
             type="submit"
             className="btn-tinted flex-1 min-h-[44px]"
-            disabled={saving}
+            disabled={busy}
           >
             {saving ? t("common.saving") : t("meals.save")}
           </button>
@@ -442,6 +462,12 @@ function MealsPageInner() {
     defaultMealType?: MealType;
   } | null>(null);
   const [saving, setSaving] = React.useState(false);
+  // Nested recipe handlers can run before React commits the saving state.
+  const mealMutationPending = React.useRef(false);
+  const isMealMutationPending = React.useCallback(
+    () => mealMutationPending.current,
+    [],
+  );
   const { addToast } = useToast();
   const showUndo = useUndoToast();
   const mealRequest = React.useRef({ version: 0 });
@@ -497,6 +523,8 @@ function MealsPageInner() {
   const openEdit = (meal: MealSlot) => setModal({ mode: "edit", meal });
 
   const handleSave = async (data: MealSaveData) => {
+    if (mealMutationPending.current) return;
+    mealMutationPending.current = true;
     const editing = modal?.mode === "edit" && modal.meal ? modal.meal : null;
     // Keep the dialog open on failure and say why: the server's reason (for
     // example a validation message) or the offline line.
@@ -542,6 +570,7 @@ function MealsPageInner() {
     } catch {
       addToast({ type: "error", title: failTitle, message: OFFLINE_MESSAGE });
     } finally {
+      mealMutationPending.current = false;
       setSaving(false);
     }
   };
@@ -580,7 +609,8 @@ function MealsPageInner() {
   };
 
   const handleDelete = async () => {
-    if (!modal?.meal) return;
+    if (!modal?.meal || mealMutationPending.current) return;
+    mealMutationPending.current = true;
     const meal = modal.meal;
     setSaving(true);
     try {
@@ -602,6 +632,7 @@ function MealsPageInner() {
         message: "The meal was not deleted. Try again.",
       });
     } finally {
+      mealMutationPending.current = false;
       setSaving(false);
     }
   };
@@ -764,6 +795,7 @@ function MealsPageInner() {
           onDelete={modal.mode === "edit" ? handleDelete : undefined}
           onClose={() => setModal(null)}
           saving={saving}
+          isMealMutationPending={isMealMutationPending}
         />
       )}
     </div>
