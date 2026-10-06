@@ -136,7 +136,313 @@ async function todayCard() {
   return cards.find((c) => c.getAttribute("data-day") === today)!;
 }
 
+// Retain committed handlers to exercise same-tick races before disabled DOM updates.
+function handler<T>(element: HTMLElement, name: string): T {
+  const key = Object.keys(element).find((key) =>
+    key.startsWith("__reactProps$"),
+  )!;
+  return (element as unknown as Record<string, Record<string, T>>)[key][name];
+}
+
 describe("/dashboard/meals", () => {
+  it.each(["POST", "PATCH", "DELETE", "Close", "Escape"] as const)(
+    "blocks retained meal %s in the same batch after recipe creation starts",
+    async (action) => {
+      const user = userEvent.setup();
+      const { calls, fetchMock } = setup({
+        meals: action === "POST" ? [] : [dinnerA],
+      });
+      if (action === "POST") {
+        await user.click(
+          within(await todayCard()).getByRole("button", {
+            name: /^Add dinner,/,
+          }),
+        );
+      } else {
+        await user.click(await screen.findByTestId("meal-row"));
+      }
+      const dialog = screen.getByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", { name: "New recipe" }),
+      );
+      const editor = screen.getByTestId("recipe-quick-create");
+      await user.type(
+        within(editor).getByLabelText("Recipe name"),
+        "Inline soup",
+      );
+      const saveRecipe = handler<() => void>(
+        within(editor).getByRole("button", { name: "Save recipe" }),
+        "onClick",
+      );
+      const submitMeal = handler<
+        (event: { preventDefault: () => void }) => void
+      >(dialog.querySelector("form")!, "onSubmit");
+      const attempt =
+        action === "POST" || action === "PATCH"
+          ? () => submitMeal({ preventDefault: jest.fn() })
+          : action === "Escape"
+            ? () =>
+                document.dispatchEvent(
+                  new KeyboardEvent("keydown", {
+                    key: "Escape",
+                    bubbles: true,
+                  }),
+                )
+            : handler<() => void>(
+                within(dialog).getByRole("button", {
+                  name: action === "DELETE" ? "Delete" : "Close",
+                }),
+                "onClick",
+              );
+      const original = fetchMock.getMockImplementation()!;
+      let resolve!: (response: Response) => void;
+      fetchMock.mockImplementation((input, init) => {
+        if (String(input) === "/api/recipes" && init?.method === "POST") {
+          calls.push({
+            url: String(input),
+            method: "POST",
+            body: JSON.parse(String(init.body)),
+          });
+          return new Promise<Response>((done) => {
+            resolve = done;
+          });
+        }
+        return original(input, init);
+      });
+      await act(async () => {
+        saveRecipe();
+        attempt();
+      });
+      expect(
+        calls.filter(
+          (c) => c.url.startsWith("/api/meals") && c.method !== "GET",
+        ),
+      ).toHaveLength(0);
+      expect(screen.getByRole("dialog")).toBe(dialog);
+      expect(
+        calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+      ).toHaveLength(1);
+      await act(async () => {
+        resolve({
+          ok: true,
+          status: 201,
+          json: async () => ({
+            recipe: { ...LASAGNA, id: "inline", title: "Inline soup" },
+          }),
+        } as Response);
+      });
+      expect(within(dialog).getByLabelText("Recipe (optional)")).toHaveProperty(
+        "value",
+        "inline",
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Save" }),
+      ).toHaveProperty("disabled", false);
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      expect(
+        calls.filter(
+          (c) => c.url.startsWith("/api/meals") && c.method !== "GET",
+        ),
+      ).toHaveLength(1);
+      expect(
+        calls.find((c) => c.url.startsWith("/api/meals") && c.method !== "GET")
+          ?.body,
+      ).toMatchObject({ recipe_id: "inline" });
+    },
+  );
+  it.each([
+    ["POST", false],
+    ["PATCH", false],
+    ["DELETE", false],
+    ["POST", true],
+    ["PATCH", true],
+    ["DELETE", true],
+  ] as const)(
+    "blocks inline recipe creation during deferred meal %s (editor open: %s)",
+    async (method, editorOpen) => {
+      const user = userEvent.setup();
+      const { calls, fetchMock } = setup({
+        meals: method === "POST" ? [] : [dinnerA],
+      });
+      if (method === "POST") {
+        await user.click(
+          within(await todayCard()).getByRole("button", {
+            name: /^Add dinner,/,
+          }),
+        );
+      } else {
+        await user.click(await screen.findByTestId("meal-row"));
+      }
+      const dialog = screen.getByRole("dialog");
+      const newRecipe = within(dialog).getByRole("button", {
+        name: "New recipe",
+      });
+      let attempt: () => void;
+      let enter: (() => void) | undefined;
+      if (editorOpen) {
+        await user.click(newRecipe);
+        const editor = screen.getByTestId("recipe-quick-create");
+        const title = within(editor).getByLabelText("Recipe name");
+        await user.type(title, "Do not orphan this recipe");
+        attempt = handler<() => void>(
+          within(editor).getByRole("button", { name: "Save recipe" }),
+          "onClick",
+        );
+        const onKeyDown = handler<
+          (event: { key: string; preventDefault: () => void }) => void
+        >(title, "onKeyDown");
+        enter = () => onKeyDown({ key: "Enter", preventDefault: jest.fn() });
+      } else {
+        attempt = handler<() => void>(newRecipe, "onClick");
+      }
+      const original = fetchMock.getMockImplementation()!;
+      let resolve!: (response: Response) => void;
+      fetchMock.mockImplementation((input, init) => {
+        if (String(input).startsWith("/api/meals") && init?.method === method) {
+          calls.push({
+            url: String(input),
+            method,
+            body: init.body ? JSON.parse(String(init.body)) : undefined,
+          });
+          return new Promise<Response>((done) => {
+            resolve = done;
+          });
+        }
+        return original(input, init);
+      });
+      // Begin the meal mutation, then invoke pre-mutation recipe handlers
+      // in the same batch: state/disabled props cannot protect this ordering.
+      await act(async () => {
+        if (method === "DELETE") {
+          handler<() => void>(
+            within(dialog).getByRole("button", { name: "Delete" }),
+            "onClick",
+          )();
+        } else {
+          dialog
+            .querySelector("form")!
+            .dispatchEvent(
+              new Event("submit", { bubbles: true, cancelable: true }),
+            );
+        }
+        attempt();
+        enter?.();
+      });
+      expect(
+        calls.filter(
+          (c) => c.url.startsWith("/api/meals") && c.method !== "GET",
+        ),
+      ).toHaveLength(1);
+      expect(
+        calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+      ).toHaveLength(0);
+      if (editorOpen) {
+        expect(screen.getByTestId("recipe-quick-create")).toHaveProperty(
+          "disabled",
+          true,
+        );
+        await user.click(
+          within(dialog).getByRole("button", { name: "Save recipe" }),
+        );
+      } else {
+        expect(screen.queryByTestId("recipe-quick-create")).toBeNull();
+        expect(newRecipe).toHaveProperty("disabled", true);
+        await user.click(newRecipe);
+        expect(screen.queryByTestId("recipe-quick-create")).toBeNull();
+      }
+      expect(
+        calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+      ).toHaveLength(0);
+      await act(async () => {
+        resolve({ ok: true, status: 200, json: async () => ({}) } as Response);
+      });
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
+  it("blocks owning meal dismissal and submission while inline recipe creation is pending", async () => {
+    const user = userEvent.setup();
+    const { calls, fetchMock } = setup({ meals: [dinnerA] });
+    await user.click(await screen.findByTestId("meal-row"));
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "New recipe" }),
+    );
+    await user.type(
+      within(screen.getByTestId("recipe-quick-create")).getByLabelText(
+        "Recipe name",
+      ),
+      "Inline soup",
+    );
+    const original = fetchMock.getMockImplementation()!;
+    let resolve!: (response: Response) => void;
+    fetchMock.mockImplementation((input, init) => {
+      if (String(input) === "/api/recipes" && init?.method === "POST") {
+        calls.push({
+          url: String(input),
+          method: "POST",
+          body: JSON.parse(String(init.body)),
+        });
+        return new Promise<Response>((done) => {
+          resolve = done;
+        });
+      }
+      return original(input, init);
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save recipe" }),
+    );
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Save",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(within(dialog).queryByRole("button", { name: "Close" })).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    // A form submit event must also be guarded (not just the button).
+    await act(async () => {
+      dialog
+        .querySelector("form")!
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+    });
+    expect(
+      calls.filter((c) => c.url.startsWith("/api/meals") && c.method !== "GET"),
+    ).toHaveLength(0);
+    await act(async () => {
+      resolve({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          recipe: { ...LASAGNA, id: "inline", title: "Inline soup" },
+        }),
+      } as Response);
+    });
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Save",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      (within(dialog).getByLabelText("Recipe (optional)") as HTMLSelectElement)
+        .value,
+    ).toBe("inline");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1),
+    );
+    expect(calls.find((c) => c.method === "PATCH")?.body).toMatchObject({
+      recipe_id: "inline",
+    });
+    expect(
+      calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+    ).toHaveLength(1);
+  });
   it.each(["save", "delete", "undo"])(
     "refreshes the selected week after deferred %s completes across navigation",
     async (action) => {
