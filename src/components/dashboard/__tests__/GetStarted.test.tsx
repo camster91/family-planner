@@ -26,6 +26,12 @@ beforeEach(() => {
 })
 
 describe('GetStarted', () => {
+  it('keeps original setup art compact and presents the real steps as a tablet row', () => {
+    renderCard()
+    const card = screen.getByTestId('get-started')
+    expect(card.querySelector('video, img')?.className).toContain('w-16')
+    expect(within(card).getByRole('list', { name: 'Setup steps' }).className).toContain('md:grid-cols-3')
+  })
   it('lists the three steps with links and their status in words', () => {
     renderCard()
     const card = screen.getByRole('region', { name: 'Get started' })

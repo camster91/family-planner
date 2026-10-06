@@ -7,6 +7,7 @@ import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MailCheck } from 'lucide-react'
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { confirmEmailToken, VERIFIED_REDIRECT, VERIFY_MESSAGES, type VerifyOutcome } from '@/lib/verify-email'
 
 type State = 'idle' | 'submitting' | Exclude<VerifyOutcome, 'verified'>
@@ -34,8 +35,8 @@ function VerifyEmailConfirm() {
       : { kind: state === 'already_verified' ? ('success' as const) : ('error' as const), text: VERIFY_MESSAGES[state] }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-      <div className="w-full max-w-sm">
+    <div className="auth-page">
+      <div className="auth-panel">
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
             <MailCheck className="w-8 h-8 text-white" aria-hidden="true" />
@@ -43,11 +44,11 @@ function VerifyEmailConfirm() {
         </div>
 
         <div className="card-apple p-6">
-          <div className="text-center mb-6">
+          <div className="auth-heading">
             <h1 className="text-title-2">Confirm your email</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
               {token
-                ? 'Press the button to finish setting up your Family Planner account.'
+                ? `Press the button to finish setting up your ${PRODUCT_BRAND.name} account.`
                 : 'That verification link is incomplete. Copy the whole link from the email, or sign in to get a new one.'}
             </p>
           </div>
@@ -89,7 +90,7 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)]">
+        <div className="auth-page">
           <div className="text-[var(--label-secondary)]">Loading...</div>
         </div>
       }

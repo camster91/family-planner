@@ -97,7 +97,7 @@ export function Region({
       tabIndex={0}
       className={cn(regionClass, areaClass[area])}
     >
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-3 flex items-center gap-2.5 2xl:mb-4">
         <Glyph color={glyph} size="md">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </Glyph>
@@ -207,20 +207,12 @@ export function ScheduleRegion({
           {shown.map((e) => {
             const person = e.addedById ? people?.get(e.addedById) : undefined
             return (
-              <li key={e.id} data-testid="today-event" className="flex gap-4 py-3 first:pt-0 2xl:py-4">
-                <p className="w-[96px] shrink-0 whitespace-nowrap pt-0.5 text-[19px] font-semibold tabular-nums text-label-primary md:w-[118px] md:text-[21px] 2xl:w-[132px] 2xl:text-[24px]">
+              <li key={e.id} data-testid="today-event" className="flex gap-3 py-3 first:pt-0 2xl:gap-4 2xl:py-4">
+                <p className="w-[78px] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
                   {eventTimeLabel(e)}
                 </p>
-                {/* Member colour rail: decoration beside the name label below. */}
-                {person && (
-                  <span
-                    aria-hidden="true"
-                    className="w-1.5 shrink-0 self-stretch rounded-full"
-                    style={{ backgroundColor: MEMBER_COLOR_CSS[person.color] }}
-                  />
-                )}
                 <div className="min-w-0 flex-1">
-                  <p className={cn(itemTextClass, 'break-words font-medium md:line-clamp-2')}>{e.title}</p>
+                  <p className={cn(itemTextClass, 'break-words font-medium')}>{e.title}</p>
                   {(e.happeningNow || e.isTask || e.source || person) && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       {e.happeningNow && !e.startedEarlier && <Tag>Now</Tag>}
@@ -279,11 +271,14 @@ export function DinnerRegion({
 }) {
   let body: React.ReactNode
   let action: React.ReactNode = undefined
+  // Dinner is already tinted in app mode. Both normal and pressed actions
+  // need opaque paper; pressed ink provides feedback without stacking tints.
+  const dinnerActionClass = cn(actionLinkClass, 'bg-[var(--surface-elevated)] active:bg-[var(--surface-elevated)] active:text-label-primary')
   if (!mealsEnabled) {
     body = <p className={emptyTextClass}>Meal planning is turned off for this household.</p>
     if (featuresHref) {
       action = (
-        <Link href={featuresHref} className={actionLinkClass}>
+        <Link href={featuresHref} className={dinnerActionClass}>
           Turn on meal planning
         </Link>
       )
@@ -292,7 +287,7 @@ export function DinnerRegion({
     body = <p className={emptyTextClass}>No dinner planned yet.</p>
     if (mealsHref) {
       action = (
-        <Link href={mealsHref} className={actionLinkClass}>
+        <Link href={mealsHref} className={dinnerActionClass}>
           Plan dinner
         </Link>
       )

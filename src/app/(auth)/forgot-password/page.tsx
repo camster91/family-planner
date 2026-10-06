@@ -38,8 +38,8 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-        <div className="max-w-md w-full space-y-8">
+      <div className="auth-page">
+        <div className="auth-panel space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
               <div className="w-16 h-16 bg-[var(--success-tint)] rounded-[var(--radius-xl)] flex items-center justify-center">
@@ -62,8 +62,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-      <div className="max-w-md w-full space-y-8">
+    <div className="auth-page">
+      <div className="auth-panel space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-[var(--accent-fill)] rounded-[var(--radius-xl)] shadow-[var(--shadow-md)] flex items-center justify-center">
@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="bg-[var(--danger-tint)] text-[var(--danger-text)] px-4 py-3 rounded-[var(--radius-md)]">
+              <div role="alert" className="bg-[var(--danger-tint)] text-[var(--danger-text)] px-4 py-3 rounded-[var(--radius-md)]">
                 {error}
               </div>
             )}

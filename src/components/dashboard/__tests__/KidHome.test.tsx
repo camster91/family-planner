@@ -58,6 +58,18 @@ function renderHome(chores: C[], extra: Partial<React.ComponentProps<typeof KidH
 const section = (heading: string) => screen.getByText(heading).closest('section') as HTMLElement
 
 describe('KidHome missions by due day', () => {
+  it('keeps the greeting compact so the child’s next action is not pushed below a large avatar', () => {
+    renderHome([{ id: 'today', title: 'Tidy bedroom', due_date: day(0) }])
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('text-[30px]')
+    expect(screen.getByLabelText('Casey').className).toContain('w-14')
+  })
+
+  it('puts today’s actionable missions before optional points', () => {
+    renderHome([{ id: 'today', title: 'Tidy bedroom', due_date: day(0) }])
+    const mission = section("Today's Missions")
+    const level = screen.getByText('Level 1')
+    expect(mission.compareDocumentPosition(level) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
   it("shows only today's chores as missions; a daily chore's future copies are not today's", () => {
     renderHome([
       { id: 'd0', title: 'Make bed', due_date: day(0) },

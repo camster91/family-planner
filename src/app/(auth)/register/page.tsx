@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { UserPlus, CheckCircle } from 'lucide-react'
 import { useTranslation } from '@/i18n'
-import { BrandMark } from '@/components/ui/brand-illustration'
+
 
 export default function RegisterPage() {
   const { t } = useTranslation()
@@ -112,8 +112,8 @@ export default function RegisterPage() {
 
   if (showVerificationNotice) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-        <div className="w-full max-w-sm text-center">
+      <div className="auth-page">
+        <div className="auth-panel text-center">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-[var(--success)] rounded-[var(--radius-xl)] flex items-center justify-center shadow-[var(--shadow-md)]">
               <CheckCircle className="w-8 h-8 text-white" />
@@ -146,15 +146,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo glyph */}
-        <div className="flex justify-center mb-6">
-          <BrandMark size={64} className="h-16 w-16 rounded-[var(--radius-xl)] shadow-[var(--shadow-md)]" />
-        </div>
-
+    <div className="auth-page">
+      <div className="auth-panel">
         <div className="card-apple p-6">
-          <div className="text-center mb-6">
+          <div className="auth-heading">
             <h1 className="text-title-2">{t('auth.createAccount')}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
               {inviteLabel || t('auth.createAccountSubtitle')}
@@ -163,7 +158,7 @@ export default function RegisterPage() {
 
           <form onSubmit={handleRegister} className="space-y-4">
             {error && (
-              <div className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
+              <div role="alert" className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
                 {error}
               </div>
             )}
@@ -210,7 +205,7 @@ export default function RegisterPage() {
                 className="input-apple"
                 placeholder="••••••••"
               />
-              <p className="text-[11px] text-[var(--label-tertiary)] mt-1 px-1">
+              <p className="text-[13px] text-[var(--label-tertiary)] mt-2">
                 {t('auth.passwordHint')}
               </p>
             </div>
@@ -281,9 +276,7 @@ export default function RegisterPage() {
           <p className="text-[13px] text-[var(--label-tertiary)]">
             {t('auth.bySigningUp')}
           </p>
-          <p className="mt-1 text-[12px] text-[var(--label-quaternary)]">
-            {t('auth.freeDuringBeta')} &middot; {t('auth.noPaymentDetails')}
-          </p>
+
         </div>
       </div>
     </div>

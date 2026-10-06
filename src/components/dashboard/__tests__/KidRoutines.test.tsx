@@ -66,6 +66,17 @@ const MORNING: C[] = [
 ]
 
 describe('KidHome picture routines', () => {
+  it('exposes routine progress without points and updates it after a step is done', async () => {
+    renderHome(MORNING)
+    const progress = screen.getByRole('progressbar', { name: 'Morning progress' }) as HTMLProgressElement
+    expect(progress.value).toBe(0)
+    expect(progress.max).toBe(3)
+    await userEvent.click(steps(routineByName('Morning'))[0])
+    await waitFor(() => expect(progress.value).toBe(1))
+    expect(screen.getByText('Waiting for a parent')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(progress.value).toBe(0))
+  })
   it('gives routines whose names differ only in punctuation or script their own headings', () => {
     renderHome([
       { id: 'a', title: 'Snack', icon: null, routine: 'After school', routine_order: 1 },

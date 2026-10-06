@@ -131,6 +131,7 @@ const pairs: Pair[] = [
     SURFACES.map((bg) => ({ fg, bg, min: TEXT, use: 'tint as text' }))
   ),
   ...SURFACES.map((bg) => ({ fg: '--focus-ring', bg, min: UI, use: 'focus ring' })),
+  ...SURFACES.map((bg) => ({ fg: '--control-border', bg, min: UI, use: 'input boundary' })),
   { fg: '--accent-fill', bg: '--surface-grouped', min: UI, use: 'filled button edge' },
 ]
 
@@ -158,11 +159,13 @@ describe('Warm Paper token contrast (WCAG 2.1 AA)', () => {
     })
   }
 
-  test('palette anchors: cream page, navy ink and navy primary in light mode', () => {
-    expect(ROOT['--surface-grouped']).toBe('#FBF7F0')
-    expect(ROOT['--label-primary']).toBe('#1F2A44')
-    expect(ROOT['--accent-fill']).toBe('#1F2A44')
-  })
+  test('Herewoven anchors preserve cream paper and introduce aubergine ink in both themes', () => {
+      expect(ROOT['--surface-grouped']).toBe('#FBF7F0')
+      expect(ROOT['--label-primary']).toBe('#322C43')
+      expect(ROOT['--accent-fill']).toBe('#322C43')
+      expect(DARK['--surface-grouped']).toBe('#171420')
+      expect(DARK['--surface-elevated']).toBe('#231E2E')
+    })
 
   if (process.env.BRAND_CONTRAST_TABLE === '1') {
     test('print table', () => {

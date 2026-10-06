@@ -1,7 +1,9 @@
-# Family Planner Brand & Product Voice
+# Herewoven working-draft brand & product voice
+
+Pilot display identity: **Herewoven**. Tagline: **Everyday life, held together.** Description: **A shared place for the everyday work of home.** The display contract lives in `src/lib/brand.ts`; semantic tokens and visual rationale are in `DESIGN.md`. This rollout is a display rebrand, not legal-name clearance or an application-identity migration. Existing routes, application IDs, storage namespaces and original Warm Paper assets stay intact.
 
 ## Brand idea
-Family Planner should feel like a calm household operating system: warm enough for family life, precise enough to trust every day, and polished enough to deserve a permanent place on the wall or fridge.
+Herewoven should feel like a shared place for the everyday work of home: warm enough for family life, precise enough to trust every day, and clear enough to deserve a place on the wall or fridge.
 
 The visual system (Warm Paper palette, type, illustrations, motion, contrast) is in `docs/product/BRAND.md`.
 
