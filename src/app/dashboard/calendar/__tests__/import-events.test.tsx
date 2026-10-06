@@ -7,6 +7,7 @@
 // reuses the key so the server replays instead of adding twice) → "Added N
 // events" with Undo that sends the signed undo token. The dialog traps focus,
 // moves it in on open and returns it to the opener on close.
+jest.mock('../CalendarPlanner',()=>({CalendarPlanner:()=>null}))
 import * as React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
