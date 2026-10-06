@@ -103,6 +103,15 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
     page,
   }) => {
     await page.goto("/dashboard/meals");
+    // The canonical lunch is disclosed through its dated day card; dinner stays
+    // visible initially. Exercise that user path without changing fixture data.
+    const todayCard = page.locator(
+      `[data-testid="meal-day"][data-day="${E2E_ANCHOR.toISOString().slice(0, 10)}"]`,
+    );
+    const otherMeals = todayCard.getByRole("button", { name: /^Other meals/ });
+    await expect(otherMeals).toHaveAttribute("aria-expanded", "false");
+    await otherMeals.click();
+    await expect(otherMeals).toHaveAttribute("aria-expanded", "true");
     // #252: each planned meal is a button row that opens the edit dialog.
     await page
       .locator(`[data-testid="meal-row"][data-meal-id="${MEAL_ID}"]`)

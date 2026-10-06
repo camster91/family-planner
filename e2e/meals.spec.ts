@@ -234,8 +234,77 @@ async function expectNoSeriousAxe(
 test.describe("meals (parent)", () => {
   test.use({ storageState: authFile("parentA") });
 
+  test("responsive dinner overview keeps seven days and reveals other slots per day", async ({
+    page,
+  }) => {
+    await openMeals(page);
+    // Exercise density with canonical persisted dinners, not an empty overview.
+    for (const [index, name] of [
+      "Tacos",
+      "Soup",
+      "Pasta",
+      "Rice",
+      "Pizza",
+      "Salmon",
+      "Roast",
+    ].entries()) {
+      const created = await browserSend(page, "POST", "/api/meals", {
+        date: `2026-01-${String(5 + index).padStart(2, "0")}`,
+        meal_type: "dinner",
+        recipe_name: `${PREFIX} ${name}`,
+      });
+      expect(created.status, created.body).toBe(201);
+    }
+    await openMeals(page);
+    const cards = page.getByTestId("meal-day");
+    await expect(cards).toHaveCount(7);
+    for (const [width, height] of [
+      [390, 844],
+      [800, 1280],
+      [1280, 800],
+      [1920, 1200],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await expectNoHorizontalOverflow(page);
+      await expectTargets(cards.first());
+      const boxes = await cards.evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const box = node.getBoundingClientRect();
+          return { x: box.x, y: box.y, bottom: box.bottom };
+        }),
+      );
+      expect(new Set(boxes.map((box) => box.x)).size).toBe(
+        width < 700 ? 1 : width < 1600 ? 4 : 7,
+      );
+      if (width >= 700)
+        expect(Math.max(...boxes.map((box) => box.bottom))).toBeLessThanOrEqual(
+          height,
+        );
+    }
+    const first = cards.first();
+    await expect(first.locator('[data-meal-type="dinner"]')).toHaveCount(1);
+    await expect(
+      first.getByRole("button", { name: /^Add breakfast,/ }),
+    ).toHaveCount(0);
+    const disclosure = first.getByRole("button", { name: /Other meals/ });
+    await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    await disclosure.focus();
+    await page.keyboard.press("Enter");
+    await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      first.getByRole("button", { name: /^Add breakfast,/ }),
+    ).toBeVisible();
+    await expect(
+      cards.nth(1).getByRole("button", { name: /Other meals/ }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await expectTargets(first);
+  });
+
   test("add, edit and delete a free-text meal", async ({ page }) => {
     await openMeals(page);
+    await todayCard(page)
+      .getByRole("button", { name: /Other meals/ })
+      .click();
     await expect(slotRows(page, "breakfast")).toHaveCount(0);
     await todayCard(page)
       .getByRole("button", { name: `Add breakfast, ${TODAY_LONG}` })
@@ -292,6 +361,9 @@ test.describe("meals (parent)", () => {
   }, testInfo) => {
     await openMeals(page);
     await todayCard(page)
+      .getByRole("button", { name: /Other meals/ })
+      .click();
+    await todayCard(page)
       .getByRole("button", { name: `Add lunch, ${TODAY_LONG}` })
       .click();
     const picker = dialog(page).getByLabel("Recipe (optional)");
@@ -342,6 +414,9 @@ test.describe("meals (parent)", () => {
 
   test("create a recipe inline from the meal modal", async ({ page }) => {
     await openMeals(page);
+    await todayCard(page)
+      .getByRole("button", { name: /Other meals/ })
+      .click();
     await todayCard(page)
       .getByRole("button", { name: `Add snack, ${TODAY_LONG}` })
       .click();
