@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Star, Gift, Calendar, Sparkles, X } from 'lucide-react'
-import { LargeHeader } from '@/components/ui/large-header'
+
 import { BrandMotion } from '@/components/ui/brand-motion'
 import { MOTION } from '@/lib/brand-illustrations'
 import { Avatar } from '@/components/ui/avatar'
@@ -302,8 +302,8 @@ export default function KidHome({
         onClick={() => handleChoreToggle(chore.id, isDone)}
         disabled={isDone}
         className={cn(
-          'w-full flex items-center gap-3 px-4 py-4 min-h-[64px] text-left',
-          'transition-all duration-200',
+          'w-full flex flex-wrap items-center gap-3 px-4 py-3 min-h-[64px] text-left',
+          'transition-colors duration-200 motion-reduce:transition-none',
           !isDone && 'active:bg-[var(--surface-fill-secondary)]'
         )}
       >
@@ -324,7 +324,7 @@ export default function KidHome({
         </div>
         <div className={cn('flex-1 min-w-0', isDone && 'opacity-60')}>
           <div className={cn(
-            'text-title-3 leading-tight [overflow-wrap:anywhere]',
+            'text-[17px] font-medium leading-snug [overflow-wrap:anywhere]',
             isDone ? 'text-label-tertiary line-through' : 'text-label-primary'
           )}>
             {chore.title}
@@ -349,21 +349,15 @@ export default function KidHome({
   return (
     // Bottom room so the Undo card (fixed above the phone tab bar) never covers
     // the last row when scrolled to the end (O-42).
-    <div className="pb-28 md:pb-20">
-      {/* Large Header: "Hi, {name}!" + big avatar */}
-      <LargeHeader
-        title={`Hi, ${firstName(user?.name) ?? 'there'}!`}
-        trailing={
-          <Avatar
-            name={user?.name ?? '?'}
-            src={user?.avatar_url}
-            size="xl"
-          />
-        }
-        className="px-4"
-      />
+    <div className="mx-auto max-w-4xl pb-28 md:pb-20">
+      <header className="mb-5 flex items-center justify-between gap-4">
+        <h1 className="min-w-0 font-display text-[30px] font-semibold leading-tight tracking-tight text-label-primary [overflow-wrap:anywhere] md:text-[40px]">
+          {`Hi, ${firstName(user?.name) ?? 'there'}!`}
+        </h1>
+        <Avatar name={user?.name ?? '?'} src={user?.avatar_url} size="lg" />
+      </header>
 
-      <div className="space-y-6 px-4">
+      <div className="space-y-5 md:space-y-6">
 
         {/* Picture routines (#272): first, because they say what to do next. */}
         {routines.length > 0 && (
@@ -375,41 +369,6 @@ export default function KidHome({
               if (chore) handleChoreToggle(id, chore.status === 'completed' || chore.status === 'verified')
             }}
           />
-        )}
-
-        {/* Stars card — XP + level progress (only with Points & streaks on) */}
-        {gamification && (
-          <div className="card-apple p-5 flex items-center gap-5">
-            <ProgressRing
-              progress={xpProgress}
-              size={88}
-              strokeWidth={9}
-              color="var(--accent)"
-            >
-              <div className="flex flex-col items-center leading-none">
-                <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
-                <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
-                  {userXp}
-                </span>
-              </div>
-            </ProgressRing>
-            <div className="flex-1 min-w-0">
-              <p className="text-title-3 text-label-primary leading-tight font-semibold">
-                Level {userLevel}
-              </p>
-              <p className="text-subhead text-label-secondary mt-1">
-                {xpNextLevel - userXp} points to go!
-              </p>
-              <div className="mt-3 flex items-center gap-1.5">
-                {[...Array(Math.min(userLevel, 5))].map((_, i) => (
-                  <Sparkles key={i} className="w-4 h-4 text-brand-mustard fill-brand-mustard" />
-                ))}
-                {userLevel > 5 && (
-                  <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
-                )}
-              </div>
-            </div>
-          </div>
         )}
 
         {/* Today's Chores */}
@@ -505,6 +464,41 @@ export default function KidHome({
                 <p className="text-subhead text-label-secondary mt-1">Enjoy your day, superstar!</p>
               </>
             )}
+          </div>
+        )}
+
+        {/* Stars card — XP + level progress (only with Points & streaks on) */}
+        {gamification && (
+          <div className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] p-4 flex items-center gap-4">
+            <ProgressRing
+              progress={xpProgress}
+              size={64}
+              strokeWidth={6}
+              color="var(--accent)"
+            >
+              <div className="flex flex-col items-center leading-none">
+                <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
+                <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
+                  {userXp}
+                </span>
+              </div>
+            </ProgressRing>
+            <div className="flex-1 min-w-0">
+              <p className="text-title-3 text-label-primary leading-tight font-semibold">
+                Level {userLevel}
+              </p>
+              <p className="text-subhead text-label-secondary mt-1">
+                {xpNextLevel - userXp} points to go!
+              </p>
+              <div className="mt-3 flex items-center gap-1.5">
+                {[...Array(Math.min(userLevel, 5))].map((_, i) => (
+                  <Sparkles key={i} className="w-4 h-4 text-brand-mustard fill-brand-mustard" />
+                ))}
+                {userLevel > 5 && (
+                  <span className="text-footnote text-label-tertiary">+{userLevel - 5} more</span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

@@ -1,6 +1,12 @@
-# Warm Paper brand
+# Herewoven working-draft visual system
 
-Owner decision (Cameron, 2026-10-03): Family Planner keeps its name and takes on a "Warm Paper" look: cozy, crafted and editorial, with paper-cut and risograph illustrations. The brand voice and principles in `/BRAND.md` still apply; this page is the visual system. Tokens live in `src/app/globals.css`, illustrations in `src/lib/brand-illustrations.ts`, and the design gallery (`/dev/design-system`, `docs/design/DESIGN_GALLERY.md`) shows all of it.
+Herewoven is the display rebrand for this pilot rollout. It supersedes the earlier decision to keep the Family Planner display name. This does not establish legal-name clearance, a new domain or a new application identity. The formal token/rationale contract is `DESIGN.md`; internal workflow and release records are not part of the public design system.
+
+Display identity comes from `src/lib/brand.ts`: **Herewoven**, **Everyday life, held together.**, **A shared place for the everyday work of home.** Preserve routes, cookie/storage namespaces, the production origin and Android `com.ashbi.familyplanner`.
+
+The original Warm Paper mark, self-hosted Fraunces + Inter, paper-cut imagery and reduced-motion/data-saver-aware loops remain. Marketing now has a task-led editorial story and an explicitly labelled fictional household preview. Auth uses one branded home escape and a shared Configure frame across login, registration, recovery and verification. Optional features and pricing are not promises in this draft. Unused legacy translation keys remain for compatibility, not as approved marketing claims.
+
+The legacy `/og-image.jpg` contains baked-in Family Planner text. Keep the file, but omit it from Herewoven social metadata until an approved replacement exists. Icons are retained; the manifest changes display text and theme color only.
 
 ## Palette
 
@@ -8,61 +14,67 @@ Owner decision (Cameron, 2026-10-03): Family Planner keeps its name and takes on
 |---|---|---|
 | Cream | `#FBF7F0` | Page background (`--surface-grouped`, `--brand-cream`) |
 | Warm white | `#FFFDF9` | Cards, sheets, inputs (`--surface-elevated`) |
-| Deep navy | `#1F2A44` | Ink (`--label-primary`) and primary buttons (`--accent-fill`, light) |
+| Aubergine | `#322C43` | Ink (`--label-primary`) and primary buttons (`--accent-fill`, light) |
+| Secondary ink | `#645870` / `#6D6075` | Secondary / tertiary text |
+| Legacy navy | `#1F2A44` | Retained artwork alias (`--brand-navy`), not primary ink |
 | Terracotta | `#C4623D` | Decoration and focus ring (`--brand-terracotta`, `--focus-ring`) |
 | Terracotta deep | `#A3452A` | Links, tinted buttons, active tab (`--accent-text`, light) |
 | Sage | `#4E7148` / `#8FB283` | Success fill and text / decoration (`--success`, `--brand-sage`) |
 | Mustard | `#D9A33A` | Warnings and accents, never as text (`--warning`, `--brand-mustard`) |
-| Night navy | `#121A2B` / `#1B2538` | Dark mode page / cards |
+| Night aubergine | `#171420` / `#231E2E` | Dark mode page / cards |
 | Warm cream ink | `#F5EEDF` | Dark mode text |
 
 Rules:
 
-- Primary action: deep navy fill with cream text in light mode; a lifted "denim" navy `#4A6BA3` in dark mode, so it never looks like the red destructive button beside it.
+- Primary action: aubergine fill with cream text in light mode; lifted aubergine `#796397` (hover `#705A8E`, pressed `#665180`) in dark mode, so it never looks like the red destructive button beside it.
 - Terracotta marks what is active or tappable (links, the current tab, tinted buttons, today's ring). Sage means done. Red (`--danger-*`) stays for destructive actions and errors. Colour never carries meaning alone.
 - Mustard and the light sage are decoration only; text uses the `-text` tokens.
 - Module tints (glyphs, avatars, member colours) are earthy versions of the old hues: indigo ink, terracotta, sage, slate blue, berry, plum, ochre, teal, deep mustard. All carry white text at 6:1 or better.
-- Focus ring: 2px gap in the surface colour, then 2px terracotta (`--shadow-focus`). It shows on cream pages and around navy buttons.
+- Focus ring: 2px gap in the surface colour, then 2px terracotta (`--shadow-focus`). It shows on cream pages and around aubergine buttons.
 - `.on-paper` re-declares the light text tokens for text that always sits on cream artwork (the landing hero headline on large screens), in either theme.
 
-### Contrast (WCAG 2.1, checked in CI)
+### Contrast (WCAG 2.1 token gate, verified locally for this draft)
 
 `src/__tests__/brand-contrast.test.ts` reads both token blocks from `globals.css`, blends translucent tints over the surface they sit on, and fails if any pair drops below 4.5:1 (text) or 3:1 (icons, focus ring, non-text UI). Print this table with `BRAND_CONTRAST_TABLE=1 npx jest src/__tests__/brand-contrast`.
 
 | Foreground | Background | Use | Light | Dark | Min |
 |---|---|---|---|---|---|
-| --label-primary | --surface-grouped | text | 13.35 | 15.04 | 4.5 |
-| --label-primary | --surface-elevated | text | 14.03 | 13.28 | 4.5 |
-| --label-primary | --surface-fill over --surface-elevated | text on fills/inputs | 12.28 | 10.31 | 4.5 |
-| --label-secondary | --surface-grouped | text | 7.45 | 10.91 | 4.5 |
-| --label-secondary | --surface-elevated | text | 7.83 | 9.64 | 4.5 |
-| --label-secondary | --surface-fill over --surface-elevated | text on fills/inputs | 6.85 | 7.47 | 4.5 |
-| --label-tertiary | --surface-grouped | text | 5.75 | 7.56 | 4.5 |
-| --label-tertiary | --surface-elevated | text | 6.04 | 6.67 | 4.5 |
-| --label-tertiary | --surface-fill over --surface-elevated | text on fills/inputs | 5.29 | 5.18 | 4.5 |
-| --accent-text | --surface-grouped | links, active tab | 5.71 | 7.94 | 4.5 |
-| --accent-text | --surface-elevated | links, active tab | 6.01 | 7.01 | 4.5 |
-| --accent-text | --accent-tint over --surface-elevated | tinted button | 5.20 | 5.22 | 4.5 |
-| --accent-text | --accent-tint over --surface-grouped | tinted button on page | 4.97 | 5.96 | 4.5 |
-| --accent-text | --accent-tint-strong over --surface-elevated | tinted button hover | 4.71 | 4.80 | 4.5 |
-| --on-accent | --accent-fill | filled button | 14.03 | 5.27 | 4.5 |
-| --on-accent | --accent-fill-hover | filled button | 11.10 | 6.06 | 4.5 |
-| --on-accent | --accent-fill-pressed | filled button | 16.69 | 7.18 | 4.5 |
-| #FFFFFF | --accent-fill | white icon/text on accent | 14.26 | 5.35 | 4.5 |
+| --label-primary | --surface-grouped | text | 12.47 | 15.71 | 4.5 |
+| --label-primary | --surface-elevated | text | 13.11 | 14.02 | 4.5 |
+| --label-primary | --surface-fill over --surface-elevated | text on fills/inputs | 11.47 | 10.90 | 4.5 |
+| --label-secondary | --surface-grouped | text | 6.20 | 11.39 | 4.5 |
+| --label-secondary | --surface-elevated | text | 6.52 | 10.17 | 4.5 |
+| --label-secondary | --surface-fill over --surface-elevated | text on fills/inputs | 5.70 | 7.91 | 4.5 |
+| --label-tertiary | --surface-grouped | text | 5.49 | 7.89 | 4.5 |
+| --label-tertiary | --surface-elevated | text | 5.77 | 7.04 | 4.5 |
+| --label-tertiary | --surface-fill over --surface-elevated | text on fills/inputs | 5.05 | 5.48 | 4.5 |
+| --accent-text | --surface-grouped | links, active tab | 5.71 | 8.29 | 4.5 |
+| --accent-text | --surface-elevated | links, active tab | 6.01 | 7.40 | 4.5 |
+| --accent-text | --accent-tint over --surface-elevated | tinted button | 5.20 | 5.45 | 4.5 |
+| --accent-text | --accent-tint over --surface-grouped | tinted button on page | 4.97 | 6.22 | 4.5 |
+| --accent-text | --accent-tint-strong over --surface-elevated | tinted button hover | 4.71 | 5.00 | 4.5 |
+| --accent-text | --accent-tint-strong over --surface-grouped | tinted button hover on page | 4.51 | 5.70 | 4.5 |
+| --label-secondary | --surface-fill over --surface-grouped | text on fills on page | 5.44 | 9.07 | 4.5 |
+| --on-accent | --accent-fill | filled button | 13.11 | 5.11 | 4.5 |
+| --on-accent | --accent-fill-hover | filled button | 10.27 | 5.84 | 4.5 |
+| --on-accent | --accent-fill-pressed | filled button | 15.46 | 6.77 | 4.5 |
+| #FFFFFF | --accent-fill | white icon/text on accent | 13.32 | 5.19 | 4.5 |
 | --on-accent | --danger-fill | destructive button | 6.99 | 6.99 | 4.5 |
 | --on-accent | --danger-fill-pressed | destructive pressed | 8.90 | 8.90 | 4.5 |
-| --danger-text | --surface-grouped | error text | 6.65 | 7.29 | 4.5 |
-| --danger-text | --surface-elevated | error text | 6.99 | 6.44 | 4.5 |
-| --danger-text | --danger-tint over --surface-elevated | error banner | 6.07 | 4.90 | 4.5 |
-| --warning-text | --surface-grouped | warning text | 5.55 | 9.45 | 4.5 |
-| --warning-text | --surface-elevated | warning text | 5.83 | 8.34 | 4.5 |
-| --warning-text | --warning-tint over --surface-elevated | warning banner | 5.10 | 5.69 | 4.5 |
+| --danger-text | --surface-grouped | error text | 6.65 | 7.61 | 4.5 |
+| --danger-text | --surface-elevated | error text | 6.99 | 6.79 | 4.5 |
+| --danger-text | --danger-tint over --surface-elevated | error banner | 6.07 | 5.11 | 4.5 |
+| --danger-text | --danger-tint over --surface-grouped | error banner on page | 5.79 | 5.82 | 4.5 |
+| --warning-text | --surface-grouped | warning text | 5.55 | 9.86 | 4.5 |
+| --warning-text | --surface-elevated | warning text | 5.83 | 8.81 | 4.5 |
+| --warning-text | --warning-tint over --surface-elevated | warning banner | 5.10 | 5.97 | 4.5 |
 | --on-warning | --warning | text on mustard fill | 6.28 | 6.28 | 4.5 |
-| --success-text | --surface-grouped | success text | 5.20 | 8.50 | 4.5 |
-| --success-text | --surface-elevated | success text | 5.47 | 7.51 | 4.5 |
-| --success | --surface-grouped | sage check fill | 5.20 | 5.41 | 3 |
-| --success | --surface-elevated | sage check fill | 5.47 | 4.78 | 3 |
-| --success-text | --success-tint over --surface-elevated | success banner | 4.62 | 5.60 | 4.5 |
+| --success-text | --surface-grouped | success text | 5.20 | 8.88 | 4.5 |
+| --success-text | --surface-elevated | success text | 5.47 | 7.93 | 4.5 |
+| --success | --surface-grouped | sage check fill | 5.20 | 5.65 | 3 |
+| --success | --surface-elevated | sage check fill | 5.47 | 5.04 | 3 |
+| --success-text | --success-tint over --surface-elevated | success banner | 4.62 | 5.93 | 4.5 |
+| --label-primary | --success-tint over --surface-grouped | success banner on page | 10.60 | 11.95 | 4.5 |
 | #FFFFFF | --success | check mark on sage | 5.56 | 3.21 | 3 |
 | #FFFFFF | --tint-chore | white on glyph/avatar | 7.53 | 7.53 | 4.5 |
 | #FFFFFF | --tint-calendar | white on glyph/avatar | 6.00 | 6.00 | 4.5 |
@@ -73,15 +85,23 @@ Rules:
 | #FFFFFF | --tint-rewards | white on glyph/avatar | 6.25 | 6.25 | 4.5 |
 | #FFFFFF | --tint-projects | white on glyph/avatar | 6.03 | 6.03 | 4.5 |
 | #FFFFFF | --tint-meals | white on glyph/avatar | 6.24 | 6.24 | 4.5 |
-| --tint-lists-text | --surface-grouped | tint as text | 6.10 | 8.50 | 4.5 |
-| --tint-lists-text | --surface-elevated | tint as text | 6.41 | 7.51 | 4.5 |
-| --tint-rewards-text | --surface-grouped | tint as text | 5.86 | 9.88 | 4.5 |
-| --tint-rewards-text | --surface-elevated | tint as text | 6.16 | 8.73 | 4.5 |
-| --focus-ring | --surface-grouped | focus ring | 3.81 | 7.94 | 3 |
-| --focus-ring | --surface-elevated | focus ring | 4.00 | 7.01 | 3 |
-| --accent-fill | --surface-grouped | filled button edge | 13.35 | 3.25 | 3 |
+| --tint-lists-text | --surface-grouped | tint as text | 6.10 | 8.88 | 4.5 |
+| --tint-lists-text | --surface-elevated | tint as text | 6.41 | 7.93 | 4.5 |
+| --tint-rewards-text | --surface-grouped | tint as text | 5.86 | 10.32 | 4.5 |
+| --tint-rewards-text | --surface-elevated | tint as text | 6.16 | 9.21 | 4.5 |
+| --focus-ring | --surface-grouped | focus ring | 3.81 | 8.29 | 3 |
+| --focus-ring | --surface-elevated | focus ring | 4.00 | 7.40 | 3 |
+| --control-border | --surface-grouped | input boundary | 3.69 | 5.68 | 3 |
+| --control-border | --surface-elevated | input boundary | 3.88 | 5.07 | 3 |
+| --accent-fill | --surface-grouped | filled button edge | 12.47 | 3.49 | 3 |
 
-Landing hero text on the darkest wall tone of the kitchen art (`#E6CBA2`, `.on-paper`): ink 9.12:1, secondary `#3A4258` 6.39:1, link `#8F3C22` 4.73:1.
+Marketing text now sits on semantic surfaces, not on the kitchen art. The auth art caption is opaque warm paper with aubergine text. `.on-paper` remains a compatibility utility for artwork contexts.
+
+### CSS compatibility and scope
+
+Keep existing card/input/button/type classes and semantic variable names. Status and module tint values remain, including text-safe variants. `--brand-navy` remains the original art navy; new `--brand-aubergine` is the draft identity ink. New `--control-border` is `#8B7B90` light / `#998AAB` dark for identifiable interactive input boundaries, rather than decorative separators. `--radius-xl` is 24px (formerly 20px). No `--background` or `--surface-secondary` aliases were introduced; use canonical surfaces. New marketing/auth selectors are scoped; operational typography sizes are unchanged. Auth inputs and primary actions are 52px high; password reveal controls and plain actions are at least 44px.
+
+Landing hierarchy uses fluid Fraunces headings, left-aligned task explanations and a labelled illustrative day rather than six equal feature tiles. Phone content precedes the art; narrower auth pages start below the wordmark and scroll naturally. Shared preview build, real-browser reflow/axe and final E2E evidence are coordinated by the parent agent, not claimed by this source-level slice.
 
 ## Type
 

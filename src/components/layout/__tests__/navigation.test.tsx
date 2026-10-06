@@ -150,6 +150,15 @@ describe('More list', () => {
 })
 
 describe('TabBar (phone)', () => {
+  it('uses readable 12px labels and shrinking equal-width targets on narrow phones', () => {
+    render(<TabBar user={user('parent')} />)
+    const links = within(screen.getByRole('navigation', { name: 'Tabs' })).getAllByRole('link')
+    for (const link of links) {
+      expect(link.querySelector('span')?.className).toContain('text-[12px]')
+      expect(link.closest('li')?.className).toContain('min-w-0')
+      expect(link.className).toContain('min-h-[44px]')
+    }
+  })
   it('shows exactly five tabs for a parent, Today current on the board', () => {
     const { container } = render(<TabBar user={user('parent')} />)
     expect(tabLabels(container)).toEqual([
@@ -195,6 +204,17 @@ describe('TabBar (phone)', () => {
 })
 
 describe('DashboardNav (top bar)', () => {
+  it('closes the user menu with Escape and restores focus to its trigger', () => {
+    render(<DashboardNav user={user('parent')} />)
+    const trigger = screen.getByRole('button', { name: 'User menu' })
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    const signOut = screen.getByRole('button', { name: 'Sign Out' })
+    signOut.focus()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(trigger)
+  })
   it('shows the same five tabs and a home link to the board', () => {
     render(<DashboardNav user={user('parent')} />)
     expect(tabLabels(screen.getByTestId('top-tabs')).map(([l]) => l)).toEqual([
@@ -204,14 +224,14 @@ describe('DashboardNav (top bar)', () => {
       'Lists',
       'Family',
     ])
-    expect(screen.getByRole('link', { name: 'Family Planner home' }).getAttribute('href')).toBe('/dashboard/today')
+    expect(screen.getByRole('link', { name: 'Herewoven home' }).getAttribute('href')).toBe('/dashboard/today')
     expect(screen.queryByRole('link', { name: 'Emergency' })).toBeNull()
   })
 
   it('gives a child its own tabs and a home link to the kid home', () => {
     render(<DashboardNav user={user('child')} />)
     expect(tabLabels(screen.getByTestId('top-tabs')).map(([l]) => l)).toEqual(['Today', 'Lists', 'Emergency'])
-    expect(screen.getByRole('link', { name: 'Family Planner home' }).getAttribute('href')).toBe('/dashboard')
+    expect(screen.getByRole('link', { name: 'Herewoven home' }).getAttribute('href')).toBe('/dashboard')
   })
 
   it('gives a teen Calendar and Meals too, and the kid home (O-37)', () => {
@@ -223,7 +243,7 @@ describe('DashboardNav (top bar)', () => {
       'Lists',
       'Emergency',
     ])
-    expect(screen.getByRole('link', { name: 'Family Planner home' }).getAttribute('href')).toBe('/dashboard')
+    expect(screen.getByRole('link', { name: 'Herewoven home' }).getAttribute('href')).toBe('/dashboard')
   })
 })
 

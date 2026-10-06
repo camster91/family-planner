@@ -26,27 +26,27 @@ export function TabBar({ user }: { user: NavUser | null }) {
           const isActive = isTabActive(tab, pathname)
           const Icon = tab.icon
           return (
-            <li key={tab.href} className="flex-1">
+            <li key={tab.href} className="min-w-0 flex-1">
               <Link
                 href={tab.href}
                 className={cn(
-                  'flex min-h-[44px] flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-colors duration-200',
+                  'flex min-h-[44px] flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-colors duration-200 motion-reduce:transition-none',
                   isActive
-                    ? 'text-accent'
+                    ? 'text-accent bg-accent-tint'
                     : 'text-label-secondary active:text-label-primary'
                 )}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <Icon
                   className={cn(
-                    'w-[26px] h-[26px] transition-transform duration-200',
+                    'w-[26px] h-[26px] transition-transform duration-200 motion-reduce:transition-none',
                     isActive && 'scale-105'
                   )}
                   strokeWidth={isActive ? 2.4 : 1.8}
                   aria-hidden="true"
                 />
                 <span className={cn(
-                  'text-[10px] leading-tight',
+                  'text-[12px] leading-tight whitespace-nowrap',
                   isActive ? 'font-semibold' : 'font-medium'
                 )}>
                   {tab.label}
