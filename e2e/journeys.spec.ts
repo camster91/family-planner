@@ -186,14 +186,47 @@ test.describe("Family A parent", () => {
     await expect(main.getByText("Unload dishwasher")).toBeVisible();
   });
 
-  test("calendar shows the anchor month and fixture events", async ({
+  test("calendar shows anchored planning ranges, fixture events and legacy month URLs", async ({
     page,
   }) => {
     await page.goto("/dashboard/calendar");
     const main = page.locator("#main-content");
-    await expect(main.getByText("January 2026")).toBeVisible();
-    await expect(main.getByText("School drop-off")).toBeVisible();
-    await expect(main.getByText(FIXTURE_LONG_TEXT.eventTitle)).toBeVisible();
+    await expect(
+      main.getByRole("heading", {
+        name: "January 5, 2026 – Jan 11, 2026",
+        level: 1,
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    // The planner is a bounded range, not a monthly grid. Use Agenda on every
+    // viewport so the 3 AM drop-off and the long title are both readable;
+    // Week intentionally scrolls its clock to 8 AM after loading.
+    await main.getByRole("button", { name: "Agenda", exact: true }).click();
+    await expect(page).toHaveURL(
+      /\/dashboard\/calendar\?year=2026&month=1&date=2026-01-05&view=agenda$/,
+    );
+    const range = main.getByRole("region", { name: "Calendar range" });
+    for (const title of ["School drop-off", FIXTURE_LONG_TEXT.eventTitle]) {
+      await expect(range.getByText(title, { exact: true })).toBeVisible();
+    }
+
+    // A legacy year/month URL anchors the first day of that month, not Today
+    // or a full-month grid. No date= parameter may mask that compatibility path.
+    await page.goto("/dashboard/calendar?year=2026&month=1&view=agenda");
+    await expect(
+      main.getByRole("heading", {
+        name: "January 1, 2026 – Jan 7, 2026",
+        level: 1,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      main.getByRole("button", { name: "Agenda", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    for (const title of ["School drop-off", FIXTURE_LONG_TEXT.eventTitle]) {
+      await expect(range.getByText(title, { exact: true })).toBeVisible();
+    }
 
     // Review-first event import (#270) is off without a provider key (the E2E
     // server never has one): no Import button, and the route answers 404.
