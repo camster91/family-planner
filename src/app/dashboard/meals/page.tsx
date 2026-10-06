@@ -1,18 +1,10 @@
 "use client";
 
 import * as React from "react";
+import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Plus,
-  UtensilsCrossed,
-  Coffee,
-  Sun,
-  Moon,
-  ChevronRight,
-  BookOpen,
-  Refrigerator,
-} from "lucide-react";
+import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { Dialog } from "@/components/ui/dialog";
@@ -40,24 +32,6 @@ import {
   type MealType,
   type PlannedMeal as MealSlot,
 } from "@/lib/meal-slots";
-
-const MealIcon = ({ type }: { type: MealType }) => {
-  if (type === "breakfast")
-    return (
-      <Coffee className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-    );
-  if (type === "lunch")
-    return (
-      <Sun className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-    );
-  if (type === "dinner")
-    return (
-      <Moon className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-    );
-  return (
-    <Moon className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-  );
-};
 
 interface MealSaveData {
   date: string;
@@ -446,6 +420,13 @@ function MealsPageInner() {
     router.push(`${pathname}${query ? `?${query}` : ""}`);
   };
   const [meals, setMeals] = React.useState<MealSlot[]>([]);
+  // DayCards unmount during canonical reloads after save/delete/Undo. Keep
+  // dated disclosure preferences here so those reloads do not hide the result.
+  const [expandedDays, setExpandedDays] = React.useState<
+    Record<string, boolean>
+  >({});
+  const toggleDay = (dateKey: string) =>
+    setExpandedDays((days) => ({ ...days, [dateKey]: !days[dateKey] }));
   // Labels follow the viewer's locale; rebuilt when the meals or locale change.
   const week = React.useMemo(
     () => (anchor ? buildDayPlans(meals, anchor, displayLocale) : []),
@@ -638,7 +619,7 @@ function MealsPageInner() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
+    <div className={cn(styles.page, "space-y-6 mx-auto px-4 pb-20")}>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -770,11 +751,13 @@ function MealsPageInner() {
             {/* One empty state: an empty week is the week of "Nothing planned"
                 rows, each one the way to add that meal. No separate
                 illustrated "No meals planned yet" above it. */}
-            <div className="space-y-3 stagger">
+            <div className={styles.board}>
               {week.map((day) => (
                 <DayCard
                   key={day.dateKey}
                   day={day}
+                  expanded={expandedDays[day.dateKey] ?? false}
+                  onToggle={() => toggleDay(day.dateKey)}
                   onAdd={openAdd}
                   onEdit={openEdit}
                 />
@@ -809,38 +792,107 @@ function MealsPageInner() {
  */
 function DayCard({
   day,
+  expanded,
+  onToggle,
   onAdd,
   onEdit,
 }: {
   day: DayPlan;
+  expanded: boolean;
+  onToggle: () => void;
   onAdd: (day: DayPlan, type: MealType) => void;
   onEdit: (meal: MealSlot) => void;
 }) {
   const headingId = `meals-day-${day.dateKey}`;
+  const otherId = `${headingId}-other`;
+
+  const otherSlots = day.slots.filter((slot) => slot.type !== "dinner");
+  const otherCount = otherSlots.reduce(
+    (count, slot) => count + slot.meals.length,
+    0,
+  );
+  const renderSlots = (slots: DayPlan["slots"]) => (
+    <ul className="divide-y divide-[var(--surface-separator)]">
+      {slots.map((slot) => {
+        const label = mealLabels[slot.type];
+        if (slot.meals.length === 0) {
+          return (
+            <li
+              key={slot.type}
+              data-testid="meal-slot"
+              data-meal-type={slot.type}
+            >
+              <button
+                type="button"
+                onClick={() => onAdd(day, slot.type)}
+                aria-label={`Add ${label.toLowerCase()}, ${day.longLabel}`}
+                className={styles.emptySlot}
+              >
+                <span>
+                  <span className={styles.slotLabel}>{label}</span>
+                  <span className={styles.meta}>Nothing planned</span>
+                </span>
+                <Plus className="w-5 h-5 shrink-0" aria-hidden="true" />
+              </button>
+            </li>
+          );
+        }
+        return slot.meals.map((meal, i) => {
+          const meta = recipeMeta(meal.recipe);
+          return (
+            <li
+              key={meal.id}
+              data-testid="meal-slot"
+              data-meal-type={slot.type}
+              className={styles.meal}
+            >
+              <button
+                type="button"
+                onClick={() => onEdit(meal)}
+                data-testid="meal-row"
+                data-meal-id={meal.id}
+                className={styles.mealAction}
+              >
+                <span className={styles.slotLabel}>{label}</span>
+                <span className={styles.mealTitle}>{mealTitle(meal)}</span>
+                {meta && (
+                  <span className={styles.meta}>{`${label} · ${meta}`}</span>
+                )}
+              </button>
+              {i === slot.meals.length - 1 && (
+                <button
+                  type="button"
+                  onClick={() => onAdd(day, slot.type)}
+                  aria-label={`Add another ${label.toLowerCase()}, ${day.longLabel}`}
+                  className={styles.addAnother}
+                >
+                  <Plus className="w-5 h-5" aria-hidden="true" />
+                </button>
+              )}
+            </li>
+          );
+        });
+      })}
+    </ul>
+  );
   return (
     <section
       aria-labelledby={headingId}
       data-testid="meal-day"
       data-day={day.dateKey}
       className={cn(
-        "card-apple overflow-hidden",
+        "card-apple",
+        styles.day,
         day.isToday && "ring-2 ring-[var(--accent)] ring-offset-2",
       )}
     >
-      {/* Day header */}
+      {/* The selected date remains visible, including on Today. */}
       <div
         className={cn(
           "px-4 py-2.5 flex items-center gap-2 border-b border-[var(--surface-separator)]",
           day.isToday ? "bg-[var(--accent-tint)]" : "bg-[var(--surface-fill)]",
         )}
       >
-        <UtensilsCrossed
-          className={cn(
-            "w-4 h-4",
-            day.isToday ? "text-[var(--accent)]" : "text-label-tertiary",
-          )}
-          aria-hidden="true"
-        />
         <h3
           id={headingId}
           className={cn(
@@ -850,7 +902,7 @@ function DayCard({
         >
           {day.isToday ? (
             <span>
-              Today<span className="sr-only">, {day.longLabel}</span>
+              Today<span className={styles.dateLabel}>{day.longLabel}</span>
             </span>
           ) : (
             day.label
@@ -858,91 +910,21 @@ function DayCard({
         </h3>
       </div>
 
-      {/* Meal slots */}
-      <ul className="divide-y divide-[var(--surface-separator)]">
-        {day.slots.map((slot) => {
-          const label = mealLabels[slot.type];
-          const glyph = (
-            <span className="w-8 h-8 shrink-0 rounded-full bg-[var(--tint-meals)]/10 flex items-center justify-center">
-              <MealIcon type={slot.type} />
-            </span>
-          );
-          if (slot.meals.length === 0) {
-            return (
-              <li
-                key={slot.type}
-                data-testid="meal-slot"
-                data-meal-type={slot.type}
-              >
-                <button
-                  type="button"
-                  onClick={() => onAdd(day, slot.type)}
-                  aria-label={`Add ${label.toLowerCase()}, ${day.longLabel}`}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 min-h-[52px] text-left active:bg-[var(--surface-fill-secondary)]"
-                >
-                  {glyph}
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-body text-label-primary">
-                      {label}
-                    </span>
-                    <span className="block text-footnote text-label-secondary">
-                      Nothing planned
-                    </span>
-                  </span>
-                  <Plus
-                    className="w-5 h-5 shrink-0 text-label-tertiary"
-                    aria-hidden="true"
-                  />
-                </button>
-              </li>
-            );
-          }
-          return slot.meals.map((meal, i) => {
-            const isLast = i === slot.meals.length - 1;
-            const meta = recipeMeta(meal.recipe);
-            return (
-              <li
-                key={meal.id}
-                data-testid="meal-slot"
-                data-meal-type={slot.type}
-                className="flex items-stretch"
-              >
-                <button
-                  type="button"
-                  onClick={() => onEdit(meal)}
-                  data-testid="meal-row"
-                  data-meal-id={meal.id}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2.5 min-h-[52px] text-left active:bg-[var(--surface-fill-secondary)]"
-                >
-                  {glyph}
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-body text-label-primary break-words">
-                      {mealTitle(meal)}
-                    </span>
-                    <span className="block text-footnote text-label-secondary break-words">
-                      {meta ? `${label} · ${meta}` : label}
-                    </span>
-                  </span>
-                  <ChevronRight
-                    className="w-4 h-4 shrink-0 text-label-tertiary"
-                    aria-hidden="true"
-                  />
-                </button>
-                {isLast && (
-                  <button
-                    type="button"
-                    onClick={() => onAdd(day, slot.type)}
-                    aria-label={`Add another ${label.toLowerCase()}, ${day.longLabel}`}
-                    className="inline-flex w-12 min-h-[44px] shrink-0 items-center justify-center border-l border-[var(--surface-separator)] text-[var(--accent-text)] active:bg-[var(--surface-fill-secondary)]"
-                  >
-                    <Plus className="w-5 h-5" aria-hidden="true" />
-                  </button>
-                )}
-              </li>
-            );
-          });
-        })}
-      </ul>
+      {renderSlots(day.slots.filter((slot) => slot.type === "dinner"))}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={otherId}
+        aria-label={`Other meals${otherCount > 0 ? ` · ${otherCount}` : ""}, ${day.longLabel}`}
+        className={styles.disclosure}
+        onClick={onToggle}
+      >
+        <span>Other meals{otherCount > 0 ? ` · ${otherCount}` : ""}</span>
+        <span aria-hidden="true">{expanded ? "−" : "+"}</span>
+      </button>
+      <div id={otherId} hidden={!expanded}>
+        {expanded && renderSlots(otherSlots)}
+      </div>
     </section>
   );
 }

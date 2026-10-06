@@ -9,6 +9,8 @@ import { toDateOnlyLocal } from "@/lib/dates";
 import MealsPage from "../page";
 import { ToastProvider } from "@/components/ui/toast";
 
+jest.mock("../meals-board.module.css", () => ({}));
+
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
 }));
@@ -145,6 +147,186 @@ function handler<T>(element: HTMLElement, name: string): T {
 }
 
 describe("/dashboard/meals", () => {
+  it("shows all seven dinners first and discloses other slots per day without writes", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [
+        dinnerA,
+        dinnerB,
+        {
+          ...dinnerA,
+          id: "snack_a",
+          meal_type: "snack",
+          recipe_name: "Apples",
+        },
+      ],
+    });
+    const cards = await screen.findAllByTestId("meal-day");
+    expect(cards).toHaveLength(7);
+    const card = await todayCard();
+    expect(
+      within(card)
+        .getAllByTestId("meal-row")
+        .map((row) => row.textContent),
+    ).toEqual([
+      expect.stringContaining("Tacos"),
+      expect.stringContaining("Green salad"),
+    ]);
+    expect(
+      within(card).queryByRole("button", { name: /^Add breakfast,/ }),
+    ).toBeNull();
+    const disclosure = within(card).getByRole("button", {
+      name: /Other meals/,
+    });
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    await user.click(disclosure);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      document.getElementById(disclosure.getAttribute("aria-controls")!)
+        ?.hidden,
+    ).toBe(false);
+    expect(
+      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+    ).toBeTruthy();
+    expect(within(card).getAllByTestId("meal-row")).toHaveLength(3);
+    expect(
+      within(cards.find((c) => c !== card)!)
+        .getByRole("button", { name: /Other meals/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+    await user.click(disclosure);
+    expect(within(card).queryByRole("button", { name: /Apples/ })).toBeNull();
+    expect(calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+  });
+  it("keeps each dated disclosure open through a deferred post-save reload", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = setup({ meals: [] });
+    const cards = await screen.findAllByTestId("meal-day");
+    const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
+    await user.click(
+      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+    );
+    await user.type(screen.getByLabelText("Recipe name"), "Porridge");
+    let release!: (response: Response) => void;
+    const realMock = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) =>
+      String(input).startsWith("/api/meals?")
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : realMock(input, init),
+    );
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+    await waitFor(() => expect(release).toBeDefined());
+    await act(async () =>
+      release({
+        ok: true,
+        json: async () => ({
+          meals: [
+            {
+              ...dinnerA,
+              id: "breakfast_saved",
+              meal_type: "breakfast",
+              recipe_name: "Porridge",
+            },
+          ],
+        }),
+      } as Response),
+    );
+    const refreshed = await todayCard();
+    expect(
+      within(refreshed)
+        .getByRole("button", { name: /Other meals/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      within(refreshed).getByRole("button", { name: /Porridge/ }),
+    ).toBeTruthy();
+    const otherDate = cards
+      .find((node) => node !== card)!
+      .getAttribute("data-day");
+    const other = screen
+      .getAllByTestId("meal-day")
+      .find((node) => node.getAttribute("data-day") === otherDate)!;
+    expect(
+      within(other)
+        .getByRole("button", { name: /Other meals/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  it("keeps a truthful visible calendar date beside Today", async () => {
+    setup({ meals: [] });
+    const heading = within(await todayCard()).getByRole("heading", {
+      level: 3,
+    });
+    const expected = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+    expect(heading.textContent).toContain(expected);
+  });
+
+  it("names each day disclosure and counts canonical non-dinner meals, not slots", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [
+        dinnerA,
+        dinnerB,
+        {
+          ...dinnerA,
+          id: "snack_a",
+          meal_type: "snack",
+          recipe_name: "Apples",
+        },
+        {
+          ...dinnerB,
+          id: "snack_b",
+          meal_type: "snack",
+          recipe_name: "Yogurt",
+        },
+      ],
+    });
+    const card = await todayCard();
+    const disclosure = within(card).getByRole("button", {
+      name: /Other meals · 2,/,
+    });
+    expect(disclosure.getAttribute("aria-label")).toContain(
+      new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+    disclosure.focus();
+    await user.keyboard("{Enter}");
+    expect(
+      within(card)
+        .getAllByTestId("meal-row")
+        .map((row) => row.getAttribute("data-meal-id")),
+    ).toEqual(["meal_a", "meal_b", "snack_a", "snack_b"]);
+    await user.click(
+      within(card).getByRole("button", { name: /^Add another snack,/ }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Date")).toHaveProperty(
+      "value",
+      today,
+    );
+    expect(within(dialog).getByLabelText("Meal")).toHaveProperty(
+      "value",
+      "snack",
+    );
+    await user.keyboard("{Escape}");
+    await user.click(within(card).getByRole("button", { name: /Yogurt/ }));
+    expect(
+      within(screen.getByRole("dialog")).getByLabelText("Recipe name"),
+    ).toHaveProperty("value", "Yogurt");
+    expect(calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+  });
+
   it.each(["POST", "PATCH", "DELETE", "Close", "Escape"] as const)(
     "blocks retained meal %s in the same batch after recipe creation starts",
     async (action) => {
@@ -573,6 +755,9 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     const { calls } = setup({ meals: [] });
     await user.click(
+      within(await todayCard()).getByRole("button", { name: /Other meals/ }),
+    );
+    await user.click(
       within(await todayCard()).getByRole("button", { name: /^Add lunch,/ }),
     );
     const dialog = await screen.findByRole("dialog");
@@ -802,6 +987,7 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(within(card).getByRole("button", { name: /^Add snack,/ }));
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("option", { name: "Sam" });
@@ -983,6 +1169,7 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     const opener = within(card).getByRole("button", {
       name: /^Add breakfast,/,
     });
@@ -998,6 +1185,7 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
       within(card).getByRole("button", { name: /^Add breakfast,/ }),
     );
@@ -1162,8 +1350,10 @@ describe("/dashboard/meals", () => {
   });
 
   it("writes the meal type in text on empty slots (not icon-only)", async () => {
+    const user = userEvent.setup();
     setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     for (const label of ["Breakfast", "Lunch", "Dinner", "Snack"]) {
       expect(within(card).getByText(label)).toBeTruthy();
     }
@@ -1185,6 +1375,7 @@ describe("/dashboard/meals", () => {
       saveError: { status: 400, error: "Recipe name is too long" },
     });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
       within(card).getByRole("button", { name: /^Add breakfast,/ }),
     );
