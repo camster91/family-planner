@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { LogIn, TabletSmartphone, Unplug } from 'lucide-react'
 import { useDeviceClient } from './use-device-client'
 import { primaryButtonClass, screenCardClass } from './styles'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 function ScreenShell({ children, testId }: { children: React.ReactNode; testId: string }) {
   return (
@@ -59,7 +60,7 @@ export function DeviceUnavailable() {
         Tablet mode is not available right now.
       </h1>
       <p className="mt-3 text-[19px] leading-snug text-label-secondary md:text-[21px]">
-        You can still sign in to Family Planner with your own account.
+        You can still sign in to {PRODUCT_BRAND.name} with your own account.
       </p>
       <div className="mt-8">
         <Link href="/login" className={primaryButtonClass}>

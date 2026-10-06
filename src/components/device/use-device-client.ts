@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { DeviceApiError, getDeviceClient, type DeviceClient } from '@/lib/device-client'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 /** The tab's device client, or null during server rendering (never used there). */
 export function useDeviceClient(): DeviceClient | null {
@@ -29,9 +30,9 @@ export function waitText(seconds: number | null | undefined): string {
 /** Plain-language message for an error the tablet cannot act on itself. */
 export function genericErrorText(error: unknown): string {
   if (error instanceof DeviceApiError) {
-    if (error.code === 'NETWORK_ERROR') return 'Could not reach Family Planner. Check the Wi-Fi and try again.'
+    if (error.code === 'NETWORK_ERROR') return `Could not reach ${PRODUCT_BRAND.name}. Check the Wi-Fi and try again.`
     if (error.status === 429) return `Too many tries. Wait ${waitText(error.retryAfterSeconds)}, then try again.`
-    if (error.code === 'SERVICE_UNAVAILABLE') return 'Family Planner is busy right now. Trying again shortly.'
+    if (error.code === 'SERVICE_UNAVAILABLE') return `${PRODUCT_BRAND.name} is busy right now. Trying again shortly.`
   }
   return 'Something went wrong. Try again.'
 }

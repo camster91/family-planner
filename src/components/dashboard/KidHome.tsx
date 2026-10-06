@@ -477,8 +477,8 @@ export default function KidHome({
               color="var(--accent)"
             >
               <div className="flex flex-col items-center leading-none">
-                <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
-                <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
+                <Star className="w-5 h-5 text-[var(--accent)] fill-current" />
+                <span className="text-[16px] font-bold tabular-nums text-label-primary leading-none mt-0.5">
                   {userXp}
                 </span>
               </div>

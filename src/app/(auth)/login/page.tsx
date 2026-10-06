@@ -234,7 +234,7 @@ export default function LoginPage() {
         <p className="auth-help">
           {t('auth.bySigningIn')}
           {' '}<Link href="/terms" className="underline underline-offset-4">{t('auth.termsOfService')}</Link>
-          {' · '}<Link href="/privacy" className="underline underline-offset-4">{t('auth.privacyPolicy')}</Link>
+          {' '}{t('auth.and')}{' '}<Link href="/privacy" className="underline underline-offset-4">{t('auth.privacyPolicy')}</Link>
         </p>
       </div>
     </div>

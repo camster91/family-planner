@@ -25,6 +25,7 @@ import {
   noticeTextClass,
   primaryButtonClass,
 } from './styles'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 export interface ManagedDevice {
   id: string
@@ -473,7 +474,7 @@ function RenameDeviceDialog({
             if (res.ok) onDone(trimmed)
             else setError(res.status === 429 ? 'Too many changes. Try again later.' : 'Could not rename the tablet.')
           } catch {
-            setError('Could not reach Family Planner. Try again.')
+            setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
           } finally {
             setBusy(false)
           }
@@ -561,7 +562,7 @@ function RemoveDeviceDialog({
             if (res.ok) onDone(device.label)
             else setError(res.status === 429 ? 'Too many changes. Try again later.' : 'Could not remove the tablet.')
           } catch {
-            setError('Could not reach Family Planner. Try again.')
+            setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
           } finally {
             setBusy(false)
           }

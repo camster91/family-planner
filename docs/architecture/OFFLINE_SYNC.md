@@ -219,7 +219,7 @@ the Today board in app mode) keep it; the banner only states the connection.
 **Offline page.** `public/sw.js` is a hand-written service worker, scope `/`:
 
 - Install pre-caches exactly `/offline.html`, `/brand/illustrations/houses-banner.webp` and `/favicon.svg` into
-  a versioned cache (`fp-offline-v1`), then `skipWaiting()`. Activate deletes older `fp-offline-*` caches only,
+  a versioned cache (`fp-offline-v2`), then `skipWaiting()`. Activate deletes older `fp-offline-*` caches only,
   enables navigation preload and `clients.claim()`s.
 - Same-origin GET navigations are network first. Only a network failure (fetch rejects) returns the cached
   `/offline.html`; any server response, including 4xx/5xx and redirects, passes through untouched. The three

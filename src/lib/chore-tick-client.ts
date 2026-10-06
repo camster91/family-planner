@@ -4,9 +4,11 @@
  * Both are idempotent on the server, so a repeated tap is harmless.
  */
 
+import { PRODUCT_BRAND } from './brand'
+
 export type ChoreTickResult = { ok: true } | { ok: false; message: string }
 
-const OFFLINE_MESSAGE = "Couldn't reach Family Planner. Check your connection and try again."
+const OFFLINE_MESSAGE = `Couldn't reach ${PRODUCT_BRAND.name}. Check your connection and try again.`
 
 export async function setChoreDone(choreId: string, done: boolean): Promise<ChoreTickResult> {
   let res: Response

@@ -178,3 +178,16 @@ describe('Warm Paper token contrast (WCAG 2.1 AA)', () => {
     })
   }
 })
+
+describe('dark chrome', () => {
+  // The phone tab bar sits on the same aubergine as the glass surfaces, not the
+  // old navy (#354 review).
+  it('gives the dark tab bar the same colour as dark glass', () => {
+    const rgb = (selector: string) => {
+      const m = new RegExp(`\\${selector} \\{ background: rgba\\((\\d+), (\\d+), (\\d+),`).exec(CSS)
+      if (!m) throw new Error(`no ${selector} background in globals.css`)
+      return m.slice(1, 4).join(',')
+    }
+    expect(rgb('.dark .tab-bar')).toBe(rgb('.dark .glass'))
+  })
+})

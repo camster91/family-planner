@@ -12,6 +12,7 @@ import {
   neutralButtonClass,
   primaryButtonClass,
 } from '@/components/device/styles'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 async function errorCode(res: Response): Promise<{ code: string; retryAfter: number | null }> {
   const body = await res.json().catch(() => null)
@@ -192,7 +193,7 @@ function PinDialog({
         setError('Could not save the PIN. Try again.')
       }
     } catch {
-      setError('Could not reach Family Planner. Try again.')
+      setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
     } finally {
       setBusy(false)
     }

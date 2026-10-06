@@ -13,6 +13,7 @@
  * unit-tested directly; `useBoardSync` (src/components/fridge) wires it to
  * intervals and browser events.
  */
+import { PRODUCT_BRAND } from './brand'
 import { formatRelativeTime } from './relative-time'
 
 /** Version check interval while visible. */
@@ -140,5 +141,5 @@ export function syncNotice(
   if (state === 'offline') {
     return `You're offline. Showing what was here ${ago}. The ${what} refreshes when the connection returns.`
   }
-  return `Can't reach Family Planner right now. Showing what was here ${ago}. The ${what} keeps trying on its own.`
+  return `Can't reach ${PRODUCT_BRAND.name} right now. Showing what was here ${ago}. The ${what} keeps trying on its own.`
 }

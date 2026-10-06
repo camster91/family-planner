@@ -27,6 +27,7 @@ import { toDateOnlyLocal } from '@/lib/dates'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { INVENTORY_LOCATIONS, LOCATION_LABELS, type InventoryLocation } from '@/lib/inventory'
 import type { ScanSuggestion } from '@/lib/inventory-scan'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 /** Must match INVENTORY_SCAN_MAX_BYTES in src/lib/inventory-scan.ts (kept literal to stay out of the server module). */
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -307,7 +308,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
               add.
             </p>
             <p className="text-footnote text-label-secondary" data-testid="scan-privacy-note">
-              The photo is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by Family Planner.
+              The photo is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by {PRODUCT_BRAND.name}.
             </p>
             <button
               ref={(el) => {

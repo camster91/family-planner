@@ -168,7 +168,7 @@ describe('syncState and syncNotice', () => {
       "You're offline. Showing what was here 3 min ago. The board refreshes when the connection returns."
     )
     expect(syncNotice('stale', now - 5 * 60 * 1000, now, 'board')).toBe(
-      "Can't reach Family Planner right now. Showing what was here 5 min ago. The board keeps trying on its own."
+      "Can't reach Herewoven right now. Showing what was here 5 min ago. The board keeps trying on its own."
     )
     expect(syncNotice('offline', now - 30 * 1000, now, 'calendar')).toContain('just now. The calendar refreshes')
   })

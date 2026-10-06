@@ -529,7 +529,7 @@
     backdrop-filter: saturate(180%) blur(20px);
     border-top: 1px solid var(--surface-separator);
   }
-  .dark .tab-bar { background: rgba(27, 37, 56, 0.9); }
+  .dark .tab-bar { background: rgba(35, 30, 46, 0.9); }
 
   /* === Progress ring === */
   .progress-ring {
