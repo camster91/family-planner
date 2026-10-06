@@ -179,7 +179,7 @@ describe('syncState and syncNotice', () => {
     )
     // Not being able to reach the server is not something the banner says.
     expect(syncNotice('stale', now - 5 * 60 * 1000, now, 'board', { bannerSaysOffline: true })).toMatch(
-      /^Can't reach Family Planner right now\./
+      /^Can't reach Herewoven right now\./
     )
   })
 })
