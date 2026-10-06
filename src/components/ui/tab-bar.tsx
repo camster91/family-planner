@@ -18,9 +18,31 @@ export function TabBar({ user }: { user: NavUser | null }) {
   const pathname = usePathname()
   const { features } = useFeatures()
   const tabs = tabsFor(user?.role, features)
+  const navRef = React.useRef<HTMLElement>(null)
+
+  React.useEffect(() => {
+    const nav = navRef.current
+    const main = document.getElementById('main-content')
+    if (!nav || !main || typeof ResizeObserver === 'undefined') return
+
+    // The layout keeps its normal 5rem reserve, but enlarged/wrapped labels
+    // can make the fixed bar taller. Include the border and react to font,
+    // feature and viewport changes (including display:none above md).
+    const property = '--phone-tab-bar-height'
+    const previous = main.style.getPropertyValue(property)
+    const measure = () => main.style.setProperty(property, `${nav.getBoundingClientRect().height}px`)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(nav)
+    return () => {
+      observer.disconnect()
+      if (previous) main.style.setProperty(property, previous)
+      else main.style.removeProperty(property)
+    }
+  }, [])
 
   return (
-    <nav className="tab-bar md:hidden" aria-label="Tabs">
+    <nav ref={navRef} className="tab-bar md:hidden" aria-label="Tabs">
       <ul className="flex items-stretch justify-around px-2 pt-1.5 pb-1.5">
         {tabs.map((tab) => {
           const isActive = isTabActive(tab, pathname)
@@ -46,7 +68,7 @@ export function TabBar({ user }: { user: NavUser | null }) {
                   aria-hidden="true"
                 />
                 <span className={cn(
-                  'text-[12px] leading-tight whitespace-nowrap',
+                  'min-w-0 max-w-full text-center text-[12px] leading-tight whitespace-normal break-words',
                   isActive ? 'font-semibold' : 'font-medium'
                 )}>
                   {tab.label}
