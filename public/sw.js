@@ -22,7 +22,7 @@
  * real service worker has no `module`, so it is skipped there.
  */
 
-const CACHE_VERSION = 'v1'
+const CACHE_VERSION = 'v2'
 const CACHE_PREFIX = 'fp-offline-'
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION
 const OFFLINE_URL = '/offline.html'

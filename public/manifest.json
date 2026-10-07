@@ -4,8 +4,8 @@
   "description": "A shared place for the everyday work of home.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FBF7F0",
-  "theme_color": "#322C43",
+  "background_color": "#F7F4EC",
+  "theme_color": "#245B50",
   "icons": [
     {
       "src": "/icon-192.png",

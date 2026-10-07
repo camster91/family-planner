@@ -159,12 +159,12 @@ describe('Warm Paper token contrast (WCAG 2.1 AA)', () => {
     })
   }
 
-  test('Herewoven anchors preserve cream paper and introduce aubergine ink in both themes', () => {
-      expect(ROOT['--surface-grouped']).toBe('#FBF7F0')
-      expect(ROOT['--label-primary']).toBe('#322C43')
-      expect(ROOT['--accent-fill']).toBe('#322C43')
-      expect(DARK['--surface-grouped']).toBe('#171420')
-      expect(DARK['--surface-elevated']).toBe('#231E2E')
+  test('Herewoven Woven Grove anchors preserve Chalk, Forest Ink and Evergreen with forest dark surfaces', () => {
+      expect(ROOT['--surface-grouped']).toBe('#F7F4EC')
+      expect(ROOT['--label-primary']).toBe('#182D2A')
+      expect(ROOT['--accent-fill']).toBe('#245B50')
+      expect(DARK['--surface-grouped']).toBe('#11211E')
+      expect(DARK['--surface-elevated']).toBe('#182D2A')
     })
 
   if (process.env.BRAND_CONTRAST_TABLE === '1') {
