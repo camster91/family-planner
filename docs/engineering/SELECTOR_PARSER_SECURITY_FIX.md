@@ -8,9 +8,29 @@ This override crosses the consumers' declared major range (`^6`). [Version 7.0.0
 
 ## Verification status
 
-Candidate preparation only. Compiled output comparison, independent review, QA and final-head CI are pending. Do not claim security completion or production acceptance from this record.
+On 2026-10-07 the compatibility review compiled the application's actual
+`src/app/globals.css`, complete Tailwind content/config and PostCSS/Autoprefixer
+pipeline twice: first with installed selector-parser 6.1.4, then with exact
+7.1.6 substituted for all selector-parser imports. Tailwind stayed 3.4.19.
+Both compiled stylesheets were byte-identical:
 
-The earlier full audit of main also reported development-tool advisories unrelated to this parser. The production-only audit reported zero advisories. GitHub's private Dependabot alert endpoint was inaccessible to the integration, so the visible alert count does not prove the complete development dependency tree is clear.
+| Compiler | Output bytes | SHA-256 |
+| --- | ---: | --- |
+| selector-parser 6.1.4 | 106004 | `b6c940d4836d538f538b99cf17fe4eb409eee14e87d858dfab6ecff1487a2c2f` |
+| selector-parser 7.1.6 | 106004 | `b6c940d4836d538f538b99cf17fe4eb409eee14e87d858dfab6ecff1487a2c2f` |
+
+This demonstrates no generated-CSS change for the current application; it
+is not a general compatibility claim about every parser consumer. The code
+candidate `4e53831b6544af57f4f2e6ac2b5569c193f44454` also has successful hosted
+Build & Test, imported-image and E2E checks. This documentation update requires
+fresh final-head checks before merge. No visual baselines were changed.
+
+GitHub's authenticated Dependabot endpoint was readable during this review.
+It reported this selector-parser advisory and a separate moderate
+`sprintf-js` precision/CPU advisory in development tooling. That second alert
+has no patched version reported and remains unresolved; the override must not
+be described as clearing all repository advisories. No production remediation
+or acceptance is claimed before merge and runtime verification.
 
 ## Release and rollback
 
