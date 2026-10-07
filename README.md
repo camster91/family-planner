@@ -2,7 +2,7 @@
 
 One calm home for the whole household: chores, calendar, meals, groceries and lists, shared between parents and kids, with a fridge-tablet mode for the kitchen.
 
-![Herewoven](public/brand/woven-grove/wordmark-horizontal.png)
+![Herewoven](public/brand/woven-grove/logos/herewoven-horizontal.png)
 
 **Live:** https://family.ashbi.ca
 
@@ -10,14 +10,14 @@ One calm home for the whole household: chores, calendar, meals, groceries and li
 
 ## What it does
 
-Herewoven brings the everyday logistics of a busy household into one place. Parents plan the week, kids see only today's missions, and a wall-mounted tablet can show the day at a glance. A new household starts simple (chores, calendar, lists, family, meals and emergency info) and parents turn on more sections only when they need them.
+Herewoven brings the everyday logistics of a busy household into one place. Parents plan the week, kids see their own missions, and a wall-mounted tablet can show the day at a glance. A new household starts simple (chores, calendar, lists, family, meals and emergency info) and parents turn on more sections only when they need them.
 
 ## Features
 
 **Everyday**
 - **Today board:** today's events, dinner tonight, groceries to buy and each child's chores on one screen
 - **Chores:** assign, schedule recurring chores, and let kids complete them with an optional photo for a parent to verify or reject
-- **Picture routines** for young kids, and a kid view that shows only today's missions
+- **Picture routines** for young kids, and a kid view with today's missions and earlier chores
 - **Family calendar:** shared events, read-only ICS import, and optional two-way Google and Outlook sync
 - **Meals, recipes and groceries:** plan dinners, send recipe ingredients to the grocery list (with undo), and sort groceries by store section
 - **Shared lists** for groceries, to-dos and packing
