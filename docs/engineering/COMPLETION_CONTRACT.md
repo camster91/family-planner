@@ -9,7 +9,7 @@ Persistent goal: finish the permitted remaining Family Planner / Herewoven work 
 - Initial backlog snapshot: 51 open issues and six PRs: #353, #351, #352, #355, #349, held draft #343. #351 E2E and #355 Build & Test/E2E failed at that refresh; those heads/checks are historical after branch updates.
 - Repository clone/worktree inspection found one main checkout, no pre-existing local workers. Existing GitHub Projects cannot be read by this integration (`Resource not accessible by integration`); board ownership is unverified. No duplicate board created. External Hermes worker/scheduler state is inaccessible; all seven cron jobs must remain paused.
 
-Current `main` after the protected #379 merge is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`. Production acceptance of that merge remains pending until exact runtime identity and safe acceptance are observed. The initial backlog/endpoint/worktree snapshot above is historical; use the candidate ledger for subsequent actions.
+Current `main` after the protected #379 merge is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`. Production `/api/version` now reports that exact merge, built `2026-10-07T18:17:37.600Z`; `/api/health` is healthy and all 26 approved public asset hashes match. Live authenticated child-role refill/Undo acceptance still needs an approved test identity; those flows passed synthetic exact-head QA, not live family acceptance. The initial backlog/endpoint/worktree snapshot above is historical; use the candidate ledger for subsequent actions.
 
 ## Definition of done
 
@@ -44,11 +44,11 @@ Approval source for this bounded completion task: Cameron explicitly instructed,
 
 | Candidate | Scope and authorization match | Current evidence / action |
 |---|---|---|
-| PR #379 `edd526767b3f89e6707197ed4f6419d8735e26d1` | Two-file kid refill; reviewed/tested, non-destructive; existing Coolify source path at `family.ashbi.ca` | Independent review + QA passed; Build & Test/E2E/checked-image/security checks green. Normal protected squash merged as `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; production acceptance pending. |
+| PR #379 `edd526767b3f89e6707197ed4f6419d8735e26d1` | Two-file kid refill; reviewed/tested, non-destructive; existing Coolify source path at `family.ashbi.ca` | Independent review + QA passed; Build & Test/E2E/checked-image/security checks green. Normal protected squash merged as `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; production exact revision/health/26 asset hashes verified; live authenticated child acceptance remains gated. |
 | PR #380 `506c764fa5e0f2bac6d6c3c6dc5b0119a59c64df` | Approved-assets social preview, no schema/API change | Independent source review and focused tests passed; hosted checks green; rendered protocol-preview QA and action record pending. |
 | PR #378 documentation | Scoped plan and canonical release-documentation reconciliation | Initial review/QA/CI passed; automated review required canonical-doc reconciliation and candidate approval record. Revised head requires fresh review/QA/CI. |
-| PR #352 `e9ab2b856ff5c5601c3e4362f2ebc712a5a16dd5` | Existing dev dependency patches refreshed onto shipped identity | Independent source review passed; fresh CI/QA pending. |
-| PR #351 `75297aab3c660a5c09b5a1f31640177adbe8d342` | Existing runtime dependency patches refreshed onto shipped identity | Fresh independent review/CI/QA pending. |
+| PR #352 `10ff777dc68b07d38ec4c21fd9a5840f78f7ce19` | Existing dev dependency patches refreshed onto shipped identity | Independent source review passed; fresh CI/QA pending. |
+| PR #351 `ff76f714d798b4de7210fafd05a8a07aab8f729a` | Existing runtime dependency patches refreshed onto shipped identity | Fresh independent review/CI/QA pending. |
 
 Review and action evidence: [PR #379](https://github.com/camster91/family-planner/pull/379), [Build & Test](https://github.com/camster91/family-planner/actions/runs/37656197576), [E2E](https://github.com/camster91/family-planner/actions/runs/37656197563). Rendered QA on the exact source head: 67 passed / 16 deliberate project skips, real five-chore refill/failure rollback/Undo/final celebration, five responsive sizes with zero axe violations, eight individually inspected screenshots; no baseline changes. The owned browser/server stopped and synthetic rows were cleaned. This does not verify live authenticated journeys.
 

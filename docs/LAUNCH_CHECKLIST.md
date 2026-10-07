@@ -2,7 +2,7 @@
 
 What has to be true before the first real families use Family Planner, and who does it. Completion requires current evidence for every criterion; code and endpoint health alone do not prove real-family readiness.
 
-Initial refresh snapshot: 2026-10-07. At that refresh `main` and live `/api/version` were `a243bd5b297bc1c02072451866722dc0c7061402`; `/api/health` healthy. Current `main` after PR #379 is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; its production acceptance is pending exact runtime readback. Live role/email/backup/device acceptance remains open. See [the durable completion contract](engineering/COMPLETION_CONTRACT.md) and [all 51 issue criteria](engineering/COMPLETION_MATRIX.md). The older rows below are retained history awaiting per-row reconciliation.
+Initial refresh snapshot: 2026-10-07. At that refresh `main` and live `/api/version` were `a243bd5b297bc1c02072451866722dc0c7061402`; `/api/health` healthy. Current `main` after PR #379 is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; live `/api/version` now reports that exact merge (built `2026-10-07T18:17:37.600Z`), health is healthy and all 26 approved asset hashes match. Authenticated child acceptance remains gated on an approved live test identity. Live role/email/backup/device acceptance remains open. See [the durable completion contract](engineering/COMPLETION_CONTRACT.md) and [all 51 issue criteria](engineering/COMPLETION_MATRIX.md). The older rows below are retained history awaiting per-row reconciliation.
 
 Historical snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
 
@@ -10,7 +10,7 @@ Historical snapshot: 2026-10-01. Keep this list short. When an item is done, mar
 
 | # | Item | Who | How | Status |
 |---|------|-----|-----|--------|
-| 1 | Production is running the current `main` | Owner | Add the SSH settings to the GitHub `production` environment and run **Build, Test & Release**, or set up Coolify (`runbooks/COOLIFY_DEPLOY.md`) | Open. The last recorded deploy is `b408170` (2026-09-23). The 2026-09-30 release run built and tested, then stopped: the SSH host, user, key and known-hosts are not set |
+| 1 | Production is running the current `main` | Owner | Add the SSH settings to the GitHub `production` environment and run **Build, Test & Release**, or set up Coolify (`runbooks/COOLIFY_DEPLOY.md`) | Source-build revision verified 2026-10-07: PR #379 merge `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`, healthy `/api/health`, 26 approved asset hashes match. Existing Coolify path; no claim of immutable CI-image promotion. Live role/email/backup/device gates below remain open |
 | 2 | Email sends | Owner | Mailgun domain, DNS (SPF, DKIM, DMARC), sending key in production, open and click tracking off (`runbooks/TRANSACTIONAL_EMAIL.md`) | Open. Without it a new parent cannot verify their email, so cannot sign in, and invites fail. The privacy page says Mailgun open and click tracking is off |
 | 3 | `TRUSTED_PROXY_HOPS` matches the real proxy chain | Owner | See `runbooks/COOLIFY_DEPLOY.md` or `engineering/CI_AND_RELEASE.md`. The server warns at start when it is missing | Open |
 | 4 | Backups run every day and a restore has been tested | Owner | Install the timer (`runbooks/BACKUPS.md`) or use Coolify scheduled backups, then do the restore test | Open. Scripts and retention are on `master` |
