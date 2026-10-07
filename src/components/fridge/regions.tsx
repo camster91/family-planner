@@ -210,7 +210,7 @@ export function ScheduleRegion({
             const person = e.addedById ? people?.get(e.addedById) : undefined
             return (
               <li key={e.id} data-testid="today-event" className="flex gap-3 py-3 first:pt-0 2xl:gap-4 2xl:py-4">
-                <p className="w-[78px] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
+                <p className="w-[78px] min-w-[4.875em] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:min-w-[5em] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
                   {eventTimeLabel(e, locale)}
                 </p>
                 <div className="min-w-0 flex-1">
