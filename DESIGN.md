@@ -1,35 +1,33 @@
 ---
 version: alpha
 name: Herewoven
-description: A crafted, calm household organizer; working rebrand draft.
+description: Herewoven household organizer; approved Woven Grove visual identity.
 colors:
-  primary: "#322C43"
-  secondary: "#645870"
-  tertiary: "#A3452A"
-  neutral: "#FBF7F0"
-  paper: "#FFFDF9"
-  success: "#4E7148"
-  decorative-sage: "#8FB283"
-  decorative-ochre: "#D9A33A"
+  chalk: "#F7F4EC"
+  forest-ink: "#182D2A"
+  evergreen: "#245B50"
+  clay-coral: "#D76C50"
+  soft-iris: "#C7B8E6"
+  pollen: "#E6BD55"
 typography:
   display:
-    fontFamily: Fraunces
+    fontFamily: Newsreader
     fontSize: 3rem
     fontWeight: 600
     lineHeight: 1.08
     letterSpacing: "-0.02em"
   heading:
-    fontFamily: Fraunces
+    fontFamily: Newsreader
     fontSize: 1.75rem
     fontWeight: 600
     lineHeight: 1.2
   body:
-    fontFamily: Inter
+    fontFamily: Manrope
     fontSize: 1rem
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: Inter
+    fontFamily: Manrope
     fontSize: 0.8125rem
     fontWeight: 600
     lineHeight: 1.3
@@ -46,69 +44,61 @@ spacing:
   xl: 32px
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.paper}"
+    backgroundColor: "{colors.evergreen}"
+    textColor: "{colors.chalk}"
     rounded: "{rounded.md}"
     padding: 12px
     height: 48px
   link:
-    backgroundColor: "{colors.neutral}"
-    textColor: "{colors.tertiary}"
+    backgroundColor: "{colors.chalk}"
+    textColor: "{colors.evergreen}"
   card:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.primary}"
+    backgroundColor: "{colors.chalk}"
+    textColor: "{colors.forest-ink}"
     rounded: "{rounded.lg}"
     padding: "{spacing.lg}"
 ---
 
 ## Overview
 
-Pilot Herewoven display direction for Family Planner. This rebrand does not create a new legal entity, domain or technical app identity. Tagline: Everyday life, held together.
+Herewoven remains the product name; Woven Grove is the approved visual direction. Tagline: Everyday life, held together. This is a web display adoption, not legal-name clearance, a new domain or a technical identity migration. Asset provenance and exact runtime semantic roles are in `docs/product/BRAND.md`.
 
-The app is a Monitor/Operate surface: content hierarchy and clear actions beat decoration. Landing/auth are Decide/Learn and Configure surfaces. Preserve the household model, routes, canonical APIs, privacy boundaries, feature flags, safe offline actions and installed-client identity.
-
-This release covers the display rebrand, landing/auth, app shell and Today/kid/tablet presentation. Day/Week calendar planning remains a separate design/implementation slice; no new calendar views are claimed by this contract.
+The app is a Monitor/Operate surface: content hierarchy and clear actions beat decoration. Landing/auth are Decide/Learn and Configure surfaces. Preserve the household model, routes, canonical APIs, privacy boundaries, feature flags, safe offline actions and installed-client identity. No functional feature or calendar-view expansion is claimed by this visual adoption.
 
 ## Colors
 
-Cream paper and aubergine ink carry the main structure. Clay signals selected/interactive treatments, not danger. Sage supports completed/success states. Ochre and pale sage are decorative only, never ordinary body text. Existing illustrations contain the legacy navy; retain them where compatible rather than generatively redraw approved source art.
+All six selected swatches above are retained. Chalk and Forest Ink carry the structure. Evergreen carries primary actions, links and success. Clay Coral accents, Soft Iris and Pollen support artwork and carefully labelled states; do not use them as ordinary text on Chalk or behind white body text. Semantic status/module shades are contrast-safe derivatives, not deletions/reclassifications of the approved palette.
 
-Implementation retains the existing semantic CSS variable names. Separate text-safe variants, surfaces, fills, separators and focus treatment; preserve status color semantics. Undefined --surface-secondary and --background references must be replaced by canonical variables rather than inventing unrelated color systems.
+Existing semantic CSS names and compatibility aliases are retained. Separate text-safe variants, surfaces, fills, separators and focus treatment. No invented `--background` or `--surface-secondary` tokens.
 
-Dark draft: grouped surface #171420, elevated #231E2E, warm ink #F5EEDF and lifted aubergine primary actions. Verify actual light/dark contrast pairs with the existing test before claiming compliant. Proposed values may be refined by implementation evidence; keep this contract synchronized with final CSS.
+Dark grouped/elevated surfaces: `#11211E` / Forest Ink `#182D2A`; Chalk ink; lifted Evergreen primary actions `#397D6E`, hover `#347365`, pressed `#2E685B`. Plain actions use a tinted pressed background, not faded text. Source token contrast tests are not computed browser-paint certification: themed and pressed paints must still be checked before release.
 
 ## Typography
 
-Use the project's existing self-hosted Fraunces + Inter setup. Fraunces is for the wordmark, welcome/section display moments and editorial headings. Dense operational rows, forms, navigation and timestamps use Inter. Do not force display serif into every task row.
+Exact approved Newsreader and Manrope variable TTF sources with SIL OFL licenses are self-hosted via `next/font/local`. Newsreader 600 carries wordmark/display/section headings and editorial moments. Manrope 400 body and real 500/600/700 UI weights carry dense rows, forms, navigation and timestamps. No Google font build/runtime network and no synthetic static-400 bolding.
 
-Use deliberate phone versus distance-readable tablet type scales. Phone tab labels must be at least 12px and clear at 320px without horizontal overflow; keep five authorized parent tabs. Touch targets stay at least 44x44 CSS px; the large fridge hub retains its larger target contract. Avoid solving long text by tiny fonts.
+Retain operational type sizes, line heights and distance-readable tablet scales. Phone tab labels remain at least 12px and five authorized parent tabs remain usable at 320px. Touch targets remain at least 44×44 CSS px; the fridge hub retains its larger contract. Do not fix long text by shrinking fonts.
 
-## Layout
+## Layout and artwork
 
-Marketing: branded navigation; focused proposition; original existing illustration; a clearly labelled product preview; task-oriented explanatory sections; honest onboarding CTA. Do not build six equal feature tiles or invent social proof.
+Use the exact approved transparent Herewoven symbol without tracing, recoloring, filters or a reverse variant. Keep a Chalk backing in both themes. Browser/Apple/PWA icons use approved paper-tile art with truthful dimensions; this does not authorize native app/store changes.
 
-Phone Today: compact household/setup context, then schedule and actual next actions. Reduce stacked card-before-card treatment. Tablet/desktop: stable, glanceable modules and an intentional dinner emphasis. Preserve landscape board fit, privacy and internal scrolling. Kid view: fewer choices, clear routine progression, parent-check/Undo states; opt-in points remain opt-in.
+Landing: branded navigation, focused proposition, approved woven hero graphic at its original aspect ratio, clearly labelled fictional household preview, task-oriented explanations and honest onboarding CTA. Auth and household setup use the approved supporting graphic; do not wallpaper operational views. No equal feature-tile grid or invented social proof.
 
-Use real content or labelled synthetic fixtures. Never fetch parent-only objects for a shared screen and hide fields in CSS. Added-by is not attendance.
+Parent Today: household/setup context, schedule and actual next actions. Tablet/desktop retain glanceable modules, dinner emphasis, board fit, privacy and internal scrolling. Kid/teen retain clear routines, parent-check/Undo and opt-in points. Calendar, meals and routines inherit shared tokens/fonts without changing their canonical state or action logic.
 
-## Elevation & Depth
+Task-specific legacy spot illustrations/loops remain bounded secondary art, with their existing decorative alt, lazy/priority, intrinsic-size, reduced-motion and data-saver contracts. Legacy kitchen/auth/house-divider artwork is no longer used on landing/auth. Obsolete files stay for compatibility; do not regenerate selected artwork or replace every task-specific illustration with the same abstract banner.
 
-Quiet borders, restrained paper-like separation, limited shadows. Avoid glass blur, glossy gradients, floating decorative metrics and unnecessary icon tiles. Shared displays must remain readable from several feet away.
+## Components, privacy and compatibility
 
-## Shapes
+Reuse production primitives, typed variants and canonical state/mutation hooks. Preserve keyboard/focus, autofill, errors/recovery, empty/loading/offline, pending-dialog guards and reduced motion. Quiet borders and restrained paper-like separation; no glossy/glass redesign or decorative metrics.
 
-Friendly but controlled radii. Reuse the existing mark provisionally until a new identity asset is explicitly approved. Do not change Android applicationId com.ashbi.familyplanner, cookies/storage namespaces, URL paths or production origin for a display rebrand.
+Use real data or clearly labelled fictional fixtures. Never fetch parent-only objects on shared screens and merely hide them in CSS. Added-by is not attendance. Preserve roles/device actors, completion/verification, ICS/provider editing and windows, recipe servings/ingredients, grocery idempotency and Undo.
 
-## Components
+Do not change schema/APIs, Android `com.ashbi.familyplanner`, cookie/storage namespaces, URL paths or production origin. Offline cache version changes only to refresh public recovery/favicon bytes; its namespace, privacy scope and routing are retained.
 
-Use existing production primitives, typed variants and canonical state/mutation hooks. Maintain keyboard/focus, autofill, error/recovery, empty/loading/offline and reduced-motion behavior. Preserve old CSS aliases supporting the remaining screens. No schema/API rewrite is needed.
+## Release evidence
 
-## Do's and Don'ts
+No paid generation, provider calls, native release or remote writes are needed for this source adoption. The six-color brandbook exporter limitation is unrelated and must not be solved by dropping colors or supplying a fake export.
 
-- Keep primary tasks functional; visual-only controls may not masquerade as actions.
-- Preserve original art and editable source. No paid Higgsfield generation or uploads are authorized yet.
-- Keep brand facts separate from proposals; no invented pricing, testimonials or results.
-- Run local exact-commit checks instead of spending GitHub Actions quota.
-- Capture before/after phone, tablet, landscape, dark/night and long-text evidence.
-- Record pre-existing failures separately from regressions. Never rewrite Linux visual baselines with Windows captures to make checks pass.
-- A build is not deployment approval; an asset-generation approval is not publication approval.
+Local RAM is constrained: focused tests only, sequentially. `docs/testing/WOVEN_GROVE_ADOPTION.md` records observed RED→GREEN source/SSR/token evidence and deferred gates. Parent/CI owns full build, final phone/tablet/dark/reflow/pressed-paint browser evidence and release checks. Never update visual baselines, masks or tolerances blindly. Passing source checks is not deployment approval or a claim that the rendered app is green.

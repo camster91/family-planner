@@ -290,7 +290,8 @@ export default function KidHome({
     : [];
   const catchupChores = showCatchup
     ? allCatchupChores
-    : allCatchupChores.slice(0, 3);
+    : visibleMissions(allCatchupChores, completedChores);
+  const hiddenCatchup = allCatchupChores.length - catchupChores.length;
   const tomorrowChores = openChores
     .filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey)
     .slice(0, 3);
@@ -698,7 +699,7 @@ export default function KidHome({
                 </div>
               ))}
             </div>
-            {allCatchupChores.length > 3 && (
+            {(showCatchup || hiddenCatchup > 0) && (
               <button
                 type="button"
                 aria-controls="routine-catchup-work"
@@ -708,7 +709,7 @@ export default function KidHome({
               >
                 {showCatchup
                   ? "Show less"
-                  : `Show more (${allCatchupChores.length - 3})`}
+                  : `Show more (${hiddenCatchup})`}
               </button>
             )}
           </section>

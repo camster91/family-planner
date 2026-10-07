@@ -118,7 +118,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             aria-label={PRODUCT_BRAND.homeLabel}
             className="flex min-h-[44px] items-center gap-2.5 shrink-0"
           >
-            <BrandMark size={36} className="h-9 w-9 rounded-[10px] shadow-sm" />
+            <BrandMark size={48} className="h-12 w-12" />
             <span className="font-display text-[20px] font-semibold tracking-tight text-label-primary hidden min-[390px]:block md:hidden lg:block lg:text-[22px]">
               {PRODUCT_BRAND.name}
             </span>
