@@ -4,7 +4,7 @@
 
 **Separate future handoff:** immutable-image publication/promotion remains prepared under #145 and disabled unless separately authorized. Sections describing registry activation are preparation, not instructions to change the current deployment policy. Do not dispatch `Release to VPS`, enable the immutable publisher, change Auto Deploy, migrate the database, or resume any of the seven paused Hermes cron jobs. No production configuration/control state is claimed observed here; #363 remains the owner policy decision.
 
-This runbook does not authorize anything. Creating the Coolify application, setting production secrets, pointing DNS, moving data, turning on scheduled backups and deploy/rollback actions require applicable owner authorization (`AGENTS.md`, approval boundaries). The bounded current authorization and each exact-candidate action are recorded in `engineering/COMPLETION_CONTRACT.md`; it does not cover policy/configuration changes.
+This runbook does not authorize anything. Creating the Coolify application, setting production secrets, pointing DNS, moving data, turning on scheduled backups and deploy/rollback actions require applicable owner authorization (`AGENTS.md`, approval boundaries). The bounded current authorization and each exact-candidate action are recorded in `../engineering/COMPLETION_CONTRACT.md`; it does not cover policy/configuration changes.
 
 Facts here come from the source on `main` (Dockerfile, `docker-entrypoint.sh`, `scripts/migrate.js`, `src/app/api/health/route.ts`, `src/lib/client-ip.ts`, the env reads under `src/`). Coolify UI labels move between versions. Where a label is named below, look for the closest match in your version.
 

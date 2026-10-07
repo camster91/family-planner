@@ -45,7 +45,7 @@ Approval source for this bounded completion task: Cameron explicitly instructed,
 | Candidate | Scope and authorization match | Current evidence / action |
 |---|---|---|
 | PR #379 `edd526767b3f89e6707197ed4f6419d8735e26d1` | Two-file kid refill; reviewed/tested, non-destructive; existing Coolify source path at `family.ashbi.ca` | Independent review + QA passed; Build & Test/E2E/checked-image/security checks green. Normal protected squash merged as `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; production exact revision/health/26 asset hashes verified; live authenticated child acceptance remains gated. |
-| PR #380 `506c764fa5e0f2bac6d6c3c6dc5b0119a59c64df` | Approved-assets social preview, no schema/API change | Independent source review and focused tests passed; hosted checks green; rendered protocol-preview QA and action record pending. |
+| PR #380 `b0ec3acfa5440f7c02695dbbbd7c6591594c7147` | Approved-assets social preview, no schema/API change | Final integrated source review passed; prior focused tests/hosted/browser protocol passes on 506c764 are historical. Fresh b0ec3ac checks and protocol QA must pass before action; live delivery pending. |
 | PR #378 documentation | Scoped plan and canonical release-documentation reconciliation | Initial review/QA/CI passed; automated review required canonical-doc reconciliation and candidate approval record. Revised head requires fresh review/QA/CI. |
 | PR #352 `10ff777dc68b07d38ec4c21fd9a5840f78f7ce19` | Existing dev dependency patches refreshed onto shipped identity | Independent source review passed; fresh CI/QA pending. |
 | PR #351 `ff76f714d798b4de7210fafd05a8a07aab8f729a` | Existing runtime dependency patches refreshed onto shipped identity | Fresh independent review/CI/QA pending. |
