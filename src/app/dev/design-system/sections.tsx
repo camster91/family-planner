@@ -851,6 +851,7 @@ export function StatesSection({ fx }: SectionProps) {
 
 /** Where each Warm Paper illustration is used (docs/product/BRAND.md). */
 const ILLUSTRATION_USES: Record<BrandIllustrationName, string> = {
+  wovenGrove: 'Approved Woven Grove: landing, shared auth frame and household setup',
   choresClear: 'Chores: all clear',
   calendarEmpty: 'Calendar: no events',
   mealsEmpty: 'Meals: nothing planned',
