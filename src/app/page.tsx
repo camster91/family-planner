@@ -1,212 +1,82 @@
 'use client'
 
-import { CheckCircle, Wallet, ShoppingCart, Calendar, FolderKanban, MessageSquare, Shield, Star, Zap, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from '@/i18n'
-import { Glyph } from '@/components/ui/glyph'
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { BrandIllustration, BrandMark } from '@/components/ui/brand-illustration'
-import { BrandMotion } from '@/components/ui/brand-motion'
-import { ILLUSTRATIONS, MOTION } from '@/lib/brand-illustrations'
-
-const FEATURES = [
-  {
-    color: 'chore' as const,
-    icon: <CheckCircle className="w-7 h-7 text-white" />,
-    titleKey: 'landing.choreTrackingTitle',
-    descKey: 'landing.choreTrackingDesc',
-  },
-  {
-    color: 'budget' as const,
-    icon: <Wallet className="w-7 h-7 text-white" />,
-    titleKey: 'landing.budgetTitle',
-    descKey: 'landing.budgetDesc',
-  },
-  {
-    color: 'lists' as const,
-    icon: <ShoppingCart className="w-7 h-7 text-white" />,
-    titleKey: 'landing.listsTitle',
-    descKey: 'landing.listsDesc',
-  },
-  {
-    color: 'calendar' as const,
-    icon: <Calendar className="w-7 h-7 text-white" />,
-    titleKey: 'landing.calendarTitle',
-    descKey: 'landing.calendarDesc',
-  },
-  {
-    color: 'projects' as const,
-    icon: <FolderKanban className="w-7 h-7 text-white" />,
-    titleKey: 'landing.projectsTitle',
-    descKey: 'landing.projectsDesc',
-  },
-  {
-    color: 'messages' as const,
-    icon: <MessageSquare className="w-7 h-7 text-white" />,
-    titleKey: 'landing.messagingTitle',
-    descKey: 'landing.messagingDesc',
-  },
-] as const
-
-const TRUST_BADGES = [
-  { icon: <Shield className="w-4 h-4" />, label: 'Privacy First' },
-  { icon: <Star className="w-4 h-4" />, label: 'Free Forever' },
-  { icon: <Zap className="w-4 h-4" />, label: 'Any Device' },
-]
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 
 export default function Home() {
-  const { t } = useTranslation()
-
+  const { t, locale } = useTranslation()
   return (
-    <div className="min-h-screen">
-      {/* Hero: the kitchen scene. On large screens the headline sits in the
-          empty left third of the art; below that the text comes first and the
-          art follows, so the call to action is never pushed off a phone. The
-          text block uses the light "paper" tokens in both themes because it
-          always sits on the cream illustration on large screens. */}
-      <section className="relative">
-        <div className="relative mx-auto max-w-[1600px]">
-          <div className="lg:on-paper relative z-10 px-4 pt-14 pb-8 text-center lg:absolute lg:inset-y-0 lg:left-0 lg:flex lg:w-[40%] lg:flex-col lg:justify-center lg:pt-0 lg:pb-0 lg:pl-12 lg:pr-4 lg:text-left xl:pl-20">
-            <div className="mx-auto max-w-xl lg:mx-0">
-              <h1 className="text-large-title mb-4 text-label-primary lg:text-[48px] lg:leading-[1.08]">
-                {t('landing.heroTitle')}
-              </h1>
-              <p className="text-[17px] leading-6 text-[var(--label-secondary)] mb-8">
-                {t('landing.heroDescription')}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                <Link
-                  href="/register"
-                  className="btn-filled"
-                >
-                  {t('landing.getStartedFree')}
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/login"
-                  className="btn-plain"
-                >
-                  {t('landing.signIn')}
-                </Link>
-              </div>
-
-              {/* Trust badges inline */}
-              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-6 lg:justify-start">
-                {TRUST_BADGES.map((badge) => (
-                  <div key={badge.label} className="flex items-center gap-1.5 text-[13px] text-[var(--label-tertiary)]">
-                    {badge.icon}
-                    <span>{badge.label}</span>
-                  </div>
-                ))}
-              </div>
+    <div className="marketing-page">
+      <a href="#main-content" className="marketing-skip">{t('landing.skipContent')}</a>
+      <header className="marketing-header marketing-width">
+        <Link href="/" aria-label={PRODUCT_BRAND.homeLabel} className="brand-wordmark">
+          <BrandMark size={48} className="h-12 w-12" />
+          <span>{PRODUCT_BRAND.name}</span>
+        </Link>
+        <nav aria-label={t('landing.mainNavigation')}>
+          <Link href="#everyday" className="marketing-learn">{t('landing.seeDay')}</Link>
+          <Link href="/login" className="btn-plain">{t('landing.signIn')}</Link>
+        </nav>
+      </header>
+      <main id="main-content">
+        <section className="marketing-hero marketing-width" aria-labelledby="hero-title">
+          <div className="marketing-hero-copy">
+            <p className="marketing-eyebrow">{t('landing.eyebrow')}</p>
+            <h1 id="hero-title">{locale === 'en' ? PRODUCT_BRAND.tagline : t('landing.heroTitle')}</h1>
+            <p className="marketing-intro">{t('landing.heroDescription')}</p>
+            <div className="marketing-actions">
+              <Link href="/register" className="btn-filled">{t('landing.createHousehold')} <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
+              <Link href="#everyday" className="btn-plain">{t('landing.seeDay')}</Link>
             </div>
+            <p className="marketing-note">{t('landing.startSmall')}</p>
           </div>
-          <div className="px-4 lg:px-0">
-            <BrandMotion
-              motion={MOTION.hero}
-              play="immediate"
-              priority
-              sizes="(min-width: 1600px) 1600px, 100vw"
-              className="block h-auto w-full rounded-[var(--radius-xl)] lg:rounded-none"
-            />
+          <div className="marketing-hero-art">
+            <BrandIllustration source={ILLUSTRATIONS.wovenGrove} priority className="woven-grove-art block h-auto w-full" />
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Features — 3x2 glyph card grid */}
-      <section className="py-8">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto">
-            <h2 className="text-title-2 text-center mb-6">
-              {t('landing.featuresTitle')}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 stagger">
-              {FEATURES.map((feature) => (
-                <div key={feature.titleKey} className="card-apple p-5 flex flex-col items-center text-center gap-3">
-                  <Glyph color={feature.color} size="lg">
-                    {feature.icon}
-                  </Glyph>
-                  <div>
-                    <h3 className="text-[15px] font-semibold text-[var(--label-primary)] mb-1">
-                      {t(feature.titleKey)}
-                    </h3>
-                    <p className="text-[13px] text-[var(--label-secondary)] leading-4">
-                      {t(feature.descKey)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+        <section id="everyday" className="marketing-day marketing-width" aria-labelledby="everyday-title">
+          <div className="marketing-section-copy">
+            <p className="marketing-eyebrow">{t('landing.everydayEyebrow')}</p>
+            <h2 id="everyday-title">{t('landing.everydayTitle')}</h2>
+            <p>{t('landing.everydayDescription')}</p>
+            <dl className="marketing-task-list">
+              <div><dt>{t('landing.scheduleTitle')}</dt><dd>{t('landing.scheduleDescription')}</dd></div>
+              <div><dt>{t('landing.workTitle')}</dt><dd>{t('landing.workDescription')}</dd></div>
+              <div><dt>{t('landing.dinnerTitle')}</dt><dd>{t('landing.dinnerDescription')}</dd></div>
+            </dl>
+          </div>
+          <section className="marketing-preview" aria-label={t('landing.previewLabel')}>
+            <p className="marketing-preview-label">{t('landing.previewDisclaimer')}</p>
+            <div className="marketing-preview-heading"><h3>{t('landing.previewToday')}</h3><span>{t('landing.previewHousehold')}</span></div>
+            <div className="marketing-preview-schedule">
+              <h4>{t('landing.previewComingUp')}</h4>
+              <p><span className="marketing-preview-time">3:30</span><span>{t('landing.previewLibrary')}<small>{t('landing.previewLibraryNote')}</small></span></p>
+              <p><span className="marketing-preview-time">5:00</span><span>{t('landing.previewWalk')}<small>{t('landing.previewWalkNote')}</small></span></p>
             </div>
-          </div>
-        </div>
-      </section>
+            <div className="marketing-preview-dinner"><span className="marketing-eyebrow">{t('landing.previewDinner')}</span><p>{t('landing.previewMeal')}</p><small>{t('landing.previewGroceries')}</small></div>
+            <div className="marketing-preview-todo"><h4>{t('landing.previewTodo')}</h4><ul><li>{t('landing.previewTaskOne')}</li><li>{t('landing.previewTaskTwo')}</li></ul></div>
+          </section>
+        </section>
 
-      {/* How It Works */}
-      <section className="py-12">
-        <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-title-2 text-center mb-8">
-              {t('landing.howItWorksTitle')}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 stagger">
-              {[
-                { num: '1', title: t('landing.step1Title'), desc: t('landing.step1Desc') },
-                { num: '2', title: t('landing.step2Title'), desc: t('landing.step2Desc') },
-                { num: '3', title: t('landing.step3Title'), desc: t('landing.step3Desc') },
-              ].map((step) => (
-                <div key={step.num} className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-[var(--accent-fill)] flex items-center justify-center">
-                    <span className="text-[17px] font-semibold text-white">{step.num}</span>
-                  </div>
-                  <h3 className="text-[15px] font-semibold text-[var(--label-primary)]">{step.title}</h3>
-                  <p className="text-[13px] text-[var(--label-secondary)] leading-4">{step.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+        <section className="marketing-shared marketing-width" aria-labelledby="shared-title">
+          <div><p className="marketing-eyebrow">{t('landing.sharedEyebrow')}</p><h2 id="shared-title">{t('landing.sharedTitle')}</h2></div>
+          <div><p>{t('landing.sharedDescription')}</p><p className="marketing-note">{t('landing.sharedPrivacy')}</p></div>
+        </section>
+        <section className="marketing-start marketing-width" aria-labelledby="start-title">
+          <div><p className="marketing-eyebrow">{t('landing.startEyebrow')}</p><h2 id="start-title">{t('landing.startTitle')}</h2><p>{t('landing.startDescription')}</p></div>
+          <Link href="/register" className="btn-filled">{t('landing.createHousehold')} <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
+        </section>
 
-      {/* Bottom CTA */}
-      <section className="py-12">
-        <div className="container mx-auto px-4">
-          <div className="max-w-xl mx-auto text-center">
-            <h2 className="text-title-2 mb-2">{t('landing.ctaTitle')}</h2>
-            <p className="text-[15px] text-[var(--label-secondary)] mb-6">
-              {t('landing.ctaSubtitle')}
-            </p>
-            <Link
-              href="/register"
-              className="btn-filled"
-            >
-              {t('landing.ctaPrimary')}
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <p className="mt-3 text-[13px] text-[var(--label-tertiary)]">
-              {t('landing.ctaDisclaimer')}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* A row of paper houses as the divider above the footer. */}
-      <div className="mx-auto max-w-3xl px-4 pt-4">
-        <BrandIllustration source={ILLUSTRATIONS.housesBanner} className="block h-auto w-full" />
-      </div>
-
-      {/* Footer */}
-      <footer className="py-6 border-t border-[var(--surface-separator)]">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <BrandMark size={28} className="h-7 w-7" />
-              <span className="text-[15px] font-semibold text-[var(--label-primary)]">Family Planner</span>
-            </div>
-            <nav className="flex gap-6 text-[13px] text-[var(--label-secondary)]">
-              <Link href="/login" className="hover:text-[var(--label-primary)] transition-colors">Sign In</Link>
-              <Link href="/register" className="hover:text-[var(--label-primary)] transition-colors">Get Started</Link>
-            </nav>
-          </div>
-        </div>
+      </main>
+      <footer className="marketing-footer marketing-width">
+        <span className="brand-wordmark">{PRODUCT_BRAND.name}</span>
+        <p>{t('landing.footerDescription')}</p>
+        <nav aria-label={t('landing.footerNavigation')}><Link href="/privacy">{t('auth.privacyPolicy')}</Link><Link href="/terms">{t('auth.termsOfService')}</Link><Link href="/login">{t('landing.signIn')}</Link></nav>
       </footer>
     </div>
   )

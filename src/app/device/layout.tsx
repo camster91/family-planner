@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { isSharedDeviceEnabled } from '@/lib/device-http'
 import { DeviceUnavailable } from '@/components/device/StatusScreens'
+import { OfflineBanner } from '@/components/ui/offline-banner'
 
 export const metadata: Metadata = {
   title: 'Family tablet',
@@ -18,5 +19,11 @@ export const dynamic = 'force-dynamic'
  */
 export default function DeviceLayout({ children }: { children: ReactNode }) {
   if (!isSharedDeviceEnabled()) return <DeviceUnavailable />
-  return <div className="min-h-screen bg-[var(--surface-grouped)]">{children}</div>
+  return (
+    <div className="min-h-screen bg-[var(--surface-grouped)]">
+      {/* O-41. Hidden on the board itself, which has its own offline notice. */}
+      <OfflineBanner className="top-0" />
+      {children}
+    </div>
+  )
 }

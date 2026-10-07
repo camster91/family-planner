@@ -94,8 +94,9 @@ export default function ListsClient({ lists, familyName, canCreate = true, initi
         title="Lists"
         trailing={
           canCreate ? (
-            <Link href={createHref} className="btn-tinted" aria-label="Add list">
-              <Plus className="w-4 h-4" />
+            // Same filled primary "+" as Chores and Calendar.
+            <Link href={createHref} className="btn-filled shrink-0" aria-label="Add list">
+              <Plus className="w-4 h-4" aria-hidden="true" />
             </Link>
           ) : undefined
         }

@@ -50,6 +50,7 @@ export function useMaybeToast(): ToastContextType {
  * Undo over confirm (#269): a reversible action runs straight away and offers
  * Undo here instead of asking first with window.confirm. `onUndo` must reverse
  * the action on the server; the caller reports its own failure (an error toast).
+ * Only the newest Undo shows: a second one replaces the first (O-42).
  */
 export function useUndoToast() {
   const { addToast } = useToast()
@@ -75,7 +76,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).slice(2)
-    setToasts(prev => [...prev, { ...toast, id }])
+    // One Undo at a time (O-42): a new Undo replaces the one showing, so quick
+    // ticks never stack cards over the list. The earlier action stays done;
+    // only its chance to undo from the toast ends.
+    setToasts(prev => [...(toast.type === 'undo' ? prev.filter(t => t.type !== 'undo') : prev), { ...toast, id }])
   }, [])
 
   return (

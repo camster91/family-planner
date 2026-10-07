@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LogIn, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from '@/i18n'
-import { BrandMark } from '@/components/ui/brand-illustration'
+
 import { clearAllPersonQueues } from '@/lib/offline-queue-browser'
 import { loginNoticeFor, safeRedirectPath } from '@/lib/safe-redirect'
 
@@ -99,15 +99,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-grouped)] px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo glyph */}
-        <div className="flex justify-center mb-6">
-          <BrandMark size={64} className="h-16 w-16 rounded-[var(--radius-xl)] shadow-[var(--shadow-md)]" />
-        </div>
-
+    <div className="auth-page">
+      <div className="auth-panel">
         <div className="card-apple p-6">
-          <div className="text-center mb-6">
+          <div className="auth-heading">
             <h1 className="text-title-2">{t('auth.welcomeBack')}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
               {t('auth.signInSubtitle')}
@@ -236,8 +231,10 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center text-[13px] text-[var(--label-tertiary)] mt-6">
+        <p className="auth-help">
           {t('auth.bySigningIn')}
+          {' '}<Link href="/terms" className="underline underline-offset-4">{t('auth.termsOfService')}</Link>
+          {' · '}<Link href="/privacy" className="underline underline-offset-4">{t('auth.privacyPolicy')}</Link>
         </p>
       </div>
     </div>

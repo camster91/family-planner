@@ -494,6 +494,10 @@ test.describe("new household sign-up journey", () => {
         expect((await done).status()).toBe(200);
         await expect(mission).toContainText("You did it!");
         await expect(mission).toBeDisabled();
+        // It was the only one: a short celebration (O-42).
+        await expect(kid.getByTestId("kid-celebration")).toContainText(
+          "All done for today.",
+        );
         await expect(
           kid.getByText("A parent will check it.").first(),
         ).toBeVisible();

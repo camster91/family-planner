@@ -177,8 +177,10 @@ they become queueable.
   toast; failed ticks queued from the Lists page keep their Retry there.
 - One tab is assumed to drain at a time. Two tabs of the same person may both send an operation; the shared key
   makes the server apply it once.
-- Full offline reload is not supported yet: the app has no service worker, so a page cannot load without the
-  network. The queue survives a reload or restart as long as the page itself can load.
+- Full offline reload is not supported: a page still needs the network to load. A navigation that fails
+  offline now shows the offline page (below) instead of the browser's error page, but that page carries no
+  app data and does not drain the queue. The queue survives a reload or restart as long as the page itself
+  can load.
 
 ### Tests
 
@@ -197,3 +199,59 @@ they become queueable.
   end in the last received state, each response is its real outcome, and same-state ticks keep attribution.
 - `e2e/sync.spec.ts`: offline tick → pending → reload → reconnect → synced once; lost response → replay;
   failed with Retry; removed item → conflict with Discard; sign-out drops the queue.
+
+## Offline banner and offline page (O-41)
+
+Cameron approved (O-41) that the whole app says plainly when it is offline. Two pieces, both deliberately
+small; neither caches household data.
+
+**Banner.** `OfflineBanner` (`src/components/ui/offline-banner.tsx`) is mounted once in the dashboard layout
+(sticky under the top bar) and once in the shared-tablet layout (`/device/*`, sticky at the top). It reads
+`useOnline()` (`src/components/ui/use-online.ts`, the `online` / `offline` events) and shows "You're offline.
+Some things may not load or save until you're back online." When the connection returns it says "Back online."
+for 3 s, then renders nothing (no height, no layout change). The wrapper is a polite live region
+(`aria-live="polite"`, not `role="status"`), so each change is announced once. It is never fixed to the bottom,
+so it cannot cover the tab bar. Fridge mode (`/dashboard/today?mode=fridge` and the paired tablet board) hides
+it through TodayBoard's chrome CSS (`[data-offline-banner]`), because the board already has its own offline
+notice with the time the data was loaded. Pages with their own offline wording (lists, inventory, calendar,
+the Today board in app mode) keep it; the banner only states the connection.
+
+**Offline page.** `public/sw.js` is a hand-written service worker, scope `/`:
+
+- Install pre-caches exactly `/offline.html`, `/brand/illustrations/houses-banner.webp` and `/favicon.svg` into
+  a versioned cache (`fp-offline-v1`), then `skipWaiting()`. Activate deletes older `fp-offline-*` caches only,
+  enables navigation preload and `clients.claim()`s.
+- Same-origin GET navigations are network first. Only a network failure (fetch rejects) returns the cached
+  `/offline.html`; any server response, including 4xx/5xx and redirects, passes through untouched. The three
+  pre-cached files are network first with the cache as fallback. Every other request (all `/api/*`, page
+  scripts, other origins, non-GET) is not intercepted at all, and nothing is ever written to the cache after
+  install, so no API response and no signed-in HTML is stored.
+- `public/offline.html` is self-contained (inline Warm Paper tokens for light and dark, following the saved
+  `familyPlanner_theme` like `ThemeProvider`, one inline script, the houses illustration). It says "You're
+  offline. Family Planner will reload when you're back online." with a "Try again" button. Both the button and
+  the `online` event reload the address that failed (it stays in the address bar). If the browser reports
+  online but the page still failed, it says "Can't reach Family Planner right now." instead. `/offline` is a
+  rewrite to the same file (`next.config.js`).
+- Changing `offline.html` or the pre-cache list: bump `CACHE_VERSION` in `public/sw.js`. `/sw.js` is served
+  with `Cache-Control: no-cache`. CSP: `worker-src 'self'` (the policy is still report-only).
+
+**Registration** (`ServiceWorkerRegistration` in the root layout, rules in `src/lib/service-worker.ts`): after
+the `load` event, production only, on https or on http for localhost (the E2E server). Never in `next dev`.
+Never in the Capacitor Android shell: it loads `https://family.ashbi.ca` through Capacitor's own request proxy,
+which injects the native bridge into HTML responses and also routes service-worker requests (Capacitor's
+`resolveServiceWorkerRequests`), and that combination has not been tested on a device. In the shell the app
+instead unregisters any copy of `/sw.js` it finds. Offline cold start of the Android app is therefore unchanged
+(follow-up: test the worker in the WebView, then drop the native exclusion).
+
+**Retiring the worker.** Remove `ServiceWorkerRegistration` from the root layout and replace `public/sw.js` with
+a worker whose `activate` handler deletes the `fp-offline-*` caches and calls `self.registration.unregister()`.
+Browsers re-check `/sw.js` on navigation, so installed copies remove themselves. Do not just delete the file:
+an installed worker keeps running until its script check fails repeatedly.
+
+Tests: `src/components/ui/__tests__/offline-banner.test.tsx` (events, timing, live region),
+`src/lib/__tests__/service-worker.test.ts` (when it registers, native unregister),
+`src/lib/__tests__/service-worker-script.test.ts` (runs `public/sw.js` in a sandbox: pre-cache list, old-cache
+cleanup, network first, offline fallback, server errors passed through, nothing else intercepted) and
+`e2e/offline.spec.ts` (banner offline/back online, tab bar not covered, axe; offline navigation shows the page
+and reloads the same address when back online). Every other E2E spec runs with service workers blocked
+(`playwright.config.ts`).

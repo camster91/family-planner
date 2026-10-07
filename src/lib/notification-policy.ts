@@ -198,6 +198,9 @@ export function morningSummaryFromRow(
 export const MORNING_SUMMARY_COPY = {
   label: 'Morning summary',
   description: "One short note each morning with your chores, today's events and dinner. By email and in your list.",
+  /** The note after the description matches the switch, so it never says "off" while on. */
+  whenOff: 'Off unless you turn it on.',
+  whenOn: 'On. Turn it off any time.',
 } as const
 
 /** Plain words for the switches (Settings and the user menu). */

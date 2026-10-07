@@ -37,7 +37,8 @@ const ROLES: Who[] = ["parentA", "teenA", "childA"];
 const GAMIFICATION_KEY =
   /\\?"(xp|level|streak|best_streak|bestStreak|last_chore_date|points)\\?":/;
 /** Visible gamification copy. */
-const GAMIFICATION_TEXT = /\bXP\b|Level \d|XP to go|Leaderboard|day streak/;
+const GAMIFICATION_TEXT =
+  /\bXP\b|Level \d|XP to go|points to go|\d+ more points|Leaderboard|day streak/;
 
 async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
   assertFixtureTargetAllowed(process.env);

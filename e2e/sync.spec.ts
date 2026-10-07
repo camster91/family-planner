@@ -7,8 +7,9 @@
  * through the API) so the seeded Groceries list, the dashboard Shopping card
  * and the visual baselines never see these writes.
  *
- * The app has no service worker, so a page cannot be reloaded while the
- * browser is fully offline. The restart case therefore reloads with only the
+ * A page cannot be reloaded while the browser is fully offline (the O-41
+ * service worker only shows the offline page, and it is blocked here anyway,
+ * see playwright.config.ts). The restart case therefore reloads with only the
  * mutation endpoint unreachable, which is what the queue sees either way.
  */
 import type { Page, Request, TestInfo } from "@playwright/test";

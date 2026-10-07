@@ -47,6 +47,8 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
+  // The offline-page service worker (O-41, public/sw.js) is same-origin.
+  "worker-src 'self'",
   `connect-src 'self' ${analyticsOrigins.join(' ')}${isDev ? ' ws:' : ''}`,
   "frame-ancestors 'none'",
   "object-src 'none'",
@@ -89,7 +91,18 @@ const nextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
+      // O-41: browsers re-check the worker script on navigation; make sure no
+      // proxy or CDN serves an old copy in between.
+      {
+        source: '/sw.js',
+        headers: [{ key: 'Cache-Control', value: 'no-cache' }],
+      },
     ]
+  },
+  // The offline page is a static file (public/offline.html) so the service
+  // worker can show it with no server; /offline is its friendly address.
+  async rewrites() {
+    return [{ source: '/offline', destination: '/offline.html' }]
   },
 }
 

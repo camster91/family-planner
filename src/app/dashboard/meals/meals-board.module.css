@@ -1,0 +1,116 @@
+.page {
+  width: 100%;
+  max-width: 1440px;
+}
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.day {
+  min-width: 0;
+}
+.day > div:first-child {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.meal {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+.mealAction,
+.emptySlot {
+  min-height: 64px;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  flex: 1;
+  color: var(--label-primary);
+  overflow-wrap: anywhere;
+}
+.mealAction {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mealTitle {
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.slotLabel {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--label-secondary);
+}
+.meta {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--label-secondary);
+}
+.emptySlot {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.addAnother {
+  min-width: 44px;
+  width: 44px;
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-left: 1px solid var(--surface-separator);
+  color: var(--accent-text);
+}
+.disclosure {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--surface-separator);
+  color: var(--accent-text);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: left;
+}
+.mealAction:active,
+.emptySlot:active,
+.addAnother:active,
+.disclosure:active {
+  background: var(--surface-fill-secondary);
+}
+.day button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+.dateLabel {
+  display: block;
+  color: var(--label-secondary);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+@media (min-width: 700px) {
+  .board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .mealTitle {
+    font-size: 1.125rem;
+  }
+}
+@media (min-width: 1600px) {
+  .board {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}

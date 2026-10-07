@@ -48,18 +48,19 @@ import { usePersonBoardActions } from './use-person-board-actions'
 const CLOCK_TICK_MS = 15 * 1000
 
 /**
- * Board grid (#262). Portrait/phone widths stack; `lg` is the desktop/app
+ * Board grid (#262). Phones stack; portrait tablets lead with a full-width
+ * schedule above paired supporting regions. `lg` is the desktop/app
  * layout; `lg:landscape` in fridge mode is the 16:10 touch hub (1280x800 and
  * 1920x1200): four columns that fit the screen, each region scrolling inside
  * itself. `usesoon` rows exist only when the #263 slot is filled.
  */
-const GRID_BASE = 'grid gap-5 2xl:gap-6'
+const GRID_BASE = 'grid gap-3 md:gap-4 2xl:gap-6'
 const GRID_APP = [
-  'md:grid-cols-2 md:[grid-template-areas:"today_dinner"_"chores_groceries"_"coming_coming"]',
+  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_chores"_"groceries_chores"_"coming_coming"]',
   'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"coming_coming_coming"]',
 ].join(' ')
 const GRID_APP_WITH_SLOT = [
-  'md:grid-cols-2 md:[grid-template-areas:"today_dinner"_"chores_groceries"_"usesoon_usesoon"_"coming_coming"]',
+  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_chores"_"groceries_chores"_"usesoon_usesoon"_"coming_coming"]',
   'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"today_usesoon_chores"_"coming_coming_coming"]',
 ].join(' ')
 const GRID_FRIDGE =
@@ -91,6 +92,7 @@ export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean): string
  */
 const FRIDGE_CHROME_CSS = `
 nav[aria-label="Main navigation"], .tab-bar { display: none !important; }
+[data-offline-banner] { display: none !important; }
 #main-content { padding-top: 0 !important; padding-bottom: 0 !important; }
 #main-content > div { max-width: none !important; padding: 0 !important; }
 `
@@ -286,28 +288,28 @@ export default function TodayBoard({
               // takes the height left under the header and each region scrolls
               // inside itself instead of pushing content below the fold.
               'min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden'
-            : 'bg-[var(--surface-grouped)]'
+            : 'bg-[var(--surface-grouped)] [&_[data-testid=region-dinner]]:bg-accent-tint [&_[data-testid=region-dinner]]:border-transparent'
         }
       >
         {fridgeMode && <style>{FRIDGE_CHROME_CSS}</style>}
         {banner}
 
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 lg:mb-6 2xl:mb-8">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 md:mb-5 2xl:mb-8">
           <div className="min-w-0">
-            <p className="text-[17px] font-semibold uppercase tracking-wide text-label-secondary md:text-[19px] 2xl:text-[22px]">
+            <p className="mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]">
               Today
             </p>
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
               <h1
                 data-testid="board-date"
-                className="font-display text-[34px] font-bold leading-tight text-label-primary md:text-[44px] lg:text-[48px] 2xl:text-[60px]"
+                className="font-display text-[30px] font-semibold tracking-tight leading-tight text-label-primary md:text-[40px] lg:text-[44px] 2xl:text-[56px]"
               >
                 {now ? formatLongDate(now) : 'Today'}
               </h1>
               {now && (
                 <p
                   data-testid="board-clock"
-                  className="text-[28px] font-semibold tabular-nums text-label-secondary md:text-[36px] lg:text-[40px] 2xl:text-[52px]"
+                  className="text-[20px] font-medium tabular-nums text-label-secondary md:text-[26px] lg:text-[32px] 2xl:text-[44px]"
                 >
                   <span className="sr-only">Time: </span>
                   {formatTime(now)}
@@ -318,7 +320,7 @@ export default function TodayBoard({
 
           {/* Right cluster: weather (#262, only when the household opted in and a
             forecast is available) above the refresh time and the mode action. */}
-          <div className="flex w-full min-w-0 flex-col items-start gap-3 sm:w-auto sm:items-end">
+          <div className="flex w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
             {view?.weather && (
               <div className="w-full min-w-0 sm:w-auto">
                 <WeatherTile view={view.weather} />
@@ -330,7 +332,7 @@ export default function TodayBoard({
                 <UpdatedLine
                   lastSyncAt={lastSyncAt}
                   now={now.getTime()}
-                  className="text-[15px] text-label-secondary md:text-[17px] 2xl:text-[19px]"
+                  className="text-[13px] text-label-secondary md:text-[15px] 2xl:text-[19px]"
                 />
               )}
               {actions ? (

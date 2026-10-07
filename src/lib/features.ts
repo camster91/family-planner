@@ -111,8 +111,8 @@ export const FEATURES: FeatureMeta[] = [
   // new households start with it off; households that existed before the flag
   // keep it on. XP keeps accruing in the background either way, so switching
   // it back on shows up-to-date totals.
-  { key: 'gamification', title: 'Points & streaks', description: 'XP, levels, streaks, and the family leaderboard for chores.', group: 'planning', icon: Sparkles, glyphColor: 'rewards', href: '/dashboard/analytics', defaultEnabled: false, legacyDefault: true },
-  { key: 'rewards', title: 'Rewards', description: 'Kids spend XP on rewards you set.', group: 'planning', icon: Gift, glyphColor: 'rewards', href: '/dashboard/rewards', defaultEnabled: false, legacyDefault: true, requires: 'gamification' },
+  { key: 'gamification', title: 'Points & streaks', description: 'Points for chores, levels, streaks and a family leaderboard.', group: 'planning', icon: Sparkles, glyphColor: 'rewards', href: '/dashboard/analytics', defaultEnabled: false, legacyDefault: true },
+  { key: 'rewards', title: 'Rewards', description: 'Kids spend their chore points on rewards you set.', group: 'planning', icon: Gift, glyphColor: 'rewards', href: '/dashboard/rewards', defaultEnabled: false, legacyDefault: true, requires: 'gamification' },
   { key: 'budget', title: 'Budget', description: 'Track shared expenses and category budgets.', group: 'planning', icon: Wallet, glyphColor: 'budget', href: '/dashboard/budget', defaultEnabled: false, legacyDefault: true },
   { key: 'projects', title: 'Projects', description: 'Plan trips, renovations, and big family goals.', group: 'planning', icon: FolderKanban, glyphColor: 'projects', href: '/dashboard/projects', defaultEnabled: false, legacyDefault: true },
   { key: 'messages', title: 'Family chat', description: 'Built-in messaging so you do not need a separate app.', group: 'planning', icon: MessageSquare, glyphColor: 'messages', href: '/dashboard/messages', defaultEnabled: false, legacyDefault: true },

@@ -67,6 +67,8 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
 
 A reversible action runs at once and offers Undo in a toast (`useUndoToast` in `src/components/ui/toast.tsx`:
 8 seconds, paused while hovered or focused, 44px Undo button, above the phone tab bar).
+Only one Undo shows at a time (O-42): a newer Undo replaces the one on screen, and the earlier action stays
+done, so ticking three chores in a row leaves one card, not three.
 
 | Action | Behaviour |
 |---|---|

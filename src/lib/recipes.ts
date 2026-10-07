@@ -14,27 +14,36 @@
  *
  * Roles (O-7): parent and teen create/edit, parent deletes, child reads.
  */
-import { z } from 'zod'
-import type { Prisma, PrismaClient } from '@prisma/client'
-import { normalizeName } from '@/lib/backfill/meals-groceries'
+import { z } from "zod";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { normalizeName } from "@/lib/backfill/meals-groceries";
 
-export const RECIPE_MAX_INGREDIENTS = 100
+export const RECIPE_MAX_INGREDIENTS = 100;
 
 export function canEditRecipe(role: string | undefined | null): boolean {
-  return role === 'parent' || role === 'teen'
+  return role === "parent" || role === "teen";
 }
 
 export function canDeleteRecipe(role: string | undefined | null): boolean {
-  return role === 'parent'
+  return role === "parent";
 }
 
 const optionalText = (max: number) =>
   z
     .union([z.string().max(max).trim(), z.null()])
     .optional()
-    .transform((v) => (v === '' ? null : v))
+    .transform((v) => (v === "" ? null : v));
 
-const minutes = z.union([z.number().int().min(0).max(24 * 60), z.null()]).optional()
+const minutes = z
+  .union([
+    z
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 60),
+    z.null(),
+  ])
+  .optional();
 
 const ingredientLine = z
   .object({
@@ -46,12 +55,12 @@ const ingredientLine = z
   })
   .strict()
   .refine((v) => Boolean(v.ingredient_id) !== Boolean(v.name), {
-    message: 'Each ingredient needs exactly one of ingredient_id or name',
-  })
+    message: "Each ingredient needs exactly one of ingredient_id or name",
+  });
 
-export type IngredientLine = z.infer<typeof ingredientLine>
+export type IngredientLine = z.infer<typeof ingredientLine>;
 
-const ingredients = z.array(ingredientLine).max(RECIPE_MAX_INGREDIENTS)
+const ingredients = z.array(ingredientLine).max(RECIPE_MAX_INGREDIENTS);
 
 export const createRecipeSchema = z
   .object({
@@ -63,7 +72,7 @@ export const createRecipeSchema = z
     servings: z.number().int().min(1).max(100).optional(),
     ingredients: ingredients.optional(),
   })
-  .strict()
+  .strict();
 
 export const updateRecipeSchema = z
   .object({
@@ -76,7 +85,7 @@ export const updateRecipeSchema = z
     /** When present, replaces the recipe's whole ingredient set. */
     ingredients: ingredients.optional(),
   })
-  .strict()
+  .strict();
 
 /** Summary fields for list views and meal links. */
 export const RECIPE_SUMMARY_SELECT = {
@@ -90,13 +99,20 @@ export const RECIPE_SUMMARY_SELECT = {
   created_by: true,
   created_at: true,
   updated_at: true,
-} as const
+} as const;
 
 /** Full recipe with nested ingredients (never another household's rows: owned through the recipe). */
 export const RECIPE_DETAIL_SELECT = {
   ...RECIPE_SUMMARY_SELECT,
   instructions: true,
   ingredients: {
+    // Existing fields only: DB collation name order, then stable ingredient ID,
+    // then join ID. Input array position is NOT an authored/persisted sequence.
+    orderBy: [
+      { ingredient: { name: "asc" } },
+      { ingredient_id: "asc" },
+      { id: "asc" },
+    ] satisfies Prisma.RecipeIngredientOrderByWithRelationInput[],
     select: {
       id: true,
       amount: true,
@@ -105,19 +121,26 @@ export const RECIPE_DETAIL_SELECT = {
       ingredient: { select: { id: true, name: true, unit: true } },
     },
   },
-} as const
+} as const;
 
 /** The meal-side summary (`GET /api/meals` `recipe`). */
-export const MEAL_RECIPE_SELECT = { id: true, title: true, prep_time: true, cook_time: true, servings: true } as const
+export const MEAL_RECIPE_SELECT = {
+  id: true,
+  title: true,
+  prep_time: true,
+  cook_time: true,
+  servings: true,
+} as const;
 
 /** Display form of an ingredient name: NFC, trimmed, inner whitespace collapsed. */
 export function cleanIngredientName(raw: string): string {
-  return raw.normalize('NFC').trim().replace(/\s+/g, ' ')
+  return raw.normalize("NFC").trim().replace(/\s+/g, " ");
 }
 
 export class RecipeInputError extends Error {}
 
-type Tx = Pick<PrismaClient, 'ingredient' | '$queryRaw'> | Prisma.TransactionClient
+type Tx =
+  Pick<PrismaClient, "ingredient" | "$queryRaw"> | Prisma.TransactionClient;
 
 /**
  * Serialise ingredient creation by name within one household. The unique
@@ -125,16 +148,19 @@ type Tx = Pick<PrismaClient, 'ingredient' | '$queryRaw'> | Prisma.TransactionCli
  * `sugar` would otherwise both miss each other and create two ingredients.
  * Held until the surrounding transaction ends.
  */
-export async function lockFamilyIngredientNames(tx: Tx, familyId: string): Promise<void> {
-  const key = `ingredient-names:${familyId}`
-  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`
+export async function lockFamilyIngredientNames(
+  tx: Tx,
+  familyId: string,
+): Promise<void> {
+  const key = `ingredient-names:${familyId}`;
+  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`;
 }
 
 export interface ResolvedLine {
-  ingredient_id: string
-  amount: number
-  unit: string | null
-  note: string | null
+  ingredient_id: string;
+  amount: number;
+  unit: string | null;
+  note: string | null;
 }
 
 /**
@@ -145,50 +171,75 @@ export interface ResolvedLine {
 export async function resolveIngredientLines(
   tx: Tx,
   familyId: string,
-  lines: readonly IngredientLine[]
+  lines: readonly IngredientLine[],
 ): Promise<ResolvedLine[]> {
-  if (lines.length === 0) return []
-  const ids = [...new Set(lines.map((l) => l.ingredient_id).filter((id): id is string => Boolean(id)))]
+  if (lines.length === 0) return [];
+  const ids = [
+    ...new Set(
+      lines
+        .map((l) => l.ingredient_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
   if (ids.length > 0) {
-    const owned = await tx.ingredient.findMany({ where: { id: { in: ids }, family_id: familyId }, select: { id: true } })
-    if (owned.length !== ids.length) throw new RecipeInputError('Ingredient not found')
+    const owned = await tx.ingredient.findMany({
+      where: { id: { in: ids }, family_id: familyId },
+      select: { id: true },
+    });
+    if (owned.length !== ids.length)
+      throw new RecipeInputError("Ingredient not found");
   }
 
-  const needsNames = lines.some((l) => l.name)
-  const byName = new Map<string, string>()
+  const needsNames = lines.some((l) => l.name);
+  const byName = new Map<string, string>();
   if (needsNames) {
     // Take the lock before reading so a concurrent writer's new ingredient is
     // visible here (READ COMMITTED re-reads after the lock is granted).
-    await lockFamilyIngredientNames(tx, familyId)
-    const existing = await tx.ingredient.findMany({ where: { family_id: familyId }, select: { id: true, name: true } })
+    await lockFamilyIngredientNames(tx, familyId);
+    const existing = await tx.ingredient.findMany({
+      where: { family_id: familyId },
+      select: { id: true, name: true },
+    });
     for (const i of existing) {
-      const key = normalizeName(i.name)
-      if (key && !byName.has(key)) byName.set(key, i.id)
+      const key = normalizeName(i.name);
+      if (key && !byName.has(key)) byName.set(key, i.id);
     }
   }
 
-  const out: ResolvedLine[] = []
-  const seen = new Set<string>()
+  const out: ResolvedLine[] = [];
+  const seen = new Set<string>();
   for (const line of lines) {
-    let ingredientId = line.ingredient_id
+    let ingredientId = line.ingredient_id;
     if (!ingredientId) {
-      const display = cleanIngredientName(line.name!)
-      const key = normalizeName(display)
-      ingredientId = byName.get(key)
+      const display = cleanIngredientName(line.name!);
+      const key = normalizeName(display);
+      ingredientId = byName.get(key);
       if (!ingredientId) {
         const created = await tx.ingredient.upsert({
           where: { family_id_name: { family_id: familyId, name: display } },
           update: {},
-          create: { family_id: familyId, name: display, unit: line.unit ?? null },
+          create: {
+            family_id: familyId,
+            name: display,
+            unit: line.unit ?? null,
+          },
           select: { id: true },
-        })
-        ingredientId = created.id
-        byName.set(key, ingredientId)
+        });
+        ingredientId = created.id;
+        byName.set(key, ingredientId);
       }
     }
-    if (seen.has(ingredientId)) throw new RecipeInputError('Each ingredient may appear only once in a recipe')
-    seen.add(ingredientId)
-    out.push({ ingredient_id: ingredientId, amount: line.amount, unit: line.unit ?? null, note: line.note ?? null })
+    if (seen.has(ingredientId))
+      throw new RecipeInputError(
+        "Each ingredient may appear only once in a recipe",
+      );
+    seen.add(ingredientId);
+    out.push({
+      ingredient_id: ingredientId,
+      amount: line.amount,
+      unit: line.unit ?? null,
+      note: line.note ?? null,
+    });
   }
-  return out
+  return out;
 }

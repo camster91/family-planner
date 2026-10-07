@@ -1,10 +1,12 @@
 import { ReactNode } from 'react'
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import DashboardNav, { TabBar } from '@/components/layout/DashboardNav'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { OfflineBanner } from '@/components/ui/offline-banner'
 import CommandPaletteHost from '@/components/layout/CommandPaletteHost'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { defaultFeatures, normalizeFeatures } from '@/lib/features'
@@ -89,7 +91,7 @@ export default async function DashboardLayout({
     : defaultFeatures()
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-[var(--surface-grouped)]">
       {/* Inline seed for the client-side FeaturesProvider.
           Safe JSON — only true/false per known feature key. */}
       <script
@@ -113,10 +115,12 @@ export default async function DashboardLayout({
         {/* Main content — padded for top bar height + TabBar safe area on mobile */}
         <main
           id="main-content"
-          className="pt-16 pb-20 md:pb-8"
-          aria-label="Family planner dashboard"
+          className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
+          aria-label={`${PRODUCT_BRAND.name} dashboard`}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
+          <OfflineBanner className="top-16" />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 md:py-6">
             <ErrorBoundary>
               {children}
             </ErrorBoundary>

@@ -27,9 +27,9 @@ export async function delayRoute(page: Page, url: string | RegExp, ms: number) {
 export async function useStoredTheme(page: Page, theme: "light" | "dark") {
   await page.addInitScript((t) => {
     try {
-      window.localStorage.setItem("familyPlanner_theme", t);
+      window.localStorage.setItem("familyPlanner_theme_v2", t);
     } catch {
-      // Storage blocked: the app falls back to light.
+      // Storage blocked: the app falls back to Auto (the device setting).
     }
   }, theme);
 }

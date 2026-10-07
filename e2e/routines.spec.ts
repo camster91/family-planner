@@ -218,6 +218,9 @@ test.describe("Family A child", () => {
     await expect(morning(page).getByTestId("routine-progress")).toHaveText(
       "All done",
     );
+    // One Undo at a time (O-42): three taps leave one card, for the last step.
+    await expect(page.getByTestId("undo-toast")).toHaveCount(1);
+    await expect(page.getByTestId("undo-toast")).toContainText(STEPS[2].title);
     await expect(page.getByText("Next", { exact: true })).toHaveCount(0);
     const after = await statuses();
     for (const s of STEPS) expect(after[s.id]).toBe("completed");

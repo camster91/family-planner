@@ -114,6 +114,10 @@ export default defineConfig({
     timezoneId: E2E_TIMEZONE,
     colorScheme: "light",
     contextOptions: { reducedMotion: "reduce" },
+    // The production build registers the offline-page service worker (O-41).
+    // Blocked here so it never changes another spec's navigations or
+    // `page.route` handling; e2e/offline.spec.ts opts back in.
+    serviceWorkers: "block",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
