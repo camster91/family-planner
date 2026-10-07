@@ -2,12 +2,14 @@
 
 Persistent goal: finish the permitted remaining Family Planner / Herewoven work in `camster91/family-planner`, then verify real-family beta prerequisites. Resume this plan in the existing #128/#84/#377 programme; do not create a duplicate roadmap.
 
-## Current observed state (2026-10-07 UTC)
+## Initial refresh snapshot (2026-10-07 UTC)
 
-- Protected `main`: `a243bd5b297bc1c02072451866722dc0c7061402`; required `Build & Test`.
+- At the initial refresh, protected `main` was `a243bd5b297bc1c02072451866722dc0c7061402`; required `Build & Test`.
 - Live `/api/version` returned that exact commit, built at `2026-10-07T16:29:41.068Z`; `/api/health` returned `healthy`. This is endpoint evidence only.
-- 51 open issues and six PRs: #353, #351, #352, #355, #349, held draft #343. #351 E2E and #355 Build & Test/E2E currently fail; prior “all green” statements are stale.
+- Initial backlog snapshot: 51 open issues and six PRs: #353, #351, #352, #355, #349, held draft #343. #351 E2E and #355 Build & Test/E2E failed at that refresh; those heads/checks are historical after branch updates.
 - Repository clone/worktree inspection found one main checkout, no pre-existing local workers. Existing GitHub Projects cannot be read by this integration (`Resource not accessible by integration`); board ownership is unverified. No duplicate board created. External Hermes worker/scheduler state is inaccessible; all seven cron jobs must remain paused.
+
+Current `main` after the protected #379 merge is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`. Production acceptance of that merge remains pending until exact runtime identity and safe acceptance are observed. The initial backlog/endpoint/worktree snapshot above is historical; use the candidate ledger for subsequent actions.
 
 ## Definition of done
 

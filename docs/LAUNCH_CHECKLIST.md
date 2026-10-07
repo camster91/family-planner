@@ -2,7 +2,7 @@
 
 What has to be true before the first real families use Family Planner, and who does it. Completion requires current evidence for every criterion; code and endpoint health alone do not prove real-family readiness.
 
-Latest refresh: 2026-10-07. Current `main` and live `/api/version`: `a243bd5b297bc1c02072451866722dc0c7061402`; `/api/health` healthy. Live role/email/backup/device acceptance remains open. See [the durable completion contract](engineering/COMPLETION_CONTRACT.md) and [all 51 issue criteria](engineering/COMPLETION_MATRIX.md). The older rows below are retained history awaiting per-row reconciliation.
+Initial refresh snapshot: 2026-10-07. At that refresh `main` and live `/api/version` were `a243bd5b297bc1c02072451866722dc0c7061402`; `/api/health` healthy. Current `main` after PR #379 is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; its production acceptance is pending exact runtime readback. Live role/email/backup/device acceptance remains open. See [the durable completion contract](engineering/COMPLETION_CONTRACT.md) and [all 51 issue criteria](engineering/COMPLETION_MATRIX.md). The older rows below are retained history awaiting per-row reconciliation.
 
 Historical snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
 
