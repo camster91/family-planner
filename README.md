@@ -24,7 +24,7 @@ Herewoven brings the everyday logistics of a busy household into one place. Pare
 
 **Fridge and tablet**
 - **Fridge mode:** a 16:10 hub with member colours, opt-in weather and a calm night display
-- **Shared household device:** pair a kitchen tablet with its own scoped session, separate from personal accounts
+- **Shared household device:** when server-enabled (`SHARED_DEVICE_ENABLED` defaults off in the production template), pair a kitchen tablet with its own scoped session, separate from personal accounts
 
 **Optional sections** (off until a parent turns them on)
 - Points, streaks, leaderboard and a rewards catalog
