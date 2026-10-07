@@ -568,5 +568,51 @@ isolation check only asserts that no foreign row appears).
 Tests: `src/app/api/users/export/__tests__/personal.test.ts`, `src/app/api/analytics/__tests__/local-days.test.ts`,
 `src/app/api/events/__tests__/list-window.test.ts`.
 
+## Bounded calendar planning reads
+
+`GET /api/events?start=<instant>&end=<instant>[&limit=<integer>][&cursor=<opaque>]`
+is an opt-in person-session read for future Day/Week/Agenda clients. Existing
+nonempty `id` takes precedence and ignores all other query parameters, including
+malformed range/paging parameters. Without any `start`, `end`, `limit` or `cursor`,
+legacy default/upcoming behavior and the `{ events }` envelope are unchanged.
+
+- Authentication and current household membership are unchanged; parent, teen
+  and child person sessions retain existing GET access. This is not a paired-device API.
+- Both bounds are required: `YYYY-MM-DDTHH:mm:ss[.S|.SS|.SSS]Z` or the same with
+  `±HH:mm`. Use URL encoding for `+`. Calendar-invalid dates, date-only strings,
+  missing offsets, leap seconds and silent rollover repairs are rejected.
+- `start < end`; at most 45 elapsed days. The start is inclusive and end exclusive.
+  Clients compute viewer-local day/week boundaries with calendar arithmetic and
+  send explicit instants; DST days need not be 24 hours. No timezone is inferred.
+- Include starts inside `[start,end)` (including zero-duration events), plus
+  events starting before `start` whose end is strictly after `start`. An event
+  ending exactly at `start` is excluded unless its own start is inside the range.
+- `limit` is a decimal integer 1–200, default 200. The database reads at most
+  `limit + 1`; responses contain at most `limit` events. Duplicate range/paging
+  parameters and any `upcoming` parameter combined with range mode are 400.
+  `limit` or `cursor` without both bounds is also 400.
+- Range-mode response: `{ events, nextCursor: string | null, hasMore: boolean }`.
+  `hasMore` explicitly signals page truncation; fetch `nextCursor` until null
+  before treating the range as complete. Event fields, creator provenance and
+  household-scoped ICS `source` attachment are unchanged. No private provider
+  metadata is queried or attached.
+- Order is `(start_time ASC, id ASC)` with keyset continuation after the last
+  returned tuple, not an offset or cursor-row lookup. Pass the same interval
+  with every page; equivalent offset spellings of the same instants are valid.
+  Page size may change. Cursor context is versioned and validated against the
+  current household and canonical interval; malformed/mismatched cursors return
+  400 `{ error: string }` before an event query.
+- Cursors are opaque client bookmarks, not signed authorization tokens. A
+  caller-crafted well-formed tuple can skip its own rows but cannot widen the
+  household/range predicates or resolve foreign records. Deleting the boundary
+  row does not break continuation. Reads are not a frozen snapshot: edits or
+  inserts between pages can move events; refresh from page one after changes.
+- Only stored concrete events are returned. No local RRULE expansion, attendees,
+  all-day classification, source filters or schema changes are introduced.
+
+Tests: `src/app/api/events/__tests__/range.test.ts` and
+`src/lib/calendar-planning/__tests__/range.test.ts`, alongside existing event
+legacy/isolation/import tests.
+
 ## Testing
 Contract tests should cover validation, happy path, unauthorized/forbidden, foreign-family IDs, not-found semantics, duplicate retry, concurrency conflict, pagination and old-client fixtures when relevant.

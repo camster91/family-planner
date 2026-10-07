@@ -5,8 +5,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from '@/i18n'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { BrandIllustration, BrandMark } from '@/components/ui/brand-illustration'
-import { BrandMotion } from '@/components/ui/brand-motion'
-import { ILLUSTRATIONS, MOTION } from '@/lib/brand-illustrations'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 
 export default function Home() {
   const { t, locale } = useTranslation()
@@ -15,7 +14,7 @@ export default function Home() {
       <a href="#main-content" className="marketing-skip">{t('landing.skipContent')}</a>
       <header className="marketing-header marketing-width">
         <Link href="/" aria-label={PRODUCT_BRAND.homeLabel} className="brand-wordmark">
-          <BrandMark size={36} className="h-9 w-9" />
+          <BrandMark size={48} className="h-12 w-12" />
           <span>{PRODUCT_BRAND.name}</span>
         </Link>
         <nav aria-label={t('landing.mainNavigation')}>
@@ -36,8 +35,7 @@ export default function Home() {
             <p className="marketing-note">{t('landing.startSmall')}</p>
           </div>
           <div className="marketing-hero-art">
-            <BrandMotion motion={MOTION.hero} play="immediate" priority sizes="(min-width: 1024px) 60vw, 100vw" className="block h-auto w-full" />
-            <p>{t('landing.artCaption')}</p>
+            <BrandIllustration source={ILLUSTRATIONS.wovenGrove} priority className="woven-grove-art block h-auto w-full" />
           </div>
         </section>
 
@@ -73,7 +71,7 @@ export default function Home() {
           <div><p className="marketing-eyebrow">{t('landing.startEyebrow')}</p><h2 id="start-title">{t('landing.startTitle')}</h2><p>{t('landing.startDescription')}</p></div>
           <Link href="/register" className="btn-filled">{t('landing.createHousehold')} <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
         </section>
-        <div className="marketing-houses"><BrandIllustration source={ILLUSTRATIONS.housesBanner} className="block h-auto w-full" /></div>
+
       </main>
       <footer className="marketing-footer marketing-width">
         <span className="brand-wordmark">{PRODUCT_BRAND.name}</span>

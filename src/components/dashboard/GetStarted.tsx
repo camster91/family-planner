@@ -4,8 +4,8 @@ import * as React from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { useUndoToast } from '@/components/ui/toast'
-import { BrandMotion } from '@/components/ui/brand-motion'
-import { MOTION } from '@/lib/brand-illustrations'
+import { BrandIllustration } from '@/components/ui/brand-illustration'
+import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { cn } from '@/lib/utils'
 import { allStepsDone, type GetStartedSteps } from '@/app/dashboard/today/get-started-data'
 
@@ -126,9 +126,9 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
   return (
     <section aria-labelledby={headingId} data-testid="get-started" className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-4 md:p-5">
       <div className="flex items-center gap-3">
-        <BrandMotion
-          motion={MOTION.getStarted}
-          className="hidden h-auto w-16 shrink-0 rounded-[var(--radius-md)] sm:block"
+        <BrandIllustration
+          source={ILLUSTRATIONS.wovenGrove}
+          className="woven-grove-art hidden h-auto w-16 shrink-0 rounded-[var(--radius-md)] sm:block"
         />
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">
