@@ -659,25 +659,6 @@
     display: none;
   }
 
-  /* Light "paper" tokens for a subtree that always sits on cream artwork
-     (the landing hero text over the kitchen scene), in either theme.
-     Ratios on the darkest wall tone (#E6CBA2): ink 9.12:1, secondary
-     6.39:1, tertiary/link 4.73:1. Use with a breakpoint (lg:on-paper)
-     when the art is only behind the text at that size. */
-  .on-paper {
-    --label-primary: #182D2A;
-    --label-secondary: #3A4258;
-    --label-tertiary: #3A4258;
-    --accent-text: #8F3C22;
-    --accent-fill: #245B50;
-    --accent-fill-hover: #1D4A41;
-    --accent-fill-pressed: #163C34;
-    --on-accent: #FFFDF9;
-    --focus-ring: #8F3C22;
-    --surface-elevated: #F7F4EC;
-    color: var(--label-primary);
-  }
-
   .spring-default { transition-timing-function: var(--spring-default); }
   .spring-emphasis { transition-timing-function: var(--spring-emphasis); }
 
