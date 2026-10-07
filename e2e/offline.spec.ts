@@ -101,7 +101,7 @@ test.describe("offline: Family A parent", () => {
         page.getByRole("heading", { name: "You're offline." }),
       ).toBeVisible();
       await expect(
-        page.getByText("Family Planner will reload when you're back online."),
+        page.getByText("Herewoven will reload when you're back online."),
       ).toBeVisible();
       const retry = page.getByRole("button", { name: "Try again" });
       await expect(retry).toBeVisible();
