@@ -12,9 +12,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBF7F0">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121A2B">
-  <title>You're offline — Family Planner</title>
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F4EC">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#11211E">
+  <title>You're offline — Herewoven</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script>
     // Same rule as src/lib/theme.ts (O-43): the choice under the new key wins;
@@ -33,26 +33,26 @@
   </script>
   <style>
     :root {
-      --surface-grouped: #FBF7F0;
+      --surface-grouped: #F7F4EC;
       --surface-elevated: #FFFDF9;
       --surface-separator: rgba(31, 42, 68, 0.12);
-      --label-primary: #1F2A44;
-      --label-secondary: #4A5068;
-      --accent-fill: #1F2A44;
-      --accent-fill-hover: #2B3A5C;
+      --label-primary: #245B50;
+      --label-secondary: #425C55;
+      --accent-fill: #245B50;
+      --accent-fill-hover: #1D4A41;
       --on-accent: #FFFDF9;
-      --focus-ring: #C4623D;
+      --focus-ring: #245B50;
       --shadow-md: 0 4px 14px rgba(60, 42, 20, 0.09), 0 1px 3px rgba(60, 42, 20, 0.05);
       color-scheme: light;
     }
     .dark {
-      --surface-grouped: #121A2B;
-      --surface-elevated: #1B2538;
+      --surface-grouped: #11211E;
+      --surface-elevated: #182D2A;
       --surface-separator: rgba(232, 220, 196, 0.14);
       --label-primary: #F5EEDF;
       --label-secondary: #D5CCBB;
-      --accent-fill: #4A6BA3;
-      --accent-fill-hover: #42619A;
+      --accent-fill: #397D6E;
+      --accent-fill-hover: #347365;
       --on-accent: #FFFDF9;
       --focus-ring: #F09A76;
       --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -128,7 +128,7 @@
   <main>
     <img src="/brand/illustrations/houses-banner.webp" width="960" height="247" alt="" aria-hidden="true">
     <h1 id="offline-title">You're offline.</h1>
-    <p id="offline-message">Family Planner will reload when you're back online.</p>
+    <p id="offline-message">Herewoven will reload when you're back online.</p>
     <button type="button" id="offline-retry">Try again</button>
   </main>
   <script>
@@ -143,9 +143,9 @@
       // The browser says it is online but the page still failed: the server
       // could not be reached. Say that instead of "offline".
       if (navigator.onLine !== false && !ownPage) {
-        document.getElementById('offline-title').textContent = "Can't reach Family Planner right now."
+        document.getElementById('offline-title').textContent = "Can't reach Herewoven right now."
         document.getElementById('offline-message').textContent = 'Check your connection, then try again.'
-        document.title = "Can't reach Family Planner"
+        document.title = "Can't reach Herewoven"
       }
       document.getElementById('offline-retry').addEventListener('click', retry)
       window.addEventListener('online', retry)

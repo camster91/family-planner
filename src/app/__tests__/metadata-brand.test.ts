@@ -3,7 +3,7 @@ import path from 'path'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { metadata, viewport } from '../layout'
 
-jest.mock('next/font/google', () => ({ Fraunces: () => ({ variable: 'serif' }), Inter: () => ({ variable: 'sans' }) }))
+jest.mock('next/font/local', () => ({ __esModule: true, default: () => ({ variable: 'local-font' }) }))
 jest.mock('../globals.css', () => ({}))
 jest.mock('@/components/providers/posthog-provider', () => ({}))
 jest.mock('@/components/providers/theme-provider', () => ({}))
@@ -20,10 +20,10 @@ it('uses the display brand in metadata without changing the production origin or
   expect(metadata.openGraph).toMatchObject({ siteName: PRODUCT_BRAND.name, description: PRODUCT_BRAND.description })
   expect(metadata.twitter).toMatchObject({ title: `${PRODUCT_BRAND.name} — Household organizer`, description: PRODUCT_BRAND.description })
   expect(JSON.stringify(metadata)).not.toMatch(/Free family|Kids earn XP|\/og-image.jpg/)
-  expect(viewport.themeColor).toContainEqual({ media: '(prefers-color-scheme: dark)', color: '#171420' })
+  expect(viewport.themeColor).toContainEqual({ media: '(prefers-color-scheme: dark)', color: '#11211E' })
 })
 
-it('keeps install routes and original icons while updating the PWA display identity', () => {
+it('keeps install routes and icon URLs while updating the PWA display identity', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../public/manifest.json'), 'utf8'))
   expect(manifest.name).toBe(PRODUCT_BRAND.name)
   expect(manifest.short_name).toBe(PRODUCT_BRAND.name)

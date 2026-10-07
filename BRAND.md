@@ -1,11 +1,11 @@
-# Herewoven working-draft brand & product voice
+# Herewoven — Woven Grove brand & product voice
 
-Pilot display identity: **Herewoven**. Tagline: **Everyday life, held together.** Description: **A shared place for the everyday work of home.** The display contract lives in `src/lib/brand.ts`; semantic tokens and visual rationale are in `DESIGN.md`. This rollout is a display rebrand, not legal-name clearance or an application-identity migration. Existing routes, application IDs, storage namespaces and original Warm Paper assets stay intact.
+Display identity: **Herewoven**. Tagline: **Everyday life, held together.** Description: **A shared place for the everyday work of home.** The approved visual direction is Woven Grove: exact selected symbol, Newsreader/Manrope and all six selected swatches. The display contract lives in `src/lib/brand.ts`; semantic tokens and visual rationale are in `DESIGN.md`. This is a web display adoption, not legal-name clearance or an application-identity migration. Existing routes, application IDs, storage namespaces and bounded task-specific legacy illustrations stay intact.
 
 ## Brand idea
 Herewoven should feel like a shared place for the everyday work of home: warm enough for family life, precise enough to trust every day, and clear enough to deserve a place on the wall or fridge.
 
-The visual system (Warm Paper palette, type, illustrations, motion, contrast) is in `docs/product/BRAND.md`.
+The approved visual system, provenance, contrast roles and bounded legacy-art retention are in `docs/product/BRAND.md`.
 
 ## Personality
 - Calm, clear, capable, kind.

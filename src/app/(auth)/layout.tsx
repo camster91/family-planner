@@ -9,12 +9,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="auth-layout">
       <header className="auth-brand-header">
         <Link href="/" aria-label={PRODUCT_BRAND.homeLabel} className="brand-wordmark min-h-[44px]">
-          <BrandMark size={36} className="h-9 w-9" />
+          <BrandMark size={48} className="h-12 w-12" />
           <span>{PRODUCT_BRAND.name}</span>
         </Link>
       </header>
       <aside className="auth-art" aria-hidden="true">
-        <BrandIllustration source={ILLUSTRATIONS.authEntryway} className="absolute inset-0 h-full w-full object-cover" />
+        <BrandIllustration source={ILLUSTRATIONS.wovenGrove} className="woven-grove-art absolute inset-x-0 top-1/2 h-auto w-full -translate-y-1/2" />
         <div className="auth-art-caption"><p>{PRODUCT_BRAND.tagline}</p></div>
       </aside>
       <main className="auth-main">{children}</main>

@@ -10,12 +10,12 @@ routines for young kids (#272). Roles: `docs/ROLE_AND_ISOLATION_MATRIX.md` "Chor
 | Status | Meaning | Who moves it on |
 |---|---|---|
 | `pending` / `in_progress` | Open. | Any member ticks it (`POST /api/chores/complete`). |
-| `completed` | Done, **waiting for a parent to check**. The home counts these as "N chores to check" for parents; a child sees "A parent will check it." | The ticker or a parent can Undo (`POST /api/chores/uncomplete`, back to `pending`). A parent checks it (below). |
+| `completed` | Done, **waiting for a parent to check**. The home counts these as "N chores to check" for parents; a child sees "A parent will check it." | The assignee or a parent can Undo (not necessarily the member who ticked it) (`POST /api/chores/uncomplete`, back to `pending`). A parent checks it (below). |
 | `verified` | Checked by a parent. XP is awarded here (whether or not Points & streaks is shown). Cannot be undone or sent back (409 `CHORE_ALREADY_VERIFIED`). | — |
 
 ### Parent check
 
-On `/dashboard/chores`, "Pending Verification" lists every `completed` chore (photo or not). Both buttons call
+On `/dashboard/chores`, "To check" lists loaded `completed` chores (photo or not). Rows name the assignee, routine/step and "Waiting for your check"; the assignee is not necessarily the member who ticked it. Both buttons call
 `POST /api/chores/verify`:
 
 - **Verify**: `{ choreId, decision: 'approve' }` → `verified`.
@@ -60,9 +60,18 @@ On the kid home (`/dashboard`, child and teen), when they have routine chores du
   parent will check it."), rollback if the server refuses. The step then shows a large tick and the word "Done"
   (never colour alone); its accessible name ends "done, waiting for a parent to check" (or "done, checked by a
   parent" once verified). The routine header counts "N of M done", then "All done".
-- Routine steps are not repeated under "Today's Missions", and routine chores due on other days are not shown (a
-  routine is about today). Every other chore, and every child without routine chores, sees the kid home exactly
-  as before.
+- Routine steps are not repeated under "Today's Missions". Older open routine occurrences appear separately under
+  **Routine catch-up**, labelled with the routine and when they were due; they do not compete with today's "Next".
+  Future routine copies and older completed/verified routine steps do not appear in catch-up.
+- A rejected open step or mission shows **Have another go** and its `verified_notes` reason. The reason disappears
+  when resubmitted; Undo or a refused completion restores it. Completed/verified steps do not show a stale reason.
+- Today's missions, older ordinary work and routine catch-up initially show three rows. **Show more** makes every
+  loaded row in that group reachable, using the same complete/Undo controls. Only the signed-in child's or teen's
+  assigned chores are loaded; no family-wide fetch is added.
+- This is a bounded preview, not every household chore: the kid home loads at most 60 own chores in the UTC
+  yesterday..day-after-tomorrow window and 60 older open own chores (newest first). Each query reads one extra row
+  to detect a cap. A capped preview says so and cannot claim "All done for today". The parent chores page also has
+  existing 500-row caps per current query and a 60-day open lookback; older verified history is paged separately.
 
 The Today board shows a chore's picture next to its title when it has one (the board DTO's `icon`, a catalogue
 key only; routine names are not on the board or the shared device).
@@ -73,7 +82,10 @@ key only; routine names are not on the board or the shared device).
   isolation covers it, and old clients ignore the columns.
 - The assignee may change their own chore's picture or routine through `PATCH` (like the title); these fields
   carry no XP or privilege. The UI to edit them is parent-only (`/dashboard/chores` is not on the kid allowlist).
-- No completion from the shared tablet yet (phase 2, SHARED_DEVICE.md O-4); the tablet only shows the picture.
+- Shared-tablet completion already exists (#274, `SHARED_DEVICE.md` §9.2/O-4): with the shared-device kill switch,
+  household tablet-write opt-in (default off) and chores feature on, a picked household member can tick a chore
+  due today. It waits for a parent's check, returns no XP and accepts no photo. Device Undo has its own short
+  window/ownership rules; it is not the person-session assignee/parent Undo. This change does not alter device gates.
 
 ## Taking turns (O-39)
 
