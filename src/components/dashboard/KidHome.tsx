@@ -25,6 +25,7 @@ import {
 import { groupByRoutine, normalizeRoutineName } from "@/lib/routine-icons";
 import KidRoutines from "./KidRoutines";
 import { useLocalNow } from "@/components/ui/use-hydrated";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 
 interface Chore {
   id: string;
@@ -71,18 +72,18 @@ interface KidHomeProps {
 
 // Both helpers use the viewer's zone, so they are only called after hydration
 // (useLocalNow is non-null): the server renders in UTC (O-31).
-function formatRelativeDate(dateStr: string, now: Date): string {
+function formatRelativeDate(dateStr: string, now: Date, locale: string): string {
   const date = new Date(dateStr);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   if (date.toDateString() === now.toDateString()) return "Today";
   if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return date.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("en-US", {
+function formatTime(dateStr: string, locale: string): string {
+  return new Date(dateStr).toLocaleTimeString(locale, {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -117,6 +118,7 @@ export default function KidHome({
   rewards,
   workPreviewLimited = false,
 }: KidHomeProps) {
+  const displayLocale = useDisplayLocale();
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
     null,
   );
@@ -826,13 +828,13 @@ export default function KidHome({
                   title={event.title}
                   subtitle={
                     event.location
-                      ? `${formatTime(event.start_time)} · ${event.location}`
-                      : formatTime(event.start_time)
+                      ? `${formatTime(event.start_time, displayLocale)} · ${event.location}`
+                      : formatTime(event.start_time, displayLocale)
                   }
                   showChevron={false}
                   trailing={
                     <span className="text-footnote text-label-tertiary">
-                      {now && formatRelativeDate(event.start_time, now)}
+                      {now && formatRelativeDate(event.start_time, now, displayLocale)}
                     </span>
                   }
                   className={cn(i === todayEvents.length - 1 && "border-b-0")}

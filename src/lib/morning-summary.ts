@@ -66,6 +66,9 @@ export interface MorningSummaryInput {
   dayKey: string
   /** IANA zone the person's day and event times are read in. */
   timeZone: string
+  /** Explicit presentation locale, independent of timeZone. Omit to retain
+   * existing account delivery formatting; no persisted household locale exists. */
+  displayLocale?: string
   features: SummaryFeatures
   /** Household chores around today (any assignee; filtered here). */
   chores: readonly SummaryChore[]
@@ -108,8 +111,14 @@ export function cleanTitle(value: string | null | undefined): string {
   return `${text.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
 }
 
-/** "3pm" or "3:30pm" in `timeZone`. */
-export function formatClock(instant: Date, timeZone: string): string {
+/** A clock in `timeZone`, with locale conventions when explicitly supplied.
+ * Without a locale, preserve the existing compact "3pm" / "3:30pm" copy. */
+export function formatClock(instant: Date, timeZone: string, displayLocale?: string): string {
+  if (displayLocale) {
+    return new Intl.DateTimeFormat(displayLocale, {
+      timeZone, hour: 'numeric', minute: '2-digit',
+    }).format(instant)
+  }
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     hour: 'numeric',
@@ -123,9 +132,9 @@ export function formatClock(instant: Date, timeZone: string): string {
 }
 
 /** "Saturday, October 3" for a `YYYY-MM-DD` key. */
-export function dayLabelOf(dayKey: string): string {
+export function dayLabelOf(dayKey: string, displayLocale = 'en-US'): string {
   const [y, m, d] = dayKey.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(displayLocale, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -139,7 +148,7 @@ export function dayLabelOf(dayKey: string): string {
  * running on it (end exclusive). One that covers the whole day reads "all
  * day"; one that began on an earlier day reads "until <end>".
  */
-export function eventsOnDay(events: readonly SummaryEvent[], dayKey: string, timeZone: string): MorningSummaryEvent[] {
+export function eventsOnDay(events: readonly SummaryEvent[], dayKey: string, timeZone: string, displayLocale?: string): MorningSummaryEvent[] {
   const key = dayKeyFor({ kind: 'tz', timeZone })
   return events
     .filter((e) => e.end.getTime() >= e.start.getTime())
@@ -155,8 +164,8 @@ export function eventsOnDay(events: readonly SummaryEvent[], dayKey: string, tim
       const coversEnd = lastKey > dayKey || (e.end.getTime() > e.start.getTime() && localMinutes(e.end, timeZone) === 0)
       let when: string
       if (coversStart && coversEnd) when = 'all day'
-      else if (startKey === dayKey) when = `at ${formatClock(e.start, timeZone)}`
-      else when = `until ${formatClock(e.end, timeZone)}`
+      else if (startKey === dayKey) when = `at ${formatClock(e.start, timeZone, displayLocale)}`
+      else when = `until ${formatClock(e.end, timeZone, displayLocale)}`
       return { title: cleanTitle(e.title) || 'Event', when }
     })
 }
@@ -170,7 +179,7 @@ function eventPhrase(e: MorningSummaryEvent): string {
  * nothing to say (then nothing is sent).
  */
 export function buildMorningSummary(input: MorningSummaryInput): MorningSummary | null {
-  const { person, dayKey, timeZone, features } = input
+  const { person, dayKey, timeZone, displayLocale, features } = input
   const isParent = person.role === 'parent'
 
   // Own chores only, open, due on the local day.
@@ -187,7 +196,7 @@ export function buildMorningSummary(input: MorningSummaryInput): MorningSummary 
 
   let events: MorningSummary['events'] = null
   if (features.calendar) {
-    const today = eventsOnDay(input.events, dayKey, timeZone)
+    const today = eventsOnDay(input.events, dayKey, timeZone, displayLocale)
     if (today.length > 0) {
       events = {
         items: today.slice(0, MAX_NAMED_EVENTS),
@@ -234,7 +243,7 @@ export function buildMorningSummary(input: MorningSummaryInput): MorningSummary 
 
   return {
     dayKey,
-    dayLabel: dayLabelOf(dayKey),
+    dayLabel: dayLabelOf(dayKey, displayLocale),
     chores,
     events,
     dinner,
