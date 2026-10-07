@@ -37,6 +37,15 @@ export const viewport: Viewport = {
   ],
 }
 
+// One public preview asset for both protocols; no household data is embedded.
+const socialPreview = {
+  url: '/brand/woven-grove/herewoven-social.png',
+  width: 1200,
+  height: 630,
+  type: 'image/png',
+  alt: 'Herewoven — Everyday life, held together. A woven H above interwoven bands.',
+}
+
 export const metadata: Metadata = {
   metadataBase: new URL('https://family.ashbi.ca'),
   title: {
@@ -66,13 +75,14 @@ export const metadata: Metadata = {
     siteName: PRODUCT_BRAND.name,
     title: `${PRODUCT_BRAND.name} — Household organizer`,
     description: PRODUCT_BRAND.description,
-    // Retain the original OG file, but do not advertise its baked-in legacy name.
+    images: [socialPreview],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: `${PRODUCT_BRAND.name} — Household organizer`,
     description: PRODUCT_BRAND.description,
     creator: '@ashbidesign',
+    images: [socialPreview],
   },
   alternates: {
     canonical: 'https://family.ashbi.ca',
