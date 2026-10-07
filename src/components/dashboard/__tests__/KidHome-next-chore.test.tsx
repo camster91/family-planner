@@ -57,6 +57,8 @@ const sectionRows = (header: string) => {
   const section = screen.getByText(header).closest('section') as HTMLElement
   return within(section)
     .getAllByRole('button')
+    // The chore rows, not the "Show more" / "Show less" toggle under them.
+    .filter((b) => !b.hasAttribute('aria-expanded'))
     // Points are off here, so a row reads "<title>" or "<title>You did it!".
     .map((b) => ({
       title: (b.textContent ?? '').replace('You did it!', '').trim(),
@@ -89,6 +91,8 @@ describe('KidHome: the next chore comes in without a reload', () => {
     renderHome(FIVE_TODAY)
     expect(sectionRows("Today's Missions").map((r) => r.title)).toEqual(['Make bed', 'Feed the cat', 'Brush teeth'])
     expect(screen.queryByText('Tidy toys')).toBeNull()
+    // Show more counts the chores still hidden, not a fixed "beyond three".
+    expect(screen.getByRole('button', { name: 'Show more (2)' })).toBeTruthy()
 
     await userEvent.click(mission('Make bed'))
     // The ticked row stays (with "You did it!") and the next open chore joins.
@@ -99,10 +103,13 @@ describe('KidHome: the next chore comes in without a reload', () => {
       { title: 'Tidy toys', done: false },
     ])
     expect(screen.queryByText('Water plants')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show more (1)' })).toBeTruthy()
 
     await userEvent.click(mission('Feed the cat'))
     expect(mission('Water plants').disabled).toBe(false)
     expect(sectionRows("Today's Missions").filter((r) => !r.done)).toHaveLength(3)
+    // Nothing is hidden any more, so there is nothing to show more of.
+    expect(screen.queryByRole('button', { name: /^Show more/ })).toBeNull()
   })
 
   it('does not celebrate when the shown three are done but more are waiting', async () => {

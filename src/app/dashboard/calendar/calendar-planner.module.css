@@ -1,0 +1,331 @@
+.planner {
+  padding: 24px 16px 32px;
+  color: var(--label-primary);
+  min-width: 0;
+}
+.planner h1,
+.planner h2 {
+  font-family: var(--font-family-serif);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.planner h1 {
+  font-size: 32px;
+  line-height: 1.2;
+}
+.planner h2 {
+  font-size: 24px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.header > div {
+  flex: 1;
+  min-width: 200px;
+}
+.eyebrow {
+  font-size: 13px;
+  color: var(--label-secondary);
+  margin-bottom: 8px;
+}
+.views {
+  display: flex;
+  gap: 4px;
+}
+.planner button,
+.planner select {
+  min-height: 44px;
+  min-width: 44px;
+  border: 1px solid var(--surface-separator-opaque);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface-elevated);
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.planner button:focus-visible,
+.planner select:focus-visible,
+.gridScroll:focus-visible {
+  outline: 3px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.views button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--label-secondary);
+}
+.planner button[aria-pressed="true"] {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+.layout {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 32px;
+}
+.sources {
+  font-size: 13px;
+  color: var(--label-secondary);
+}
+.sources label {
+  display: block;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--label-primary);
+  margin-bottom: 12px;
+}
+.sources select {
+  width: 100%;
+  margin-bottom: 12px;
+}
+.sourceButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sourceButtons button {
+  text-align: left;
+}
+.sources p {
+  margin: 12px 0;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.controls nav {
+  display: flex;
+  gap: 8px;
+}
+.controls p {
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.main {
+  min-width: 0;
+}
+.state {
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--surface-elevated);
+  margin-bottom: 16px;
+}
+.state p {
+  margin: 12px 0;
+  color: var(--label-secondary);
+}
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.agenda section > h2 {
+  margin-bottom: 12px;
+}
+.planner .event {
+  text-align: left;
+  color: var(--label-primary);
+  background: var(--surface-grouped);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  font-weight: 400;
+  white-space: normal;
+  border-radius: 8px;
+}
+.event strong {
+  font-weight: 600;
+}
+.event small {
+  font-size: 12px;
+  color: var(--label-secondary);
+}
+.agenda .event {
+  border: 0;
+  background: transparent;
+  height: auto;
+  padding: 12px 0;
+  min-height: 56px;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+.gridScroll {
+  overflow: auto;
+  max-height: 620px;
+  border-radius: 16px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-separator-opaque);
+}
+.grid {
+  display: grid;
+  min-width: 680px;
+}
+.grid:has(.dayColumn:only-of-type) {
+  min-width: 0;
+}
+.hours {
+  display: grid;
+  grid-template-rows: 44px repeat(24, 64px);
+  font-size: 11px;
+  color: var(--label-secondary);
+}
+.hours span {
+  padding: 8px 4px;
+}
+.dayColumn {
+  min-width: 0;
+  border-left: 1px solid var(--surface-separator-opaque);
+}
+.dayColumn > h2 {
+  height: 44px;
+  padding: 12px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  position: sticky;
+  top: 0;
+  background: var(--surface-elevated);
+  z-index: 1;
+}
+.dayGrid {
+  display: grid;
+  grid-template-rows: repeat(48, 32px);
+  min-height: 1536px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 63px,
+    var(--surface-separator-opaque) 63px,
+    var(--surface-separator-opaque) 64px
+  );
+  gap: 0 4px;
+}
+.slot {
+  min-width: 0;
+  padding: 2px;
+  min-height: 0;
+  height: 100%;
+  overflow: clip;
+}
+.gridScroll .event {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 4px;
+  overflow: clip;
+  font-size: 12px;
+  line-height: 14px;
+}
+.eventContent {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.gridScroll .eventContent {
+  position: sticky;
+  top: 44px;
+}
+.gridScroll .eventContent > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note {
+  font-size: 13px;
+  color: var(--label-secondary);
+  margin-top: 16px;
+}
+.details {
+  max-width: min(600px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--surface-separator-opaque);
+  border-radius: 16px;
+  background: var(--surface-elevated);
+  color: var(--label-primary);
+}
+.details::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.details p {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.description {
+  white-space: pre-wrap;
+}
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+@media (max-width: 639px) {
+  .planner {
+    padding: 16px 8px;
+  }
+  .header {
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .header > div {
+    flex-basis: 100%;
+  }
+  .header h1 {
+    font-size: 28px;
+  }
+  .views {
+    flex: 1 0 100%;
+  }
+  .views button {
+    flex: 1;
+  }
+  .layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .sourceButtons {
+    display: none;
+  }
+  .sources p {
+    margin: 4px 0;
+  }
+  .sources label {
+    text-transform: none;
+  }
+  .controls nav {
+    width: 100%;
+  }
+  .controls nav button {
+    flex: 1;
+  }
+  .controls {
+    gap: 8px;
+  }
+  .grid {
+    min-width: 780px;
+  }
+  .state {
+    padding: 20px;
+  }
+  .agenda section > h2 {
+    font-size: 26px;
+  }
+  .details {
+    padding: 20px;
+  }
+}

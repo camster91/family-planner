@@ -1,18 +1,10 @@
 "use client";
 
 import * as React from "react";
+import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Plus,
-  UtensilsCrossed,
-  Coffee,
-  Sun,
-  Moon,
-  ChevronRight,
-  BookOpen,
-  Refrigerator,
-} from "lucide-react";
+import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { Dialog } from "@/components/ui/dialog";
@@ -41,24 +33,6 @@ import {
   type PlannedMeal as MealSlot,
 } from "@/lib/meal-slots";
 
-const MealIcon = ({ type }: { type: MealType }) => {
-  if (type === "breakfast")
-    return (
-      <Coffee className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-    );
-  if (type === "lunch")
-    return (
-      <Sun className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-    );
-  if (type === "dinner")
-    return (
-      <Moon className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-    );
-  return (
-    <Moon className="w-4 h-4 text-[var(--tint-meals)]" aria-hidden="true" />
-  );
-};
-
 interface MealSaveData {
   date: string;
   meal_type: MealType;
@@ -81,6 +55,7 @@ function MealModal({
   onDelete,
   onClose,
   saving,
+  isMealMutationPending,
 }: {
   mode: "add" | "edit";
   initial?: MealSlot;
@@ -90,6 +65,7 @@ function MealModal({
   onDelete?: () => void;
   onClose: () => void;
   saving: boolean;
+  isMealMutationPending: () => boolean;
 }) {
   const { t } = useTranslation();
   const [date, setDate] = React.useState(
@@ -141,6 +117,20 @@ function MealModal({
     initial?.recipe ?? null,
   );
   const titleId = React.useId();
+  const [recipeCreating, setRecipeCreating] = React.useState(false);
+  const recipeMutationPending = React.useRef(false);
+  const handleRecipeCreatingChange = React.useCallback((pending: boolean) => {
+    recipeMutationPending.current = pending;
+    setRecipeCreating(pending);
+  }, []);
+  const busy = saving || recipeCreating;
+  const isBusy = () => recipeMutationPending.current || isMealMutationPending();
+  const handleClose = () => {
+    if (!isBusy()) onClose();
+  };
+  const handleDelete = () => {
+    if (!isBusy()) onDelete?.();
+  };
 
   const handleRecipeChange = (next: RecipeOption | null) => {
     // Fill the name from the recipe unless the person already typed their own.
@@ -151,6 +141,7 @@ function MealModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy || isBusy()) return;
     const data: MealSaveData = {
       date,
       meal_type,
@@ -174,7 +165,7 @@ function MealModal({
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={busy ? undefined : handleClose}
       title={
         mode === "add"
           ? t("meals.addMeal")
@@ -243,6 +234,9 @@ function MealModal({
           value={recipe?.id ?? null}
           onChange={handleRecipeChange}
           initialRecipe={initial?.recipe ?? null}
+          onCreatingChange={handleRecipeCreatingChange}
+          disabled={saving}
+          isMutationPending={isMealMutationPending}
         />
         <div>
           <label
@@ -322,7 +316,7 @@ function MealModal({
             value={servings}
             onChange={(e) => setServings(e.target.value)}
             className="w-full input-apple min-h-[44px]"
-            disabled={saving}
+            disabled={busy}
           />
           <p className="text-footnote text-label-secondary">
             Leave blank if not set. Otherwise, enter 1–100.
@@ -332,9 +326,9 @@ function MealModal({
           {mode === "edit" && onDelete && (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={handleDelete}
               className="btn-destructive flex-1 min-h-[44px]"
-              disabled={saving}
+              disabled={busy}
             >
               {t("meals.deleteMeal")}
             </button>
@@ -342,7 +336,7 @@ function MealModal({
           <button
             type="submit"
             className="btn-tinted flex-1 min-h-[44px]"
-            disabled={saving}
+            disabled={busy}
           >
             {saving ? t("common.saving") : t("meals.save")}
           </button>
@@ -426,6 +420,13 @@ function MealsPageInner() {
     router.push(`${pathname}${query ? `?${query}` : ""}`);
   };
   const [meals, setMeals] = React.useState<MealSlot[]>([]);
+  // DayCards unmount during canonical reloads after save/delete/Undo. Keep
+  // dated disclosure preferences here so those reloads do not hide the result.
+  const [expandedDays, setExpandedDays] = React.useState<
+    Record<string, boolean>
+  >({});
+  const toggleDay = (dateKey: string) =>
+    setExpandedDays((days) => ({ ...days, [dateKey]: !days[dateKey] }));
   // Labels follow the viewer's locale; rebuilt when the meals or locale change.
   const week = React.useMemo(
     () => (anchor ? buildDayPlans(meals, anchor, displayLocale) : []),
@@ -442,6 +443,12 @@ function MealsPageInner() {
     defaultMealType?: MealType;
   } | null>(null);
   const [saving, setSaving] = React.useState(false);
+  // Nested recipe handlers can run before React commits the saving state.
+  const mealMutationPending = React.useRef(false);
+  const isMealMutationPending = React.useCallback(
+    () => mealMutationPending.current,
+    [],
+  );
   const { addToast } = useToast();
   const showUndo = useUndoToast();
   const mealRequest = React.useRef({ version: 0 });
@@ -497,6 +504,8 @@ function MealsPageInner() {
   const openEdit = (meal: MealSlot) => setModal({ mode: "edit", meal });
 
   const handleSave = async (data: MealSaveData) => {
+    if (mealMutationPending.current) return;
+    mealMutationPending.current = true;
     const editing = modal?.mode === "edit" && modal.meal ? modal.meal : null;
     // Keep the dialog open on failure and say why: the server's reason (for
     // example a validation message) or the offline line.
@@ -542,6 +551,7 @@ function MealsPageInner() {
     } catch {
       addToast({ type: "error", title: failTitle, message: OFFLINE_MESSAGE });
     } finally {
+      mealMutationPending.current = false;
       setSaving(false);
     }
   };
@@ -580,7 +590,8 @@ function MealsPageInner() {
   };
 
   const handleDelete = async () => {
-    if (!modal?.meal) return;
+    if (!modal?.meal || mealMutationPending.current) return;
+    mealMutationPending.current = true;
     const meal = modal.meal;
     setSaving(true);
     try {
@@ -602,12 +613,13 @@ function MealsPageInner() {
         message: "The meal was not deleted. Try again.",
       });
     } finally {
+      mealMutationPending.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
+    <div className={cn(styles.page, "space-y-6 mx-auto px-4 pb-20")}>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -739,11 +751,13 @@ function MealsPageInner() {
             {/* One empty state: an empty week is the week of "Nothing planned"
                 rows, each one the way to add that meal. No separate
                 illustrated "No meals planned yet" above it. */}
-            <div className="space-y-3 stagger">
+            <div className={styles.board}>
               {week.map((day) => (
                 <DayCard
                   key={day.dateKey}
                   day={day}
+                  expanded={expandedDays[day.dateKey] ?? false}
+                  onToggle={() => toggleDay(day.dateKey)}
                   onAdd={openAdd}
                   onEdit={openEdit}
                 />
@@ -764,6 +778,7 @@ function MealsPageInner() {
           onDelete={modal.mode === "edit" ? handleDelete : undefined}
           onClose={() => setModal(null)}
           saving={saving}
+          isMealMutationPending={isMealMutationPending}
         />
       )}
     </div>
@@ -777,38 +792,107 @@ function MealsPageInner() {
  */
 function DayCard({
   day,
+  expanded,
+  onToggle,
   onAdd,
   onEdit,
 }: {
   day: DayPlan;
+  expanded: boolean;
+  onToggle: () => void;
   onAdd: (day: DayPlan, type: MealType) => void;
   onEdit: (meal: MealSlot) => void;
 }) {
   const headingId = `meals-day-${day.dateKey}`;
+  const otherId = `${headingId}-other`;
+
+  const otherSlots = day.slots.filter((slot) => slot.type !== "dinner");
+  const otherCount = otherSlots.reduce(
+    (count, slot) => count + slot.meals.length,
+    0,
+  );
+  const renderSlots = (slots: DayPlan["slots"]) => (
+    <ul className="divide-y divide-[var(--surface-separator)]">
+      {slots.map((slot) => {
+        const label = mealLabels[slot.type];
+        if (slot.meals.length === 0) {
+          return (
+            <li
+              key={slot.type}
+              data-testid="meal-slot"
+              data-meal-type={slot.type}
+            >
+              <button
+                type="button"
+                onClick={() => onAdd(day, slot.type)}
+                aria-label={`Add ${label.toLowerCase()}, ${day.longLabel}`}
+                className={styles.emptySlot}
+              >
+                <span>
+                  <span className={styles.slotLabel}>{label}</span>
+                  <span className={styles.meta}>Nothing planned</span>
+                </span>
+                <Plus className="w-5 h-5 shrink-0" aria-hidden="true" />
+              </button>
+            </li>
+          );
+        }
+        return slot.meals.map((meal, i) => {
+          const meta = recipeMeta(meal.recipe);
+          return (
+            <li
+              key={meal.id}
+              data-testid="meal-slot"
+              data-meal-type={slot.type}
+              className={styles.meal}
+            >
+              <button
+                type="button"
+                onClick={() => onEdit(meal)}
+                data-testid="meal-row"
+                data-meal-id={meal.id}
+                className={styles.mealAction}
+              >
+                <span className={styles.slotLabel}>{label}</span>
+                <span className={styles.mealTitle}>{mealTitle(meal)}</span>
+                {meta && (
+                  <span className={styles.meta}>{`${label} · ${meta}`}</span>
+                )}
+              </button>
+              {i === slot.meals.length - 1 && (
+                <button
+                  type="button"
+                  onClick={() => onAdd(day, slot.type)}
+                  aria-label={`Add another ${label.toLowerCase()}, ${day.longLabel}`}
+                  className={styles.addAnother}
+                >
+                  <Plus className="w-5 h-5" aria-hidden="true" />
+                </button>
+              )}
+            </li>
+          );
+        });
+      })}
+    </ul>
+  );
   return (
     <section
       aria-labelledby={headingId}
       data-testid="meal-day"
       data-day={day.dateKey}
       className={cn(
-        "card-apple overflow-hidden",
+        "card-apple",
+        styles.day,
         day.isToday && "ring-2 ring-[var(--accent)] ring-offset-2",
       )}
     >
-      {/* Day header */}
+      {/* The selected date remains visible, including on Today. */}
       <div
         className={cn(
           "px-4 py-2.5 flex items-center gap-2 border-b border-[var(--surface-separator)]",
           day.isToday ? "bg-[var(--accent-tint)]" : "bg-[var(--surface-fill)]",
         )}
       >
-        <UtensilsCrossed
-          className={cn(
-            "w-4 h-4",
-            day.isToday ? "text-[var(--accent)]" : "text-label-tertiary",
-          )}
-          aria-hidden="true"
-        />
         <h3
           id={headingId}
           className={cn(
@@ -818,7 +902,7 @@ function DayCard({
         >
           {day.isToday ? (
             <span>
-              Today<span className="sr-only">, {day.longLabel}</span>
+              Today<span className={styles.dateLabel}>{day.longLabel}</span>
             </span>
           ) : (
             day.label
@@ -826,91 +910,21 @@ function DayCard({
         </h3>
       </div>
 
-      {/* Meal slots */}
-      <ul className="divide-y divide-[var(--surface-separator)]">
-        {day.slots.map((slot) => {
-          const label = mealLabels[slot.type];
-          const glyph = (
-            <span className="w-8 h-8 shrink-0 rounded-full bg-[var(--tint-meals)]/10 flex items-center justify-center">
-              <MealIcon type={slot.type} />
-            </span>
-          );
-          if (slot.meals.length === 0) {
-            return (
-              <li
-                key={slot.type}
-                data-testid="meal-slot"
-                data-meal-type={slot.type}
-              >
-                <button
-                  type="button"
-                  onClick={() => onAdd(day, slot.type)}
-                  aria-label={`Add ${label.toLowerCase()}, ${day.longLabel}`}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 min-h-[52px] text-left active:bg-[var(--surface-fill-secondary)]"
-                >
-                  {glyph}
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-body text-label-primary">
-                      {label}
-                    </span>
-                    <span className="block text-footnote text-label-secondary">
-                      Nothing planned
-                    </span>
-                  </span>
-                  <Plus
-                    className="w-5 h-5 shrink-0 text-label-tertiary"
-                    aria-hidden="true"
-                  />
-                </button>
-              </li>
-            );
-          }
-          return slot.meals.map((meal, i) => {
-            const isLast = i === slot.meals.length - 1;
-            const meta = recipeMeta(meal.recipe);
-            return (
-              <li
-                key={meal.id}
-                data-testid="meal-slot"
-                data-meal-type={slot.type}
-                className="flex items-stretch"
-              >
-                <button
-                  type="button"
-                  onClick={() => onEdit(meal)}
-                  data-testid="meal-row"
-                  data-meal-id={meal.id}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2.5 min-h-[52px] text-left active:bg-[var(--surface-fill-secondary)]"
-                >
-                  {glyph}
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-body text-label-primary break-words">
-                      {mealTitle(meal)}
-                    </span>
-                    <span className="block text-footnote text-label-secondary break-words">
-                      {meta ? `${label} · ${meta}` : label}
-                    </span>
-                  </span>
-                  <ChevronRight
-                    className="w-4 h-4 shrink-0 text-label-tertiary"
-                    aria-hidden="true"
-                  />
-                </button>
-                {isLast && (
-                  <button
-                    type="button"
-                    onClick={() => onAdd(day, slot.type)}
-                    aria-label={`Add another ${label.toLowerCase()}, ${day.longLabel}`}
-                    className="inline-flex w-12 min-h-[44px] shrink-0 items-center justify-center border-l border-[var(--surface-separator)] text-[var(--accent-text)] active:bg-[var(--surface-fill-secondary)]"
-                  >
-                    <Plus className="w-5 h-5" aria-hidden="true" />
-                  </button>
-                )}
-              </li>
-            );
-          });
-        })}
-      </ul>
+      {renderSlots(day.slots.filter((slot) => slot.type === "dinner"))}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={otherId}
+        aria-label={`Other meals${otherCount > 0 ? ` · ${otherCount}` : ""}, ${day.longLabel}`}
+        className={styles.disclosure}
+        onClick={onToggle}
+      >
+        <span>Other meals{otherCount > 0 ? ` · ${otherCount}` : ""}</span>
+        <span aria-hidden="true">{expanded ? "−" : "+"}</span>
+      </button>
+      <div id={otherId} hidden={!expanded}>
+        {expanded && renderSlots(otherSlots)}
+      </div>
     </section>
   );
 }

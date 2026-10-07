@@ -9,6 +9,8 @@ import { toDateOnlyLocal } from "@/lib/dates";
 import MealsPage from "../page";
 import { ToastProvider } from "@/components/ui/toast";
 
+jest.mock("../meals-board.module.css", () => ({}));
+
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
 }));
@@ -136,7 +138,493 @@ async function todayCard() {
   return cards.find((c) => c.getAttribute("data-day") === today)!;
 }
 
+// Retain committed handlers to exercise same-tick races before disabled DOM updates.
+function handler<T>(element: HTMLElement, name: string): T {
+  const key = Object.keys(element).find((key) =>
+    key.startsWith("__reactProps$"),
+  )!;
+  return (element as unknown as Record<string, Record<string, T>>)[key][name];
+}
+
 describe("/dashboard/meals", () => {
+  it("shows all seven dinners first and discloses other slots per day without writes", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [
+        dinnerA,
+        dinnerB,
+        {
+          ...dinnerA,
+          id: "snack_a",
+          meal_type: "snack",
+          recipe_name: "Apples",
+        },
+      ],
+    });
+    const cards = await screen.findAllByTestId("meal-day");
+    expect(cards).toHaveLength(7);
+    const card = await todayCard();
+    expect(
+      within(card)
+        .getAllByTestId("meal-row")
+        .map((row) => row.textContent),
+    ).toEqual([
+      expect.stringContaining("Tacos"),
+      expect.stringContaining("Green salad"),
+    ]);
+    expect(
+      within(card).queryByRole("button", { name: /^Add breakfast,/ }),
+    ).toBeNull();
+    const disclosure = within(card).getByRole("button", {
+      name: /Other meals/,
+    });
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    await user.click(disclosure);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      document.getElementById(disclosure.getAttribute("aria-controls")!)
+        ?.hidden,
+    ).toBe(false);
+    expect(
+      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+    ).toBeTruthy();
+    expect(within(card).getAllByTestId("meal-row")).toHaveLength(3);
+    expect(
+      within(cards.find((c) => c !== card)!)
+        .getByRole("button", { name: /Other meals/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+    await user.click(disclosure);
+    expect(within(card).queryByRole("button", { name: /Apples/ })).toBeNull();
+    expect(calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+  });
+  it("keeps each dated disclosure open through a deferred post-save reload", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = setup({ meals: [] });
+    const cards = await screen.findAllByTestId("meal-day");
+    const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
+    await user.click(
+      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+    );
+    await user.type(screen.getByLabelText("Recipe name"), "Porridge");
+    let release!: (response: Response) => void;
+    const realMock = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) =>
+      String(input).startsWith("/api/meals?")
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : realMock(input, init),
+    );
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+    await waitFor(() => expect(release).toBeDefined());
+    await act(async () =>
+      release({
+        ok: true,
+        json: async () => ({
+          meals: [
+            {
+              ...dinnerA,
+              id: "breakfast_saved",
+              meal_type: "breakfast",
+              recipe_name: "Porridge",
+            },
+          ],
+        }),
+      } as Response),
+    );
+    const refreshed = await todayCard();
+    expect(
+      within(refreshed)
+        .getByRole("button", { name: /Other meals/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      within(refreshed).getByRole("button", { name: /Porridge/ }),
+    ).toBeTruthy();
+    const otherDate = cards
+      .find((node) => node !== card)!
+      .getAttribute("data-day");
+    const other = screen
+      .getAllByTestId("meal-day")
+      .find((node) => node.getAttribute("data-day") === otherDate)!;
+    expect(
+      within(other)
+        .getByRole("button", { name: /Other meals/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  it("keeps a truthful visible calendar date beside Today", async () => {
+    setup({ meals: [] });
+    const heading = within(await todayCard()).getByRole("heading", {
+      level: 3,
+    });
+    const expected = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+    expect(heading.textContent).toContain(expected);
+  });
+
+  it("names each day disclosure and counts canonical non-dinner meals, not slots", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [
+        dinnerA,
+        dinnerB,
+        {
+          ...dinnerA,
+          id: "snack_a",
+          meal_type: "snack",
+          recipe_name: "Apples",
+        },
+        {
+          ...dinnerB,
+          id: "snack_b",
+          meal_type: "snack",
+          recipe_name: "Yogurt",
+        },
+      ],
+    });
+    const card = await todayCard();
+    const disclosure = within(card).getByRole("button", {
+      name: /Other meals · 2,/,
+    });
+    expect(disclosure.getAttribute("aria-label")).toContain(
+      new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+    disclosure.focus();
+    await user.keyboard("{Enter}");
+    expect(
+      within(card)
+        .getAllByTestId("meal-row")
+        .map((row) => row.getAttribute("data-meal-id")),
+    ).toEqual(["meal_a", "meal_b", "snack_a", "snack_b"]);
+    await user.click(
+      within(card).getByRole("button", { name: /^Add another snack,/ }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Date")).toHaveProperty(
+      "value",
+      today,
+    );
+    expect(within(dialog).getByLabelText("Meal")).toHaveProperty(
+      "value",
+      "snack",
+    );
+    await user.keyboard("{Escape}");
+    await user.click(within(card).getByRole("button", { name: /Yogurt/ }));
+    expect(
+      within(screen.getByRole("dialog")).getByLabelText("Recipe name"),
+    ).toHaveProperty("value", "Yogurt");
+    expect(calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+  });
+
+  it.each(["POST", "PATCH", "DELETE", "Close", "Escape"] as const)(
+    "blocks retained meal %s in the same batch after recipe creation starts",
+    async (action) => {
+      const user = userEvent.setup();
+      const { calls, fetchMock } = setup({
+        meals: action === "POST" ? [] : [dinnerA],
+      });
+      if (action === "POST") {
+        await user.click(
+          within(await todayCard()).getByRole("button", {
+            name: /^Add dinner,/,
+          }),
+        );
+      } else {
+        await user.click(await screen.findByTestId("meal-row"));
+      }
+      const dialog = screen.getByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", { name: "New recipe" }),
+      );
+      const editor = screen.getByTestId("recipe-quick-create");
+      await user.type(
+        within(editor).getByLabelText("Recipe name"),
+        "Inline soup",
+      );
+      const saveRecipe = handler<() => void>(
+        within(editor).getByRole("button", { name: "Save recipe" }),
+        "onClick",
+      );
+      const submitMeal = handler<
+        (event: { preventDefault: () => void }) => void
+      >(dialog.querySelector("form")!, "onSubmit");
+      const attempt =
+        action === "POST" || action === "PATCH"
+          ? () => submitMeal({ preventDefault: jest.fn() })
+          : action === "Escape"
+            ? () =>
+                document.dispatchEvent(
+                  new KeyboardEvent("keydown", {
+                    key: "Escape",
+                    bubbles: true,
+                  }),
+                )
+            : handler<() => void>(
+                within(dialog).getByRole("button", {
+                  name: action === "DELETE" ? "Delete" : "Close",
+                }),
+                "onClick",
+              );
+      const original = fetchMock.getMockImplementation()!;
+      let resolve!: (response: Response) => void;
+      fetchMock.mockImplementation((input, init) => {
+        if (String(input) === "/api/recipes" && init?.method === "POST") {
+          calls.push({
+            url: String(input),
+            method: "POST",
+            body: JSON.parse(String(init.body)),
+          });
+          return new Promise<Response>((done) => {
+            resolve = done;
+          });
+        }
+        return original(input, init);
+      });
+      await act(async () => {
+        saveRecipe();
+        attempt();
+      });
+      expect(
+        calls.filter(
+          (c) => c.url.startsWith("/api/meals") && c.method !== "GET",
+        ),
+      ).toHaveLength(0);
+      expect(screen.getByRole("dialog")).toBe(dialog);
+      expect(
+        calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+      ).toHaveLength(1);
+      await act(async () => {
+        resolve({
+          ok: true,
+          status: 201,
+          json: async () => ({
+            recipe: { ...LASAGNA, id: "inline", title: "Inline soup" },
+          }),
+        } as Response);
+      });
+      expect(within(dialog).getByLabelText("Recipe (optional)")).toHaveProperty(
+        "value",
+        "inline",
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Save" }),
+      ).toHaveProperty("disabled", false);
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      expect(
+        calls.filter(
+          (c) => c.url.startsWith("/api/meals") && c.method !== "GET",
+        ),
+      ).toHaveLength(1);
+      expect(
+        calls.find((c) => c.url.startsWith("/api/meals") && c.method !== "GET")
+          ?.body,
+      ).toMatchObject({ recipe_id: "inline" });
+    },
+  );
+  it.each([
+    ["POST", false],
+    ["PATCH", false],
+    ["DELETE", false],
+    ["POST", true],
+    ["PATCH", true],
+    ["DELETE", true],
+  ] as const)(
+    "blocks inline recipe creation during deferred meal %s (editor open: %s)",
+    async (method, editorOpen) => {
+      const user = userEvent.setup();
+      const { calls, fetchMock } = setup({
+        meals: method === "POST" ? [] : [dinnerA],
+      });
+      if (method === "POST") {
+        await user.click(
+          within(await todayCard()).getByRole("button", {
+            name: /^Add dinner,/,
+          }),
+        );
+      } else {
+        await user.click(await screen.findByTestId("meal-row"));
+      }
+      const dialog = screen.getByRole("dialog");
+      const newRecipe = within(dialog).getByRole("button", {
+        name: "New recipe",
+      });
+      let attempt: () => void;
+      let enter: (() => void) | undefined;
+      if (editorOpen) {
+        await user.click(newRecipe);
+        const editor = screen.getByTestId("recipe-quick-create");
+        const title = within(editor).getByLabelText("Recipe name");
+        await user.type(title, "Do not orphan this recipe");
+        attempt = handler<() => void>(
+          within(editor).getByRole("button", { name: "Save recipe" }),
+          "onClick",
+        );
+        const onKeyDown = handler<
+          (event: { key: string; preventDefault: () => void }) => void
+        >(title, "onKeyDown");
+        enter = () => onKeyDown({ key: "Enter", preventDefault: jest.fn() });
+      } else {
+        attempt = handler<() => void>(newRecipe, "onClick");
+      }
+      const original = fetchMock.getMockImplementation()!;
+      let resolve!: (response: Response) => void;
+      fetchMock.mockImplementation((input, init) => {
+        if (String(input).startsWith("/api/meals") && init?.method === method) {
+          calls.push({
+            url: String(input),
+            method,
+            body: init.body ? JSON.parse(String(init.body)) : undefined,
+          });
+          return new Promise<Response>((done) => {
+            resolve = done;
+          });
+        }
+        return original(input, init);
+      });
+      // Begin the meal mutation, then invoke pre-mutation recipe handlers
+      // in the same batch: state/disabled props cannot protect this ordering.
+      await act(async () => {
+        if (method === "DELETE") {
+          handler<() => void>(
+            within(dialog).getByRole("button", { name: "Delete" }),
+            "onClick",
+          )();
+        } else {
+          dialog
+            .querySelector("form")!
+            .dispatchEvent(
+              new Event("submit", { bubbles: true, cancelable: true }),
+            );
+        }
+        attempt();
+        enter?.();
+      });
+      expect(
+        calls.filter(
+          (c) => c.url.startsWith("/api/meals") && c.method !== "GET",
+        ),
+      ).toHaveLength(1);
+      expect(
+        calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+      ).toHaveLength(0);
+      if (editorOpen) {
+        expect(screen.getByTestId("recipe-quick-create")).toHaveProperty(
+          "disabled",
+          true,
+        );
+        await user.click(
+          within(dialog).getByRole("button", { name: "Save recipe" }),
+        );
+      } else {
+        expect(screen.queryByTestId("recipe-quick-create")).toBeNull();
+        expect(newRecipe).toHaveProperty("disabled", true);
+        await user.click(newRecipe);
+        expect(screen.queryByTestId("recipe-quick-create")).toBeNull();
+      }
+      expect(
+        calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+      ).toHaveLength(0);
+      await act(async () => {
+        resolve({ ok: true, status: 200, json: async () => ({}) } as Response);
+      });
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
+  it("blocks owning meal dismissal and submission while inline recipe creation is pending", async () => {
+    const user = userEvent.setup();
+    const { calls, fetchMock } = setup({ meals: [dinnerA] });
+    await user.click(await screen.findByTestId("meal-row"));
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "New recipe" }),
+    );
+    await user.type(
+      within(screen.getByTestId("recipe-quick-create")).getByLabelText(
+        "Recipe name",
+      ),
+      "Inline soup",
+    );
+    const original = fetchMock.getMockImplementation()!;
+    let resolve!: (response: Response) => void;
+    fetchMock.mockImplementation((input, init) => {
+      if (String(input) === "/api/recipes" && init?.method === "POST") {
+        calls.push({
+          url: String(input),
+          method: "POST",
+          body: JSON.parse(String(init.body)),
+        });
+        return new Promise<Response>((done) => {
+          resolve = done;
+        });
+      }
+      return original(input, init);
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save recipe" }),
+    );
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Save",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(within(dialog).queryByRole("button", { name: "Close" })).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    // A form submit event must also be guarded (not just the button).
+    await act(async () => {
+      dialog
+        .querySelector("form")!
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+    });
+    expect(
+      calls.filter((c) => c.url.startsWith("/api/meals") && c.method !== "GET"),
+    ).toHaveLength(0);
+    await act(async () => {
+      resolve({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          recipe: { ...LASAGNA, id: "inline", title: "Inline soup" },
+        }),
+      } as Response);
+    });
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Save",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      (within(dialog).getByLabelText("Recipe (optional)") as HTMLSelectElement)
+        .value,
+    ).toBe("inline");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1),
+    );
+    expect(calls.find((c) => c.method === "PATCH")?.body).toMatchObject({
+      recipe_id: "inline",
+    });
+    expect(
+      calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
+    ).toHaveLength(1);
+  });
   it.each(["save", "delete", "undo"])(
     "refreshes the selected week after deferred %s completes across navigation",
     async (action) => {
@@ -266,6 +754,9 @@ describe("/dashboard/meals", () => {
   it("adds the minimum servings without requiring a recipe or cook", async () => {
     const user = userEvent.setup();
     const { calls } = setup({ meals: [] });
+    await user.click(
+      within(await todayCard()).getByRole("button", { name: /Other meals/ }),
+    );
     await user.click(
       within(await todayCard()).getByRole("button", { name: /^Add lunch,/ }),
     );
@@ -496,6 +987,7 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(within(card).getByRole("button", { name: /^Add snack,/ }));
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("option", { name: "Sam" });
@@ -677,6 +1169,7 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     const opener = within(card).getByRole("button", {
       name: /^Add breakfast,/,
     });
@@ -692,6 +1185,7 @@ describe("/dashboard/meals", () => {
     const user = userEvent.setup();
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
       within(card).getByRole("button", { name: /^Add breakfast,/ }),
     );
@@ -856,8 +1350,10 @@ describe("/dashboard/meals", () => {
   });
 
   it("writes the meal type in text on empty slots (not icon-only)", async () => {
+    const user = userEvent.setup();
     setup({ meals: [] });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     for (const label of ["Breakfast", "Lunch", "Dinner", "Snack"]) {
       expect(within(card).getByText(label)).toBeTruthy();
     }
@@ -879,6 +1375,7 @@ describe("/dashboard/meals", () => {
       saveError: { status: 400, error: "Recipe name is too long" },
     });
     const card = await todayCard();
+    await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
       within(card).getByRole("button", { name: /^Add breakfast,/ }),
     );

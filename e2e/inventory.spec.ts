@@ -460,19 +460,102 @@ test.describe("inventory (Family A parent)", () => {
     );
     await expect(page.getByText("Tofu stir-fry")).toHaveCount(0);
 
+    let mutations = 0;
+    page.on("request", (request) => {
+      if (
+        new URL(request.url()).pathname.startsWith("/api/lists") &&
+        !["GET", "HEAD"].includes(request.method())
+      ) {
+        mutations++;
+      }
+    });
+    const review = page.getByRole("dialog", {
+      name: "Review grocery ingredients",
+    });
+    const confirm = review.getByRole("button", {
+      name: "Add selected ingredients",
+    });
+    const expectNoGroceryWrites = async () => {
+      expect(mutations).toBe(0);
+      const state = await withDb(async (db) => {
+        const rows = await db.query(
+          `SELECT id FROM "ListItem" WHERE source_key = $1 AND source_request_id IS NOT NULL`,
+          [`recipe:${L.recipeLasagna}`],
+        );
+        const records = await db.query(
+          `SELECT id FROM "IdempotencyRecord" WHERE family_id = $1 AND action = 'grocery.add-from-recipe'`,
+          [A.family],
+        );
+        return { rows: rows.rows, records: records.rows };
+      });
+      expect(state).toEqual({ rows: [], records: [] });
+    };
+    const openReview = async () => {
+      const [loaded] = await Promise.all([
+        page.waitForResponse(
+          (r) =>
+            new URL(r.url()).pathname ===
+              "/api/lists/items/from-recipe/review" &&
+            r.request().method() === "GET",
+        ),
+        lasagna
+          .getByRole("button", { name: "Add 1 missing to groceries" })
+          .click(),
+      ]);
+      expect(loaded.status()).toBe(200);
+      const data = await loaded.json();
+      expect(data).toMatchObject({
+        recipeId: L.recipeLasagna,
+        defaultListId: A.groceryList,
+        inventory: {
+          state: "available",
+          haveIngredientIds: [L.ingredientTomatoes],
+        },
+      });
+      expect(
+        data.ingredients
+          .map((i: { ingredientId: string }) => i.ingredientId)
+          .sort(),
+      ).toEqual([L.ingredientTomatoes, L.ingredientLasagnaSheets].sort());
+      await expect(review).toBeVisible();
+      await expect(review.getByText("Loading ingredients…")).toHaveCount(0);
+      await expect(review.getByLabel("Destination list")).toHaveValue(
+        A.groceryList,
+      );
+      await expect(review.getByRole("checkbox")).toHaveCount(2);
+      await expect(
+        review.getByRole("checkbox", { name: /^Lasagna sheets / }),
+      ).toBeChecked();
+      await expect(
+        review.getByRole("checkbox", { name: /^Tomatoes / }),
+      ).not.toBeChecked();
+      await expect(
+        review.locator('input[type="checkbox"]:checked'),
+      ).toHaveCount(1);
+      await expect(confirm).toBeEnabled();
+      await expectNoGroceryWrites();
+    };
+
+    await openReview();
+    await review.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(review).toBeHidden();
+    await expectNoGroceryWrites();
+    await openReview();
+
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) =>
           r.url().includes("/api/lists/items/from-recipe") &&
           r.request().method() === "POST",
       ),
-      lasagna
-        .getByRole("button", { name: "Add 1 missing to groceries" })
-        .click(),
+      confirm.click(),
     ]);
+    expect(mutations).toBe(1);
+    await expect(review).toBeHidden();
     expect(response.status()).toBe(201);
     expect(JSON.parse(response.request().postData() ?? "{}")).toEqual({
       recipeId: L.recipeLasagna,
+      listId: A.groceryList,
       ingredientIds: [L.ingredientLasagnaSheets],
     });
     await expect(lasagna.getByRole("status")).toContainText("Added 1 item to");
