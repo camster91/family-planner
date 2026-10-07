@@ -1,8 +1,10 @@
 # Beta Launch Checklist
 
-What has to be true before the first real families use Family Planner, and who does it. The code side is done on `main` except where a row says otherwise. The rest needs the owner (Cameron).
+What has to be true before the first real families use Family Planner, and who does it. Completion requires current evidence for every criterion; code and endpoint health alone do not prove real-family readiness.
 
-Snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
+Latest refresh: 2026-10-07. Current `main` and live `/api/version`: `a243bd5b297bc1c02072451866722dc0c7061402`; `/api/health` healthy. Live role/email/backup/device acceptance remains open. See [the durable completion contract](engineering/COMPLETION_CONTRACT.md) and [all 51 issue criteria](engineering/COMPLETION_MATRIX.md). The older rows below are retained history awaiting per-row reconciliation.
+
+Historical snapshot: 2026-10-01. Keep this list short. When an item is done, mark it done with the PR or date; do not delete it.
 
 ## Must do before the first family signs up
 
