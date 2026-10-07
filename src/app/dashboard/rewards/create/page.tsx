@@ -97,7 +97,7 @@ function CreateRewardPageContent() {
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="cost" className="text-subhead text-label-secondary">XP Cost</label>
+          <label htmlFor="cost" className="text-subhead text-label-secondary">Cost in points</label>
           <div className="flex items-center gap-3">
             <input
               id="cost"
@@ -108,7 +108,7 @@ function CreateRewardPageContent() {
               required
               className="input-apple w-28"
             />
-            <span className="text-subhead text-label-secondary">XP</span>
+            <span className="text-subhead text-label-secondary">points</span>
           </div>
         </div>
 

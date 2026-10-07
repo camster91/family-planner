@@ -14,6 +14,7 @@ import {
   noticeTextClass,
   primaryButtonClass,
 } from './styles'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 type Ended = 'expired' | 'cancelled' | 'denied' | 'mismatch'
 
@@ -228,7 +229,7 @@ export default function PairTabletDialog({
         setError('Could not create a code. Try again.')
       }
     } catch {
-      setError('Could not reach Family Planner. Try again.')
+      setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
     } finally {
       setBusy(false)
     }
@@ -266,7 +267,7 @@ export default function PairTabletDialog({
         setError('Could not confirm. Try again.')
       }
     } catch {
-      setError('Could not reach Family Planner. Try again.')
+      setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
     } finally {
       setBusy(false)
     }

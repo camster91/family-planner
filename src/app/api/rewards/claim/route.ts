@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         await notificationServiceServer.sendNotification({
           userId: parent.id,
           title: `${user?.name ?? 'Someone'} claimed a reward!`,
-          message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${result.cost} XP.`,
+          message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${result.cost} points.`,
           type: 'reward',
         })
       }
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ reward: updated, xp: result.xp })
   } catch (error) {
     if (error instanceof InsufficientXpError) {
-      return NextResponse.json({ error: 'Not enough XP for this reward' }, { status: 400 })
+      return NextResponse.json({ error: 'Not enough points for this reward' }, { status: 400 })
     }
     logRouteError('POST /api/rewards/claim', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

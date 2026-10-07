@@ -16,7 +16,7 @@ function mockFetch(body: unknown, ok = true) {
 }
 
 describe('Analytics page', () => {
-  it('shows per-member chore counts and no XP when Points & streaks is off', async () => {
+  it('shows per-member chore counts and no points when Points & streaks is off', async () => {
     mockFetch({
       weeklyCompletion: 50,
       gamification: false,
@@ -26,10 +26,10 @@ describe('Analytics page', () => {
     expect(await screen.findByText('2 of 4 chores done')).toBeInTheDocument()
     expect(screen.getByText('50%')).toBeInTheDocument()
     expect(screen.getByText('Who did what')).toBeInTheDocument()
-    expect(screen.queryByText(/XP/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/XP|points/)).not.toBeInTheDocument()
   })
 
-  it('shows the leaderboard with XP when Points & streaks is on', async () => {
+  it('shows the leaderboard with points when Points & streaks is on', async () => {
     mockFetch({
       weeklyCompletion: 100,
       gamification: true,
@@ -38,9 +38,12 @@ describe('Analytics page', () => {
       ],
     })
     render(<AnalyticsPage />)
-    expect(await screen.findByText('120 XP')).toBeInTheDocument()
+    expect((await screen.findByTestId('member-points')).textContent).toBe('120 points')
     expect(screen.getByText('Leaderboard')).toBeInTheDocument()
     expect(screen.getByText('Level 3')).toBeInTheDocument()
+    expect(screen.getByText('Top level')).toBeInTheDocument()
+    expect(screen.getByText('Family points')).toBeInTheDocument()
+    expect(screen.queryByText(/\bXP\b|Lvl/)).not.toBeInTheDocument()
   })
 
   it('shows an error with Try again when loading fails', async () => {

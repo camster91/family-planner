@@ -16,6 +16,7 @@ import {
 import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
 import { RoutineIcon } from '@/components/chores/RoutineIcon'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { formatMinutes } from '@/lib/meal-slots'
 import type { ShoppingSnapshot, ShoppingSnapshotItem } from '@/lib/shopping-snapshot'
 import type { BoardChore, BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
@@ -141,13 +142,13 @@ function Tag({ children }: { children: React.ReactNode }) {
   )
 }
 
-function eventTimeLabel(e: TodayEvent): string {
+function eventTimeLabel(e: TodayEvent, locale: string): string {
   if (e.startedEarlier) {
     const end = new Date(e.end)
     const endsToday = end.toDateString() === new Date().toDateString()
-    return endsToday ? `Until ${formatTime(end)}` : 'All day'
+    return endsToday ? `Until ${formatTime(end, locale)}` : 'All day'
   }
-  return formatTime(e.start)
+  return formatTime(e.start, locale)
 }
 
 /** Colour swatch that always sits next to a visible name (never colour-only). */
@@ -188,6 +189,7 @@ export function ScheduleRegion({
   /** Member display name and colour by id (#262). */
   people?: Map<string, BoardPerson>
 }) {
+  const locale = useDisplayLocale()
   const shown = events.slice(0, MAX_TODAY_EVENTS)
   const more = events.length - shown.length
   return (
@@ -209,7 +211,7 @@ export function ScheduleRegion({
             return (
               <li key={e.id} data-testid="today-event" className="flex gap-3 py-3 first:pt-0 2xl:gap-4 2xl:py-4">
                 <p className="w-[78px] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
-                  {eventTimeLabel(e)}
+                  {eventTimeLabel(e, locale)}
                 </p>
                 <div className="min-w-0 flex-1">
                   <p className={cn(itemTextClass, 'break-words font-medium')}>{e.title}</p>
@@ -558,6 +560,7 @@ export function ComingUpRegion({
   /** Fridge landscape gives this region a narrow column, so days stack. */
   stackInLandscape?: boolean
 }) {
+  const locale = useDisplayLocale()
   return (
     <Region id="board-coming" area="coming" title="Coming up" icon={CalendarRange} glyph="family">
       <ul className={cn('grid gap-5 sm:grid-cols-3', stackInLandscape && 'lg:landscape:grid-cols-1')}>
@@ -576,7 +579,7 @@ export function ComingUpRegion({
                   {shown.map((e) => (
                     <li key={e.id} className="min-w-0">
                       <p className={cn(itemTextClass, 'break-words')}>
-                        <span className="font-semibold tabular-nums">{formatTime(e.start)}</span> {e.title}
+                        <span className="font-semibold tabular-nums">{formatTime(e.start, locale)}</span> {e.title}
                       </p>
                       {e.source && (
                         <div className="mt-1">

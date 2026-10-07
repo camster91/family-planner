@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Users, Plus, ArrowRight, CheckCircle, Sparkles, UserPlus } from 'lucide-react'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 interface OnboardingFlowProps {
   userId: string
@@ -62,7 +63,7 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
           <div className="w-20 h-20 bg-[var(--accent-tint)] rounded-2xl flex items-center justify-center mx-auto">
             <Sparkles className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">Welcome to Family Planner!</h2>
+          <h2 className="text-2xl font-bold text-foreground">Welcome to {PRODUCT_BRAND.name}!</h2>
           <p className="text-muted-foreground max-w-md mx-auto">
             Let&apos;s get your family set up in 3 simple steps. You&apos;ll be organizing chores and plans in minutes.
           </p>

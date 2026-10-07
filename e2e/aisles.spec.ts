@@ -330,7 +330,7 @@ test.describe("store sections: Family A parent", () => {
     await openList(page);
     const milk = row(page, IDS.milk);
     await goOffline(page);
-    await expect(page.getByTestId("offline-banner")).toBeVisible();
+    await expect(page.getByTestId("list-offline-detail")).toBeVisible();
     await milk.getByRole("checkbox").click();
     await expect(milk).toHaveAttribute("data-sync-state", "pending");
     const dairy = page.getByRole("region", { name: "Dairy & eggs" });

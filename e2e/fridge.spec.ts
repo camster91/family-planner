@@ -557,10 +557,26 @@ test.describe("Today board: Family A parent", () => {
       "Updated just now",
     );
 
+    // App mode: the app-wide banner says "You're offline"; the board only
+    // says how old its data is (one offline message, OFFLINE_SYNC.md).
+    await goOffline(page);
+    await expect(page.getByTestId("app-offline-banner")).toBeVisible();
+    await expect(board(page).getByTestId("sync-notice")).toContainText(
+      "Showing what was here",
+    );
+    await expect(board(page).getByTestId("sync-notice")).not.toContainText(
+      "You're offline.",
+    );
+    await goOnline(page);
+    await expect(board(page).getByTestId("sync-notice")).toBeHidden();
+
+    // Fridge mode hides the banner, so the board's own notice says it.
+    await openBoard(page, "/dashboard/today?mode=fridge");
     await goOffline(page);
     await expect(board(page).getByRole("status")).toContainText(
       "You're offline.",
     );
+    await expect(page.getByTestId("app-offline-banner")).toBeHidden();
     await goOnline(page);
     await expect(
       board(page).getByText("You're offline.", { exact: false }),

@@ -19,7 +19,7 @@ export default function PrivacyPage() {
             <p>
               Family Planner is a self-hosted family organizer. We store the data you
               enter: your name, email, family member names, the chores/events/lists/
-              messages/rewards you create, and your progress (XP, streaks, completed chores).
+              messages/rewards you create, and your progress (points, streaks, completed chores).
               That&apos;s it. No analytics sold to third parties, no advertising, no
               tracking pixels.
             </p>
@@ -122,7 +122,7 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-foreground mb-3">Your rights</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Access</strong>: GET <code>/api/users</code> returns your profile.</li>
-              <li><strong>Export</strong>: Settings → Data Export (GET <code>/api/users/export</code>) downloads a JSON file with all your data.</li>
+              <li><strong>Export</strong>: Settings → Data Export (GET <code>/api/users/export</code>) downloads one file with all your data, which you can open or keep (JSON format).</li>
               <li>
                 <strong>Delete your account</strong>: Settings → Delete Account. You confirm with your password. Your
                 account, sign-ins, messages, notifications and your own chores are deleted; things you added for the

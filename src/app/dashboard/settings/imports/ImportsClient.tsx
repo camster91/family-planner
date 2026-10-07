@@ -41,7 +41,9 @@ export default function ImportsClient() {
       setFileData(JSON.parse(await file.text()));
       setFileName(file.name);
     } catch {
-      setError("That file is not valid JSON.");
+      setError(
+        "That file could not be read. Choose the export file the other app saved (it ends in .json).",
+      );
     }
   };
 
@@ -130,14 +132,16 @@ export default function ImportsClient() {
             htmlFor="importFile"
             className="block text-sm font-medium text-foreground mb-2"
           >
-            JSON export
+            Export file
           </label>
           <label
             htmlFor="importFile"
             className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-input p-8 hover:border-primary"
           >
             <FileJson className="w-6 h-6 text-primary" />
-            <span>{fileName || "Choose a JSON export (maximum 10 MB)"}</span>
+            <span>
+              {fileName || "Choose the export file (.json, up to 10 MB)"}
+            </span>
           </label>
           <input
             id="importFile"

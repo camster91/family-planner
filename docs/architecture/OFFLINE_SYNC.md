@@ -23,8 +23,9 @@ device pairing/elevation, invites, exports and medical records.
 
 Food inventory (#263, #158/#121) does not change the allowlist: create, edit, delete, "Used it", "Throw away" and Undo
 are online writes with an optional `Idempotency-Key` (a retry never duplicates an adjustment). Offline, the page keeps
-the list it loaded, says so with the time it was loaded, and refuses a write with "You're offline. Connect to the
-internet to change the inventory." instead of queueing it.
+the list it loaded and says when it was loaded ("Showing what was loaded at 10:42. Changes need a connection; …"; the
+app-wide banner says it is offline), and refuses a write with "You're offline. Connect to the internet to change the
+inventory." instead of queueing it.
 
 Store sections (#273) do not change the allowlist: grouping by section runs on the client from the rows and
 overrides delivered with the list page, so a queued tick re-renders in its section offline. "Move to…" and the
@@ -157,7 +158,7 @@ they become queueable.
   is cleared best-effort).
 - Durability is reported, never assumed: when no store accepts a write, `enqueue` returns `durable: false`,
   `isDurable()` is false and the list page shows "Couldn't save changes on this device. Keep this page open
-  until they sync, or they will be lost." The offline banner then drops its "saved on this device" wording.
+  until they sync, or they will be lost." The list's offline detail then drops its "saved on this device" wording.
   The changes still sync from memory, and the next successful write makes the queue durable again.
 - Sign-out (`DashboardNav`) and every visit to `/login` delete the whole `fp-sync:v1:` localStorage namespace and
   the `fp-sync` database, bounded to 1 s so sign-out never hangs. A 401 while draining drops the queue. A
@@ -213,13 +214,28 @@ for 3 s, then renders nothing (no height, no layout change). The wrapper is a po
 (`aria-live="polite"`, not `role="status"`), so each change is announced once. It is never fixed to the bottom,
 so it cannot cover the tab bar. Fridge mode (`/dashboard/today?mode=fridge` and the paired tablet board) hides
 it through TodayBoard's chrome CSS (`[data-offline-banner]`), because the board already has its own offline
-notice with the time the data was loaded. Pages with their own offline wording (lists, inventory, calendar,
-the Today board in app mode) keep it; the banner only states the connection.
+notice with the time the data was loaded.
+
+**One offline message per page.** The banner is the only thing that says "You're offline". A page under it
+adds only what is specific to that page, without repeating that the connection is gone:
+
+| Page | Page-specific offline detail (no "You're offline") |
+| --- | --- |
+| Lists → a list (`data-testid="list-offline-detail"`) | "You can still tick items. Ticks are saved on this device and sync when you reconnect. 3 waiting to sync." (#162 queue; "Ticks sync when you reconnect." when the queue is not durable). Per-item "Waiting to sync" / "Syncing…" and the queue notices are unchanged. |
+| Inventory (`inventory-connection`) | "Showing what was loaded at 10:42. Changes need a connection; the list refreshes when you're back online." The error state says "The inventory loads when you're back online." |
+| Calendar, Today board in app mode (`SyncNotice` with `appBanner`) | "Showing what was here 3 min ago. The calendar/board refreshes when the connection returns." |
+
+Fridge mode (`/dashboard/today?mode=fridge` and the paired tablet board) hides the banner, so there the board's
+own `SyncNotice` keeps the full "You're offline. Showing what was here …" wording. "Can't reach Family Planner
+right now" (online but the server does not answer) is not something the banner says, so pages keep it. A message
+answering an action the person just tried (for example "You're offline. Moving an item needs a connection." or the
+inventory's refused write) still names the reason: it is the reply to that tap, not a second page notice. Rule in
+code: `syncNotice(…, { bannerSaysOffline })` in `src/lib/board-sync.ts`.
 
 **Offline page.** `public/sw.js` is a hand-written service worker, scope `/`:
 
 - Install pre-caches exactly `/offline.html`, `/brand/illustrations/houses-banner.webp` and `/favicon.svg` into
-  a versioned cache (`fp-offline-v1`), then `skipWaiting()`. Activate deletes older `fp-offline-*` caches only,
+  a versioned cache (`fp-offline-v2`), then `skipWaiting()`. Activate deletes older `fp-offline-*` caches only,
   enables navigation preload and `clients.claim()`s.
 - Same-origin GET navigations are network first. Only a network failure (fetch rejects) returns the cached
   `/offline.html`; any server response, including 4xx/5xx and redirects, passes through untouched. The three
@@ -249,6 +265,8 @@ Browsers re-check `/sw.js` on navigation, so installed copies remove themselves.
 an installed worker keeps running until its script check fails repeatedly.
 
 Tests: `src/components/ui/__tests__/offline-banner.test.tsx` (events, timing, live region),
+`src/lib/__tests__/board-sync.test.ts` and `src/components/fridge/__tests__/ambient-sync.test.tsx` (app mode leaves
+"You're offline" to the banner, fridge mode keeps it), `src/app/dashboard/lists/[listId]/__tests__/offline-detail.test.tsx`,
 `src/lib/__tests__/service-worker.test.ts` (when it registers, native unregister),
 `src/lib/__tests__/service-worker-script.test.ts` (runs `public/sw.js` in a sandbox: pre-cache list, old-cache
 cleanup, network first, offline fallback, server errors passed through, nothing else intercepted) and

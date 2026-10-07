@@ -10,6 +10,7 @@ import { getDeviceQueue } from '@/lib/offline-queue-browser'
 import { QueueError } from '@/lib/offline-queue'
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
 import { focusRing } from './styles'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 /** A picked member is remembered this long after the last tap (memory only). */
 export const ACTOR_IDLE_MS = 2 * 60 * 1000
@@ -21,7 +22,7 @@ export interface DeviceActorChoice {
 
 function writeErrorText(error: unknown): string {
   if (error instanceof DeviceApiError) {
-    if (error.code === 'NETWORK_ERROR') return "Couldn't reach Family Planner. Check the Wi-Fi and try again."
+    if (error.code === 'NETWORK_ERROR') return `Couldn't reach ${PRODUCT_BRAND.name}. Check the Wi-Fi and try again.`
     if (error.status === 429) return 'Too many taps. Wait a minute, then try again.'
     if (error.status > 0 && error.status < 500 && error.message) return error.message
   }

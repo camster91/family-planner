@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import type { WeatherIconKind } from '@/lib/weather/codes'
 import { shortWeekday, type WeatherView } from './board-model'
 
@@ -54,6 +55,7 @@ function precipitationText(chance: number | null): string | null {
  */
 export function WeatherTile({ view }: { view: WeatherView }) {
   const { weather, today, next } = view
+  const locale = useDisplayLocale()
   const CurrentIcon = iconFor(weather.current.icon, weather.current.isDay)
   const unit = `°${weather.unit}`
   const precip = today ? precipitationText(today.precipitationChance) : null
@@ -103,7 +105,7 @@ export function WeatherTile({ view }: { view: WeatherView }) {
             const Icon = iconFor(d.icon)
             return (
               <li key={d.day} data-testid="weather-day" className="flex flex-col items-center text-center">
-                <span className="text-[17px] font-semibold text-label-primary">{shortWeekday(d.day)}</span>
+                <span className="text-[17px] font-semibold text-label-primary">{shortWeekday(d.day, locale)}</span>
                 <Icon className="my-1 h-7 w-7 text-label-secondary" aria-hidden="true" />
                 <span className="sr-only">{d.summary}, high </span>
                 <span className={cn('text-[17px] tabular-nums text-label-primary')}>

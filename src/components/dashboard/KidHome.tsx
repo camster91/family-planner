@@ -14,7 +14,11 @@ import { cn } from "@/lib/utils";
 import { xpForNextLevel } from "@/lib/gamification";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import type { UserRole } from "@/types";
-import { useToast, useUndoToast } from "@/components/ui/toast";
+import {
+  useKeepClearOfUndoToast,
+  useToast,
+  useUndoToast,
+} from "@/components/ui/toast";
 import { setChoreDone } from "@/lib/chore-tick-client";
 import {
   formatRelativePastDate,
@@ -91,15 +95,6 @@ function formatTime(dateStr: string): string {
 const OPEN_STATUSES = new Set(["pending", "in_progress", "overdue"]);
 const isOpen = (c: Chore) => OPEN_STATUSES.has(c.status);
 
-/** Keep ticked feedback in place, while refilling up to three open rows. */
-function visibleMissions(list: Chore[], tickedHere: ReadonlySet<string>) {
-  let open = 0;
-  return list.filter((chore) => {
-    if (tickedHere.has(chore.id)) return true;
-    return open++ < 3;
-  });
-}
-
 /** "Was due yesterday" / "Was due Jan 3": a plain fact, no scolding (BRAND.md). */
 function wasDueLabel(dueDate: string, now: Date): string {
   const label = formatRelativePastDate(dueDate, now);
@@ -112,6 +107,30 @@ export const CELEBRATE_MS = 6000;
 // XP threshold to level up from `level` — shared with the server logic
 // (gamification.ts xpForNextLevel) so the ring matches awardChoreXP.
 const xpForLevel = xpForNextLevel;
+
+/** How many open chores a group (today's, or earlier ones) shows at a time. */
+export const MISSIONS_AT_ONCE = 3;
+
+/**
+ * The rows a chore group shows: up to `cap` chores that are still open here,
+ * plus any the child ticked on this page (they stay, ticked, where they were).
+ * So ticking a visible chore brings the next open one in without a reload,
+ * and the list never shows more than `cap` things still to do. The order of
+ * `list` is kept.
+ */
+export function visibleMissions<T extends { id: string }>(
+  list: T[],
+  tickedHere: ReadonlySet<string>,
+  cap: number = MISSIONS_AT_ONCE,
+): T[] {
+  let open = 0;
+  return list.filter((c) => {
+    if (tickedHere.has(c.id)) return true;
+    if (open >= cap) return false;
+    open += 1;
+    return true;
+  });
+}
 
 /** "Casey Smith" → "Casey": a kid is greeted by first name. */
 export function firstName(name: string | null | undefined): string | null {
@@ -193,6 +212,11 @@ export default function KidHome({
   const router = useRouter();
   const { addToast } = useToast();
   const showUndo = useUndoToast();
+  // A short page can end (the Rewards card) right where the Undo card sits:
+  // while one shows, reserve its height below the content and lift the end
+  // clear of it, so nothing is ever hidden under the card.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const undoRoom = useKeepClearOfUndoToast(contentRef);
 
   const userXp =
     xpAfterClaim && xpAfterClaim.from === user.xp
@@ -218,8 +242,9 @@ export default function KidHome({
   const { routines } = groupByRoutine(routineChores);
 
   // Missions are the child's open chores due on their local today — three
-  // still to do at a time, with Show more for the bounded server preview.
-  // Ticked rows stay visible while the next open chore comes in.
+  // still-to-do at a time, with Show more for the rest of the bounded server
+  // preview. Ticking one brings the next in (visibleMissions); the ticked row
+  // stays with its "You did it!".
   // Recurring chores keep future copies, so the due day matters, not just the
   // status. Routine steps show above as picture cards, so they are never
   // repeated here. Earlier open chores get their own small group, and
@@ -303,16 +328,37 @@ export default function KidHome({
     [],
   );
   // The card appears below the list the child just finished: bring it into
-  // view (gently, unless they asked for reduced motion).
+  // view (gently, unless they asked for reduced motion), with its bottom
+  // above the Undo card. Measured by hand: Chromium's
+  // scrollIntoView({ block: 'nearest' }) left a card that was already on
+  // screen where it was, ignoring its scroll margin, so "All done for today."
+  // sat under the Undo card. The scroll margins (scroll-mt/-mb) set the room.
   useEffect(() => {
     if (!finishedHere || celebration !== "burst") return;
+    const card = celebrationRef.current;
+    if (!card) return;
     const reduce =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    celebrationRef.current?.scrollIntoView?.({
-      block: "nearest",
-      behavior: reduce ? "auto" : "smooth",
-    });
+    const style = window.getComputedStyle(card);
+    const roomBelow = parseFloat(style.scrollMarginBottom) || 0;
+    const roomAbove = parseFloat(style.scrollMarginTop) || 0;
+    const rect = card.getBoundingClientRect();
+    // Scroll up by what is hidden at the bottom...
+    let up = rect.bottom + roomBelow - window.innerHeight;
+    // ...and if that brings the end of the page (the Rewards card) on screen,
+    // far enough that it clears the Undo card too...
+    const endBottom = contentRef.current?.getBoundingClientRect().bottom;
+    if (
+      endBottom !== undefined &&
+      endBottom - Math.max(up, 0) < window.innerHeight
+    ) {
+      up = Math.max(up, endBottom + roomBelow - window.innerHeight);
+    }
+    // ...but never past the card's top.
+    up = Math.min(up, rect.top - roomAbove);
+    if (up > 0)
+      window.scrollBy?.({ top: up, behavior: reduce ? "auto" : "smooth" });
   }, [finishedHere, celebration]);
 
   // Today's events (the viewer's local day) — up to 2
@@ -552,7 +598,7 @@ export default function KidHome({
         <Avatar name={user?.name ?? "?"} src={user?.avatar_url} size="lg" />
       </header>
 
-      <div className="space-y-5 md:space-y-6">
+      <div ref={contentRef} className="space-y-5 md:space-y-6">
         {workPreviewLimited && (
           <p role="status" className="text-footnote text-label-secondary">
             Showing a limited set of your chores. A parent can help you find any
@@ -598,9 +644,7 @@ export default function KidHome({
                 onClick={() => setShowToday((show) => !show)}
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
-                {showToday
-                  ? "Show less"
-                  : `Show more (${hiddenToday})`}
+                {showToday ? "Show less" : `Show more (${hiddenToday})`}
               </button>
             )}
           </section>
@@ -629,9 +673,7 @@ export default function KidHome({
                 onClick={() => setShowEarlier((show) => !show)}
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
-                {showEarlier
-                  ? "Show less"
-                  : `Show more (${hiddenEarlier})`}
+                {showEarlier ? "Show less" : `Show more (${hiddenEarlier})`}
               </button>
             )}
           </section>
@@ -778,8 +820,8 @@ export default function KidHome({
               color="var(--accent)"
             >
               <div className="flex flex-col items-center leading-none">
-                <Star className="w-7 h-7 text-[var(--accent)] fill-current" />
-                <span className="text-[20px] font-bold text-label-primary leading-none mt-0.5">
+                <Star className="w-5 h-5 text-[var(--accent)] fill-current" />
+                <span className="text-[16px] font-bold tabular-nums text-label-primary leading-none mt-0.5">
                   {userXp}
                 </span>
               </div>
@@ -925,6 +967,13 @@ export default function KidHome({
           </section>
         )}
       </div>
+      {undoRoom > 0 && (
+        <div
+          aria-hidden="true"
+          data-testid="undo-room"
+          style={{ height: undoRoom }}
+        />
+      )}
     </div>
   );
 }

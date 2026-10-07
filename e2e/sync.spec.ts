@@ -120,7 +120,15 @@ test.describe("offline grocery ticks: Family A parent", () => {
     await expect(item).toBeVisible();
 
     await goOffline(page);
-    await expect(page.getByTestId("offline-banner")).toBeVisible();
+    // One offline message (OFFLINE_SYNC.md): the app banner says offline, the
+    // list adds what ticks do offline.
+    await expect(page.getByTestId("app-offline-banner")).toBeVisible();
+    await expect(page.getByTestId("list-offline-detail")).toContainText(
+      "You can still tick items.",
+    );
+    await expect(page.getByTestId("list-offline-detail")).not.toContainText(
+      "offline",
+    );
     await item.getByRole("checkbox").click();
     await expect(item).toHaveAttribute("data-sync-state", "pending");
     await expect(item).toContainText("Waiting to sync");

@@ -6,6 +6,11 @@
  * the next days against the viewer's LOCAL calendar. Date-only values (chore
  * due days, meal days) are compared by their `YYYY-MM-DD` string, never parsed
  * into a local Date (src/lib/dates.ts).
+ *
+ * Labels are display only and take the viewer's display locale
+ * (useDisplayLocale, src/lib/display-locale.ts): "Oct 6" / "6 Oct", "9:00 AM" /
+ * "09:00". Day keys stay YYYY-MM-DD. The default keeps US English for callers
+ * that pass none.
  */
 import { parseDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import type {
@@ -104,7 +109,7 @@ export interface ComingUpDay {
   dayKey: string
   /** "Tomorrow", then weekday names. */
   label: string
-  /** Short calendar date, e.g. "Jan 6". */
+  /** Short calendar date, e.g. "Jan 6" / "6 Jan" (month name, never "1/6"). */
   dateLabel: string
   events: BoardEvent[]
   dinner: BoardDinner | null
@@ -115,7 +120,8 @@ export function comingUp(
   events: BoardEvent[],
   dinners: BoardDinner[] | null,
   now: Date,
-  days: number
+  days: number,
+  locale: string = 'en-US'
 ): ComingUpDay[] {
   const out: ComingUpDay[] = []
   for (let i = 1; i <= days; i++) {
@@ -124,8 +130,8 @@ export function comingUp(
     const dayKey = toDateOnlyLocal(d)
     out.push({
       dayKey,
-      label: i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'long' }),
-      dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: i === 1 ? 'Tomorrow' : d.toLocaleDateString(locale, { weekday: 'long' }),
+      dateLabel: d.toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
       events: eventsStartingOn(events, dayKey),
       dinner: dinnerOn(dinners, dayKey),
     })
@@ -133,14 +139,14 @@ export function comingUp(
   return out
 }
 
-/** "9:00 AM" in the viewer's zone. */
-export function formatTime(value: Date | string): string {
-  return new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+/** "9:00 AM" (en-US) / "09:00" (en-GB) in the viewer's zone. */
+export function formatTime(value: Date | string, locale: string = 'en-US'): string {
+  return new Date(value).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
 }
 
-/** "Monday, January 5" in the viewer's zone. */
-export function formatLongDate(now: Date): string {
-  return now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+/** "Monday, January 5" (en-US) / "Monday 5 January" (en-GB) in the viewer's zone. */
+export function formatLongDate(now: Date, locale: string = 'en-US'): string {
+  return now.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })
 }
 
 /** First word of a display name, for compact labels ("Avery Fixture-A" -> "Avery"). */
@@ -197,9 +203,9 @@ export function weatherView(weather: BoardWeather | null | undefined, now: Date)
 }
 
 /** "Tue" for a `YYYY-MM-DD` forecast day (a calendar date, not an instant). */
-export function shortWeekday(dayKey: string): string {
+export function shortWeekday(dayKey: string, locale: string = 'en-US'): string {
   const [y, m, d] = dayKey.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
 }
 
 /** First names, unless two members share one (then full names). */
@@ -254,7 +260,7 @@ export interface NextEventView {
  * The next event to start (calm display, #271): the soonest event that has
  * not started yet, title and time only (no source, member, place or notes).
  */
-export function nextEvent(events: BoardEvent[], now: Date): NextEventView | null {
+export function nextEvent(events: BoardEvent[], now: Date, locale: string = 'en-US'): NextEventView | null {
   const t = now.getTime()
   const next = events
     .filter((e) => new Date(e.start).getTime() > t)
@@ -262,10 +268,10 @@ export function nextEvent(events: BoardEvent[], now: Date): NextEventView | null
   if (!next) return null
   const start = new Date(next.start)
   const day = toDateOnlyLocal(start)
-  const time = formatTime(start)
+  const time = formatTime(start, locale)
   let when = time
   if (day === localDayKey(now, 1)) when = `Tomorrow ${time}`
-  else if (day !== localDayKey(now)) when = `${start.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
+  else if (day !== localDayKey(now)) when = `${start.toLocaleDateString(locale, { weekday: 'short' })} ${time}`
   return { title: next.title, when }
 }
 

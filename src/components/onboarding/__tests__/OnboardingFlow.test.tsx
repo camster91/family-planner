@@ -15,6 +15,11 @@ jest.mock('next/navigation', () => ({
 import OnboardingFlow from '../OnboardingFlow'
 
 describe('OnboardingFlow', () => {
+  it('welcomes the family by the product name', () => {
+    render(<OnboardingFlow userId="u1" />)
+    expect(screen.getByRole('heading', { name: 'Welcome to Herewoven!' })).toBeTruthy()
+  })
+
   it('offers joining an existing family next to creating one', async () => {
     render(<OnboardingFlow userId="u1" />)
     await userEvent.click(screen.getByRole('button', { name: /get started/i }))

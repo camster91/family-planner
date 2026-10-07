@@ -341,6 +341,7 @@ export function CalendarPlanner({
                 online={online}
                 what="calendar"
                 canGoStale={false}
+                appBanner
               />
             </div>
           )}

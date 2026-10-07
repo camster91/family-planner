@@ -38,15 +38,18 @@ export function toDateOnlyLocal(date: Date): string {
 /**
  * Short calendar label (default "Jan 5") for a date-only value stored as UTC
  * midnight, such as a chore due date. Formats in UTC so viewers west of UTC
- * do not see the previous day.
+ * do not see the previous day. `locale` is the display locale
+ * (useDisplayLocale, src/lib/display-locale.ts): "Jan 5", "5 Jan", "5 ene".
+ * Keep a month name in `options` so 5/1 vs 1/5 cannot be misread.
  */
 export function formatDateOnly(
   value: Date | string,
-  options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' },
+  locale: string = 'en-US'
 ): string {
   const date = parseDateOnly(toDateOnlyUTC(value))
   if (!date) return ''
-  return date.toLocaleDateString('en-US', { ...options, timeZone: 'UTC' })
+  return date.toLocaleDateString(locale, { ...options, timeZone: 'UTC' })
 }
 
 /** Local calendar day `days` after `now`, as `YYYY-MM-DD` (client-side use). */
@@ -70,20 +73,20 @@ export function isDueWithinDays(value: Date | string, days: number, now: Date = 
   return day >= toDateOnlyLocal(now) && day <= localDateOnlyPlusDays(now, days)
 }
 
-/** "Today", "Tomorrow" or a short date for a date-only value such as a chore due date. */
-export function formatRelativeDueDate(value: Date | string, now: Date = new Date()): string {
+/** "Today", "Tomorrow" or a short date (in `locale`) for a date-only value such as a chore due date. */
+export function formatRelativeDueDate(value: Date | string, now: Date = new Date(), locale: string = 'en-US'): string {
   const day = toDateOnlyUTC(value)
   if (day === toDateOnlyLocal(now)) return 'Today'
   if (day === localDateOnlyPlusDays(now, 1)) return 'Tomorrow'
-  return formatDateOnly(value)
+  return formatDateOnly(value, undefined, locale)
 }
 
-/** "Today", "Yesterday" or a short date for a date-only value such as a transaction date. */
-export function formatRelativePastDate(value: Date | string, now: Date = new Date()): string {
+/** "Today", "Yesterday" or a short date (in `locale`) for a date-only value such as a transaction date. */
+export function formatRelativePastDate(value: Date | string, now: Date = new Date(), locale: string = 'en-US'): string {
   const day = toDateOnlyUTC(value)
   if (day === toDateOnlyLocal(now)) return 'Today'
   if (day === localDateOnlyPlusDays(now, -1)) return 'Yesterday'
-  return formatDateOnly(value)
+  return formatDateOnly(value, undefined, locale)
 }
 
 /** Add whole days to a UTC-midnight date. */

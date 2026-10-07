@@ -13,6 +13,7 @@
  * unit-tested directly; `useBoardSync` (src/components/fridge) wires it to
  * intervals and browser events.
  */
+import { PRODUCT_BRAND } from './brand'
 import { formatRelativeTime } from './relative-time'
 
 /** Version check interval while visible. */
@@ -128,17 +129,25 @@ export function syncState(lastSyncAt: number | null, now: number, online: boolea
 /**
  * The notice under the header, in words, or null when all is well. `what`
  * names the surface ("board", "calendar").
+ *
+ * `bannerSaysOffline`: the app-wide OfflineBanner (O-41) is on screen and
+ * already says "You're offline", so the offline notice keeps only what is
+ * specific to this page (how old the data is, when it refreshes). Fridge mode
+ * hides the banner, so there the notice still says it is offline
+ * (docs/architecture/OFFLINE_SYNC.md, "One offline message per page").
  */
 export function syncNotice(
   state: SyncState,
   lastSyncAt: number | null,
   now: number,
-  what: string
+  what: string,
+  { bannerSaysOffline = false }: { bannerSaysOffline?: boolean } = {}
 ): string | null {
   if (state === 'fresh' || lastSyncAt === null) return null
   const ago = formatRelativeTime(lastSyncAt, now)
   if (state === 'offline') {
-    return `You're offline. Showing what was here ${ago}. The ${what} refreshes when the connection returns.`
+    const detail = `Showing what was here ${ago}. The ${what} refreshes when the connection returns.`
+    return bannerSaysOffline ? detail : `You're offline. ${detail}`
   }
-  return `Can't reach Family Planner right now. Showing what was here ${ago}. The ${what} keeps trying on its own.`
+  return `Can't reach ${PRODUCT_BRAND.name} right now. Showing what was here ${ago}. The ${what} keeps trying on its own.`
 }

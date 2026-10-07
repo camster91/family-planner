@@ -650,6 +650,14 @@ export function syncStatusText(op: QueuedOperation | undefined, recentlySynced: 
   }
 }
 
+/** The list's own offline detail (the banner above already says offline). */
+export function listOfflineDetail(durable: boolean, pendingCount: number): string {
+  const ticks = durable
+    ? 'You can still tick items. Ticks are saved on this device and sync when you reconnect.'
+    : 'You can still tick items. Ticks sync when you reconnect.'
+  return pendingCount > 0 ? `${ticks} ${pendingCount} waiting to sync.` : ticks
+}
+
 export function SyncBanner({
   online,
   durable,
@@ -670,14 +678,13 @@ export function SyncBanner({
   }
   return (
     <div role="status" aria-live="polite" className="space-y-2 empty:hidden">
+      {/* The app-wide OfflineBanner says "You're offline"; this only adds what
+          the list does offline (ticks queue, #162) and how many are waiting. */}
       {!online && (
-        <div className="card-apple flex items-start gap-3 p-4" data-testid="offline-banner">
+        <div className="card-apple flex items-start gap-3 p-4" data-testid="list-offline-detail">
           <CloudOff className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-subhead text-label-primary">
-            {durable
-              ? 'You’re offline. Ticks are saved on this device and sync when you reconnect.'
-              : 'You’re offline. Ticks sync when you reconnect.'}
-            {pendingCount > 0 && ` ${pendingCount} waiting.`}
+            {listOfflineDetail(durable, pendingCount)}
           </p>
         </div>
       )}

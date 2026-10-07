@@ -14,6 +14,7 @@ import {
   TabletSmartphone,
 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import PairTabletDialog from './PairTabletDialog'
 import {
   dangerButtonClass,
@@ -25,6 +26,7 @@ import {
   noticeTextClass,
   primaryButtonClass,
 } from './styles'
+import { PRODUCT_BRAND } from '@/lib/brand'
 
 export interface ManagedDevice {
   id: string
@@ -49,8 +51,22 @@ const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+/**
+ * Display only, in the viewer's locale (useDisplayLocale): "Oct 4" / "4 Oct",
+ * with a month name so 10/4 vs 4/10 cannot be misread.
+ */
+export function shortDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+}
+
+/** "Oct 4, 3:05 PM" / "4 Oct, 15:05" for the device activity list. */
+export function eventTime(iso: string, locale: string): string {
+  return new Date(iso).toLocaleString(locale, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 /** SHARED_DEVICE.md §7: "Active now" under 10 minutes, a warning after 7 days. */
@@ -140,6 +156,7 @@ function StatusBadge({ device }: { device: ManagedDevice }) {
 function Activity({ deviceId }: { deviceId: string }) {
   const [events, setEvents] = React.useState<DeviceEvent[] | null>(null)
   const [error, setError] = React.useState(false)
+  const locale = useDisplayLocale()
 
   React.useEffect(() => {
     let cancelled = false
@@ -171,12 +188,7 @@ function Activity({ deviceId }: { deviceId: string }) {
       {events.map((event, i) => (
         <li key={`${event.createdAt}-${i}`} className="flex flex-wrap gap-x-3 text-[15px]">
           <span className="text-label-secondary tabular-nums">
-            {new Date(event.createdAt).toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-            })}
+            {eventTime(event.createdAt, locale)}
           </span>
           <span className="text-label-primary">{describeEvent(event)}</span>
         </li>
@@ -199,6 +211,7 @@ function DeviceRow({
   onReplace: () => void
 }) {
   const [showActivity, setShowActivity] = React.useState(false)
+  const locale = useDisplayLocale()
   const seen = lastSeenText(device.lastSeenAt, now)
   const active = device.status === 'active'
   const activityId = `device-activity-${device.id}`
@@ -216,12 +229,12 @@ function DeviceRow({
         <div className="min-w-0">
           <h2 className="break-words text-[19px] font-bold leading-tight text-label-primary">{device.label}</h2>
           <p className="mt-1 text-[15px] text-label-secondary">
-            {device.platform === 'android' ? 'Android app' : 'Web browser'} · Paired {shortDate(device.pairedAt)}
+            {device.platform === 'android' ? 'Android app' : 'Web browser'} · Paired {shortDate(device.pairedAt, locale)}
             {device.appVersion && device.appVersion !== 'web' ? ` · Version ${device.appVersion}` : ''}
           </p>
           {device.status === 'removed' ? (
             <p className="mt-1 text-[15px] text-label-secondary">
-              Removed {device.revokedAt ? shortDate(device.revokedAt) : ''}
+              Removed {device.revokedAt ? shortDate(device.revokedAt, locale) : ''}
               {device.revokeReason ? ` (${REVOKE_REASON_TEXT[device.revokeReason] ?? device.revokeReason})` : ''}
             </p>
           ) : (
@@ -473,7 +486,7 @@ function RenameDeviceDialog({
             if (res.ok) onDone(trimmed)
             else setError(res.status === 429 ? 'Too many changes. Try again later.' : 'Could not rename the tablet.')
           } catch {
-            setError('Could not reach Family Planner. Try again.')
+            setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
           } finally {
             setBusy(false)
           }
@@ -561,7 +574,7 @@ function RemoveDeviceDialog({
             if (res.ok) onDone(device.label)
             else setError(res.status === 429 ? 'Too many changes. Try again later.' : 'Could not remove the tablet.')
           } catch {
-            setError('Could not reach Family Planner. Try again.')
+            setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
           } finally {
             setBusy(false)
           }

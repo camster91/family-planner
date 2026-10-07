@@ -88,6 +88,23 @@ describe('ChoresContent server render vs hydration', () => {
     expect(within(today).getByText('Casey · Today')).toBeTruthy()
     expect(within(today).queryByText('Feed the cat')).toBeNull()
   })
+
+  it("shows due days in the viewer's locale (en-GB) without a hydration mismatch", async () => {
+    const spy = jest.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['en-GB'])
+    try {
+      const later = [chore('c4', 'Wash the car', '2026-10-05'), chore('c5', 'Old job', '2026-09-20', 'completed')]
+      hydrated = serverRenderThenHydrate(page(later), { serverNow: SERVER_NOW, clientNow: CLIENT_NOW })
+      expect(hydrated.recoverable).toEqual([])
+      // jsdom cannot play the empty state's motion; that is not a mismatch.
+      expect(hydrated.errors.filter((e) => !e.includes('HTMLMediaElement'))).toEqual([])
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+      await user.click(screen.getByRole('button', { name: 'All' }))
+      expect(screen.getByText('Casey · 5 Oct')).toBeTruthy()
+      expect(screen.queryByText(/Oct 5/)).toBeNull()
+    } finally {
+      spy.mockRestore()
+    }
+  })
 })
 
 describe('ChoresContent reassign dialog', () => {
