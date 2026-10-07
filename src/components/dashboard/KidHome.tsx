@@ -92,6 +92,15 @@ function formatTime(dateStr: string, locale: string): string {
 const OPEN_STATUSES = new Set(["pending", "in_progress", "overdue"]);
 const isOpen = (c: Chore) => OPEN_STATUSES.has(c.status);
 
+/** Keep ticked feedback in place, while refilling up to three open rows. */
+function visibleMissions(list: Chore[], tickedHere: ReadonlySet<string>) {
+  let open = 0;
+  return list.filter((chore) => {
+    if (tickedHere.has(chore.id)) return true;
+    return open++ < 3;
+  });
+}
+
 /** "Was due yesterday" / "Was due Jan 3": a plain fact, no scolding (BRAND.md). */
 function wasDueLabel(dueDate: string, now: Date): string {
   const label = formatRelativePastDate(dueDate, now);
@@ -211,7 +220,8 @@ export default function KidHome({
   const { routines } = groupByRoutine(routineChores);
 
   // Missions are the child's open chores due on their local today — three
-  // initially, with Show more for the rest of the bounded server preview.
+  // still to do at a time, with Show more for the bounded server preview.
+  // Ticked rows stay visible while the next open chore comes in.
   // Recurring chores keep future copies, so the due day matters, not just the
   // status. Routine steps show above as picture cards, so they are never
   // repeated here. Earlier open chores get their own small group, and
@@ -226,7 +236,10 @@ export default function KidHome({
   const allTodayChores = openChores.filter(
     (c) => toDateOnlyUTC(c.due_date) === todayKey,
   );
-  const todayChores = showToday ? allTodayChores : allTodayChores.slice(0, 3);
+  const todayChores = showToday
+    ? allTodayChores
+    : visibleMissions(allTodayChores, completedChores);
+  const hiddenToday = allTodayChores.length - todayChores.length;
   const allEarlierChores = openChores
     .filter((c) => toDateOnlyUTC(c.due_date) < (todayKey ?? ""))
     // Most recent first.
@@ -235,7 +248,8 @@ export default function KidHome({
     );
   const earlierChores = showEarlier
     ? allEarlierChores
-    : allEarlierChores.slice(0, 3);
+    : visibleMissions(allEarlierChores, completedChores);
+  const hiddenEarlier = allEarlierChores.length - earlierChores.length;
   const allCatchupChores = todayKey
     ? (chores ?? [])
         .filter(
@@ -253,7 +267,8 @@ export default function KidHome({
     : [];
   const catchupChores = showCatchup
     ? allCatchupChores
-    : allCatchupChores.slice(0, 3);
+    : visibleMissions(allCatchupChores, completedChores);
+  const hiddenCatchup = allCatchupChores.length - catchupChores.length;
   const tomorrowChores = openChores
     .filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey)
     .slice(0, 3);
@@ -577,7 +592,7 @@ export default function KidHome({
                 </div>
               ))}
             </div>
-            {allTodayChores.length > 3 && (
+            {(showToday || hiddenToday > 0) && (
               <button
                 type="button"
                 aria-controls="today-missions"
@@ -587,7 +602,7 @@ export default function KidHome({
               >
                 {showToday
                   ? "Show less"
-                  : `Show more (${allTodayChores.length - 3})`}
+                  : `Show more (${hiddenToday})`}
               </button>
             )}
           </section>
@@ -608,7 +623,7 @@ export default function KidHome({
                 </div>
               ))}
             </div>
-            {allEarlierChores.length > 3 && (
+            {(showEarlier || hiddenEarlier > 0) && (
               <button
                 type="button"
                 aria-controls="earlier-missions"
@@ -618,7 +633,7 @@ export default function KidHome({
               >
                 {showEarlier
                   ? "Show less"
-                  : `Show more (${allEarlierChores.length - 3})`}
+                  : `Show more (${hiddenEarlier})`}
               </button>
             )}
           </section>
@@ -644,7 +659,7 @@ export default function KidHome({
                 </div>
               ))}
             </div>
-            {allCatchupChores.length > 3 && (
+            {(showCatchup || hiddenCatchup > 0) && (
               <button
                 type="button"
                 aria-controls="routine-catchup-work"
@@ -654,7 +669,7 @@ export default function KidHome({
               >
                 {showCatchup
                   ? "Show less"
-                  : `Show more (${allCatchupChores.length - 3})`}
+                  : `Show more (${hiddenCatchup})`}
               </button>
             )}
           </section>
