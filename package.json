@@ -88,7 +88,8 @@
       "deepmerge-ts": "^8.0.2"
     },
     "mysql2": "^3.24.4",
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "postcss-selector-parser": "7.1.6"
   },
   "keywords": [
     "family",
