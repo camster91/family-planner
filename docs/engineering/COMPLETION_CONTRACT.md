@@ -36,7 +36,19 @@ Coordinator owns this durable plan, dependencies, integration, merges and live a
 
 ## Release-policy reconciliation
 
-Current user authorization covers normal reviewed, tested, non-destructive code/docs/dependency merges and existing Coolify deployments. Current recorded production release used protected `main` and a Coolify source build. Older `master` / immutable-image promotion documents and #84/#85/#106 are inconsistent with that route. Do not claim a CI immutable image was promoted when Coolify rebuilt source. Do not enable the dormant immutable publisher or change Auto Deploy. Retain exact source/build revision evidence; policy decision is pending with Cameron (#363).
+Approval source for this bounded completion task: Cameron explicitly instructed, “I authorize normal merges and the existing Coolify deployments for reviewed, tested, non-destructive code/docs/dependency changes within this scope.” This instruction takes precedence over older repository guidance for the same actions. It does not approve unrelated candidates, infrastructure/policy changes or the separate holds. Before each action, record its exact reviewed SHA, passing checks, QA, scope match and production target in the candidate ledger below; later operators must recheck that the scoped authorization still applies. Current recorded production release used protected `main` and a Coolify source build. Older `master` / immutable-image promotion documents and #84/#85/#106 are inconsistent with that route. Do not claim a CI immutable image was promoted when Coolify rebuilt source. Do not enable the dormant immutable publisher or change Auto Deploy. Retain exact source/build revision evidence; policy decision is pending with Cameron (#363).
+
+## Candidate action ledger
+
+| Candidate | Scope and authorization match | Current evidence / action |
+|---|---|---|
+| PR #379 `edd526767b3f89e6707197ed4f6419d8735e26d1` | Two-file kid refill; reviewed/tested, non-destructive; existing Coolify source path at `family.ashbi.ca` | Independent review + QA passed; Build & Test/E2E/checked-image/security checks green. Normal protected squash merged as `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; production acceptance pending. |
+| PR #380 `506c764fa5e0f2bac6d6c3c6dc5b0119a59c64df` | Approved-assets social preview, no schema/API change | Independent source review and focused tests passed; hosted checks green; rendered protocol-preview QA and action record pending. |
+| PR #378 documentation | Scoped plan and canonical release-documentation reconciliation | Initial review/QA/CI passed; automated review required canonical-doc reconciliation and candidate approval record. Revised head requires fresh review/QA/CI. |
+| PR #352 `e9ab2b856ff5c5601c3e4362f2ebc712a5a16dd5` | Existing dev dependency patches refreshed onto shipped identity | Independent source review passed; fresh CI/QA pending. |
+| PR #351 `75297aab3c660a5c09b5a1f31640177adbe8d342` | Existing runtime dependency patches refreshed onto shipped identity | Fresh independent review/CI/QA pending. |
+
+Review and action evidence: [PR #379](https://github.com/camster91/family-planner/pull/379), [Build & Test](https://github.com/camster91/family-planner/actions/runs/37656197576), [E2E](https://github.com/camster91/family-planner/actions/runs/37656197563). Rendered QA on the exact source head: 67 passed / 16 deliberate project skips, real five-chore refill/failure rollback/Undo/final celebration, five responsive sizes with zero axe violations, eight individually inspected screenshots; no baseline changes. The owned browser/server stopped and synthetic rows were cleaned. This does not verify live authenticated journeys.
 
 ## Owner and access gates
 

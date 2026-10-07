@@ -1,14 +1,29 @@
 # Deployment
 
-Family Planner uses GitHub-hosted Actions for validation and controlled production promotion. The production VPS remains the Docker host, but it no longer runs a GitHub Actions runner and it does not build application code during a release.
+## Current scoped release route — 2026-10-07
+
+Protected `main` is the release branch. GitHub-hosted Actions validate the exact source head with Build & Test, E2E and checked-image checks. The existing production deployment described in PR #362 and Cameron's current instructions is Coolify **source builds** after main merges, at `https://family.ashbi.ca`.
+
+A checked CI image is not claimed to be Coolify's rebuilt image. Record the protected merge SHA, then require `/api/version` to report that exact revision, healthy `/api/health`, approved asset delivery and applicable safe journeys. A queued deployment/webhook is not success. Retain the prior healthy source revision and actual available rollback evidence; do not invent image retention or production-control access.
+
+Do not dispatch the separate SSH `Release to VPS` job, turn on immutable-image publication, change Auto Deploy, or alter production secrets/DNS/routing/proxy/backups during this task. Those are separate owner decisions. No deployment policy or infrastructure is changed by this documentation reconciliation. All seven Hermes cron jobs remain paused.
+
+Candidate-specific scoped authorization and evidence live in `docs/engineering/COMPLETION_CONTRACT.md`; runbook: `docs/runbooks/COOLIFY_DEPLOY.md`. Real backup/restore, provider delivery, proxy verification, Android hardware and authenticated live acceptance remain separate gates.
+
+## Historical SSH transport reference
+
+The following describes the retained manual SSH workflow implementation. It is not the current task's production deployment instruction.
+
+
+The retained manual SSH workflow validates and transports a checked image without rebuilding it on the host.
 
 ## Validation
 
 The `Build, Test & Release` workflow (`.github/workflows/release.yml`) runs the required `Build & Test` check on a GitHub-hosted runner for pull requests, `main`/`master` pushes and manual dispatch. It installs locked dependencies, runs the application and database checks, builds the production container, and smoke-tests it against an ephemeral PostgreSQL database with synthetic credentials.
 
-Pull requests and ordinary pushes do not receive production credentials and do not deploy.
+These GitHub validation jobs do not receive production credentials or deploy. Existing Coolify main-push deployment is separate.
 
-## Production release
+## Historical manual SSH release
 
 A release is started manually from the repository's default branch through GitHub Actions. The same workflow run:
 
@@ -46,6 +61,6 @@ The production host must already have the Docker network, persistent upload stor
 
 ## Paths intentionally removed
 
-The old local SSH release helper and duplicate CI/GHCR image-publishing workflow were removed. There is one canonical CI workflow and one manually triggered production path. Coolify, Vercel, GHCR publication and Supabase are not part of the current deployment. A possible future Coolify setup is prepared, not active, in `docs/runbooks/COOLIFY_DEPLOY.md`.
+The old local SSH release helper and duplicate CI/GHCR image-publishing workflow were removed. The historical manual SSH path and dormant immutable publisher remain source references. For the current scoped Coolify source-build route, follow the dated section above. Do not activate another production owner.
 
 `scripts/webhook-receiver.sh` and `scripts/family-planner-webhook.service` remain in the repository as a legacy, pull-based deploy trigger. They are not the supported production path. Do not install, enable or use them on a production host without Cameron's explicit approval for that exact action. See `docs/engineering/CI_AND_RELEASE.md`.

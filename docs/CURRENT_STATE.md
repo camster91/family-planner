@@ -6,6 +6,14 @@
 
 This is a dated snapshot. Inspect GitHub and executable source again before changing code or reporting status. Sources used: `git log --first-parent origin/master`, the `.env*.example` files, `.github/workflows/*.yml`, `android/`, and the GitHub API (pull requests, issues and workflow state) on 2026-09-29. Live repository settings, secrets and production health were **not** re-verified.
 
+## Release route reconciliation — 2026-10-07
+
+The older sections below are historical source/CI snapshots, not instructions to deploy through SSH. Protected `main` is the current release branch. PR #362 and Cameron's current completion-task instruction identify the existing production route as Coolify source builds triggered by main merges. Current public `/api/version` was read as `a243bd5b297bc1c02072451866722dc0c7061402`, built `2026-10-07T16:29:41.068Z`, and `/api/health` as healthy before PR #379. PR #379 subsequently merged normally as `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; its production acceptance is pending.
+
+GitHub Build & Test, E2E and checked-image validation are source-candidate gates; the checked CI image is **not asserted** to be the image Coolify rebuilt. Do not dispatch the separate `Release to VPS` workflow or enable immutable publication during this work. No Auto Deploy, secrets, proxy, backup or routing setting was changed. #363 remains the separate deployment-policy decision; #343/#342 and #254 remain held, and all seven Hermes cron jobs stay paused.
+
+Canonical execution/evidence: `engineering/COMPLETION_CONTRACT.md`, `engineering/CI_AND_RELEASE.md`, `runbooks/COOLIFY_DEPLOY.md`, `DEPLOYMENT.md`. Authenticated production journeys, actual retained image/rollback control access, real backup restore, email and hardware evidence remain open.
+
 ## Planning and baseline
 
 - PR #129 (`plan/fridge-tablet-program`) **merged on 2026-09-23** as merge commit `2538499`. The canonical planning files (`AGENTS.md`, `docs/START_HERE.md`, `docs/engineering/**`, `docs/FRIDGE_TABLET_PROGRAM.md`) are on `master`.
