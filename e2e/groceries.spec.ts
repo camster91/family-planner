@@ -103,6 +103,15 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
     page,
   }) => {
     await page.goto("/dashboard/meals");
+    // The canonical lunch is disclosed through its dated day card; dinner stays
+    // visible initially. Exercise that user path without changing fixture data.
+    const todayCard = page.locator(
+      `[data-testid="meal-day"][data-day="${E2E_ANCHOR.toISOString().slice(0, 10)}"]`,
+    );
+    const otherMeals = todayCard.getByRole("button", { name: /^Other meals/ });
+    await expect(otherMeals).toHaveAttribute("aria-expanded", "false");
+    await otherMeals.click();
+    await expect(otherMeals).toHaveAttribute("aria-expanded", "true");
     // #252: each planned meal is a button row that opens the edit dialog.
     await page
       .locator(`[data-testid="meal-row"][data-meal-id="${MEAL_ID}"]`)
@@ -112,21 +121,93 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
     });
     await expect(dialogButton).toBeVisible();
 
+    let mutations = 0;
+    page.on("request", (request) => {
+      if (
+        new URL(request.url()).pathname.startsWith("/api/lists") &&
+        !["GET", "HEAD"].includes(request.method())
+      ) {
+        mutations++;
+      }
+    });
+    const review = page.getByRole("dialog", {
+      name: "Review grocery ingredients",
+    });
+    const confirm = review.getByRole("button", {
+      name: "Add selected ingredients",
+    });
+    const openReview = async () => {
+      const [loaded] = await Promise.all([
+        page.waitForResponse(
+          (r) =>
+            new URL(r.url()).pathname ===
+              "/api/lists/items/from-recipe/review" &&
+            r.request().method() === "GET",
+        ),
+        dialogButton.click(),
+      ]);
+      expect(loaded.status()).toBe(200);
+      expect(await loaded.json()).toMatchObject({
+        recipeId: RECIPE_ID,
+        targetServings: 8,
+        defaultListId: A.groceryList,
+        ingredients: [{ ingredientId: TOMATOES, name: "Tomatoes" }],
+      });
+      await expect(review).toBeVisible();
+      await expect(review.getByText("Loading ingredients…")).toHaveCount(0);
+      await expect(
+        review.getByText("For 8 servings", { exact: true }),
+      ).toBeVisible();
+      await expect(review.getByLabel("Destination list")).toHaveValue(
+        A.groceryList,
+      );
+      await expect(review.getByRole("checkbox")).toHaveCount(1);
+      await expect(
+        review.getByRole("checkbox", { name: /^Tomatoes / }),
+      ).toBeChecked();
+      await expect(confirm).toBeEnabled();
+      expect(mutations).toBe(0);
+      expect(await tomatoRows(page)).toHaveLength(0);
+    };
+    const expectNoIdempotencyRecords = async () => {
+      const records = await withDb((db) =>
+        db.query(
+          `SELECT id FROM "IdempotencyRecord" WHERE family_id = $1 AND action = 'grocery.add-from-recipe'`,
+          [A.family],
+        ),
+      );
+      expect(records.rows).toEqual([]);
+    };
+
+    await openReview();
+    await expectNoIdempotencyRecords();
+    await review.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(review).toBeHidden();
+    expect(mutations).toBe(0);
+    expect(await tomatoRows(page)).toHaveLength(0);
+    await expectNoIdempotencyRecords();
+    await openReview();
+    await expectNoIdempotencyRecords();
+
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) =>
           r.url().includes("/api/lists/items/from-recipe") &&
           r.request().method() === "POST",
       ),
-      dialogButton.click(),
+      confirm.click(),
     ]);
     expect(response.status()).toBe(201);
+    expect(mutations).toBe(1);
+    await expect(review).toBeHidden();
     const key = response.request().headers()["idempotency-key"];
     expect(key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
     const sentBody = response.request().postData();
     expect(JSON.parse(sentBody ?? "{}")).toEqual({
       recipeId: RECIPE_ID,
       mealId: MEAL_ID,
+      listId: A.groceryList,
+      ingredientIds: [TOMATOES],
     });
     const first = await response.json();
     expect(first).toMatchObject({

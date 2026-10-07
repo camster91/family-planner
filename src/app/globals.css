@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 /* ============================================================
-   Herewoven — working-draft semantic design tokens
-   Cozy, crafted, editorial: warm cream paper, aubergine ink,
-   terracotta highlights, sage for success, mustard accents.
+   Herewoven — approved Woven Grove semantic design tokens
+   Chalk and Forest Ink, Evergreen actions, Clay Coral accents,
+   Soft Iris and Pollen support. Status shades are contrast-safe derivatives.
    Palette, contrast ratios and illustration rules:
    docs/product/BRAND.md. Token names are kept from the
    earlier Apple HIG-aligned set; new: --on-accent,
@@ -17,42 +17,49 @@
 
 @layer base {
   :root {
-    /* === Type families (next/font sets --font-fraunces and --font-inter on <html> in layout.tsx) === */
-    --font-family-serif: var(--font-fraunces), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-    --font-family-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    /* === Type families (next/font sets --font-newsreader and --font-manrope on <html> in layout.tsx) === */
+    --font-family-serif: var(--font-newsreader), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --font-family-sans: var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
-    /* === Surfaces (light mode): cream paper with warm white cards === */
+    /* Six approved Woven Grove swatches. Support colors are not body text. */
+    --brand-chalk: #F7F4EC;
+    --brand-forest-ink: #182D2A;
+    --brand-evergreen: #245B50;
+    --brand-clay-coral: #D76C50;
+    --brand-soft-iris: #C7B8E6;
+    --brand-pollen: #E6BD55;
+
+    /* === Surfaces (light mode): Chalk with quiet warm-white cards === */
     --surface-base: #FFFDF9;
     --surface-elevated: #FFFDF9;
-    --surface-grouped: #FBF7F0;          /* cream page */
+    --surface-grouped: #F7F4EC;          /* cream page */
     --surface-grouped-secondary: #FFFDF9;
     --surface-fill: rgba(122, 98, 64, 0.10);
     --surface-fill-secondary: rgba(122, 98, 64, 0.06);
     --surface-separator: rgba(50, 44, 67, 0.14);
     --surface-separator-opaque: #E6DDCC;
-    --control-border: #8B7B90;          /* Interactive boundary, not a decorative separator. */
+    --control-border: #75877D;          /* Interactive boundary, not a decorative separator. */
     --surface-overlay: rgba(23, 20, 32, 0.45);
 
-    /* === Label (text) colours: aubergine ink ===
+    /* === Label (text) colours: Forest Ink ===
        Solid colours (not alpha) so every pair has one known ratio.
        Ratios are measured by the contrast gate rather than copied here. */
-    --label-primary: #322C43;
-    --label-secondary: #645870;
-    --label-tertiary: #6D6075;
-    --label-quaternary: #6D6075;
+    --label-primary: #182D2A;
+    --label-secondary: #425C55;
+    --label-tertiary: #52675F;
+    --label-quaternary: #52675F;
     --label-inverse: #FFFDF9;
 
     /* === Accent ===
-       --accent-fill: primary actions. Aubergine behind warm paper text.
-       --accent-text: links, tinted buttons, active states. Terracotta,
-         5.71:1 on cream, 4.97:1 on --accent-tint over cream.
+       --accent-fill: Evergreen primary actions behind warm-paper text.
+       --accent-text: Evergreen links, tinted buttons and active states.
        --on-accent: text and icons on --accent-fill. */
-    --accent-text: #A3452A;
-    --accent-fill: #322C43;
-    --accent-fill-hover: #443B58;
-    --accent-fill-pressed: #262033;
-    --accent-tint: rgba(196, 98, 61, 0.12);
-    --accent-tint-strong: rgba(196, 98, 61, 0.20);
+    --accent-text: #245B50;
+    --accent-fill: #245B50;
+    --accent-fill-hover: #1D4A41;
+    --accent-fill-pressed: #163C34;
+    --accent-tint: rgba(36, 91, 80, 0.12);
+    --accent-tint-strong: rgba(36, 91, 80, 0.20);
     --on-accent: #FFFDF9;
     /* Backwards-compat: --accent is the text variant. */
     --accent: var(--accent-text);
@@ -60,27 +67,23 @@
     --accent-pressed: var(--accent-fill-pressed);
 
     /* Terracotta and mustard as brand decoration (rules, badges, art). */
-    --brand-terracotta: #C4623D;
-    --brand-mustard: #D9A33A;
-    --brand-sage: #8FB283;
-    --brand-navy: #1F2A44;
-    --brand-aubergine: #322C43;
-    --brand-cream: #FBF7F0;
+    --brand-terracotta: var(--brand-clay-coral);
+    --brand-mustard: var(--brand-pollen);
+    --brand-sage: var(--brand-evergreen);
+    --brand-navy: var(--brand-forest-ink);
+    --brand-aubergine: var(--brand-forest-ink);
+    --brand-cream: var(--brand-chalk);
 
-    /* Focus ring: a 2px gap in the surface colour, then a 2px terracotta
-       ring. 3.81:1 against cream, so it shows on cream pages and around
-       aubergine buttons alike (WCAG 2.4.11 / 1.4.11). */
-    --focus-ring: #C4623D;
+    /* Focus ring: surface gap then Evergreen, lifted in dark mode. */
+    --focus-ring: #245B50;
 
-    /* === Semantic ===
-       --success is the sage fill: white check 5.56:1. --success-text is
-       for text (5.20:1 on cream). */
-    --success: #4E7148;
-    --success-text: #4E7148;             /* text; lighter sage in dark mode */
-    --success-tint: rgba(110, 145, 100, 0.16);
-    --warning: #D9A33A;                  /* mustard, decoration only */
-    --warning-tint: rgba(217, 163, 58, 0.18);
-    --danger: #C2412D;                   /* decoration only */
+    /* Semantic colors have independent text/fill roles; never coral body text. */
+    --success: #245B50;
+    --success-text: #245B50;             /* text; lighter sage in dark mode */
+    --success-tint: rgba(36, 91, 80, 0.16);
+    --warning: var(--brand-pollen);                  /* mustard, decoration only */
+    --warning-tint: rgba(230, 189, 85, 0.18);
+    --danger: var(--brand-clay-coral);                   /* decoration only */
     --danger-tint: rgba(194, 65, 45, 0.10);
 
     /* Text-safe semantic variants (#131): --warning/--danger above are for
@@ -89,7 +92,7 @@
     --danger-text: #A8261B;              /* 6.65:1 on cream, 5.82:1 on danger-tint */
     --danger-fill: #A8261B;              /* cream text 6.97:1 */
     --danger-fill-pressed: #8C1F16;
-    --on-warning: #1F2A44;               /* Retained status ink on mustard. */
+    --on-warning: #182D2A;               /* Retained status ink on mustard. */
 
     /* === Family module tints (glyphs, avatars, member colours) ===
        Earthy versions of the old hues, still distinct from each other.
@@ -136,50 +139,49 @@
     --duration-slow: 420ms;
   }
 
-  /* Dark mode: aubergine paper, warm cream ink, the same accents lifted. */
+  /* Dark mode: deep forest surfaces and lifted Evergreen action shades. */
   .dark {
-    --surface-base: #171420;
-    --surface-elevated: #231E2E;
-    --surface-grouped: #171420;
-    --surface-grouped-secondary: #231E2E;
+    --surface-base: #11211E;
+    --surface-elevated: #182D2A;
+    --surface-grouped: #11211E;
+    --surface-grouped-secondary: #182D2A;
     --surface-fill: rgba(232, 220, 196, 0.10);
     --surface-fill-secondary: rgba(232, 220, 196, 0.06);
     --surface-separator: rgba(232, 220, 196, 0.14);
-    --surface-separator-opaque: #433B51;
-    --control-border: #998AAB;
+    --surface-separator-opaque: #405B51;
+    --control-border: #8EA99C;
     --surface-overlay: rgba(5, 8, 15, 0.6);
-    /* Warm labels on elevated aubergine paper. */
-    --label-primary: #F5EEDF;
-    --label-secondary: #D5CCBB;
-    --label-tertiary: #B3AA9A;
-    --label-quaternary: #A39B8C;
-    --label-inverse: #171420;
+    /* Chalk and quiet green-grey labels on Forest Ink. */
+    --label-primary: #F7F4EC;
+    --label-secondary: #D0DDD6;
+    --label-tertiary: #AFBDB6;
+    --label-quaternary: #AFBDB6;
+    --label-inverse: #11211E;
 
-    /* Text: light terracotta, 7.01:1 on cards. Fill: lifted aubergine
-       with cream text (5.27:1); distinct from the red destructive fill. */
-    --accent-text: #F09A76;
-    --accent-fill: #796397;
-    --accent-fill-hover: #705A8E;
-    --accent-fill-pressed: #665180;
-    --accent-tint: rgba(240, 154, 118, 0.16);
-    --accent-tint-strong: rgba(240, 154, 118, 0.20);
+    /* Lifted green text and fills remain distinct from destructive red. */
+    --accent-text: #A4CBBE;
+    --accent-fill: #397D6E;
+    --accent-fill-hover: #347365;
+    --accent-fill-pressed: #2E685B;
+    --accent-tint: rgba(164, 203, 190, 0.16);
+    --accent-tint-strong: rgba(164, 203, 190, 0.20);
     --on-accent: #FFFDF9;
     --accent: var(--accent-text);
     --accent-hover: var(--accent-fill-hover);
     --accent-pressed: var(--accent-fill-pressed);
 
-    --focus-ring: #F09A76;               /* 7.94:1 on navy */
+    --focus-ring: #A4CBBE;               /* 7.94:1 on navy */
 
-    --success: #76996A;                  /* fill: white check 3.21:1 */
-    --success-text: #9DBF8E;             /* 7.51:1 on cards */
-    --success-tint: rgba(143, 178, 131, 0.16);
-    --warning-tint: rgba(230, 185, 79, 0.18);
+    --success: #4B8F7D;                  /* fill: white check 3.21:1 */
+    --success-text: #A4CBBE;             /* 7.51:1 on cards */
+    --success-tint: rgba(164, 203, 190, 0.16);
+    --warning-tint: rgba(230, 189, 85, 0.18);
     --danger-tint: rgba(242, 140, 122, 0.16);
 
-    --tint-lists-text: #9DBF8E;          /* 7.51:1 on cards */
-    --tint-rewards-text: #F2B880;        /* 8.73:1 on cards */
+    --tint-lists-text: #A4CBBE;          /* 7.51:1 on cards */
+    --tint-rewards-text: #E6BD55;        /* 8.73:1 on cards */
 
-    --warning-text: #E6B94F;             /* 8.34:1 on cards */
+    --warning-text: #E6BD55;             /* 8.34:1 on cards */
     --danger-text: #F28C7A;              /* 6.44:1 on cards */
 
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.20);
@@ -202,7 +204,7 @@
      Uses !important to beat Tailwind's @layer utilities which come
      later in the bundled CSS. */
   .text-gray-500 { color: var(--label-tertiary) !important; }
-  .text-green-600 { color: var(--success) !important; }
+  .text-green-600 { color: var(--success-text) !important; }
 
   body {
     background: var(--surface-grouped);
@@ -212,10 +214,11 @@
     letter-spacing: -0.011em;
   }
 
-  /* Fraunces for display text (large titles, the Today clock and date). */
+  /* Newsreader for display text (large titles, the Today clock and date). */
   .font-display {
+    font-weight: 600;
     font-family: var(--font-family-serif);
-    font-variation-settings: "SOFT" 50;
+    font-optical-sizing: auto;
     letter-spacing: -0.012em;
   }
 
@@ -226,15 +229,11 @@
 }
 
 @layer components {
-  /* === Type scale ===
-     Sizes are the Apple HIG scale. Titles are set in Fraunces (serif, soft
-     axis at 50 for the paper feel) with lighter tracking than the old
-     SF Pro settings: a serif needs less negative letter-spacing. Text below
-     title-3 stays in Inter. */
-  .text-large-title { font-size: 34px; line-height: 41px; font-weight: 600; letter-spacing: -0.014em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
-  .text-title-1 { font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.012em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
-  .text-title-2 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.008em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
-  .text-title-3 { font-size: 20px; line-height: 25px; font-weight: 600; letter-spacing: -0.004em; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; }
+  /* Existing operational scale. Newsreader 600 headings, Manrope body/UI. */
+  .text-large-title { font-size: 34px; line-height: 41px; font-weight: 600; letter-spacing: -0.014em; font-family: var(--font-family-serif); font-optical-sizing: auto; }
+  .text-title-1 { font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.012em; font-family: var(--font-family-serif); font-optical-sizing: auto; }
+  .text-title-2 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.008em; font-family: var(--font-family-serif); font-optical-sizing: auto; }
+  .text-title-3 { font-size: 20px; line-height: 25px; font-weight: 600; letter-spacing: -0.004em; font-family: var(--font-family-serif); font-optical-sizing: auto; }
   .text-headline { font-size: 17px; line-height: 22px; font-weight: 600; }
   .text-body { font-size: 17px; line-height: 22px; font-weight: 400; }
   .text-callout { font-size: 16px; line-height: 21px; font-weight: 400; }
@@ -335,7 +334,7 @@
     font-size: 17px;
     transition: opacity 200ms var(--spring-default), box-shadow 200ms var(--spring-default);
   }
-  .btn-plain:active { opacity: 0.6; }
+  .btn-plain:active { background: var(--accent-tint); }
   .btn-plain:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
   .btn-ghost {
@@ -529,7 +528,7 @@
     backdrop-filter: saturate(180%) blur(20px);
     border-top: 1px solid var(--surface-separator);
   }
-  .dark .tab-bar { background: rgba(27, 37, 56, 0.9); }
+  .dark .tab-bar { background: rgba(24, 45, 42, 0.9); }
 
   /* === Progress ring === */
   .progress-ring {
@@ -543,13 +542,15 @@
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
   }
-  .dark .glass { background: rgba(35, 30, 46, 0.85); }
+  .dark .glass { background: rgba(24, 45, 42, 0.85); }
 }
 
 /* Herewoven marketing and account surfaces. Scoped so operational density
    and existing card/input/button aliases remain compatible. */
 @layer components {
-  .brand-wordmark { display: inline-flex; align-items: center; gap: 0.65rem; font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; font-size: 1.65rem; font-weight: 600; letter-spacing: -0.045em; color: var(--label-primary); }
+  .brand-mark { background: var(--brand-chalk); object-fit: contain; filter: none; box-shadow: none; flex-shrink: 0; border-radius: 8px; }
+  .woven-grove-art { background: var(--brand-chalk); object-fit: contain; }
+  .brand-wordmark { display: inline-flex; align-items: center; gap: 0.65rem; font-family: var(--font-family-serif); font-optical-sizing: auto; font-size: 1.65rem; font-weight: 600; letter-spacing: -0.045em; color: var(--label-primary); }
   .marketing-width { width: min(100% - 3rem, 1240px); margin-inline: auto; }
   .marketing-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.5rem; border-bottom: 1px solid var(--surface-separator); }
   .marketing-header nav { display: flex; align-items: center; gap: 1.5rem; }
@@ -560,15 +561,15 @@
   .marketing-skip:focus { transform: translateY(0); }
   .marketing-hero { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: clamp(2rem, 5vw, 5rem); padding-block: 4rem 5rem; }
   .marketing-eyebrow { font-size: 0.75rem; line-height: 1.5; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 1.25rem; }
-  .marketing-hero h1 { font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; font-size: clamp(2.75rem, 4.6vw, 4.75rem); line-height: 1.04; letter-spacing: -0.035em; font-weight: 600; text-wrap: balance; max-width: 10ch; }
+  .marketing-hero h1 { font-family: var(--font-family-serif); font-optical-sizing: auto; font-size: clamp(2.75rem, 4.6vw, 4.75rem); line-height: 1.04; letter-spacing: -0.035em; font-weight: 600; text-wrap: balance; max-width: 10ch; }
   .marketing-intro { margin-top: 1.75rem; font-size: 1.125rem; line-height: 1.65; color: var(--label-secondary); max-width: 38ch; }
   .marketing-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 2rem; }
   .marketing-note { color: var(--label-tertiary); font-size: 0.875rem; line-height: 1.65; margin-top: 1.25rem; max-width: 45ch; }
   .marketing-hero-art { min-width: 0; }
-  .marketing-hero-art :is(img, video) { width: 100%; height: auto; aspect-ratio: 1.14; object-fit: cover; object-position: 74% center; border-radius: 50% 50% 1rem 1rem; }
+  .marketing-hero-art :is(img, video) { width: 100%; height: auto; aspect-ratio: 2560 / 1664; object-fit: contain; border-radius: var(--radius-xl); }
   .marketing-hero-art > p { font-size: 0.75rem; line-height: 1.5; color: var(--label-tertiary); margin: 1rem 0 0; text-align: right; }
   .marketing-day { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(2rem, 7vw, 7rem); padding-block: 5rem; border-top: 1px solid var(--surface-separator); align-items: start; scroll-margin-top: 2rem; }
-  .marketing-page h2 { font-family: var(--font-family-serif); font-variation-settings: "SOFT" 50; font-size: clamp(2rem, 3.1vw, 3rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.025em; text-wrap: balance; }
+  .marketing-page h2 { font-family: var(--font-family-serif); font-optical-sizing: auto; font-size: clamp(2rem, 3.1vw, 3rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.025em; text-wrap: balance; }
   .marketing-section-copy > p:not(.marketing-eyebrow), .marketing-shared p:not(.marketing-eyebrow), .marketing-start p:not(.marketing-eyebrow) { color: var(--label-secondary); line-height: 1.7; margin-top: 1.5rem; max-width: 48ch; }
   .marketing-task-list { margin-top: 2.5rem; }
   .marketing-task-list > div { padding-block: 1.25rem; border-top: 1px solid var(--surface-separator); }
@@ -601,7 +602,7 @@
   .auth-layout { min-height: 100svh; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: auto 1fr; }
   .auth-brand-header { grid-column: 2; padding: 2rem clamp(1.5rem, 5vw, 5rem); }
   .auth-art { grid-column: 1; grid-row: 1 / 3; position: relative; overflow: hidden; background: var(--brand-cream); }
-  .auth-art-caption { position: absolute; inset: auto 2rem 2rem; padding: 1.5rem; border-radius: var(--radius-lg); color: #322C43; background: #FFFDF9; }
+  .auth-art-caption { position: absolute; inset: auto 2rem 2rem; padding: 1.5rem; border-radius: var(--radius-lg); color: #182D2A; background: #FFFDF9; }
   .auth-art-caption p { font: 600 clamp(1.75rem, 3vw, 2.75rem)/1.15 var(--font-family-serif); letter-spacing: -0.025em; max-width: 14ch; }
   .auth-main { min-width: 0; grid-column: 2; display: flex; flex-direction: column; justify-content: center; padding: 1rem clamp(1.5rem, 5vw, 5rem) 3rem; }
   .auth-page { width: 100%; margin-inline: auto; padding-block: 1rem; }
@@ -636,7 +637,7 @@
     .marketing-intro { font-size: 1rem; margin-top: 1.25rem; }
     .marketing-actions { align-items: stretch; }
     .marketing-actions .btn-filled { font-size: 1rem; }
-    .marketing-hero-art :is(img, video) { aspect-ratio: 1.6; border-radius: var(--radius-xl); }
+    .marketing-hero-art :is(img, video) { aspect-ratio: 2560 / 1664; border-radius: var(--radius-xl); }
     .marketing-hero-art > p { text-align: left; }
     .marketing-day, .marketing-shared { grid-template-columns: minmax(0, 1fr); padding-block: 3rem; gap: 2rem; }
     .marketing-start { padding-block: 3rem; }
@@ -664,16 +665,16 @@
      6.39:1, tertiary/link 4.73:1. Use with a breakpoint (lg:on-paper)
      when the art is only behind the text at that size. */
   .on-paper {
-    --label-primary: #322C43;
+    --label-primary: #182D2A;
     --label-secondary: #3A4258;
     --label-tertiary: #3A4258;
     --accent-text: #8F3C22;
-    --accent-fill: #322C43;
-    --accent-fill-hover: #443B58;
-    --accent-fill-pressed: #262033;
+    --accent-fill: #245B50;
+    --accent-fill-hover: #1D4A41;
+    --accent-fill-pressed: #163C34;
     --on-accent: #FFFDF9;
     --focus-ring: #8F3C22;
-    --surface-elevated: #FBF7F0;
+    --surface-elevated: #F7F4EC;
     color: var(--label-primary);
   }
 

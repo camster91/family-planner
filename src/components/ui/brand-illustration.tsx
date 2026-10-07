@@ -45,21 +45,20 @@ export function BrandIllustration({
 }
 
 /**
- * The Family Planner house mark (public/favicon.svg): cream house, terracotta
- * roof and heart window on deep navy. Decorative; the product name or page
- * heading next to it carries the meaning.
+ * The approved Woven Grove transparent symbol. The Chalk backing preserves
+ * its original colors in dark mode; no reverse, filters or redraws.
  */
 export function BrandMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- 1 KB static SVG; no optimiser needed
     <img
-      src="/favicon.svg"
+      src="/brand/woven-grove/logos/herewoven-symbol.svg"
       alt=""
       aria-hidden="true"
       width={size}
       height={size}
       draggable={false}
-      className={cn('select-none', className)}
+      className={cn('brand-mark select-none', className)}
     />
   )
 }

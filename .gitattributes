@@ -1,2 +1,10 @@
 *.sh text eol=lf
 *.bash text eol=lf
+
+# Preserve approved/generated asset and upstream font-notice bytes on every OS.
+public/brand/woven-grove/** -text
+# Repository-authored provenance JSON remains normal LF text.
+public/brand/woven-grove/*.json text eol=lf
+src/app/fonts/** -text
+# The unmodified upstream SIL notices contain one intentional end-of-line space.
+src/app/fonts/*-OFL.txt whitespace=-blank-at-eol

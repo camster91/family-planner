@@ -16,6 +16,7 @@ export interface BrandIllustrationSource {
 const dir = '/brand/illustrations'
 
 export const ILLUSTRATIONS = {
+  wovenGrove: { src: '/brand/woven-grove/graphics/herewoven-woven-graphic.svg', width: 2560, height: 1664 },
   choresClear: { src: `${dir}/chores-clear.webp`, width: 480, height: 362 },
   calendarEmpty: { src: `${dir}/calendar-empty.webp`, width: 480, height: 402 },
   mealsEmpty: { src: `${dir}/meals-empty.webp`, width: 480, height: 361 },
