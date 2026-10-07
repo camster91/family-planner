@@ -78,7 +78,7 @@
     "postcss": "^8.5.28",
     "prettier": "^3.9.9",
     "prisma": "^7.9.1",
-    "tailwindcss": "^4.3.3",
+    "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "ts-jest": "^29.4.14",
     "typescript": "^5.3.3"
@@ -88,7 +88,8 @@
       "deepmerge-ts": "^8.0.2"
     },
     "mysql2": "^3.24.4",
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "postcss-selector-parser": "7.1.6"
   },
   "keywords": [
     "family",
