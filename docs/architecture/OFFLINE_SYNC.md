@@ -409,3 +409,14 @@ also receive the existing slow full refresh. This is browser convergence, not na
 The recovery row above uses a previously rendered item. Generic recovery for a deleted queued item
 whose list/content is unknown after a full browser restart remains a separate #135 follow-up; no
 new title/list context was added to the persisted checked-action payload in this slice.
+
+### Person tick recovery after restart
+
+The Lists index offers a deliberate review of this signed-in person's saved tick/untick operations,
+including those whose rows or lists no longer exist. Opening the review loads the existing queue
+and resumes its normal bounded replay. It never guesses which list an unknown item belongs to or
+calls it deleted without canonical evidence. Labels show desired state, queued time and send state;
+item content, IDs and keys are not displayed or copied. Failed/conflicted ticks can retry through the
+existing queue; a confirmed discard removes only that operation. In-flight sends cannot be discarded.
+No new payload fields, storage version, endpoint, retry policy or device-queue access is introduced.
+This resolves browser access to unknown-row recovery; physical Android process-death remains unverified.
