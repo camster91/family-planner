@@ -370,3 +370,20 @@ as healthy. A failed clipboard copy leaves the selectable report on screen. The 
 same projection internally, but personal Help never reads another person's queue or the device namespace.
 This supports local troubleshooting; it does not establish cross-device/fleet telemetry, persistent
 historical rates, consent for transmission, native restart acceptance or the rest of #135/#140.
+
+## Grocery field edits and stale-view recovery (#135 follow-up)
+
+Implementation reference for the bounded online editor: use the existing list row and shared Dialog
+patterns; persist no editor draft and add no offline edit action. A fresh canonical `updated_at` is
+the edit precondition, checked under the existing item row lock. Every real canonical item update
+advances this server version even within the same millisecond or if server wall time moves backward;
+a no-op tick leaves it unchanged. New editing requests require this precondition and a stable
+idempotency key. Existing generic updates and installed tick clients remain compatible.
+
+The editor changes only name/text and whole-number quantity. Pending writes disable editing and
+dismissal. A lost response retains the exact body/key for explicit retry; no premature saved claim.
+A stale version blocks saving and offers canonical refresh plus an explicit use-current-values
+action, while retaining the draft for comparison. A deleted item cannot be recreated by editing.
+Use household authentication/feature permissions and the canonical writer; no new schema/provider.
+The version is server data, never a client clock or a caller-controlled new timestamp. This advances
+the collaborative-field requirement; native and fleet acceptance still need their own evidence.

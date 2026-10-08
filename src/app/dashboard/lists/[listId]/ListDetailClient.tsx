@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
+import { EditGroceryDialog, type EditableGrocery } from './EditGroceryDialog'
 import { Plus, CheckSquare, CloudOff, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CheckboxRow } from '@/components/ui/checkbox-row'
@@ -33,6 +35,7 @@ interface Item {
   id: string
   content: string
   checked: boolean
+  updated_at?: string
   quantity: number
   category: string | null
   added_by: { name: string }
@@ -76,6 +79,7 @@ function toItem(raw: Record<string, unknown>): Item {
     id: String(raw.id),
     content: String(raw.content ?? ''),
     checked: raw.checked === true,
+    updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : undefined,
     quantity: typeof raw.quantity === 'number' ? raw.quantity : 1,
     category: typeof raw.category === 'string' ? raw.category : null,
     added_by: { name: 'You' },
@@ -113,6 +117,8 @@ export default function ListDetailClient({
   canDeleteItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
 }: ListDetailClientProps) {
+  const router = useRouter()
+  const [editTarget, setEditTarget] = React.useState<EditableGrocery | null>(null)
   const [listItems, setListItems] = React.useState<Item[]>(initialItems)
   const localDeletes = React.useRef(new Set<string>())
   const pendingDeletes = React.useRef(new Set<string>())
@@ -158,6 +164,7 @@ export default function ListDetailClient({
           checked_by: confirmed ? i.checked_by : undefined,
         }
       : i))
+    router.refresh()
     setRecentlySynced(prev => new Set(prev).add(itemId))
     window.setTimeout(() => {
       setRecentlySynced(prev => {
@@ -366,6 +373,11 @@ export default function ListDetailClient({
     if (e.key === 'Enter') handleAdd()
   }
 
+  const editItem = editTarget ? listItems.find(item => item.id === editTarget.id) : undefined
+  const currentEdit: EditableGrocery | null = editItem?.updated_at
+    ? { id: editItem.id, content: editItem.content, quantity: editItem.quantity, updated_at: editItem.updated_at }
+    : null
+
   const renderRow = (item: Item, isLast: boolean) => {
     const op = sync.stateFor(item.id)
     const checked = displayChecked(item)
@@ -396,6 +408,18 @@ export default function ListDetailClient({
                 className={cn(isLast && !needsAction(op) && 'border-b-0')}
               />
             </div>
+            {isGrocery && item.updated_at && (
+              <button
+                type="button"
+                disabled={Boolean(op)}
+                onClick={() => setEditTarget({ id: item.id, content: item.content, quantity: item.quantity, updated_at: item.updated_at! })}
+                aria-label={`Edit ${item.content}`}
+                aria-haspopup="dialog"
+                className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+              >
+                Edit
+              </button>
+            )}
             {storeSort && !checked && (
               <button
                 type="button"
@@ -520,6 +544,15 @@ export default function ListDetailClient({
         />
       )}
 
+      {editTarget && (
+        <EditGroceryDialog
+          initial={editTarget}
+          current={currentEdit}
+          online={sync.online}
+          onClose={() => setEditTarget(null)}
+          onRefresh={() => router.refresh()}
+        />
+      )}
       <MoveToSectionDialog
         target={moveTarget}
         pending={movePending}

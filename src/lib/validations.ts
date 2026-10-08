@@ -217,6 +217,7 @@ export const createListItemSchema = z.object({
 
 export const updateListItemSchema = z.object({
   itemId: z.string().min(1),
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
   checked: z.boolean().optional(),
   content: z.string().trim().min(1).max(500).optional(),
   quantity: z.number().int().min(1).max(9999).optional(),

@@ -92,6 +92,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     id: item.id,
     content: item.content,
     checked: item.checked,
+    updated_at: item.updated_at.toISOString(),
     quantity: item.quantity ?? 1,
     category: item.category ?? null,
     added_by: item.adder ?? { name: 'Unknown' },

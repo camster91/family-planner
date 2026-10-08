@@ -643,3 +643,26 @@ legacy/isolation/import tests.
 
 ## Testing
 Contract tests should cover validation, happy path, unauthorized/forbidden, foreign-family IDs, not-found semantics, duplicate retry, concurrency conflict, pagination and old-client fixtures when relevant.
+
+## Versioned personal list field edits (#135)
+
+`PATCH /api/lists/items/edit` is additive, person-session only and lists-feature gated. It requires
+an `Idempotency-Key` (action `list-item.edit`, scope `user:<id>`) and a strict body:
+`{ itemId, expectedUpdatedAt, content, quantity }`. The item ID uses the existing canonical shape;
+`expectedUpdatedAt` is the ISO server `updated_at` read with the item, content is trimmed to
+1–500 characters, and quantity is an integer from 1–9999. No unchecked toggle, notes, price or
+caller-assigned new timestamp is accepted. The browser exposes it for grocery/shopping rows;
+the route preserves the existing owned-list edit permission for all member roles/list types.
+
+Current authentication, feature state and item ownership/existence are checked before replay.
+The canonical writer repeats ownership and checks the precondition under its item row lock.
+A changed version returns 409 `LIST_ITEM_CHANGED` with no current household values; deleted items
+return 404 and are never recreated. Successful retries replay the stored response, not another
+write. A replay may describe an older row, so clients refresh canonical data on confirmation.
+409 is not retained as success; adopting a newly read version starts a new key/intent.
+
+The existing `/api/lists/items/update` accepts the version precondition optionally, keeping old
+installed tick clients compatible. All canonical item writes advance a server-owned monotonic
+millisecond `updated_at`; unchanged ticks retain it. The editor persists no draft and registers
+no offline edit action. An uncertain save retains its exact body/key in memory for explicit retry;
+closing it refreshes the list. No new schema, provider or native cold-start guarantee is introduced.
