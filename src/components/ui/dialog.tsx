@@ -27,8 +27,11 @@ export function Dialog({
   testId,
   initialFocusRef,
   role = "dialog",
+  closeLabel = "Close",
 }: {
   open: boolean;
+  /** Localized accessible label; defaults to the existing English label. */
+  closeLabel?: string;
   /** Omit to make the dialog non-dismissible (no close button, no Escape). */
   onClose?: () => void;
   title: string;
@@ -166,7 +169,7 @@ export function Dialog({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={closeLabel}
               className="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-label-secondary hover:bg-[var(--surface-fill)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
             >
               <X className="h-5 w-5" aria-hidden="true" />

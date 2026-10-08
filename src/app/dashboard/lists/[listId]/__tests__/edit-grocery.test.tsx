@@ -1,8 +1,23 @@
 /** @jest-environment jsdom */
+import "@testing-library/jest-dom";
 import * as React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  render as renderWithProvider,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { I18nProvider, useTranslation } from "@/i18n";
 import { EditGroceryDialog, type EditableGrocery } from "../EditGroceryDialog";
+
+function render(ui: React.ReactNode) {
+  return renderWithProvider(ui, {
+    wrapper: ({ children }) => (
+      <I18nProvider locale="en">{children}</I18nProvider>
+    ),
+  });
+}
 
 const initial: EditableGrocery = {
   id: "item-a",
@@ -172,4 +187,44 @@ it("pending writes prevent duplicate submit, input changes and dismissal", async
   expect(fetch).toHaveBeenCalledTimes(1);
   finish(response(200, { success: true }));
   await waitFor(() => expect(p.onClose).toHaveBeenCalled());
+});
+
+function LocaleButton() {
+  const { setLocale } = useTranslation();
+  return <button onClick={() => setLocale("es")}>Spanish</button>;
+}
+
+it("translates an uncertain save and retries the identical body and key after changing language", async () => {
+  jest
+    .mocked(fetch)
+    .mockRejectedValueOnce(new Error("Lost response"))
+    .mockResolvedValueOnce(response(200, { success: true }));
+  const p = props();
+  render(
+    <>
+      <LocaleButton />
+      <EditGroceryDialog {...p} />
+    </>,
+  );
+  await userEvent.clear(screen.getByLabelText("Item name"));
+  await userEvent.type(screen.getByLabelText("Item name"), "Leche 🥛");
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await screen.findByRole("button", { name: "Retry save" });
+  // Change provider context while the editor stays mounted and its intent is frozen.
+  act(() => screen.getByRole("button", { name: "Spanish" }).click());
+  await screen.findByRole("button", { name: "Reintentar guardado" });
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "No se pudo confirmar el guardado.",
+  );
+  expect(screen.getByLabelText("Nombre del artículo")).toHaveValue("Leche 🥛");
+  expect(screen.getByLabelText("Nombre del artículo")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cerrar" })).toBeVisible();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Reintentar guardado" }),
+  );
+  expect(jest.mocked(fetch).mock.calls[1]).toEqual(
+    jest.mocked(fetch).mock.calls[0],
+  );
+  expect(p.onClose).toHaveBeenCalledTimes(1);
+  expect(p.onRefresh).toHaveBeenCalledTimes(1);
 });

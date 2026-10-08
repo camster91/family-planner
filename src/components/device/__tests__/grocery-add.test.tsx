@@ -1,13 +1,15 @@
 /** @jest-environment jsdom */
+import * as React from "react";
 import "@testing-library/jest-dom";
 import {
   act,
   fireEvent,
-  render,
+  render as renderWithProvider,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import { I18nProvider, useTranslation } from "@/i18n";
 import { DeviceGroceryAdd } from "../DeviceGroceryAdd";
 import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import {
@@ -17,6 +19,22 @@ import {
   type OfflineQueue,
 } from "@/lib/offline-queue";
 import { deviceQueueSend } from "@/lib/offline-queue-browser";
+
+let changeLocale: (locale: "en" | "es") => void;
+function LocaleControl() {
+  changeLocale = useTranslation().setLocale;
+  return null;
+}
+function render(ui: React.ReactNode) {
+  return renderWithProvider(ui, {
+    wrapper: ({ children }) => (
+      <I18nProvider locale="en">
+        <LocaleControl />
+        {children}
+      </I18nProvider>
+    ),
+  });
+}
 
 let mockQueue: OfflineQueue;
 jest.mock("@/lib/offline-queue-browser", () => ({
@@ -75,16 +93,12 @@ function setup(
   return { ...view, props, request, prepare, afterChange };
 }
 async function open() {
-  fireEvent.click(
-    screen.getByRole("button", { name: "Add grocery" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Add grocery" }));
   return screen.findByRole("textbox", { name: "Item" });
 }
 async function add(text = "Milk") {
   fireEvent.change(await open(), { target: { value: text } });
-  fireEvent.click(
-    screen.getByRole("button", { name: "Add item" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Add item" }));
 }
 function connection(online: boolean) {
   Object.defineProperty(navigator, "onLine", {
@@ -221,9 +235,7 @@ it("requires an explicit list selection and fresh member selection", async () =>
 });
 it("shows personal-device setup when no list exists without creating a list or selecting a member", async () => {
   const { prepare, request } = setup({ lists: [] });
-  fireEvent.click(
-    screen.getByRole("button", { name: "Add grocery" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Add grocery" }));
   await screen.findByText(
     /Create a grocery list on your personal device first/,
   );
@@ -286,5 +298,45 @@ it("never offers discard while a send is in flight and reports no confirmation b
     resolve({});
     await mockQueue.drain();
   });
+  await screen.findByText("Item added to the grocery list.");
+});
+
+it("changes language without clearing a device draft, reattributing a queued add or resetting its key", async () => {
+  connection(false);
+  const { request, afterChange } = setup();
+  await add("Leche {name} 🥛");
+  await screen.findByText("Add queued. Check its status below.");
+  const stored = JSON.parse(saved!).ops[0];
+  fireEvent.change(await open(), { target: { value: "Next unsent draft" } });
+  act(() => changeLocale("es"));
+  expect(screen.getByRole("textbox", { name: "Artículo" })).toHaveValue(
+    "Next unsent draft",
+  );
+  expect(
+    screen.getByRole("combobox", { name: "Lista de compras" }),
+  ).toHaveValue("list-a");
+  expect(screen.getByRole("button", { name: "Cerrar" })).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "Añadidos de compras en espera" }),
+  ).toHaveTextContent("Leche {name} 🥛");
+  expect(JSON.parse(saved!).ops[0]).toEqual(stored);
+  expect(request).not.toHaveBeenCalled();
+  connection(true);
+  await act(async () => {
+    await mockQueue.handleOnline();
+  });
+  await screen.findByText("Artículo añadido a la lista de compras.");
+  expect(request).toHaveBeenCalledWith(
+    "/api/device/lists/list-a/items",
+    expect.objectContaining({
+      body: { content: "Leche {name} 🥛", actingMemberId: "member-a" },
+      headers: { "Idempotency-Key": stored.id },
+    }),
+  );
+  expect(afterChange).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("textbox", { name: "Artículo" })).toHaveValue(
+    "Next unsent draft",
+  );
+  act(() => changeLocale("en"));
   await screen.findByText("Item added to the grocery list.");
 });

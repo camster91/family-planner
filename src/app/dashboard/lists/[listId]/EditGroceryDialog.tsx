@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "@/i18n";
+import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 
@@ -34,11 +36,12 @@ export function EditGroceryDialog({
   onClose: () => void;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
   const [content, setContent] = React.useState(initial.content);
   const [quantity, setQuantity] = React.useState(String(initial.quantity));
   const [version, setVersion] = React.useState(initial.updated_at);
   const [pending, setPending] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<GroceryMessage | null>(null);
   const [conflict, setConflict] = React.useState(false);
   const [denied, setDenied] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
@@ -75,9 +78,7 @@ export function EditGroceryDialog({
     event.preventDefault();
     if (busy.current || blocked) return;
     if (!online || navigator.onLine === false) {
-      setError(
-        "You’re offline. Connect before saving. Your draft stays here while this window is open.",
-      );
+      setError("editOffline");
       return;
     }
     if (!intent.current) {
@@ -90,9 +91,7 @@ export function EditGroceryDialog({
         count < 1 ||
         count > 9999
       ) {
-        setError(
-          "Enter a name from 1 to 500 characters and a whole-number quantity from 1 to 9999.",
-        );
+        setError("editValidation");
         return;
       }
       try {
@@ -106,9 +105,7 @@ export function EditGroceryDialog({
           },
         };
       } catch {
-        setError(
-          "Couldn’t prepare a safe save. Keep this draft and try again.",
-        );
+        setError("editPrepare");
         return;
       }
     }
@@ -135,9 +132,7 @@ export function EditGroceryDialog({
       if (response.status === 401 || response.status === 403) {
         setDenied(true);
         setUncertain(false);
-        setError(
-          "You no longer have access to save this item. Close this window and sign in again.",
-        );
+        setError("editDenied");
       } else if (
         response.status === 409 ||
         response.status === 404 ||
@@ -145,11 +140,7 @@ export function EditGroceryDialog({
       ) {
         setConflict(true);
         setUncertain(false);
-        setError(
-          response.status === 404
-            ? "This item was removed. Refresh the list; this draft won’t add it back."
-            : "This item changed. Refresh the list and review the current values before saving again.",
-        );
+        setError(response.status === 404 ? "editRemoved" : "editConflict");
         onRefresh();
       } else if (
         response.status >= 500 ||
@@ -157,22 +148,16 @@ export function EditGroceryDialog({
         response.ok
       ) {
         setUncertain(true);
-        setError(
-          "We couldn’t confirm the save. Retry the same change, or close and check the list.",
-        );
+        setError("editUncertain");
       } else {
         intent.current = null;
         setUncertain(false);
-        setError(
-          "Couldn’t save these values. Review the name and quantity, then try again.",
-        );
+        setError("editInvalid");
       }
     } catch {
       if (mounted.current) {
         setUncertain(true);
-        setError(
-          "We couldn’t confirm the save. Retry the same change, or close and check the list.",
-        );
+        setError("editUncertain");
       }
     } finally {
       busy.current = false;
@@ -183,8 +168,9 @@ export function EditGroceryDialog({
   return (
     <Dialog
       open
-      title="Edit grocery item"
-      description="Change the name and quantity. Saving needs a connection."
+      closeLabel={t("groceries.close")}
+      title={t("groceries.editTitle")}
+      description={t("groceries.editDescription")}
       onClose={pending ? undefined : close}
     >
       <form onSubmit={(event) => void save(event)} className="space-y-4">
@@ -193,7 +179,7 @@ export function EditGroceryDialog({
             htmlFor={`${fieldId}-name`}
             className="block text-subhead font-semibold text-label-primary"
           >
-            Item name
+            {t("groceries.itemName")}
           </label>
           <input
             id={`${fieldId}-name`}
@@ -209,7 +195,7 @@ export function EditGroceryDialog({
             htmlFor={`${fieldId}-quantity`}
             className="block text-subhead font-semibold text-label-primary"
           >
-            Quantity
+            {t("groceries.quantity")}
           </label>
           <input
             id={`${fieldId}-quantity`}
@@ -225,20 +211,23 @@ export function EditGroceryDialog({
         </div>
         {!online && (
           <p role="status" className="text-subhead text-label-secondary">
-            You’re offline. Connect before saving.
+            {t("groceries.offlineHint")}
           </p>
         )}
         {missing ? (
           <p role="alert" className="text-subhead text-label-secondary">
-            This item is no longer on the list. Close this window to continue.
+            {t("groceries.missingHint")}
           </p>
         ) : (
           (changed || conflict) &&
           !denied && (
             <div className="rounded-xl bg-[var(--surface-fill)] p-3 text-subhead text-label-secondary">
-              <p>This item changed. Your draft is still above.</p>
+              <p>{t("groceries.changedHint")}</p>
               <p className="mt-2 break-words">
-                Current list: {current.content} · quantity {current.quantity}
+                {t("groceries.currentValues", {
+                  content: current.content,
+                  quantity: current.quantity,
+                })}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
@@ -247,7 +236,7 @@ export function EditGroceryDialog({
                   disabled={pending}
                   className="btn-tinted min-h-[44px] px-3"
                 >
-                  Refresh list
+                  {t("groceries.refresh")}
                 </button>
                 <button
                   type="button"
@@ -255,7 +244,7 @@ export function EditGroceryDialog({
                   disabled={pending || !changed}
                   className="btn-tinted min-h-[44px] px-3"
                 >
-                  Use current values
+                  {t("groceries.useCurrent")}
                 </button>
               </div>
             </div>
@@ -263,7 +252,7 @@ export function EditGroceryDialog({
         )}
         {error && (
           <p role="alert" className="text-subhead text-label-secondary">
-            {error}
+            {t(`groceries.${error}`)}
           </p>
         )}
         <div className="flex flex-wrap gap-2">
@@ -272,7 +261,11 @@ export function EditGroceryDialog({
             disabled={pending || blocked || !online}
             className="btn-tinted min-h-[44px] px-4"
           >
-            {pending ? "Saving…" : uncertain ? "Retry save" : "Save changes"}
+            {pending
+              ? t("groceries.saving")
+              : uncertain
+                ? t("groceries.retrySave")
+                : t("groceries.saveChanges")}
           </button>
           <button
             type="button"
@@ -280,7 +273,7 @@ export function EditGroceryDialog({
             disabled={pending}
             className="min-h-[44px] px-4 text-subhead text-label-secondary"
           >
-            {uncertain ? "Close and check list" : "Cancel"}
+            {uncertain ? t("groceries.closeCheck") : t("groceries.cancel")}
           </button>
         </div>
       </form>

@@ -1,9 +1,10 @@
 /** @jest-environment jsdom */
+import "@testing-library/jest-dom";
 import * as React from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderWithProvider,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -15,9 +16,18 @@ import {
   type QueueStore,
   type SendFn,
 } from "@/lib/offline-queue";
+import { I18nProvider, useTranslation } from "@/i18n";
 import { PersonGroceryAdd } from "../PersonGroceryAdd";
 import ListDetailClient from "../ListDetailClient";
 import { ToastProvider } from "@/components/ui/toast";
+
+function render(ui: React.ReactNode) {
+  return renderWithProvider(ui, {
+    wrapper: ({ children }) => (
+      <I18nProvider locale="en">{children}</I18nProvider>
+    ),
+  });
+}
 
 let mockQueue: OfflineQueue;
 const mockRefresh = jest.fn();
@@ -373,4 +383,63 @@ it("a deleted canonical row keeps its queued tick as disabled recovery until dis
     expect(screen.queryByRole("checkbox", { name: /Milk/ })).toBeNull(),
   );
   expect(mockQueue.list()).toHaveLength(0);
+});
+
+function LanguageSwitch() {
+  const { locale, setLocale } = useTranslation();
+  return (
+    <button onClick={() => setLocale(locale === "en" ? "es" : "en")}>
+      Switch language
+    </button>
+  );
+}
+
+it("updates queued and confirmed notices on locale change without losing drafts or changing the operation", async () => {
+  render(
+    <>
+      <LanguageSwitch />
+      <PersonGroceryAdd {...props} />
+    </>,
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "Add an item" }), {
+    target: { value: "Milk {quantity} 🥛" },
+  });
+  await userEvent.setup().click(screen.getByRole("button", { name: /^Add$/ }));
+  const queued = JSON.parse(raw!).ops[0];
+  const user = userEvent.setup();
+  await user.type(
+    screen.getByRole("textbox", { name: "Add an item" }),
+    "Next unsent draft",
+  );
+  await user.click(screen.getByRole("button", { name: "Switch language" }));
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Añadido en espera. Consulta su estado abajo.",
+  );
+  expect(
+    screen.getByRole("textbox", { name: "Añade un artículo" }),
+  ).toHaveValue("Next unsent draft");
+  expect(
+    screen.getByRole("group", {
+      name: "Opciones de sincronización para el añadido pendiente Milk {quantity} 🥛",
+    }),
+  ).toBeVisible();
+  expect(JSON.parse(raw!).ops[0]).toEqual(queued);
+  expect(send).not.toHaveBeenCalled();
+  await reconnect();
+  expect(send.mock.calls[0][0]).toMatchObject({
+    body: { listId: "list-a", content: "Milk {quantity} 🥛" },
+  });
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Añadido confirmado. Actualizando la lista.",
+  );
+  expect(
+    screen.getByRole("button", { name: "Actualizar lista" }),
+  ).toBeVisible();
+  expect(screen.getByRole("textbox")).toHaveValue("Next unsent draft");
+  await user.click(screen.getByRole("button", { name: "Switch language" }));
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Grocery add confirmed. Refreshing the list.",
+  );
+  await user.click(screen.getByRole("button", { name: "Refresh list" }));
+  expect(mockRefresh).toHaveBeenCalledTimes(2);
 });

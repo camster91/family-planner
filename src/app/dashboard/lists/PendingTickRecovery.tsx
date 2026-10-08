@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "@/i18n";
+import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { getPersonQueue } from "@/lib/offline-queue-browser";
 import {
@@ -11,12 +13,13 @@ import {
 
 /** Deliberate recovery independent of canonical list/item existence. No item content is stored here. */
 export default function PendingTickRecovery({ userId }: { userId: string }) {
+  const { t, locale } = useTranslation();
   const [open, setOpen] = React.useState(false);
   const [ops, setOps] = React.useState<CheckedQueuedOperation[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [confirm, setConfirm] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState("");
+  const [message, setMessage] = React.useState<GroceryMessage | null>(null);
   const queueRef = React.useRef<OfflineQueue | null>(null);
   const generation = React.useRef(0);
 
@@ -25,7 +28,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     setOps([]);
     setLoaded(false);
     setConfirm(null);
-    setMessage("");
+    setMessage(null);
     const queue = getPersonQueue(userId);
     queueRef.current = queue;
     let active = true;
@@ -45,9 +48,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
       update();
       if (active && event.type === "auth-lost") {
         setConfirm(null);
-        setMessage(
-          "Your session ended. Saved changes were cleared. Sign in again to continue.",
-        );
+        setMessage("tickAuthLost");
       }
     });
     void queue.ready.then(() => {
@@ -68,20 +69,15 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     if (!queue || busy) return;
     const current = generation.current;
     setBusy(true);
-    setMessage("");
+    setMessage(null);
     try {
       if (discard) await queue.discard(id);
       else await queue.retry(id);
       if (generation.current !== current) return;
       setConfirm(null);
-      setMessage(
-        discard
-          ? "Pending tick discarded. This does not undo a change already saved."
-          : "Retry requested. The change remains here until the server confirms it.",
-      );
+      setMessage(discard ? "tickDiscarded" : "tickRetryRequested");
     } catch {
-      if (generation.current === current)
-        setMessage("Could not update the saved change. Try again.");
+      if (generation.current === current) setMessage("tickUpdateFailed");
     } finally {
       if (generation.current === current) setBusy(false);
     }
@@ -96,12 +92,10 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
         id="pending-ticks-heading"
         className="text-title-3 text-label-primary"
       >
-        Waiting list changes
+        {t("groceries.tickSection")}
       </h2>
       <p className="text-[15px] text-label-secondary">
-        Review saved ticks on this browser, even if their list or item is no
-        longer available. Item names are not saved with ticks. Opening this view
-        also resumes normal syncing.
+        {t("groceries.tickHint")}
       </p>
       <button
         type="button"
@@ -111,13 +105,14 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
           setOps([]);
           setConfirm(null);
           setBusy(false);
-          setMessage("");
+          setMessage(null);
           setOpen(true);
         }}
       >
-        Review waiting ticks
+        {t("groceries.reviewTicks")}
       </button>
       <Dialog
+        closeLabel={t("groceries.close")}
         open={open}
         onClose={
           busy
@@ -127,13 +122,13 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                 setOpen(false);
               }
         }
-        title="Waiting ticks"
-        description="These are your changes on this browser. A waiting tick may belong to another list. Check your lists before discarding it."
+        title={t("groceries.tickTitle")}
+        description={t("groceries.tickDescription")}
       >
         {!loaded ? (
-          <p role="status">Loading saved ticks…</p>
+          <p role="status">{t("groceries.ticksLoading")}</p>
         ) : ops.length === 0 ? (
-          <p role="status">No saved ticks are waiting.</p>
+          <p role="status">{t("groceries.ticksEmpty")}</p>
         ) : (
           <ul className="space-y-4">
             {ops.map((op, index) => (
@@ -143,19 +138,25 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                 data-testid="pending-tick-recovery-row"
               >
                 <p className="font-medium text-label-primary">
-                  Change {index + 1}:{" "}
-                  {op.payload.checked ? "Tick an item" : "Untick an item"}
+                  {t("groceries.tickChange", {
+                    index: index + 1,
+                    action: op.payload.checked
+                      ? t("groceries.tick")
+                      : t("groceries.untick"),
+                  })}
                 </p>
                 <p className="text-sm text-label-secondary">
-                  Queued {new Date(op.createdAt).toLocaleString()}.{" "}
-                  {op.state === "syncing"
-                    ? "Sending"
-                    : op.state === "failed"
-                      ? "Failed"
-                      : op.state === "conflict"
-                        ? "Needs review"
-                        : "Waiting to sync"}
-                  .
+                  {t("groceries.tickQueued", {
+                    date: new Date(op.createdAt).toLocaleString(locale),
+                    state:
+                      op.state === "syncing"
+                        ? t("groceries.sending")
+                        : op.state === "failed"
+                          ? t("groceries.failed")
+                          : op.state === "conflict"
+                            ? t("groceries.needsReview")
+                            : t("groceries.waitingSync"),
+                  })}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {(op.state === "failed" || op.state === "conflict") && (
@@ -164,9 +165,11 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                       className="btn-secondary min-h-11"
                       disabled={busy}
                       onClick={() => void run(op.id, false)}
-                      aria-label={`Retry change ${index + 1}`}
+                      aria-label={t("groceries.retryChange", {
+                        index: index + 1,
+                      })}
                     >
-                      Retry
+                      {t("groceries.retry")}
                     </button>
                   )}
                   <button
@@ -174,9 +177,11 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                     className="btn-secondary min-h-11"
                     disabled={busy || op.state === "syncing"}
                     onClick={() => setConfirm(op.id)}
-                    aria-label={`Discard change ${index + 1}`}
+                    aria-label={t("groceries.discardChange", {
+                      index: index + 1,
+                    })}
                   >
-                    Discard
+                    {t("groceries.discard")}
                   </button>
                 </div>
               </li>
@@ -184,14 +189,15 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
           </ul>
         )}
         <p role="status" className="text-sm text-label-secondary">
-          {message}
+          {message ? t(`groceries.${message}`) : ""}
         </p>
         <Dialog
+          closeLabel={t("groceries.close")}
           open={confirm !== null}
           onClose={busy ? undefined : () => setConfirm(null)}
           role="alertdialog"
-          title="Discard this pending tick?"
-          description="This removes the saved retry from this browser. It does not undo a change already saved on the server."
+          title={t("groceries.discardTitle")}
+          description={t("groceries.discardDescription")}
         >
           <div className="flex flex-wrap gap-2">
             <button
@@ -200,7 +206,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
               disabled={busy}
               onClick={() => setConfirm(null)}
             >
-              Keep pending tick
+              {t("groceries.keepTick")}
             </button>
             <button
               type="button"
@@ -208,7 +214,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
               disabled={busy}
               onClick={() => confirm && void run(confirm, true)}
             >
-              {busy ? "Discarding…" : "Discard pending tick"}
+              {busy ? t("groceries.discarding") : t("groceries.discardTick")}
             </button>
           </div>
         </Dialog>

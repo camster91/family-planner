@@ -1,14 +1,33 @@
 /** @jest-environment jsdom */
+import "@testing-library/jest-dom";
 import * as React from "react";
 import {
-  render,
+  act,
+  render as renderWithProvider,
   screen,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
+import { I18nProvider, useTranslation } from "@/i18n";
 import PendingTickRecovery from "../PendingTickRecovery";
 import { getPersonQueue } from "@/lib/offline-queue-browser";
+
+let changeLocale: (locale: "en" | "es") => void;
+function LocaleControl() {
+  changeLocale = useTranslation().setLocale;
+  return null;
+}
+function render(ui: React.ReactNode) {
+  return renderWithProvider(ui, {
+    wrapper: ({ children }) => (
+      <I18nProvider locale="en">
+        <LocaleControl />
+        {children}
+      </I18nProvider>
+    ),
+  });
+}
 
 jest.mock("@/lib/offline-queue-browser", () => ({ getPersonQueue: jest.fn() }));
 const getQueue = jest.mocked(getPersonQueue);
@@ -100,4 +119,40 @@ it("labels the actual empty queue and allows closing while storage is loading", 
     within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
   );
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("translates a live retry notice and open discard confirmation without subscribing again or changing the selected tick", async () => {
+  render(<PendingTickRecovery userId="viewer" />);
+  await open();
+  const before = JSON.parse(JSON.stringify(ops));
+  fireEvent.click(screen.getByRole("button", { name: "Retry change 1" }));
+  await screen.findByText(
+    "Retry requested. The change remains here until the server confirms it.",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Discard change 1" }));
+  act(() => changeLocale("es"));
+  expect(
+    screen.getByRole("alertdialog", {
+      name: "¿Descartar esta marca pendiente?",
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      "Reintento solicitado. El cambio permanece aquí hasta que el servidor lo confirme.",
+    ),
+  ).toBeVisible();
+  expect(screen.getByText("Cambio 1: Marcar un artículo")).toBeVisible();
+  expect(queue.subscribe).toHaveBeenCalledTimes(1);
+  expect(getQueue).toHaveBeenCalledTimes(1);
+  expect(ops).toEqual(before);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Descartar marca pendiente" }),
+  );
+  await waitFor(() => expect(queue.discard).toHaveBeenCalledWith("key-one"));
+  expect(
+    screen.getByText(
+      "Se descartó la marca pendiente. Esto no deshace un cambio ya guardado.",
+    ),
+  ).toBeVisible();
+  expect(ops).toEqual(before.filter((op: any) => op.id !== "key-one"));
 });

@@ -1,12 +1,24 @@
 # Current State
 
-**Last reconciled:** 2026-10-08, against protected `main` at `eb4ee1b1c4dcece01fbbbc3311784770f42f324b` (#404)
+**Last reconciled:** 2026-10-08, against protected `main` at `a9f98c2fb22979367d24285f0c62c8a856e681de` (#408)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
 Inspect GitHub and executable source again before changing code or reporting status. The current refresh below uses the GitHub API, protected-main ancestry, observed exact-head CI and anonymous public endpoints on 2026-10-08. Older source/runtime/CI sections retain their original 2026-09-29 to 2026-10-07 evidence as history; they are not current deployment instructions. Secrets and production settings were not changed or re-verified.
 
-## Execution refresh — 2026-10-08, after #404 (21:40 UTC)
+## Execution refresh — 2026-10-08, after #408 (22:18 UTC)
+
+Protected main is `a9f98c2fb22979367d24285f0c62c8a856e681de`. Thirty cleanup PRs are verified merged, including unchanged #406 through normal #408 inclusion. Both checked heads (`f26c3d7` and `535e915`) are ancestors of main and GitHub independently reports both MERGED. Original #408 hosted gates passed Build/Test (9m42s), fresh-runner image (2m18s), GitGuardian, 761 browser journeys and 28 visuals (27m20s overall). Strict required Build/Test, administrator enforcement and conversation resolution remain intact; there are no review threads. Children #405/#407 are closed with their original wording and all six/five criteria checked. Completed owned preference/reflow/copy-tracking branches were cleaned only after inclusion and worktree checks.
+
+The Language/Theme migration and explicit 400% layout/focus/hit-test coverage are verified source/UI changes. They do not prove whole #142 localization or #133/#139 native/actual-zoom acceptance. Public runtime/provider/native/household evidence below remains its dated observation, not a claim that this main is live.
+
+Child #409 implements the complete personal/device grocery add, online edit and saved-tick recovery control localization. App source `85e6d9d` is unchanged at current main-inclusive candidate `f4f8ab6`. Matching typed EN/ES templates and semantic notice/error keys preserve queued-vs-confirmed meaning, drafts, exact-intent retry, acting member, payloads and selected discard operation. All 42 affected cases and the full 355-suite / 4,364-case unit gate pass (188 intentionally opt-in tests skipped), plus Prisma, types/lint/format/build and tracked-tree secret checks. Exactly 69 migrated direct occurrences are removed, leaving 1,755; remaining direct/indirect copy is parent #142 migration debt, not approved translation.
+
+Ordinary EN/ES browser coverage verifies all 24 cases across phone 390x844, portrait 800x1280 and fridge 1280x800. Early harness failures were inspected and fixed by proving hydration before offline interaction and scoping row assertions to displayed main, excluding hidden Next streaming buffers while still requiring a unique queued row. A disk-full artifact failure in the final Spanish fridge recovery case was resolved by stopping the owned server and clearing owned regenerable build cache; that exact case passed its rerun. No assertion/baseline was weakened. Thirty-six normal and 36 separately labeled artificial expanded-copy captures join the source-labeled gallery (352 total at this dated snapshot). All 24 expanded EN/ES cases pass at runtime `f4f8ab6` with the same app source, including 44px controls, focus, scoped axe and no page/control horizontal overflow. Representative ordinary/expanded Spanish phone forms and fridge discard views were inspected. Final flags-off candidate checks, protected hosted CI and merge remain required; #409 stays open.
+
+There are 49 open issues and no remaining older open PRs after #408. Owner legal/company/sender decision (#372), paused Android workflow approval (#370), production/provider/hardware and real beta acceptance retain their original separate gates. No manual deployment, production/provider setting/data mutation, signing/store submission or participant message occurred. Earlier sections below retain historical evidence.
+
+## Historical execution refresh — 2026-10-08, after #404 (21:40 UTC)
 
 Protected main is `eb4ee1b1c4dcece01fbbbc3311784770f42f324b`. Twenty-eight cleanup PRs are verified merged. Exact checked #404 head `ab79693` merged normally with strict required Build/Test, administrator enforcement and conversation resolution preserved. Original CI passed 4,359 unit cases, database/security/image checks, 742 browser journeys and 28 visual cases. Review threads were empty. Child #403 is closed with all six original criteria preserved and evidenced; its initial 1,835-copy inventory is migration debt, not translated/approved copy. Parent #142 remains open.
 
