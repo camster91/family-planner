@@ -17,6 +17,7 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
   const [notice, setNotice] = React.useState<SyncNotice>(null)
   // False while storage refuses writes: queued ticks then live only in this page.
   const [durable, setDurable] = React.useState(true)
+  const [pendingCount, setPendingCount] = React.useState(0)
   const queueRef = React.useRef<OfflineQueue | null>(null)
   const onSyncedRef = React.useRef(onSynced)
   onSyncedRef.current = onSynced
@@ -31,11 +32,13 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       if (event.type === 'auth-lost') setNotice('signed-out')
       if (event.type === 'dropped') setNotice('dropped')
       setOps(queue.list().filter(isCheckedOperation))
+      setPendingCount(queue.list().filter(o => o.state === 'pending' || o.state === 'syncing').length)
       setDurable(queue.isDurable())
     })
     void queue.ready.then(() => {
       if (!active) return
       setOps(queue.list().filter(isCheckedOperation))
+      setPendingCount(queue.list().filter(o => o.state === 'pending' || o.state === 'syncing').length)
       setDurable(queue.isDurable())
       if (queue.loadReport().dropped > 0) setNotice('dropped')
     })
@@ -75,7 +78,7 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
     notice,
     dismissNotice: () => setNotice(null),
     stateFor: (itemId: string) => latestByItem.get(itemId),
-    pendingCount: ops.filter((o) => o.state === 'pending' || o.state === 'syncing').length,
+    pendingCount,
     setChecked,
     retry: (id: string) => queueRef.current?.retry(id),
     discard: (id: string) => queueRef.current?.discard(id),

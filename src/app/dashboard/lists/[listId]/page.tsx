@@ -5,6 +5,7 @@ import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ListDetailClient from './ListDetailClient'
 import DeleteListButton from './DeleteListButton'
+import { PersonGroceryAdd } from './PersonGroceryAdd'
 import type { ListType } from '@/types'
 import { canChangeListSectionSort, canDeleteListOrItem } from '@/lib/role-capabilities'
 import { isGroceryListType } from '@/lib/grocery-display'
@@ -80,8 +81,9 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
           Back
         </Link>
         <div className="card-apple p-8 text-center">
-          <p className="text-title-3 text-label-primary">List not found</p>
+          <h1 className="text-title-3 text-label-primary">List not found</h1>
         </div>
+        <div className="mt-4"><PersonGroceryAdd userId={user.id} listId={resolvedParams.listId} allowNew={false} /></div>
       </div>
     )
   }

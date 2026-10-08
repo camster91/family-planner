@@ -13,7 +13,8 @@ export async function createPersonListItem(
   db: Pick<PrismaClient, '$transaction'>,
   input: NewListItem,
   actor: { familyId: string; addedBy: string },
-  recordId: string | null
+  recordId: string | null,
+  options: { groceryOnly?: boolean } = {}
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
     if (recordId) {
@@ -36,7 +37,7 @@ export async function createPersonListItem(
     // Also serialise placement and list deletion. A deleted/foreign list is
     // never recreated; section lookup failures roll the entire add back.
     await tx.$queryRaw`SELECT "id" FROM "List" WHERE "id" = ${input.listId} AND "family_id" = ${actor.familyId} FOR UPDATE`
-    const result = await createListItem(tx, input, actor, { sourceRequestId: recordId })
+    const result = await createListItem(tx, input, actor, { sourceRequestId: recordId, groceryOnly: options.groceryOnly })
     if (!result.ok) {
       return result.reason === 'ingredient_not_found'
         ? { status: 400, body: { error: 'Ingredient not found' } }

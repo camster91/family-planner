@@ -96,10 +96,24 @@ shared tablet. The item and completed replay response commit in one transaction,
 record and list row locks (`person-list-item-create.ts`). A section lookup or completion-store failure
 rolls back the item. A slow original effect and a lock takeover cannot both create; a retry after item
 deletion returns the original response without recreating it. The caller should refresh canonical list
-state after replay. The seven-day server record retention still applies. This server guarantee does not
-itself enable personal offline creation; the browser queue still needs an explicit minimal grocery allowlist.
+state after replay. The seven-day server record retention still applies. The explicit minimal personal grocery queue below uses the same server guarantee; generic list
+fields remain outside the offline allowlist.
 Real PostgreSQL concurrency, rollback, takeover and deletion-replay proof is in
 `src/app/api/lists/__tests__/create-idempotency.integration.test.ts` and runs in protected Build & Test.
+
+Personal submitted grocery quick add (#135): `POST /api/lists/items/grocery-add` is additive and
+person-session only (parent/teen/child, existing Lists permission). Header `Idempotency-Key` is
+**required**, action `list-item.grocery-add`, scope `user:<id>`. Strict body `{ listId, content }`:
+canonical id `[A-Za-z0-9_-]{1,64}`, trimmed text 1–500 characters, no extra fields. The lists feature,
+current household ownership and grocery/shopping type are checked before replay; type is rechecked
+under the list row lock in the canonical writer. Quantity is 1, added_by is the authenticated
+person. 200 `{ success: true, item }`, replay header `Idempotency-Replayed: true`; 400 invalid
+JSON/body or missing/invalid key, 401 unauthenticated, 403 feature/foreign household, 404 missing or
+non-grocery list (including a concurrent type change), 409 `IDEMPOTENCY_IN_PROGRESS`, 422
+`IDEMPOTENCY_KEY_REUSED`. The same atomic item/completed-response transaction prevents duplicates
+and resurrection after deletion. The browser refreshes canonical state after confirmation and
+keeps missing-list recovery visible. No old route/schema or native request contract changes.
+Queue bounds, persistence and client rollback caveat: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
   UUID generated once per logical change and reused for every retry of it. Without the header the route

@@ -968,3 +968,48 @@ describe('bounded device grocery creates', () => {
     expect(remove).not.toHaveBeenCalled()
   })
 })
+
+describe('minimal personal grocery creates', () => {
+  const add = { listId: 'list-a', content: 'Milk' }
+  it('minimises personal payload and refuses cross-namespace storage/replay', async () => {
+    const t = setup({ online: false })
+    await t.queue.enqueue('list-item.grocery-add', { ...add, content: '  Milk  ', notes: 'PRIVATE', actingMemberId: 'foreign', token: 'SECRET' })
+    expect(t.queue.list()[0].payload).toEqual(add)
+    const raw = (t.store as ReturnType<typeof memoryStore>).value!
+    expect(raw).not.toMatch(/PRIVATE|SECRET|actingMemberId|notes/)
+    expect(parseStoredQueue(raw, 'device').ops).toEqual([])
+    const device = setup({ namespace: 'device', online: false })
+    await expect(device.queue.enqueue('list-item.grocery-add', add)).rejects.toMatchObject({ code: 'NOT_QUEUEABLE' })
+    for (const payload of [{ ...add, listId: '../x' }, { ...add, content: ' ' }, { ...add, content: 'x'.repeat(501) }])
+      await expect(t.queue.enqueue('list-item.grocery-add', payload)).rejects.toMatchObject({ code: 'INVALID_PAYLOAD' })
+  })
+  it('preserves separate same-text intents and uncertain same-key/body replay after restart', async () => {
+    const t = setup({ replies: ['network'], online: false })
+    const first = await t.queue.enqueue('list-item.grocery-add', add)
+    const second = await t.queue.enqueue('list-item.grocery-add', add)
+    expect(first.target).not.toBe(second.target)
+    t.setOnline(true); await t.queue.drain()
+    const raw = (t.store as ReturnType<typeof memoryStore>).value!
+    t.queue.dispose()
+    const restarted = setup({ store: memoryStore(raw), now: t.now + 10000 })
+    await restarted.queue.drain()
+    expect(restarted.sent[0]).toEqual({ method: 'POST', path: '/api/lists/items/grocery-add', body: add, idempotencyKey: first.id })
+    expect(restarted.sent.map(x => x.idempotencyKey)).toEqual([first.id, second.id])
+  })
+  it('never renews expired or rejected create keys and clears submitted text on terminal auth', async () => {
+    const t = setup({ online: false })
+    const op = await t.queue.enqueue('list-item.grocery-add', add)
+    await t.advance(QUEUE_MAX_AGE_MS + 1); t.setOnline(true)
+    await t.queue.drain(); await t.queue.retry(op.id)
+    expect(t.sent).toEqual([])
+    expect(t.queue.list()[0]).toMatchObject({ id: op.id, createdAt: op.createdAt, state: 'failed', lastError: 'EXPIRED' })
+    const reused = setup({ replies: [{ status: 422, body: { error: { code: 'IDEMPOTENCY_KEY_REUSED' } } }] })
+    const key = (await reused.queue.enqueue('list-item.grocery-add', add)).id
+    await reused.queue.drain(); await reused.queue.retry(key)
+    expect(reused.sent).toHaveLength(1); expect(reused.queue.list()[0].id).toBe(key)
+    const auth = setup({ replies: [{ status: 401 }] })
+    await auth.queue.enqueue('list-item.grocery-add', add); await auth.queue.drain()
+    expect(auth.queue.list()).toEqual([])
+    expect((auth.store as ReturnType<typeof memoryStore>).value).toBeNull()
+  })
+})

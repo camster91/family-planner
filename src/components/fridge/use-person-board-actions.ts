@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { setChoreDone } from '@/lib/chore-tick-client'
 import { getPersonQueue } from '@/lib/offline-queue-browser'
-import { QueueError } from '@/lib/offline-queue'
+import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import type { BoardActions } from './board-actions'
 
 /**
@@ -56,7 +56,7 @@ export function usePersonBoardActions(
         return q.subscribe((event) => {
           if (event.type !== 'change') return
           for (const op of q.list()) {
-            if (op.action === 'device.list-item.add' || !mine.has(op.id)) continue
+            if (!isCheckedOperation(op) || !mine.has(op.id)) continue
             if (op.state === 'failed' || op.state === 'conflict') {
               mine.delete(op.id)
               // Discard it: the board shows the server's state again instead of a stuck row.

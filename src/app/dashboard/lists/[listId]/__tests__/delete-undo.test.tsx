@@ -134,3 +134,9 @@ it('Undo restores the tick the person saw, even one still queued offline, and dr
   await user.click(within(toast).getByRole('button', { name: 'Undo' }))
   await waitFor(() => expect(mockSetChecked).toHaveBeenCalledWith('restored', true))
 })
+
+// Canonical refresh after a queued create; navigation is covered in browser tests.
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) }))
+
+// Submitted-create replay has its own real-queue component and browser suite.
+jest.mock('../PersonGroceryAdd', () => ({ PersonGroceryAdd: () => null }))

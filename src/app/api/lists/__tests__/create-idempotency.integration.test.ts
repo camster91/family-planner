@@ -18,6 +18,7 @@ jest.setTimeout(60_000)
 describeDb('personal list create against Postgres', () => {
   let prisma: NonNullable<typeof import('@/lib/prisma').prisma>
   let POST: typeof import('../items/create/route').POST
+  let groceryPOST: typeof import('../items/grocery-add/route').POST
   let idem: typeof import('@/lib/idempotency')
   let effect: typeof import('@/lib/person-list-item-create').createPersonListItem
   const FAM = 'pcint-family', OTHER = 'pcint-other-family'
@@ -43,6 +44,7 @@ describeDb('personal list create against Postgres', () => {
     prisma = (await import('@/lib/prisma')).prisma!
     if (!prisma) throw Error('Integration database required')
     POST = (await import('../items/create/route')).POST
+    groceryPOST = (await import('../items/grocery-add/route')).POST
     idem = await import('@/lib/idempotency')
     effect = (await import('@/lib/person-list-item-create')).createPersonListItem
     await cleanup()
@@ -69,6 +71,41 @@ describeDb('personal list create against Postgres', () => {
   afterAll(async () => {
     idem.idempotencyRuntime.now = () => new Date(); idem.idempotencyRuntime.random = () => Math.random()
     await cleanup(); await prisma.$disconnect()
+  })
+
+  it('strict grocery creates converge under concurrent replay and do not resurrect a deleted item', async () => {
+    const body = { listId: LIST, content: 'Queued grocery' }
+    const responses = await Promise.all(Array.from({ length: 8 }, () => groceryPOST(request(A, body))))
+    expect(responses.every(r => r.status === 200 || r.status === 409)).toBe(true)
+    const replay = await groceryPOST(request(A, body)); expect(replay.status).toBe(200)
+    const first = await replay.json()
+    expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(1)
+    await prisma.listItem.delete({ where: { id: first.item.id } })
+    const deletedReplay = await groceryPOST(request(A, body))
+    expect(deletedReplay.headers.get('Idempotency-Replayed')).toBe('true')
+    expect(await deletedReplay.json()).toEqual(first)
+    expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(0)
+  })
+
+  it('grocery type is rechecked under the write lock after a concurrent list change', async () => {
+    const holder = new Client({ connectionString: process.env.DATABASE_URL }); await holder.connect()
+    let requestPromise: Promise<any> | undefined
+    try {
+      await holder.query('BEGIN'); await holder.query('UPDATE "List" SET "type" = $1 WHERE "id" = $2', ['todo', LIST])
+      requestPromise = groceryPOST(request(A, { listId: LIST, content: 'Stale grocery add' }))
+      for (let i = 0; i < 50; i++) {
+        if (await prisma.idempotencyRecord.count({ where: { scope: ctx.scope, key: KEY } })) break
+        await sleep(20)
+      }
+      expect(await prisma.idempotencyRecord.count({ where: { scope: ctx.scope, key: KEY } })).toBe(1)
+      await holder.query('COMMIT')
+      expect((await requestPromise).status).toBe(404)
+      expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(0)
+    } finally {
+      await holder.query('ROLLBACK'); await holder.end()
+      await Promise.allSettled(requestPromise ? [requestPromise] : [])
+      await prisma.list.update({ where: { id: LIST }, data: { type: 'grocery' } })
+    }
   })
 
   it('eight concurrent duplicates create one row and replay its exact response', async () => {

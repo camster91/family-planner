@@ -55,6 +55,15 @@ grocery create route, with live permission checks. The local support report incl
 states and rates, never this payload or its identifiers. No provider or automatic remote telemetry
 is added. See `architecture/OFFLINE_SYNC.md` and `architecture/SHARED_DEVICE.md` for exact behavior.
 
+The personal queue additionally stores only submitted grocery/shopping text (1–500 characters)
+and canonical list id plus the same operation/retry envelope under `fp-sync:v1:<userId>:queue` in
+`fp-sync` IndexedDB, with localStorage fallback. It never persists unsubmitted drafts or arbitrary
+generic list fields. Attribution comes from the live server session, not extra client fields.
+The same 50-operation/24-hour replay/seven-day cleanup bounds apply; sign-out/login and terminal401
+purge the person queue. An unavailable persistent store is visibly memory-only. Canonical refresh
+prevents a stale replay response from being presented as a newly created item. Diagnostic reports
+remain payload/identifier-free. The new same-origin strict route is not a provider integration.
+
 ## Third-party processor register
 Maintain for each provider:
 - purpose;

@@ -23,6 +23,7 @@ import {
 } from '@/lib/grocery-sections'
 import { MoveToSectionDialog, type MoveTarget } from './MoveToSectionDialog'
 import { useToast, useUndoToast } from '@/components/ui/toast'
+import { PersonGroceryAdd } from './PersonGroceryAdd'
 
 // -----------------------------------------------------------------------
 // Types
@@ -113,6 +114,16 @@ export default function ListDetailClient({
   sectionSort = DEFAULT_SECTION_SORT,
 }: ListDetailClientProps) {
   const [listItems, setListItems] = React.useState<Item[]>(initialItems)
+  const localDeletes = React.useRef(new Set<string>())
+  const pendingDeletes = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    // Queued-add confirmation refreshes canonical props. Preserve a delete
+    // currently shown as removed until the server snapshot also omits it.
+    setListItems(initialItems.filter(item => !localDeletes.current.has(item.id)))
+    for (const id of localDeletes.current) {
+      if (!pendingDeletes.current.has(id) && !initialItems.some(item => item.id === id)) localDeletes.current.delete(id)
+    }
+  }, [initialItems])
   const [newItemText, setNewItemText] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   // Why the last "Add" failed; the typed text stays in the field.
@@ -289,6 +300,8 @@ export default function ListDetailClient({
     if (!item) return
     const wasChecked = displayChecked(item)
     const queued = sync.stateFor(itemId)
+    localDeletes.current.add(itemId)
+    pendingDeletes.current.add(itemId)
     setListItems(prev => prev.filter(i => i.id !== itemId))
     let ok = false
     try {
@@ -297,7 +310,9 @@ export default function ListDetailClient({
     } catch {
       ok = false
     }
+    pendingDeletes.current.delete(itemId)
     if (!ok) {
+      localDeletes.current.delete(itemId)
       setListItems(prev => (prev.some(i => i.id === itemId) ? prev : [...prev, item]))
       addToast({ type: 'error', title: `Couldn't delete “${item.content}”`, message: 'Check your connection and try again.' })
       return
@@ -435,7 +450,7 @@ export default function ListDetailClient({
           <span className="text-body font-semibold text-label-primary leading-none">{done}</span>
         </ProgressRing>
         <div className="flex-1 min-w-0">
-          <p className="text-body text-label-primary font-medium truncate">{listName}</p>
+          <h1 className="text-body text-label-primary font-medium truncate">{listName}</h1>
           <p className="text-footnote text-label-secondary mt-0.5">
             {total > 0 ? `${done} of ${total} done` : 'No items yet'}
           </p>
@@ -514,6 +529,8 @@ export default function ListDetailClient({
       />
 
       {/* Add item field */}
+      <PersonGroceryAdd userId={userId} listId={listId} allowNew={isGrocery} />
+      {!isGrocery && (
       <div className="card-apple px-4 py-3">
         <div className="flex items-center gap-3">
           <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
@@ -546,6 +563,7 @@ export default function ListDetailClient({
           </p>
         )}
       </div>
+      )}
     </div>
   )
 }

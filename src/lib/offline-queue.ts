@@ -62,6 +62,11 @@ export interface AddGroceryPayload {
   actingMemberId: string
 }
 
+export interface PersonGroceryAddPayload {
+  listId: string
+  content: string
+}
+
 interface ActionSpec<P> {
   /** Operation schema version for this action. Stored operations of another version are dropped. */
   version: number
@@ -90,6 +95,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * domain issue, an idempotent server route and an update to that document.
  */
 export const QUEUEABLE_ACTIONS = {
+  'list-item.grocery-add': {
+    version: 1,
+    namespace: 'person',
+    method: 'POST',
+    path: '/api/lists/items/grocery-add',
+    parse(payload: unknown): PersonGroceryAddPayload | null {
+      if (!isRecord(payload)) return null
+      const { listId, content } = payload
+      if (typeof listId !== 'string' || !ID_PATTERN.test(listId)) return null
+      if (typeof content !== 'string' || !content.trim() || content.trim().length > 500) return null
+      return { listId, content: content.trim() }
+    },
+    body: (p: PersonGroceryAddPayload) => ({ listId: p.listId, content: p.content }),
+    target: (_p: PersonGroceryAddPayload, operationId: string) => `list-add:${operationId}`,
+  } satisfies ActionSpec<PersonGroceryAddPayload>,
   /** Tick or untick a list item (grocery list proof action). Explicit state, not a toggle. */
   'list-item.set-checked': {
     version: 1,
@@ -182,6 +202,7 @@ export type QueuedOperation = {
 }[QueueableAction]
 export type CheckedQueuedOperation = Extract<QueuedOperation, { action: 'list-item.set-checked' | 'device.list-item.set-checked' }>
 export type AddGroceryOperation = Extract<QueuedOperation, { action: 'device.list-item.add' }>
+export type PersonGroceryAddOperation = Extract<QueuedOperation, { action: 'list-item.grocery-add' }>
 export function isCheckedOperation(op: QueuedOperation): op is CheckedQueuedOperation {
   return op.action === 'list-item.set-checked' || op.action === 'device.list-item.set-checked'
 }
@@ -664,7 +685,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     // A create must never renew its age/key: the original send may have committed.
     // Once its 24-hour automatic replay window ends, check the canonical list
     // and discard deliberately rather than risk replay beyond dedupe retention.
-    if (op.action === 'device.list-item.add' && (now - op.createdAt > QUEUE_MAX_AGE_MS || op.lastError === 'EXPIRED' || op.lastError === 'IDEMPOTENCY_KEY_REUSED')) {
+    if ((op.action === 'device.list-item.add' || op.action === 'list-item.grocery-add') && (now - op.createdAt > QUEUE_MAX_AGE_MS || op.lastError === 'EXPIRED' || op.lastError === 'IDEMPOTENCY_KEY_REUSED')) {
       op.state = 'failed'
       op.lastError = op.lastError === 'IDEMPOTENCY_KEY_REUSED' ? op.lastError : 'EXPIRED'
       await persist()
