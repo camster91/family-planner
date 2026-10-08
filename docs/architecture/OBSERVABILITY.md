@@ -144,3 +144,11 @@ Findings, not fixed here:
 - `board-version` recomputes the whole board to hash it on every poll (rate limit 1200/hour per member). It is the hottest path; watch its p95 in `docs/testing/PERFORMANCE_BASELINE.md` before adding tiles.
 
 Plan: run `npm run perf:baseline` against a local server started with `PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0` on the fixtures (and later a larger synthetic household), record the slowest statements, `EXPLAIN (ANALYZE, BUFFERS)` them on a disposable database, and propose indexes or limits in the domain's own issue. No polling or background job is added for this.
+### Local offline queue reports (#135)
+
+The support projection and exact semantics are in `OFFLINE_SYNC.md` → Local sync support diagnostics.
+Purpose: explain pending/replay problems without copying household content. Fields are fixed counts,
+booleans and null-or-numeric rates (no string cardinality). Retention: queue-instance memory only, reset
+on clear/auth loss/disposal; no database, storage, log or remote sink. Collection: internal local
+counters, with deliberate user viewing/copying in Help. No analytics consent/disclosure or provider
+boundary is widened. Fleet collection needs a separately reviewed transmission/consent/retention design.

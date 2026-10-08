@@ -1,3 +1,4 @@
+import SyncDiagnostics from './SyncDiagnostics'
 import * as React from 'react'
 import Link from 'next/link'
 import { LargeHeader } from '@/components/ui/large-header'
@@ -56,7 +57,9 @@ function Item({ title, children }: { title: string; children: React.ReactNode })
 export default function HelpContent({
   supportEmail: configured,
   role,
+  userId,
 }: {
+  userId?: string
   supportEmail?: string
   /** The viewer's role; links to pages it cannot open become plain text. */
   role?: string | null
@@ -177,6 +180,7 @@ export default function HelpContent({
           </Item>
         </Section>
 
+        {userId && (role === 'parent' || role === 'teen') && <SyncDiagnostics userId={userId} />}
         <Section id="help-contact" title="Contact support">
           <p className="text-label-secondary">
             Email us and we will reply within one working day.

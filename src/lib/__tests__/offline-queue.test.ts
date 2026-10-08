@@ -833,3 +833,65 @@ describe('abandon (device purge)', () => {
     expect(queue.list()).toEqual([])
   })
 })
+
+describe('content-free sync diagnostics', () => {
+  it('reports offline depth, state and durability without identifiers or content', async () => {
+    const t = setup({ online: false, store: { read: async () => null, write: async () => { throw Error('blocked') }, remove: async () => {} } })
+    await t.queue.enqueue('list-item.set-checked', { itemId: 'private-item-identifier', checked: true, name: 'PRIVATE GROCERY TEXT', token: 'PRIVATE TOKEN' })
+    const report = t.queue.diagnostics()
+    expect(report).toEqual({ version: 1, depth: 1, states: { pending: 1, syncing: 0, failed: 0, conflict: 0 }, durable: false, dropped: 0, replay: { attempts: 0, completed: 0, successes: 0, failures: 0, conflicts: 0 }, rates: { success: null, failure: null, conflict: null } })
+    expect(JSON.stringify(report)).not.toMatch(/private-item|PRIVATE|key-|itemId|payload|target|createdAt|lastError/)
+    report.states.pending = 999
+    report.replay.attempts = 999
+    expect(t.queue.diagnostics().states.pending).toBe(1)
+    expect(t.queue.diagnostics().replay.attempts).toBe(0)
+  })
+
+  it('counts completed sends, including retry failure and conflict, without server bodies', async () => {
+    const t = setup({ online: false, replies: ['network', { status: 409, body: { error: { code: 'CONFLICT', message: 'PRIVATE SERVER CONTENT' } } }, { status: 200, body: { item: 'PRIVATE SUCCESS BODY' } }] })
+    await t.queue.enqueue('list-item.set-checked', tick('a'))
+    t.setOnline(true)
+    await t.queue.handleOnline()
+    expect(t.queue.diagnostics().replay).toEqual({ attempts: 1, completed: 1, successes: 0, failures: 1, conflicts: 0 })
+    await t.queue.handleOnline()
+    expect(t.queue.diagnostics().states.conflict).toBe(1)
+    await t.queue.retry(t.queue.list()[0].id)
+    await t.queue.drain()
+    const d = t.queue.diagnostics()
+    expect(d.depth).toBe(0)
+    expect(d.replay).toEqual({ attempts: 3, completed: 3, successes: 1, failures: 2, conflicts: 1 })
+    expect(d.rates).toEqual({ success: 1 / 3, failure: 2 / 3, conflict: 1 / 3 })
+    expect(JSON.stringify(d)).not.toMatch(/PRIVATE|key-|CONFLICT/)
+    expect(JSON.stringify(t.store)).not.toContain('replay')
+  })
+
+  it('counts load cleanup and resets on clear, auth loss and disposal', async () => {
+    const corrupt = setup({ store: memoryStore('{broken') })
+    await corrupt.queue.ready
+    expect(corrupt.queue.diagnostics().dropped).toBeGreaterThan(0)
+    await corrupt.queue.clear()
+    expect(corrupt.queue.diagnostics().dropped).toBe(0)
+    const t = setup({ replies: [{ status: 401 }] })
+    await t.queue.enqueue('list-item.set-checked', tick('a'))
+    await t.queue.drain()
+    expect(t.queue.diagnostics().replay.attempts).toBe(0)
+    expect(t.queue.diagnostics().depth).toBe(0)
+    const q = setup({ online: false })
+    await q.queue.enqueue('list-item.set-checked', tick('b'))
+    q.queue.dispose()
+    expect(q.queue.diagnostics().depth).toBe(0)
+  })
+
+  it('does not attribute an old in-flight response to a reset report', async () => {
+    let resolve!: (v: { status: number; body: unknown }) => void
+    const queue = createOfflineQueue({ store: memoryStore(), send: () => new Promise(r => { resolve = r }), now: () => 1000, random: () => 0, newKey: () => 'diagnostics-abcdefghijkl', isOnline: () => true, setTimer: () => null, clearTimer: () => {} })
+    await queue.enqueue('list-item.set-checked', tick('a'))
+    await flush()
+    expect(queue.diagnostics().replay.attempts).toBe(1)
+    queue.resetDiagnostics()
+    resolve({ status: 200, body: { private: 'DO NOT REPORT' } })
+    await queue.drain()
+    expect(queue.diagnostics().replay).toEqual({ attempts: 0, completed: 0, successes: 0, failures: 0, conflicts: 0 })
+    expect(queue.diagnostics().depth).toBe(0)
+  })
+})

@@ -203,6 +203,18 @@ export interface LoadReport {
   dropped: number
 }
 
+/** Content-free, page-session support metrics. Never persisted or transmitted by the queue. */
+export interface QueueDiagnostics {
+  version: 1
+  depth: number
+  states: { pending: number; syncing: number; failed: number; conflict: number }
+  durable: boolean
+  dropped: number
+  replay: { attempts: number; completed: number; successes: number; failures: number; conflicts: number }
+  /** Fractions of completed sends, null when no send has completed. Conflicts are also failures. */
+  rates: { success: number | null; failure: number | null; conflict: number | null }
+}
+
 export type QueueEvent =
   | { type: 'change' }
   | { type: 'synced'; op: QueuedOperation; body: unknown }
@@ -325,6 +337,34 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   let loadReport: LoadReport = { dropped: 0 }
   /** False while the last write to storage failed (see `persist`). */
   let durable = true
+  let diagnosticGeneration = 0
+  let counters = { attempts: 0, completed: 0, successes: 0, failures: 0, conflicts: 0, dropped: 0 }
+  const increment = (key: keyof typeof counters, count = 1) => {
+    if (disposed) return
+    counters[key] = Math.min(Number.MAX_SAFE_INTEGER, counters[key] + count)
+  }
+  const resetDiagnostics = () => {
+    diagnosticGeneration++
+    counters = { attempts: 0, completed: 0, successes: 0, failures: 0, conflicts: 0, dropped: 0 }
+  }
+  function diagnostics(): QueueDiagnostics {
+    const states = { pending: 0, syncing: 0, failed: 0, conflict: 0 }
+    if (!disposed) for (const op of ops) if (op.state !== 'synced') states[op.state]++
+    const { attempts, completed, successes, failures, conflicts, dropped } = counters
+    return {
+      version: 1,
+      depth: Object.values(states).reduce((a, b) => a + b, 0),
+      states,
+      durable: disposed ? true : durable,
+      dropped,
+      replay: { attempts, completed, successes, failures, conflicts },
+      rates: {
+        success: completed ? successes / completed : null,
+        failure: completed ? failures / completed : null,
+        conflict: completed ? conflicts / completed : null,
+      },
+    }
+  }
 
   const emit = (event: QueueEvent) => {
     for (const listener of Array.from(listeners)) {
@@ -394,6 +434,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     ops = parsed.ops
     const aged = applyAgeRules(deps.now())
     loadReport = { dropped: parsed.dropped + aged.dropped }
+    increment('dropped', loadReport.dropped)
     if (parsed.dropped > 0 || aged.changed || (text !== null && ops.some((o) => o.state === 'pending'))) {
       await persist()
     }
@@ -469,8 +510,14 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     return { ...op, durable: saved }
   }
 
-  async function finish(op: QueuedOperation, outcome: Outcome, body: unknown): Promise<'continue' | 'stop'> {
+  async function finish(op: QueuedOperation, outcome: Outcome, body: unknown, sendGeneration: number): Promise<'continue' | 'stop'> {
     if (disposed) return 'stop' // abandoned (device purge) while this send was in flight
+    if (sendGeneration === diagnosticGeneration) {
+      increment('completed')
+      if (outcome.kind === 'synced') increment('successes')
+      else increment('failures')
+      if (outcome.kind === 'conflict') increment('conflicts')
+    }
     if (!ops.includes(op)) return outcome.kind === 'auth' ? 'stop' : 'continue' // discarded or cleared meanwhile
     if (outcome.kind === 'synced') {
       ops = ops.filter((o) => o !== op)
@@ -482,6 +529,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     if (outcome.kind === 'auth') {
       // Terminal: a logged-out or revoked session never replays anything.
       ops = []
+      resetDiagnostics()
       await persist()
       emit({ type: 'auth-lost' })
       emit({ type: 'change' })
@@ -537,6 +585,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
           const now = deps.now()
           const aged = applyAgeRules(now)
           if (aged.changed) {
+            increment('dropped', aged.dropped)
             await persist()
             emit({ type: 'change' })
           }
@@ -548,7 +597,9 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
           const spec = specOf(op.action)
           let outcome: Outcome
           let body: unknown = null
+          const sendGeneration = diagnosticGeneration
           try {
+            increment('attempts')
             const res = await deps.send({
               method: spec.method,
               path: typeof spec.path === 'function' ? spec.path(op.payload) : spec.path,
@@ -560,7 +611,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
           } catch {
             outcome = { kind: 'retry', code: 'NETWORK' }
           }
-          if ((await finish(op, outcome, body)) === 'stop') break
+          if ((await finish(op, outcome, body, sendGeneration)) === 'stop') break
         }
       } finally {
         draining = null
@@ -601,6 +652,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   async function clear(): Promise<void> {
     await ready
     ops = []
+    resetDiagnostics()
     if (timer !== null) {
       deps.clearTimer(timer)
       timer = null
@@ -622,6 +674,8 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
 
   return {
     ready,
+    diagnostics,
+    resetDiagnostics,
     loadReport: () => loadReport,
     /** False while queued changes exist only in memory because storage refused the last write. */
     isDurable: () => durable,
@@ -643,6 +697,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
      */
     abandon() {
       disposed = true
+      resetDiagnostics()
       ops = []
       if (timer !== null) deps.clearTimer(timer)
       timer = null
@@ -650,6 +705,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     },
     dispose() {
       disposed = true
+      resetDiagnostics()
       if (timer !== null) deps.clearTimer(timer)
       timer = null
       listeners.clear()
