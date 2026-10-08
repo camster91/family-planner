@@ -363,6 +363,139 @@ function expectClean(body: string, where: string) {
 // ---------------------------------------------------------------------------
 
 test.describe("Shared tablet", () => {
+  test("grocery quick add works for an empty list and retries a committed request once", async ({
+    page: tablet,
+    browser,
+  }, testInfo) => {
+    test.skip(
+      ![...TABLET_PROJECTS, "phone-390x844"].includes(testInfo.project.name),
+      "Capture supported tablet and phone layouts",
+    );
+    const parent = await openContext(browser, testInfo, authFile("parentA"));
+    const listId = "fx_e2e_device_empty_grocery";
+    const content = "Device quick-add fixture";
+    const keys: string[] = [];
+    let releaseReply!: () => void;
+    const replyHeld = new Promise<void>((resolve) => {
+      releaseReply = resolve;
+    });
+    try {
+      await withDb(async (db) => {
+        await db.query('DELETE FROM "List" WHERE id = $1', [listId]);
+        await db.query(
+          'INSERT INTO "List" (id, family_id, name, type, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+          [listId, A.family, "Empty grocery list", "grocery", A.parent],
+        );
+      });
+      await parent.page.goto("/dashboard/today");
+      const enabled = await send(
+        parent.page,
+        "PATCH",
+        "/api/family/board-settings",
+        { deviceWrites: { enabled: true } },
+      );
+      expect(enabled.status, enabled.body).toBe(200);
+      await pairViaApi(parent.page, tablet);
+      await tablet
+        .getByRole("button", { name: "Add grocery", exact: true })
+        .click();
+      await tablet
+        .getByTestId("who-is-this")
+        .getByRole("button", { name: PARENT_NAME, exact: true })
+        .click();
+      const dialog = tablet.getByTestId("device-grocery-add");
+      await dialog.getByLabel("Grocery list").selectOption(listId);
+      await dialog.getByLabel("Item", { exact: true }).fill(content);
+      await axeScan(tablet, testInfo, "device grocery capture");
+      await testInfo.attach("device-grocery-capture", {
+        body: await tablet.screenshot(),
+        contentType: "image/png",
+      });
+      await tablet.route(
+        `**/api/device/lists/${listId}/items`,
+        async (route) => {
+          keys.push(route.request().headers()["idempotency-key"]);
+          if (keys.length === 1) {
+            const response = await route.fetch();
+            expect(response.status()).toBe(201);
+            await replyHeld;
+            await route.abort("failed");
+          } else await route.continue();
+        },
+      );
+      await dialog
+        .getByRole("button", { name: "Add item", exact: true })
+        .click();
+      await expect(
+        dialog.getByRole("button", { name: "Adding…", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: "Close", exact: true }),
+      ).toHaveCount(0);
+      await tablet.keyboard.press("Escape");
+      await expect(dialog).toBeVisible();
+      releaseReply();
+      await expect(dialog.getByRole("alert")).toContainText(
+        "Could not confirm the add",
+      );
+      await expect(dialog.getByLabel("Item", { exact: true })).toBeDisabled();
+      await dialog
+        .getByRole("button", { name: "Retry add", exact: true })
+        .click();
+      await expect(
+        tablet
+          .getByRole("status")
+          .filter({ hasText: "Item added to the grocery list." }),
+      ).toBeVisible();
+      expect(keys).toHaveLength(2);
+      expect(keys[1]).toBe(keys[0]);
+      await withDb(async (db) => {
+        const result = await db.query(
+          'SELECT content, added_by FROM "ListItem" WHERE list_id = $1',
+          [listId],
+        );
+        expect(result.rows).toEqual([{ content, added_by: A.parent }]);
+      });
+      // Another member can remove the chosen list while the form is open.
+      // This is an ordinary missing resource, never a removed tablet.
+      await tablet
+        .getByRole("button", { name: "Add grocery", exact: true })
+        .click();
+      await dialog.getByLabel("Grocery list").selectOption(listId);
+      await dialog
+        .getByLabel("Item", { exact: true })
+        .fill("Item after deletion");
+      await withDb((db) =>
+        db.query('DELETE FROM "List" WHERE id = $1', [listId]),
+      );
+      await dialog
+        .getByRole("button", { name: "Add item", exact: true })
+        .click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "That list is no longer available. Choose another list.",
+      );
+      await expect(tablet).toHaveURL(/\/device\/today$/);
+      await expect(dialog.getByLabel("Item", { exact: true })).toHaveValue(
+        "Item after deletion",
+      );
+      expect((await browserFetch(tablet, "/api/device/me")).status).toBe(200);
+      await testInfo.attach("device-grocery-stale-list", {
+        body: await tablet.screenshot(),
+        contentType: "image/png",
+      });
+    } finally {
+      releaseReply();
+      await withDb(async (db) => {
+        await db.query('DELETE FROM "List" WHERE id = $1', [listId]);
+        await db.query(
+          'UPDATE "Family" SET device_writes_enabled = false WHERE id = $1',
+          [A.family],
+        );
+      });
+      await parent.context.close();
+    }
+  });
+
   test("a parent pairs a tablet from settings and the tablet shows the board", async ({
     page: tablet,
     browser,

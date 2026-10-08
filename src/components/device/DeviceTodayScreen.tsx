@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Loader2, Lock, UserRound } from 'lucide-react'
 import TodayBoard from '@/components/fridge/TodayBoard'
+import { DeviceGroceryAdd } from './DeviceGroceryAdd'
 import BoardSettings, { type BoardSettingsData, type BoardSettingsTransport, type Place } from '@/components/fridge/BoardSettings'
 import { Dialog } from '@/components/ui/dialog'
 import type { TodayBoardData } from '@/app/dashboard/today/today-board-data'
@@ -254,6 +255,9 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
         actions={parentButton ?? <span />}
         banner={banner}
         tileActions={actions}
+        groceryAction={client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
+          <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
+        ) : undefined}
       />
       {picker}
 

@@ -201,7 +201,7 @@ function WhoIsThisDialog({
       onClose={onClose}
       title="Who's this?"
       testId="who-is-this"
-      description="Pick your name so the family knows who ticked it off."
+      description="Pick your name so the family knows who made the change."
     >
       <ul className="grid gap-3 sm:grid-cols-2" aria-label="Family members">
         {members.map((m) => (

@@ -812,3 +812,18 @@ The fridge program may proceed in design, architecture, and non-production imple
 - **Words:** "Updated just now / 3 min ago" on the board and the calendar; offline ("You're offline. Showing what was here 3 min ago…") and unreachable ("Can't reach Family Planner right now…") notices; a polite live region announces only real changes. Settings → Connected calendars and Subscribed calendars say "Last synced 3 min ago" or the stored problem plus "Last tried …" (existing fields: those record the last attempt).
 - **Calm display (fridge mode only):** after the household's idle time (default 5 minutes; parent setting, or "Never") the board fades (no fade with reduced motion) to the clock, the date, the weather when on, the next event's title and time and tonight's dinner. Night hours (parent setting, off by default, tablet-local `HH:MM`) dim it with a dark layer; the page cannot change the backlight. A tap or key only returns to the board (the board is `inert` underneath and the key is swallowed). Optional family photos, picked by a parent from the household's own uploads, show on signed-in fridge boards only; paired tablets get none until Cameron decides O-15 (SHARED_DEVICE.md §9.1). No ads, ever.
 - **Evidence:** `src/lib/__tests__/relative-time.test.ts`, `ambient.test.ts`, `board-sync.test.ts`, `src/components/fridge/__tests__/ambient-sync.test.tsx`, `next-event.test.ts`, `src/app/api/family/board-version/__tests__/board-version.test.ts`, `src/app/api/family/board-settings/__tests__/display.test.ts`, the route allowlist, `src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts` (real Postgres, release workflow), `e2e/ambient.spec.ts`.
+
+
+### Shared-tablet grocery capture follow-up (2026-10-07 candidate)
+
+The existing device add route is connected to a board control. An additive,
+household-scoped `groceryLists` DTO supplies up to 50 canonical grocery/shopping
+list IDs and names even when every item is checked. Multiple lists require an
+explicit choice; a missing list points to personal-device setup. Device writes
+and the lists feature must already be on; this work does not enable them.
+
+Creation requires a connection. Uncertain replies freeze the draft and retry
+the same content, list, acting member and idempotency key. The board refreshes
+only after confirmed creation. Pending dialogs cannot be dismissed; lifecycle hiding retains only an unconfirmed request in memory for exact retry. Stale-list 404s verify device identity before any purge. Shared-device privacy exclusions remain in force.
+This candidate still requires protected CI and rendered journey evidence; it is
+not a deployment or physical-device acceptance claim.

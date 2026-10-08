@@ -234,6 +234,31 @@ describe('terminal errors purge (§8)', () => {
     expect(t.local.getItem(DEVICE_QUEUE_KEY)).toBeNull()
   })
 
+  it('keeps pairing and queued writes when the grocery list disappears but device identity remains valid', async () => {
+    const t = setup(path => path === ME ? json(200, { device: { id: 'device-a' } }) : envelope(404, 'NOT_FOUND'))
+    seedStorage(t)
+    await expect(t.client.request('/api/device/lists/list-a/items', { method: 'POST' })).rejects.toMatchObject({ status: 404 })
+    expect(t.count(ME)).toBe(1)
+    expect(t.navigate).not.toHaveBeenCalled()
+    expect(t.local.getItem(DEVICE_QUEUE_KEY)).not.toBeNull()
+  })
+
+  it.each([['kill switch', 404, 'NOT_FOUND'], ['revoked device', 401, 'DEVICE_REVOKED']])('still purges a missing-list request when the identity probe confirms %s', async (_name, status, code) => {
+    const t = setup(path => path === ME ? envelope(status as number, code as string) : envelope(404, 'NOT_FOUND'))
+    seedStorage(t)
+    await expect(t.client.request('/api/device/lists/list-a/items', { method: 'POST' })).rejects.toMatchObject({ status })
+    expect(t.navigate).toHaveBeenCalledWith(REMOVED_PATH)
+    expect(t.local.getItem(DEVICE_QUEUE_KEY)).toBeNull()
+  })
+
+  it.each([503, 429])('retains pairing on a transient %s identity probe after a missing-list response', async status => {
+    const t = setup(path => path === ME ? envelope(status, 'SERVICE_UNAVAILABLE') : envelope(404, 'NOT_FOUND'))
+    seedStorage(t)
+    await expect(t.client.request('/api/device/lists/list-a/items', { method: 'POST' })).rejects.toMatchObject({ status, retryable: true })
+    expect(t.navigate).not.toHaveBeenCalled()
+    expect(t.local.getItem(DEVICE_QUEUE_KEY)).not.toBeNull()
+  })
+
   it('purges when the refresh endpoint answers the kill-switch 404', async () => {
     const t = setup((path) => (path === REFRESH ? envelope(404, 'NOT_FOUND') : envelope(401, 'DEVICE_ACCESS_EXPIRED')))
     seedStorage(t)

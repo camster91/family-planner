@@ -38,6 +38,7 @@ type Db = Pick<
   | 'familyMeal'
   | 'calendarSubscription'
   | 'listItem'
+  | 'list'
   | 'inventoryItem'
   | 'family'
   | 'weatherCache'

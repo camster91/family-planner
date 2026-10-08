@@ -23,7 +23,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { addUTCDays, parseDateOnly, startOfTodayUTC, toDateOnlyUTC } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
-import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
+import { getOpenShoppingItems, SHOPPING_LIST_TYPES, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { FamilyFeatures } from '@/lib/features'
 import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
 import {
@@ -175,6 +175,8 @@ export interface TodayBoardData {
   dinners: BoardDinner[] | null
   /** null when the role may not open lists (never for the current roles), or for a device when lists are off. */
   shopping: ShoppingSnapshot | null
+  /** Device-only, bounded list choices; absent on older servers and person boards. */
+  groceryLists?: Array<{ id: string; name: string }>
   /**
    * Items to use soon (#263), expired or expiring within a few days, soonest
    * first. null when the household's `inventory` feature is off. Optional for
@@ -203,7 +205,7 @@ export interface TodayBoardData {
 
 type Db = Pick<
   PrismaClient,
-  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'inventoryItem'
+  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem'
 >
 
 interface BuildTodayBoardBase {
@@ -286,6 +288,13 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   // for every zone from UTC-12 to UTC+14.
   const windowStart = addUTCDays(startOfTodayUTC(now), -1)
   const windowEnd = addUTCDays(startOfTodayUTC(now), COMING_UP_DAYS + 2)
+
+  const groceryLists = isDevice && includeShopping ? await db.list.findMany({
+    where: { family_id: familyId, type: { in: [...SHOPPING_LIST_TYPES] } },
+    select: { id: true, name: true },
+    orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+    take: 50,
+  }) : undefined
 
   const [members, events, chores, dinners, shopping, useSoon] = await Promise.all([
     db.user.findMany({
@@ -416,6 +425,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         }))
       : null,
     shopping,
+    ...(groceryLists ? { groceryLists } : {}),
     useSoon: useSoon
       ? useSoon.map((i) => ({ id: i.id, name: i.name, location: i.location, expiresOn: i.expiresOn, dateKind: i.dateKind }))
       : null,
