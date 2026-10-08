@@ -16,5 +16,5 @@ export default async function HelpPage() {
   const profile = sessionUser
     ? await prisma!.user.findUnique({ where: { id: sessionUser.id }, select: { role: true } })
     : null
-  return <HelpContent supportEmail={SUPPORT_EMAIL} role={profile?.role ?? sessionUser?.role} />
+  return <HelpContent supportEmail={SUPPORT_EMAIL} role={profile?.role ?? sessionUser?.role} userId={sessionUser?.id} />
 }

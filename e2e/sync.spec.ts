@@ -12,6 +12,7 @@
  * see playwright.config.ts). The restart case therefore reloads with only the
  * mutation endpoint unreachable, which is what the queue sees either way.
  */
+import AxeBuilder from "@axe-core/playwright";
 import type { Page, Request, TestInfo } from "@playwright/test";
 import { FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
 import { authFile, E2E_BASE_URL } from "./support/env";
@@ -107,6 +108,83 @@ test.describe("offline grocery ticks: Family A parent", () => {
       expect(res.status, res.body).toBe(200);
       fixture = null;
     }
+  });
+
+  test("local support report counts failures and conflicts without household content", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, [
+      "Private failed grocery",
+      "Private conflicting grocery",
+    ]);
+    const failedId = fixture.items["Private failed grocery"];
+    const conflictId = fixture.items["Private conflicting grocery"];
+    await page.route(UPDATE_URL, async (route) => {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: body.itemId === conflictId ? 409 : 422,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: body.itemId === conflictId ? "CONFLICT" : "INVALID",
+            message: "Private error details",
+          },
+        }),
+      });
+    });
+    await page.goto(`/dashboard/lists/${fixture.listId}`);
+    await row(page, failedId).getByRole("checkbox").click();
+    await expect(row(page, failedId)).toHaveAttribute(
+      "data-sync-state",
+      "failed",
+    );
+    await row(page, conflictId).getByRole("checkbox").click();
+    await expect(row(page, conflictId)).toHaveAttribute(
+      "data-sync-state",
+      "conflict",
+    );
+    const updates = trackUpdates(page);
+    await page.getByRole("button", { name: "User menu", exact: true }).click();
+    await page.getByRole("link", { name: "Help", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Help", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "View sync details" }).click();
+    await expect(page.getByText(/2 queued changes/)).toBeVisible();
+    await page.getByText("Report for support", { exact: true }).click();
+    const report = page.getByTestId("sync-diagnostics-report");
+    await expect(report).toBeVisible();
+    const data = JSON.parse(await report.innerText());
+    expect(data.replay).toEqual({
+      attempts: 2,
+      completed: 2,
+      successes: 0,
+      failures: 2,
+      conflicts: 1,
+    });
+    expect(data.states).toEqual({
+      pending: 0,
+      syncing: 0,
+      failed: 1,
+      conflict: 1,
+    });
+    expect(data.rates).toEqual({ success: 0, failure: 1, conflict: 0.5 });
+    expect(await report.innerText()).not.toMatch(
+      /Private|itemId|listId|payload|key-|parent.a@example/,
+    );
+    expect(await report.innerText()).not.toContain(failedId);
+    expect(await report.innerText()).not.toContain(conflictId);
+    expect(updates).toHaveLength(0);
+    const scan = await new AxeBuilder({ page })
+      .include('[aria-labelledby="help-sync"]')
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    expect(scan.violations).toEqual([]);
+    await page.screenshot({
+      path: testInfo.outputPath("sync-report.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
   });
 
   test("offline tick is pending, survives a reload and syncs exactly once", async ({

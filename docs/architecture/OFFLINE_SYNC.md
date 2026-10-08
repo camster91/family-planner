@@ -276,3 +276,26 @@ cleanup, network first, offline fallback, server errors passed through, nothing 
 `e2e/offline.spec.ts` (banner offline/back online, tab bar not covered, axe; offline navigation shows the page
 and reloads the same address when back online). Every other E2E spec runs with service workers blocked
 (`playwright.config.ts`).
+
+## Local sync support diagnostics (#135)
+
+`OfflineQueue.diagnostics()` returns a fixed, content-free v1 projection for both person and device
+queues: current depth, pending/syncing/failed/conflict counts, storage durability, dropped-on-cleanup count,
+actual send attempts and completed-send success/failure/conflict counts. Success, failure and conflict
+rates are fractions of **completed sends**, not distinct operations or household retention. A retried
+operation can contribute multiple sends. A conflict is also a failure; no completed sends means null
+rates, not a fabricated 0% success rate. In-flight attempts are not completed outcomes.
+
+The report includes no identifiers (operation, item, member, household or device), paths, desired item
+state, timestamps, response/error text, tokens, payloads or household content. Counters remain only in
+memory for this queue instance, are bounded to safe integers and reset on sign-out/auth loss, clear,
+abandon or disposal. A response already in flight at reset cannot enter the next counter generation.
+Counters and reports are not written to queue storage, sent to an API, logged or uploaded.
+
+Help's **Trouble syncing?** section lets an authenticated parent or teen deliberately view their own
+already-loaded person queue and copy the report. Reading it never creates a queue, starts a replay,
+reads storage or sends a request. An unloaded queue is explicitly unavailable, rather than reported
+as healthy. A failed clipboard copy leaves the selectable report on screen. The shared queue has the
+same projection internally, but personal Help never reads another person's queue or the device namespace.
+This supports local troubleshooting; it does not establish cross-device/fleet telemetry, persistent
+historical rates, consent for transmission, native restart acceptance or the rest of #135/#140.

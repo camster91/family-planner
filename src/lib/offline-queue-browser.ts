@@ -94,6 +94,13 @@ export function getPersonQueue(userId: string): OfflineQueue {
   return queue
 }
 
+/** Read only an already-loaded personal queue. Does not start replay, read storage or send a request. */
+export function readPersonQueueDiagnostics(userId: string) {
+  // Never accept the reserved device namespace through this personal support API.
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(userId)) return null
+  return queues.get(userId)?.diagnostics() ?? null
+}
+
 // Contains ':', which no user id can (queueLocation's id pattern), so it never collides with a person queue.
 const DEVICE_QUEUE = 'device:tablet'
 let deviceQueueClient: DeviceClient | null = null
