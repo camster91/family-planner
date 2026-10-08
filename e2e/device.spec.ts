@@ -363,6 +363,151 @@ function expectClean(body: string, where: string) {
 // ---------------------------------------------------------------------------
 
 test.describe("Shared tablet", () => {
+  test("cached shared plan survives a DTO outage, stays private and reconnects", async ({
+    page: tablet,
+    browser,
+  }, testInfo) => {
+    test.skip(
+      ![...TABLET_PROJECTS, "phone-390x844"].includes(testInfo.project.name),
+      "Cached shared views cover phone and tablet layouts",
+    );
+    const parent = await openContext(browser, testInfo, authFile("parentA"));
+    try {
+      await withDb((db) =>
+        db.query(
+          'UPDATE "Family" SET device_writes_enabled = true WHERE id = $1',
+          [A.family],
+        ),
+      );
+      await pairViaApi(parent.page, tablet);
+      await expect
+        .poll(() =>
+          tablet.evaluate(() => {
+            const id = localStorage.getItem("fp-device:v1:device-id");
+            return id
+              ? localStorage.getItem(`fp-device:v1:${id}:today`) !== null
+              : false;
+          }),
+        )
+        .toBe(true);
+      expectClean(await storageDump(tablet), "persistent shared snapshot");
+      await tablet.evaluate(() => {
+        const id = localStorage.getItem("fp-device:v1:device-id")!;
+        const key = `fp-device:v1:${id}:today`;
+        const snapshot = JSON.parse(localStorage.getItem(key)!);
+        snapshot.savedAt = Date.now() - 3 * 60 * 60 * 1000;
+        snapshot.board.generatedAt = new Date(snapshot.savedAt).toISOString();
+        localStorage.setItem(key, JSON.stringify(snapshot));
+      });
+      // Only DTO requests are unreachable. The application shell still loads;
+      // this is browser snapshot restoration, not native offline cold-start proof.
+      await tablet.route("**/api/device/**", (route) =>
+        route.abort("connectionrefused"),
+      );
+      await tablet.reload();
+      await expect(tablet.getByTestId("device-cached-plan")).toBeVisible();
+      await expect(
+        tablet.getByText("Updated 3 hours ago", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        tablet.getByRole("button", { name: "Parent", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        tablet.getByRole("button", { name: "Add grocery", exact: true }),
+      ).toHaveCount(0);
+      expectClean(await storageDump(tablet), "restored snapshot");
+      await axeScan(tablet, testInfo, "cached shared plan");
+      await testInfo.attach("device-cached-plan", {
+        body: await tablet.screenshot(),
+        contentType: "image/png",
+      });
+      await tablet.unroute("**/api/device/**");
+      await tablet.evaluate(() => window.dispatchEvent(new Event("online")));
+      await expect(tablet.getByTestId("device-cached-plan")).toHaveCount(0);
+      await expect(
+        tablet.getByRole("button", { name: "Parent", exact: true }),
+      ).toBeEnabled();
+      await expect(
+        tablet.getByRole("button", { name: "Add grocery", exact: true }),
+      ).toBeVisible();
+    } finally {
+      await tablet.unroute("**/api/device/**");
+      await withDb((db) =>
+        db.query(
+          'UPDATE "Family" SET device_writes_enabled = false WHERE id = $1',
+          [A.family],
+        ),
+      );
+      await parent.context.close();
+    }
+  });
+
+  test("cached shared plan expires and revocation purges it after reconnect", async ({
+    page: tablet,
+    browser,
+  }, testInfo) => {
+    test.skip(
+      ![...TABLET_PROJECTS, "phone-390x844"].includes(testInfo.project.name),
+      "Cached shared views cover phone and tablet layouts",
+    );
+    const parent = await openContext(browser, testInfo, authFile("parentA"));
+    try {
+      await pairViaApi(parent.page, tablet);
+      await expect
+        .poll(() =>
+          tablet.evaluate(() => {
+            const id = localStorage.getItem("fp-device:v1:device-id");
+            return id
+              ? localStorage.getItem(`fp-device:v1:${id}:today`) !== null
+              : false;
+          }),
+        )
+        .toBe(true);
+      await tablet.evaluate(() => {
+        const id = localStorage.getItem("fp-device:v1:device-id")!;
+        const key = `fp-device:v1:${id}:today`;
+        const snapshot = JSON.parse(localStorage.getItem(key)!);
+        snapshot.savedAt = Date.now() - 24 * 60 * 60 * 1000 + 60000;
+        snapshot.board.generatedAt = new Date(snapshot.savedAt).toISOString();
+        localStorage.setItem(key, JSON.stringify(snapshot));
+      });
+      await tablet.route("**/api/device/**", (route) =>
+        route.abort("connectionrefused"),
+      );
+      await tablet.reload();
+      await expect(tablet.getByTestId("device-cached-plan")).toBeVisible();
+      await tablet.clock.fastForward(60000);
+      await expect(tablet.getByRole("alert")).toHaveText(
+        "Reconnect to see today's plan.",
+      );
+      await expect(tablet.getByTestId("device-cached-plan")).toHaveCount(0);
+      await expect(tablet.getByTestId("today-board")).toHaveCount(0);
+      await testInfo.attach("device-cache-expired", {
+        body: await tablet.screenshot(),
+        contentType: "image/png",
+      });
+      await tablet.unroute("**/api/device/**");
+      await tablet
+        .getByRole("button", { name: "Try again", exact: true })
+        .click();
+      await expectBoard(tablet);
+      await parent.page.goto("/dashboard/settings/devices");
+      const row = parent.page.getByTestId("device-row");
+      await row.getByRole("button", { name: "Remove tablet" }).click();
+      await parent.page
+        .getByTestId("remove-device")
+        .getByRole("button", { name: "Remove tablet" })
+        .click();
+      await expect(row).toHaveAttribute("data-status", "removed");
+      await tablet.evaluate(() => window.dispatchEvent(new Event("online")));
+      await expect(tablet).toHaveURL(/\/device\/removed$/);
+      expect(await storageDump(tablet)).not.toContain("fp-device:v1:");
+    } finally {
+      await tablet.unroute("**/api/device/**");
+      await parent.context.close();
+    }
+  });
+
   test("grocery quick add works for an empty list and retries a committed request once", async ({
     page: tablet,
     browser,

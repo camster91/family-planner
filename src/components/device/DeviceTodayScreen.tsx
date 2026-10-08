@@ -6,12 +6,12 @@ import TodayBoard from '@/components/fridge/TodayBoard'
 import { DeviceGroceryAdd } from './DeviceGroceryAdd'
 import BoardSettings, { type BoardSettingsData, type BoardSettingsTransport, type Place } from '@/components/fridge/BoardSettings'
 import { Dialog } from '@/components/ui/dialog'
-import type { TodayBoardData } from '@/app/dashboard/today/today-board-data'
 import { DeviceApiError, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import ElevatedBanner from './ElevatedBanner'
 import ElevationSheet from './ElevationSheet'
 import { genericErrorText, useDeviceClient, type DeviceMe } from './use-device-client'
 import { useDeviceBoardActions } from './use-device-board-actions'
+import { useDeviceBoardSnapshot } from './use-device-board-snapshot'
 import {
   dangerButtonClass,
   errorTextClass,
@@ -38,27 +38,13 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  */
 export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie: boolean }) {
   const client = useDeviceClient()
-  const [data, setData] = React.useState<TodayBoardData | null>(null)
   const [me, setMe] = React.useState<DeviceMe | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [elevation, setElevation] = React.useState<ElevationSession | null>(null)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [renameOpen, setRenameOpen] = React.useState(false)
   const [removeOpen, setRemoveOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
-
-  const loadBoard = React.useCallback(async () => {
-    if (!client || client.isPurged()) return
-    try {
-      const board = await client.request<TodayBoardData>('/api/device/today')
-      setData(board)
-      setLoadError(null)
-    } catch (err) {
-      if (err instanceof DeviceApiError && err.terminal) return
-      setLoadError(genericErrorText(err))
-    }
-  }, [client])
 
   // Visible sync (#271): the board polls this and re-fetches on a change.
   // `optionalRoute`: a server rolled back to a build without the route answers
@@ -70,40 +56,29 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     return res.version
   }, [client])
 
-  const loadMe = React.useCallback(async () => {
-    if (!client || client.isPurged()) return
+  const loadMe = React.useCallback(async (): Promise<string | null> => {
+    if (!client || client.isPurged()) return null
     try {
       const identity = await client.request<DeviceMe>('/api/device/me')
-      if (!(await client.checkDeviceId(identity.device.id))) return
+      if (!(await client.checkDeviceId(identity.device.id)) || client.isPurged()) return null
       setMe(identity)
+      return identity.device.id
     } catch {
-      // Terminal errors already purged; anything else leaves the Parent button disabled until the next try.
+      return null
     }
   }, [client])
+
+  const { data, error: loadError, cached, load: loadBoard } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
 
   const refreshBoard = React.useCallback(() => void loadBoard(), [loadBoard])
   const { actions, actor, forgetActor, picker } = useDeviceBoardActions({
     client,
-    enabled: Boolean(me?.deviceWrites),
+    enabled: Boolean(data) && !cached && Boolean(me?.deviceWrites),
     features: me ? { chores: me.features.chores, lists: me.features.lists } : null,
     members: data?.members ?? [],
     afterChange: refreshBoard,
   })
   const settingsTransport = React.useMemo(() => (client ? deviceSettingsTransport(client) : null), [client])
-
-  // Cold launch: refresh first when the access cookie is gone (§4), then load.
-  React.useEffect(() => {
-    if (!client) return
-    let cancelled = false
-    void (async () => {
-      await client.bootstrap(hasAccessCookie)
-      if (cancelled || client.isPurged()) return
-      await Promise.all([loadBoard(), loadMe()])
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [client, hasAccessCookie, loadBoard, loadMe])
 
   // Proactive refresh while visible (§4).
   React.useEffect(() => {
@@ -121,7 +96,10 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
   React.useEffect(() => {
     if (!client) return
     setElevation(client.getElevation())
-    return client.subscribe(() => setElevation(client.getElevation()))
+    return client.subscribe((event) => {
+      setElevation(client.getElevation())
+      if (event === 'purge') { setMe(null); setSheetOpen(false) }
+    })
   }, [client])
 
   const elevated = elevation !== null
@@ -201,6 +179,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
         setSheetOpen(true)
         if (!me) void loadMe()
       }}
+      disabled={cached}
       className={secondaryButtonClass}
     >
       <Lock className="h-5 w-5" aria-hidden="true" />
@@ -210,6 +189,11 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
 
   const banner = (
     <>
+      {cached && (
+        <p role="status" data-testid="device-cached-plan" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">
+          Showing a saved plan. Connect to update it. Parent controls and changes need a fresh connection.
+        </p>
+      )}
       {status && (
         <p
           role="status"
@@ -249,13 +233,14 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     <>
       <TodayBoard
         data={data}
+        cachedSnapshot={cached}
         fridgeMode
         onRefresh={() => void loadBoard()}
         checkVersion={checkVersion}
         actions={parentButton ?? <span />}
         banner={banner}
         tileActions={actions}
-        groceryAction={client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
+        groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
           <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
         ) : undefined}
       />

@@ -162,6 +162,7 @@ function BoardSkeleton() {
 
 export default function TodayBoard({
   data,
+  cachedSnapshot = false,
   fridgeMode,
   onRefresh,
   checkVersion,
@@ -173,6 +174,8 @@ export default function TodayBoard({
   groceryAction,
 }: {
   data: TodayBoardData
+  /** Persisted device snapshot: display its server generation age, not mount time. */
+  cachedSnapshot?: boolean
   fridgeMode: boolean
   /**
    * The signed-in person (#274): their chores (any chore for a parent) and
@@ -221,6 +224,8 @@ export default function TodayBoard({
     checkVersion: checkVersion ?? fetchPersonBoardVersion,
     refresh,
   })
+  const snapshotTime = Date.parse(data.generatedAt)
+  const shownSyncAt = cachedSnapshot ? (Number.isFinite(snapshotTime) ? snapshotTime : null) : lastSyncAt
   // Tiles act directly (#274): optimistic chore/grocery state, Undo toasts, rollback.
   const personActions = usePersonBoardActions(tileActions ? null : viewer, refresh)
   const tiles = useBoardTiles(data.chores, data.shopping, tileActions ?? personActions)
@@ -336,7 +341,7 @@ export default function TodayBoard({
             <div className="flex flex-wrap items-center gap-3 sm:justify-end">
               {now && (
                 <UpdatedLine
-                  lastSyncAt={lastSyncAt}
+                  lastSyncAt={shownSyncAt}
                   now={now.getTime()}
                   className="text-[13px] text-label-secondary md:text-[15px] 2xl:text-[19px]"
                 />
@@ -360,10 +365,10 @@ export default function TodayBoard({
 
         {now && (
           <SyncNotice
-            lastSyncAt={lastSyncAt}
+            lastSyncAt={shownSyncAt}
             now={now.getTime()}
             online={online}
-            canGoStale={failing}
+            canGoStale={failing || cachedSnapshot}
             what="board"
             appBanner={!fridgeMode}
             className="mb-5"

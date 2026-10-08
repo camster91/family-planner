@@ -6,7 +6,7 @@ implementation resolved details this contract left open. The web UI (§7, §17.2
 same switch; see §19. The §9.2 device writes and board setup under elevation (#274) are implemented behind the
 kill switch **and** a per-household opt-in that defaults off; see §20. The Android code for §17.3 (#242: cookie
 flush on pause, Back on `/device/*`) is merged (#246); its device evidence is still open (`ANDROID.md`
-"Shared-device native behaviour"). The offline snapshot cache (§8 cache rules, #162) is not implemented.
+"Shared-device native behaviour"). The web snapshot cache (§8 cache rules, #135) is implemented for restoration after the application shell loads; fully offline native cold start still needs #371/#242 evidence.
 Decision record: ADR-0006
 (`adr/0006-shared-device-session-contract.md`), which implements ADR-0002.
 **Last grounded against source:** 2026-09-26.
@@ -470,7 +470,7 @@ large layout work before these frames exist (AGENTS.md "Figma-first").
 3. Drop the offline mutation queue (#162). Pending items are not replayed; they were never server-confirmed.
    The queue's device namespace is the reserved `fp-device:v1:queue` key in the `fp-device` database
    (`queueLocation({ kind: 'device' })` in `src/lib/offline-queue.ts`), so steps 2 and 3 are the same wipe.
-   Device writes stay disabled; #162 enables queueing for person sessions only.
+   Shared-device grocery check/uncheck uses its own device queue (#274); a restored cached board remains read-only until its identity and board are freshly loaded. Cached data never grants parent elevation or device-write permission.
 4. Navigate (replace, not push) to the "Removed" screen.
 
 **Cache rules (for #162):** the only cached payload is the latest device `TodayBoardData` plus `generatedAt`,
@@ -479,6 +479,22 @@ payload. Show stale age from `generatedAt`. After **24 hours** without a success
 content and show "Reconnect to see today's plan" (a revoked tablet that never reconnects stops showing data).
 Android backup and device transfer are already disabled (`ANDROID.md`), so cookies and storage do not leave the
 tablet.
+
+### Web snapshot implementation (#135)
+
+`src/lib/device-board-cache.ts` stores one projected device `TodayBoardData` in localStorage, using the existing §8 namespace. Nested unknown fields are stripped on both write and read: no identity/elevation response, email, private notes, finance/medical fields, coordinates, photos or credentials persist. Parent links are always null. Weather retains only the existing §9.1 display fields and its fetch timestamp; the whole restored view is explicitly stale.
+
+The versioned envelope contains `{ v: 1, deviceId, savedAt, board }`; `savedAt` is local time of a successful board read, used only for the 24-hour display bound. It is not a mutation-ordering clock. Wrong-device, corrupt, oversized (256 KiB), unknown-version, expired and future-dated envelopes are refused; invalid/expired copies are removed when storage permits. Writes that fail validation or quota are not reported as durable. No new scheduled job or service-worker API/HTML cache is added.
+
+`use-device-board-snapshot.ts` verifies live device identity before persisting a newly fetched board. Only retryable DTO failures can restore a known device's snapshot; authorization denial never restores it. A restored plan says it is saved, shows age from the server's `generatedAt`, and disables parent controls and mutations until a fresh live board arrives. Online and visible-tab events retry the canonical APIs; successful read replaces the snapshot. Warm, already authorized grocery queue behavior is unchanged.
+
+The 24-hour bound also applies to an in-memory board whose refresh has stopped. A timer and resume/visibility checks hide expired content with "Reconnect to see today's plan"; reading a cache never renews its age. Purge marks the client terminal and signals listeners before asynchronous storage cleanup. Request/refresh generation checks reject late responses from an old revoked or re-paired session, preventing storage resurrection.
+
+This provides browser DTO-outage restoration after the shell loads. It does **not** prove a fully offline browser navigation, native WebView cold start, physical process death or mounted-tablet readability. The existing service worker caches only the public offline page/assets; native registration remains excluded pending #371. #135/#242/#371 retain their wider acceptance.
+
+Coverage: storage allowlist/age/identity/size tests, hook restart/reconnect/denial/expiry/purge/StrictMode tests, device-client late-response regressions, and browser cache/reconnect/expiry/revocation journeys at the supported phone/tablet sizes. Candidate runs and outcomes belong in its PR, not inferred from this source description.
+
+Rollback: revert the snapshot UI integration and cache module together, and clear only this device's `fp-device:v1:<deviceId>:today` key. Preserve device identity, cookies, the existing mutation queue and unrelated preferences. API/schema and installed-client contracts are unchanged.
 
 ## 9. Shared capability and field allowlist
 
