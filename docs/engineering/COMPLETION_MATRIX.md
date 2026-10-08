@@ -10,7 +10,7 @@ Classes: **1** required before beta; **2** approved later-phase work (existing g
 | [#376](https://github.com/camster91/family-planner/issues/376) Later: month grid for tablet and desktop | 2 | Coordinator → Builder → Reviewer → QA | Deferred within existing gate |
 | [#375](https://github.com/camster91/family-planner/issues/375) Small follow-ups from the #354 review | 1 | Coordinator → Builder → Reviewer → QA | Closed record; merged review follow-ups and current CI reconciled |
 | [#374](https://github.com/camster91/family-planner/issues/374) Dates, times and money still shown US-style in a few places | 1 | Coordinator → Builder → Reviewer → QA | Closed record; 36 targeted display-format tests and source reconciliation |
-| [#373](https://github.com/camster91/family-planner/issues/373) Make a Herewoven link-preview image | 1 | Coordinator → Builder → Reviewer → QA | Source merged; live image 404 and external preview acceptance open |
+| [#373](https://github.com/camster91/family-planner/issues/373) Make a Herewoven link-preview image | 1 | Coordinator → Builder → Reviewer → QA | Complete: approved image live/hash matches; external preview checked (#373 evidence) |
 | [#372](https://github.com/camster91/family-planner/issues/372) Finish the Herewoven rename: legal pages, emails, Settings and the sender name | 4 | Cameron + agents | Blocked; safe preparation permitted |
 | [#371](https://github.com/camster91/family-planner/issues/371) Android: test the offline page on a real phone, then turn it on in the app | 4 | Cameron + agents | Blocked; safe preparation permitted |
 | [#370](https://github.com/camster91/family-planner/issues/370) [Owner] Turn the Android APK build workflow back on | 4 | Cameron + agents | Blocked; safe preparation permitted |
@@ -92,7 +92,7 @@ Everything left before real families use Herewoven, in one place. Each line link
 - [ ] #372 Finish the Herewoven rename (legal pages, emails, Settings, sender name). Needs your decision on the legal name first.
 - [ ] #371 Android: test the offline page on a real phone, then turn it on (needs a real device)
 - [ ] #375 Small follow-ups from the #354 review
-- [ ] #373 Make a Herewoven link-preview image
+- [x] #373 Make a Herewoven link-preview image
 - [ ] Later: #376 Month grid for tablet and desktop
 
 ## Open PRs to tidy
@@ -173,6 +173,8 @@ Verification method: 1200×630 approved-assets composition, OG/Twitter metadata,
 Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 Current evidence (2026-10-08): Approved-source social image and metadata are merged (#380). Last anonymous production check on 2026-10-08 still serves `a80c4753` and the canonical image returns 404 ([live evidence](https://github.com/camster91/family-planner/issues/373#issuecomment-6060394920)). Local protocol/image evidence is in the issue; live delivery and external preview acceptance remain open.
+
+Later verified evidence (2026-10-08): protected main4d9aec4 is observed healthy live; image200/1200×630 and SHA25626a1cf625ba3028f3ce90e90539ec986c1e99690da6af9448c5ec5f228feb11c match approved source. Independent Open Graph Preview rendered the live card with the correct title/description/image. [All original #373 criteria are satisfied and the issue is closed](https://github.com/camster91/family-planner/issues/373#issuecomment-6067808658). Earlier404 observations above are historical.
 
 ### Original source and acceptance criteria
 
