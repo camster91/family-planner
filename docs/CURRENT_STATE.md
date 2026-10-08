@@ -1,10 +1,21 @@
 # Current State
 
-**Last reconciled:** 2026-09-29, against `master` at `32f10d00221aff9959ad7365492b5ce4a498370b` (#281)
+**Last reconciled:** 2026-10-08, against protected `main` at `bfb74e6dc79ea6534f039a0bb0331e0f8eef9d54` (#389)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
-This is a dated snapshot. Inspect GitHub and executable source again before changing code or reporting status. Sources used: `git log --first-parent origin/master`, the `.env*.example` files, `.github/workflows/*.yml`, `android/`, and the GitHub API (pull requests, issues and workflow state) on 2026-09-29. Live repository settings, secrets and production health were **not** re-verified.
+Inspect GitHub and executable source again before changing code or reporting status. The current refresh below uses the GitHub API, protected-main ancestry, observed exact-head CI and anonymous public endpoints on 2026-10-08. Older source/runtime/CI sections retain their original 2026-09-29 to 2026-10-07 evidence as history; they are not current deployment instructions. Secrets and production settings were not changed or re-verified.
+
+## Current execution refresh — 2026-10-08
+
+- Default branch is `main`; strict `Build & Test`, administrator enforcement and conversation resolution were read from branch protection. No setting was changed.
+- Protected main is `bfb74e6dc79ea6534f039a0bb0331e0f8eef9d54` (#389). The open PR queue is clear; 16 PRs merged during the cleanup. Exact-head #389 Build/Test and fresh-runner checked-image security passed, as did 718 browser journeys and 28 visual cases (533/11 intentional project-feature skips); 4,242 unit tests passed. These are reviewed candidate checks, not a claim that a post-merge main run or production promotion has completed.
+- #389 implements a bounded allowlisted shared-board read cache for a device-API outage after the browser shell loads. Native offline cold start, physical restart, queue metrics and wider multi-device acceptance remain with #135/#242/#371. #374 and #375 are closed after their source/test reconciliation.
+- #147/#148/#149/#153–#159/#161/#162, and release records #102/#109, are closed. #150/#151/#152/#160/#163 remain open. The execution/backlog documents retain the original dependency order as history rather than pending foundations.
+- Last anonymous live read still reports `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`, built `2026-10-07T18:17:37.600Z`, with healthy `/api/health`; the canonical Herewoven social image returns 404 (#373). Current main is not verified live. No manual deployment, production data/settings change, signing or store upload was performed.
+- There are 49 open issues. #377 is the current launch pickup record; the completion matrix and individual issues retain broader release, hardware, provider and household-beta criteria. Waiting is not completion.
+
+Historical baseline: the 2026-09-29 source snapshot below used `origin/master` at `32f10d00221aff9959ad7365492b5ce4a498370b`, example environment files, workflows, Android source and GitHub records; live settings/secrets/health were not verified for that snapshot.
 
 ## Release route reconciliation — 2026-10-07
 
@@ -16,8 +27,8 @@ Canonical execution/evidence: `engineering/COMPLETION_CONTRACT.md`, `engineering
 
 ## Planning and baseline
 
-- PR #129 (`plan/fridge-tablet-program`) **merged on 2026-09-23** as merge commit `2538499`. The canonical planning files (`AGENTS.md`, `docs/START_HERE.md`, `docs/engineering/**`, `docs/FRIDGE_TABLET_PROGRAM.md`) are on `master`.
-- PR #101 (`codex/launch-readiness-gaps`, head `c19121d`) and the reconciliation candidate PR #172 were both **closed without merging on 2026-09-23**. The per-change disposition of #101 is recorded in [`decisions/PR101_DISPOSITION.md`](decisions/PR101_DISPOSITION.md) (awaiting owner sign-off; #167 stays open until then).
+- PR #129 (`plan/fridge-tablet-program`) **merged on 2026-09-23** as merge commit `2538499`. The canonical planning files (`AGENTS.md`, `docs/START_HERE.md`, `docs/engineering/**`, `docs/FRIDGE_TABLET_PROGRAM.md`) are on protected `main` (the former `master`).
+- PR #101 (`codex/launch-readiness-gaps`, head `c19121d`) and the reconciliation candidate PR #172 were both **closed without merging on 2026-09-23**. The per-change disposition of #101 is recorded in [`decisions/PR101_DISPOSITION.md`](decisions/PR101_DISPOSITION.md) (#167 closed on 2026-09-29 after the owner-approved provisional disposition in #290).
 - PR #116 (CI noise reduction) merged as `aae427a`.
 
 ## Merged on master since the baseline
@@ -103,12 +114,14 @@ Per-household feature flags (`src/lib/features.ts`): a new household starts with
 
 [ADR-0007](architecture/adr/0007-canonical-meal-recipe-grocery-models.md) (accepted 2026-09-27): `FamilyMeal`, `Recipe`/`Ingredient`/`RecipeIngredient` and `List`/`ListItem` are canonical; `MealPlan`, `MealPlanEntry`, `ShoppingList`, `ShoppingItem` are frozen legacy tables. Children A–D (#250–#253) are merged. The production backfill run and the destructive contract (#254) are both still owner-gated. Route-by-route mapping: [`refactor/ROUTE_AND_DOMAIN_INVENTORY.md`](refactor/ROUTE_AND_DOMAIN_INVENTORY.md).
 
-## Open items blocked on the owner
+## Historical owner-gate inventory — 2026-09-29
+
+Use #377 and the current issue records for today’s owners and resume conditions. This inventory is preserved for history; closed disposition records and the old SSH route are superseded by the refresh above.
 
 1. **#254 destructive contract** of the legacy meal/shopping tables: gated on the backfill, a zero-legacy-traffic release cycle, a verified backup and Cameron's explicit approval.
 2. **#242 Android device evidence**: pairing, cold/warm launch, rotation, process kill and revoke on a real Samsung-class and stock tablet. Code merged in #246.
 3. **Production backfill run** (`runbooks/MEALS_GROCERIES_BACKFILL.md`): even a production dry-run needs approval for that run.
-4. **Deploy**: nothing after the last owner-reported deploy (`b408170`, 2026-09-23, per the PR #101 closing comment) is recorded as deployed. `Release to VPS` needs its SSH environment secrets (not observed on 2026-09-24) and `TRUSTED_PROXY_HOPS` set to the real proxy chain.
+4. **Deploy**: the old `b408170`/SSH snapshot is superseded by the Coolify source-build reconciliation above. Current-main live verification, actual rollback control and proxy evidence remain open (#363/#364/#367); do not dispatch the separate SSH release job.
 5. **AI keys and spend caps**: `INVENTORY_SCAN_ANTHROPIC_API_KEY` and `EVENT_IMPORT_ANTHROPIC_API_KEY` stay empty until Cameron approves the provider and sets provider-side spend caps and the `*_DAILY_LIMIT` values.
 6. **Open-Meteo terms review** before `WEATHER_ENABLED` goes on in production (`product/THIRD_PARTY_PROCESSORS.md`).
 7. **Calendar OAuth app registration** with Google and Microsoft, then the calendar-sync envs.
@@ -118,11 +131,11 @@ Per-household feature flags (`src/lib/features.ts`): a new household starts with
 11. **Beta recruiting (#287)**: recruiting design-partner households, and running `npm run beta:scorecard` against production (`BETA_SCORECARD_ALLOW_REMOTE=1`), need Cameron's approval. Each beta household's parent turns on "Share beta usage counts" (off by default).
 12. **Amend any provisional decision** in `decisions/PROVISIONAL_OWNER_DECISIONS.md` (O-15 to O-31, the #101 disposition, #252) that turns out wrong.
 
-## Work in flight
+## Historical implementation ledger — through 2026-10-01
 
 Everything listed here before 2026-09-30 has merged: notification preferences (#286), audit history (#285), beta usage counts (#287), observability and privacy-safe logs (#299, #301, #302), the design gallery (#303), restore rehearsal (#288), household search and deletion, and the route inventory follow-ups. Merged on 2026-09-30:
 
-- #313: Coolify deploy runbook (`runbooks/COOLIFY_DEPLOY.md`), `SOURCE_COMMIT` fallback and a writable uploads folder in the image. Coolify is planned, not the current deployment.
+- #313: Coolify deploy runbook (`runbooks/COOLIFY_DEPLOY.md`), `SOURCE_COMMIT` fallback and a writable uploads folder in the image. At that snapshot Coolify was planned; the current route is described in the dated reconciliation above.
 - #314: beta operations packet (`product/BETA_OPERATIONS.md`), Mailgun email runbook (`runbooks/TRANSACTIONAL_EMAIL.md`), a daily backup timer ready to install and backup retention that matches the privacy page (`runbooks/BACKUPS.md`).
 - #315: real-user readiness fixes (joining with an existing account, case-insensitive sign-in, "Forgot your password?", login notices, same-origin redirects only, blank names rejected, calendar end time kept, kid-view and invite errors shown, production env check at start), page views no longer stored, secret scanning in `Build & Test`, "N ingredients missing" on the Tonight card, and narrow-screen/zoom checks (`e2e/reflow.spec.ts`).
 - #316, readiness follow-ups: honest beta pricing copy (O-23), a confirm step before an email verification link is used (O-24), unused code removed (O-25), error handling on the off-by-default feature pages (O-26), decisions O-27 to O-31, `.input-field`/`.card` styles that older pages used but were never defined, and the new-household sign-up E2E journey (`e2e/signup.spec.ts`).
@@ -146,7 +159,7 @@ Merged on 2026-10-01:
   - AI capture calls time out after 30 seconds, and `X-Real-IP` is trusted only behind a declared proxy.
   - The kid page gate uses the real path, the English/Español switch works, and wishlist labels are fixed.
   - About 2,000 lines of unused code are gone, and more routes answer bad input with 400.
-- Fourth review pass (this PR):
+- Fourth review pass (historical ledger):
   - Outbound calls are now protected against DNS rebinding (the address that was checked is the address connected to).
   - Rewards can be claimed and marked as given, and analytics shows real data.
   - Budget transactions can be edited or deleted, and sick days update right away.

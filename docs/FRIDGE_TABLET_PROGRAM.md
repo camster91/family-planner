@@ -1,7 +1,7 @@
 # Family Planner — Fridge Tablet Program
 
 **Owner:** Cameron Ashley  
-**Status:** Planned  
+**Status:** In progress — implementation exists; release, native-device and household-beta acceptance remain open (2026-10-08)\
 **Product:** Family Planner  
 **Primary surface:** Dedicated Android tablet in the home  
 **Companion surfaces:** Mobile web / Android phone, later iOS if validated  

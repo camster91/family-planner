@@ -1,6 +1,6 @@
-# Herewoven all-open-issue acceptance matrix
+# Herewoven issue acceptance matrix
 
-Snapshot: 2026-10-07; source: GitHub REST open-issue collection, 51 issues. Every source body is retained below; unchecked source boxes are not current proof. Contract: [COMPLETION_CONTRACT.md](COMPLETION_CONTRACT.md).
+Original snapshot: 2026-10-07; source: GitHub REST open-issue collection, 51 issues. Every original source body is retained below; unchecked source boxes are historical requirements, not current proof. Refresh 2026-10-08: source `bfb74e6d`, 49 issues remain open; #374/#375 are closed. Current evidence notes below supersede only the dated evidence summaries, never the original criteria. Contract: [COMPLETION_CONTRACT.md](COMPLETION_CONTRACT.md).
 
 Classes: **1** required before beta; **2** approved later-phase work (existing gates still apply); **3** appears satisfied, awaiting full evidence-backed closure; **4** owner/access/hardware/data blocked. Broad epics contain mixed child scopes; their class never authorizes later/gated work.
 
@@ -8,9 +8,9 @@ Classes: **1** required before beta; **2** approved later-phase work (existing g
 |---|---|---|---|
 | [#377](https://github.com/camster91/family-planner/issues/377) Launch to-do: what is left before real families (Oct 2026) | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
 | [#376](https://github.com/camster91/family-planner/issues/376) Later: month grid for tablet and desktop | 2 | Coordinator → Builder → Reviewer → QA | Deferred within existing gate |
-| [#375](https://github.com/camster91/family-planner/issues/375) Small follow-ups from the #354 review | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
-| [#374](https://github.com/camster91/family-planner/issues/374) Dates, times and money still shown US-style in a few places | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
-| [#373](https://github.com/camster91/family-planner/issues/373) Make a Herewoven link-preview image | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
+| [#375](https://github.com/camster91/family-planner/issues/375) Small follow-ups from the #354 review | 1 | Coordinator → Builder → Reviewer → QA | Closed record; merged review follow-ups and current CI reconciled |
+| [#374](https://github.com/camster91/family-planner/issues/374) Dates, times and money still shown US-style in a few places | 1 | Coordinator → Builder → Reviewer → QA | Closed record; 36 targeted display-format tests and source reconciliation |
+| [#373](https://github.com/camster91/family-planner/issues/373) Make a Herewoven link-preview image | 1 | Coordinator → Builder → Reviewer → QA | Source merged; live image 404 and external preview acceptance open |
 | [#372](https://github.com/camster91/family-planner/issues/372) Finish the Herewoven rename: legal pages, emails, Settings and the sender name | 4 | Cameron + agents | Blocked; safe preparation permitted |
 | [#371](https://github.com/camster91/family-planner/issues/371) Android: test the offline page on a real phone, then turn it on in the app | 4 | Cameron + agents | Blocked; safe preparation permitted |
 | [#370](https://github.com/camster91/family-planner/issues/370) [Owner] Turn the Android APK build workflow back on | 4 | Cameron + agents | Blocked; safe preparation permitted |
@@ -39,7 +39,7 @@ Classes: **1** required before beta; **2** approved later-phase work (existing g
 | [#138](https://github.com/camster91/family-planner/issues/138) [Android / Play Store] Ship a high-quality production Android app with store, signing and policy readiness | 4 | Cameron + agents | Blocked; safe preparation permitted |
 | [#137](https://github.com/camster91/family-planner/issues/137) [Reliability] Define SLOs, observability, performance budgets and scale tests for millions-ready growth | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
 | [#136](https://github.com/camster91/family-planner/issues/136) [Security & Privacy] Build a consumer-grade trust model for households, children and shared devices | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
-| [#135](https://github.com/camster91/family-planner/issues/135) [Sync & Offline] Build reliable realtime multi-device sync with offline-first household actions | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
+| [#135](https://github.com/camster91/family-planner/issues/135) [Sync & Offline] Build reliable realtime multi-device sync with offline-first household actions | 1 | Coordinator → Builder → Reviewer → QA | #389 browser read-cache merged; broader offline/native/metrics acceptance open |
 | [#134](https://github.com/camster91/family-planner/issues/134) [Platform Architecture] Refactor backend domains, APIs and data contracts for long-term scale | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
 | [#133](https://github.com/camster91/family-planner/issues/133) [Adaptive UI] Build premium tablet + phone layouts that scale across Android form factors | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
 | [#132](https://github.com/camster91/family-planner/issues/132) [UX Architecture] Redesign information architecture, onboarding and core household journeys | 1 | Coordinator → Builder → Reviewer → QA | Pending exact-candidate verification |
@@ -62,7 +62,9 @@ Classes: **1** required before beta; **2** approved later-phase work (existing g
 Source: https://github.com/camster91/family-planner/issues/377; updated 2026-10-07T12:46:48Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
+Historical evidence (2026-10-07): PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
+
+Current evidence (2026-10-08): The launch pickup record was reconciled and fetched after #389: 16 merged PRs, zero open PRs at source baseline `bfb74e6d`, 49 open issues. Owner, hardware, provider and household-beta criteria remain open; no new-main production claim.
 
 ### Original source and acceptance criteria
 
@@ -106,7 +108,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/376; updated 2026-10-07T12:46:37Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -123,7 +125,9 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/375; updated 2026-10-07T12:46:36Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: 390px/200% rendered event times, nonwrapping legal links, individually inspected screenshot differences; unused CSS search.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+
+Current evidence (2026-10-08): GitHub #375 is closed (2026-10-08). Its merged clock/footer/CSS follow-ups are preserved on main; final #389 browser/visual CI is green. Historical review/baseline evidence stays in the issue and original requirements remain below. Broader live/device acceptance is not inferred.
 
 ### Original source and acceptance criteria
 
@@ -140,7 +144,9 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/374; updated 2026-10-07T12:46:35Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: Regression-first en-GB display checks, canonical currency/locale contract, machine-key formats preserved.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+
+Current evidence (2026-10-08): GitHub #374 is closed after merged source reconciliation and five targeted suites / 36 passing tests ([closure evidence](https://github.com/camster91/family-planner/issues/374#issuecomment-6050878571)). Display formatting follows locale; stored money remains USD, no persisted household locale exists, and the import weekday is provider context rather than preview UI. Broader #142 remains open.
 
 ### Original source and acceptance criteria
 
@@ -164,7 +170,9 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/373; updated 2026-10-07T12:46:34Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: 1200×630 approved-assets composition, OG/Twitter metadata, rendered inspection and delivered image hash.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+
+Current evidence (2026-10-08): Approved-source social image and metadata are merged (#380). Last anonymous production check on 2026-10-08 still serves `a80c4753` and the canonical image returns 404 ([live evidence](https://github.com/camster91/family-planner/issues/373#issuecomment-6060394920)). Local protocol/image evidence is in the issue; live delivery and external preview acceptance remain open.
 
 ### Original source and acceptance criteria
 
@@ -183,7 +191,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/372; updated 2026-10-07T12:46:33Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -207,7 +215,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/371; updated 2026-10-07T12:46:33Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -230,7 +238,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/370; updated 2026-10-07T12:46:32Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -251,7 +259,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/369; updated 2026-10-07T12:46:31Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -271,7 +279,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/368; updated 2026-10-07T12:46:30Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -290,7 +298,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/367; updated 2026-10-07T12:46:29Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: Observed proxy chain, approved configuration and spoofed-forwarding/rate-limit negative checks.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -309,7 +317,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/366; updated 2026-10-07T12:46:29Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -330,7 +338,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/365; updated 2026-10-07T12:46:28Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: Owner-approved daily backup configuration and isolated restore of a real current backup; synthetic rehearsal is supplementary.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -352,7 +360,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/364; updated 2026-10-07T12:46:27Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
+Historical evidence (2026-10-07): PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
 
 ### Original source and acceptance criteria
 
@@ -376,7 +384,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/363; updated 2026-10-07T12:46:26Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -398,7 +406,7 @@ _Generated by [Claude Code](https://claude.ai/code)_
 Source: https://github.com/camster91/family-planner/issues/342; updated 2026-10-03T04:47:18Z.
 Dependencies / gate: - Document concrete live connection/data/backup/rollback prerequisites and explicit approval boundaries.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -423,7 +431,7 @@ Acceptance:
 Source: https://github.com/camster91/family-planner/issues/254; updated 2026-09-27T11:48:32Z.
 Dependencies / gate: **Outcome:** The legacy `MealPlan`, `MealPlanEntry`, `ShoppingList` and `ShoppingItem` tables are retired only after evidence shows nothing depends on them.; **Boundary:** destructive. Nothing in this issue runs in production without that exact approval.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -452,7 +460,7 @@ Decision: docs/architecture/adr/0007-canonical-meal-recipe-grocery-models.md (ac
 Source: https://github.com/camster91/family-planner/issues/242; updated 2026-09-26T03:19:33Z.
 Dependencies / gate: Parent: #157; Depends on: schema/API and web UI child issues; #160 baseline; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -501,7 +509,7 @@ Contract: docs/architecture/SHARED_DEVICE.md and ADR-0006 (merged in #239).
 Source: https://github.com/camster91/family-planner/issues/163; updated 2026-09-08T12:26:33Z.
 Dependencies / gate: Parent: #131; Depends on: #150 chosen visual direction.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -542,7 +550,7 @@ Do not publish store assets or purchase/commission external artwork without appr
 Source: https://github.com/camster91/family-planner/issues/160; updated 2026-09-08T12:25:48Z.
 Dependencies / gate: Parent: #138; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -578,7 +586,7 @@ No Play Console change, production signing-key creation/change or public publica
 Source: https://github.com/camster91/family-planner/issues/152; updated 2026-09-08T12:23:46Z.
 Dependencies / gate: Parent: #131; Depends on: #150 chosen direction.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -617,7 +625,7 @@ Keep token aliases/deprecated compatibility until migrated components are verifi
 Source: https://github.com/camster91/family-planner/issues/151; updated 2026-09-08T12:23:29Z.
 Dependencies / gate: Parent: #132; Depends on: #148 route inventory; coordinate with #150 visual direction.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -657,7 +665,7 @@ No wholesale route deletion until replacement routes are implemented and verifie
 Source: https://github.com/camster91/family-planner/issues/150; updated 2026-09-08T12:23:17Z.
 Dependencies / gate: Parent: #130; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -697,7 +705,7 @@ Design work only. No paid asset purchase, production deploy or external commissi
 Source: https://github.com/camster91/family-planner/issues/146; updated 2026-10-01T16:21:29Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -771,7 +779,7 @@ No external user communication, account modification, data deletion or paid supp
 Source: https://github.com/camster91/family-planner/issues/145; updated 2026-09-08T11:49:50Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -842,7 +850,7 @@ This issue authorizes planning and non-production automation work. Production de
 Source: https://github.com/camster91/family-planner/issues/144; updated 2026-09-08T11:49:30Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -917,7 +925,7 @@ No paid provider commitment, production secret change or broad AI rollout withou
 Source: https://github.com/camster91/family-planner/issues/142; updated 2026-09-08T11:48:43Z.
 Dependencies / gate: Parent: #128; - [ ] Toronto timezone, DST and date-boundary fixtures pass independently of locale.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -976,7 +984,7 @@ No paid translation service or localization spend is authorized by this planning
 Source: https://github.com/camster91/family-planner/issues/141; updated 2026-10-01T16:21:26Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1036,7 +1044,7 @@ No paid messaging provider or production notification campaign is authorized wit
 Source: https://github.com/camster91/family-planner/issues/140; updated 2026-09-08T11:48:06Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1103,7 +1111,7 @@ No paid analytics provider, advertising SDK, tracking expansion or external camp
 Source: https://github.com/camster91/family-planner/issues/139; updated 2026-09-08T11:47:50Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1180,7 +1188,7 @@ This expands the release gate but does not itself authorize deployment or produc
 Source: https://github.com/camster91/family-planner/issues/138; updated 2026-09-08T11:47:29Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1245,7 +1253,7 @@ Creating plans/assets/tests is authorized; Play Console account changes, product
 Source: https://github.com/camster91/family-planner/issues/137; updated 2026-10-01T16:21:32Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1319,7 +1327,7 @@ No paid monitoring/infrastructure service or capacity spend is authorized by thi
 Source: https://github.com/camster91/family-planner/issues/136; updated 2026-09-08T11:46:44Z.
 Dependencies / gate: Parent: #128; - Input validation on every mutation boundary.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1389,7 +1397,9 @@ Security work must not weaken existing P0 gates in #102 or bypass explicit appro
 Source: https://github.com/camster91/family-planner/issues/135; updated 2026-09-08T11:46:23Z.
 Dependencies / gate: Parent: #128
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+
+Current evidence (2026-10-08): Bounded browser read-cache merged in #389 as `bfb74e6d`; final reviewed head passed 4,242 unit tests, 718 browser journeys and 28 visual cases. Cache restoration after shell load, expiry and revoke/reconnect were rendered and checked at phone/portrait/landscape sizes. Offline new-item creation, queue metrics, broader convergence/network flapping and physical/native restart remain open; #135 is not closed.
 
 ### Original source and acceptance criteria
 
@@ -1441,7 +1451,7 @@ The sync design must avoid per-device aggressive polling. Use push/realtime mech
 Source: https://github.com/camster91/family-planner/issues/134; updated 2026-09-08T11:46:03Z.
 Dependencies / gate: Parent: #128; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1506,7 +1516,7 @@ No production database migration, infrastructure spend or destructive schema cha
 Source: https://github.com/camster91/family-planner/issues/133; updated 2026-09-08T11:45:39Z.
 Dependencies / gate: Parent: #128; Depends on: #131, #132
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1557,7 +1567,7 @@ Representative Android hardware should include at least a Samsung-class tablet a
 Source: https://github.com/camster91/family-planner/issues/132; updated 2026-09-08T11:45:22Z.
 Dependencies / gate: Parent: #128; Depends on: #130, #131
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1619,7 +1629,7 @@ The navigation and onboarding model explains how a household can use a large fea
 Source: https://github.com/camster91/family-planner/issues/128; updated 2026-09-08T17:23:04Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1713,7 +1723,7 @@ This roadmap and its linked issues do not by themselves authorize production dep
 Source: https://github.com/camster91/family-planner/issues/125; updated 2026-09-08T11:33:47Z.
 Dependencies / gate: Gate: start implementation only after inventory/meal usage shows manual entry is a meaningful retention or usability problem.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1755,7 +1765,7 @@ No provider purchase, subscription, production API credential, persistent media 
 Source: https://github.com/camster91/family-planner/issues/124; updated 2026-09-08T11:33:32Z.
 Dependencies / gate: Gate: provider implementation follows real household evidence; planning and contract design may proceed earlier.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1799,7 +1809,7 @@ No paid provider commitment, OAuth credential setup, production integration or c
 Source: https://github.com/camster91/family-planner/issues/123; updated 2026-09-08T11:33:18Z.
 Dependencies / gate: Depends on: #119 dashboard, #121 inventory and #122 meals/groceries.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1845,7 +1855,7 @@ No paid model commitment, provider account change, production secret change or p
 Source: https://github.com/camster91/family-planner/issues/120; updated 2026-09-08T11:32:22Z.
 Dependencies / gate: Depends on: #119 for the primary tablet UX.; ## Boundary
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1896,7 +1906,7 @@ Do not enable device-owner policies, production deployment, store distribution o
 Source: https://github.com/camster91/family-planner/issues/110; updated 2026-09-02T12:10:06Z.
 Dependencies / gate: Parent: #84; Gate: do not implement billing until beta thresholds pass and at least 3 of 5 adults independently indicate willingness to pay.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1921,7 +1931,7 @@ This issue intentionally has no Beta Launch milestone.
 Source: https://github.com/camster91/family-planner/issues/108; updated 2026-09-30T22:45:22Z.
 Dependencies / gate: Parent: #84; Depends on: five-household onboarding complete.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1950,7 +1960,7 @@ Generate with `npm run beta:scorecard`; never infer missing observations.
 Source: https://github.com/camster91/family-planner/issues/107; updated 2026-09-30T22:45:21Z.
 Dependencies / gate: Parent: #84; Depends on: production release complete and healthy.; Blocked by: approval to contact participants and five suitable adult household owners.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -1978,7 +1988,7 @@ Use `docs/BETA_OPERATIONS_PACKET.md` and `docs/DESIGN_PARTNER_BETA.md`.
 Source: https://github.com/camster91/family-planner/issues/106; updated 2026-09-02T12:09:59Z.
 Dependencies / gate: Parent: #84; Depends on: #85, security isolation, email, migration disposition, and final rendered QA.; ## Boundary
 Verification method: Protected-main reviewed green head; Coolify build revision, healthy endpoints, approved asset hashes, safe journeys and retained rollback.
-Current evidence: PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
+Historical evidence (2026-10-07): PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
 
 ### Original source and acceptance criteria
 
@@ -2008,7 +2018,7 @@ Merge approval is not production approval. Production approval applies only to t
 Source: https://github.com/camster91/family-planner/issues/105; updated 2026-09-02T12:09:57Z.
 Dependencies / gate: Parent: #84; Depends on: #101 and the final security hardening candidate.
 Verification method: Exact-head rendered parent/teen/child journeys, accessibility/device states and direct two-household negatives.
-Current evidence: PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
+Historical evidence (2026-10-07): PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
 
 ### Original source and acceptance criteria
 
@@ -2037,7 +2047,7 @@ Any P0 or P1 regression receives a linked issue and blocks promotion.
 Source: https://github.com/camster91/family-planner/issues/104; updated 2026-09-02T12:09:56Z.
 Dependencies / gate: Parent: #84; Blocked by: approved ChoreChamps and Budget production exports plus explicit identity maps. Retained Meal Planner data is currently empty.
 Verification method: Approved source checksums and identity maps; isolated restore/import twice; counts and rollback, or explicit owner deferral.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -2066,7 +2076,7 @@ The Ashbi gate rehearses idempotent representative exports for all three sources
 Source: https://github.com/camster91/family-planner/issues/103; updated 2026-09-30T22:45:20Z.
 Dependencies / gate: Parent: #84; Blocked by: release-owner approval for provider account, DNS, sender, review secret, and test inbox.
 Verification method: Approved inbox delivery, one-use verification/recovery, DNS/provider health and failure/rate-limit evidence.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -2098,7 +2108,7 @@ Follow `docs/TRANSACTIONAL_EMAIL_RUNBOOK.md`; record only non-secret release evi
 Source: https://github.com/camster91/family-planner/issues/85; updated 2026-09-25T02:18:16Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: baseline source and healthy public endpoints only; no issue-level acceptance inferred.
+Historical evidence (2026-10-07): baseline source and healthy public endpoints only; no issue-level acceptance inferred.
 
 ### Original source and acceptance criteria
 
@@ -2129,7 +2139,7 @@ Restore required PR and `master` validation for frozen install, lint, tests, pro
 Source: https://github.com/camster91/family-planner/issues/84; updated 2026-09-02T12:10:46Z.
 Dependencies / gate: Read related issue references in source; no dependency invented.
 Verification method: All original criteria below, applicable Definition of Done commands, exact-head review/CI and rendered/runtime or owner/hardware/data evidence as named. Epics require evidence for every child outcome.
-Current evidence: PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
+Historical evidence (2026-10-07): PR #379 exact-head review/CI and synthetic kid QA passed; merge a80c4753bba6f9aa5f978d4a9cff4ee039f97d44 now served by /api/version, healthy /api/health, 26 approved public asset hashes match. Full live role/email/backup/device criteria remain open; no broad acceptance/closure inferred.
 
 ### Original source and acceptance criteria
 

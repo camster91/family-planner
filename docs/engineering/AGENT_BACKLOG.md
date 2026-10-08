@@ -4,19 +4,20 @@ Master roadmap: #128. Repository foundation: #147 / PR #129.
 
 ## Repository reconciliation
 
-- PR #129 merged on 2026-09-23 (`2538499`); `master` contains this backlog. Current state: `docs/CURRENT_STATE.md`.
+- PR #129 merged on 2026-09-23 (`2538499`); protected `main` is the current default branch. Current state: `docs/CURRENT_STATE.md`.
+- Execution refresh 2026-10-08: source `bfb74e6d`; #148/#149/#153–#159/#161/#162 are closed. Their original order below is retained as dependency history, not unfinished foundation work.
 
-## Next five execution issues
+## Current foundation acceptance
 
-1. #148 — route/component/domain and placeholder-data audit.
-2. #149 — canonical meal/recipe/grocery/list decision, using #148 evidence.
-3. #150 — Figma reference board and original premium visual direction.
-4. #151 — adaptive IA and five user modes, using #148 and coordinating with #150.
-5. #152 — align production tokens/components after #150.
+1. #150 — prepared Figma foundations, journeys, reference/mood studies and original composition alternatives; reading-distance and chosen-composition acceptance remain open.
+2. #151 — adaptive IA and five modes; annotations are available, but complete state/long-text/responsive acceptance is not inferred from them.
+3. #152 — source-matched Figma/code token mapping; night, browser-paint and primitive/state acceptance remain to be reconciled.
+4. #160 — Android baseline; host build/test evidence is distinct from physical lifecycle acceptance (#242/#371).
+5. #163 — original icon/illustration language; approved identity is retained, with native adaptive/monochrome and asset acceptance still open.
 
-#150 can proceed as design analysis beside #148. #149 and #151 remain evidence-dependent on #148.
+These are acceptance workstreams, not automatic permission for an unreviewed redesign. Use current issue evidence to choose one bounded unblocked slice. #148 and #149 are closed prerequisites; do not repeat their audit or canonical-model decision.
 
-## Following foundations
+## Original following foundation sequence
 
 - #153 adaptive shell — after #151 and sufficiently stable #152.
 - #154 deterministic two-household fixtures — meal/grocery fixture shapes wait for #149.
@@ -32,7 +33,7 @@ Master roadmap: #128. Repository foundation: #147 / PR #129.
 
 ## Existing release gates
 
-#84, #85 and #102–#110 remain active. Planning and refactor work must not bypass security/isolation, hosted/Ashbi CI, email, migration disposition, QA, exact-artifact promotion, beta evidence, calendar validation or pricing/billing validation.
+#84/#85 and the remaining open #103–#108/#110 acceptance remain release gates. #102 and #109 are closed issue records; this does not supply missing production, household-beta, email or hardware evidence. Planning and refactor work must not bypass security/isolation, hosted/Ashbi CI, email, migration disposition, QA, exact-artifact promotion, beta evidence, calendar validation or pricing/billing validation.
 
 ## Human gates
 

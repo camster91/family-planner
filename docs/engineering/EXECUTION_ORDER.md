@@ -1,11 +1,17 @@
 # Build Execution Order
 
-Issue dependencies are authoritative within the source order in `docs/START_HERE.md`. Do not begin the product refactor until #147 / PR #129 is merged through the normal protected flow.
+Issue dependencies are authoritative within the source order in `docs/START_HERE.md`. The foundation gate #147 / PR #129 is complete: #129 merged normally on 2026-09-23 as `2538499`. The sequence below preserves the original dependencies; it is not a list of currently open issues.
+
+## Execution refresh — 2026-10-08
+
+GitHub issue state was checked against source `bfb74e6d` before this refresh. #148/#149/#153–#159/#161/#162 are closed foundation issues; do not restart their implemented work or treat their original dependency gates as pending. #150/#151/#152/#160/#163 remain open. A closed foundation issue does not establish the broader Android, release, household-beta or product acceptance criteria.
+
+Use the current issue records and #377 for remaining acceptance and owner dependencies. #150 now has source-linked foundations, journey maps, reference/mood studies and composition proposals; native reading-distance and composition acceptance are still open. #135 has a bounded grocery-check queue and a merged shared-board cache (#389) validated locally and in CI for API-outage restoration after the shell loads. Fully offline navigation, native WebView restart, queue metrics and broader multi-device acceptance remain open. #160/#242 retain physical Android evidence. Choose one bounded, unblocked slice from these current gaps; avoid recreating the foundation plan.
 
 ## Gate 0 — repository reconciliation
 
-1. #147 repository foundation and source-of-truth cleanup — implemented in PR #129; awaiting successful required checks and merge.
-2. #84, #85 and #102–#110 remain release/security gates and are not bypassed by the fridge programme.
+1. #147 repository foundation and source-of-truth cleanup — closed; PR #129 merged on 2026-09-23 (`2538499`).
+2. #84/#85 and the remaining open #103–#108/#110 acceptance are release/security gates. #102/#109 are closed records; closing them does not establish missing production, household-beta, email or hardware evidence.
 
 ## Wave A — remove ambiguity
 

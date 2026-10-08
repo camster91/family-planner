@@ -9,7 +9,13 @@ Persistent goal: finish the permitted remaining Family Planner / Herewoven work 
 - Initial backlog snapshot: 51 open issues and six PRs: #353, #351, #352, #355, #349, held draft #343. #351 E2E and #355 Build & Test/E2E failed at that refresh; those heads/checks are historical after branch updates.
 - Repository clone/worktree inspection found one main checkout, no pre-existing local workers. Existing GitHub Projects cannot be read by this integration (`Resource not accessible by integration`); board ownership is unverified. No duplicate board created. External Hermes worker/scheduler state is inaccessible; all seven cron jobs must remain paused.
 
-Current `main` after the protected #379 merge is `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`. Production `/api/version` now reports that exact merge, built `2026-10-07T18:17:37.600Z`; `/api/health` is healthy and all 26 approved public asset hashes match. Live authenticated child-role refill/Undo acceptance still needs an approved test identity; those flows passed synthetic exact-head QA, not live family acceptance. The initial backlog/endpoint/worktree snapshot above is historical; use the candidate ledger for subsequent actions.
+## Execution refresh — 2026-10-08
+
+Source baseline: protected `main` at `bfb74e6dc79ea6534f039a0bb0331e0f8eef9d54` (#389). The 16 cleanup PRs (#343/#349/#351/#352/#353/#355/#378–#383/#385/#386/#388/#389) are merged; #384 is preserved by inclusion in #386, and #387 was closed as superseded. The open PR queue is clear at this refresh. #374/#375 are closed issue records; 49 issues remain open. See #377 and the dated matrix refresh for current pickup; the initial step statuses and ledger below are historical.
+
+#389's final reviewed head `f66b62cf0e27a4ac570b58bc80b5eeb42157425d` passed [Build/Test and fresh-runner checked-image security](https://github.com/camster91/family-planner/actions/runs/37778226654) and [browser/visual checks](https://github.com/camster91/family-planner/actions/runs/37778226866): 4,242 unit tests, 718 browser journeys and 28 visual cases (533/11 intentional browser/visual project-feature skips). Its bounded shared-board cache restores after shell load during a device-API outage; #135/#242/#371 retain wider offline/native acceptance. This is candidate/source evidence, not proof of a completed post-merge main run or production promotion.
+
+Last anonymous public read still reports `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`, built `2026-10-07T18:17:37.600Z`, with healthy `/api/health`; the newer social image returns 404 (#373). Historical #379 evidence included 26 matching approved asset hashes. New main and full live role/email/backup/device criteria are not verified. The next source slice is the prepared planning-state reconciliation; local content-free queue diagnostics are a bounded follow-up under #135. Owner/hardware/provider/household-beta gates remain unchanged.
 
 ## Definition of done
 
@@ -25,7 +31,9 @@ Preserve exact woven H/artwork, Newsreader/Manrope and all six palette roles; us
 
 PR #343 additive network preparation is included under Cameron’s latest “merge all” authorization. The live database cutover in #342 and destructive #254 remain separately gated. Do not resume any Hermes cron or create replacement schedules; #368 can receive preparation only. No destructive migrations, real imports, infrastructure/DNS/provider/secret/security/deployment-policy/retention changes, external mail, paid services or store publication without separate specific approval.
 
-## Execution and ownership
+## Execution and ownership — original sequence
+
+The original ownership sequence below describes responsibilities, not permission to start external workers or new chats. Use the current operating instructions and existing task for execution; no worker/scheduler is enabled by this refresh.
 
 Coordinator owns this durable plan, dependencies, integration, merges and live acceptance. Builder writes one scoped slice in its own worktree; Reviewer independently inspects the exact head and concrete risks; QA verifies behavior/rendered accessibility/applicable states. One writer per worktree. Read-only analysis can run in parallel; heavy tests/previews/browsers run sequentially in cloud, leaving personal Windows apps/tabs untouched. Handoffs are completion messages, not repeated polling.
 
@@ -42,9 +50,9 @@ The inherited plan recorded an earlier scoped instruction and the #379 action un
 
 Current recorded production release used protected `main` and a Coolify source build. Older `master` / immutable-image promotion documents and #84/#85/#106 are inconsistent with that route. Do not claim a CI immutable image was promoted when Coolify rebuilt source. Do not enable the dormant immutable publisher or change Auto Deploy. Retain exact source/build revision evidence; policy decision is pending with Cameron (#363).
 
-## Candidate action ledger
+## Historical candidate action ledger — 2026-10-07
 
-| Candidate | Scope and authorization match | Current evidence / action |
+| Candidate | Scope and authorization match | Evidence / action at that snapshot |
 |---|---|---|
 | PR #379 `edd526767b3f89e6707197ed4f6419d8735e26d1` | Two-file kid refill; reviewed/tested, non-destructive; existing Coolify source path at `family.ashbi.ca` | Independent review + QA passed; Build & Test/E2E/checked-image/security checks green. Normal protected squash merged as `a80c4753bba6f9aa5f978d4a9cff4ee039f97d44`; production exact revision/health/26 asset hashes verified; live authenticated child acceptance remains gated. |
 | PR #380 `b0ec3acfa5440f7c02695dbbbd7c6591594c7147` | Approved-assets social preview, no schema/API change | Final integrated source review passed; prior focused tests/hosted/browser protocol passes on 506c764 are historical. Fresh b0ec3ac checks and protocol QA must pass before action; live delivery pending. |
