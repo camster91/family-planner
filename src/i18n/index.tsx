@@ -1,5 +1,7 @@
 'use client'
 
+import { groceryEnglish, grocerySpanish } from './grocery-controls'
+
 import { PRODUCT_BRAND } from '@/lib/brand'
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
@@ -9,6 +11,7 @@ import { pseudolocalizeTemplate } from './pseudo'
 // Inline messages — no external library needed
 const messages = {
   en: {
+    groceries: groceryEnglish,
     preferences: {
       languageEnglish: 'English',
       languageSpanish: 'Español',
@@ -470,6 +473,7 @@ const messages = {
     },
   },
   es: {
+    groceries: grocerySpanish,
     preferences: {
       languageEnglish: 'English',
       languageSpanish: 'Español',
