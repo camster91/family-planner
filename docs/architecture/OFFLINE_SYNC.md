@@ -3,6 +3,9 @@
 Family Planner should remain useful during short home-network outages without creating duplicate or conflicting household state.
 
 ## MVP read behaviour
+
+Shared-device snapshot behavior is implemented in `device-board-cache.ts` and `use-device-board-snapshot.ts`: see [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §8 for exact allowlist, 24-hour display bound, read-only restoration, revocation and application-shell/native limits. This does not extend the mutation allowlist or establish physical Android acceptance.
+
 Cache only allowlisted shared-surface data needed for a recent dashboard/detail view. Show the user when data is cached/stale and when it was last synced.
 
 ## Offline mutation allowlist

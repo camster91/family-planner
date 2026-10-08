@@ -196,6 +196,87 @@ describe('refresh rule (§4)', () => {
 })
 
 describe('terminal errors purge (§8)', () => {
+  it("signals purge before asynchronous cleanup and rejects a late successful read", async () => {
+    let finishRead!: (response: Response) => void;
+    let finishCleanup!: () => void;
+    const t = setup(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishRead = resolve;
+        }),
+    );
+    t.deleteIndexedDb.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCleanup = resolve;
+        }),
+    );
+    const events: string[] = [];
+    t.client.subscribe((event) => events.push(event));
+    const pending = t.client.request(TODAY);
+    const rejected = expect(pending).rejects.toMatchObject({
+      code: "DEVICE_SESSION_INVALID",
+      terminal: true,
+    });
+    const cleanup = t.client.purge();
+    expect(t.client.isPurged()).toBe(true);
+    expect(events).toContain("purge");
+    finishRead(json(200, { title: "Old household response" }));
+    await rejected;
+    await expect(t.client.request(TODAY)).rejects.toMatchObject({
+      terminal: true,
+    });
+    expect(t.count(TODAY)).toBe(1);
+    finishCleanup();
+    await cleanup;
+  });
+
+  it("does not revive a refresh that finishes after purge", async () => {
+    let finishRefresh!: (response: Response) => void;
+    const t = setup(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishRefresh = resolve;
+        }),
+    );
+    const pending = t.client.bootstrap(false);
+    await t.client.purge();
+    finishRefresh(json(200, { accessExpiresAt: "2026-01-05T13:00:00Z" }));
+    expect(await pending).toMatchObject({ ok: false, terminal: true });
+    expect(await t.client.maybeRefresh()).toBeNull();
+  });
+
+  it("a late old-session denial does not purge a newly paired device", async () => {
+    let finishOldRead!: (response: Response) => void;
+    const t = setup((path) => {
+      if (path === TODAY)
+        return new Promise<Response>((resolve) => {
+          finishOldRead = resolve;
+        });
+      if (path === "/api/device/pair/claim")
+        return json(200, {
+          claimToken: "review-claim",
+          confirmDigits: "42",
+          expiresAt: "2026-01-05T13:00:00Z",
+        });
+      return json(200, {
+        status: "paired",
+        device: { id: "new-device", label: "Review tablet" },
+      });
+    });
+    const pending = t.client.request(TODAY);
+    const rejected = expect(pending).rejects.toMatchObject({ terminal: true });
+    await t.client.purge();
+    await t.client.claim("ABCD1234", "web", "review");
+    expect(await t.client.pollPairing()).toMatchObject({ status: "paired" });
+    expect(t.client.isPurged()).toBe(false);
+    finishOldRead(envelope(401, "DEVICE_REVOKED"));
+    await rejected;
+    expect(t.client.isPurged()).toBe(false);
+    expect(t.local.getItem(DEVICE_ID_KEY)).toBe("new-device");
+    expect(t.navigate).toHaveBeenCalledTimes(1);
+  });
+
   function seedStorage(t: ReturnType<typeof setup>) {
     t.local.setItem(DEVICE_ID_KEY, 'dev_1')
     t.local.setItem('fp-device:v1:dev_1:today', '{"cached":true}')

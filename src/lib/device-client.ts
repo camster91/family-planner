@@ -236,6 +236,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
   let claimToken: string | null = null
   let purging: Promise<void> | null = null
   let purged = false
+  let generation = 0
   let pageHidden = false
   const listeners = new Set<Listener>()
 
@@ -312,11 +313,16 @@ export function createDeviceClient(deps: DeviceClientDeps) {
   /** §8 purge: wipe, then replace-navigate to the removed screen. Idempotent. */
   function purge(): Promise<void> {
     if (purging) return purging
+    if (purged) return Promise.resolve()
     purging = (async () => {
-      await wipe()
       purged = true
+      generation++
+      elevation = null
+      claimToken = null
+      accessExpiresAt = null
       emit('elevation')
       emit('purge')
+      await wipe()
       deps.navigate(REMOVED_PATH)
     })().finally(() => {
       purging = null
@@ -326,6 +332,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
 
   function refresh(): Promise<RefreshOutcome> {
     if (inflightRefresh) return inflightRefresh
+    const requestedGeneration = generation
     inflightRefresh = (async (): Promise<RefreshOutcome> => {
       let res: Response
       try {
@@ -333,13 +340,22 @@ export function createDeviceClient(deps: DeviceClientDeps) {
       } catch (error) {
         return { ok: false, terminal: false, error: error as DeviceApiError }
       }
+      if (purged || requestedGeneration !== generation) {
+        return { ok: false, terminal: true, error: new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.') }
+      }
       if (res.ok) {
         const body = (await readBody(res)) as { accessExpiresAt?: unknown } | null
+        if (purged || requestedGeneration !== generation) {
+          return { ok: false, terminal: true, error: new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.') }
+        }
         const parsed = typeof body?.accessExpiresAt === 'string' ? Date.parse(body.accessExpiresAt) : NaN
         accessExpiresAt = Number.isFinite(parsed) ? parsed : null
         return { ok: true, accessExpiresAt }
       }
       const error = await toError(res)
+      if (purged || requestedGeneration !== generation) {
+        return { ok: false, terminal: true, error: new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.') }
+      }
       if (error.terminal || isKillSwitchResponse('/api/device/session/refresh', res.status)) {
         await purge()
         return { ok: false, terminal: true, error }
@@ -352,9 +368,13 @@ export function createDeviceClient(deps: DeviceClientDeps) {
   }
 
   async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+    const requestedGeneration = generation
+    if (purged) throw new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.')
     let res = await send(path, options)
+    if (purged || requestedGeneration !== generation) throw new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.')
     if (!res.ok) {
       let error = await toError(res)
+      if (purged || requestedGeneration !== generation) throw new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.')
       if (error.code === 'DEVICE_ACCESS_EXPIRED') {
         const refreshed = await refresh()
         // Terminal: already purged. Otherwise (503, 429, offline) the refresh
@@ -362,7 +382,9 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         if (!refreshed.ok) throw refreshed.error
         // Retry exactly once.
         res = await send(path, options)
+        if (purged || requestedGeneration !== generation) throw new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.')
         if (!res.ok) error = await toError(res)
+        if (purged || requestedGeneration !== generation) throw new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.')
       }
       if (!res.ok) {
         const killSwitch = isKillSwitchResponse(path, res.status) && (!options.optionalRoute || error.enveloped)
@@ -384,8 +406,10 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         throw error
       }
     }
+    const body = await readBody(res)
+    if (purged || requestedGeneration !== generation) throw new DeviceApiError(401, 'DEVICE_SESSION_INVALID', 'This tablet was removed.')
     if (options.elevated && elevation) elevation = { ...elevation, lastUsedAt: deps.now() }
-    return (await readBody(res)) as T
+    return body as T
   }
 
   function dropElevation(): ElevationSession | null {
@@ -543,6 +567,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
             break
           }
           purged = false
+          generation++
           accessExpiresAt = null
           return { status: 'paired', device: body.device }
         }
