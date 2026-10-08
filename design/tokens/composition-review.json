@@ -1,0 +1,53 @@
+{
+  "figmaDocumentUrl": "https://www.figma.com/design/s0qsOr91Au0OJ70SCZEWb4",
+  "sourceRevision": "9058d58922ad59d3c02ff60ab2f491d0d584bd3c",
+  "preparedAt": "2026-10-08",
+  "status": "review proposals; #150 remains open",
+  "pageId": "52:2",
+  "rootId": "53:2",
+  "componentSetId": "52:54",
+  "showcaseId": "54:58",
+  "screens": [
+    {
+      "id": "53:8",
+      "name": "A \u00b7 landscape \u00b7 1280\u00d7800",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "id": "53:56",
+      "name": "B \u00b7 landscape \u00b7 1280\u00d7800",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "id": "53:99",
+      "name": "A \u00b7 paired phone \u00b7 390\u00d7844",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "id": "53:133",
+      "name": "A \u00b7 night privacy \u00b7 1280\u00d7800",
+      "width": 1280,
+      "height": 800
+    }
+  ],
+  "counts": {
+    "TEXT": 72,
+    "FRAME": 29,
+    "VECTOR": 28,
+    "INSTANCE": 13
+  },
+  "validation": {
+    "renderErrors": [],
+    "overflow": [],
+    "missingStyles": [],
+    "fontErrors": [],
+    "unboundText": [],
+    "imageFilledNodes": []
+  },
+  "screenshotsReviewed": true,
+  "stateShowcaseCopyCorrectedAndReviewed": true,
+  "remaining": "Physical distance, lifecycle, brightness, full responsive state acceptance and approval remain open."
+}
