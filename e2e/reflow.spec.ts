@@ -210,6 +210,10 @@ for (const size of SIZES) {
           await expect(page).toHaveURL(new RegExp(`${path}$`));
           await settle(page);
           await expectReflow(page, `${size.name} ${path}`);
+          if (size.name === "zoom-400")
+            await page.screenshot({
+              path: testInfo.outputPath("zoom-400.png"),
+            });
         });
       }
     });
@@ -223,6 +227,8 @@ for (const size of SIZES) {
         await expect(page.getByText("Today's Missions")).toBeVisible();
         await settle(page);
         await expectReflow(page, `${size.name} kid home`);
+        if (size.name === "zoom-400")
+          await page.screenshot({ path: testInfo.outputPath("zoom-400.png") });
       });
     });
   });
