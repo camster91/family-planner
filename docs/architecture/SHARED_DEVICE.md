@@ -484,9 +484,9 @@ tablet.
 
 `src/lib/device-board-cache.ts` stores one projected device `TodayBoardData` in localStorage, using the existing §8 namespace. Nested unknown fields are stripped on both write and read: no identity/elevation response, email, private notes, finance/medical fields, coordinates, photos or credentials persist. Parent links are always null. Weather retains only the existing §9.1 display fields and its fetch timestamp; the whole restored view is explicitly stale.
 
-The versioned envelope contains `{ v: 1, deviceId, savedAt, board }`; `savedAt` is local time of a successful board read, used only for the 24-hour display bound. It is not a mutation-ordering clock. Wrong-device, corrupt, oversized (256 KiB), unknown-version, expired and future-dated envelopes are refused; invalid/expired copies are removed when storage permits. Writes that fail validation or quota are not reported as durable. No new scheduled job or service-worker API/HTML cache is added.
+The versioned envelope contains `{ v: 1, deviceId, savedAt, board }`; `savedAt` is local time of a successful board read, used only for the 24-hour display bound. It is not a mutation-ordering clock. Wrong-device, corrupt, oversized (256 KiB), unknown-version, expired and future-dated envelopes are refused; invalid/expired copies are removed when storage permits. Writes that fail validation or quota leave live data usable and show that the plan could not be saved. No new scheduled job or service-worker API/HTML cache is added.
 
-`use-device-board-snapshot.ts` verifies live device identity before persisting a newly fetched board. Only retryable DTO failures can restore a known device's snapshot; authorization denial never restores it. A restored plan says it is saved, shows age from the server's `generatedAt`, and disables parent controls and mutations until a fresh live board arrives. Online and visible-tab events retry the canonical APIs; successful read replaces the snapshot. Warm, already authorized grocery queue behavior is unchanged.
+`use-device-board-snapshot.ts` verifies live device identity before persisting a newly fetched board. A changed or removed paired identity in another tab triggers purge. Only retryable DTO failures can restore a known device's snapshot; authorization denial never restores it. A restored plan says it is saved, shows age from the server's `generatedAt`, and disables parent controls and mutations until a fresh live board arrives. Online and visible-tab events retry the canonical APIs; successful read replaces the snapshot. Warm, already authorized grocery queue behavior is unchanged.
 
 The 24-hour bound also applies to an in-memory board whose refresh has stopped. A timer and resume/visibility checks hide expired content with "Reconnect to see today's plan"; reading a cache never renews its age. Purge marks the client terminal and signals listeners before asynchronous storage cleanup. Request/refresh generation checks reject late responses from an old revoked or re-paired session, preventing storage resurrection.
 
@@ -1149,9 +1149,9 @@ As implemented:
 - `/device/today` serialises only whether the access cookie is present; the board is fetched on the client. When
   the cookie is present the page resolves the device once server-side to trigger the view-driven subscribed
   calendar refresh (§18 last bullet); nothing from that lookup reaches the page.
-- The tablet stores one key, `fp-device:v1:device-id`, to detect a different device on the same browser (§8).
+- The tablet stores `fp-device:v1:device-id` to detect a different device on the same browser (§8), and the bounded `fp-device:v1:<deviceId>:today` snapshot described above.
   The purge also deletes IndexedDB `fp-device`, Cache Storage entries starting `fp-device` and the reserved queue
-  key `fp-device:v1:queue`; no offline snapshot is written yet (#162).
+  key `fp-device:v1:queue`, along with the snapshot namespace.
 - Purge navigation is `location.replace`, so Back never returns to the board.
 - "Replace" sends `replacesDeviceId`; the server revokes the old tablet in the issuing transaction (§5.3, §7) and
   the dialog reports it from `GET …/pairings/:id` `replaces.removed`, with a checked retry otherwise. Closing the
@@ -1161,7 +1161,7 @@ As implemented:
   tablet was backgrounded never leaves parent mode on.
 - Idle expiry is mirrored on the client from the last successful elevated request; the server remains the
   authority.
-- E2E: `e2e/device.spec.ts` (docs/testing/E2E.md). §14.3 item 24 (24-hour offline snapshot) waits on #162.
+- E2E: `e2e/device.spec.ts` (docs/testing/E2E.md) covers snapshot restoration after the shell loads and the 24-hour expiry; native offline cold-start acceptance remains with #371/#242.
 - Figma frames (#131) still do not exist; the screens reuse the Today board tokens and are intentionally simple.
 - #271: the board polls `GET /api/device/today/version` about every 25 s while visible (paused while hidden) and
   re-fetches `GET /api/device/today` only on a change, plus a full refresh every 15 minutes; "Updated just now / 3
