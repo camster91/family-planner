@@ -1,12 +1,22 @@
 # Current State
 
-**Last reconciled:** 2026-10-08, against protected `main` at `bfb74e6dc79ea6534f039a0bb0331e0f8eef9d54` (#389)
+**Last reconciled:** 2026-10-08, against protected `main` at `4d9aec4e0db7269e628f4965090651a8edf1cb97` (#396)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
 Inspect GitHub and executable source again before changing code or reporting status. The current refresh below uses the GitHub API, protected-main ancestry, observed exact-head CI and anonymous public endpoints on 2026-10-08. Older source/runtime/CI sections retain their original 2026-09-29 to 2026-10-07 evidence as history; they are not current deployment instructions. Secrets and production settings were not changed or re-verified.
 
-## Current execution refresh — 2026-10-08
+## Later execution refresh — 2026-10-08, after #396
+
+Protected main is `4d9aec4e0db7269e628f4965090651a8edf1cb97`. Twenty-two PRs are verified merged during this cleanup, including #394/#395 by ancestry in the normal #396 merge. #396 passed Build/Test, fresh-runner image security, GitGuardian, 736 browser journeys and 28 visuals; review threads were empty. Completed owned branches were removed after reachability checks. The 49 original open issues and their acceptance criteria remain retained.
+
+Anonymous public reads now return that exact main commit, built `2026-10-08T19:31:20.227Z`, and healthy `/api/health`. This establishes version/health only, not live role, email, backup, physical-device or real-household acceptance. No manual deployment or production settings/data mutation was performed.
+
+#391 local content-free diagnostics, #392 shared-device offline quick add, and #394–#396 personal add/versioned editing are merged. The pending combined #399 candidate includes #397 open-list propagation, explicit saved-tick recovery after a browser page restart, and unchanged Dependabot #398 Handlebars4.7.10 development lockfile patch. Local combined source `6c8270bcf658e5e8620a5ab2d61e2c0dd79e22cf` passed 353 suites / 4,348 unit cases, 37 browser checks, types/lint/format/Prisma/build and production dependency audit. Final hosted gates, review, normal protected merge and subsequent live acceptance remain required. Included #397/#398 states must be verified after merge; do not report them merged from preparation alone.
+
+#135 still requires physical WebView/process restart, wider domain and scalable fleet acceptance; local browser and content-free support diagnostics do not prove those. #136 retains the development-toolchain `braces` advisory (no published patched version at this read); full dev audit is not clean. #128/#377 retain owner/provider/legal/hardware/beta gates. The task screenshot gallery/ZIP has 234 fabricated local images, with capture source identities; it is not physical-device or live-release proof. The earlier refreshes below are historical snapshots superseded by this dated evidence.
+
+## Earlier execution refresh — 2026-10-08, #389 (historical)
 
 - Default branch is `main`; strict `Build & Test`, administrator enforcement and conversation resolution were read from branch protection. No setting was changed.
 - Protected main is `bfb74e6dc79ea6534f039a0bb0331e0f8eef9d54` (#389). The open PR queue is clear; 16 PRs merged during the cleanup. Exact-head #389 Build/Test and fresh-runner checked-image security passed, as did 718 browser journeys and 28 visual cases (533/11 intentional project-feature skips); 4,242 unit tests passed. These are reviewed candidate checks, not a claim that a post-merge main run or production promotion has completed.

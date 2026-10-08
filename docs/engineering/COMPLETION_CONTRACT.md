@@ -9,7 +9,17 @@ Persistent goal: finish the permitted remaining Family Planner / Herewoven work 
 - Initial backlog snapshot: 51 open issues and six PRs: #353, #351, #352, #355, #349, held draft #343. #351 E2E and #355 Build & Test/E2E failed at that refresh; those heads/checks are historical after branch updates.
 - Repository clone/worktree inspection found one main checkout, no pre-existing local workers. Existing GitHub Projects cannot be read by this integration (`Resource not accessible by integration`); board ownership is unverified. No duplicate board created. External Hermes worker/scheduler state is inaccessible; all seven cron jobs must remain paused.
 
-## Execution refresh — 2026-10-08
+## Later execution refresh — 2026-10-08, after #396
+
+Protected main is `4d9aec4e0db7269e628f4965090651a8edf1cb97`. Twenty-two PRs are verified merged during this cleanup, including #394/#395 by ancestry in the normal #396 merge. #396 passed Build/Test, fresh-runner image security, GitGuardian, 736 browser journeys and 28 visuals; review threads were empty. Completed owned branches were removed after reachability checks. The 49 original open issues and their acceptance criteria remain retained.
+
+Anonymous public reads now return that exact main commit, built `2026-10-08T19:31:20.227Z`, and healthy `/api/health`. This establishes version/health only, not live role, email, backup, physical-device or real-household acceptance. No manual deployment or production settings/data mutation was performed.
+
+#391 local content-free diagnostics, #392 shared-device offline quick add, and #394–#396 personal add/versioned editing are merged. The pending combined #399 candidate includes #397 open-list propagation, explicit saved-tick recovery after a browser page restart, and unchanged Dependabot #398 Handlebars4.7.10 development lockfile patch. Local combined source `6c8270bcf658e5e8620a5ab2d61e2c0dd79e22cf` passed 353 suites / 4,348 unit cases, 37 browser checks, types/lint/format/Prisma/build and production dependency audit. Final hosted gates, review, normal protected merge and subsequent live acceptance remain required. Included #397/#398 states must be verified after merge; do not report them merged from preparation alone.
+
+#135 still requires physical WebView/process restart, wider domain and scalable fleet acceptance; local browser and content-free support diagnostics do not prove those. #136 retains the development-toolchain `braces` advisory (no published patched version at this read); full dev audit is not clean. #128/#377 retain owner/provider/legal/hardware/beta gates. The task screenshot gallery/ZIP has 234 fabricated local images, with capture source identities; it is not physical-device or live-release proof. The earlier refreshes below are historical snapshots superseded by this dated evidence.
+
+## Earlier execution refresh — 2026-10-08, #389 (historical)
 
 Source baseline: protected `main` at `bfb74e6dc79ea6534f039a0bb0331e0f8eef9d54` (#389). The 16 cleanup PRs (#343/#349/#351/#352/#353/#355/#378–#383/#385/#386/#388/#389) are merged; #384 is preserved by inclusion in #386, and #387 was closed as superseded. The open PR queue is clear at this refresh. #374/#375 are closed issue records; 49 issues remain open. See #377 and the dated matrix refresh for current pickup; the initial step statuses and ledger below are historical.
 
