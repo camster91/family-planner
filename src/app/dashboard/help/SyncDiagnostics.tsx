@@ -53,8 +53,8 @@ export default function SyncDiagnostics({ userId }: { userId: string }) {
         <>
           <p className="text-[15px] text-label-primary">
             {report.depth} queued changes. {report.replay.successes} successful
-            sends, {report.replay.failures} unsuccessful sends, including{" "}
-            {report.replay.conflicts} conflicts.{" "}
+            sends, {report.replay.failures} unsuccessful sends. Conflicts:{" "}
+            {report.replay.conflicts}.{" "}
             {report.durable
               ? "Queued changes are saved on this browser."
               : "Changes are only in memory. Keep this page open until they sync."}
