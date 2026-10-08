@@ -111,6 +111,31 @@ it("reconnect fetches and persists fresh canonical data before leaving cached mo
   );
 });
 
+it("recovers a cached plan on a successful unchanged version check without online events", async () => {
+  seed();
+  let recovered = false;
+  const request = jest.fn(async (path: string) => {
+    if (path.endsWith("/version")) return { version: "same-version" };
+    if (!recovered) throw offline();
+    return { ...board, version: "same-version" };
+  });
+  const t = setup(request);
+  const { result } = renderHook(() =>
+    useDeviceBoardSnapshot({ ...t, hasAccessCookie: true }),
+  );
+  await waitFor(() => expect(result.current.cached).toBe(true));
+  recovered = true;
+  await act(async () => {
+    expect(await result.current.checkVersion()).toBe("same-version");
+  });
+  expect(result.current.cached).toBe(false);
+  expect(request.mock.calls.map(([path]) => path)).toEqual([
+    "/api/device/today",
+    "/api/device/today/version",
+    "/api/device/today",
+  ]);
+});
+
 it("never falls back to cached content after a permission denial", async () => {
   seed();
   const t = setup(

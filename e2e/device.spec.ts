@@ -422,7 +422,9 @@ test.describe("Shared tablet", () => {
         contentType: "image/png",
       });
       await tablet.unroute("**/api/device/**");
-      await tablet.evaluate(() => window.dispatchEvent(new Event("online")));
+      // An always-visible tablet receives no online event when only the API
+      // recovers. Its unchanged version poll must leave passive cached mode.
+      await tablet.clock.fastForward(25000);
       await expect(tablet.getByTestId("device-cached-plan")).toHaveCount(0);
       await expect(
         tablet.getByRole("button", { name: "Parent", exact: true }),

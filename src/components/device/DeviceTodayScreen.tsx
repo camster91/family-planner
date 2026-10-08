@@ -46,16 +46,6 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
 
-  // Visible sync (#271): the board polls this and re-fetches on a change.
-  // `optionalRoute`: a server rolled back to a build without the route answers
-  // a bare 404, which must not purge the tablet (the kill switch still does).
-  const checkVersion = React.useCallback(async () => {
-    if (!client || client.isPurged()) throw new Error('No device client')
-    const res = await client.request<{ version?: unknown }>('/api/device/today/version', { optionalRoute: true })
-    if (typeof res?.version !== 'string') throw new Error('board version missing')
-    return res.version
-  }, [client])
-
   const loadMe = React.useCallback(async (): Promise<string | null> => {
     if (!client || client.isPurged()) return null
     try {
@@ -68,7 +58,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     }
   }, [client])
 
-  const { data, error: loadError, cached, cacheUnavailable, load: loadBoard } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
+  const { data, error: loadError, cached, cacheUnavailable, load: loadBoard, checkVersion } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
 
   const refreshBoard = React.useCallback(() => void loadBoard(), [loadBoard])
   const { actions, actor, forgetActor, picker } = useDeviceBoardActions({

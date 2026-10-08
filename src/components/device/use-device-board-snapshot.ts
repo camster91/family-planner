@@ -135,6 +135,20 @@ export function useDeviceBoardSnapshot({
     return flight.current;
   }, [client, loadIdentity]);
 
+  // Reuse the board's bounded visible version poll. A recovered API with the
+  // same version must still replace a passive snapshot with live authorization.
+  const checkVersion = React.useCallback(async () => {
+    if (!client || client.isPurged()) throw new Error("No device client");
+    const res = await client.request<{ version?: unknown }>(
+      "/api/device/today/version",
+      { optionalRoute: true },
+    );
+    if (typeof res?.version !== "string")
+      throw new Error("board version missing");
+    if (cachedRef.current) await load();
+    return res.version;
+  }, [client, load]);
+
   React.useEffect(() => {
     if (!client) return;
     const clear = () => {
@@ -224,5 +238,5 @@ export function useDeviceBoardSnapshot({
     };
   }, [data]);
 
-  return { data, error, cached, cacheUnavailable, load };
+  return { data, error, cached, cacheUnavailable, load, checkVersion };
 }
