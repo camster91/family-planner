@@ -68,7 +68,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     }
   }, [client])
 
-  const { data, error: loadError, cached, load: loadBoard } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
+  const { data, error: loadError, cached, cacheUnavailable, load: loadBoard } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
 
   const refreshBoard = React.useCallback(() => void loadBoard(), [loadBoard])
   const { actions, actor, forgetActor, picker } = useDeviceBoardActions({
@@ -189,6 +189,11 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
 
   const banner = (
     <>
+      {cacheUnavailable && data && (
+        <p role="status" data-testid="device-cache-unavailable" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">
+          This plan couldn't be saved on this device. Keep the app open during an outage.
+        </p>
+      )}
       {cached && (
         <p role="status" data-testid="device-cached-plan" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">
           Showing a saved plan. Connect to update it. Parent controls and changes need a fresh connection.

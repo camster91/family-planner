@@ -44,6 +44,7 @@ export function useDeviceBoardSnapshot({
   const [data, setData] = React.useState<TodayBoardData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [cached, setCached] = React.useState(false);
+  const [cacheUnavailable, setCacheUnavailable] = React.useState(false);
   const dataRef = React.useRef<TodayBoardData | null>(null);
   const cachedRef = React.useRef(false);
   const confirmedAt = React.useRef<number | null>(null);
@@ -75,8 +76,12 @@ export function useDeviceBoardSnapshot({
           await client.purge();
           return;
         }
-        if (deviceId && storedId === deviceId)
-          writeDeviceBoardCache(store, deviceId, board, now);
+        const saved = Boolean(
+          deviceId &&
+          storedId === deviceId &&
+          writeDeviceBoardCache(store, deviceId, board, now),
+        );
+        setCacheUnavailable(!saved);
         confirmedAt.current = now;
         dataRef.current = board;
         cachedRef.current = false;
@@ -113,6 +118,7 @@ export function useDeviceBoardSnapshot({
             cachedRef.current = true;
             setData(snapshot.board);
             setCached(true);
+            setCacheUnavailable(false);
             setError(null);
             return;
           }
@@ -138,6 +144,7 @@ export function useDeviceBoardSnapshot({
       cachedRef.current = false;
       setData(null);
       setCached(false);
+      setCacheUnavailable(false);
       setError("This tablet was removed.");
     };
     const unsubscribe = client.subscribe((event) => {
@@ -217,5 +224,5 @@ export function useDeviceBoardSnapshot({
     };
   }, [data]);
 
-  return { data, error, cached, load };
+  return { data, error, cached, cacheUnavailable, load };
 }

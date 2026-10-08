@@ -235,6 +235,20 @@ it("cannot write a board under an identity that changed while the read was in fl
   expect(localStorage.getItem("fp-device:v1:device-a:today")).toBeNull();
 });
 
+it("keeps live data usable and reports a failed cache write", async () => {
+  localStorage.setItem(DEVICE_ID_KEY, "device-a");
+  jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("Quota exceeded", "QuotaExceededError");
+  });
+  const t = setup(jest.fn().mockResolvedValue(board));
+  const { result } = renderHook(() =>
+    useDeviceBoardSnapshot({ ...t, hasAccessCookie: true }),
+  );
+  await waitFor(() => expect(result.current.data).toEqual(board));
+  expect(result.current.cached).toBe(false);
+  expect(result.current.cacheUnavailable).toBe(true);
+});
+
 it("drops the view when another tab changes or removes the paired identity", async () => {
   localStorage.setItem(DEVICE_ID_KEY, "device-a");
   const t = setup(jest.fn().mockResolvedValue(board));
