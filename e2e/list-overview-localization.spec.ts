@@ -38,6 +38,17 @@ async function captureOverview(
     ).toBe(true);
     await target.focus();
     await expect(target).toBeFocused();
+    await target.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    expect(
+      await target.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        return hit !== null && el.contains(hit);
+      }),
+    ).toBe(true);
   }
   expect(
     await page.evaluate(
@@ -52,7 +63,8 @@ async function captureOverview(
         .analyze()
     ).violations,
   ).toEqual([]);
-  await scope.scrollIntoViewIfNeeded();
+  // Full-page captures start at the top, so fixed navigation is not painted mid-image.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: info.outputPath(`${name}.png`),
     fullPage: true,
