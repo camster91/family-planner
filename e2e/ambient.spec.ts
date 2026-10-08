@@ -12,6 +12,8 @@
  * off, no photos) before and after the file.
  */
 import AxeBuilder from "@axe-core/playwright";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 import pg from "pg";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
@@ -221,11 +223,28 @@ test("fades to the calm frame after five idle minutes; a tap returns to the boar
 
 test("a key press returns to the board and does nothing else", async ({
   page,
-}) => {
+}, testInfo) => {
   await openFridge(page);
   await page.getByRole("link", { name: "Exit fridge mode" }).focus();
   await page.clock.runFor(5 * MIN + 20 * 1000);
   await expect(cover(page)).toBeVisible();
+  const wake = cover(page).getByRole("button", {
+    name: "Show the board",
+    exact: true,
+  });
+  await expect(wake).toBeFocused();
+  const target = await wake.boundingBox();
+  expect(target).not.toBeNull();
+  expect(target!.width).toBeGreaterThanOrEqual(44);
+  expect(target!.height).toBeGreaterThanOrEqual(44);
+  expect(await wake.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe(
+    "none",
+  );
+  const shots = path.join(process.cwd(), "test-results", "fridge-wake");
+  await mkdir(shots, { recursive: true });
+  await page.screenshot({
+    path: path.join(shots, `${testInfo.project.name}-focused-calm-wake.png`),
+  });
   await page.keyboard.press("Enter");
   await expect(cover(page)).toHaveCount(0);
   await expect(page).toHaveURL(/\/dashboard\/today\?mode=fridge$/);
@@ -277,6 +296,20 @@ test("a parent sets a shorter idle time, night hours and a household photo; the 
   await expect(cover(page)).toBeVisible();
   await expect(cover(page)).toHaveAttribute("data-dim", "true");
   await expect(page.getByTestId("night-dim")).toBeVisible();
+  const wake = cover(page).getByRole("button", {
+    name: "Show the board",
+    exact: true,
+  });
+  await expect(wake).toBeVisible();
+  const target = await wake.boundingBox();
+  expect(target!.width).toBeGreaterThanOrEqual(44);
+  expect(target!.height).toBeGreaterThanOrEqual(44);
+  await expectNoSeriousAxe(page, testInfo, "visible night wake");
+  const shots = path.join(process.cwd(), "test-results", "fridge-wake");
+  await mkdir(shots, { recursive: true });
+  await page.screenshot({
+    path: path.join(shots, `${testInfo.project.name}-night-wake.png`),
+  });
   await expect(page.getByTestId("ambient-photo")).toHaveAttribute(
     "src",
     `/api/files/chores/${PHOTO_FILE}`,
