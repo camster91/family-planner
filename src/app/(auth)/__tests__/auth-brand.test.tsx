@@ -26,6 +26,10 @@ it('names the Herewoven account while retaining sign-in and recovery controls', 
   expect(screen.getByRole('link', { name: 'Forgot your password?' })).toHaveAttribute('href', '/forgot-password')
   expect(screen.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
   expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
+  // Reads as a sentence: "...our Terms of Service and Privacy Policy".
+  expect(screen.getByRole('link', { name: 'Terms of Service' }).parentElement).toHaveTextContent(
+    'By signing in, you agree to our Terms of Service and Privacy Policy'
+  )
 })
 
 it('announces a registration mismatch without losing entered values or promising pricing', () => {

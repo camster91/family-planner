@@ -46,7 +46,7 @@ describe('POST /api/rewards/claim cost', () => {
     expect((await bodyOf(res)).xp).toBe(60)
     expect(db.find('user', 'child-a')!.xp).toBe(60)
     expect(db.find('reward', 'reward-a')).toMatchObject({ status: 'claimed', claimed_by: 'child-a' })
-    expect(send.mock.calls.some((c: any[]) => /for 40 XP/.test(c[0].message))).toBe(true)
+    expect(send.mock.calls.some((c: any[]) => /for 40 points/.test(c[0].message))).toBe(true)
   })
 
   it('refuses when the new price is more than the balance and deducts nothing', async () => {

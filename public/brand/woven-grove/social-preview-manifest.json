@@ -1,0 +1,60 @@
+{
+  "command": "node scripts/generate-social-preview.mjs",
+  "composition": "Whole approved horizontal logo and whole woven graphic, proportionally resized, on Chalk. No text rendering, cropping, recoloring or source changes.",
+  "sharp": {
+    "aom": "3.15.1",
+    "archive": "3.8.9",
+    "cairo": "1.18.6",
+    "cgif": "0.5.4",
+    "exif": "0.6.26",
+    "expat": "2.8.5",
+    "ffi": "3.8.0",
+    "fontconfig": "2.18.3",
+    "freetype": "2.14.3",
+    "fribidi": "1.0.17",
+    "glib": "2.90.0",
+    "harfbuzz": "14.5.0",
+    "heif": "1.23.5",
+    "highway": "1.4.0",
+    "imagequant": "2.4.1",
+    "lcms": "2.19.1",
+    "mozjpeg": "0826579",
+    "pango": "1.58.2",
+    "pixman": "0.46.4",
+    "png": "1.6.58",
+    "proxy-libintl": "0.5",
+    "rsvg": "2.63.2",
+    "tiff": "4.7.2",
+    "uhdr": "2.0.2",
+    "vips": "8.18.7",
+    "webp": "1.6.0",
+    "xml2": "2.15.4",
+    "zlib-ng": "2.3.3",
+    "sharp": "0.35.5"
+  },
+  "background": "#F7F4EC",
+  "sources": {
+    "public/brand/woven-grove/logos/herewoven-horizontal.png": "508fc3d5a4ad4b03866199a58e9975ba24d64d03d56b1d29204103661211639d",
+    "public/brand/woven-grove/graphics/herewoven-woven-graphic.svg": "a1577d50c5152a28063c1c5dcdfbd070db933dfdda0b1515dba2846e1eb79f6f"
+  },
+  "layers": [
+    {
+      "source": "public/brand/woven-grove/logos/herewoven-horizontal.png",
+      "width": 820,
+      "left": 190,
+      "top": 0
+    },
+    {
+      "source": "public/brand/woven-grove/graphics/herewoven-woven-graphic.svg",
+      "width": 600,
+      "left": 300,
+      "top": 220
+    }
+  ],
+  "output": {
+    "file": "public/brand/woven-grove/herewoven-social.png",
+    "width": 1200,
+    "height": 630,
+    "sha256": "26a1cf625ba3028f3ce90e90539ec986c1e99690da6af9448c5ec5f228feb11c"
+  }
+}

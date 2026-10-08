@@ -32,7 +32,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 
 /**
  * Rewards list and its two actions. Anyone in the household can claim an
- * available reward with their XP (POST /api/rewards/claim); a parent then
+ * available reward with their points (POST /api/rewards/claim); a parent then
  * marks a claimed reward as given (POST /api/rewards/approve, parents only),
  * which moves it to "Given". Both refresh the server-rendered page after.
  */
@@ -134,7 +134,7 @@ export default function RewardsBoard({
                     {reward.description && (
                       <p className="text-footnote text-label-secondary mt-1 line-clamp-2">{reward.description}</p>
                     )}
-                    <p className="text-subhead text-rewards font-medium mt-2">{reward.cost} XP</p>
+                    <p className="text-subhead text-rewards font-medium mt-2">{reward.cost} points</p>
                   </div>
                   <button
                     type="button"
@@ -146,7 +146,7 @@ export default function RewardsBoard({
                       canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed'
                     )}
                   >
-                    {canClaim ? 'Claim Reward' : `Need ${reward.cost - userXp} more XP`}
+                    {canClaim ? 'Claim Reward' : `Need ${reward.cost - userXp} more points`}
                   </button>
                 </div>
               )
@@ -206,7 +206,7 @@ export default function RewardsBoard({
                   <div className="flex-1 min-w-0">
                     <p className="text-body text-label-primary font-medium truncate">{reward.name}</p>
                     <p className="text-footnote text-label-secondary">
-                      {reward.cost} XP
+                      {reward.cost} points
                       {reward.status === 'claimed' && claimer ? ` · Claimed by ${claimer}` : ''}
                       {reward.status === 'claimed' && claimedByMe && !isParent ? ' · Waiting for a parent' : ''}
                     </p>
@@ -238,7 +238,7 @@ export default function RewardsBoard({
         title={confirming ? `Claim ${confirming.name}?` : 'Claim reward'}
         description={
           confirming
-            ? `This uses ${confirming.cost} XP. You have ${userXp} XP.${isParent ? '' : ' A parent will mark it as given.'}`
+            ? `This uses ${confirming.cost} points. You have ${userXp} points.${isParent ? '' : ' A parent will mark it as given.'}`
             : undefined
         }
         testId="claim-reward-dialog"

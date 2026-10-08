@@ -116,7 +116,7 @@ describe('visible sync', () => {
     await flush(3 * MIN)
     expect(screen.getByTestId('board-updated').textContent).toContain('Updated 3 min ago')
     expect(screen.getByTestId('sync-notice').textContent).toContain(
-      "Can't reach Family Planner right now. Showing what was here 3 min ago."
+      "Can't reach Herewoven right now. Showing what was here 3 min ago."
     )
   })
 
@@ -130,6 +130,22 @@ describe('visible sync', () => {
       })
       await flush(MIN)
       expect(checkVersion).not.toHaveBeenCalled()
+      // App mode: the app-wide banner says "You're offline"; the board adds only how old its data is.
+      const notice = screen.getByTestId('sync-notice').textContent
+      expect(notice).toBe('Showing what was here 1 min ago. The board refreshes when the connection returns.')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('fridge mode hides the app banner, so its own notice still says it is offline', async () => {
+    const spy = jest.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false)
+    try {
+      await renderBoard({ checkVersion: jest.fn(async () => 'v1') })
+      await act(async () => {
+        window.dispatchEvent(new Event('offline'))
+      })
+      await flush(MIN)
       expect(screen.getByTestId('sync-notice').textContent).toContain("You're offline. Showing what was here 1 min ago.")
     } finally {
       spy.mockRestore()

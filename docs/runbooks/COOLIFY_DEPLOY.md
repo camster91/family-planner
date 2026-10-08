@@ -1,20 +1,22 @@
 # Coolify Deploy Runbook
 
-**Status:** immutable-image Coolify handoff is being prepared under #145. Today production is still promoted by `release.yml` (`Release to VPS`, see `DEPLOYMENT.md` and `docs/engineering/CI_AND_RELEASE.md`). The consolidation target is the saved image checked by CI, including its imported-image household tests, rather than a new build on the VPS. The registry publisher is implemented behind the initially disabled `FP_IMMUTABLE_RELEASE_ENABLED` flag. Actual publication, registry access, resource/data/uploads adoption and production handoff remain outstanding.
+**Current scoped route, reconciled 2026-10-07:** Current deployment records (#362/#363/#377) identify existing production as protected-main Coolify source builds. The route records do not supply approval. Cameron subsequently instructed “merge all” after being told that main merges trigger existing automatic deployments, authorizing the reviewed combined PR #383 and those deployments once final checks pass. Database cutover and configuration/credential changes remain separate actions. After an authorized deployment, verify the exact merged revision via `/api/version`, healthy `/api/health`, approved assets and applicable safe journeys. Do not claim the checked CI image was promoted when Coolify rebuilt source.
 
-This runbook does not authorize anything. Creating the Coolify application, setting production secrets, pointing DNS, moving data, turning on scheduled backups and every deploy or rollback are owner actions that need Cameron's explicit approval (`AGENTS.md`, approval boundaries).
+**Separate future handoff:** immutable-image publication/promotion remains prepared under #145 and disabled unless separately authorized. Sections describing registry activation are preparation, not instructions to change the current deployment policy. Do not dispatch `Release to VPS`, enable the immutable publisher, change Auto Deploy, migrate the database, or resume any of the seven paused Hermes cron jobs. No production configuration/control state is claimed observed here; #363 remains the owner policy decision.
+
+This runbook does not authorize anything. Creating the Coolify application, setting production secrets, pointing DNS, moving data, turning on scheduled backups and deploy/rollback actions require applicable owner authorization (`AGENTS.md`, approval boundaries). Historical action evidence and each exact-candidate action are recorded in `../engineering/COMPLETION_CONTRACT.md`; it does not cover policy/configuration changes.
 
 Facts here come from the source on `main` (Dockerfile, `docker-entrypoint.sh`, `scripts/migrate.js`, `src/app/api/health/route.ts`, `src/lib/client-ip.ts`, the env reads under `src/`). Coolify UI labels move between versions. Where a label is named below, look for the closest match in your version.
 
 ## 1. Decisions before you start
 
-1. **One owner for production.** Do not run `release.yml` `Release to VPS` and Coolify against the same hostname. Pick one. If Coolify takes over, stop dispatching `Release to VPS` (it would also fail: it looks for the old Traefik-labelled container). Update `DEPLOYMENT.md` and `CI_AND_RELEASE.md` in the same change that switches.
-2. **Consume the checked image.** Use the immutable GHCR digest recorded by the checked default-branch publisher when that path is activated. Prerequisites: the repository variable `FP_IMMUTABLE_RELEASE_ENABLED=true` (owner action) and a push to the default branch (`main` since 2026-10-01; the job compares against `github.event.repository.default_branch`, so a rename needs no workflow change). Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The Dockerfile instructions below remain reference material for a separate source-build setup; they are not the selected automatic deployment path.
+1. **One owner for production.** The current route is Coolify source builds. Do not dispatch `release.yml` `Release to VPS` against the same hostname; it is a separate historical path and also looks for the old Traefik-labelled container. Any future routing/ownership switch requires owner approval and matching updates to `DEPLOYMENT.md` and `CI_AND_RELEASE.md`.
+2. **Source builds now; checked images only after a separate handoff.** The active Coolify route builds the reviewed source with the Dockerfile described in section 2. It does not consume the CI image, so do not claim immutable-image promotion for this route. For a separately approved future immutable-image handoff, use the GHCR digest recorded by the checked default-branch publisher only after that path is activated. Prerequisites: the repository variable `FP_IMMUTABLE_RELEASE_ENABLED=true` (owner action) and a push to the default branch (`main` since 2026-10-01; the job compares against `github.event.repository.default_branch`, so a rename needs no workflow change). Publication must load and verify the existing CI archive, never rebuild it. The publisher saves a source/run/attempt-bound draft receipt asset and refetches it to verify identical bytes. The registry/publisher instructions in this decision are future handoff preparation; the Dockerfile source-build recipe below is the current route.
 3. **One proxy owner.** The current VPS already has Traefik serving ports80/443 and a Coolify installation. Keep the existing proxy owner until the reviewed routing handoff; do not start a competing proxy. Resource configuration, data/uploads adoption, private acceptance and rollback must precede public routing changes.
 
-## 2. Reference source-build setup: Dockerfile
+## 2. Current source-build recipe: Dockerfile
 
-For a separately approved source-build setup: **Dockerfile** build pack, file `/Dockerfile`, base directory `/`. For the consolidation handoff, prepare the checked registry image path described above instead.
+The current source-build route uses the **Dockerfile** build pack, file `/Dockerfile`, base directory `/`. These recipe details do not authorize creating or reconfiguring an application. Preserve the existing application and verify its configuration before an authorized deployment; a registry-image handoff is separate future work.
 
 Why, from this repo:
 
@@ -46,14 +48,14 @@ compatibility decision.
 
 Migrations connect to the `postgres` maintenance database first to create the target database if it is missing. With Coolify's default superuser that works. If your role cannot reach `postgres`, set `MIGRATE_FALLBACK_DB` or create the database yourself; the migration then continues against the target database.
 
-## 4. Create the application
+## 4. Reference: create a new application (owner action)
 
 1. New resource → **Public/Private Repository** (GitHub App) → `camster91/family-planner`, branch `main`.
 2. Build pack: **Dockerfile**. Dockerfile location `/Dockerfile`.
 3. **Ports Exposes:** `3000`.
 4. **Ports Mappings:** leave empty. Publishing 3000 on the host lets clients bypass Traefik, which also breaks the client-IP trust model (section 8).
 5. **Domain:** `https://family.ashbi.ca` (or a test hostname first). DNS changes are Cameron's action.
-6. **Turn off Auto Deploy** (deploy on push). Every production deploy must be a deliberate, approved action, never a side effect of merging.
+6. **Resolve Auto Deploy policy with the owner (#363).** For a new installation, manual approved deployments are recommended. Do not change the existing application's setting from this reference. If Auto Deploy remains on, a main merge also deploys; obtain production authorization before merging that candidate.
 7. **Turn off Preview Deployments** (per-PR deploys). A preview would run unreviewed PR code with the production environment and database.
 8. Turn on **include source commit in build** (Coolify passes `SOURCE_COMMIT` as a build argument only when this is on). See section 9.
 9. Do not add a pre- or post-deployment command. Migrations already run in the container entrypoint.

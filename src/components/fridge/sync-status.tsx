@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { WifiOff } from 'lucide-react'
+import { History, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { syncNotice, syncState } from '@/lib/board-sync'
 import { updatedAgo } from '@/lib/relative-time'
@@ -43,6 +43,10 @@ export function SyncAnnouncer({ message, testId }: { message: string; testId?: s
  * Offline or stale notice, in words, or nothing while fresh. `role="status"`
  * announces it once when it appears; its wording changes only when the
  * minute count does.
+ *
+ * `appBanner`: the app-wide OfflineBanner is shown on this page (everywhere
+ * but fridge mode), so offline the notice drops "You're offline" and only
+ * says how old the data is (one offline message per page, OFFLINE_SYNC.md).
  */
 export function SyncNotice({
   lastSyncAt,
@@ -51,6 +55,7 @@ export function SyncNotice({
   what,
   className,
   canGoStale = true,
+  appBanner = false,
 }: {
   lastSyncAt: number | null
   now: number
@@ -59,10 +64,14 @@ export function SyncNotice({
   className?: string
   /** False when there is no failed check to report (the calendar, or a board whose checks succeed): only offline is reported. */
   canGoStale?: boolean
+  /** True where the app-wide offline banner is on screen (not fridge mode). */
+  appBanner?: boolean
 }) {
   const state = canGoStale ? syncState(lastSyncAt, now, online) : online ? 'fresh' : 'offline'
-  const text = syncNotice(state, lastSyncAt, now, what)
+  const text = syncNotice(state, lastSyncAt, now, what, { bannerSaysOffline: appBanner })
   if (!text) return null
+  // With the banner saying "offline", this is only about the data's age.
+  const Icon = appBanner && state === 'offline' ? History : WifiOff
   return (
     <div
       role="status"
@@ -72,7 +81,7 @@ export function SyncNotice({
         className
       )}
     >
-      <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
+      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
       <span>{text}</span>
     </div>
   )

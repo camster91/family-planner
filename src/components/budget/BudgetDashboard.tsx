@@ -12,6 +12,7 @@ import TransactionForm from './TransactionForm'
 import { formatDateOnly, formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { useMaybeToast } from '@/components/ui/toast'
 import { budgetProgress } from '@/lib/budget'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 // -----------------------------------------------------------------------
@@ -23,8 +24,10 @@ function localYearMonth(now: Date = new Date()): string {
   return toDateOnlyLocal(now).slice(0, 7)
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(amount: number, locale: string): string {
+  // Locale controls presentation only. No household currency setting exists;
+  // keep the canonical existing USD denomination, independent of the region.
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
@@ -89,6 +92,7 @@ interface BudgetDashboardProps {
 // -----------------------------------------------------------------------
 
 export default function BudgetDashboard({ initialData, userId, canEdit = true }: BudgetDashboardProps) {
+  const displayLocale = useDisplayLocale()
   const [data, setData] = React.useState(initialData)
   const [showForm, setShowForm] = React.useState(false)
   // The transaction open in the edit form.
@@ -193,16 +197,16 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
           )}
           <div className="flex-1 min-w-0">
             <p className="text-title-3 text-label-primary font-semibold">
-              {formatCurrency(spent)}
+              {formatCurrency(spent, displayLocale)}
             </p>
             <p className="text-subhead text-label-secondary mt-0.5">
               {ring && budgetLimit !== null
-                ? `of ${formatCurrency(budgetLimit)} limit`
+                ? `of ${formatCurrency(budgetLimit, displayLocale)} limit`
                 : 'spent this month'}
             </p>
             {ring?.over && (
               <p className="text-footnote text-[var(--tint-rewards-text)] mt-1 font-medium">
-                Over budget by {formatCurrency(ring.overBy)}
+                Over budget by {formatCurrency(ring.overBy, displayLocale)}
               </p>
             )}
           </div>
@@ -220,13 +224,13 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
           <div className="card-apple p-4">
             <p className="text-footnote text-label-secondary">Income</p>
             <p className="text-title-3 text-[var(--tint-lists-text)] font-semibold mt-1">
-              +{formatCurrency(data.total_income)}
+              +{formatCurrency(data.total_income, displayLocale)}
             </p>
           </div>
           <div className="card-apple p-4">
             <p className="text-footnote text-label-secondary">Expenses</p>
             <p className="text-title-3 text-[var(--tint-rewards-text)] font-semibold mt-1">
-              -{formatCurrency(data.total_expenses)}
+              -{formatCurrency(data.total_expenses, displayLocale)}
             </p>
           </div>
         </div>
@@ -257,7 +261,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
                               tx.type === 'income' ? 'text-[var(--tint-lists)]' : 'text-[var(--tint-rewards)]'
                             )}
                           >
-                            {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+                            {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount, displayLocale)}
                           </span>
                         }
                         last={i === txs.length - 1}

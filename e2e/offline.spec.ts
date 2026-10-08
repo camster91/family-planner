@@ -77,6 +77,47 @@ test.describe("offline: Family A parent", () => {
     await expect(banner(page)).toHaveCount(0, { timeout: 10_000 });
   });
 
+  test("one offline message per page: calendar, Today and a list add only their own detail", async ({
+    page,
+  }) => {
+    const offlineWords = page.getByText(/You['’]re offline/);
+
+    await page.goto("/dashboard/calendar");
+    await expect(page.getByTestId("calendar-updated")).toBeVisible();
+    await goOffline(page);
+    await expect(banner(page)).toBeVisible();
+    await expect(page.getByTestId("sync-notice")).toContainText(
+      "Showing what was here",
+    );
+    await expect(offlineWords).toHaveCount(1);
+    await goOnline(page);
+
+    await page.goto("/dashboard/today");
+    await expect(page.getByTestId("board-updated")).toBeVisible();
+    await goOffline(page);
+    await expect(banner(page)).toBeVisible();
+    await expect(page.getByTestId("sync-notice")).toContainText(
+      "Showing what was here",
+    );
+    await expect(offlineWords).toHaveCount(1);
+    await goOnline(page);
+
+    await page.goto("/dashboard/lists");
+    await page
+      .getByRole("link", { name: /Groceries/ })
+      .first()
+      .click();
+    await expect(page).toHaveURL(/\/dashboard\/lists\/[^/]+$/);
+    await expect(page.getByRole("checkbox").first()).toBeVisible();
+    await goOffline(page);
+    await expect(banner(page)).toBeVisible();
+    await expect(page.getByTestId("list-offline-detail")).toContainText(
+      "Ticks are saved on this device",
+    );
+    await expect(offlineWords).toHaveCount(1);
+    await goOnline(page);
+  });
+
   test.describe("offline page", () => {
     test.use({ serviceWorkers: "allow" });
 

@@ -1,0 +1,83 @@
+{
+  "issue": 375,
+  "sourceRun": 37699779134,
+  "sourceHead": "d621914c4a2f2fda4e6ea2919c5c1c1af3e53c73",
+  "comparisonBase": "a80c4753bba6f9aa5f978d4a9cff4ee039f97d44",
+  "visualRegeneration": "success",
+  "journeyResult": "failure: 200 percent tablet clock width; corrected by bd98e36",
+  "review": "All six before/after footer crops individually inspected. Only legal-footer pixels changed; all other screenshots unchanged. No masks, tolerances or assertions changed. Final combined browser/visual checks required.",
+  "images": [
+    {
+      "file": "login-desktop-1366x768-linux.png",
+      "changedPixels": 946,
+      "ratio": 0.0009017356027330405,
+      "bounds": [
+        1058,
+        657,
+        1165,
+        671
+      ],
+      "adoptedSha256": "9b4545f04b1bbab594dee11f00f2dc051794d1f25994f854b79d883bf192a1e1"
+    },
+    {
+      "file": "login-fridge-landscape-1280x800-linux.png",
+      "changedPixels": 955,
+      "ratio": 0.0009326171875,
+      "bounds": [
+        995,
+        672,
+        1102,
+        686
+      ],
+      "adoptedSha256": "b999169d290c16bfc2753419e1ff0a7022d40822a57ea63d4b8dda126d3d560c"
+    },
+    {
+      "file": "login-phone-390x844-linux.png",
+      "changedPixels": 999,
+      "ratio": 0.003034998177178272,
+      "bounds": [
+        31,
+        594,
+        358,
+        629
+      ],
+      "adoptedSha256": "9f03c2e4c228328f77209419e0009c77c91a876f258bdb3eed5a8b58082bd128"
+    },
+    {
+      "file": "login-phone-430x932-linux.png",
+      "changedPixels": 1327,
+      "ratio": 0.0033112087034634194,
+      "bounds": [
+        24,
+        594,
+        396,
+        629
+      ],
+      "adoptedSha256": "35bd9f8a271cf2bfa15a102d68c2cb7441ab3dcadeab074fdab09fae836d67fa"
+    },
+    {
+      "file": "login-tablet-large-1920x1200-linux.png",
+      "changedPixels": 949,
+      "ratio": 0.0004118923611111111,
+      "bounds": [
+        1461,
+        873,
+        1568,
+        887
+      ],
+      "adoptedSha256": "f2a876d1da3b631c7f02313c3af0dee36c367a70c355f90ad3d605a929add11e"
+    },
+    {
+      "file": "login-tablet-portrait-800x1280-linux.png",
+      "changedPixels": 958,
+      "ratio": 0.000935546875,
+      "bounds": [
+        644,
+        907,
+        751,
+        921
+      ],
+      "adoptedSha256": "f0abe3f30fbe9e5246d805fc1adbdd3ca763f2e138956c0d7a58af132cae3113"
+    }
+  ]
+}

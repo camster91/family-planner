@@ -1,7 +1,13 @@
 # CI and Release Workflow Map
 
-**Last reconciled:** 2026-09-24 (workflow states re-checked through the GitHub API on 2026-09-29)
+**Release route reconciled:** 2026-10-07. Older workflow/configuration observations remain dated below.
 **Default branch:** `main` (renamed from `master` on 2026-10-01) (verify the live repository setting before changing it)
+
+## Current production route
+
+Protected `main` plus existing Coolify source builds is the route recorded by deployment records #362/#363/#377. Cameron’s subsequent “merge all” instruction authorizes these reviewed PR merges and their existing automatic deployments; the separate database cutover and deployment-policy changes remain gated. GitHub validation checks do not deploy; a merge can separately trigger Coolify's existing Auto Deploy. Record the reviewed green source SHA and merged SHA, then verify `/api/version`, `/api/health`, approved assets and safe journeys. Do not call the Coolify build the checked immutable CI image.
+
+Do not dispatch the retained SSH `Release to VPS` workflow, enable the dormant immutable publisher or change Auto Deploy during this task. #363 is the owner policy decision. This reconciliation changes documentation only; secrets, infrastructure, routing, backup/proxy/security policy and all paused Hermes schedules remain untouched. Candidate-specific evidence and applicable scoped authorization: `COMPLETION_CONTRACT.md`.
 
 ## Workflow ownership
 
@@ -73,9 +79,9 @@ The required check name remains exactly `Build & Test`. The former duplicate `ci
 
 All third-party actions in the retained workflows are pinned to full commit SHAs. Workflow-level token permissions default to read; write permissions are scoped to the specific release or automation job that needs them. Checkout does not persist the token into the repository working tree.
 
-## Production boundary
+## Historical manual SSH production boundary
 
-Pull requests and ordinary pushes never deploy and never receive production credentials. A manual workflow dispatch on the actual default branch builds and smoke-tests the container, stores the verified image ID with a short-lived artifact, then transfers that exact image to the VPS over SSH. The VPS verifies the image ID before the existing health-gated container swap. The workflow then requests the public readiness endpoint through the production hostname and requires both HTTP 200 and the expected release commit header. No container is rebuilt on the host, and the workflow withholds host/application logs from public Actions output.
+GitHub validation jobs do not deploy or receive production credentials. Main merges may separately trigger existing Coolify source builds. The retained manual SSH workflow behaves as follows. A manual workflow dispatch on the actual default branch builds and smoke-tests the container, stores the verified image ID with a short-lived artifact, then transfers that exact image to the VPS over SSH. The VPS verifies the image ID before the existing health-gated container swap. The workflow then requests the public readiness endpoint through the production hostname and requires both HTTP 200 and the expected release commit header. No container is rebuilt on the host, and the workflow withholds host/application logs from public Actions output.
 
 The `production` GitHub Environment must contain:
 
@@ -85,9 +91,9 @@ The `production` GitHub Environment must contain:
 
 The SSH account can control Docker and is therefore privileged. Treat its key accordingly, keep it limited to the production environment, and rotate it through the normal owner-controlled credential process.
 
-## Planned Coolify path (not active)
+## Existing Coolify source-build path
 
-`docs/runbooks/COOLIFY_DEPLOY.md` prepares an owner-run Coolify setup: Dockerfile build pack, Coolify-managed Postgres, `/api/health` health check, uploads volume, the full environment variable table, `TRUSTED_PROXY_HOPS` for Coolify's Traefik, release-commit verification and Coolify rollback. It is not the current production path and changes nothing in `release.yml`. The `Dockerfile` accepts Coolify's `SOURCE_COMMIT` build argument as a fallback when `RELEASE_SHA` is not passed, so `X-Release-Commit` and `/api/version` still name the deployed commit. Switching production to Coolify needs Cameron's approval, and only one of `Release to VPS` or Coolify may own the production hostname; update this document in the same change that switches.
+`docs/runbooks/COOLIFY_DEPLOY.md` records the current scoped route and preserves the dormant immutable-image handoff as a separate owner-gated plan. `SOURCE_COMMIT` is a supported Dockerfile fallback for release identity; read the actual deployed commit from `/api/version`. Only one owner may control the production hostname. No route/policy/settings switch is authorized by this documentation update.
 
 ## Android release signing
 

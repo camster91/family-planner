@@ -149,7 +149,7 @@ export function FoundationsSection({ fx }: SectionProps) {
           <div className="card-apple p-5">
             <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Inter · sans</p>
             <p className="text-headline text-label-primary">Take out the recycling</p>
-            <p className="text-body mt-1 text-label-secondary">Due today · 10 XP · tap to tick it off</p>
+            <p className="text-body mt-1 text-label-secondary">Due today · 10 points · tap to tick it off</p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <BrandMark size={44} className="h-11 w-11 rounded-[var(--radius-md)]" />
               <button type="button" className="btn-filled">
@@ -802,10 +802,11 @@ export function StatesSection({ fx }: SectionProps) {
       </SpecimenGrid>
 
       <SpecimenGrid>
-        <Specimen name="SyncNotice and UpdatedLine" source="src/components/fridge/sync-status.tsx" note="Board offline, then unreachable (stale).">
+        <Specimen name="SyncNotice and UpdatedLine" source="src/components/fridge/sync-status.tsx" note="Fridge board offline (no app banner), the same in the app (the banner says offline), then unreachable (stale).">
           <div className="space-y-3">
             <UpdatedLine lastSyncAt={NOW - 3 * MINUTE} now={NOW} className="text-subhead text-label-secondary" testId="gallery-updated" />
             <SyncNotice lastSyncAt={NOW - 3 * MINUTE} now={NOW} online={false} what="board" />
+            <SyncNotice lastSyncAt={NOW - 3 * MINUTE} now={NOW} online={false} what="board" appBanner />
             <SyncNotice lastSyncAt={NOW - 20 * MINUTE} now={NOW} online canGoStale what="board" />
           </div>
         </Specimen>

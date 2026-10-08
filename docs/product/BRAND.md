@@ -36,7 +36,7 @@ The exact woven graphic appears in the landing hero, shared auth frame and house
 
 Task-specific Warm Paper calendar, meal, grocery, chore, reward, notification, invite/help and completion illustrations remain secondary functional art. Existing task-specific loops retain reduced-motion/data-saver/offscreen behavior. They are not the official primary logo or typography. Legacy kitchen/auth/house-divider artwork is no longer used on landing/auth; obsolete files remain for compatibility rather than being deleted. Recovery's cached houses illustration and transactional email banner remain secondary functional assets; no new provider generation is authorized. Do not automatically replace every task spot with the same abstract graphic.
 
-The old `/og-image.jpg` contains a baked-in legacy name and remains excluded from social metadata. No new social-image approval is invented.
+The old `/og-image.jpg` contains a baked-in legacy name and remains excluded from social metadata. Issue #373's 1200×630 link preview uses the complete approved horizontal logo and woven graphic on Chalk, with no replacement artwork or typography. Run `node scripts/generate-social-preview.mjs` to reproduce it using the existing Sharp dependency. The script checks input hashes against the unchanged adoption manifest before composing, and `public/brand/woven-grove/social-preview-manifest.json` records input/output hashes, renderer versions and layer positions. Shared Open Graph/Twitter metadata points to `/brand/woven-grove/herewoven-social.png`; the Twitter card is `summary_large_image`. Public delivery and rendered link-preview acceptance remain release gates; generating the asset alone is not that evidence.
 
 ## Typography
 
