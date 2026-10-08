@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { getPersonQueue } from '@/lib/offline-queue-browser'
-import { QueueError, type OfflineQueue, type QueuedOperation } from '@/lib/offline-queue'
+import { QueueError, isCheckedOperation, type OfflineQueue, type CheckedQueuedOperation } from '@/lib/offline-queue'
 
 export type SyncNotice = 'queue-full' | 'signed-out' | 'dropped' | null
 
@@ -12,7 +12,7 @@ export type SyncNotice = 'queue-full' | 'signed-out' | 'dropped' | null
  * latest queued operation for an item, and `onSynced` hears confirmed writes.
  */
 export function useListItemSync(userId: string, onSynced: (itemId: string, checked: boolean, body: unknown) => void) {
-  const [ops, setOps] = React.useState<QueuedOperation[]>([])
+  const [ops, setOps] = React.useState<CheckedQueuedOperation[]>([])
   const [online, setOnline] = React.useState(true)
   const [notice, setNotice] = React.useState<SyncNotice>(null)
   // False while storage refuses writes: queued ticks then live only in this page.
@@ -27,15 +27,15 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
     let active = true
     const unsubscribe = queue.subscribe((event) => {
       if (!active) return
-      if (event.type === 'synced') onSyncedRef.current(event.op.payload.itemId, event.op.payload.checked, event.body)
+      if (event.type === 'synced' && isCheckedOperation(event.op)) onSyncedRef.current(event.op.payload.itemId, event.op.payload.checked, event.body)
       if (event.type === 'auth-lost') setNotice('signed-out')
       if (event.type === 'dropped') setNotice('dropped')
-      setOps(queue.list())
+      setOps(queue.list().filter(isCheckedOperation))
       setDurable(queue.isDurable())
     })
     void queue.ready.then(() => {
       if (!active) return
-      setOps(queue.list())
+      setOps(queue.list().filter(isCheckedOperation))
       setDurable(queue.isDurable())
       if (queue.loadReport().dropped > 0) setNotice('dropped')
     })
@@ -53,7 +53,7 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
   }, [userId])
 
   const latestByItem = React.useMemo(() => {
-    const map = new Map<string, QueuedOperation>()
+    const map = new Map<string, CheckedQueuedOperation>()
     for (const op of ops) map.set(op.payload.itemId, op)
     return map
   }, [ops])

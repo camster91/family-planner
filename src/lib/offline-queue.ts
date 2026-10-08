@@ -56,6 +56,12 @@ export interface SetCheckedPayload {
   actingMemberId?: string
 }
 
+export interface AddGroceryPayload {
+  listId: string
+  content: string
+  actingMemberId: string
+}
+
 interface ActionSpec<P> {
   /** Operation schema version for this action. Stored operations of another version are dropped. */
   version: number
@@ -68,7 +74,7 @@ interface ActionSpec<P> {
   parse(payload: unknown): P | null
   body(payload: P): Record<string, unknown>
   /** Operations on the same target supersede each other (latest intent wins). */
-  target(payload: P): string
+  target(payload: P, operationId: string): string
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -99,6 +105,24 @@ export const QUEUEABLE_ACTIONS = {
     body: (p: SetCheckedPayload) => ({ itemId: p.itemId, checked: p.checked }),
     target: (p: SetCheckedPayload) => `list-item:${p.itemId}`,
   } satisfies ActionSpec<SetCheckedPayload>,
+  /** Grocery-only create, fixed minimal body, live reauthorization on replay (#135). */
+  'device.list-item.add': {
+    version: 1,
+    namespace: 'device',
+    method: 'POST',
+    path: (p: AddGroceryPayload) => `/api/device/lists/${encodeURIComponent(p.listId)}/items`,
+    parse(payload: unknown): AddGroceryPayload | null {
+      if (!isRecord(payload)) return null
+      const { listId, content, actingMemberId } = payload
+      if (typeof listId !== 'string' || !ID_PATTERN.test(listId)) return null
+      if (typeof actingMemberId !== 'string' || !ID_PATTERN.test(actingMemberId)) return null
+      if (typeof content !== 'string' || !content.trim() || content.trim().length > 200) return null
+      return { listId, content: content.trim(), actingMemberId }
+    },
+    body: (p: AddGroceryPayload) => ({ content: p.content, actingMemberId: p.actingMemberId }),
+    // Separate explicit adds are separate intents, even when their text matches.
+    target: (_p: AddGroceryPayload, operationId: string) => `list-add:${operationId}`,
+  } satisfies ActionSpec<AddGroceryPayload>,
   /**
    * Shared tablet grocery tick/untick (#274, SHARED_DEVICE.md §9.2): the same
    * explicit desired state, sent to the device route with the member picked
@@ -138,14 +162,12 @@ function specOf(action: QueueableAction): ActionSpec<any> {
 
 export type QueueState = 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict'
 
-export interface QueuedOperation {
+interface QueuedOperationBase {
   /** Also the Idempotency-Key sent with every attempt. */
   id: string
-  action: QueueableAction
   /** Operation schema version (the action spec's `version`). */
   v: number
   target: string
-  payload: SetCheckedPayload
   /** Client clock, epoch ms. UX and max age only; never used for server ordering. */
   createdAt: number
   state: QueueState
@@ -153,6 +175,15 @@ export interface QueuedOperation {
   nextAttemptAt: number
   /** Machine code of the last failure (never server text or item content). */
   lastError?: string
+}
+
+export type QueuedOperation = {
+  [A in QueueableAction]: QueuedOperationBase & { action: A; payload: PayloadOf<A> }
+}[QueueableAction]
+export type CheckedQueuedOperation = Extract<QueuedOperation, { action: 'list-item.set-checked' | 'device.list-item.set-checked' }>
+export type AddGroceryOperation = Extract<QueuedOperation, { action: 'device.list-item.add' }>
+export function isCheckedOperation(op: QueuedOperation): op is CheckedQueuedOperation {
+  return op.action === 'list-item.set-checked' || op.action === 'device.list-item.set-checked'
 }
 
 export type QueueErrorCode = 'NOT_QUEUEABLE' | 'INVALID_PAYLOAD' | 'QUEUE_FULL'
@@ -278,7 +309,7 @@ function reviveOperation(raw: unknown, namespace: QueueNamespace['kind']): Queue
     id,
     action,
     v: spec.version,
-    target: spec.target(parsed),
+    target: spec.target(parsed, id),
     payload: parsed,
     createdAt,
     // A send that was in flight when the app died is retried with the same key.
@@ -430,6 +461,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     } catch {
       text = null
     }
+    if (disposed) return
     const parsed = parseStoredQueue(text, namespace)
     ops = parsed.ops
     const aged = applyAgeRules(deps.now())
@@ -443,7 +475,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   })()
 
   function snapshot(): QueuedOperation[] {
-    return ops.map((o) => ({ ...o, payload: { ...o.payload } }))
+    return ops.map((o) => ({ ...o, payload: { ...o.payload } } as QueuedOperation))
   }
 
   function schedule() {
@@ -480,19 +512,20 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   async function enqueue<A extends QueueableAction>(
     action: A,
     payload: PayloadOf<A> | unknown
-  ): Promise<QueuedOperation & { durable: boolean }> {
+  ): Promise<Extract<QueuedOperation, { action: A }> & { durable: boolean }> {
     await ready
     if (!isQueueableAction(action)) throw new QueueError('NOT_QUEUEABLE')
     const spec = specOf(action)
     if (spec.namespace !== namespace) throw new QueueError('NOT_QUEUEABLE')
     const parsed = spec.parse(payload)
     if (!parsed) throw new QueueError('INVALID_PAYLOAD')
-    const target = spec.target(parsed)
+    const id = deps.newKey()
+    const target = spec.target(parsed, id)
     const replaceable = ops.filter((o) => o.target === target && o.state !== 'syncing').length
     if (ops.length - replaceable >= QUEUE_MAX_OPS) throw new QueueError('QUEUE_FULL')
     const now = deps.now()
     const op: QueuedOperation = {
-      id: deps.newKey(),
+      id,
       action,
       v: spec.version,
       target,
@@ -507,7 +540,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     const saved = await persist()
     emit({ type: 'change' })
     void drain()
-    return { ...op, durable: saved }
+    return { ...op, durable: saved } as Extract<QueuedOperation, { action: A }> & { durable: boolean }
   }
 
   async function finish(op: QueuedOperation, outcome: Outcome, body: unknown, sendGeneration: number): Promise<'continue' | 'stop'> {
@@ -628,6 +661,16 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     const now = deps.now()
     // The same key is kept so a response lost earlier is still replayed; a key
     // the server rejected as reused needs a fresh one.
+    // A create must never renew its age/key: the original send may have committed.
+    // Once its 24-hour automatic replay window ends, check the canonical list
+    // and discard deliberately rather than risk replay beyond dedupe retention.
+    if (op.action === 'device.list-item.add' && (now - op.createdAt > QUEUE_MAX_AGE_MS || op.lastError === 'EXPIRED' || op.lastError === 'IDEMPOTENCY_KEY_REUSED')) {
+      op.state = 'failed'
+      op.lastError = op.lastError === 'IDEMPOTENCY_KEY_REUSED' ? op.lastError : 'EXPIRED'
+      await persist()
+      emit({ type: 'change' })
+      return
+    }
     if (op.lastError === 'IDEMPOTENCY_KEY_REUSED') op.id = deps.newKey()
     if (op.lastError === 'EXPIRED') op.createdAt = now
     op.state = 'pending'
@@ -726,7 +769,7 @@ export type QueueNamespace = { kind: 'person'; userId: string } | { kind: 'devic
 /**
  * Where a queue lives. The device namespace is the reserved `fp-device:v1:queue`
  * key in the `fp-device` database, so the shared-device purge (SHARED_DEVICE.md
- * §8) deletes it. It holds only the shared tablet's grocery ticks (#274).
+ * §8) deletes it. It holds the shared tablet's grocery ticks and submitted quick adds (#274/#135).
  */
 export function queueLocation(ns: QueueNamespace): { dbName: string; key: string } {
   if (ns.kind === 'device') return { dbName: DEVICE_IDB_NAME, key: DEVICE_QUEUE_KEY }

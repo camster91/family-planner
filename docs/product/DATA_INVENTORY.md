@@ -42,6 +42,19 @@ This document is the engineering source for privacy review and future Play Data 
   exact keys and redactions are in `docs/architecture/API_CONTRACTS.md` "Export completeness, analytics days
   and the event list" and `docs/ROLE_AND_ISOLATION_MATRIX.md` "Account export".
 
+## Local submitted grocery adds (#135)
+
+The shared-tablet offline queue stores submitted grocery text (1–200 characters), canonical list id,
+attribution-only member id, operation key and bounded retry state in the existing reserved `fp-device`
+IndexedDB/localStorage namespace. These are household-shared operational records, never analytics.
+No notes, price, finance/medical fields, names, passwords or session tokens are included. The queue
+holds at most 50 operations; creates stop replay after 24 hours, failed/conflict records are removed
+by the existing seven-day cleanup, and device purge removes the namespace. Unsent form drafts remain
+memory-only and are cleared when hidden. Replay goes only to the existing same-origin authorized
+grocery create route, with live permission checks. The local support report includes only counts,
+states and rates, never this payload or its identifiers. No provider or automatic remote telemetry
+is added. See `architecture/OFFLINE_SYNC.md` and `architecture/SHARED_DEVICE.md` for exact behavior.
+
 ## Third-party processor register
 Maintain for each provider:
 - purpose;

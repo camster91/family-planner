@@ -130,7 +130,7 @@ export function deviceQueueSend(client: DeviceClient): SendFn {
 }
 
 /**
- * The shared tablet's queue (#274): grocery ticks only, stored under the
+ * The shared tablet's queue (#274): grocery ticks and submitted quick adds, stored under the
  * reserved `fp-device:v1:queue` key of the `fp-device` database, which the
  * device purge deletes (SHARED_DEVICE.md §8). One per page.
  */

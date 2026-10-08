@@ -56,7 +56,7 @@ export function usePersonBoardActions(
         return q.subscribe((event) => {
           if (event.type !== 'change') return
           for (const op of q.list()) {
-            if (!mine.has(op.id)) continue
+            if (op.action === 'device.list-item.add' || !mine.has(op.id)) continue
             if (op.state === 'failed' || op.state === 'conflict') {
               mine.delete(op.id)
               // Discard it: the board shows the server's state again instead of a stuck row.

@@ -16,13 +16,36 @@ Only explicitly reviewed, low-risk actions may queue offline. Initial candidates
 
 Do not queue destructive deletion, parent verification/reward approval, security/account changes, sensitive finance/medical actions or other operations requiring fresh server authorization.
 
-**Implemented allowlist (#162):** exactly one action, `list-item.set-checked` (tick/untick a list item, the
-grocery proof action). Grocery quick add and other candidates are not queueable yet; each needs its domain
-issue, an idempotent route and an entry here. The allowlist is code (`QUEUEABLE_ACTIONS` in
-`src/lib/offline-queue.ts`): each entry fixes the method, path, payload parser and version, so the queue can
-never replay an arbitrary request. Never queueable, whatever a future issue asks: deletes, finance
-(budget, transactions, allowance), chore verification and reward approval, account/auth/password/PIN,
-device pairing/elevation, invites, exports and medical records.
+**Implemented allowlist (#162/#135):** personal `list-item.set-checked`, shared-tablet
+`device.list-item.set-checked`, and shared-tablet `device.list-item.add` (grocery quick add).
+Personal grocery creation and other candidates are not queueable yet. The allowlist is code
+(`QUEUEABLE_ACTIONS` in `src/lib/offline-queue.ts`): each entry fixes method, path, parser,
+namespace and action version, so the queue never replays an arbitrary request. Never queueable:
+deletes, finance (budget, transactions, allowance), chore verification/reward approval,
+account/auth/password/PIN, pairing/elevation, invites, exports and medical records.
+
+The new create carries exactly `{ listId, content, actingMemberId }`: a validated canonical list id,
+trimmed grocery text of 1–200 characters and unverified member-attribution id. Quantity remains 1;
+notes, price, ingredient references, actor names, credentials and arbitrary metadata are excluded.
+The existing device route re-checks live device/household/list/member authorization, feature and write
+switches on every send. Restored read-cache boards still grant no write permission. The local create
+is visible as unconfirmed until the server answers; a failed/conflicted add stays visible with Retry
+or Remove, and an in-flight add cannot be discarded. Missing lists refresh choices without removing
+the tablet. Removing local intent does not delete a server row; the UI says to check the list before
+adding again because a lost response may have followed a committed write.
+
+Each explicit add has a unique operation target. Identical text submitted twice is two deliberate
+intents; automatic/manual retries and restart keep the original body, actor and idempotency key.
+Create retries never renew the original creation timestamp or replace a rejected reused key. Once
+expired (24 hours), check the canonical list and remove the queued add; do not restart its replay
+window. The existing 50-operation, bounded-backoff/eight-attempt and seven-day failed/conflict
+cleanup limits apply. Device revocation/sign-out of the paired identity purges the reserved queue;
+a late initial storage read cannot rehydrate an abandoned queue. Queue text is operational household
+shared data, not telemetry; local diagnostic reports continue to exclude payloads and identifiers.
+
+Browser proof covers submitted offline creation, API-only page restart, flapping, committed-response
+loss and the original same-key dedupe. This is not fully offline shell loading, physical Android
+WebView/process restart, personal offline creation or fleet convergence acceptance.
 
 Food inventory (#263, #158/#121) does not change the allowlist: create, edit, delete, "Used it", "Throw away" and Undo
 are online writes with an optional `Idempotency-Key` (a retry never duplicates an adjustment). Offline, the page keeps
@@ -167,11 +190,10 @@ they become queueable.
   the `fp-sync` database, bounded to 1 s so sign-out never hangs. A 401 while draining drops the queue. A
   logged-out or revoked session cannot replay: the server authenticates before it reads any idempotency record.
 - Shared device (#274): the queue's device namespace is the reserved `fp-device:v1:queue` key in the `fp-device`
-  database, which the §8 purge in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) already deletes. It holds one action
-  only, `device.list-item.set-checked` v1 (`{ itemId, checked, actingMemberId }`, sent as
+  database, which the §8 purge in [`SHARED_DEVICE.md`](SHARED_DEVICE.md) already deletes. It holds `device.list-item.set-checked` v1 (`{ itemId, checked, actingMemberId }`, sent as
   `PATCH /api/device/lists/items/:id` with the operation id as `Idempotency-Key`, server scope
   `device:<deviceId>`). Each action belongs to one namespace: a person queue refuses and drops device actions, and
-  the device queue refuses and drops person actions. The device queue sends through the device client
+  the device queue refuses and drops person actions. Its second action, `device.list-item.add` v1, has the fixed minimal grocery create body and path documented above. The device queue sends through the device client
   (`getDeviceQueue`, `deviceQueueSend`), so an expired access token is refreshed and retried once, and a revoked
   tablet or the kill switch runs the purge (the queue is abandoned: dropped from memory and never written again, even by an operation still in flight, so the deleted `fp-device` storage is not recreated). It is used only when the
   household turned tablet writes on (§9.2). Chore completes from the tablet are not queued: they are sent once

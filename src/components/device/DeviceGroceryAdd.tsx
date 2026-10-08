@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
-import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
-import { newIdempotencyKey } from "@/lib/idempotency-key";
+import type { DeviceClient } from "@/lib/device-client";
+import { getDeviceQueue } from "@/lib/offline-queue-browser";
+import { QueueError, type AddGroceryOperation } from "@/lib/offline-queue";
 import {
   errorTextClass,
   inputClass,
@@ -12,14 +13,7 @@ import {
   primaryButtonClass,
 } from "./styles";
 
-type AddOperation = {
-  key: string;
-  listId: string;
-  content: string;
-  actingMemberId: string;
-};
-
-/** Online-only capture using the existing, attribution-only device write route. */
+/** Bounded, attributed grocery capture; only canonical server confirmation means saved. */
 export function DeviceGroceryAdd({
   client,
   lists,
@@ -39,24 +33,78 @@ export function DeviceGroceryAdd({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
-  const [operation, setOperation] = React.useState<AddOperation | null>(null);
+  const [ops, setOps] = React.useState<AddGroceryOperation[]>([]);
+  const [durable, setDurable] = React.useState(true);
   const [online, setOnline] = React.useState(true);
   const input = React.useRef<HTMLInputElement>(null);
   const generation = React.useRef(0);
   const sending = React.useRef(false);
-  const unconfirmed = React.useRef<AddOperation | null>(null);
+  const afterRef = React.useRef(afterChange);
+  afterRef.current = afterChange;
 
   const close = React.useCallback(() => {
     generation.current++;
     setOpen(false);
     setContent("");
-    setOperation(null);
     setError(null);
   }, []);
 
   React.useEffect(() => {
+    const queue = getDeviceQueue(client);
+    let active = true;
+    const refreshedMissingLists = new Set<string>();
+    const update = () => {
+      if (!active) return;
+      setOps(
+        queue
+          .list()
+          .filter(
+            (op): op is AddGroceryOperation =>
+              op.action === "device.list-item.add",
+          ),
+      );
+      setDurable(queue.isDurable());
+      for (const op of queue.list()) {
+        if (
+          op.action === "device.list-item.add" &&
+          op.state === "conflict" &&
+          op.lastError === "NOT_FOUND" &&
+          !refreshedMissingLists.has(op.id)
+        ) {
+          refreshedMissingLists.add(op.id);
+          afterRef.current();
+        }
+      }
+    };
+    const unsubscribe = queue.subscribe((event) => {
+      update();
+      if (
+        event.type === "synced" &&
+        event.op.action === "device.list-item.add" &&
+        active
+      ) {
+        afterRef.current();
+        setNotice("Item added to the grocery list.");
+      }
+      if (event.type === "auth-lost" && active) {
+        close();
+        setNotice(null);
+      }
+      if (event.type === "dropped" && active)
+        setNotice(
+          "Some older queued changes were removed. Check your grocery list before adding them again.",
+        );
+    });
+    void queue.ready.then(update);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [client, close]);
+
+  React.useEffect(() => {
     const requestGeneration = generation;
-    const connection = () => setOnline(navigator.onLine);
+    const connection = () => setOnline(navigator.onLine !== false);
     const visibility = () => {
       if (document.hidden) {
         close();
@@ -80,85 +128,68 @@ export function DeviceGroceryAdd({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (sending.current) return;
-    if (!navigator.onLine) {
-      setError("Connect to Wi-Fi to add this item. Nothing is queued.");
-      return;
-    }
     const text = content.trim();
     if (
-      !operation &&
-      (!text || text.length > 200 || !lists.some((list) => list.id === listId))
+      !text ||
+      text.length > 200 ||
+      !lists.some((list) => list.id === listId)
     ) {
       setError("Choose a grocery list and use 1 to 200 characters.");
       return;
     }
-    if (!operation && !actorId) {
+    if (!actorId) {
       setError(
         "Your name selection expired. Close this form and pick your name again.",
       );
       return;
     }
-    const request = operation ?? {
-      key: newIdempotencyKey(),
-      listId,
-      content: text,
-      actingMemberId: actorId!,
-    };
     const current = generation.current;
-    setOperation(request);
-    unconfirmed.current = request;
-    setError(null);
     sending.current = true;
     setBusy(true);
+    setError(null);
     try {
-      await client.request(
-        `/api/device/lists/${encodeURIComponent(request.listId)}/items`,
-        {
-          method: "POST",
-          headers: { "Idempotency-Key": request.key },
-          body: {
-            content: request.content,
-            actingMemberId: request.actingMemberId,
-          },
-        },
-      );
-      unconfirmed.current = null;
-      afterChange();
+      const queue = getDeviceQueue(client);
+      const op = await queue.enqueue("device.list-item.add", {
+        listId,
+        content: text,
+        actingMemberId: actorId,
+      });
       if (generation.current === current) {
         close();
-        setNotice("Item added to the grocery list.");
+        // A confirmation event may already have arrived. The queued rows below
+        // represent current state, never claim a local enqueue was saved remotely.
+        if (!op.durable)
+          setNotice(
+            "This add is only in memory. Keep this page open until it syncs.",
+          );
+        else if (queue.list().some((queued) => queued.id === op.id))
+          setNotice("Add queued. Check its status below.");
       }
     } catch (failure) {
-      const definitive =
-        failure instanceof DeviceApiError &&
-        failure.status >= 400 &&
-        failure.status < 500 &&
-        failure.status !== 409;
-      if (definitive || (failure instanceof DeviceApiError && failure.terminal))
-        unconfirmed.current = null;
       if (generation.current !== current) return;
-      if (failure instanceof DeviceApiError && failure.terminal) {
-        close();
-        return;
-      }
-      if (failure instanceof DeviceApiError && failure.status === 404) {
-        setOperation(null);
-        setListId("");
-        setError("That list is no longer available. Choose another list.");
-        afterChange();
-        return;
-      }
-      // An uncertain response may follow a committed write. Keep the exact
-      // body, actor and key for Retry; never silently make a second operation.
-      if (definitive) setOperation(null);
       setError(
-        definitive
-          ? failure.message || "Could not add this item."
-          : "Could not confirm the add. It may already be saved. Retry or reopen this form to check the same request.",
+        failure instanceof QueueError && failure.code === "QUEUE_FULL"
+          ? "Too many changes are waiting for Wi-Fi. Your text is still here; try again after they sync."
+          : "Could not queue this add. Your text is still here. Try again.",
       );
     } finally {
       sending.current = false;
       setBusy(false);
+    }
+  };
+
+  const recover = async (op: AddGroceryOperation, discard: boolean) => {
+    try {
+      const queue = getDeviceQueue(client);
+      if (discard) {
+        await queue.discard(op.id);
+        setNotice(
+          "Queued add removed. Check the list before adding it again; an earlier send may already have saved it.",
+        );
+      } else if (op.state === "pending") await queue.handleOnline();
+      else await queue.retry(op.id);
+    } catch {
+      setNotice("Could not update the queued add. Try again.");
     }
   };
 
@@ -170,21 +201,9 @@ export function DeviceGroceryAdd({
         className={neutralButtonClass}
         onClick={async () => {
           setNotice(null);
-          if (unconfirmed.current) {
-            const previous = unconfirmed.current;
-            setListId(previous.listId);
-            setContent(previous.content);
-            setOperation(previous);
-            setError(
-              "An earlier add needs confirmation. Retry checks the same request.",
-            );
-            setOpen(true);
-            return;
-          }
           setListId(lists.length === 1 ? lists[0].id : "");
           setContent("");
           setError(null);
-          setOperation(null);
           const current = generation.current;
           if (
             (!lists.length || (await prepare())) &&
@@ -196,6 +215,68 @@ export function DeviceGroceryAdd({
         Add grocery
       </button>
       {notice && <p role="status">{notice}</p>}
+      {ops.length > 0 && (
+        <section
+          aria-label="Queued grocery adds"
+          className="space-y-3 rounded-lg border border-[var(--surface-separator)] p-3"
+        >
+          <p>
+            These items are not yet confirmed on the list. Retry here instead of
+            adding the same item again.
+          </p>
+          {!durable && (
+            <p role="alert">
+              Changes are only in memory. Keep this page open until they sync.
+            </p>
+          )}
+          {ops.map((op) => {
+            const cannotRetry =
+              op.lastError === "EXPIRED" ||
+              op.lastError === "IDEMPOTENCY_KEY_REUSED";
+            const state =
+              op.state === "syncing"
+                ? "Adding…"
+                : op.state === "pending"
+                  ? "Waiting to add when connected."
+                  : op.state === "conflict"
+                    ? "That list is no longer available or has changed."
+                    : cannotRetry
+                      ? "This add cannot safely be retried. Check the list, then remove this queued add."
+                      : "Could not add this item.";
+            return (
+              <div
+                key={op.id}
+                data-testid="queued-grocery-add"
+                className="space-y-2"
+              >
+                <p className="break-words font-medium">{op.payload.content}</p>
+                <p>{state}</p>
+                {op.state !== "syncing" && (
+                  <div className="flex flex-wrap gap-3">
+                    {!cannotRetry && (
+                      <button
+                        type="button"
+                        className={neutralButtonClass}
+                        disabled={!online}
+                        onClick={() => void recover(op, false)}
+                      >
+                        {op.state === "pending" ? "Try now" : "Retry add"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={neutralButtonClass}
+                      onClick={() => void recover(op, true)}
+                    >
+                      Remove queued add
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
       <Dialog
         open={open}
         onClose={busy ? undefined : close}
@@ -217,9 +298,9 @@ export function DeviceGroceryAdd({
               <select
                 id="device-grocery-list"
                 value={listId}
-                disabled={busy || Boolean(operation)}
+                disabled={busy}
                 className={inputClass}
-                onChange={(event) => setListId(event.target.value)}
+                onChange={(e) => setListId(e.target.value)}
               >
                 <option value="">Choose a list</option>
                 {lists.map((list) => (
@@ -243,16 +324,16 @@ export function DeviceGroceryAdd({
                 id="device-grocery-content"
                 ref={input}
                 value={content}
-                disabled={busy || Boolean(operation)}
+                disabled={busy}
                 maxLength={200}
                 autoComplete="off"
                 className={inputClass}
-                onChange={(event) => setContent(event.target.value)}
+                onChange={(e) => setContent(e.target.value)}
               />
             </div>
             {!online && (
               <p role="status">
-                Connect to Wi-Fi to add this item. Nothing is queued.
+                This add will wait on this tablet and sync when connected.
               </p>
             )}
             {error && (
@@ -263,10 +344,10 @@ export function DeviceGroceryAdd({
             <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
-                disabled={busy || !online}
+                disabled={busy}
                 className={primaryButtonClass}
               >
-                {busy ? "Adding…" : operation ? "Retry add" : "Add item"}
+                {busy ? "Queueing…" : "Add item"}
               </button>
               <button
                 type="button"

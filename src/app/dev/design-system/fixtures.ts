@@ -22,7 +22,7 @@ import type { BoardPerson } from '@/components/fridge/regions'
 import type { RecipeDetailData } from '@/components/meals/RecipeDetail'
 import type { RoutineStep } from '@/components/dashboard/KidRoutines'
 import type { ShoppingSnapshot } from '@/lib/shopping-snapshot'
-import type { QueuedOperation } from '@/lib/offline-queue'
+import type { CheckedQueuedOperation } from '@/lib/offline-queue'
 import type { RoutineGroup } from '@/lib/routine-icons'
 import type { MemberColorKey } from '@/lib/member-colors'
 import type { GrocerySectionId } from '@/lib/grocery-sections'
@@ -86,7 +86,7 @@ export interface GalleryFixtures {
   listRows: GalleryListRow[]
   weather: WeatherView
   /** One queued offline operation per sync state, for the list-row sync text. */
-  syncOps: Array<{ label: string; op: QueuedOperation }>
+  syncOps: Array<{ label: string; op: CheckedQueuedOperation }>
   nextEvent: { title: string; when: string }
   /** A single long title used for the dialog/sheet and toast frames. */
   itemTitle: string
@@ -128,7 +128,7 @@ function soonItem(
   }
 }
 
-function queued(id: string, state: QueuedOperation['state'], lastError?: string): QueuedOperation {
+function queued(id: string, state: CheckedQueuedOperation['state'], lastError?: string): CheckedQueuedOperation {
   return {
     id: `fx-gallery-op-${id}`,
     action: 'list-item.set-checked',
