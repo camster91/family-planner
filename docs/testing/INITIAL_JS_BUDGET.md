@@ -13,6 +13,23 @@ npx playwright test e2e/initial-js-budget.spec.ts
 npm test -- --runInBand src/lib/__tests__/initial-js-budget.test.ts src/components/providers/__tests__/posthog-provider.test.tsx
 ```
 
+## Observed local production-build comparison
+
+2026-10-08, fabricated parent household, cold modern Chromium contexts. Baseline build `d278267` (2026-10-08T23:04:46.244Z) failed all six budgets on the phone. Candidate build `cb12393` (2026-10-08T23:45:06.412Z) passed all **36 route/viewport combinations**. These are actual build identities, not a claim that later documentation/test commits were locally rebuilt. Final PR-head hosted results remain a separate gate.
+
+| Route    | Baseline gzip bytes | Candidate maximum across six viewports |  Budget |
+| -------- | ------------------: | -------------------------------------: | ------: |
+| Today    |             352,683 |                                249,900 | 250,000 |
+| Calendar |             324,756 |                                221,973 | 300,000 |
+| Chores   |             333,636 |                                230,853 | 300,000 |
+| Lists    |             308,686 |                                205,903 | 300,000 |
+| Meals    |             343,944 |                                241,161 | 300,000 |
+| Settings |             318,756 |                                219,797 | 300,000 |
+
+Today has only 100 bytes of headroom; future changes must keep passing the gate. Its three largest files were `3794-83acfce05009cf38.js` (65,797 gzip bytes), `4bd1b696-8a4ab4fdf0ae305a.js` (63,375), and `8401-626586a7c3eb8db8.js` (15,650), all under `/_next/static/chunks/`. The attachment retains the complete public file breakdown. Initial automatic prefetch downloads are conservatively included; later user navigation is never performed during measurement.
+
+The existing notification browser cases passed at their original phone/desktop projects (6 cases); the new forced module-download failure/retry check passed on phone, portrait and fridge (3 cases), preserving dialog focus, Escape dismissal, 44px retry targets and scoped accessibility checks. Configured skips retain their existing project rationale. No household or production acceptance is inferred.
+
 The root analytics component loads `posthog-js` only when the existing public analytics key is configured. It keeps the original key, custom/default host and initialization options. Application children remain mounted while the SDK loads or fails. There are no current consumers of PostHog's React context in this app; a future context consumer must explicitly integrate without replacing/remounting the application subtree. This change does not enable analytics or add events.
 
 The child's existing notification dialog also loads its controls only when opened. Its original loading and API-error/retry presentation is shared with the chunk loader. A failed module download stays inside the dialog and can be retried; closing the dialog ignores a late resolution. Menu role restrictions, Escape/focus behavior, preference APIs, idempotency, quiet hours and morning-summary policy remain unchanged. This does not change any saved preference or scheduler.

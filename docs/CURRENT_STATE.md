@@ -1,6 +1,16 @@
 # Current State
 
-## Latest execution refresh — 2026-10-08, after #410
+## Latest execution refresh — 2026-10-08, after #412
+
+Protected main is `101097956e09fca16a20e8aac9ae0cc1b5c17503`; **32 cleanup PRs are verified merged**. #412 exact checked head `26b55e3` passed its original Build/Test, checked image, 809 journeys and 28 visuals, then merged normally at 23:40:30 UTC. All five original #411 criteria are checked and the issue is closed. Its owned branch was cleaned after ancestry/worktree verification. Strict checks, administrator enforcement and conversation resolution remain enabled. Prior pending #411/#412 entries below are dated history.
+
+There are **49 open issues** at this readback. Performance child #413 follows the existing #137 first-load JavaScript budget action: conditional optional analytics and on-demand notification controls, with unchanged provider initialization and existing notification loading/retry UI. Candidate app source `cb12393` has passed the six core production-build cold-navigation budgets at all six viewports (36 cases), existing notification journeys, 358 unit suites / 4,382 cases, Prisma/types/lint/format/build and unchanged 1,736 tracked copy occurrences. Today is 249,900 gzip bytes against the unchanged 250,000-byte budget; it has little headroom. Final exact-head hosted review/CI/normal merge remains required before #413 closure. Parent #137 reliability, device/network/load acceptance remains open.
+
+The screenshot gallery preserves **478 captures** with exact source and ordinary/expanded-copy mode labels. Its most recent list-overview app source is `d278267`, byte-identical to the later checked #412 app/test source; final #412 hosted checks are separate evidence. No historical gallery image is silently relabelled as the performance candidate.
+
+Existing Android debug-workflow approval (#370), legal/company/sender decision (#372), provider/production, physical-device, research and household acceptance gates remain unresolved. No paused native workflow, secrets, spend, scheduler, native/store upload or manual production promotion is included. Public runtime is recorded separately below; a protected merge does not establish deployment or acceptance.
+
+## Historical execution refresh — 2026-10-08, after #410
 
 Protected main is `6f96058875057d0e3704a0b54ced68410e3678a3`. Thirty-one cleanup PRs are verified merged, including #399/#397/#398, #402/#400, #404, #408/#406 and exact #410 head `af0e04a`. Normal merge/protection, checked-image and browser evidence remains in the source PRs; children #401/#403/#405/#407/#409 are evidence-backed closed with original criteria preserved. No old open PR is left. There are 49 open issues at this refresh, including prepared child #411. Original programme/release/owner/hardware/household criteria remain open unless their existing issue separately records full acceptance.
 
@@ -15,7 +25,7 @@ Last anonymous public read on 2026-10-08 still returned #396 source `4d9aec4e0db
 Earlier execution sections below are dated historical snapshots; pending statements and counts there do not override this refresh or current GitHub source.
 
 
-**Last reconciled:** 2026-10-08, against protected `main` at `6f96058875057d0e3704a0b54ced68410e3678a3` (#410)
+**Last reconciled:** 2026-10-08, against protected `main` at `101097956e09fca16a20e8aac9ae0cc1b5c17503` (#412)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
