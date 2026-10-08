@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/components/providers/theme-provider'
 import { THEME_INIT_SCRIPT } from '@/lib/theme'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
+import { isPseudolocaleEnabled } from '@/i18n/pseudo'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration'
 import { SiteOfflineBanner } from '@/components/ui/site-offline-banner'
@@ -109,7 +110,7 @@ export default function RootLayout({
   return (
     // suppressHydrationWarning: THEME_INIT_SCRIPT adds `dark` to <html> before
     // React hydrates, so its class can differ from the server HTML.
-    <html lang="en" className={`${newsreader.variable} ${manrope.variable}`} suppressHydrationWarning>
+    <html lang="en" data-pseudolocalized={isPseudolocaleEnabled() ? 'true' : undefined} className={`${newsreader.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
         {/* Theme before first paint (O-43): Auto unless this device saved Light or Dark. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
@@ -121,7 +122,7 @@ export default function RootLayout({
         <ThemeProvider>
           <PostHogProvider>
             <ToastProvider>
-              <I18nProvider locale="en" persistLocale>
+              <I18nProvider locale="en" persistLocale pseudolocalize={isPseudolocaleEnabled()}>
                 <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
                   {children}
                 </div>
