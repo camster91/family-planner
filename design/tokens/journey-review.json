@@ -1,0 +1,344 @@
+[
+  {
+    "name": "01 · Parent onboarding",
+    "audience": "Parent personal session",
+    "path": "Register / sign in → create or join household → Today get-started card → first chore or event",
+    "source": "OnboardingFlow.tsx; dashboard/page.tsx; join/page.tsx",
+    "states": {
+      "Happy": [
+        "Household ready",
+        "Create or join the canonical household; invite and first-action prompts live on Today.",
+        "Continue to Today; do one useful action."
+      ],
+      "Empty": [
+        "Start your household",
+        "Explain create vs join before requesting a household name or invitation code.",
+        "Create household or enter a code."
+      ],
+      "Error": [
+        "Keep the form",
+        "Show the real failure in words; retain safe typed fields. Do not show household creation as complete.",
+        "Correct the field or retry the failed step."
+      ],
+      "Offline": [
+        "Connection needed",
+        "Sign-in, membership and household creation are not queued offline.",
+        "Keep safe draft text and try again online."
+      ],
+      "Permission": [
+        "Use your own account",
+        "A paired device cannot become a personal session through this flow.",
+        "Set up on a parent’s phone; pair separately."
+      ],
+      "Loading": [
+        "Creating the household",
+        "Keep safe draft fields and show the operation as pending; prevent a second submit.",
+        "Wait for confirmation or a visible error."
+      ]
+    }
+  },
+  {
+    "name": "02 · Pair a shared tablet",
+    "audience": "Parent phone + unpaired tablet",
+    "path": "Phone Settings → Devices → create 10-minute code → tablet enters code → parent confirms four digits → device Today",
+    "source": "PairTabletDialog.tsx; PairScreen.tsx; device-client.ts",
+    "states": {
+      "Happy": [
+        "Confirm this tablet",
+        "Check the four digits on the intended tablet before issuing the device session.",
+        "Confirm on the phone; tablet opens Today."
+      ],
+      "Empty": [
+        "Pair this tablet",
+        "No household data is shown before pairing. Parent creates a code in personal Settings.",
+        "Enter the 8-character code on the tablet."
+      ],
+      "Error": [
+        "Code did not work",
+        "Expired, cancelled, mismatched or device-limit states keep the tablet unpaired.",
+        "Ask for a new code; retry the enter step."
+      ],
+      "Offline": [
+        "Waiting for confirmation",
+        "A network error does not confirm pairing; polling waits only until code expiry.",
+        "Reconnect before expiry, or use a new code."
+      ],
+      "Permission": [
+        "Disconnected / unavailable",
+        "Revocation or a disabled device feature wipes device state and hides all household data.",
+        "A parent pairs again, or uses a personal phone."
+      ],
+      "Loading": [
+        "Checking the pairing",
+        "Disable duplicate claim or confirmation while pending. No device session exists until the server confirms.",
+        "Keep waiting within the code expiry window."
+      ]
+    }
+  },
+  {
+    "name": "03 · Morning glance",
+    "audience": "Shared device / parent / teen / child",
+    "path": "Wake or tap → Today or kid home → schedule, chores, groceries and tonight summary → allowed tile action",
+    "source": "DeviceTodayScreen.tsx; today-board-data.ts; nav-items.ts",
+    "states": {
+      "Happy": [
+        "What happens today?",
+        "The shared board shows schedule, tasks, dinner and groceries; kid home starts with own missions.",
+        "Read first; tap one allowed tile or task."
+      ],
+      "Empty": [
+        "Nothing here yet",
+        "Each empty tile names what is missing. No sample household events appear in production.",
+        "Use a permitted personal add flow."
+      ],
+      "Error": [
+        "Can’t reach the board",
+        "Use an explicit retry message. Failed reads do not imply the household has no events.",
+        "Retry; show update age if a board is retained."
+      ],
+      "Offline": [
+        "Updates paused",
+        "A current in-memory board may be retained with an offline label; no persisted cold-launch snapshot is implemented.",
+        "Reconnect. Never present retained data as fresh."
+      ],
+      "Permission": [
+        "Shared means shared",
+        "No finances, private messages, addresses, medical details or account controls on device Today.",
+        "Use your personal phone for private data."
+      ],
+      "Loading": [
+        "Loading today",
+        "Use an explicit loading state; an initial fetch is not an empty household. Cold launch has no persisted snapshot.",
+        "Show the board only after the allowed DTO arrives."
+      ]
+    }
+  },
+  {
+    "name": "04 · Evening glance / calm display",
+    "audience": "Shared tablet, with parent-controlled board settings",
+    "path": "Today dinner and chores → idle calm display → configured night dim → tap wakes normal board without completing an action",
+    "source": "ambient.ts; DeviceTodayScreen.tsx; AmbientDisplay.tsx; board-settings.ts",
+    "states": {
+      "Happy": [
+        "Settle the day",
+        "Dinner, due work and use-soon summary remain in their normal priority order before idle display.",
+        "A wake tap returns to the board only."
+      ],
+      "Empty": [
+        "No dinner planned",
+        "Use an honest empty dinner state; do not fabricate a recipe or default plan.",
+        "Plan a meal through a permitted personal flow."
+      ],
+      "Error": [
+        "Display status is explicit",
+        "A settings-save failure keeps the previous valid settings; update failures show age/status.",
+        "Retry online or return to the shared board."
+      ],
+      "Offline": [
+        "No fresh sync implied",
+        "Show retained content as stale/offline. Night/calm presentation does not imply successful synchronization.",
+        "Reconnect before new reads or gated changes."
+      ],
+      "Permission": [
+        "Parent setup only",
+        "Parent elevation permits only the device setup allowlist. Device display never enables photos or coordinates.",
+        "End parent mode with Done or expiry."
+      ],
+      "Loading": [
+        "Saving display settings",
+        "Keep the last valid settings visible while the requested change is pending. A wake tap must not activate an action.",
+        "Apply the new settings after successful save."
+      ]
+    }
+  },
+  {
+    "name": "05 · Quick-add event",
+    "audience": "Parent or teen personal session; no device event-creation path",
+    "path": "Calendar tab → Add event → date/time and required fields → save → calendar",
+    "source": "dashboard/calendar/create/page.tsx; api/events/route.ts; kid-access.ts",
+    "states": {
+      "Happy": [
+        "One event, correct day",
+        "Use canonical event data; date/time belong to the intended day. Confirm successful save before leaving.",
+        "Return to calendar with the new event."
+      ],
+      "Empty": [
+        "A blank calendar",
+        "The Add event action is visible for roles allowed to create; empty is distinct from failure.",
+        "Open the same form used from a filled calendar."
+      ],
+      "Error": [
+        "Correct the event",
+        "Field and server failures remain visible; keep safe draft values and do not duplicate a saved event.",
+        "Correct or retry only the failed save."
+      ],
+      "Offline": [
+        "Event creation needs connection",
+        "Event creation is outside the current offline mutation allowlist.",
+        "Keep a local form draft; save when online."
+      ],
+      "Permission": [
+        "Creation is not editing",
+        "Teen create is allowed; parent-only edit/delete remain separate. A shared tablet has no event-create endpoint.",
+        "Use a permitted personal session."
+      ],
+      "Loading": [
+        "Saving the event",
+        "Keep the safe draft and disable duplicate submission while the request is pending.",
+        "Wait for success or a visible failure."
+      ]
+    }
+  },
+  {
+    "name": "06 · Quick-add grocery",
+    "audience": "All personal roles; paired-device add is a missing UI path",
+    "path": "Lists → grocery list → Add item → canonical ListItem; shared board quick-add requires an explicit canonical list ID",
+    "source": "list-item-create.ts; api/device/lists/[id]/items; use-device-board-actions.tsx",
+    "states": {
+      "Happy": [
+        "Add to the right list",
+        "Use the household’s canonical List/ListItem. The existing device add route requires actor attribution and an idempotency key.",
+        "Show the saved item only after confirmed add."
+      ],
+      "Empty": [
+        "Choose or create a grocery list",
+        "Current board DTO lacks a list ID when no unchecked item exists. Do not infer a list from the first row.",
+        "Resolve a canonical list before tablet quick-add."
+      ],
+      "Error": [
+        "Keep the item text",
+        "Show validation/server failures. A retry uses the same operation identity where the route supports it.",
+        "Retry the add or correct the field."
+      ],
+      "Offline": [
+        "Ticking is queued; adding is not",
+        "Explicit list-item checked state is queueable. Item creation is outside the current queue allowlist.",
+        "Keep add text unsaved; add when online."
+      ],
+      "Permission": [
+        "Device writes may be off",
+        "Require both server switch and household device-write opt-in. Member selection attributes an action; it grants no role.",
+        "Show read-only state or parent setup guidance."
+      ],
+      "Loading": [
+        "Adding the item",
+        "Retain text during the pending add; keep the operation identity stable for an idempotent retry.",
+        "Show saved state after the route confirms."
+      ]
+    }
+  },
+  {
+    "name": "07 · Quick-add meal",
+    "audience": "Permitted personal session; shared-device dinner is read-only",
+    "path": "Meals tab → select day / meal slot → add or choose a recipe → save canonical FamilyMeal → Tonight",
+    "source": "dashboard/meals/page.tsx; api/meals/route.ts; ADR-0007",
+    "states": {
+      "Happy": [
+        "Dinner has a plan",
+        "Use FamilyMeal and Recipe; do not write legacy MealPlan tables or create a tablet-specific model.",
+        "Return to the chosen day; Tonight reads that plan."
+      ],
+      "Empty": [
+        "No meal planned",
+        "Offer a named meal or a permitted recipe choice without inventing ingredients or household preferences.",
+        "Add a meal in the personal Meals flow."
+      ],
+      "Error": [
+        "Save did not finish",
+        "Show the real failure and retain safe form values. Recipe-to-grocery errors remain separate from meal save.",
+        "Retry the failed action; review duplicates."
+      ],
+      "Offline": [
+        "Meal creation is online",
+        "Meal creation and recipe import are not queueable offline actions.",
+        "Keep safe draft text; save when online."
+      ],
+      "Permission": [
+        "Dinner tile is not private access",
+        "A paired device cannot follow personal meal links. Household feature/role checks stay on the canonical APIs.",
+        "Use a permitted personal session."
+      ],
+      "Loading": [
+        "Saving the meal",
+        "Keep the chosen day, slot and meal draft visible while pending; do not show success before the save.",
+        "Wait for the canonical meal response."
+      ]
+    }
+  },
+  {
+    "name": "08 · Quick-add task / chore",
+    "audience": "Parent personal session; children complete assigned work",
+    "path": "Today → All chores → Add chore → title / assignee / schedule → save → Today or chores",
+    "source": "dashboard/chores/create/page.tsx; role-capabilities.ts; chore-complete.ts",
+    "states": {
+      "Happy": [
+        "A clear household task",
+        "Use canonical Chore data, a checked household assignee and the intended schedule.",
+        "Return to chores; due work appears on Today."
+      ],
+      "Empty": [
+        "No chores yet",
+        "A parent may add the first chore. Kid home states that there are no missions without showing an admin control.",
+        "Parent opens Add chore; child stays on home."
+      ],
+      "Error": [
+        "Task not saved",
+        "Validation, assignment and server failures stay visible. A failed completion rolls back its optimistic state.",
+        "Correct or retry the failed operation."
+      ],
+      "Offline": [
+        "Creation and completion are online",
+        "Chore creation/completion are not in the current offline queue allowlist; do not show pending local work as saved.",
+        "Reconnect before submitting; keep safe draft."
+      ],
+      "Permission": [
+        "Done can await a parent check",
+        "Kid completion is not parent verification. Paired-device attribution grants no parent role or dashboard access.",
+        "Parent reviews in the personal chore flow."
+      ],
+      "Loading": [
+        "Saving the chore",
+        "Keep the assignee and schedule draft visible while pending. Parent verification remains a separate operation.",
+        "Wait for success or a visible failure."
+      ]
+    }
+  },
+  {
+    "name": "09 · Parent mode and private boundaries",
+    "audience": "Shared device setup versus parent phone administration",
+    "path": "Shared board → parent identity proof → only device-allowlisted setup → Done / idle / hide / maximum expiry → shared board",
+    "source": "ElevationSheet.tsx; ElevatedBanner.tsx; device-session.ts; MainActivity.java",
+    "states": {
+      "Happy": [
+        "Parent mode is scoped",
+        "PIN/password proof unlocks device setup only. Keep a visible parent banner and expiry; memory-only elevation token.",
+        "Done ends elevation and returns to the board."
+      ],
+      "Empty": [
+        "No elevation is active",
+        "Default device mode remains shared. Choosing a member for a chore never unlocks administration.",
+        "Parent starts proof only for an allowed setup task."
+      ],
+      "Error": [
+        "Proof failed or locked",
+        "Explain failure/lockout without exposing account secrets. Never keep a failed elevation active.",
+        "Retry after the permitted delay; return to board."
+      ],
+      "Offline": [
+        "No offline elevation",
+        "Identity proof and setup changes need a live server. Hiding/reloading ends the in-memory elevation.",
+        "Return to shared mode; retry proof online."
+      ],
+      "Permission": [
+        "Private stays on the phone",
+        "Even an elevated device has no finance/message/address/medical/account-data door. Android Back on /device/* backgrounds the task.",
+        "Open personal administration on the phone."
+      ],
+      "Loading": [
+        "Checking parent identity",
+        "Show proof as pending; do not unlock setup controls or store an elevation token before success.",
+        "Enter the scoped parent mode only after confirmation."
+      ]
+    }
+  }
+]
