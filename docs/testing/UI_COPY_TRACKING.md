@@ -1,9 +1,12 @@
-# Untranslated UI copy tracking (#403 / #142)
+# Hard-coded UI copy tracking (#403 / #142)
 
 The normal unit gate now compares direct production JSX copy against
-`src/i18n/untranslated-copy.json`. Each file/text/count record is untranslated
-migration debt, not an approved exception or evidence of translation readiness.
-The initial inventory contains 1,835 occurrences. No runtime copy is changed.
+`src/i18n/untranslated-copy.json`. Each file/text/count record belongs to the
+explicit review/migration backlog, not an approved exception or evidence of
+translation readiness. The initial inventory contains 1,835 literal-copy
+occurrences (1,710 file/text records across 115 files). Some brand/data labels may
+intentionally remain literal after review; the scanner does not decide that.
+No runtime copy is changed.
 
 The installed TypeScript parser detects direct JSX text and returned literal,
 conditional, concatenated and template-fragment text, plus known visible/form/
@@ -23,7 +26,7 @@ style/test attributes. It does not chase indirect constants, helper return value
 data tables, API/server error strings or translation interpolations. Passing this
 gate proves only that its detected surface is tracked; those remaining surfaces,
 all-string externalization, plurals, RTL and critical human translation review
-remain in #142. Do not claim the 1,835 occurrences are translated or waived.
+remain in #142. Do not claim the 1,835 occurrences are translated, approved or waived.
 
 ```sh
 node scripts/ui-copy.cjs

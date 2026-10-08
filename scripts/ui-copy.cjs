@@ -127,10 +127,10 @@ if (require.main === module) {
   const occurrences = scanUiCopy(root);
   if (process.argv.includes('--write-inventory')) {
     fs.writeFileSync(inventory, JSON.stringify(summarizeCopy(occurrences), null, 2) + '\n');
-    console.log(`Recorded ${occurrences.length} untranslated copy occurrences; review the inventory diff. This does not approve or translate them.`);
+    console.log(`Recorded ${occurrences.length} hard-coded copy occurrences; review the inventory diff. This does not approve or translate them.`);
   } else {
     const differences = copyTrackingDifferences(occurrences, JSON.parse(fs.readFileSync(inventory, 'utf8')));
     if (differences.length) { console.error(differences.join('\n')); process.exitCode = 1; }
-    else console.log(`All ${occurrences.length} detected untranslated copy occurrences are tracked as migration debt.`);
+    else console.log(`All ${occurrences.length} detected hard-coded copy occurrences are tracked for review/migration.`);
   }
 }
