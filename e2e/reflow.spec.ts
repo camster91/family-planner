@@ -191,6 +191,42 @@ async function expectReflow(page: Page, label: string) {
   ).toEqual([]);
 }
 
+/** At a 200px-tall layout, fixed bars must not make actions unreachable. */
+async function expectPrimaryReachable(page: Page, label: string) {
+  const targets = page.locator(PRIMARY_ACTIONS);
+  for (let index = 0; index < (await targets.count()); index += 1) {
+    const target = targets.nth(index);
+    if (!(await target.isVisible()) || !(await target.isEnabled())) continue;
+    const name =
+      (await target.getAttribute("aria-label")) ??
+      (await target.innerText()).trim();
+    await target.evaluate((el) =>
+      el.scrollIntoView({ block: "center", inline: "nearest" }),
+    );
+    await target.focus();
+    await expect(
+      target,
+      `${label}: ${name} can receive keyboard focus`,
+    ).toBeFocused();
+    await expect
+      .poll(
+        () =>
+          target.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            );
+            return hit !== null && (el === hit || el.contains(hit));
+          }),
+        {
+          message: `${label}: ${name} center is reachable without fixed overlay occlusion`,
+        },
+      )
+      .toBe(true);
+  }
+}
+
 for (const size of SIZES) {
   test.describe(`reflow @reflow ${size.name}`, () => {
     test.use({
@@ -210,10 +246,12 @@ for (const size of SIZES) {
           await expect(page).toHaveURL(new RegExp(`${path}$`));
           await settle(page);
           await expectReflow(page, `${size.name} ${path}`);
-          if (size.name === "zoom-400")
+          if (size.name === "zoom-400") {
+            await expectPrimaryReachable(page, `${size.name} ${path}`);
             await page.screenshot({
               path: testInfo.outputPath("zoom-400.png"),
             });
+          }
         });
       }
     });
@@ -227,8 +265,10 @@ for (const size of SIZES) {
         await expect(page.getByText("Today's Missions")).toBeVisible();
         await settle(page);
         await expectReflow(page, `${size.name} kid home`);
-        if (size.name === "zoom-400")
+        if (size.name === "zoom-400") {
+          await expectPrimaryReachable(page, `${size.name} kid home`);
           await page.screenshot({ path: testInfo.outputPath("zoom-400.png") });
+        }
       });
     });
   });
