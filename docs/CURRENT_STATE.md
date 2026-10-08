@@ -1,10 +1,20 @@
 # Current State
 
-**Last reconciled:** 2026-10-08, against protected `main` at `940329a9158a7a72f5f8378a388931b27458616e` (#399)
+**Last reconciled:** 2026-10-08, against protected `main` at `140cbc2aa148cb758438a6efb282497019704530` (#402)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
 Inspect GitHub and executable source again before changing code or reporting status. The current refresh below uses the GitHub API, protected-main ancestry, observed exact-head CI and anonymous public endpoints on 2026-10-08. Older source/runtime/CI sections retain their original 2026-09-29 to 2026-10-07 evidence as history; they are not current deployment instructions. Secrets and production settings were not changed or re-verified.
+
+## Execution refresh — 2026-10-08, after #402 (21:05 UTC)
+
+Protected main is `140cbc2aa148cb758438a6efb282497019704530`. Twenty-seven cleanup PRs are verified merged, including #400 through normal #402 merge; both exact heads are ancestors of main. Final #402 Build/Test, checked image and GitGuardian pass, plus 742 browser journeys and 28 visual checks. Review threads were empty; protections remained intact. Completed owned wake/pseudolocale branches were removed after head and reachability checks.
+
+Child #401 is closed after all seven original QA-mode criteria were evidenced: two explicit flags/default-off behavior, template expansion before interpolation, unchanged locale/data semantics, missing-key detection, nine inspected auth QA captures, normal candidate checks and documented commands/limitations. Four additional real-provider checks observed preservation of zero, negative/decimal numbers and special-character text. Parent #142 retains its original full language, all-string migration, pluralization/RTL and critical human-review requirements; #139 retains wider accessibility/device acceptance.
+
+Pending #404 implements child #403's additive direct-JSX copy tracking gate. The inventory records 1,835 literal-copy occurrences / 1,710 file-text records / 115 source files as review/migration debt, not translated or approved exceptions. Five guard cases cover parsing, exact gallery exclusion, other development-route inclusion, count/duplicate/stale handling and the actual source inventory. Local checked source `c29e79e` passed 4,359 unit cases, types/lint/build, inventory and tree/history secret checks. App/test/tool code remains unchanged by this dated documentation refresh; fresh exact-head hosted checks and normal merge remain required. No #403 closure is claimed.
+
+There are 49 open issues after creating #403 and closing completed #401. The gallery/ZIP contains 247 unique source-labeled fabricated local captures; nine artificial QA views are separately marked. No subsequent public runtime or live-role/provider/physical-device/household acceptance is inferred from these merges. Android #370 activation remains pending the owner's existing response. Earlier refreshes below remain historical snapshots.
 
 ## Execution refresh — 2026-10-08, after #399
 
