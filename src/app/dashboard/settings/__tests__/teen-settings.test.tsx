@@ -6,8 +6,13 @@
 // their data is not fetched, and the server page does not read or pass any
 // household-admin data for a teen. A child never gets the page.
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as renderUi, screen, waitFor } from '@testing-library/react'
 import SettingsClient from '../SettingsClient'
+import { I18nProvider } from '@/i18n'
+
+function render(ui: React.ReactElement) {
+  return renderUi(<I18nProvider locale="en">{ui}</I18nProvider>)
+}
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }),
