@@ -45,11 +45,15 @@ export function useBoardSync({
   generatedAt,
   checkVersion,
   refresh,
+  enabled = true,
+  announcementMessage = 'The board has been updated.',
 }: {
   version: string | undefined
   generatedAt: string
   checkVersion: () => Promise<string>
   refresh: () => void
+  enabled?: boolean
+  announcementMessage?: string
 }): BoardSync {
   const online = useOnline()
   const [lastSyncAt, setLastSyncAt] = React.useState<number | null>(null)
@@ -82,12 +86,13 @@ export function useBoardSync({
     pollerRef.current!.loaded(version)
     // Announce real changes only, not the first load or a no-change refresh.
     if (shownVersion.current !== null && version !== shownVersion.current) {
-      setAnnouncement('The board has been updated.')
+      setAnnouncement(announcementMessage)
     }
     shownVersion.current = version
-  }, [version, generatedAt])
+  }, [version, generatedAt, announcementMessage])
 
   React.useEffect(() => {
+    if (!enabled) return
     const poller = pollerRef.current!
     const tick = () => void poller.tick()
     const onVisible = () => {
@@ -101,7 +106,7 @@ export function useBoardSync({
       window.removeEventListener('online', tick)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [])
+  }, [enabled])
 
   return { lastSyncAt, online, failing, announcement }
 }

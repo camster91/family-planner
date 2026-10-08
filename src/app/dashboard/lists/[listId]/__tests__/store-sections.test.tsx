@@ -18,7 +18,9 @@ import { ToastProvider } from "@/components/ui/toast";
 // here the queue mock only lets a tick be shown as queued.
 const mockQueued = new Map<string, boolean>();
 jest.mock("../use-list-item-sync", () => ({
+  __emptyOperations: Object.freeze([]),
   useListItemSync: () => ({
+    operations: require('../use-list-item-sync').__emptyOperations,
     online: true,
     durable: true,
     pendingCount: 0,

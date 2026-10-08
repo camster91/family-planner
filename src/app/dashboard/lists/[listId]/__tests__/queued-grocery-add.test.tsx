@@ -328,3 +328,49 @@ it("late persistence of a previous list cannot clear a new list draft or report 
   );
   expect(screen.queryByText(/Grocery add queued/)).toBeNull();
 });
+
+it("a deleted canonical row keeps its queued tick as disabled recovery until discarded", async () => {
+  const base = {
+    ...props,
+    listName: "Groceries",
+    listType: "grocery" as const,
+    canDeleteItems: false,
+  };
+  const item = {
+    id: "actual-item",
+    content: "Milk",
+    checked: false,
+    quantity: 1,
+    category: null,
+    added_by: { name: "Parent" },
+  };
+  const wrapper = render(
+    <ToastProvider>
+      <ListDetailClient {...base} items={[item]} />
+    </ToastProvider>,
+  );
+  fireEvent.click(screen.getByRole("checkbox", { name: /Milk/ }));
+  await waitFor(() => expect(mockQueue.list()).toHaveLength(1));
+  wrapper.rerender(
+    <ToastProvider>
+      <ListDetailClient {...base} items={[]} />
+    </ToastProvider>,
+  );
+  await screen.findByText(
+    "Removed from the list. Discard this pending change.",
+  );
+  expect(
+    screen
+      .getByRole("checkbox", { name: /Milk/ })
+      .getAttribute("aria-disabled"),
+  ).toBe("true");
+  send.mockResolvedValue({ status: 404, body: { error: "Item not found" } });
+  await reconnect();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Discard change to Milk" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("checkbox", { name: /Milk/ })).toBeNull(),
+  );
+  expect(mockQueue.list()).toHaveLength(0);
+});

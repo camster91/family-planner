@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { useListVersionSync } from './use-list-version-sync'
+import { SyncNotice as ReadSyncNotice, SyncAnnouncer, useNow } from '@/components/fridge/sync-status'
 import { EditGroceryDialog, type EditableGrocery } from './EditGroceryDialog'
 import { Plus, CheckSquare, CloudOff, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -36,6 +38,8 @@ interface Item {
   content: string
   checked: boolean
   updated_at?: string
+  /** Local recovery for a queued tick whose canonical row was removed. */
+  removedElsewhere?: boolean
   quantity: number
   category: string | null
   added_by: { name: string }
@@ -93,6 +97,8 @@ function toItem(raw: Record<string, unknown>): Item {
 }
 
 interface ListDetailClientProps {
+  version?: string
+  generatedAt?: string
   listId: string
   listName: string
   listType: ListType
@@ -109,6 +115,8 @@ interface ListDetailClientProps {
 // -----------------------------------------------------------------------
 
 export default function ListDetailClient({
+  version,
+  generatedAt,
   listId,
   listName,
   listType,
@@ -118,18 +126,12 @@ export default function ListDetailClient({
   sectionSort = DEFAULT_SECTION_SORT,
 }: ListDetailClientProps) {
   const router = useRouter()
+  const readSync = useListVersionSync({ listId, version, generatedAt, refresh: () => router.refresh() })
+  const now = useNow(60_000)
   const [editTarget, setEditTarget] = React.useState<EditableGrocery | null>(null)
   const [listItems, setListItems] = React.useState<Item[]>(initialItems)
   const localDeletes = React.useRef(new Set<string>())
   const pendingDeletes = React.useRef(new Set<string>())
-  React.useEffect(() => {
-    // Queued-add confirmation refreshes canonical props. Preserve a delete
-    // currently shown as removed until the server snapshot also omits it.
-    setListItems(initialItems.filter(item => !localDeletes.current.has(item.id)))
-    for (const id of localDeletes.current) {
-      if (!pendingDeletes.current.has(id) && !initialItems.some(item => item.id === id)) localDeletes.current.delete(id)
-    }
-  }, [initialItems])
   const [newItemText, setNewItemText] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   // Why the last "Add" failed; the typed text stays in the field.
@@ -175,11 +177,30 @@ export default function ListDetailClient({
     }, 3000)
   })
 
+  React.useEffect(() => {
+    const queuedIds = new Set(sync.operations.map(op => op.payload.itemId))
+    const canonical = initialItems.filter(item => !localDeletes.current.has(item.id))
+    const canonicalIds = new Set(initialItems.map(item => item.id))
+    setListItems(previous => [
+      ...canonical,
+      ...previous.filter(item => !canonicalIds.has(item.id) && queuedIds.has(item.id) && !localDeletes.current.has(item.id))
+        .map(item => ({ ...item, removedElsewhere: true })),
+    ])
+    for (const id of localDeletes.current) {
+      if (!pendingDeletes.current.has(id) && !canonicalIds.has(id)) localDeletes.current.delete(id)
+    }
+  }, [initialItems, sync.operations])
+
+  React.useEffect(() => {
+    setSortBySection(sectionSort.enabled)
+    setOverrides(sectionSort.overrides)
+  }, [sectionSort.enabled, sectionSort.overrides])
+
   const displayChecked = (item: Item) => sync.stateFor(item.id)?.payload.checked ?? item.checked
 
   // Progress
-  const total = listItems.length
-  const done = listItems.filter(displayChecked).length
+  const total = listItems.filter(item => !item.removedElsewhere).length
+  const done = listItems.filter(item => !item.removedElsewhere && displayChecked(item)).length
   const progress = total > 0 ? done / total : 0
 
   // Sections by store section in the household's order (#273), or by category
@@ -374,7 +395,7 @@ export default function ListDetailClient({
   }
 
   const editItem = editTarget ? listItems.find(item => item.id === editTarget.id) : undefined
-  const currentEdit: EditableGrocery | null = editItem?.updated_at
+  const currentEdit: EditableGrocery | null = editItem?.updated_at && !editItem.removedElsewhere
     ? { id: editItem.id, content: editItem.content, quantity: editItem.quantity, updated_at: editItem.updated_at }
     : null
 
@@ -385,15 +406,16 @@ export default function ListDetailClient({
     const status = syncStatusText(op, recentlySynced.has(item.id))
     const detail = groceryDetailText(item)
     const checkedBy = checked && item.checked_by ? `✓ ${item.checked_by.name}` : undefined
-    const subtitle = status ?? ([detail, checkedBy].filter(Boolean).join(' · ') || undefined)
+    const subtitle = item.removedElsewhere ? 'Removed from the list. Discard this pending change.' : status ?? ([detail, checkedBy].filter(Boolean).join(' · ') || undefined)
     return (
       <SwipeRow
         key={item.id}
-        onSwipeLeft={canDeleteItems ? () => handleDeleteItem(item.id) : undefined}
+        onSwipeLeft={canDeleteItems && !item.removedElsewhere ? () => handleDeleteItem(item.id) : undefined}
       >
         <div
           data-item-id={item.id}
           data-sync-state={syncState}
+          data-removed-elsewhere={item.removedElsewhere || undefined}
           data-section={storeSort ? sectionOf(item) : undefined}
           data-testid="list-item"
         >
@@ -401,6 +423,7 @@ export default function ListDetailClient({
             <div className="min-w-0 flex-1">
               <CheckboxRow
                 checked={checked}
+                disabled={item.removedElsewhere}
                 onChange={() => handleToggle(item.id, !checked)}
                 title={item.content}
                 subtitle={subtitle}
@@ -408,7 +431,7 @@ export default function ListDetailClient({
                 className={cn(isLast && !needsAction(op) && 'border-b-0')}
               />
             </div>
-            {isGrocery && item.updated_at && (
+            {isGrocery && item.updated_at && !item.removedElsewhere && (
               <button
                 type="button"
                 disabled={Boolean(op)}
@@ -420,7 +443,7 @@ export default function ListDetailClient({
                 Edit
               </button>
             )}
-            {storeSort && !checked && (
+            {storeSort && !checked && !item.removedElsewhere && (
               <button
                 type="button"
                 onClick={() => openMove(item)}
@@ -464,6 +487,11 @@ export default function ListDetailClient({
 
   return (
     <div className="space-y-5 px-4 pb-20">
+      <SyncAnnouncer message={readSync.announcement} testId="list-change-announcement" />
+      {version && now !== null && (
+        <ReadSyncNotice lastSyncAt={readSync.lastSyncAt} now={now} online={readSync.online} what="list" canGoStale={readSync.failing} appBanner />
+      )}
+      {readSync.terminal && <p role="status" className="text-subhead text-label-secondary">List access changed. Refresh or sign in again to continue.</p>}
       {/* Progress header */}
       <div className="flex items-center gap-4 card-apple p-4">
         <ProgressRing
@@ -504,7 +532,7 @@ export default function ListDetailClient({
       )}
 
       {/* Items grouped by store section or category, then by ingredient */}
-      {total > 0 ? (
+      {listItems.length > 0 ? (
         sections.map((section) => (
           <section
             key={section.key}

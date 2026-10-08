@@ -8,7 +8,9 @@ import { ToastProvider } from '@/components/ui/toast'
 
 // The offline queue (#162) is covered by its own tests and e2e/sync.spec.ts.
 jest.mock('../use-list-item-sync', () => ({
+  __emptyOperations: Object.freeze([]),
   useListItemSync: () => ({
+    operations: require('../use-list-item-sync').__emptyOperations,
     online: true,
     durable: true,
     pendingCount: 0,

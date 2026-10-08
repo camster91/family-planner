@@ -14,7 +14,9 @@ const mockDiscard = jest.fn(async () => {})
 // Queued offline ticks by item id (#162): the visible state, not the server's.
 const mockQueued = new Map<string, boolean>()
 jest.mock('../use-list-item-sync', () => ({
+  __emptyOperations: Object.freeze([]),
   useListItemSync: () => ({
+    operations: require('../use-list-item-sync').__emptyOperations,
     online: true,
     durable: true,
     pendingCount: 0,

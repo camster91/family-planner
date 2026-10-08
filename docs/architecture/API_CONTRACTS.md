@@ -666,3 +666,25 @@ installed tick clients compatible. All canonical item writes advance a server-ow
 millisecond `updated_at`; unchanged ticks retain it. The editor persists no draft and registers
 no offline edit action. An uncertain save retains its exact body/key in memory for explicit retry;
 closing it refreshes the list. No new schema, provider or native cold-start guarantee is introduced.
+
+## Open personal list version (#135)
+
+`GET /api/lists/:id/version` accepts a person session in the list's household, all existing member
+roles, and the lists feature. A missing/foreign/invalid list is the same 404. The result contains
+only `{ version }`, an opaque SHA-256 digest of canonical list identity/version and sorted item
+identity/server-version membership. It returns no names, content, counts, credentials or private
+DTO. The full projection detects older-row updates and equal-count replacements that a maximum
+updated-at timestamp would miss. It is a read; no new domain/schema or item write is introduced.
+
+The response is private/no-store. The per-member rate limit is 1,200 checks/hour across lists;
+429 includes Retry-After. The personal detail uses the existing bounded 25-second visible/online
+poller, coalesces refreshes, checks on reconnect/visibility, and keeps its 15-minute full refresh.
+401/403/404 stop checks and request a canonical page refresh. Temporary failures retain the
+snapshot and use the existing stale/offline notice. An in-flight result after unmount cannot refresh
+another view. Server page and endpoint use the same digest function; old clients need not call it.
+
+Canonical deletion removes a normal row. If it has a queued tick, an explicitly labelled, disabled
+recovery row remains until retry/conflict/discard resolves that operation; it is excluded from the
+canonical progress count and cannot be edited, moved or recreated. Current checkbox intent overlays
+refreshed server data. Related recipe/member/section labels use the slow refresh; no fleet, native
+restart, provider or production acceptance is inferred from this bounded browser propagation.

@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { listVersion } from '@/lib/list-version'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
@@ -118,6 +119,9 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
       </div>
 
       <ListDetailClient
+        key={list.id}
+        version={listVersion(list, items)}
+        generatedAt={new Date().toISOString()}
         listId={list.id}
         listName={list.name}
         listType={list.type as ListType}

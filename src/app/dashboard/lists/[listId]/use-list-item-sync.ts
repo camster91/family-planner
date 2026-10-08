@@ -73,6 +73,7 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
   }, [])
 
   return {
+    operations: ops,
     online,
     durable,
     notice,

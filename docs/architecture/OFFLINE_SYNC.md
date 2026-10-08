@@ -387,3 +387,21 @@ action, while retaining the draft for comparison. A deleted item cannot be recre
 Use household authentication/feature permissions and the canonical writer; no new schema/provider.
 The version is server data, never a client clock or a caller-controlled new timestamp. This advances
 the collaborative-field requirement; native and fleet acceptance still need their own evidence.
+
+## Bounded open-list propagation (#135 follow-up)
+
+The personal grocery detail reuses the established board poller's 25-second visible/online checks,
+reconnect/visibility wake-up, in-flight suppression, lost-refresh retry and 15-minute full refresh.
+Its additive person-only version route returns one opaque digest derived from canonical list/item
+IDs and server versions, never item content. Hash the complete sorted membership/version projection:
+count plus maximum timestamp alone misses edits to older rows or equal-count replacements during
+clock skew. Ownership and list feature checks precede the read; rate limit per member across lists.
+
+Canonical server-page props carry the same digest. Only a changed digest causes a refresh; pending
+checkbox intent remains overlaid by the existing queue, while deleted canonical rows disappear.
+An open field editor retains its draft and sees refreshed current values, forcing explicit adoption
+before another save. Terminal auth/access/missing-list responses stop future checks and refresh the
+canonical page. Temporary failures retain the visible snapshot with the existing stale/offline notice.
+No background scheduler, full DTO polling, new cached data, draft persistence or schema is introduced.
+Item/list versions cover direct grocery membership/field changes; related recipe/member/section labels
+also receive the existing slow full refresh. This is browser convergence, not native restart or fleet proof.
