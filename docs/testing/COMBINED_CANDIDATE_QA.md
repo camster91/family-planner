@@ -75,3 +75,18 @@ removed. Tracked generated settings remain unchanged. No device is connected.
 These are local unsigned candidates. Final combined-head Linux/container/browser
 checks, production approval, device tests and public release acceptance remain
 separate; none is inferred from these host results.
+
+## Required 600px reflow coverage (#133)
+
+The acceptance list names 600px, which was missing between the existing 360px
+and 768px reflow cases. Added a 600×960 touch-capable window to the same
+read-only parent/child suite, retaining the existing horizontal-overflow and
+44×44 primary-action assertions. The six standard projects plus custom reflow
+widths now include all eleven widths named in #133. This does not prove Android
+rotation, split-screen, back navigation or hardware acceptance.
+
+Local focused Chromium run against the unchanged built application and
+disposable PostgreSQL fixtures passed: seven 600px journeys plus three auth
+setup cases (10 passed, 12.8s). The app server was stopped by Playwright; the
+disposable database was stopped afterwards. Full final-head hosted CI remains
+required; this focused result is not broad issue closure evidence.

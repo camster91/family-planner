@@ -57,6 +57,13 @@ const SIZES = [
     hasTouch: true,
   },
   {
+    name: "w600",
+    viewport: { width: 600, height: 960 },
+    deviceScaleFactor: 1,
+    isMobile: false,
+    hasTouch: true,
+  },
+  {
     name: "w768",
     viewport: { width: 768, height: 1024 },
     deviceScaleFactor: 1,
