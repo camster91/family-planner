@@ -252,7 +252,7 @@ test("a key press returns to the board and does nothing else", async ({
 
 test("a parent sets a shorter idle time, night hours and a household photo; the fridge dims and shows it", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/dashboard/family/settings");
   const calm = page.getByTestId("calm-display-settings");
   await expect(calm).toBeVisible();
