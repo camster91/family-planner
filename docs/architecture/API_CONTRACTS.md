@@ -88,6 +88,33 @@ and `PATCH /api/users/preferences` (#286; sets explicit values, so a re-run conv
 has no record scope, so their key is ignored and the same update runs again).
 Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
+`POST /api/lists/items/create` also accepts an optional key (`list-item.add`, #135).
+Authentication, the lists feature gate, validation and current list ownership are checked before replay.
+Without a key, the existing 200 `{ success: true, item }` response and generic list fields are unchanged;
+each request remains a distinct add. Keyed creates use the same canonical `createListItem` writer as the
+shared tablet. The item and completed replay response commit in one transaction, under the idempotency
+record and list row locks (`person-list-item-create.ts`). A section lookup or completion-store failure
+rolls back the item. A slow original effect and a lock takeover cannot both create; a retry after item
+deletion returns the original response without recreating it. The caller should refresh canonical list
+state after replay. The seven-day server record retention still applies. The explicit minimal personal grocery queue below uses the same server guarantee; generic list
+fields remain outside the offline allowlist.
+Real PostgreSQL concurrency, rollback, takeover and deletion-replay proof is in
+`src/app/api/lists/__tests__/create-idempotency.integration.test.ts` and runs in protected Build & Test.
+
+Personal submitted grocery quick add (#135): `POST /api/lists/items/grocery-add` is additive and
+person-session only (parent/teen/child, existing Lists permission). Header `Idempotency-Key` is
+**required**, action `list-item.grocery-add`, scope `user:<id>`. Strict body `{ listId, content }`:
+canonical id `[A-Za-z0-9_-]{1,64}`, trimmed text 1–500 characters, no extra fields. The lists feature,
+current household ownership and grocery/shopping type are checked before replay; type is rechecked
+under the list row lock in the canonical writer. Quantity is 1, added_by is the authenticated
+person. 200 `{ success: true, item }`, replay header `Idempotency-Replayed: true`; 400 invalid
+JSON/body or missing/invalid key, 401 unauthenticated, 403 feature/foreign household, 404 missing or
+non-grocery list (including a concurrent type change), 409 `IDEMPOTENCY_IN_PROGRESS`, 422
+`IDEMPOTENCY_KEY_REUSED`. The same atomic item/completed-response transaction prevents duplicates
+and resurrection after deletion. The browser refreshes canonical state after confirmation and
+keeps missing-list recovery visible. No old route/schema or native request contract changes.
+Queue bounds, persistence and client rollback caveat: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
+
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
   UUID generated once per logical change and reused for every retry of it. Without the header the route
   behaves exactly as before (older clients need no change).
@@ -616,3 +643,26 @@ legacy/isolation/import tests.
 
 ## Testing
 Contract tests should cover validation, happy path, unauthorized/forbidden, foreign-family IDs, not-found semantics, duplicate retry, concurrency conflict, pagination and old-client fixtures when relevant.
+
+## Versioned personal list field edits (#135)
+
+`PATCH /api/lists/items/edit` is additive, person-session only and lists-feature gated. It requires
+an `Idempotency-Key` (action `list-item.edit`, scope `user:<id>`) and a strict body:
+`{ itemId, expectedUpdatedAt, content, quantity }`. The item ID uses the existing canonical shape;
+`expectedUpdatedAt` is the ISO server `updated_at` read with the item, content is trimmed to
+1–500 characters, and quantity is an integer from 1–9999. No unchecked toggle, notes, price or
+caller-assigned new timestamp is accepted. The browser exposes it for grocery/shopping rows;
+the route preserves the existing owned-list edit permission for all member roles/list types.
+
+Current authentication, feature state and item ownership/existence are checked before replay.
+The canonical writer repeats ownership and checks the precondition under its item row lock.
+A changed version returns 409 `LIST_ITEM_CHANGED` with no current household values; deleted items
+return 404 and are never recreated. Successful retries replay the stored response, not another
+write. A replay may describe an older row, so clients refresh canonical data on confirmation.
+409 is not retained as success; adopting a newly read version starts a new key/intent.
+
+The existing `/api/lists/items/update` accepts the version precondition optionally, keeping old
+installed tick clients compatible. All canonical item writes advance a server-owned monotonic
+millisecond `updated_at`; unchanged ticks retain it. The editor persists no draft and registers
+no offline edit action. An uncertain save retains its exact body/key in memory for explicit retry;
+closing it refreshes the list. No new schema, provider or native cold-start guarantee is introduced.

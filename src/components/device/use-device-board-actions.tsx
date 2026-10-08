@@ -7,7 +7,7 @@ import type { BoardActions, ActionResult } from '@/components/fridge/board-actio
 import { DeviceApiError, type DeviceClient } from '@/lib/device-client'
 import { newIdempotencyKey } from '@/lib/idempotency-key'
 import { getDeviceQueue } from '@/lib/offline-queue-browser'
-import { QueueError } from '@/lib/offline-queue'
+import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
 import { focusRing } from './styles'
 import { PRODUCT_BRAND } from '@/lib/brand'
@@ -155,7 +155,7 @@ export function useDeviceBoardActions({
         return q.subscribe((event) => {
           if (event.type !== 'change') return
           for (const op of q.list()) {
-            if (op.action === 'device.list-item.add' || !mine.has(op.id)) continue
+            if (!isCheckedOperation(op) || !mine.has(op.id)) continue
             if (op.state === 'failed' || op.state === 'conflict') {
               mine.delete(op.id)
               void q.discard(op.id)

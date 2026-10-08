@@ -442,3 +442,9 @@ describe("grocery list grouped by store section (#273)", () => {
     expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();
   });
 });
+
+// Canonical refresh after a queued create; navigation is covered in browser tests.
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) }))
+
+// Submitted-create replay has its own real-queue component and browser suite.
+jest.mock('../PersonGroceryAdd', () => ({ PersonGroceryAdd: () => null }))

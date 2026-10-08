@@ -13,9 +13,11 @@
  * mutation endpoint unreachable, which is what the queue sees either way.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, Request, TestInfo } from "@playwright/test";
-import { FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
-import { authFile, E2E_BASE_URL } from "./support/env";
+import type { Page, Request, Response, TestInfo } from "@playwright/test";
+import pg from "pg";
+import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
+import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
+import { authFile, E2E_ANCHOR, E2E_BASE_URL } from "./support/env";
 import { goOffline, goOnline } from "./support/network";
 import {
   browserFetch,
@@ -110,6 +112,370 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }
   });
 
+  test("personal grocery add survives offline reload, flapping and a lost committed response", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const listId = fixture.listId;
+    const content =
+      "Phone grocery with a long label that wraps on a narrow screen";
+    const requests: Request[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith("/api/lists/items/grocery-add")
+      )
+        requests.push(request);
+    });
+    let mode: "unreachable" | "lose-response" | "send" = "unreachable";
+    let committed: { item: { id: string } } | null = null;
+    const replayed: string[] = [];
+    await page.route("**/api/lists/items/grocery-add", async (route) => {
+      if (mode === "unreachable") {
+        await route.abort("internetdisconnected");
+        return;
+      }
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      if (mode === "lose-response") {
+        committed = await response.json();
+        mode = "unreachable";
+        await route.abort("connectionreset");
+      } else {
+        replayed.push(response.headers()["idempotency-replayed"]);
+        await route.fulfill({ response });
+      }
+    });
+    await page.goto(`/dashboard/lists/${listId}`);
+    await goOffline(page);
+    const section = page.getByRole("region", { name: "Grocery adds" });
+    await section.getByRole("textbox", { name: "Add an item" }).fill(content);
+    await section.getByRole("button", { name: "Add", exact: true }).click();
+    const queued = page.getByTestId("queued-grocery-add");
+    await expect(queued).toHaveAttribute("data-sync-state", "pending");
+    await expect(queued).toContainText("Waiting to add");
+    await expect(section).not.toContainText("confirmed");
+    expect(requests).toHaveLength(0);
+    await expect(page.getByTestId("app-offline-banner")).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: testInfo.outputPath("personal-grocery-pending.png"),
+      fullPage: true,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    for (const button of await queued.getByRole("button").all()) {
+      const box = await button.boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await goOnline(page);
+    await page.reload(); // app shell reachable, write endpoint still unavailable
+    await expect(queued).toHaveAttribute("data-sync-state", /pending|syncing/);
+    const empty = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(JSON.parse(empty.body).items).toHaveLength(0);
+    mode = "lose-response";
+    await goOffline(page);
+    await goOnline(page);
+    await expect.poll(() => committed).not.toBeNull();
+    await goOffline(page);
+    await expect(queued).toHaveAttribute("data-sync-state", "pending");
+    await goOnline(page);
+    await page.reload();
+    await expect(queued).toHaveAttribute("data-sync-state", /pending|syncing/);
+    const once = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(JSON.parse(once.body).items).toHaveLength(1);
+    mode = "send";
+    await goOffline(page);
+    await goOnline(page);
+    await expect(queued).toHaveCount(0, { timeout: 20_000 });
+    await expect(section).toContainText("Grocery add confirmed");
+    await expect(page.getByRole("checkbox", { name: content })).toBeVisible();
+    expect(requests.length).toBeGreaterThanOrEqual(3);
+    expect(
+      new Set(requests.map((request) => request.headers()["idempotency-key"]))
+        .size,
+    ).toBe(1);
+    for (const request of requests)
+      expect(request.postDataJSON()).toEqual({ listId, content });
+    expect(replayed).toContain("true");
+    const final = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(
+      JSON.parse(final.body).items.map((item: { id: string }) => item.id),
+    ).toEqual([committed!.item.id]);
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: content })).toBeVisible();
+    await expect(queued).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: testInfo.outputPath("personal-grocery-confirmed.png"),
+      fullPage: true,
+    });
+  });
+
+  test("a failed personal add retries the same intent and a deleted list keeps recovery after reload", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const listId = fixture.listId;
+    const keys: string[] = [];
+    let fail = true;
+    await page.route("**/api/lists/items/grocery-add", async (route) => {
+      keys.push(route.request().headers()["idempotency-key"]);
+      if (fail)
+        await route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: { code: "INVALID", message: "Rejected test add" },
+          }),
+        });
+      else await route.continue();
+    });
+    await page.goto(`/dashboard/lists/${listId}`);
+    const section = page.getByRole("region", { name: "Grocery adds" });
+    await section.getByRole("textbox").fill("Retry recovery milk");
+    await section.getByRole("button", { name: "Add", exact: true }).click();
+    const queued = page.getByTestId("queued-grocery-add");
+    await expect(queued).toHaveAttribute("data-sync-state", "failed");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: testInfo.outputPath("personal-grocery-failed.png"),
+      fullPage: true,
+    });
+    fail = false;
+    await queued.getByRole("button", { name: "Retry add" }).click();
+    await expect(queued).toHaveCount(0);
+    await expect(
+      page.getByRole("checkbox", { name: "Retry recovery milk" }),
+    ).toBeVisible();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    await goOffline(page);
+    await section.getByRole("textbox").fill("Deleted-list groceries");
+    await section.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(queued).toHaveAttribute("data-sync-state", "pending");
+    // Block this new send while deleting the canonical list through the authenticated API.
+    await page.unroute("**/api/lists/items/grocery-add");
+    await page.route("**/api/lists/items/grocery-add", (route) =>
+      route.abort("internetdisconnected"),
+    );
+    await goOnline(page);
+    const deleted = await browserSend(page, "DELETE", "/api/lists", { listId });
+    expect(deleted.status, deleted.body).toBe(200);
+    fixture = null; // the owned list was already deleted
+    await page.unroute("**/api/lists/items/grocery-add");
+    await page.reload();
+    await expect(
+      page.getByText("List not found", { exact: true }),
+    ).toBeVisible();
+    await expect(queued).toHaveAttribute("data-sync-state", "conflict");
+    await expect(queued).toContainText("no longer available");
+    await expect(section.getByRole("textbox")).toHaveCount(0);
+    await page.reload();
+    await expect(queued).toHaveAttribute("data-sync-state", "conflict");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: testInfo.outputPath("personal-grocery-missing-list.png"),
+      fullPage: true,
+    });
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await queued.getByRole("button", { name: "Remove queued add" }).click();
+    await expect(queued).toHaveCount(0);
+    await expect(section).toContainText("previous send may have added it");
+  });
+
+  test("a queued phone add reaches the paired board through its bounded version refresh", async ({
+    page,
+    browser,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const listId = fixture.listId;
+    // Only these fabricated fixture buckets: repeat runs must not inherit
+    // earlier pairing attempts. Production rate-limit behavior is unchanged.
+    assertFixtureTargetAllowed(process.env);
+    const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await db.connect();
+    try {
+      await db.query(
+        'DELETE FROM "RateLimitEntry" WHERE key = ANY($1::text[])',
+        [
+          [
+            `device-pair-create:${FIXTURE_IDS.familyA.parent}`,
+            `device-pair-create-fam:${FIXTURE_IDS.familyA.family}`,
+            `device-revoke:${FIXTURE_IDS.familyA.parent}`,
+          ],
+        ],
+      );
+    } finally {
+      await db.end();
+    }
+    const context = await browser.newContext({
+      baseURL: E2E_BASE_URL,
+      viewport: { width: 1280, height: 800 },
+      serviceWorkers: "block",
+      storageState: { cookies: [], origins: [] },
+    });
+    const tablet = await context.newPage();
+    await tablet.clock.install({ time: E2E_ANCHOR });
+    let deviceId: string | null = null;
+    try {
+      await page.goto("/dashboard/settings/devices");
+      const paired = await browserSend(
+        page,
+        "POST",
+        "/api/family/devices/pairings",
+        { label: "Offline phone add proof" },
+      );
+      expect(paired.status, paired.body).toBe(201);
+      const { pairingId, code } = JSON.parse(paired.body);
+      await tablet.goto("/device/pair");
+      const claim = await browserSend(
+        tablet,
+        "POST",
+        "/api/device/pair/claim",
+        { code, platform: "web", appVersion: "web" },
+      );
+      expect(claim.status, claim.body).toBe(200);
+      const { claimToken, confirmDigits } = JSON.parse(claim.body);
+      const confirmed = await browserSend(
+        page,
+        "POST",
+        `/api/family/devices/pairings/${pairingId}/confirm`,
+        { digits: confirmDigits },
+      );
+      expect(confirmed.status, confirmed.body).toBe(200);
+      const status = await browserSend(
+        tablet,
+        "POST",
+        "/api/device/pair/status",
+        { claimToken },
+      );
+      expect(status.status).toBe(200);
+      deviceId = JSON.parse(status.body).device.id;
+      await tablet.goto("/device/today");
+      const initial = await browserFetch(tablet, "/api/device/today");
+      expect(initial.status).toBe(200);
+      const before = JSON.parse(initial.body);
+      const groceries = tablet.getByRole("region", {
+        name: "Groceries",
+        exact: true,
+      });
+      await expect(groceries).toContainText(`${before.shopping.total} to buy`);
+      await page.goto(`/dashboard/lists/${listId}`);
+      await goOffline(page);
+      const adds = page.getByRole("region", { name: "Grocery adds" });
+      await adds.getByRole("textbox").fill("Phone to shared board proof");
+      await adds.getByRole("button", { name: "Add", exact: true }).click();
+      await expect(page.getByTestId("queued-grocery-add")).toHaveAttribute(
+        "data-sync-state",
+        "pending",
+      );
+      await expect(groceries).toContainText(`${before.shopping.total} to buy`);
+      await goOnline(page);
+      await expect(page.getByTestId("queued-grocery-add")).toHaveCount(0);
+      await expect(
+        page.getByRole("checkbox", { name: "Phone to shared board proof" }),
+      ).toBeVisible();
+      // Normal version timer, no page reload or full-board polling per write.
+      await tablet.clock.fastForward(26_000);
+      await expect(groceries).toContainText(
+        `${before.shopping.total + 1} to buy`,
+      );
+      const after = await browserFetch(tablet, "/api/device/today");
+      const board = JSON.parse(after.body);
+      expect(board.version).not.toBe(before.version);
+      expect(board.shopping.total).toBe(before.shopping.total + 1);
+      expect(
+        board.groceryLists.some((list: { id: string }) => list.id === listId),
+      ).toBe(true);
+      await tablet.screenshot({
+        path: testInfo.outputPath("personal-grocery-shared-board.png"),
+        fullPage: true,
+      });
+      // The board deliberately displays the oldest five rows, so this proves
+      // canonical count/version propagation, not that every new row is shown.
+    } finally {
+      await goOnline(page);
+      if (deviceId) {
+        const revoked = await browserSend(
+          page,
+          "POST",
+          `/api/family/devices/${deviceId}/revoke`,
+          { reason: "other" },
+        );
+        expect(revoked.status, revoked.body).toBe(200);
+      }
+      await context.close();
+    }
+  });
+
+  test("a keyed personal grocery create survives a lost response without resurrecting a deleted item", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const listId = fixture.listId;
+    const key = await page.evaluate(() => crypto.randomUUID());
+    const submit = () =>
+      page.evaluate(
+        async ({ listId, key }) => {
+          const csrf =
+            document.cookie
+              .split("; ")
+              .find((c) => c.startsWith("csrf_token="))
+              ?.slice("csrf_token=".length) ?? "";
+          try {
+            const response = await fetch("/api/lists/items/create", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": key,
+              },
+              body: JSON.stringify({ listId, content: "Retry-safe grocery" }),
+            });
+            return {
+              status: response.status,
+              replayed: response.headers.get("Idempotency-Replayed"),
+              body: await response.json(),
+            };
+          } catch {
+            return { status: 0, replayed: null, body: null };
+          }
+        },
+        { listId, key },
+      );
+    await page.route("**/api/lists/items/create", async (route) => {
+      const committed = await route.fetch();
+      expect(committed.status()).toBe(200);
+      await route.abort("failed");
+    });
+    expect((await submit()).status).toBe(0);
+    await page.unroute("**/api/lists/items/create");
+    await page.reload();
+    const replay = await submit();
+    expect(replay.status).toBe(200);
+    expect(replay.replayed).toBe("true");
+    const items = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(JSON.parse(items.body).items).toHaveLength(1);
+    const deleted = await browserSend(
+      page,
+      "DELETE",
+      `/api/lists/items/${replay.body.item.id}`,
+    );
+    expect(deleted.status, deleted.body).toBe(200);
+    const afterDelete = await submit();
+    expect(afterDelete.replayed).toBe("true");
+    expect(afterDelete.body).toEqual(replay.body);
+    const empty = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(JSON.parse(empty.body).items).toHaveLength(0);
+  });
+
   test("local support report counts failures and conflicts without household content", async ({
     page,
   }, testInfo) => {
@@ -193,6 +559,14 @@ test.describe("offline grocery ticks: Family A parent", () => {
     fixture = await createList(page, testInfo, ["Sync apples"]);
     const itemId = fixture.items["Sync apples"];
     const updates = trackUpdates(page);
+    const received: Response[] = [];
+    page.on("response", (response) => {
+      if (
+        response.request().method() === "PATCH" &&
+        response.url().includes("/api/lists/items/update")
+      )
+        received.push(response);
+    });
     await page.goto(`/dashboard/lists/${fixture.listId}`);
     const item = row(page, itemId);
     await expect(item).toBeVisible();
@@ -246,12 +620,12 @@ test.describe("offline grocery ticks: Family A parent", () => {
       updates.map((r) => r.headers()["idempotency-key"]).filter(Boolean),
     );
     expect(keys.size).toBe(1);
-    const delivered = updates.filter((r) => !r.failure());
+    // Only observed HTTP responses are deliveries; aborted requests across
+    // reload may never resolve request.response() in Chromium.
+    const delivered = received.filter((response) => response.status() === 200);
     expect(delivered.length).toBeGreaterThanOrEqual(1);
-    for (const r of delivered.slice(1)) {
-      expect((await r.response())?.headers()["idempotency-replayed"]).toBe(
-        "true",
-      );
+    for (const response of delivered.slice(1)) {
+      expect(response!.headers()["idempotency-replayed"]).toBe("true");
     }
 
     // The confirmed state is what a fresh load shows.
@@ -386,6 +760,16 @@ test.describe("offline grocery ticks: sign-out", () => {
     await goOffline(page);
     await item.getByRole("checkbox").click();
     await expect(item).toHaveAttribute("data-sync-state", "pending");
+    const adds = page.getByRole("region", { name: "Grocery adds" });
+    await adds.getByRole("textbox").fill("Signed-out queued grocery");
+    await adds.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByTestId("queued-grocery-add")).toHaveAttribute(
+      "data-sync-state",
+      "pending",
+    );
+    await page.route("**/api/lists/items/grocery-add", (route) =>
+      route.abort("internetdisconnected"),
+    );
 
     await page.route(UPDATE_URL, (route) =>
       route.abort("internetdisconnected"),
@@ -428,6 +812,12 @@ test.describe("offline grocery ticks: sign-out", () => {
     expect((await serverItem(parentPage, fixture.listId, itemId)).checked).toBe(
       false,
     );
+    const noAdd = await browserFetch(
+      parentPage,
+      `/api/lists/items?listId=${fixture.listId}`,
+    );
+    expect(JSON.parse(noAdd.body).items).toHaveLength(1);
+    expect(noAdd.body).not.toContain("Signed-out queued grocery");
     const cleanup = await browserSend(parentPage, "DELETE", "/api/lists", {
       listId: fixture.listId,
     });

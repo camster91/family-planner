@@ -99,3 +99,9 @@ it('adds the item and clears the error on success', async () => {
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   expect(input.value).toBe('')
 })
+
+// Canonical refresh after a queued create; navigation is covered in browser tests.
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) }))
+
+// Submitted-create replay has its own real-queue component and browser suite.
+jest.mock('../PersonGroceryAdd', () => ({ PersonGroceryAdd: () => null }))

@@ -23,6 +23,8 @@ import { logRouteError } from '@/lib/api-error'
 
 export interface ListItemUpdate {
   itemId: string
+  /** Server version precondition; optional for installed legacy clients. */
+  expectedUpdatedAt?: string
   checked?: boolean
   content?: string
   quantity?: number
@@ -34,11 +36,12 @@ export interface ListItemUpdate {
 }
 
 export const DUPLICATE_OPEN_ITEM = 'DUPLICATE_OPEN_ITEM'
+export const LIST_ITEM_CHANGED = 'LIST_ITEM_CHANGED'
 
 export type ListItemUpdateResult =
   | { status: 200; body: { success: true; item: Record<string, unknown> } }
   | { status: 400 | 403 | 404; body: { error: string } }
-  | { status: 409; body: { error: { code: typeof DUPLICATE_OPEN_ITEM; message: string; retryable: false } } }
+  | { status: 409; body: { error: { code: typeof DUPLICATE_OPEN_ITEM | typeof LIST_ITEM_CHANGED; message: string; retryable: false } } }
 
 type Db = Pick<PrismaClient, '$transaction'>
 
@@ -89,6 +92,12 @@ async function applyListItemUpdate(
     })
     if (!item) return { status: 404, body: { error: 'Item not found' } }
     if (item.list.family_id !== user.family_id) return { status: 403, body: { error: 'Forbidden' } }
+    // Check after ownership, under the same row lock as the write. A conflict
+    // never exposes another household's current values or version.
+    if (data.expectedUpdatedAt !== undefined && new Date(data.expectedUpdatedAt).getTime() !== item.updated_at.getTime()) {
+      return { status: 409, body: { error: { code: LIST_ITEM_CHANGED, message: 'This item changed. Refresh the list and review it before saving.', retryable: false } } }
+    }
+
 
     if (ingredient_id) {
       const ingredient = await tx.ingredient.findFirst({
@@ -113,6 +122,11 @@ async function applyListItemUpdate(
     if (unit !== undefined) updateData.unit = unit
     if (ingredient_id !== undefined) updateData.ingredient_id = ingredient_id
 
+    if (Object.keys(updateData).length > 0) {
+      // Server-owned ordering remains unique within a millisecond or if the
+      // wall clock retreats. A no-op tick keeps its original version.
+      updateData.updated_at = new Date(Math.max(now().getTime(), item.updated_at.getTime() + 1))
+    }
     const { list: _list, ...unchanged } = item
     const updated =
       Object.keys(updateData).length === 0

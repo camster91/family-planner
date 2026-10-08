@@ -121,4 +121,122 @@ describeWithDatabase('list item update against Postgres', () => {
     const final = await prisma.listItem.findUniqueOrThrow({ where: { id: ITEM } })
     expect(final.checked_by === null).toBe(!final.checked)
   })
+  it("two concurrent field edits of one version have one winner and one conflict", async () => {
+    const initial = await prisma.listItem.findUniqueOrThrow({
+      where: { id: ITEM },
+    });
+    const expectedUpdatedAt = initial.updated_at.toISOString();
+    const results = await contended(
+      () =>
+        lib.updateListItem(
+          prisma,
+          {
+            itemId: ITEM,
+            expectedUpdatedAt,
+            content: "First edit",
+            quantity: 2,
+          },
+          user(A),
+        ),
+      () =>
+        lib.updateListItem(
+          prisma,
+          {
+            itemId: ITEM,
+            expectedUpdatedAt,
+            content: "Second edit",
+            quantity: 3,
+          },
+          user(B),
+        ),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    const winner = results.find((r) => r.status === 200)!;
+    const conflict = results.find((r) => r.status === 409)!;
+    expect(conflict.body.error.code).toBe("LIST_ITEM_CHANGED");
+    const final = await prisma.listItem.findUniqueOrThrow({
+      where: { id: ITEM },
+    });
+    expect(final.content).toBe(winner.body.item.content);
+    expect(final.quantity).toBe(winner.body.item.quantity);
+    expect(final.updated_at.getTime()).toBeGreaterThan(
+      initial.updated_at.getTime(),
+    );
+  });
+
+  it("versions advance with equal or retreating server clocks; client timestamp is only a precondition", async () => {
+    const initial = await prisma.listItem.findUniqueOrThrow({
+      where: { id: ITEM },
+    });
+    const sameClock = () => initial.updated_at;
+    const first = await lib.updateListItem(
+      prisma,
+      {
+        itemId: ITEM,
+        expectedUpdatedAt: initial.updated_at.toISOString(),
+        content: "Same millisecond",
+      },
+      user(A),
+      sameClock,
+    );
+    expect(first.status).toBe(200);
+    const current = await prisma.listItem.findUniqueOrThrow({
+      where: { id: ITEM },
+    });
+    expect(current.updated_at.getTime()).toBe(initial.updated_at.getTime() + 1);
+    const second = await lib.updateListItem(
+      prisma,
+      {
+        itemId: ITEM,
+        expectedUpdatedAt: current.updated_at.toISOString(),
+        quantity: 4,
+      },
+      user(B),
+      () => new Date(0),
+    );
+    expect(second.status).toBe(200);
+    expect(
+      (
+        await prisma.listItem.findUniqueOrThrow({ where: { id: ITEM } })
+      ).updated_at.getTime(),
+    ).toBe(current.updated_at.getTime() + 1);
+    expect(
+      (
+        await lib.updateListItem(
+          prisma,
+          {
+            itemId: ITEM,
+            expectedUpdatedAt: new Date("2099-01-01").toISOString(),
+            content: "Future clock",
+          },
+          user(A),
+        )
+      ).status,
+    ).toBe(409);
+  });
+
+  it("an unchanged tick preserves the version, while a real legacy tick invalidates the edit snapshot", async () => {
+    const initial = await prisma.listItem.findUniqueOrThrow({
+      where: { id: ITEM },
+    });
+    await lib.updateListItem(prisma, { itemId: ITEM, checked: false }, user(A));
+    expect(
+      (await prisma.listItem.findUniqueOrThrow({ where: { id: ITEM } }))
+        .updated_at,
+    ).toEqual(initial.updated_at);
+    await lib.updateListItem(prisma, { itemId: ITEM, checked: true }, user(B));
+    expect(
+      (
+        await lib.updateListItem(
+          prisma,
+          {
+            itemId: ITEM,
+            expectedUpdatedAt: initial.updated_at.toISOString(),
+            content: "Stale",
+          },
+          user(A),
+        )
+      ).status,
+    ).toBe(409);
+  });
 })

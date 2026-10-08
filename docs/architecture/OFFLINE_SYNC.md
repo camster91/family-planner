@@ -17,14 +17,22 @@ Only explicitly reviewed, low-risk actions may queue offline. Initial candidates
 Do not queue destructive deletion, parent verification/reward approval, security/account changes, sensitive finance/medical actions or other operations requiring fresh server authorization.
 
 **Implemented allowlist (#162/#135):** personal `list-item.set-checked`, shared-tablet
-`device.list-item.set-checked`, and shared-tablet `device.list-item.add` (grocery quick add).
-Personal grocery creation and other candidates are not queueable yet. The allowlist is code
+`device.list-item.set-checked`, shared-tablet `device.list-item.add`, and personal
+`list-item.grocery-add` (submitted grocery quick adds). Generic list creation and other candidates
+are not queueable. The allowlist is code
 (`QUEUEABLE_ACTIONS` in `src/lib/offline-queue.ts`): each entry fixes method, path, parser,
 namespace and action version, so the queue never replays an arbitrary request. Never queueable:
 deletes, finance (budget, transactions, allowance), chore verification/reward approval,
 account/auth/password/PIN, pairing/elevation, invites, exports and medical records.
 
-The new create carries exactly `{ listId, content, actingMemberId }`: a validated canonical list id,
+Personal create server prerequisite (#135): `POST /api/lists/items/create` accepts an optional
+`Idempotency-Key` with action `list-item.add`. Its item and completed response are atomic, so
+lost responses, overlapping lock takeovers and subsequent item deletion cannot duplicate/resurrect
+the original add within record retention. Current session, feature and list ownership checks still
+precede replay; no-key clients retain their existing behaviour. This is a backend prerequisite, not
+permission to persist generic list notes or an implementation of the personal offline queue.
+
+The device create carries exactly `{ listId, content, actingMemberId }`: a validated canonical list id,
 trimmed grocery text of 1–200 characters and unverified member-attribution id. Quantity remains 1;
 notes, price, ingredient references, actor names, credentials and arbitrary metadata are excluded.
 The existing device route re-checks live device/household/list/member authorization, feature and write
@@ -45,7 +53,45 @@ shared data, not telemetry; local diagnostic reports continue to exclude payload
 
 Browser proof covers submitted offline creation, API-only page restart, flapping, committed-response
 loss and the original same-key dedupe. This is not fully offline shell loading, physical Android
-WebView/process restart, personal offline creation or fleet convergence acceptance.
+WebView/process restart or fleet convergence acceptance.
+
+Personal `list-item.grocery-add` v1 fixes POST `/api/lists/items/grocery-add` and carries only
+`{ listId, content }` (canonical id, trimmed text of 1–500 characters). It persists only explicitly
+submitted grocery/shopping text, never generic list notes, unsubmitted drafts, quantity, price,
+attribution names, credentials or extra fields. The strict new route requires a key, current person
+session, lists feature, household ownership and current grocery/shopping type before replay, and
+rechecks type under the canonical list-row lock. Quantity is 1 and attribution is the signed-in
+person. Item and replay response commit atomically through the same canonical writer as the generic
+and tablet routes. Device identity cannot authenticate this route.
+
+The Lists grocery detail shows pending/syncing/failed/conflict submitted adds separately from
+confirmed items, with Retry/Remove recovery and no actions during an in-flight send. Confirmation
+refreshes canonical server props; it never inserts an old replay response, which could describe a
+since-deleted item. If the list disappears or changes type, the loaded route and its missing-list
+page still expose recovery after a reload without allowing a new grocery add. Removing local
+intent never deletes a server item. Unavailable storage is explicitly memory-only and triggers the
+common durability warning; a full queue keeps the unsent text. Person sign-out/login/terminal401
+purges submitted adds with the existing personal namespace. The immutable key/body/24-hour creation
+window, 50-operation cap and seven-day failure cleanup apply to both create actions. Expired or
+reused-key creates cannot be retried as a new intent.
+
+Browser proof for the personal queue (`e2e/sync.spec.ts`, phone and fridge projects) covers
+submitted offline text, API-only restart, flapping, committed-response loss with same-key replay,
+failed retry, deleted-list recovery after reload and sign-out purge with no server add. A paired
+browser tablet receives the updated canonical shopping count/version through its normal bounded
+version timer without reloading; the board deliberately shows only the oldest five rows, so this
+is count/version propagation evidence, not every-item visibility or all collaborative-edit convergence.
+The queue/component tests cover memory-only warnings, limits, late persistence, namespace isolation
+and immutable expired/reused keys; PostgreSQL tests prove strict-route concurrency and a list type
+change during the lock wait. Local captures include pending, failed, missing-list and confirmed states.
+
+Compatibility/rollback: the new route is additive, with no schema change, and old generic create
+clients retain their existing behavior. Existing v1 tick/device queue envelopes are unchanged.
+Older browser bundles do not understand `list-item.grocery-add` and drop it under the existing
+unknown-action policy; do not roll back a client with pending personal adds without first confirming
+or locally removing them. Removing only the new route leaves adds visibly failed/recoverable rather
+than converting them into generic writes. Fully offline shell loading and native process-death,
+lifecycle/orientation, multi-device clock conflict and fleet acceptance remain separate #135 gates.
 
 Food inventory (#263, #158/#121) does not change the allowlist: create, edit, delete, "Used it", "Throw away" and Undo
 are online writes with an optional `Idempotency-Key` (a retry never duplicates an adjustment). Offline, the page keeps
@@ -112,8 +158,9 @@ Proof action UI: `src/app/dashboard/lists/[listId]/` (person app, Lists → a li
   schema version (`QUEUE_SCHEMA_VERSION = 1`). An unknown container version, operation version or action,
   malformed data or a duplicate id is dropped on load and the page says "Some changes saved on this device
   could not be kept." There is no migration yet because there is only one version.
-- `payload` holds ids and the desired state only (`{ itemId, checked }`); the parser strips everything else,
-  so item names and other household text never reach the queue.
+- Tick `payload` holds ids and the desired state only (`{ itemId, checked }`); the parser strips
+  everything else. The two explicit grocery-create allowlists above also persist submitted text;
+  no other household text is retained.
 - `createdAt` is the client clock, used for display and the age limit only. Server receive order decides.
 - `lastError` is a machine code (`NETWORK`, `HTTP_503`, `NOT_FOUND`, `FORBIDDEN`, `EXPIRED`, `MAX_ATTEMPTS`, …),
   never server text.
@@ -130,8 +177,10 @@ Proof action UI: `src/app/dashboard/lists/[listId]/` (person app, Lists → a li
 
 Failed and conflicted operations are never dropped silently: they stay (across reloads) until the person
 retries or discards them, or the retention below passes. Discard restores the last server-confirmed state.
-Retry keeps the same key (a lost response is still replayed), except after `IDEMPOTENCY_KEY_REUSED`, which gets
-a fresh key. Retrying an `EXPIRED` change counts as a new intent and restarts its age.
+Tick retry keeps the same key (a lost response is still replayed), except after
+`IDEMPOTENCY_KEY_REUSED`, which gets a fresh key. Retrying an `EXPIRED` tick counts as a new intent
+and restarts its age. Create actions never renew either key or age; expired/reused-key creates must
+be checked against canonical state and removed locally.
 
 A newer change to the same item replaces an older one that is not in flight (latest intent wins); if the older
 one is in flight, the newer one waits behind it so the server receives them in order.
@@ -321,3 +370,20 @@ as healthy. A failed clipboard copy leaves the selectable report on screen. The 
 same projection internally, but personal Help never reads another person's queue or the device namespace.
 This supports local troubleshooting; it does not establish cross-device/fleet telemetry, persistent
 historical rates, consent for transmission, native restart acceptance or the rest of #135/#140.
+
+## Grocery field edits and stale-view recovery (#135 follow-up)
+
+Implementation reference for the bounded online editor: use the existing list row and shared Dialog
+patterns; persist no editor draft and add no offline edit action. A fresh canonical `updated_at` is
+the edit precondition, checked under the existing item row lock. Every real canonical item update
+advances this server version even within the same millisecond or if server wall time moves backward;
+a no-op tick leaves it unchanged. New editing requests require this precondition and a stable
+idempotency key. Existing generic updates and installed tick clients remain compatible.
+
+The editor changes only name/text and whole-number quantity. Pending writes disable editing and
+dismissal. A lost response retains the exact body/key for explicit retry; no premature saved claim.
+A stale version blocks saving and offers canonical refresh plus an explicit use-current-values
+action, while retaining the draft for comparison. A deleted item cannot be recreated by editing.
+Use household authentication/feature permissions and the canonical writer; no new schema/provider.
+The version is server data, never a client clock or a caller-controlled new timestamp. This advances
+the collaborative-field requirement; native and fleet acceptance still need their own evidence.

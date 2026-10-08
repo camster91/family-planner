@@ -392,6 +392,7 @@ export type Write = { model: string; op: string; args: any }
 
 /** Non-null column defaults of newer columns (applied on read and create). */
 const COLUMN_DEFAULTS: Record<string, Record<string, unknown>> = {
+  listItem: { updated_at: T0 },
   // Inventory foundation (#158/#121)
   inventoryItem: { date_kind: 'best_before', status: 'active' },
   // Beta usage counts (#287): per-household opt-in, default off.
