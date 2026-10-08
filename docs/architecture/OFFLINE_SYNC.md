@@ -387,3 +387,36 @@ action, while retaining the draft for comparison. A deleted item cannot be recre
 Use household authentication/feature permissions and the canonical writer; no new schema/provider.
 The version is server data, never a client clock or a caller-controlled new timestamp. This advances
 the collaborative-field requirement; native and fleet acceptance still need their own evidence.
+
+## Bounded open-list propagation (#135 follow-up)
+
+The personal grocery detail reuses the established board poller's 25-second visible/online checks,
+reconnect/visibility wake-up, in-flight suppression, lost-refresh retry and 15-minute full refresh.
+Its additive person-only version route returns one opaque digest derived from canonical list/item
+IDs and server versions, never item content. Hash the complete sorted membership/version projection:
+count plus maximum timestamp alone misses edits to older rows or equal-count replacements during
+clock skew. Ownership and list feature checks precede the read; rate limit per member across lists.
+
+Canonical server-page props carry the same digest. Only a changed digest causes a refresh; pending
+checkbox intent remains overlaid by the existing queue, while deleted canonical rows disappear.
+An open field editor retains its draft and sees refreshed current values, forcing explicit adoption
+before another save. Terminal auth/access/missing-list responses stop future checks and refresh the
+canonical page. Temporary failures retain the visible snapshot with the existing stale/offline notice.
+No background scheduler, full DTO polling, new cached data, draft persistence or schema is introduced.
+Item/list versions cover direct grocery membership/field changes; related recipe/member/section labels
+also receive the existing slow full refresh. This is browser convergence, not native restart or fleet proof.
+
+The recovery row above uses a previously rendered item. Generic recovery for a deleted queued item
+whose list/content is unknown after a full browser restart remains a separate #135 follow-up; no
+new title/list context was added to the persisted checked-action payload in this slice.
+
+### Person tick recovery after restart
+
+The Lists index offers a deliberate review of this signed-in person's saved tick/untick operations,
+including those whose rows or lists no longer exist. Opening the review loads the existing queue
+and resumes its normal bounded replay. It never guesses which list an unknown item belongs to or
+calls it deleted without canonical evidence. Labels show desired state, queued time and send state;
+item content, IDs and keys are not displayed or copied. Failed/conflicted ticks can retry through the
+existing queue; a confirmed discard removes only that operation. In-flight sends cannot be discarded.
+No new payload fields, storage version, endpoint, retry policy or device-queue access is introduced.
+This resolves browser access to unknown-row recovery; physical Android process-death remains unverified.

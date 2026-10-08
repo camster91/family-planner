@@ -169,6 +169,11 @@ test.describe("grocery field edit conflicts", () => {
   test("offline draft and removed-row recovery never queue an edit or resurrect the item", async ({
     page,
   }, info) => {
+    // Preserve the save-route deletion race independently of live read propagation.
+    // e2e/list-convergence.spec.ts covers automatic deletion refresh.
+    await page.route("**/api/lists/*/version", (route) =>
+      route.abort("failed"),
+    );
     await page.context().setOffline(true);
     await page
       .getByLabel("Item name", { exact: true })

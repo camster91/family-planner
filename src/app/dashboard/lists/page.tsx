@@ -1,21 +1,22 @@
-import { getServerUser } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import ListsClient from './ListsClient'
-import { canCreateList } from '@/lib/role-capabilities'
-import { listTypeFilter } from '@/lib/list-type-filter'
+import { getServerUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import ListsClient from "./ListsClient";
+import PendingTickRecovery from "./PendingTickRecovery";
+import { canCreateList } from "@/lib/role-capabilities";
+import { listTypeFilter } from "@/lib/list-type-filter";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export default async function ListsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ type?: string | string[] }>
+  searchParams?: Promise<{ type?: string | string[] }>;
 }) {
   // `?type=` (route inventory F-6): the old /dashboard/lists/type/[type] pages redirect here.
-  const initialType = listTypeFilter((await searchParams)?.type)
+  const initialType = listTypeFilter((await searchParams)?.type);
 
-  const sessionUser = await getServerUser()
-  if (!sessionUser) return null
+  const sessionUser = await getServerUser();
+  if (!sessionUser) return null;
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
@@ -23,10 +24,10 @@ export default async function ListsPage({
       family_id: true,
       family: { select: { name: true } },
     },
-  })
-  if (!user?.family_id) return null
+  });
+  if (!user?.family_id) return null;
 
-  let lists: any[] = []
+  let lists: any[] = [];
   try {
     lists = await prisma!.list.findMany({
       where: { family_id: user.family_id },
@@ -35,10 +36,10 @@ export default async function ListsPage({
         items: { select: { checked: true } },
         creator: { select: { name: true } },
       },
-      orderBy: { updated_at: 'desc' },
-    })
+      orderBy: { updated_at: "desc" },
+    });
   } catch (error) {
-    console.warn('Error fetching lists:', error)
+    console.warn("Error fetching lists:", error);
   }
 
   const listsWithCounts = lists.map((list: any) => ({
@@ -51,14 +52,17 @@ export default async function ListsPage({
     _count: list._count,
     checked_count: (list.items || []).filter((i: any) => i.checked).length,
     total_count: list._count?.items || 0,
-  }))
+  }));
 
   return (
-    <ListsClient
-      lists={listsWithCounts}
-      familyName={user.family?.name || 'Family'}
-      canCreate={canCreateList(sessionUser.role)}
-      initialType={initialType}
-    />
-  )
+    <>
+      <ListsClient
+        lists={listsWithCounts}
+        familyName={user.family?.name || "Family"}
+        canCreate={canCreateList(sessionUser.role)}
+        initialType={initialType}
+      />
+      <PendingTickRecovery key={sessionUser.id} userId={sessionUser.id} />
+    </>
+  );
 }
