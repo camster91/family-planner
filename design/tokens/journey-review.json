@@ -117,7 +117,7 @@
     "name": "04 · Evening glance / calm display",
     "audience": "Shared tablet, with parent-controlled board settings",
     "path": "Today dinner and chores → idle calm display → configured night dim → tap wakes normal board without completing an action",
-    "source": "ambient.ts; DeviceTodayScreen.tsx; AmbientDisplay.tsx; board-settings.ts",
+    "source": "ambient.ts; DeviceTodayScreen.tsx; src/components/fridge/ambient.tsx (AmbientCover); board-settings.ts",
     "states": {
       "Happy": [
         "Settle the day",
