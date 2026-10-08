@@ -513,7 +513,7 @@ test.describe("Shared tablet", () => {
     }
   });
 
-  test("grocery quick add works for an empty list and retries a committed request once", async ({
+  test("grocery quick add survives offline restart and flapping without duplicates", async ({
     page: tablet,
     browser,
   }, testInfo) => {
@@ -557,6 +557,11 @@ test.describe("Shared tablet", () => {
       await dialog.getByLabel("Grocery list").selectOption(listId);
       await dialog.getByLabel("Item", { exact: true }).fill(content);
       await axeScan(tablet, testInfo, "device grocery capture");
+      await tablet.screenshot({
+        path: testInfo.outputPath("grocery-add-form.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
       await testInfo.attach("device-grocery-capture", {
         body: await tablet.screenshot(),
         contentType: "image/png",
@@ -576,21 +581,16 @@ test.describe("Shared tablet", () => {
       await dialog
         .getByRole("button", { name: "Add item", exact: true })
         .click();
-      await expect(
-        dialog.getByRole("button", { name: "Adding…", exact: true }),
-      ).toBeDisabled();
-      await expect(
-        dialog.getByRole("button", { name: "Close", exact: true }),
-      ).toHaveCount(0);
+      await expect(dialog).not.toBeVisible();
+      const queuedAdd = tablet.getByTestId("queued-grocery-add");
+      await expect(queuedAdd).toContainText("Adding…");
+      await expect(queuedAdd.getByRole("button")).toHaveCount(0);
       await tablet.keyboard.press("Escape");
-      await expect(dialog).toBeVisible();
+      await expect(queuedAdd).toBeVisible();
       releaseReply();
-      await expect(dialog.getByRole("alert")).toContainText(
-        "Could not confirm the add",
-      );
-      await expect(dialog.getByLabel("Item", { exact: true })).toBeDisabled();
-      await dialog
-        .getByRole("button", { name: "Retry add", exact: true })
+      await expect(queuedAdd).toContainText("Waiting to add when connected.");
+      await queuedAdd
+        .getByRole("button", { name: "Try now", exact: true })
         .click();
       await expect(
         tablet
@@ -606,10 +606,80 @@ test.describe("Shared tablet", () => {
         );
         expect(result.rows).toEqual([{ content, added_by: A.parent }]);
       });
+      // An explicitly submitted offline create survives a page restart and
+      // repeated network flaps. The server sees the same operation key throughout.
+      const offlineContent = `Offline grocery ${testInfo.project.name}`;
+      const queueKeys: string[] = [];
+      tablet.on("request", (request) => {
+        if (
+          request.method() === "POST" &&
+          request.url().endsWith(`/api/device/lists/${listId}/items`) &&
+          request.postDataJSON()?.content === offlineContent
+        )
+          queueKeys.push(request.headers()["idempotency-key"]);
+      });
+      await tablet
+        .getByRole("button", { name: "Add grocery", exact: true })
+        .click();
+      await dialog.getByLabel("Grocery list").selectOption(listId);
+      await dialog.getByLabel("Item", { exact: true }).fill(offlineContent);
+      await tablet.context().setOffline(true);
+      await dialog
+        .getByRole("button", { name: "Add item", exact: true })
+        .click();
+      await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
+        "Waiting to add when connected.",
+      );
+      expect(queueKeys).toHaveLength(0);
+      await tablet.getByTestId("queued-grocery-add").scrollIntoViewIfNeeded();
+      await axeScan(tablet, testInfo, "device queued grocery add");
+      await tablet.screenshot({
+        path: testInfo.outputPath("queued-add-offline.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
+      await tablet.route(`**/api/device/lists/${listId}/items`, (route) =>
+        route.abort("internetdisconnected"),
+      );
+      await tablet.context().setOffline(false);
+      await expect.poll(() => queueKeys.length).toBe(1);
+      await tablet.reload();
+      await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
+        offlineContent,
+      );
+      await expect.poll(() => queueKeys.length).toBe(2);
+      for (let flap = 0; flap < 2; flap++) {
+        await tablet.context().setOffline(true);
+        await tablet.context().setOffline(false);
+        await expect.poll(() => queueKeys.length).toBe(3 + flap);
+      }
+      await tablet.unroute(`**/api/device/lists/${listId}/items`);
+      await tablet.context().setOffline(true);
+      await tablet.context().setOffline(false);
+      await expect(tablet.getByTestId("queued-grocery-add")).toHaveCount(0);
+      expect(queueKeys.length).toBeGreaterThanOrEqual(5);
+      expect(new Set(queueKeys).size).toBe(1);
+      await withDb(async (db) => {
+        const rows = await db.query(
+          'SELECT content, added_by FROM "ListItem" WHERE list_id = $1 ORDER BY content',
+          [listId],
+        );
+        expect(rows.rows).toEqual(
+          [
+            { content: offlineContent, added_by: A.parent },
+            { content, added_by: A.parent },
+          ].sort((a, b) => a.content.localeCompare(b.content)),
+        );
+      });
       // Another member can remove the chosen list while the form is open.
       // This is an ordinary missing resource, never a removed tablet.
       await tablet
         .getByRole("button", { name: "Add grocery", exact: true })
+        .click();
+      // The page restart deliberately forgets the attribution-only selection.
+      await tablet
+        .getByTestId("who-is-this")
+        .getByRole("button", { name: PARENT_NAME, exact: true })
         .click();
       await dialog.getByLabel("Grocery list").selectOption(listId);
       await dialog
@@ -621,13 +691,25 @@ test.describe("Shared tablet", () => {
       await dialog
         .getByRole("button", { name: "Add item", exact: true })
         .click();
-      await expect(dialog.getByRole("alert")).toHaveText(
-        "That list is no longer available. Choose another list.",
+      await expect(dialog).not.toBeVisible();
+      await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
+        "That list is no longer available or has changed.",
       );
       await expect(tablet).toHaveURL(/\/device\/today$/);
-      await expect(dialog.getByLabel("Item", { exact: true })).toHaveValue(
+      await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
         "Item after deletion",
       );
+      await tablet.getByTestId("queued-grocery-add").scrollIntoViewIfNeeded();
+      await axeScan(tablet, testInfo, "device conflicted grocery add");
+      await tablet.screenshot({
+        path: testInfo.outputPath("queued-add-conflict.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
+      await tablet
+        .getByRole("button", { name: "Remove queued add", exact: true })
+        .click();
+      await expect(tablet.getByTestId("queued-grocery-add")).toHaveCount(0);
       expect((await browserFetch(tablet, "/api/device/me")).status).toBe(200);
       await testInfo.attach("device-grocery-stale-list", {
         body: await tablet.screenshot(),

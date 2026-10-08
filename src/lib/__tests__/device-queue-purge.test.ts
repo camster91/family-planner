@@ -14,7 +14,7 @@ async function flush() {
 }
 
 describe('device queue purge while a send is in flight', () => {
-  it('drops the operation and leaves the purged storage empty', async () => {
+  it.each(['tick', 'add'])('drops the %s operation and leaves the purged storage empty', async (kind) => {
     // jsdom has no IndexedDB, so the queue uses the localStorage fallback under the reserved key.
     const listeners = new Set<(e: 'purge' | 'elevation') => void>()
     let requests = 0
@@ -35,7 +35,8 @@ describe('device queue purge while a send is in flight', () => {
     } as unknown as DeviceClient
 
     const queue = getDeviceQueue(client)
-    await queue.enqueue('device.list-item.set-checked', { itemId: 'item-1', checked: true, actingMemberId: 'm-1' })
+    if (kind === 'add') await queue.enqueue('device.list-item.add', { listId: 'list-a', content: 'Queued grocery text', actingMemberId: 'm-1' })
+    else await queue.enqueue('device.list-item.set-checked', { itemId: 'item-1', checked: true, actingMemberId: 'm-1' })
     await flush()
 
     expect(requests).toBe(1)

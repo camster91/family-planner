@@ -11,7 +11,7 @@ import { InsetList, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import type { ListType } from '@/types'
-import type { QueuedOperation } from '@/lib/offline-queue'
+import type { CheckedQueuedOperation } from '@/lib/offline-queue'
 import { useListItemSync, type SyncNotice } from './use-list-item-sync'
 import { buildGrocerySections, groceryDetailText, isGroceryListType, storeSectionOf } from '@/lib/grocery-display'
 import {
@@ -628,11 +628,11 @@ function SectionSortControl({
 // gallery (/dev/design-system, #156), which renders these states from fixtures.
 // -----------------------------------------------------------------------
 
-function needsAction(op: QueuedOperation | undefined): boolean {
+function needsAction(op: CheckedQueuedOperation | undefined): boolean {
   return op?.state === 'failed' || op?.state === 'conflict'
 }
 
-export function syncStatusText(op: QueuedOperation | undefined, recentlySynced: boolean): string | undefined {
+export function syncStatusText(op: CheckedQueuedOperation | undefined, recentlySynced: boolean): string | undefined {
   if (!op) return recentlySynced ? 'Synced' : undefined
   switch (op.state) {
     case 'pending':

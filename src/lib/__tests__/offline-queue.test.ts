@@ -9,6 +9,7 @@ import {
   classifyResponse,
   clearPersonQueues,
   createOfflineQueue,
+  isCheckedOperation,
   fallbackQueueStore,
   indexedDbQueueStore,
   isQueueableAction,
@@ -159,7 +160,7 @@ describe('allowlist', () => {
     for (const [name, spec] of Object.entries(QUEUEABLE_ACTIONS)) {
       expect(spec.method).not.toBe('DELETE')
       const path =
-        typeof spec.path === 'function' ? spec.path({ itemId: 'x', checked: true, actingMemberId: 'm' }) : spec.path
+        typeof spec.path === 'function' ? spec.path({ itemId: 'x', checked: true, actingMemberId: 'm', listId: 'l', content: 'Milk' }) : spec.path
       // The shared tablet's own variant (#274) lives under /api/device/ by design (SHARED_DEVICE.md §12.3).
       const words =
         spec.namespace === 'device'
@@ -273,7 +274,7 @@ describe('state transitions', () => {
     await t.queue.enqueue('list-item.set-checked', tick('item-1', true))
     await t.queue.enqueue('list-item.set-checked', tick('item-1', false))
     expect(t.queue.list()).toHaveLength(1)
-    expect(t.queue.list()[0].payload.checked).toBe(false)
+    expect(t.queue.list().filter(isCheckedOperation)[0].payload.checked).toBe(false)
 
     // In flight: the new intent is queued behind it, not dropped.
     let release!: (v: { status: number; body: unknown }) => void
@@ -643,7 +644,7 @@ describe('durability (Codex P2 on #247)', () => {
     expect(t.queue.isDurable()).toBe(false)
     expect(t.events.length).toBeGreaterThan(changes)
     // Still queued in memory and still sent once the network is back.
-    expect(t.queue.list().map((o) => o.payload.itemId)).toEqual(['item-1', 'item-2'])
+    expect(t.queue.list().filter(isCheckedOperation).map((o) => o.payload.itemId)).toEqual(['item-1', 'item-2'])
     expect(store.value).not.toContain('item-2')
 
     store.failing = false
@@ -772,9 +773,9 @@ describe('device queue variant', () => {
         nextAttemptAt: 0,
       },
     ])
-    expect(parseStoredQueue(stored, 'device').ops.map((o) => o.payload.itemId)).toEqual(['b'])
+    expect(parseStoredQueue(stored, 'device').ops.filter(isCheckedOperation).map((o) => o.payload.itemId)).toEqual(['b'])
     expect(parseStoredQueue(stored, 'device').dropped).toBe(1)
-    expect(parseStoredQueue(stored).ops.map((o) => o.payload.itemId)).toEqual(['a'])
+    expect(parseStoredQueue(stored).ops.filter(isCheckedOperation).map((o) => o.payload.itemId)).toEqual(['a'])
   })
 
   it('a terminal device answer (401) drops the whole queue, a conflict stays visible', async () => {
@@ -893,5 +894,77 @@ describe('content-free sync diagnostics', () => {
     await queue.drain()
     expect(queue.diagnostics().replay).toEqual({ attempts: 0, completed: 0, successes: 0, failures: 0, conflicts: 0 })
     expect(queue.diagnostics().depth).toBe(0)
+  })
+})
+
+describe('bounded device grocery creates', () => {
+  const add = { listId: 'list-a', content: 'Milk', actingMemberId: 'member-a' }
+  it('accepts only minimal validated grocery payloads in the device namespace', async () => {
+    const t = setup({ namespace: 'device', online: false })
+    await t.queue.enqueue('device.list-item.add', { ...add, content: '  Milk  ', notes: 'PRIVATE NOTES', token: 'SECRET', price: 99 })
+    expect(t.queue.list()[0].payload).toEqual(add)
+    const stored = (t.store as ReturnType<typeof memoryStore>).value!
+    expect(stored).not.toMatch(/PRIVATE|SECRET|price|notes/)
+    expect(parseStoredQueue(stored).ops).toEqual([])
+    const person = setup({ online: false })
+    await expect(person.queue.enqueue('device.list-item.add', add)).rejects.toMatchObject({ code: 'NOT_QUEUEABLE' })
+    for (const payload of [{ ...add, listId: '../foreign' }, { ...add, actingMemberId: '' }, { ...add, content: ' ' }, { ...add, content: 'x'.repeat(201) }]) await expect(t.queue.enqueue('device.list-item.add', payload)).rejects.toMatchObject({ code: 'INVALID_PAYLOAD' })
+    expect(JSON.stringify(t.queue.diagnostics())).not.toMatch(/Milk|list-a|member-a/)
+  })
+  it('preserves separate identical adds and their unique targets across a restart', async () => {
+    const t = setup({ namespace: 'device', online: false })
+    const first = await t.queue.enqueue('device.list-item.add', add)
+    const second = await t.queue.enqueue('device.list-item.add', add)
+    expect(first.id).not.toBe(second.id)
+    expect(t.queue.list()).toHaveLength(2)
+    expect(first.target).not.toBe(second.target)
+    const stored = JSON.parse((t.store as ReturnType<typeof memoryStore>).value!)
+    stored.ops[0].target = stored.ops[1].target
+    const restored = parseStoredQueue(JSON.stringify(stored), 'device').ops
+    expect(restored.map(o => o.target)).toEqual([first.target, second.target])
+  })
+  it('replays an uncertain create after restart with the original body, member and key', async () => {
+    const t = setup({ namespace: 'device', replies: ['network'] })
+    const op = await t.queue.enqueue('device.list-item.add', add)
+    await t.queue.drain()
+    const stored = (t.store as ReturnType<typeof memoryStore>).value!
+    t.queue.dispose()
+    const restarted = setup({ namespace: 'device', store: memoryStore(stored), now: t.now + 10000 })
+    await restarted.queue.drain()
+    expect(restarted.sent).toEqual([{ method: 'POST', path: '/api/device/lists/list-a/items', body: { content: 'Milk', actingMemberId: 'member-a' }, idempotencyKey: op.id }])
+    expect(restarted.queue.list()).toEqual([])
+  })
+  it('does not renew an expired create or replace a rejected reused key', async () => {
+    const t = setup({ namespace: 'device', online: false })
+    const op = await t.queue.enqueue('device.list-item.add', add)
+    await t.advance(QUEUE_MAX_AGE_MS + 1)
+    t.setOnline(true)
+    await t.queue.drain()
+    await t.queue.retry(op.id)
+    await t.queue.drain()
+    expect(t.sent).toEqual([])
+    expect(t.queue.list()[0]).toMatchObject({ id: op.id, createdAt: op.createdAt, state: 'failed', lastError: 'EXPIRED' })
+    const reused = setup({ namespace: 'device', replies: [{ status: 422, body: { error: { code: 'IDEMPOTENCY_KEY_REUSED' } } }] })
+    const rejected = await reused.queue.enqueue('device.list-item.add', add)
+    await reused.queue.drain()
+    await reused.queue.retry(rejected.id)
+    expect(reused.sent).toHaveLength(1)
+    expect(reused.queue.list()[0].id).toBe(rejected.id)
+  })
+  it('does not rehydrate or write a purged queue when an initial storage read arrives late', async () => {
+    const t = setup({ namespace: 'device', online: false })
+    await t.queue.enqueue('device.list-item.add', add)
+    const raw = (t.store as ReturnType<typeof memoryStore>).value!
+    let resolve!: (value: string) => void
+    const write = jest.fn(), remove = jest.fn()
+    const late = setup({ namespace: 'device', store: { read: () => new Promise(r => { resolve = r }), write, remove } })
+    late.queue.abandon()
+    resolve(raw)
+    await late.queue.ready
+    await late.queue.drain()
+    expect(late.queue.list()).toEqual([])
+    expect(late.sent).toEqual([])
+    expect(write).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
   })
 })
