@@ -88,6 +88,19 @@ and `PATCH /api/users/preferences` (#286; sets explicit values, so a re-run conv
 has no record scope, so their key is ignored and the same update runs again).
 Queue policy and client behaviour: [`OFFLINE_SYNC.md`](OFFLINE_SYNC.md).
 
+`POST /api/lists/items/create` also accepts an optional key (`list-item.add`, #135).
+Authentication, the lists feature gate, validation and current list ownership are checked before replay.
+Without a key, the existing 200 `{ success: true, item }` response and generic list fields are unchanged;
+each request remains a distinct add. Keyed creates use the same canonical `createListItem` writer as the
+shared tablet. The item and completed replay response commit in one transaction, under the idempotency
+record and list row locks (`person-list-item-create.ts`). A section lookup or completion-store failure
+rolls back the item. A slow original effect and a lock takeover cannot both create; a retry after item
+deletion returns the original response without recreating it. The caller should refresh canonical list
+state after replay. The seven-day server record retention still applies. This server guarantee does not
+itself enable personal offline creation; the browser queue still needs an explicit minimal grocery allowlist.
+Real PostgreSQL concurrency, rollback, takeover and deletion-replay proof is in
+`src/app/api/lists/__tests__/create-idempotency.integration.test.ts` and runs in protected Build & Test.
+
 - **Header:** `Idempotency-Key: <key>`, optional. 16–128 characters of `[A-Za-z0-9_-]`; clients send a random
   UUID generated once per logical change and reused for every retry of it. Without the header the route
   behaves exactly as before (older clients need no change).

@@ -24,6 +24,13 @@ namespace and action version, so the queue never replays an arbitrary request. N
 deletes, finance (budget, transactions, allowance), chore verification/reward approval,
 account/auth/password/PIN, pairing/elevation, invites, exports and medical records.
 
+Personal create server prerequisite (#135): `POST /api/lists/items/create` accepts an optional
+`Idempotency-Key` with action `list-item.add`. Its item and completed response are atomic, so
+lost responses, overlapping lock takeovers and subsequent item deletion cannot duplicate/resurrect
+the original add within record retention. Current session, feature and list ownership checks still
+precede replay; no-key clients retain their existing behaviour. This is a backend prerequisite, not
+permission to persist generic list notes or an implementation of the personal offline queue.
+
 The new create carries exactly `{ listId, content, actingMemberId }`: a validated canonical list id,
 trimmed grocery text of 1–200 characters and unverified member-attribution id. Quantity remains 1;
 notes, price, ingredient references, actor names, credentials and arbitrary metadata are excluded.
