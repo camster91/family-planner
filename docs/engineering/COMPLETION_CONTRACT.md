@@ -23,7 +23,7 @@ The real-family beta is not complete until email delivery/recovery, backup/resto
 
 Preserve exact woven H/artwork, Newsreader/Manrope and all six palette roles; use approved assets for #373. Preserve authentication, recovery, autofill, household/child roles, privacy, imports, canonical API/data contracts, shared-tablet relationships and installed Android compatibility.
 
-PR #343 / issue #342 and #254 remain held. Do not resume any Hermes cron or create replacement schedules; #368 can receive preparation only. No destructive migrations, real imports, infrastructure/DNS/provider/secret/security/deployment-policy/retention changes, external mail, paid services or store publication without separate specific approval.
+PR #343 additive network preparation is included under Cameron’s latest “merge all” authorization. The live database cutover in #342 and destructive #254 remain separately gated. Do not resume any Hermes cron or create replacement schedules; #368 can receive preparation only. No destructive migrations, real imports, infrastructure/DNS/provider/secret/security/deployment-policy/retention changes, external mail, paid services or store publication without separate specific approval.
 
 ## Execution and ownership
 
@@ -38,7 +38,7 @@ Coordinator owns this durable plan, dependencies, integration, merges and live a
 
 ## Release-policy reconciliation
 
-The inherited plan recorded an earlier scoped instruction allowing normal merges and existing Coolify deployments, and recorded the #379 action below under that earlier execution. That historical record is not deployment authorization for this goal chat. Cameron's current request authorizes review, merge and cleanup; the question about allowing existing automatic production deployments remains unanswered. `AGENTS.md` explicitly separates merge approval from production approval. Do not merge a production-triggering candidate until that question is answered. [COMBINED_CANDIDATE.md](COMBINED_CANDIDATE.md) records the current integrated preparation and retained source heads; the initial step statuses and candidate ledger below are dated historical evidence, not current action approval.
+The inherited plan recorded an earlier scoped instruction and the #379 action under that execution. Historical records do not supply current approval. In this goal chat, Cameron subsequently instructed “merge all” after being told that main merges trigger existing Coolify production deployments. That latest instruction authorizes normal protected merges and those existing automatic deployments for the reviewed PRs, including #343's additive network preparation. A live database cutover, settings/credential changes and destructive migrations remain separate actions. [COMBINED_CANDIDATE.md](COMBINED_CANDIDATE.md) records the current integration; initial step statuses and the earlier candidate ledger below remain historical evidence.
 
 Current recorded production release used protected `main` and a Coolify source build. Older `master` / immutable-image promotion documents and #84/#85/#106 are inconsistent with that route. Do not claim a CI immutable image was promoted when Coolify rebuilt source. Do not enable the dormant immutable publisher or change Auto Deploy. Retain exact source/build revision evidence; policy decision is pending with Cameron (#363).
 

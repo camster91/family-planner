@@ -1,7 +1,7 @@
 # Combined candidate QA (2026-10-07)
 
 Source ancestry and action boundaries: [COMBINED_CANDIDATE.md](../engineering/COMBINED_CANDIDATE.md).
-All nine source heads are preserved; held infrastructure #343 is excluded.
+All ten source heads are preserved after Cameron’s latest “merge all” instruction included #343 additive network preparation. Database cutover remains separate.
 
 ## Observed local preparation
 
@@ -56,7 +56,7 @@ threshold or unrelated reference was changed.
 
 Independent-head evidence is not a substitute for final combined-head checks.
 No merge, production change, live account mutation or issue closure occurred
-from these preparation results. Automatic deployment approval, legal/operator
+from these preparation results. Automatic deployment approval was subsequently supplied by Cameron’s “merge all” instruction. Legal/operator
 identity and support address remain unanswered in the goal chat. All original
 51 issue criteria remain preserved, including real data/device/beta gates.
 
@@ -90,3 +90,14 @@ disposable PostgreSQL fixtures passed: seven 600px journeys plus three auth
 setup cases (10 passed, 12.8s). The app server was stopped by Playwright; the
 disposable database was stopped afterwards. Full final-head hosted CI remains
 required; this focused result is not broad issue closure evidence.
+
+## Authorized #343 preparation integration
+
+The additive Compose patch retains the old network, upload bind, image build,
+environment contract and public routes, and adds only the existing external
+`coolify` network. Local `docker-compose config --no-env-resolution
+--no-interpolate --no-path-resolution -q` passed without a Docker daemon or
+secret resolution. Semantic JSON comparison confirms every preceding service
+setting and original network is preserved. Historical target-server parser
+evidence remains in #343; current live connectivity and database cutover are
+not claimed. Fresh combined-head hosted checks remain required.

@@ -19,9 +19,10 @@ No source branch was force-pushed or replaced. The initial combined merge before
 | [#380](https://github.com/camster91/family-planner/pull/380) | `b0ec3acfa5440f7c02695dbbbd7c6591594c7147` | Approved-source social preview |
 | [#351](https://github.com/camster91/family-planner/pull/351) | `ff76f714d798b4de7210fafd05a8a07aab8f729a` | Runtime dependency patches |
 | [#352](https://github.com/camster91/family-planner/pull/352) | `10ff777dc68b07d38ec4c21fd9a5840f78f7ce19` | Development dependency patches |
+| [#343](https://github.com/camster91/family-planner/pull/343) | `f4ce340f8dc1d2823927129ba40bbc2a2509f95d` | Add existing Coolify network while retaining current database/storage; migration preparation only |
 | [#355](https://github.com/camster91/family-planner/pull/355) | `4629313fb92cd4a390fbded0689168f482436ac7` | Tailwind 3 retained; selector-parser security override |
 
-The held #343 infrastructure head is not an ancestor. Prisma source/migrations
+Cameron subsequently instructed “merge all” after the automatic-deployment question. PR #343 network preparation is now included as an ancestor; a live database cutover remains separately gated. Prisma source/migrations
 are unchanged relative to main. No production settings, credentials, providers,
 schedulers, legal/operator identity, support mailbox, real account data,
 destructive migration, beta outreach or signing/store action is included.
@@ -39,10 +40,7 @@ Linux login baselines from the #382 branch are eligible only after visual review
 and pixel comparison. Adopt only explained differences. Full combined E2E must
 then pass without weakening assertions, masks or tolerances.
 
-Cameron's request authorizes merge/review/cleanup. The question about allowing
-the existing automatic Coolify production deployments is still unanswered.
-Do not merge this candidate, trigger production, infer current approval from
-historical prose, or close broad issues from green checks alone.
+Cameron's latest “merge all” instruction answers the pending question about existing automatic Coolify deployments for these reviewed, tested PRs. It authorizes the normal protected combined merge including #343's additive network preparation, followed by source PR reconciliation and cleanup. It does not authorize a database cutover, credential/settings change, destructive migration, provider/scheduler activation or store publication. Only merge after the final combined head passes required and applicable checks; preserve all source ancestry through an ordinary merge commit.
 
 After authorized protected merge, verify the actual main source/runtime
 relationship, health and approved asset delivery, then reconcile each source

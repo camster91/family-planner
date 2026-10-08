@@ -5,7 +5,7 @@
 
 ## Current production route
 
-Protected `main` plus existing Coolify source builds is the route recorded by deployment records #362/#363/#377. The question about permitting its automatic production deployments for this goal remains unanswered; these records do not supply current approval. GitHub validation checks do not deploy; a merge can separately trigger Coolify's existing Auto Deploy. Record the reviewed green source SHA and merged SHA, then verify `/api/version`, `/api/health`, approved assets and safe journeys. Do not call the Coolify build the checked immutable CI image.
+Protected `main` plus existing Coolify source builds is the route recorded by deployment records #362/#363/#377. Cameron’s subsequent “merge all” instruction authorizes these reviewed PR merges and their existing automatic deployments; the separate database cutover and deployment-policy changes remain gated. GitHub validation checks do not deploy; a merge can separately trigger Coolify's existing Auto Deploy. Record the reviewed green source SHA and merged SHA, then verify `/api/version`, `/api/health`, approved assets and safe journeys. Do not call the Coolify build the checked immutable CI image.
 
 Do not dispatch the retained SSH `Release to VPS` workflow, enable the dormant immutable publisher or change Auto Deploy during this task. #363 is the owner policy decision. This reconciliation changes documentation only; secrets, infrastructure, routing, backup/proxy/security policy and all paused Hermes schedules remain untouched. Candidate-specific evidence and applicable scoped authorization: `COMPLETION_CONTRACT.md`.
 
