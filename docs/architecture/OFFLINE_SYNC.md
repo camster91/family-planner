@@ -405,3 +405,7 @@ canonical page. Temporary failures retain the visible snapshot with the existing
 No background scheduler, full DTO polling, new cached data, draft persistence or schema is introduced.
 Item/list versions cover direct grocery membership/field changes; related recipe/member/section labels
 also receive the existing slow full refresh. This is browser convergence, not native restart or fleet proof.
+
+The recovery row above uses a previously rendered item. Generic recovery for a deleted queued item
+whose list/content is unknown after a full browser restart remains a separate #135 follow-up; no
+new title/list context was added to the persisted checked-action payload in this slice.

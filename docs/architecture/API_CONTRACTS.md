@@ -688,3 +688,7 @@ recovery row remains until retry/conflict/discard resolves that operation; it is
 canonical progress count and cannot be edited, moved or recreated. Current checkbox intent overlays
 refreshed server data. Related recipe/member/section labels use the slow refresh; no fleet, native
 restart, provider or production acceptance is inferred from this bounded browser propagation.
+
+The recovery row above uses a previously rendered item. Generic recovery for a deleted queued item
+whose list/content is unknown after a full browser restart remains a separate #135 follow-up; no
+new title/list context was added to the persisted checked-action payload in this slice.
