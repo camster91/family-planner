@@ -2,7 +2,9 @@
 
 ## Current scoped release route — 2026-10-07
 
-Protected `main` is the release branch. GitHub-hosted Actions validate the exact source head with Build & Test, E2E and checked-image checks. The existing production deployment described in PR #362 and Cameron's current instructions is Coolify **source builds** after main merges, at `https://family.ashbi.ca`.
+Protected `main` is the release branch. GitHub-hosted Actions validate the exact source head with Build & Test, E2E and checked-image checks. The existing production deployment recorded in #362/#363/#377 is Coolify **source builds** after main merges, at `https://family.ashbi.ca`.
+
+Cameron subsequently instructed “merge all” after being told that main merges trigger existing automatic production deployments. That authorizes the reviewed combined PR #383 and those existing deployments, including #343's additive network preparation. It does not authorize a database cutover, credential/settings change, destructive migration or provider/scheduler activation. Require final-head passing checks and normal branch protection before merging; historical approval prose does not supply current approval.
 
 A checked CI image is not claimed to be Coolify's rebuilt image. Record the protected merge SHA, then require `/api/version` to report that exact revision, healthy `/api/health`, approved asset delivery and applicable safe journeys. A queued deployment/webhook is not success. Retain the prior healthy source revision and actual available rollback evidence; do not invent image retention or production-control access.
 
