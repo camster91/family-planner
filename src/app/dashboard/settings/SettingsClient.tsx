@@ -499,7 +499,7 @@ export default function SettingsClient({
                 type="button"
                 onClick={() => chooseTheme(themeOption)}
                 aria-pressed={theme === themeOption}
-                className={`min-h-[44px] min-w-0 [overflow-wrap:anywhere] rounded-lg border-2 px-2 py-2 text-center font-medium text-foreground ${
+                className={`min-h-[44px] min-w-0 [overflow-wrap:anywhere] rounded-lg border-2 px-1 py-2 text-center font-medium text-foreground ${
                   theme === themeOption ? 'border-primary bg-[var(--accent-tint)]' : 'border-border hover:border-input'
                 }`}
               >
