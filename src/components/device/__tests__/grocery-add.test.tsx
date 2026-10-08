@@ -62,6 +62,77 @@ it("discards the draft on page hide and ignores a late successful response", asy
   expect(input).toHaveValue("");
 });
 
+it("keeps the pending dialog open on Escape and preserves the request for retry", async () => {
+  let reject!: (reason: unknown) => void;
+  const request = jest
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    )
+    .mockResolvedValueOnce({});
+  setup({ request });
+  fireEvent.change(await open(), { target: { value: "Milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+  expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.getByRole("textbox", { name: "Item" })).toBeVisible();
+  reject(new DeviceApiError(0, "NETWORK_ERROR", "offline"));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: "Retry add" }));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+  expect(request.mock.calls[1]).toEqual(request.mock.calls[0]);
+});
+
+it("reopens the same unconfirmed operation after page hide and a lost response", async () => {
+  let reject!: (reason: unknown) => void;
+  const request = jest
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    )
+    .mockResolvedValueOnce({});
+  setup({ request });
+  fireEvent.change(await open(), { target: { value: "Milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+  fireEvent(window, new Event("pagehide"));
+  reject(new DeviceApiError(0, "NETWORK_ERROR", "offline"));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Add grocery" }),
+    ).not.toBeDisabled(),
+  );
+  expect(await open()).toHaveValue("Milk");
+  fireEvent.click(screen.getByRole("button", { name: "Retry add" }));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+  expect(request.mock.calls[1]).toEqual(request.mock.calls[0]);
+});
+
+it("refreshes stale list choices and preserves editable item text after a missing-list response", async () => {
+  const { afterChange } = setup({
+    request: jest
+      .fn()
+      .mockRejectedValue(new DeviceApiError(404, "NOT_FOUND", "missing")),
+  });
+  fireEvent.change(await open(), { target: { value: "Milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+  await screen.findByText(
+    "That list is no longer available. Choose another list.",
+  );
+  expect(afterChange).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("textbox", { name: "Item" })).toHaveValue("Milk");
+  expect(screen.getByRole("textbox", { name: "Item" })).not.toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Grocery list" })).toHaveValue(
+    "",
+  );
+});
+
 it("adds to an empty canonical list with member attribution and refreshes only after confirmation", async () => {
   const { request, prepare, afterChange } = setup();
   fireEvent.change(await open(), { target: { value: "  Milk  " } });

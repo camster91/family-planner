@@ -44,6 +44,7 @@ export function DeviceGroceryAdd({
   const input = React.useRef<HTMLInputElement>(null);
   const generation = React.useRef(0);
   const sending = React.useRef(false);
+  const unconfirmed = React.useRef<AddOperation | null>(null);
 
   const close = React.useCallback(() => {
     generation.current++;
@@ -105,6 +106,7 @@ export function DeviceGroceryAdd({
     };
     const current = generation.current;
     setOperation(request);
+    unconfirmed.current = request;
     setError(null);
     sending.current = true;
     setBusy(true);
@@ -120,29 +122,39 @@ export function DeviceGroceryAdd({
           },
         },
       );
+      unconfirmed.current = null;
       afterChange();
       if (generation.current === current) {
         close();
         setNotice("Item added to the grocery list.");
       }
     } catch (failure) {
-      if (generation.current !== current) return;
-      if (failure instanceof DeviceApiError && failure.terminal) {
-        close();
-        return;
-      }
-      // An uncertain response may follow a committed write. Keep the exact
-      // body, actor and key for Retry; never silently make a second operation.
       const definitive =
         failure instanceof DeviceApiError &&
         failure.status >= 400 &&
         failure.status < 500 &&
         failure.status !== 409;
+      if (definitive || (failure instanceof DeviceApiError && failure.terminal))
+        unconfirmed.current = null;
+      if (generation.current !== current) return;
+      if (failure instanceof DeviceApiError && failure.terminal) {
+        close();
+        return;
+      }
+      if (failure instanceof DeviceApiError && failure.status === 404) {
+        setOperation(null);
+        setListId("");
+        setError("That list is no longer available. Choose another list.");
+        afterChange();
+        return;
+      }
+      // An uncertain response may follow a committed write. Keep the exact
+      // body, actor and key for Retry; never silently make a second operation.
       if (definitive) setOperation(null);
       setError(
         definitive
           ? failure.message || "Could not add this item."
-          : "Could not confirm the add. Retry checks the same request. Closing discards this draft; check the list before adding it again.",
+          : "Could not confirm the add. It may already be saved. Retry or reopen this form to check the same request.",
       );
     } finally {
       sending.current = false;
@@ -158,6 +170,17 @@ export function DeviceGroceryAdd({
         className={neutralButtonClass}
         onClick={async () => {
           setNotice(null);
+          if (unconfirmed.current) {
+            const previous = unconfirmed.current;
+            setListId(previous.listId);
+            setContent(previous.content);
+            setOperation(previous);
+            setError(
+              "An earlier add needs confirmation. Retry checks the same request.",
+            );
+            setOpen(true);
+            return;
+          }
           setListId(lists.length === 1 ? lists[0].id : "");
           setContent("");
           setError(null);
@@ -175,7 +198,7 @@ export function DeviceGroceryAdd({
       {notice && <p role="status">{notice}</p>}
       <Dialog
         open={open}
-        onClose={close}
+        onClose={busy ? undefined : close}
         title="Add grocery"
         initialFocusRef={input}
         testId="device-grocery-add"

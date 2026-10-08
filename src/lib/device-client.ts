@@ -6,8 +6,9 @@
  *   `401 DEVICE_ACCESS_EXPIRED` it refreshes once (a single in-flight refresh
  *   shared by all callers) and retries the original request once.
  * - `DEVICE_REVOKED` / `DEVICE_SESSION_INVALID` from anything, and a 404 from
- *   any `/api/device/*` endpoint of a paired tablet (the kill-switch answer;
- *   those routes have no other 404), run the §8 purge:
+ *   any `/api/device/*` endpoint of a paired tablet (the kill-switch answer),
+ *   run the §8 purge. Grocery-add 404s first check the device identity route:
+ *   a deleted/retagged list must not be mistaken for a removed tablet.
  *   drop memory state, delete `fp-device:v1:*` storage, IndexedDB `fp-device`
  *   and device Cache Storage entries, drop the queue, then replace-navigate to
  *   `/device/removed`.
@@ -40,8 +41,8 @@ export const REMOVED_PATH = '/device/removed'
 const TERMINAL_CODES = new Set(['DEVICE_REVOKED', 'DEVICE_SESSION_INVALID'])
 
 /**
- * A 404 from a paired tablet's device endpoint means shared-device mode is
- * off (kill switch, SHARED_DEVICE.md §8, §13): terminal, like a revoke.
+ * A device 404 may signal the kill switch (SHARED_DEVICE.md §8, §13).
+ * Resource-specific callers must distinguish ordinary missing records below.
  */
 function isKillSwitchResponse(path: string, status: number): boolean {
   return status === 404 && path.startsWith('/api/device/')
@@ -365,7 +366,17 @@ export function createDeviceClient(deps: DeviceClientDeps) {
       }
       if (!res.ok) {
         const killSwitch = isKillSwitchResponse(path, res.status) && (!options.optionalRoute || error.enveloped)
-        if (error.terminal || killSwitch) {
+        const missingGroceryList = killSwitch && options.method === 'POST' &&
+          /^\/api\/device\/lists\/[A-Za-z0-9_-]{1,64}\/items$/.test(path)
+        if (error.terminal) {
+          await purge()
+        } else if (missingGroceryList) {
+          // This route also returns 404 for a missing/foreign/non-grocery
+          // list. The identity route has no resource 404: its kill switch
+          // and revoked/session-invalid responses still purge via request.
+          // A transient probe failure remains retryable and never unpairs.
+          await request('/api/device/me')
+        } else if (killSwitch) {
           await purge()
         } else if (options.elevated && ELEVATION_ENDED_CODES.has(error.code)) {
           dropElevation()

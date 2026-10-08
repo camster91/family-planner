@@ -442,6 +442,33 @@ test.describe("Shared tablet", () => {
         );
         expect(result.rows).toEqual([{ content, added_by: A.parent }]);
       });
+      // Another member can remove the chosen list while the form is open.
+      // This is an ordinary missing resource, never a removed tablet.
+      await tablet
+        .getByRole("button", { name: "Add grocery", exact: true })
+        .click();
+      await dialog.getByLabel("Grocery list").selectOption(listId);
+      await dialog
+        .getByLabel("Item", { exact: true })
+        .fill("Item after deletion");
+      await withDb((db) =>
+        db.query('DELETE FROM "List" WHERE id = $1', [listId]),
+      );
+      await dialog
+        .getByRole("button", { name: "Add item", exact: true })
+        .click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "That list is no longer available. Choose another list.",
+      );
+      await expect(tablet).toHaveURL(/\/device\/today$/);
+      await expect(dialog.getByLabel("Item", { exact: true })).toHaveValue(
+        "Item after deletion",
+      );
+      expect((await browserFetch(tablet, "/api/device/me")).status).toBe(200);
+      await testInfo.attach("device-grocery-stale-list", {
+        body: await tablet.screenshot(),
+        contentType: "image/png",
+      });
     } finally {
       await withDb(async (db) => {
         await db.query('DELETE FROM "List" WHERE id = $1', [listId]);

@@ -824,6 +824,6 @@ and the lists feature must already be on; this work does not enable them.
 
 Creation requires a connection. Uncertain replies freeze the draft and retry
 the same content, list, acting member and idempotency key. The board refreshes
-only after confirmed creation. Shared-device privacy exclusions remain in force.
+only after confirmed creation. Pending dialogs cannot be dismissed; lifecycle hiding retains only an unconfirmed request in memory for exact retry. Stale-list 404s verify device identity before any purge. Shared-device privacy exclusions remain in force.
 This candidate still requires protected CI and rendered journey evidence; it is
 not a deployment or physical-device acceptance claim.
