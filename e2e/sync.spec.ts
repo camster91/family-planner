@@ -115,7 +115,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
   }, testInfo) => {
     fixture = await createList(page, testInfo, []);
     const listId = fixture.listId;
-    const key = `person-create-${testInfo.project.name}-0123456789`;
+    const key = await page.evaluate(() => crypto.randomUUID());
     const submit = () =>
       page.evaluate(
         async ({ listId, key }) => {
