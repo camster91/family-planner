@@ -110,6 +110,68 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }
   });
 
+  test("a keyed personal grocery create survives a lost response without resurrecting a deleted item", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const listId = fixture.listId;
+    const key = `person-create-${testInfo.project.name}-0123456789`;
+    const submit = () =>
+      page.evaluate(
+        async ({ listId, key }) => {
+          const csrf =
+            document.cookie
+              .split("; ")
+              .find((c) => c.startsWith("csrf_token="))
+              ?.slice("csrf_token=".length) ?? "";
+          try {
+            const response = await fetch("/api/lists/items/create", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": key,
+              },
+              body: JSON.stringify({ listId, content: "Retry-safe grocery" }),
+            });
+            return {
+              status: response.status,
+              replayed: response.headers.get("Idempotency-Replayed"),
+              body: await response.json(),
+            };
+          } catch {
+            return { status: 0, replayed: null, body: null };
+          }
+        },
+        { listId, key },
+      );
+    await page.route("**/api/lists/items/create", async (route) => {
+      const committed = await route.fetch();
+      expect(committed.status()).toBe(200);
+      await route.abort("failed");
+    });
+    expect((await submit()).status).toBe(0);
+    await page.unroute("**/api/lists/items/create");
+    await page.reload();
+    const replay = await submit();
+    expect(replay.status).toBe(200);
+    expect(replay.replayed).toBe("true");
+    const items = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(JSON.parse(items.body).items).toHaveLength(1);
+    const deleted = await browserSend(
+      page,
+      "DELETE",
+      `/api/lists/items/${replay.body.item.id}`,
+    );
+    expect(deleted.status, deleted.body).toBe(200);
+    const afterDelete = await submit();
+    expect(afterDelete.replayed).toBe("true");
+    expect(afterDelete.body).toEqual(replay.body);
+    const empty = await browserFetch(page, `/api/lists/items?listId=${listId}`);
+    expect(JSON.parse(empty.body).items).toHaveLength(0);
+  });
+
   test("local support report counts failures and conflicts without household content", async ({
     page,
   }, testInfo) => {

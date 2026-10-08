@@ -181,6 +181,7 @@ jobs:
           src/app/api/family/__tests__/join-vs-deletion.integration.test.ts
           src/app/api/inventory/__tests__/adjustments.integration.test.ts
           src/app/api/inventory/__tests__/inventory.integration.test.ts
+          src/app/api/lists/__tests__/create-idempotency.integration.test.ts
           src/app/api/lists/__tests__/from-recipe.integration.test.ts
           src/app/api/lists/__tests__/sections.integration.test.ts
           src/app/api/recipes/__tests__/recipes.integration.test.ts

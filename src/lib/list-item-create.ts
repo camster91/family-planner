@@ -10,7 +10,7 @@
  * - The row goes to the end of the list and is attributed to `addedBy`.
  * - Grocery/shopping lists (#273): the new row carries its resolved store section.
  */
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import { isGroceryListType } from '@/lib/grocery-display'
 import { loadSectionOverrides, sectionsFor } from '@/lib/grocery-section-store'
 
@@ -30,7 +30,7 @@ export type CreateListItemResult =
   | { ok: false; reason: 'list_not_found' | 'ingredient_not_found' | 'not_grocery' }
 
 export async function createListItem(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   input: NewListItem,
   actor: { familyId: string; addedBy: string },
   options: {
