@@ -70,9 +70,11 @@ describe('/dashboard/lists ?type=', () => {
     mockPrisma.user.findUnique.mockResolvedValue({ family_id: 'fam-a', family: { name: 'Home' } })
     mockPrisma.list.findMany.mockResolvedValue([])
     const known = await ListsPage({ searchParams: Promise.resolve({ type: 'todo' }) })
-    expect((known as React.ReactElement<{ initialType: unknown }>).props.initialType).toBe('todo')
+    const knownClient = React.Children.toArray(known?.props.children).find(child => React.isValidElement(child) && child.type === ListsClient) as React.ReactElement<{ initialType: unknown }>
+    expect(knownClient.props.initialType).toBe('todo')
     const unknown = await ListsPage({ searchParams: Promise.resolve({ type: 'bogus' }) })
-    expect((unknown as React.ReactElement<{ initialType: unknown }>).props.initialType).toBeNull()
+    const unknownClient = React.Children.toArray(unknown?.props.children).find(child => React.isValidElement(child) && child.type === ListsClient) as React.ReactElement<{ initialType: unknown }>
+    expect(unknownClient.props.initialType).toBeNull()
     // The query stays household-scoped.
     expect(mockPrisma.list.findMany.mock.calls[0][0].where).toEqual({ family_id: 'fam-a' })
   })
