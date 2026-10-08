@@ -191,7 +191,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     <>
       {cacheUnavailable && data && (
         <p role="status" data-testid="device-cache-unavailable" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">
-          This plan couldn't be saved on this device. Keep the app open during an outage.
+          This plan could not be saved on this device. Keep the app open during an outage.
         </p>
       )}
       {cached && (
