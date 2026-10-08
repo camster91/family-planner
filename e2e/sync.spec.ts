@@ -12,6 +12,7 @@
  * see playwright.config.ts). The restart case therefore reloads with only the
  * mutation endpoint unreachable, which is what the queue sees either way.
  */
+import AxeBuilder from "@axe-core/playwright";
 import type { Page, Request, TestInfo } from "@playwright/test";
 import { FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
 import { authFile, E2E_BASE_URL } from "./support/env";
@@ -174,6 +175,16 @@ test.describe("offline grocery ticks: Family A parent", () => {
     expect(await report.innerText()).not.toContain(failedId);
     expect(await report.innerText()).not.toContain(conflictId);
     expect(updates).toHaveLength(0);
+    const scan = await new AxeBuilder({ page })
+      .include('[aria-labelledby="help-sync"]')
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    expect(scan.violations).toEqual([]);
+    await page.screenshot({
+      path: testInfo.outputPath("sync-report.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
   });
 
   test("offline tick is pending, survives a reload and syncs exactly once", async ({
