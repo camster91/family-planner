@@ -477,11 +477,14 @@ test.describe("Shared tablet", () => {
       await tablet.reload();
       await expect(tablet.getByTestId("device-cached-plan")).toBeVisible();
       await tablet.clock.fastForward(60000);
-      await expect(tablet.getByRole("alert")).toHaveText(
-        "Reconnect to see today's plan.",
-      );
+      await expect(
+        tablet
+          .getByRole("alert")
+          .filter({ hasText: "Reconnect to see today's plan." }),
+      ).toHaveText("Reconnect to see today's plan.");
       await expect(tablet.getByTestId("device-cached-plan")).toHaveCount(0);
       await expect(tablet.getByTestId("today-board")).toHaveCount(0);
+      await axeScan(tablet, testInfo, "expired shared plan");
       await testInfo.attach("device-cache-expired", {
         body: await tablet.screenshot(),
         contentType: "image/png",
