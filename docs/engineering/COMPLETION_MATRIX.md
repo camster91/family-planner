@@ -1,5 +1,20 @@
 # Herewoven issue acceptance matrix
 
+## Latest execution refresh — 2026-10-08, after #410
+
+Protected main is `6f96058875057d0e3704a0b54ced68410e3678a3`. Thirty-one cleanup PRs are verified merged, including #399/#397/#398, #402/#400, #404, #408/#406 and exact #410 head `af0e04a`. Normal merge/protection, checked-image and browser evidence remains in the source PRs; children #401/#403/#405/#407/#409 are evidence-backed closed with original criteria preserved. No old open PR is left. There are 49 open issues at this refresh, including prepared child #411. Original programme/release/owner/hardware/household criteria remain open unless their existing issue separately records full acceptance.
+
+#409 externalizes the four personal/device grocery add, edit and saved-tick recovery controls. Exact retry intent, queue confirmation meaning, drafts, actor selection and discard remain unchanged. Final local 355 suites / 4,364 cases and 27 normal / 24 expanded-copy browser checks passed; original exact-head hosted gates and protected merge are verified in #410. Preference and explicit 400% browser-layout QA are merged in #408; these do not prove whole-app translation, actual zoom or physical Android acceptance.
+
+Child #411 prepares the existing list overview labels, per-type complete filter/empty sentences and locale-aware singular/plural counts. Source `4fa91bb` is unchanged at QA head `d278267`; 25 affected cases, 355 suites / 4,367 full cases, types/lint/Prisma/build/copy inventory and secret checks pass. Ordinary 27-case and expanded 24-case matrices at phone/portrait/fridge sizes cover overview/filter/empty/child restrictions. The stronger final normal run also checks keyboard focus and centre hit-testing through fixed navigation. An initial omitted host GNU-date path and a later disk-full rebuild were diagnosed; corrected full-suite/build/browser gates pass without weakened assertions. Exactly 19 overview literal occurrences were migrated, leaving 1,736 direct occurrences as migration debt. Protected final hosted CI and normal merge are still required; #411 stays open. Canonical API/data/native/provider behavior is unchanged.
+
+The gallery contains 478 separately source-labeled fabricated local captures: retained historical roles/states, 108 grocery controls and 90 list overview views (30 initial normal, 30 expanded and 30 stronger restored-normal). Expanded copy is artificial QA, not another supported language. Local captures are not production/native/whole-app or human translation acceptance.
+
+Last anonymous public read on 2026-10-08 still returned #396 source `4d9aec4e0db7269e628f4965090651a8edf1cb97`, built `2026-10-08T19:31:20.227Z`, with healthy `/api/health`. Newer protected main is not verified live. #372 legal/company/sender decision, #370 paused Android build approval, live role/email/backup/proxy/support, physical lifecycle, real imports, beta/research and destructive migration gates retain their separate owners/resume conditions. No manual deployment, provider/settings/data mutation, scheduler, signing/store submission or participant outreach occurred.
+
+Earlier execution sections below are dated historical snapshots; pending statements and counts there do not override this refresh or current GitHub source.
+
+
 Original snapshot: 2026-10-07; source: GitHub REST open-issue collection, 51 issues. Every original source body is retained below; unchecked source boxes are historical requirements, not current proof. Refresh 2026-10-08: source `bfb74e6d`, 49 issues remain open; #374/#375 are closed. Current evidence notes below supersede only the dated evidence summaries, never the original criteria. Contract: [COMPLETION_CONTRACT.md](COMPLETION_CONTRACT.md).
 
 Classes: **1** required before beta; **2** approved later-phase work (existing gates still apply); **3** appears satisfied, awaiting full evidence-backed closure; **4** owner/access/hardware/data blocked. Broad epics contain mixed child scopes; their class never authorizes later/gated work.
