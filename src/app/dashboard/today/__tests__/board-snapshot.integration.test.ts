@@ -58,6 +58,11 @@ describeWithDatabase('board snapshot against Postgres', () => {
     await prisma.list.create({
       data: { id: 'bsint-list', family_id: FAM, name: 'Groceries', type: 'grocery', created_by: USER },
     })
+    await prisma.list.createMany({ data: [
+      { id: 'bsint-empty-list', family_id: FAM, name: 'Empty groceries', type: 'shopping', created_by: USER },
+      { id: 'bsint-foreign-list', family_id: FAM2, name: 'Foreign groceries', type: 'grocery', created_by: USER2 },
+      { id: 'bsint-private-list', family_id: FAM, name: 'Private tasks', type: 'todo', created_by: USER },
+    ] })
     await prisma.listItem.create({ data: { id: 'bsint-item', list_id: 'bsint-list', content: 'Milk', added_by: USER } })
     await prisma.upload.create({
       data: {
@@ -74,6 +79,14 @@ describeWithDatabase('board snapshot against Postgres', () => {
   afterAll(async () => {
     await cleanup()
     await prisma.$disconnect()
+  })
+
+  it('device list choices include empty grocery lists and exclude another household and non-grocery lists', async () => {
+    const board = await lib.loadTodayBoard(prisma, { familyId: FAM, audience: 'device', now: NOW })
+    expect(board.groceryLists?.map(list => list.id).sort()).toEqual(['bsint-empty-list', 'bsint-list'])
+    for (const list of board.groceryLists ?? []) expect(Object.keys(list).sort()).toEqual(['id', 'name'])
+    const person = await lib.loadTodayBoard(prisma, { familyId: FAM, role: 'parent', now: NOW })
+    expect(person.groceryLists).toBeUndefined()
   })
 
   it('migrate.js defaults: 5 idle minutes, night hours off, no photos', async () => {

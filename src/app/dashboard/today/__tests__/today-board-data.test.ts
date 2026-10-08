@@ -63,6 +63,7 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
     calendarSubscription: {
       findMany: jest.fn().mockResolvedValue([{ id: 'sub_a', name: 'School calendar', color: '#0079A8' }]),
     },
+    list: { findMany: jest.fn().mockResolvedValue([{ id: 'l1', name: 'Groceries' }]) },
     listItem: {
       findMany: jest.fn().mockResolvedValue([
         { id: 'i1', content: 'Milk', quantity: 2, list: { id: 'l1', name: 'Groceries' } },
@@ -233,6 +234,23 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
     expect(db.calendarSubscription.findMany).not.toHaveBeenCalled()
     expect(data.events).toEqual([])
+  })
+
+  it('provides canonical device list choices even when every item is checked', async () => {
+    const db = mockDb({ listItem: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) } })
+    const data = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: defaultFeatures(), now: NOW })
+    expect(data.shopping).toEqual({ items: [], total: 0 })
+    expect(data.groceryLists).toEqual([{ id: 'l1', name: 'Groceries' }])
+    expect(db.list.findMany).toHaveBeenCalledWith({ where: { family_id: FAMILY, type: { in: ['grocery', 'shopping'] } }, select: { id: true, name: true }, orderBy: [{ created_at: 'asc' }, { id: 'asc' }], take: 50 })
+  })
+
+  it('never reads device list choices for person boards or when lists are disabled', async () => {
+    const db = mockDb()
+    const person = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+    const device = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: { ...defaultFeatures(), lists: false }, now: NOW })
+    expect(person.groceryLists).toBeUndefined()
+    expect(device.groceryLists).toBeUndefined()
+    expect(db.list.findMany).not.toHaveBeenCalled()
   })
 
   // Shared device (#240, SHARED_DEVICE.md §9.1 and §14.1 item 4).

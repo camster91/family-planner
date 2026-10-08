@@ -170,6 +170,7 @@ export default function TodayBoard({
   useSoon,
   viewer,
   tileActions,
+  groceryAction,
 }: {
   data: TodayBoardData
   fridgeMode: boolean
@@ -180,6 +181,8 @@ export default function TodayBoard({
   viewer?: { id: string; role: string } | null
   /** Replaces the person actions (the paired tablet's §9.2 writes, #274). */
   tileActions?: BoardActions
+  /** Device grocery capture control; omitted on person and read-only boards. */
+  groceryAction?: React.ReactNode
   /**
    * Shared tablet (/device/today, #241): re-fetch the device DTO instead of
    * re-requesting a person server component.
@@ -383,7 +386,7 @@ export default function TodayBoard({
               onTick={tiles.tickChore}
               canTick={tiles.canTickChore}
             />
-            <GroceriesRegion shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} />
+            <GroceriesRegion shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} action={groceryAction} />
             <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
             {useSoonSlot && (
               <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>

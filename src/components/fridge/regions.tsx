@@ -333,9 +333,11 @@ export function GroceriesRegion({
   shopping,
   listsHref,
   onTick,
+  action,
 }: {
   shopping: ShoppingSnapshot | null
   listsHref: string | null
+  action?: React.ReactNode
   /** #274: tapping an item ticks it off (with Undo). Null: rows are plain text. */
   onTick?: ((item: ShoppingSnapshotItem) => void) | null
 }) {
@@ -350,6 +352,7 @@ export function GroceriesRegion({
       glyph="lists"
       href={listsHref}
       hrefLabel="open lists"
+      action={action}
     >
       {shopping.items.length === 0 ? (
         <p className={emptyTextClass}>The grocery list is clear.</p>
