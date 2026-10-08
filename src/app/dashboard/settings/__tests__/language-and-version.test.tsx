@@ -9,6 +9,7 @@ import * as React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SettingsClient from '../SettingsClient'
+import { THEME_STORAGE_KEY } from '@/lib/theme'
 import { I18nProvider, LOCALE_STORAGE_KEY, useTranslation } from '@/i18n'
 
 // SettingsClient refreshes the server layout after a profile save.
@@ -86,12 +87,35 @@ describe('Settings language', () => {
     expect(document.documentElement.lang).toBe('es')
   })
 
+  it('keeps profile edits and device preferences independent while switching languages and themes', async () => {
+    mockApi()
+    window.localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+    renderSettings()
+    const name = await screen.findByDisplayValue('Pat')
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Casey')
+    await userEvent.selectOptions(screen.getByLabelText('Preferred language'), 'es')
+    expect(screen.getByRole('group', { name: 'Tema' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Oscuro' }).getAttribute('aria-pressed')).toBe('true')
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark')
+    expect((name as HTMLInputElement).value).toBe('Casey')
+    await userEvent.click(screen.getByRole('button', { name: 'Claro' }))
+    expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('es')
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light')
+    expect((screen.getByLabelText('Idioma preferido') as HTMLSelectElement).value).toBe('es')
+    expect((name as HTMLInputElement).value).toBe('Casey')
+    await userEvent.selectOptions(screen.getByLabelText('Idioma preferido'), 'en')
+    expect(screen.getByRole('button', { name: 'Light' }).getAttribute('aria-pressed')).toBe('true')
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light')
+    expect((name as HTMLInputElement).value).toBe('Casey')
+  })
+
   it('starts from the saved language after mount', async () => {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, 'es')
     mockApi()
     renderSettings()
     await waitFor(() => expect(screen.getByTestId('probe').textContent).toBe('Lista de deseos'))
-    expect(((await screen.findByLabelText('Preferred language')) as HTMLSelectElement).value).toBe('es')
+    expect(((await screen.findByLabelText('Idioma preferido')) as HTMLSelectElement).value).toBe('es')
     expect(document.documentElement.lang).toBe('es')
   })
 

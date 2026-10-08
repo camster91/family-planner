@@ -9,6 +9,18 @@ import { pseudolocalizeTemplate } from './pseudo'
 // Inline messages — no external library needed
 const messages = {
   en: {
+    preferences: {
+      languageEnglish: 'English',
+      languageSpanish: 'Español',
+      language: 'Language',
+      preferredLanguage: 'Preferred language',
+      theme: 'Theme',
+      themeDescription: 'Auto matches your phone or computer. Saved on this device.',
+      themeLight: 'Light',
+      themeDark: 'Dark',
+      themeAuto: 'Auto',
+      themeAutoHint: 'Auto follows your phone or computer.',
+    },
     auth: {
       welcomeBack: 'Welcome Back',
       signInSubtitle: `Sign in to your ${PRODUCT_BRAND.name} account`,
@@ -458,6 +470,18 @@ const messages = {
     },
   },
   es: {
+    preferences: {
+      languageEnglish: 'English',
+      languageSpanish: 'Español',
+      language: 'Idioma',
+      preferredLanguage: 'Idioma preferido',
+      theme: 'Tema',
+      themeDescription: 'Automático usa el tema de tu teléfono o computadora. Se guarda en este dispositivo.',
+      themeLight: 'Claro',
+      themeDark: 'Oscuro',
+      themeAuto: 'Automático',
+      themeAutoHint: 'Automático sigue el tema de tu teléfono o computadora.',
+    },
     nav: {
       dashboard: 'Panel',
       settings: 'Configuracion',

@@ -136,7 +136,12 @@ export default function SettingsClient({
     writeThemePreference(next)
     applyThemePreference(next)
   }
-  const { locale, setLocale } = useTranslation()
+  const { locale, setLocale, t } = useTranslation()
+  const themeLabels = {
+    light: t('preferences.themeLight'),
+    dark: t('preferences.themeDark'),
+    auto: t('preferences.themeAuto'),
+  }
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
@@ -469,8 +474,8 @@ export default function SettingsClient({
         </div>
 
         <div className="card">
-          <CardHeader icon={Globe} tone="green" title="Language" />
-          <label htmlFor="preferredLanguage" className="sr-only">Preferred language</label>
+          <CardHeader icon={Globe} tone="green" title={t('preferences.language')} />
+          <label htmlFor="preferredLanguage" className="sr-only">{t('preferences.preferredLanguage')}</label>
           <select
             id="preferredLanguage"
             value={locale}
@@ -480,14 +485,14 @@ export default function SettingsClient({
             }}
             className="input-field w-full"
           >
-            <option value="en">English</option>
-            <option value="es">Español</option>
+            <option value="en">{t('preferences.languageEnglish')}</option>
+            <option value="es">{t('preferences.languageSpanish')}</option>
           </select>
         </div>
 
         <div className="card">
-          <CardHeader icon={Moon} tone="purple" title="Theme" description="Auto matches your phone or computer. Saved on this device." />
-          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Theme">
+          <CardHeader icon={Moon} tone="purple" title={t('preferences.theme')} description={t('preferences.themeDescription')} />
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label={t('preferences.theme')}>
             {(['light', 'dark', 'auto'] as const).map((themeOption) => (
               <button
                 key={themeOption}
@@ -498,11 +503,11 @@ export default function SettingsClient({
                   theme === themeOption ? 'border-primary bg-[var(--accent-tint)]' : 'border-border hover:border-input'
                 }`}
               >
-                {themeOption === 'light' ? 'Light' : themeOption === 'dark' ? 'Dark' : 'Auto'}
+                {themeLabels[themeOption]}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-label-tertiary">Auto follows your phone or computer.</p>
+          <p className="mt-2 text-xs text-label-tertiary">{t('preferences.themeAutoHint')}</p>
         </div>
 
         <div className="card">
