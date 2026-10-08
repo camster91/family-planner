@@ -375,6 +375,10 @@ test.describe("Shared tablet", () => {
     const listId = "fx_e2e_device_empty_grocery";
     const content = "Device quick-add fixture";
     const keys: string[] = [];
+    let releaseReply!: () => void;
+    const replyHeld = new Promise<void>((resolve) => {
+      releaseReply = resolve;
+    });
     try {
       await withDb(async (db) => {
         await db.query('DELETE FROM "List" WHERE id = $1', [listId]);
@@ -414,6 +418,7 @@ test.describe("Shared tablet", () => {
           if (keys.length === 1) {
             const response = await route.fetch();
             expect(response.status()).toBe(201);
+            await replyHeld;
             await route.abort("failed");
           } else await route.continue();
         },
@@ -421,6 +426,15 @@ test.describe("Shared tablet", () => {
       await dialog
         .getByRole("button", { name: "Add item", exact: true })
         .click();
+      await expect(
+        dialog.getByRole("button", { name: "Adding…", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: "Close", exact: true }),
+      ).toHaveCount(0);
+      await tablet.keyboard.press("Escape");
+      await expect(dialog).toBeVisible();
+      releaseReply();
       await expect(dialog.getByRole("alert")).toContainText(
         "Could not confirm the add",
       );
@@ -470,6 +484,7 @@ test.describe("Shared tablet", () => {
         contentType: "image/png",
       });
     } finally {
+      releaseReply();
       await withDb(async (db) => {
         await db.query('DELETE FROM "List" WHERE id = $1', [listId]);
         await db.query(
