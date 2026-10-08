@@ -20,8 +20,9 @@ Removed or translated copy produces a stale record that must be removed.
 Duplicate inventory rows and invalid counts fail too. The existing missing-key
 and English/Spanish parity checks remain unchanged.
 
-The scanner ignores test files and the explicitly fabricated `src/app/dev`
-gallery, translation function arguments, role comparison conditions and routing/
+The scanner ignores test files and the explicitly fabricated
+`src/app/dev/design-system` gallery (other development routes stay checked),
+translation function arguments, role comparison conditions and routing/
 style/test attributes. It does not chase indirect constants, helper return values,
 data tables, API/server error strings or translation interpolations. Passing this
 gate proves only that its detected surface is tracked; those remaining surfaces,

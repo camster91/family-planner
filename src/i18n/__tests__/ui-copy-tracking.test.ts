@@ -1,5 +1,6 @@
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 import { collectUiCopy, summarizeCopy, copyTrackingDifferences, scanUiCopy } from '../../../scripts/ui-copy.cjs'
 
 describe('hard-coded UI copy tracking', () => {
@@ -46,7 +47,24 @@ describe('hard-coded UI copy tracking', () => {
     const tracked = JSON.parse(fs.readFileSync(path.join(root, 'src/i18n/untranslated-copy.json'), 'utf8'))
     const occurrences = scanUiCopy(root)
     expect(occurrences.length).toBeGreaterThan(0)
-    expect(occurrences.some(row => row.file.includes('/__tests__/') || row.file.startsWith('src/app/dev/'))).toBe(false)
+    expect(occurrences.some(row => row.file.includes('/__tests__/') || row.file.startsWith('src/app/dev/design-system/'))).toBe(false)
     expect(copyTrackingDifferences(occurrences, tracked)).toEqual([])
+  })
+  it('excludes only the fabricated gallery, keeping other development-route UI tracked', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'herewoven-copy-guard-'))
+    try {
+      for (const [file, text] of [
+        ['src/app/dev/design-system/page.tsx', 'Fabricated gallery'],
+        ['src/app/dev/monitor/page.tsx', 'Monitor failure'],
+        ['src/app/__tests__/fixture.tsx', 'Test household'],
+      ]) {
+        const target = path.join(root, file)
+        fs.mkdirSync(path.dirname(target), { recursive: true })
+        fs.writeFileSync(target, `<p>${text}</p>`)
+      }
+      expect(scanUiCopy(root).map(row => row.text)).toEqual(['Monitor failure'])
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

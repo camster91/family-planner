@@ -69,7 +69,7 @@ function scanUiCopy(root) {
       const full = path.join(directory, item.name);
       const relative = path.relative(root, full).split(path.sep).join('/');
       if (item.isDirectory()) {
-        if (item.name === '__tests__' || relative === 'src/app/dev') continue;
+        if (item.name === '__tests__' || relative === 'src/app/dev/design-system') continue;
         walk(full);
       } else if (item.name.endsWith('.tsx') && !/\.(test|spec)\.tsx$/.test(item.name)) {
         findings.push(...collectUiCopy(relative, fs.readFileSync(full, 'utf8')));
