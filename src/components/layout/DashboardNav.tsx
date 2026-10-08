@@ -20,7 +20,7 @@ import {
   CircleHelp,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
-import NotificationPreferences from "@/components/account/NotificationPreferences";
+import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
 import type { NavUser, UserRole } from "@/types";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";

@@ -5656,16 +5656,6 @@
   },
   {
     "file": "src/components/account/NotificationPreferences.tsx",
-    "text": "Couldn&apos;t load your notification settings.",
-    "count": 1
-  },
-  {
-    "file": "src/components/account/NotificationPreferences.tsx",
-    "text": "Loading your notification settings…",
-    "count": 1
-  },
-  {
-    "file": "src/components/account/NotificationPreferences.tsx",
     "text": "Notifications still arrive in your list, but nothing should interrupt you between these times.",
     "count": 1
   },
@@ -5711,12 +5701,22 @@
   },
   {
     "file": "src/components/account/NotificationPreferences.tsx",
-    "text": "Try again",
+    "text": "You&apos;re offline. You can change these again when you&apos;re back online.",
     "count": 1
   },
   {
-    "file": "src/components/account/NotificationPreferences.tsx",
-    "text": "You&apos;re offline. You can change these again when you&apos;re back online.",
+    "file": "src/components/account/NotificationPreferencesStatus.tsx",
+    "text": "Couldn&apos;t load your notification settings.",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/NotificationPreferencesStatus.tsx",
+    "text": "Loading your notification settings…",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/NotificationPreferencesStatus.tsx",
+    "text": "Try again",
     "count": 1
   },
   {
