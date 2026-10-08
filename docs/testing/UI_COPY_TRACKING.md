@@ -40,3 +40,17 @@ with `node scripts/ui-copy.cjs --write-inventory`, then inspect the exact diff i
 review. Never regenerate blindly to hide a new finding. The generated file carries
 file/text/count, not household records or runtime data. Translation acceptance and
 the final reviewed-language gate remain separate from copy tracking.
+
+## Language and Theme migration (#405)
+
+The existing preference cards now use ten matching English/Spanish message keys,
+including their accessible names and the unchanged language endonyms. This removes
+exactly eleven occurrences (ten file/text records) from the initial inventory,
+leaving 1,824. Other Settings copy remains tracked debt; this does not establish
+whole-app Spanish acceptance. Device values/storage and role guards are unchanged.
+`e2e/preferences-locale.spec.ts` checks independent language/theme choices, retained
+unsaved profile drafts, focus, 44-pixel targets and reflow in both ordinary locales.
+It also supports the separately built opt-in expanded-text mode documented in
+`PSEUDOLOCALE.md`; rebuild normally with QA mode off afterward. Expanded phone QA
+found an overflowing Spanish Auto label, resolved by wrapping and narrower button
+padding without reducing target height. Captures use fabricated local households.

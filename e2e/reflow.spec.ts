@@ -20,9 +20,12 @@
  * does not change media queries or the layout viewport, so it is not what a
  * zoomed user gets. Browser zoom at 200% on a 1280x800 window gives a
  * 640x400 CSS-px layout viewport at device pixel ratio 2, with media queries
- * evaluated at 640px. The `zoom-200` size reproduces exactly that
- * (`viewport` 640x400, `deviceScaleFactor: 2`, desktop pointer). 400% zoom of
- * the same window is 320 CSS px wide, which the `w320` size covers.
+ * evaluated at 640px. The `zoom-200` size models that layout
+ * (`viewport` 640x400, `deviceScaleFactor: 2`, desktop pointer). `zoom-400`
+ * models the same window at 400% with 320x200 CSS px, scale factor 4 and a
+ * desktop pointer. The separate `w320` case retains mobile/touch behavior.
+ * These are layout-viewport emulations, not real browser zoom or physical
+ * Android high-text-scale acceptance.
  *
  * Read-only: nothing is created or changed. The sizes are set with
  * `test.use`, so the spec runs in one project only (`desktop-1366x768`);
@@ -76,6 +79,14 @@ const SIZES = [
     deviceScaleFactor: 1,
     isMobile: false,
     hasTouch: true,
+  },
+  {
+    // Explicit desktop layout at 400%; distinct from the mobile w320 case.
+    name: "zoom-400",
+    viewport: { width: 320, height: 200 },
+    deviceScaleFactor: 4,
+    isMobile: false,
+    hasTouch: false,
   },
   {
     // 1280x800 at 200% browser zoom (see the header).
@@ -148,6 +159,72 @@ async function expectReflow(page: Page, label: string) {
       .filter((t) => t.w < 44 || t.h < 44),
   );
   expect(small, `${label}: primary actions smaller than 44x44`).toEqual([]);
+
+  const clipped = await page.locator(PRIMARY_ACTIONS).evaluateAll((els) =>
+    els.flatMap((el) => {
+      const r = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      if (
+        r.width <= 0 ||
+        r.height <= 0 ||
+        style.visibility === "hidden" ||
+        style.display === "none"
+      )
+        return [];
+      if (r.left >= -1 && r.right <= document.documentElement.clientWidth + 1)
+        return [];
+      return [
+        {
+          name: (
+            el.getAttribute("aria-label") ?? (el.textContent ?? "").trim()
+          ).slice(0, 60),
+          left: r.left,
+          right: r.right,
+          viewport: document.documentElement.clientWidth,
+        },
+      ];
+    }),
+  );
+  expect(
+    clipped,
+    `${label}: horizontally clipped primary action targets`,
+  ).toEqual([]);
+}
+
+/** At a 200px-tall layout, fixed bars must not make actions unreachable. */
+async function expectPrimaryReachable(page: Page, label: string) {
+  const targets = page.locator(PRIMARY_ACTIONS);
+  for (let index = 0; index < (await targets.count()); index += 1) {
+    const target = targets.nth(index);
+    if (!(await target.isVisible()) || !(await target.isEnabled())) continue;
+    const name =
+      (await target.getAttribute("aria-label")) ??
+      (await target.innerText()).trim();
+    await target.evaluate((el) =>
+      el.scrollIntoView({ block: "center", inline: "nearest" }),
+    );
+    await target.focus();
+    await expect(
+      target,
+      `${label}: ${name} can receive keyboard focus`,
+    ).toBeFocused();
+    await expect
+      .poll(
+        () =>
+          target.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            );
+            return hit !== null && (el === hit || el.contains(hit));
+          }),
+        {
+          message: `${label}: ${name} center is reachable without fixed overlay occlusion`,
+        },
+      )
+      .toBe(true);
+  }
 }
 
 for (const size of SIZES) {
@@ -169,6 +246,12 @@ for (const size of SIZES) {
           await expect(page).toHaveURL(new RegExp(`${path}$`));
           await settle(page);
           await expectReflow(page, `${size.name} ${path}`);
+          if (size.name === "zoom-400") {
+            await expectPrimaryReachable(page, `${size.name} ${path}`);
+            await page.screenshot({
+              path: testInfo.outputPath("zoom-400.png"),
+            });
+          }
         });
       }
     });
@@ -182,6 +265,10 @@ for (const size of SIZES) {
         await expect(page.getByText("Today's Missions")).toBeVisible();
         await settle(page);
         await expectReflow(page, `${size.name} kid home`);
+        if (size.name === "zoom-400") {
+          await expectPrimaryReachable(page, `${size.name} kid home`);
+          await page.screenshot({ path: testInfo.outputPath("zoom-400.png") });
+        }
       });
     });
   });

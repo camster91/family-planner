@@ -4771,21 +4771,6 @@
   },
   {
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Auto",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Auto follows your phone or computer.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Auto matches your phone or computer. Saved on this device.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
     "text": "Bring in ChoreChamps, Meal Planner or Budget App exports",
     "count": 1
   },
@@ -4856,11 +4841,6 @@
   },
   {
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Dark",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
     "text": "Data Export",
     "count": 1
   },
@@ -4882,16 +4862,6 @@
   {
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
     "text": "Email",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "English",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Español",
     "count": 1
   },
   {
@@ -4976,16 +4946,6 @@
   },
   {
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Language",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Light",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
     "text": "Loading settings...",
     "count": 1
   },
@@ -5037,11 +4997,6 @@
   {
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
     "text": "Paste your key",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Preferred language",
     "count": 1
   },
   {
@@ -5138,11 +5093,6 @@
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
     "text": "The download did not work. Try again.",
     "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/SettingsClient.tsx",
-    "text": "Theme",
-    "count": 2
   },
   {
     "file": "src/app/dashboard/settings/SettingsClient.tsx",
