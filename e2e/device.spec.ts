@@ -20,6 +20,10 @@
  * production-like databases.
  */
 import AxeBuilder from "@axe-core/playwright";
+import {
+  checkGroceryControls,
+  groceryText,
+} from "./support/grocery-localization";
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 import pg from "pg";
 import {
@@ -1254,3 +1258,88 @@ test.describe("Shared tablet", () => {
     }
   });
 });
+
+for (const locale of ["en", "es"] as const) {
+  test(`${locale} grocery localization on the shared device`, async ({
+    page: tablet,
+    browser,
+  }, info) => {
+    test.skip(
+      ![
+        "phone-390x844",
+        "tablet-portrait-800x1280",
+        "fridge-landscape-1280x800",
+      ].includes(info.project.name),
+      "representative phone, portrait and fridge layouts",
+    );
+    const text = groceryText(locale);
+    const parent = await openContext(browser, info, authFile("parentA"));
+    const listId = "fx_e2e_localized_grocery";
+    await tablet.addInitScript(
+      (value) => localStorage.setItem("familyPlanner_language", value),
+      locale,
+    );
+    try {
+      await withDb(async (db) => {
+        await db.query('DELETE FROM "List" WHERE id = $1', [listId]);
+        await db.query(
+          'INSERT INTO "List" (id, family_id, name, type, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+          [listId, A.family, "Localized grocery fixture", "grocery", A.parent],
+        );
+        await db.query(
+          'UPDATE "Family" SET device_writes_enabled = true WHERE id = $1',
+          [A.family],
+        );
+      });
+      await pairViaApi(parent.page, tablet);
+      await tablet
+        .getByRole("button", { name: text("deviceTitle"), exact: true })
+        .click();
+      await tablet
+        .getByTestId("who-is-this")
+        .getByRole("button", { name: PARENT_NAME, exact: true })
+        .click();
+      const dialog = tablet.getByTestId("device-grocery-add");
+      await dialog
+        .getByLabel(text("groceryList"), { exact: true })
+        .selectOption(listId);
+      await dialog
+        .getByLabel(text("item"), { exact: true })
+        .fill("Pan {quantity} 🥖");
+      await tablet.context().setOffline(true);
+      await expect(dialog).toContainText(text("deviceOfflineHint"));
+      await checkGroceryControls(tablet, dialog, info, `device-form-${locale}`);
+      await expect(
+        dialog.getByLabel(text("item"), { exact: true }),
+      ).toHaveValue("Pan {quantity} 🥖");
+      await dialog
+        .getByRole("button", { name: text("addItem"), exact: true })
+        .click();
+      const queued = tablet.getByRole("region", {
+        name: text("deviceQueuedSection"),
+        exact: true,
+      });
+      await expect(queued).toContainText("Pan {quantity} 🥖");
+      await expect(queued).toContainText(text("deviceWaiting"));
+      await checkGroceryControls(
+        tablet,
+        queued,
+        info,
+        `device-queued-${locale}`,
+      );
+      await withDb(async (db) => {
+        const result = await db.query(
+          'SELECT COUNT(*)::int AS count FROM "ListItem" WHERE list_id = $1',
+          [listId],
+        );
+        expect(result.rows[0].count).toBe(0);
+      });
+    } finally {
+      await tablet.context().setOffline(false);
+      await parent.context.close();
+      await withDb((db) =>
+        db.query('DELETE FROM "List" WHERE id = $1', [listId]),
+      );
+    }
+  });
+}
