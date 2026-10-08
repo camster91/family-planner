@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import { authFile } from "./support/env";
+import { useStoredTheme } from "./support/network";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
 const EDIT = "**/api/lists/items/edit";
@@ -201,5 +202,62 @@ test.describe("grocery field edit conflicts", () => {
     ).toBeDisabled();
     expect(await item(page, listId, itemId)).toBeUndefined();
     await capture(page, "removed", info.project.name);
+  });
+  test("long drafts reflow with keyboard focus and dark reduced-motion layouts", async ({
+    page,
+  }, info) => {
+    await useStoredTheme(page, "dark");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(`/dashboard/lists/${listId}`);
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    await page.getByRole("button", { name: "Edit Milk", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit grocery item" });
+    await page
+      .getByLabel("Item name", { exact: true })
+      .fill("Long grocery name ".repeat(25));
+    const sizes = info.project.name.startsWith("phone")
+      ? [
+          { width: 320, height: 844 },
+          { width: 430, height: 932 },
+        ]
+      : [
+          { width: 800, height: 1280 },
+          { width: 1920, height: 1200 },
+        ];
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      expect(
+        await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
+      ).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+      for (const button of await dialog.getByRole("button").all()) {
+        const box = await button.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+      await page.getByLabel("Item name", { exact: true }).focus();
+      for (let n = 0; n < 8; n++) {
+        await page.keyboard.press("Tab");
+        expect(
+          await dialog.evaluate((el) => el.contains(document.activeElement)),
+        ).toBe(true);
+      }
+      expect(
+        (await new AxeBuilder({ page }).include('[role="dialog"]').analyze())
+          .violations,
+      ).toEqual([]);
+    }
+    await page.setViewportSize(info.project.use.viewport!);
+    await capture(page, "dark-long-draft", info.project.name);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: "Edit Milk", exact: true }),
+    ).toBeFocused();
   });
 });
