@@ -13,8 +13,10 @@
  * mutation endpoint unreachable, which is what the queue sees either way.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, Request, TestInfo } from "@playwright/test";
-import { FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
+import type { Page, Request, Response, TestInfo } from "@playwright/test";
+import pg from "pg";
+import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
+import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { authFile, E2E_ANCHOR, E2E_BASE_URL } from "./support/env";
 import { goOffline, goOnline } from "./support/network";
 import {
@@ -293,6 +295,25 @@ test.describe("offline grocery ticks: Family A parent", () => {
   }, testInfo) => {
     fixture = await createList(page, testInfo, []);
     const listId = fixture.listId;
+    // Only these fabricated fixture buckets: repeat runs must not inherit
+    // earlier pairing attempts. Production rate-limit behavior is unchanged.
+    assertFixtureTargetAllowed(process.env);
+    const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await db.connect();
+    try {
+      await db.query(
+        'DELETE FROM "RateLimitEntry" WHERE key = ANY($1::text[])',
+        [
+          [
+            `device-pair-create:${FIXTURE_IDS.familyA.parent}`,
+            `device-pair-create-fam:${FIXTURE_IDS.familyA.family}`,
+            `device-revoke:${FIXTURE_IDS.familyA.parent}`,
+          ],
+        ],
+      );
+    } finally {
+      await db.end();
+    }
     const context = await browser.newContext({
       baseURL: E2E_BASE_URL,
       viewport: { width: 1280, height: 800 },
@@ -538,6 +559,14 @@ test.describe("offline grocery ticks: Family A parent", () => {
     fixture = await createList(page, testInfo, ["Sync apples"]);
     const itemId = fixture.items["Sync apples"];
     const updates = trackUpdates(page);
+    const received: Response[] = [];
+    page.on("response", (response) => {
+      if (
+        response.request().method() === "PATCH" &&
+        response.url().includes("/api/lists/items/update")
+      )
+        received.push(response);
+    });
     await page.goto(`/dashboard/lists/${fixture.listId}`);
     const item = row(page, itemId);
     await expect(item).toBeVisible();
@@ -591,14 +620,9 @@ test.describe("offline grocery ticks: Family A parent", () => {
       updates.map((r) => r.headers()["idempotency-key"]).filter(Boolean),
     );
     expect(keys.size).toBe(1);
-    // request.failure() is still null while an aborted request is settling.
-    // Await each response before classifying actual successful deliveries.
-    const responses = await Promise.all(
-      updates.map((request) => request.response()),
-    );
-    const delivered = responses.filter(
-      (response) => response?.status() === 200,
-    );
+    // Only observed HTTP responses are deliveries; aborted requests across
+    // reload may never resolve request.response() in Chromium.
+    const delivered = received.filter((response) => response.status() === 200);
     expect(delivered.length).toBeGreaterThanOrEqual(1);
     for (const response of delivered.slice(1)) {
       expect(response!.headers()["idempotency-replayed"]).toBe("true");
