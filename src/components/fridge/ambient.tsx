@@ -144,17 +144,14 @@ export function AmbientCover({
           className="absolute inset-0 h-full w-full object-cover"
         />
       )}
-      {state.ambient && (
-        <>
-          {photo && (
-            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/60" />
-          )}
-          <div className="relative flex h-full flex-col justify-between p-8 lg:p-12 2xl:p-16">
-            <div>
-              <p
-                data-testid="ambient-clock"
-                className="text-[88px] font-semibold leading-none tabular-nums md:text-[120px] 2xl:text-[160px]"
-              >
+      {photo && (
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/60" />
+      )}
+      <div className="relative flex h-full flex-col justify-between p-8 lg:p-12 2xl:p-16">
+        <div>
+          {state.ambient && (
+            <>
+              <p data-testid="ambient-clock" className="text-[88px] font-semibold leading-none tabular-nums md:text-[120px] 2xl:text-[160px]">
                 <span className="sr-only">Time: </span>
                 {formatTime(now, locale)}
               </p>
@@ -162,45 +159,43 @@ export function AmbientCover({
                 {formatLongDate(now, locale)}
               </p>
               {current && WeatherIcon && (
-                <p
-                  data-testid="ambient-weather"
-                  className="mt-4 flex items-center gap-3 text-[26px] md:text-[30px] 2xl:text-[36px]"
-                >
+                <p data-testid="ambient-weather" className="mt-4 flex items-center gap-3 text-[26px] md:text-[30px] 2xl:text-[36px]">
                   <WeatherIcon className="h-9 w-9 shrink-0 2xl:h-11 2xl:w-11" aria-hidden="true" />
-                  <span className="tabular-nums">
-                    {current.temperature}°{weather!.weather.unit}
-                  </span>
+                  <span className="tabular-nums">{current.temperature}°{weather!.weather.unit}</span>
                   <span>{current.summary}</span>
                 </p>
               )}
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          {state.ambient && (
+            <div className="min-w-0 max-w-[40rem] space-y-3 text-[22px] md:text-[24px] 2xl:text-[28px]">
+              {next && (
+                <p data-testid="ambient-next" className="break-words">
+                  <span className="font-semibold">Next · {next.when}</span>
+                  <span className="block">{next.title}</span>
+                </p>
+              )}
+              {dinner && (
+                <p data-testid="ambient-dinner" className="break-words">
+                  <span className="font-semibold">Tonight</span>
+                  <span className="block">{dinner}</span>
+                </p>
+              )}
             </div>
-
-            <div className="flex flex-wrap items-end justify-between gap-6">
-              <div className="min-w-0 max-w-[40rem] space-y-3 text-[22px] md:text-[24px] 2xl:text-[28px]">
-                {next && (
-                  <p data-testid="ambient-next" className="break-words">
-                    <span className="font-semibold">Next · {next.when}</span>
-                    <span className="block">{next.title}</span>
-                  </p>
-                )}
-                {dinner && (
-                  <p data-testid="ambient-dinner" className="break-words">
-                    <span className="font-semibold">Tonight</span>
-                    <span className="block">{dinner}</span>
-                  </p>
-                )}
-              </div>
-              <p className="text-[18px] text-white/80 md:text-[20px]">Tap anywhere to show the board</p>
-            </div>
+          )}
+          <div className="relative z-10 ml-auto flex flex-col items-end gap-3">
+            {state.ambient && <p className="text-[18px] text-white/80 md:text-[20px]">Tap anywhere to show the board</p>}
+            <button ref={buttonRef} type="button" className="btn-primary min-h-11">
+              Show the board
+            </button>
           </div>
-        </>
-      )}
+        </div>
+      </div>
       {state.dim && (
         <div aria-hidden="true" data-testid="night-dim" className="pointer-events-none absolute inset-0 bg-black/70" />
       )}
-      <button ref={buttonRef} type="button" className="sr-only">
-        Show the board
-      </button>
     </div>
   )
 }

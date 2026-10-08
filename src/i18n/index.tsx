@@ -4,6 +4,7 @@ import { PRODUCT_BRAND } from '@/lib/brand'
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { Locale } from './types'
+import { pseudolocalizeTemplate } from './pseudo'
 
 // Inline messages — no external library needed
 const messages = {
@@ -958,10 +959,13 @@ export function I18nProvider({
   children,
   locale = 'en',
   persistLocale = false,
+  pseudolocalize = false,
 }: {
   children: React.ReactNode
   locale?: Locale
   persistLocale?: boolean
+  /** Local/CI QA only; never adds a public language or changes stored values. */
+  pseudolocalize?: boolean
 }) {
   const [currentLocale, setCurrentLocale] = useState<Locale>(locale)
 
@@ -996,10 +1000,11 @@ export function I18nProvider({
         }
       }
       if (typeof value !== 'string') return key
-      if (!params) return value
-      return value.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`))
+      const template = pseudolocalize ? pseudolocalizeTemplate(value) : value
+      if (!params) return template
+      return template.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`))
     },
-    [currentLocale]
+    [currentLocale, pseudolocalize]
   )
 
   return (

@@ -1,10 +1,18 @@
 # Current State
 
-**Last reconciled:** 2026-10-08, against protected `main` at `4d9aec4e0db7269e628f4965090651a8edf1cb97` (#396)
+**Last reconciled:** 2026-10-08, against protected `main` at `940329a9158a7a72f5f8378a388931b27458616e` (#399)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 
 Inspect GitHub and executable source again before changing code or reporting status. The current refresh below uses the GitHub API, protected-main ancestry, observed exact-head CI and anonymous public endpoints on 2026-10-08. Older source/runtime/CI sections retain their original 2026-09-29 to 2026-10-07 evidence as history; they are not current deployment instructions. Secrets and production settings were not changed or re-verified.
+
+## Execution refresh — 2026-10-08, after #399
+
+Protected main is `940329a9158a7a72f5f8378a388931b27458616e`. Twenty-five cleanup PRs are verified merged, including #397/#398 through normal #399 merge; included heads are ancestors of main. Exact final #399 hosted checks passed Build/Test, checked image, GitGuardian, 742 browser journeys and 28 visual checks. Completed owned convergence/recovery branches were removed after reachability proof. Public runtime evidence below remains the earlier #396 observation; no later live version or acceptance is inferred from this merge.
+
+#400 is the pending visible calm/night wake fix, locally verified with 4,348 unit tests and 35 browser checks plus four reviewed screenshots. Its exact-head Build/Test passes while remaining hosted checks are followed on their original runs. The #401 pseudolocale QA candidate includes unchanged #400 plus additive template expansion before interpolation, gated by two explicit review flags. Normal locale/storage/data values remain unchanged. Local #401 source `268e467` passed 4,354 unit tests, focused types/lint/format, QA and normal builds, and nine rendered read-only authentication QA checks at phone/portrait/fridge sizes. Final combined candidate and hosted verification remain required before any merge claim.
+
+There are 49 open issues after creating bounded child #401; parent #142 retains all original externalization, pluralization, RTL, locale/data and reviewed-language criteria. The screenshot gallery/ZIP contains 247 source-labeled fabricated local captures, including nine artificial pseudolocale QA views. No physical-device, supported-language, live-release or household acceptance is inferred. Android workflow activation remains pending the owner's #370 response; do not enable/dispatch it from elapsed waiting. Earlier refreshes below are historical snapshots.
 
 ## Later execution refresh — 2026-10-08, after #396
 
