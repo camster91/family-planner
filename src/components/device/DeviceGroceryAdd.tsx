@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "@/i18n";
+import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import type { DeviceClient } from "@/lib/device-client";
 import { getDeviceQueue } from "@/lib/offline-queue-browser";
@@ -27,12 +29,13 @@ export function DeviceGroceryAdd({
   prepare: () => Promise<boolean>;
   afterChange: () => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = React.useState(false);
   const [listId, setListId] = React.useState("");
   const [content, setContent] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [notice, setNotice] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<GroceryMessage | null>(null);
+  const [notice, setNotice] = React.useState<GroceryMessage | null>(null);
   const [ops, setOps] = React.useState<AddGroceryOperation[]>([]);
   const [durable, setDurable] = React.useState(true);
   const [online, setOnline] = React.useState(true);
@@ -84,16 +87,13 @@ export function DeviceGroceryAdd({
         active
       ) {
         afterRef.current();
-        setNotice("Item added to the grocery list.");
+        setNotice("deviceConfirmed");
       }
       if (event.type === "auth-lost" && active) {
         close();
         setNotice(null);
       }
-      if (event.type === "dropped" && active)
-        setNotice(
-          "Some older queued changes were removed. Check your grocery list before adding them again.",
-        );
+      if (event.type === "dropped" && active) setNotice("deviceDropped");
     });
     void queue.ready.then(update);
     return () => {
@@ -134,13 +134,11 @@ export function DeviceGroceryAdd({
       text.length > 200 ||
       !lists.some((list) => list.id === listId)
     ) {
-      setError("Choose a grocery list and use 1 to 200 characters.");
+      setError("deviceValidation");
       return;
     }
     if (!actorId) {
-      setError(
-        "Your name selection expired. Close this form and pick your name again.",
-      );
+      setError("actorExpired");
       return;
     }
     const current = generation.current;
@@ -158,19 +156,16 @@ export function DeviceGroceryAdd({
         close();
         // A confirmation event may already have arrived. The queued rows below
         // represent current state, never claim a local enqueue was saved remotely.
-        if (!op.durable)
-          setNotice(
-            "This add is only in memory. Keep this page open until it syncs.",
-          );
+        if (!op.durable) setNotice("devicePageOnly");
         else if (queue.list().some((queued) => queued.id === op.id))
-          setNotice("Add queued. Check its status below.");
+          setNotice("deviceQueued");
       }
     } catch (failure) {
       if (generation.current !== current) return;
       setError(
         failure instanceof QueueError && failure.code === "QUEUE_FULL"
-          ? "Too many changes are waiting for Wi-Fi. Your text is still here; try again after they sync."
-          : "Could not queue this add. Your text is still here. Try again.",
+          ? "deviceFull"
+          : "deviceQueueFailed",
       );
     } finally {
       sending.current = false;
@@ -183,13 +178,11 @@ export function DeviceGroceryAdd({
       const queue = getDeviceQueue(client);
       if (discard) {
         await queue.discard(op.id);
-        setNotice(
-          "Queued add removed. Check the list before adding it again; an earlier send may already have saved it.",
-        );
+        setNotice("deviceRemoved");
       } else if (op.state === "pending") await queue.handleOnline();
       else await queue.retry(op.id);
     } catch {
-      setNotice("Could not update the queued add. Try again.");
+      setNotice("deviceRecoverFailed");
     }
   };
 
@@ -212,37 +205,30 @@ export function DeviceGroceryAdd({
             setOpen(true);
         }}
       >
-        Add grocery
+        {t("groceries.deviceTitle")}
       </button>
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p role="status">{t(`groceries.${notice}`)}</p>}
       {ops.length > 0 && (
         <section
-          aria-label="Queued grocery adds"
+          aria-label={t("groceries.deviceQueuedSection")}
           className="space-y-3 rounded-lg border border-[var(--surface-separator)] p-3"
         >
-          <p>
-            These items are not yet confirmed on the list. Retry here instead of
-            adding the same item again.
-          </p>
-          {!durable && (
-            <p role="alert">
-              Changes are only in memory. Keep this page open until they sync.
-            </p>
-          )}
+          <p>{t("groceries.deviceUnconfirmedHint")}</p>
+          {!durable && <p role="alert">{t("groceries.deviceMemoryHint")}</p>}
           {ops.map((op) => {
             const cannotRetry =
               op.lastError === "EXPIRED" ||
               op.lastError === "IDEMPOTENCY_KEY_REUSED";
             const state =
               op.state === "syncing"
-                ? "Adding…"
+                ? t("groceries.adding")
                 : op.state === "pending"
-                  ? "Waiting to add when connected."
+                  ? t("groceries.deviceWaiting")
                   : op.state === "conflict"
-                    ? "That list is no longer available or has changed."
+                    ? t("groceries.deviceConflict")
                     : cannotRetry
-                      ? "This add cannot safely be retried. Check the list, then remove this queued add."
-                      : "Could not add this item.";
+                      ? t("groceries.deviceUnsafe")
+                      : t("groceries.deviceFailed");
             return (
               <div
                 key={op.id}
@@ -260,7 +246,9 @@ export function DeviceGroceryAdd({
                         disabled={!online}
                         onClick={() => void recover(op, false)}
                       >
-                        {op.state === "pending" ? "Try now" : "Retry add"}
+                        {op.state === "pending"
+                          ? t("groceries.tryNow")
+                          : t("groceries.retryAdd")}
                       </button>
                     )}
                     <button
@@ -268,7 +256,7 @@ export function DeviceGroceryAdd({
                       className={neutralButtonClass}
                       onClick={() => void recover(op, true)}
                     >
-                      Remove queued add
+                      {t("groceries.removeAdd")}
                     </button>
                   </div>
                 )}
@@ -278,22 +266,20 @@ export function DeviceGroceryAdd({
         </section>
       )}
       <Dialog
+        closeLabel={t("groceries.close")}
         open={open}
         onClose={busy ? undefined : close}
-        title="Add grocery"
+        title={t("groceries.deviceTitle")}
         initialFocusRef={input}
         testId="device-grocery-add"
       >
         {!lists.length ? (
-          <p>
-            Create a grocery list on your personal device first. This tablet
-            cannot create lists.
-          </p>
+          <p>{t("groceries.deviceNoLists")}</p>
         ) : (
           <form onSubmit={submit} className="space-y-4">
             <div>
               <label htmlFor="device-grocery-list" className={labelClass}>
-                Grocery list
+                {t("groceries.groceryList")}
               </label>
               <select
                 id="device-grocery-list"
@@ -302,7 +288,7 @@ export function DeviceGroceryAdd({
                 className={inputClass}
                 onChange={(e) => setListId(e.target.value)}
               >
-                <option value="">Choose a list</option>
+                <option value="">{t("groceries.chooseList")}</option>
                 {lists.map((list) => (
                   <option key={list.id} value={list.id}>
                     {list.name}
@@ -310,15 +296,10 @@ export function DeviceGroceryAdd({
                 ))}
               </select>
             </div>
-            {lists.length === 50 && (
-              <p>
-                Showing the first 50 lists. Use your personal device for other
-                lists.
-              </p>
-            )}
+            {lists.length === 50 && <p>{t("groceries.firstFifty")}</p>}
             <div>
               <label htmlFor="device-grocery-content" className={labelClass}>
-                Item
+                {t("groceries.item")}
               </label>
               <input
                 id="device-grocery-content"
@@ -331,14 +312,10 @@ export function DeviceGroceryAdd({
                 onChange={(e) => setContent(e.target.value)}
               />
             </div>
-            {!online && (
-              <p role="status">
-                This add will wait on this tablet and sync when connected.
-              </p>
-            )}
+            {!online && <p role="status">{t("groceries.deviceOfflineHint")}</p>}
             {error && (
               <p role="alert" className={errorTextClass}>
-                {error}
+                {t(`groceries.${error}`)}
               </p>
             )}
             <div className="flex flex-wrap gap-3">
@@ -347,7 +324,7 @@ export function DeviceGroceryAdd({
                 disabled={busy}
                 className={primaryButtonClass}
               >
-                {busy ? "Queueing…" : "Add item"}
+                {busy ? t("groceries.queueing") : t("groceries.addItem")}
               </button>
               <button
                 type="button"
@@ -355,7 +332,7 @@ export function DeviceGroceryAdd({
                 onClick={close}
                 className={neutralButtonClass}
               >
-                Cancel
+                {t("groceries.cancel")}
               </button>
             </div>
           </form>
