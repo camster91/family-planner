@@ -1,5 +1,6 @@
 'use client'
 
+import { listOverviewEnglish, listOverviewSpanish } from './list-overview'
 import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
 import { PRODUCT_BRAND } from '@/lib/brand'
@@ -12,6 +13,7 @@ import { pseudolocalizeTemplate } from './pseudo'
 const messages = {
   en: {
     groceries: groceryEnglish,
+    listOverview: listOverviewEnglish,
     preferences: {
       languageEnglish: 'English',
       languageSpanish: 'Español',
@@ -474,6 +476,7 @@ const messages = {
   },
   es: {
     groceries: grocerySpanish,
+    listOverview: listOverviewSpanish,
     preferences: {
       languageEnglish: 'English',
       languageSpanish: 'Español',
