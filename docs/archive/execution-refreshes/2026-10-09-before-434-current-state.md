@@ -1,0 +1,12 @@
+# Current State
+
+## Current execution — 2026-10-09, account localization candidate
+
+Protected main is `28ca4f2a7f15385a85f886b0d4318c165645baf5`: 41 cleanup PRs normally merged. PR #429 accepted exact `6cbd81d294ec5c3cb34080ab3a8306a5898a4d78` at 08:41:20Z; original #428 five criteria are verified CLOSED. Original Build/Test37903919954 and E2E37903920017 passed both isolated viewport jobs, journey/visual steps, aggregate, fresh checked image and GitGuardian. Exact-head manual implementing-agent COMMENT, strict/admin/conversation protections and zero unresolved threads were checked before normal merge. Owned preference branches were cleaned. The earlier single-job browser cancellation and same-coverage repair remain documented in [CI evidence](testing/E2E_VIEWPORT_SHARDING.md).
+
+Local #430 integrates accepted main. Application inputs match actual `b388d8b943650849943d6accdf9a7a14448ea986`, built `2026-10-09T07:47:47.424Z`. Prisma/types/lint/format/build, 375 suites/4535 tests (188 existing skips), 93 affected checks, 11 isolated PostgreSQL cases, 18 ordinary/18 expanded browser journeys, 6 actual disposable-household deletion/export flows and all36 unchanged JavaScript budgets passed. Integrated enumeration covers1824 non-setup journeys exactly once across two isolated jobs (915 entries each including3 setup); visual coverage36 non-setup once. Current account publication and original exact-head hosted/review/protection/normal-merge gates remain pending; original #430 criteria stay unchecked. See [account proof](testing/ACCOUNT_DELETION_LOCALIZATION.md).
+
+Gallery/ZIP2293 verified images includes324 final account views, preserving all1969 previous objects/pixels. Owned app/PG are stopped. Unrelated primary/aux worktrees are preserved; fresh primary dirty enumeration is unverified after its owned read stalled and was interrupted.
+
+#142 remains OPEN: accepted main1555 detectable occurrences, account candidate1524. Full app/Settings locale, date/time/units/RTL/week-start, human/native/store gates remain open. #134 wider query/contracts/index/migration/load work remains open. Provider/production/legal/sender/cron/hardware/research/real-household gates remain explicit. Fabricated QA does not establish real-account deletion, production or full-app acceptance. Previous summary is preserved [verbatim](archive/execution-refreshes/2026-10-09-account-before-publication.md); live GitHub records carry execution status.
+
