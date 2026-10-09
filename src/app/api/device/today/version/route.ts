@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
@@ -18,7 +19,9 @@ const DEVICE_BOARD_VERSION_WINDOW_MS = 60 * 60 * 1000
  * board: the device cookie only, the device's own household only, kill
  * switch 404. The tablet polls it and re-fetches the board when it changes.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteTelemetry('/api/device/today/version', handleGET)
+
+async function handleGET(request: NextRequest) {
   const off = killSwitch()
   if (off) return off
   try {

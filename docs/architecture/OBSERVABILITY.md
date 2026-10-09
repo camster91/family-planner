@@ -65,6 +65,9 @@ A support or test report quotes the `X-Request-Id` of the failing response (also
 - `logRouteError(route, error, requestId)` writes one line `{ event: 'route.error', route, requestId, errorName, errorCode?, errorStatus? }` through `src/lib/logger.ts`. `errorName` is the exception class name when it is a plain identifier; `errorCode` is a short machine code such as Prisma `P2002`, Node `ECONNREFUSED` or an HTTP client's `ERR_BAD_RESPONSE`; `errorStatus` is an HTTP status number (100-599) from the error's `status`, `statusCode` or `response.status`. The exception message, stack, Prisma `meta`, request body, URL, query string and any user/household id are never logged (Prisma and pg messages can quote column values).
 
 ### Route timing
+
+Core-route adoption (#417) wraps `GET /api/chores`, `GET /api/events`, `GET /api/lists`, `GET /api/family/board-version`, `POST /api/auth/login`, `GET /api/device/today` and `GET /api/device/today/version` with these fixed public templates. Handler bodies and unrelated write exports stay unchanged. `src/app/api/__tests__/core-route-timing.test.ts` exercises the actual exports on the two-household harness with timing off/on, successful and refused requests, preserved bodies/cookies/cache headers, secret-free field allowlists, zero-rate sampling and sanitized 5xx logging. Run `npx jest --runInBand --runTestsByPath src/app/api/__tests__/core-route-timing.test.ts src/lib/__tests__/observability.test.ts`. This adoption does not enable production logging or establish production latency, availability, retention or capacity evidence.
+
 `withRouteTelemetry(routeTemplate, handler)` (`src/lib/route-telemetry.ts`) wraps a handler. It ensures `X-Request-Id` on the response and, only when `ROUTE_TIMING_LOG=1`, writes one line per request:
 
 ```json

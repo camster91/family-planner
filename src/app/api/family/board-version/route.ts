@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -23,7 +24,9 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' }
  * from the caller's household. Person sessions only: a paired tablet cookie
  * is not a session (401) and uses GET /api/device/today/version instead.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteTelemetry('/api/family/board-version', handleGET)
+
+async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error

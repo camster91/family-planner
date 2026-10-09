@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -8,7 +9,9 @@ import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteTelemetry('/api/lists', handleGET)
+
+async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error

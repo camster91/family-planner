@@ -1,6 +1,16 @@
 # Herewoven completion contract and durable release plan
 
-## Latest execution refresh — 2026-10-09, after protected #414 merge
+## Latest execution refresh — 2026-10-09, after protected #416 merge
+
+Protected main is `5a325ce608afe17a6f2407e02ef859417899b83f`; **34 cleanup PRs are verified merged**, 49 issues remain open. #416 final head da4f4ea passed original Build/Test 37869025326, fresh-runner image, 863 hosted journeys (700 configured skips) and 28 visuals (11 existing skips), then merged normally at 01:43:02 UTC. Strict/admin/conversation protection and resolved review threads were verified. All five original #415 criteria are checked with wording/history preserved and the issue is closed. Only its verified owned local/remote branch was removed. Publish/VPS jobs skipped; no production promotion or acceptance is inferred.
+
+#417 is PR #418, initially published at 792f61a with 15 regression-first actual-handler cases, 61 affected cases, 360 suites/4,400 cases, committed bcb972a production build, all 60 selected affected phone/portrait/fridge browser cases (59 initial passes plus one disk-space recovery pass), default-off silence and 12 isolated opt-in timing lines verified. Main 5a325ce is now included by ordinary merge 7d8b3a2; combined Prisma/types/lint/format and full unit checks pass (363 suites/4,408 cases; 188 existing opt-in skips); the actual 7d8b3a2 production build (01:45:14.460 UTC) and 96 browser cases pass (60 affected journeys plus all 36 unchanged core budgets), with default-off logs silent. Final hosted gates remain required after publishing that integration. Existing original CI on the earlier published head is historical once accepted-main integration is pushed; a new run would be justified by that source integration, never by observation delay. See `docs/testing/CORE_ROUTE_TIMING.md` for exact source, commands, privacy fields and recovery evidence. No wrapper policy or production flag changed.
+
+The checked gallery/ZIP now has 817 source-labelled captures, preserving the previous 808 plus nine ordinary bcb972a device-recovery images. Original source/mode labels, image paths, exact archived manifest and full ZIP CRC are verified; no unrecorded HTTP status or production/native acceptance is inferred. #137 and #142 retain every wider original requirement beyond their individually verified document/copy-guard checkboxes.
+
+Native workflow, legal/company/sender, provider/production, real-device, research and real-household acceptance gates remain open with their named owners. Earlier snapshots below retain their original dates and evidence.
+
+## Historical execution refresh — 2026-10-09, after protected #414 merge
 
 Protected main is `7e2f20d4fcf34987e0fb830104b55e7969a3a17d`; **33 cleanup PRs are verified merged**,49 issues remain open. #414 exact reviewed head1a77c6e passed original Build/Test37866168350, fresh-image113615906073,851 hosted journeys (688 configured skips) and28 visual checks (11 existing skips), then merged normally at01:12:24UTC. GitGuardian passed, Cursorneutral, reviewthreads0; strict/admin/conversation protection was verified. All five original #413 criteria are checked with wording/history preserved; the issue is closed. Only its verified owned branch is cleaned. Publish/VPS jobs skipped; merge is not manual production promotion or acceptance.
 
