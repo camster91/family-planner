@@ -156,7 +156,7 @@ for (const locale of ["en", "es"] as const)
     ).toBeDisabled();
     await capture(page, info, "forgot-pending", [email]);
     await finish(503, {});
-    await expect(page.getByRole("alert")).toHaveText(
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
       translate(messages[locale].common.error),
     );
     await expect(email).toHaveValue(fakeEmail);
@@ -210,7 +210,9 @@ for (const locale of ["en", "es"] as const)
       page.getByRole("button", { name: copy("showPassword") }).last(),
     ]);
     await reset.click();
-    await expect(page.getByRole("alert")).toHaveText(auth("passwordMismatch"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      auth("passwordMismatch"),
+    );
     expect(posts.length).toBe(2);
     await capture(page, info, "reset-validation", [reset]);
     await confirm.fill(fakePassword);
@@ -227,13 +229,15 @@ for (const locale of ["en", "es"] as const)
     ).toBeDisabled();
     await capture(page, info, "reset-pending", [password, confirm]);
     await finish(400, { error: "Synthetic raw refusal {token} / 李" });
-    await expect(page.getByRole("alert")).toHaveText(
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
       "Synthetic raw refusal {token} / 李",
     );
     await capture(page, info, "reset-refused", [reset]);
     mode = "network";
     await reset.click();
-    await expect(page.getByRole("alert")).toHaveText(auth("unexpectedError"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      auth("unexpectedError"),
+    );
     await expect(password).toHaveValue(fakePassword);
     await expect(confirm).toHaveValue(fakePassword);
     await capture(page, info, "reset-network", [reset]);

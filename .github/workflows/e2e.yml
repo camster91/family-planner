@@ -134,14 +134,92 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  recovery_expanded:
+    name: Expanded password recovery QA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    # Independent QA build: public static pages capture expansion at build time.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          # Disposable database for this isolated, ephemeral hosted job.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Loopback + disposable name: accepted by the fixture guard (src/lib/fixtures/guard.ts).
+      DATABASE_URL: postgresql://postgres@localhost:5432/fp_e2e_ci
+      FIXTURES_ALLOW: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      I18N_PSEUDO_ENABLED: "1"
+      DESIGN_GALLERY_ENABLED: "1"
+      RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Migrate database
+        run: node scripts/migrate.js
+
+      - name: Build application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+
+      - name: Expanded anonymous recovery journeys
+        run: npx playwright test e2e/auth-recovery-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800 --no-deps
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_REPORT_DIR: playwright-report/recovery-expanded
+          E2E_OUTPUT_DIR: test-results/recovery-expanded
+
+      # Every recovery POST is intercepted; screenshots contain fabricated values only.
+      - name: Preserve expanded recovery report and captures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: recovery-expanded-${{ github.sha }}
+          path: |
+            playwright-report/recovery-expanded/
+            test-results/recovery-expanded/
+          if-no-files-found: error
+          retention-days: 7
+
   verify:
     name: E2E (Playwright)
-    needs: e2e
+    needs: [e2e, recovery_expanded]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require every isolated viewport shard
+      - name: Require every isolated viewport shard and expanded recovery
         env:
           SHARD_RESULT: ${{ needs.e2e.result }}
-        run: test "$SHARD_RESULT" = success
+          RECOVERY_RESULT: ${{ needs.recovery_expanded.result }}
+        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success
