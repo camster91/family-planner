@@ -36,7 +36,9 @@ async function checkForm(page: Page, info: TestInfo, name: string) {
   const save = page.getByRole("button", {
     name: /^(Save Changes|Create Event)$/,
   });
-  await save.scrollIntoViewIfNeeded();
+  await save.evaluate((el) =>
+    el.scrollIntoView({ block: "center", inline: "nearest" }),
+  );
   const box = await save.boundingBox();
   expect(box!.height).toBeGreaterThanOrEqual(44);
   expect(box!.width).toBeGreaterThanOrEqual(44);
@@ -189,7 +191,9 @@ for (const locale of ["en", "es"] as const) {
     await page.locator("#startDate").fill("2026-03-08");
     await page.locator("#startTime").fill("02:30");
     await page.getByRole("button", { name: "Create Event" }).click();
-    await expect(page.getByRole("alert")).toHaveText("Invalid date/time");
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
+      "Invalid date/time",
+    );
     expect(posts).toEqual([]);
     await expect(page.locator("#startTime")).toHaveValue("02:30");
     await checkForm(page, info, `${locale}-nonexistent-time-error`);
@@ -257,18 +261,16 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByLabel("Title")).toHaveValue(
         "Synthetic current record",
       );
+      const previousResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/events" &&
+          new URL(response.url()).searchParams.get("id") === ids[0],
+      );
       release();
-      await expect
-        .poll(async () =>
-          page.evaluate(
-            () =>
-              performance
-                .getEntriesByType("resource")
-                .filter((entry) => entry.name.includes("/api/events?id="))
-                .length,
-          ),
-        )
-        .toBeGreaterThanOrEqual(2);
+      const completedPrevious = await previousResponse;
+      expect(completedPrevious.status()).toBe(200);
+      expect(await completedPrevious.finished()).toBeNull();
+      expect((await completedPrevious.json()).event.id).toBe(ids[0]);
       await expect(page.getByLabel("Title")).toHaveValue(
         "Synthetic current record",
       );
@@ -309,6 +311,7 @@ for (const locale of ["en", "es"] as const) {
         page,
         `/api/events?id=${encodeURIComponent(ids[1])}`,
       );
+      expect(current.status).toBe(200);
       expect(JSON.parse(current.body).event).toMatchObject({
         title: "Synthetic current record revised",
         start_time: "2026-11-01T06:30:45.123Z",
