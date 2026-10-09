@@ -230,9 +230,96 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  inventory_localization:
+    name: Inventory ordinary and expanded QA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres@localhost:5432/fp_e2e_ci
+      FIXTURES_ALLOW: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Migrate database
+        run: node scripts/migrate.js
+      # The stub is enabled only for the server runs, never for compilation.
+      - name: Build ordinary inventory application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+          I18N_PSEUDO_ENABLED: "0"
+          DESIGN_GALLERY_ENABLED: "0"
+      - name: Ordinary guarded inventory journeys
+        run: npx playwright test e2e/inventory-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_INVENTORY_SCAN_STUB: "1"
+          I18N_PSEUDO_ENABLED: "0"
+          DESIGN_GALLERY_ENABLED: "0"
+          E2E_REPORT_DIR: playwright-report/inventory-ordinary
+          E2E_OUTPUT_DIR: test-results/inventory-ordinary
+      - name: Build expanded inventory application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+          I18N_PSEUDO_ENABLED: "1"
+          DESIGN_GALLERY_ENABLED: "1"
+      - name: Expanded guarded inventory journeys
+        run: npx playwright test e2e/inventory-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_INVENTORY_SCAN_STUB: "1"
+          I18N_PSEUDO_ENABLED: "1"
+          DESIGN_GALLERY_ENABLED: "1"
+          E2E_REPORT_DIR: playwright-report/inventory-expanded
+          E2E_OUTPUT_DIR: test-results/inventory-expanded
+      - name: Preserve ordinary and expanded inventory proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: inventory-qa-${{ github.sha }}
+          path: |
+            playwright-report/inventory-ordinary/
+            test-results/inventory-ordinary/
+            playwright-report/inventory-expanded/
+            test-results/inventory-expanded/
+          if-no-files-found: error
+          retention-days: 7
+
   verify:
     name: E2E (Playwright)
-    needs: [e2e, recovery_expanded]
+    needs: [e2e, recovery_expanded, inventory_localization]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -241,4 +328,5 @@ jobs:
         env:
           SHARD_RESULT: ${{ needs.e2e.result }}
           RECOVERY_RESULT: ${{ needs.recovery_expanded.result }}
-        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success
+          INVENTORY_RESULT: ${{ needs.inventory_localization.result }}
+        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success
