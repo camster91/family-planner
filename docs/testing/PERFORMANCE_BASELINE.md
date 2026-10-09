@@ -12,7 +12,7 @@ node scripts/migrate.js
 # Anchor the fixtures at today so the Today board has today's events and chores
 FIXTURES_ALLOW=1 FIXTURES_ANCHOR_DATE="$(date -u +%Y-%m-%dT12:00:00Z)" npm run fixtures:seed
 
-# 2. A local server on that database (production build preferred; see "Environment")
+# 2. A local server on that database (production build preferred; see recorded baselines below)
 export JWT_SECRET="$(openssl rand -hex 32)" NEXT_TELEMETRY_DISABLED=1 RELEASE_SHA="$(git rev-parse HEAD)"
 npm run build && npx next start -p 3161      # or: npx next dev --webpack -p 3161
 
@@ -25,7 +25,13 @@ PERF_BASE_URL=http://localhost:3161 npm run perf:baseline
 
 It refuses any target that is not http(s) on a loopback host (`localhost`, `127.x.x.x`, `::1`), URLs with credentials, and `NODE_ENV=production` (`src/lib/perf-target.ts`, unit-tested). It adds no polling, no background job and no server code path; it is a one-shot command.
 
-To see which queries dominate, start the server with `PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0` and/or `ROUTE_TIMING_LOG=1` (`architecture/OBSERVABILITY.md`). Record numbers with both **off**: the extra log lines add latency.
+For query-shape diagnosis, use a **separate development/test server** with
+`PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0 npm run dev` against the guarded loopback fixture database
+(see `architecture/OBSERVABILITY.md`). The hook is ignored with `NODE_ENV=production`; those flags alone
+cannot trace a production-build server. Query lines omit parameters, mask literals and truncate SQL.
+Instrumented development numbers are diagnostic and are not comparable to production-build timings.
+Record the baseline table with query and route timing logs both **off**. The script's own process must also
+pass its non-production/loopback target guard even when the separate server uses a compiled production build.
 
 ## Endpoints
 

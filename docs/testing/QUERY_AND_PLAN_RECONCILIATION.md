@@ -45,3 +45,14 @@ be observed on the published documentation candidate before describing it as mer
 Revert this documentation-only commit to restore the earlier layout; archive/backups retain all prior text.
 There is no database/API/installed-client or production migration/rollback. Original owner/provider/native,
 research/real-household acceptance and broader parent scopes remain open.
+
+## Exact-source review correction
+
+Review of initial9589e958 candidate found ambiguous query-tracing reproduction instructions and an obsolete
+Environment heading reference. `queryTimingConfig` explicitly returns null in production mode. The guide
+now separates guarded development/test query-shape diagnosis from uninstrumented compiled-build baselines,
+and explains masked/truncated SQL cannot directly substitute for a complete parameterized query in EXPLAIN.
+Only those three documentation files change; application/guard behaviour remains untouched. Initial hosted
+runs and review snapshots are retained; subsequent CI is justified by this reviewed source correction, not
+by observation delay. New exact-head format/types/preservation/identity/secret checks and original hosted
+gates must be observed before normal merge.

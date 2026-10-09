@@ -148,7 +148,15 @@ Findings, not fixed here:
 - The Today-board and `GET /api/chores` queries filter `family_id` and order by `due_date`; the `Chore(family_id, due_date)` index (expand-only, #306) serves both. With fixture data every table is small enough that Postgres may still scan sequentially; confirm with the slow-query hook or `EXPLAIN` on a realistic household.
 - `board-version` recomputes the whole board to hash it on every poll (rate limit 1200/hour per member). It is the hottest path; watch its p95 in `docs/testing/PERFORMANCE_BASELINE.md` before adding tiles.
 
-Plan: run `npm run perf:baseline` against a local server started with `PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0` on the fixtures (and later a larger synthetic household), record the slowest statements, `EXPLAIN (ANALYZE, BUFFERS)` them on a disposable database, and propose indexes or limits in the domain's own issue. No polling or background job is added for this.
+Plan: audit query shapes on a separate development/test server against the guarded loopback fixture database
+(for example `PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0 npm run dev`). Production mode ignores this
+hook; setting those variables on a production-build server does not produce query traces. Use the existing
+performance script to exercise the core paths, but treat instrumented development timings as diagnostic,
+not comparable to the uninstrumented production-build baseline. Shape lines mask literals, omit parameters
+and truncate SQL, so recover the complete query from the reviewed source and use only fabricated parameters
+for `EXPLAIN (ANALYZE, BUFFERS)` on the disposable database. Then propose indexes or compatible limits in the
+domain's own issue. Record latency baselines with both query and route timing logs off; no polling or
+background job is added for this.
 ### Source audit limits and remaining core-flow evidence (#134)
 
 The callsite review above is source evidence, not a complete N+1, capacity or production query-plan audit.
