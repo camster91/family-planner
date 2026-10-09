@@ -58,21 +58,23 @@ test.beforeAll(async ({}, info) => {
         sourceName,
         "v1:CALENDAR-LOCALE-FIXTURE-NOT-A-REAL-URL",
         A.parent,
-        new Date("2026-01-05T12:00:00Z"),
+        new Date("2026-01-05T12:00:00Z").toISOString(),
       ],
     );
     await db.query(
       'INSERT INTO "Event" (id,family_id,title,start_time,end_time,created_by,source_subscription_id,source_uid,source_occurrence_start,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$4,$9)',
+      // Prisma DateTime columns store UTC without a zone: pass ISO strings,
+      // not node-postgres Date objects serialized in the runner timezone.
       [
         own.event,
         A.family,
         privateTitle,
-        new Date("2026-11-01T06:30:45.123Z"),
-        new Date("2026-11-01T06:45:55.456Z"),
+        new Date("2026-11-01T06:30:45.123Z").toISOString(),
+        new Date("2026-11-01T06:45:55.456Z").toISOString(),
         A.parent,
         own.subscription,
         "synthetic-locale-import",
-        new Date("2026-01-05T12:00:00Z"),
+        new Date("2026-01-05T12:00:00Z").toISOString(),
       ],
     );
   });
@@ -138,18 +140,30 @@ async function capture(
     const box = await target.boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(44);
     expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     if (await target.isEnabled()) {
       await target.focus();
       await expect(target).toBeFocused();
+      expect(
+        await target.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return el.contains(
+            document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            ),
+          );
+        }),
+      ).toBe(true);
+    } else {
+      // Empty create intentionally disables pointer events; it must explain why.
+      await expect(target).toBeDisabled();
+      await expect(target).toHaveAttribute(
+        "aria-describedby",
+        "create-event-hint",
+      );
     }
-    expect(
-      await target.evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        return el.contains(
-          document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2),
-        );
-      }),
-    ).toBe(true);
   }
   expect(
     await page.evaluate(
