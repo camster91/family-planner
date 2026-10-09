@@ -1,33 +1,14 @@
 # Current State
 
-## Current execution — 2026-10-09, after #422 merge
+## Current execution — 2026-10-09, after #425 merge
 
-Protected main is `73805fe9e94048bddcb993a5ab49509ee28a90af`. **37 cleanup PRs are normally merged;
-48 issues remain open.** There were no open PRs immediately after #422 merge. #422 exact head
-`e33f46dd62c5c362b583477c9a503e88f0edd99d` passed original Build/Test37878920351, fresh-image
-job113656189598 and E2E37878920362 (899 journeys/736 configured skips;28 visuals/11 existing skips).
-GitGuardian, resolved threads, manual review and strict/admin/conversation protections were verified.
-Normal merge completed03:56:36UTC; all five original #421 criteria are checked/closed with their
-wording/history preserved. Only its accepted owned local/remote branch was removed. Publish/VPS skipped;
-cloud Codex review was unavailable because of its account limit, so no cloud-review pass is claimed.
+Protected main is `a9a30f41c21d4ba3ad82c38f58a21597d5e1f22f`. **39 cleanup PRs are normally merged;49 issues remain open**, including #426. No PRs were open immediately after #425 acceptance. #423 query/plan documentation and #425 calendar planning localization passed their original exact-head hosted checks, manual review, resolved threads and strict/admin/conversation protections before normal merge. #425 exact4c2fad033eb0e75eb43b0929ac1d4deaa1f9aa60 passed929 hosted journeys/28 visuals and original Build/Test/fresh-image/GitGuardian; normal merge completed05:44:22UTC. Original #424 five criteria are checked/closed unchanged, and only its accepted owned branch was cleaned. Publish/VPS skipped; production acceptance is not implied.
 
-The delivered gallery/ZIP contains1003 unique source-labelled screenshots, including separately labelled
-expanded-copy QA. Actual app build remains6a09e04 at02:57:55.778Z; final test/docs/integration app inputs
-are byte-identical. The same build's small-fixture local performance baseline returned200 for all300 timed
-requests; it is not realistic capacity, production SLO or device evidence. See
-[calendar form evidence](testing/CALENDAR_FORM_LOCALIZATION.md) and
-[performance baseline](testing/PERFORMANCE_BASELINE.md). Owned loopback server/database are stopped.
+The local #426 candidate externalizes shared navigation/offline presentation and preserves language-independent fridge chrome hiding. Actual8f1bbd2285e3eabe2468b16cee9a5bb9bcf852a5/built2026-10-09T06:21:11.672Z passes30 ordinary and30 artificial expanded-copy journeys,13 existing notification/offline cases (1 configured skip),36 unchanged JS budgets and371 suites/4504 unit cases (188 existing opt-in skips). Original hosted publication checks and normal merge remain required; #426 criteria remain unchecked. See [navigation evidence](testing/NAVIGATION_LOCALIZATION.md).
 
-Current follow-up under #134 reconciles source query bounds and actual local measurements in documentation.
-This documentation work does not complete the wider query/N+1, index/retention/migration/load requirements.
-#142 still includes full externalization (1678 tracked detectable occurrences), wider locale/data/pseudo,
-RTL/units, human and native/store evidence. Provider/production, legal/sender, scheduler, native/physical-device,
-research and real-household acceptance gates remain open. Primary dirty and auxiliary worktrees are preserved.
-Use live #377/issue/PR records for temporary execution status; the sections below retain their original
-baseline/contract content and do not supersede this current summary. Dated repeated refresh notes are
-preserved in the linked archive rather than repeated in every plan entry point.
+The source-labelled local gallery has1645 images, including192 final navigation captures; all1453 prior records/pixels are preserved. This is representative fabricated browser QA. Owned app/database are stopped. Earlier small-fixture performance evidence and the full query source audit establish no realistic capacity or production SLO acceptance. #134 remains open for complete query/N+1/contracts/index/retention/migration/load work; source reconciliation alone does not close it.
 
-[Archived refresh history](archive/execution-refreshes/2026-10-09-before-422-current-state.md).
+#142 remains open: accepted main has1590 detectable copy occurrences; prepared #426 has1574 after reviewed owned removals. Full externalization, date/time/units/RTL, human/native/store work remains. Provider/production, legal/sender, scheduler, physical-device, research and real-household acceptance gates remain open. Primary dirty and auxiliary worktrees are preserved. Live #377/issue/PR records carry temporary status. The baseline sections below are retained verbatim; dated execution history is [archived](archive/execution-refreshes/2026-10-09-before-426-current-state.md).
 
 ## Release route reconciliation — 2026-10-07
 
