@@ -20,13 +20,13 @@ import {
   CircleHelp,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
-import NotificationPreferences from "@/components/account/NotificationPreferences";
+import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
 import type { NavUser, UserRole } from "@/types";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { TabBar } from "@/components/ui/tab-bar";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
-import DeleteAccountDialog from "@/components/account/DeleteAccountDialog";
+import DeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
 import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { useFeatures } from "@/components/providers/features-provider";
 import { homeHrefFor, isTabActive, tabsFor } from "@/lib/nav-items";
@@ -342,7 +342,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         <>
           <DeleteAccountDialog
             open={deleteOpen}
-            onClose={() => setDeleteOpen(false)}
+            onClose={() => {
+              setDeleteOpen(false);
+              avatarButtonRef.current?.focus();
+            }}
             allowHousehold={false}
           />
           <Dialog

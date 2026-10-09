@@ -148,6 +148,8 @@ npx jest src/app/api/__tests__/error-envelope.test.ts --ci
 
 **Bundle size:** after a CI or local `npm run build`, open `/dashboard/today` in Chrome with the cache disabled and read the JS total in the Network tab (filter "JS"). Write the number in the PR when a change adds a large dependency.
 
+Issue #413 implements an automated cold-navigation gzip check for the six core dashboard routes in the existing production-build CI browser suite. Its measurement rules, commands and limits are in [INITIAL_JS_BUDGET.md](../testing/INITIAL_JS_BUDGET.md). This is a JavaScript budget check; wider production SLO and physical-device results are still required.
+
 ## Follow-ups (not done here)
 
 Each needs its own issue. None adds a cron job.

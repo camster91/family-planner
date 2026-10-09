@@ -1,6 +1,34 @@
 # Current State
 
-## Latest execution refresh — 2026-10-08, after #410
+## Current reviewed candidate — 2026-10-09, account-dialog lifetime preserved
+
+Main remains1010979,32 cleanup PRs merged,50 open issues. Code review of the initial budget follow-up found that unmounting loaded account controls on close could lose an uncertain deletion’s retry key. A new regression test failed with two keys; the correction keeps the loaded canonical dialog mounted while closed and retains the original pending-key/401 recovery. Late download resolution after closing an unloaded dialog is still ignored.19 affected cases and359 full unit suites/4,385 cases pass,188 original opt-in cases skipped. Prisma/types/lint/format/build/inventory/tree/history secrets pass.
+
+Actual ordinary app build5d6bfe0 (2026-10-09T00:39:57.223Z) passes54 browser cases,30 configured skips, including36 unchanged core budgets and original account/notification plus cold-download retry/reopen/Escape/focus checks. Max gzip bytes: Today247,074 (2,926 headroom), calendar219,147, chores228,027, lists203,077, meals238,335, settings221,497. This reviewed source supersedes the earlier3536 candidate; final exact-head hosted build/image/E2E/review and protected normal merge remain required before #413 closure.
+
+Gallery/ZIP now742 source/mode-labelled captures, including66 ordinary store-section follow-up views at5444587, which predates this lifetime correction. Original676 identities remain intact; ZIP CRC, exact manifest,742 unique image paths and66 new hashes pass. Existing overview contact sheet is separate. #415 is preserved locally/unpublished at5444587, with362 unit suites/4,392 cases and78 browser cases passing; it must incorporate this correction and refresh final checks before publication after #414 merge. All owner/provider/native/production/research/household gates stay open. Earlier candidate entries below are dated history.
+
+## Latest execution refresh — 2026-10-09, #414 budget repair
+
+Protected main remains `101097956e09fca16a20e8aac9ae0cc1b5c17503`: 32 verified cleanup PR merges, #411 closed, 50 open issues. Original #414 head `3f5f731` failed hosted E2E run37861641705: six Today cases measured250,123 gzip bytes against250,000;842 journeys passed and685 configured cases skipped. Build/Test and checked-image passed; no merge occurred. The targeted follow-up defers the child's account-deletion controls until its existing menu action, with original loading/retry presentation, download recovery, dismissal and focus restoration. Budgets, original tests and protections remain unchanged.
+
+Actual follow-up ordinary build `ca9e326`, built2026-10-09T00:28:51.917Z, passes all36 core route/viewports: Today247,059, calendar219,132, chores228,012, lists203,062, meals maximum237,513, settings221,482 gzip bytes. Local54 browser cases pass (36 budgets,6 original isolated account-deletion journeys,9 notification cases and3 new download-recovery cases),30 configured skips;359 unit suites/4,384 cases pass,188 existing opt-in cases skipped. Prisma/types/lint/format/build/inventory/secret checks pass. The inventory is1,737 occurrences: three original records moved and one tracked fallback title. Exact follow-up hosted build/image/E2E/review and normal protected merge are still required before #413 closure. Later documentation commits do not change this recorded build identity.
+
+#415 store-section localization is preserved locally at `d732df0`, unpublished until #414 passes and merges. It has local4390 unit cases, ordinary/expanded/restored browser evidence and198 scoped captures. The delivered gallery/ZIP now preserves676 source/mode-labelled captures; earlier images retain their source identities. #415 must incorporate the prerequisite repair and refresh its own final checks before publication/closure.
+
+Existing #370 paused Android-workflow decision, #372 legal/company/sender decision, provider/production, physical-device, research and household acceptance gates remain open. No native workflow, paid provider, scheduler, production setting, secrets or manual promotion was changed. Older pending-CI/local-state entries below are dated history; merge, deployment and acceptance remain distinct.
+
+## Latest execution refresh — 2026-10-08, after #412
+
+Protected main is `101097956e09fca16a20e8aac9ae0cc1b5c17503`; **32 cleanup PRs are verified merged**. #412 exact checked head `26b55e3` passed its original Build/Test, checked image, 809 journeys and 28 visuals, then merged normally at 23:40:30 UTC. All five original #411 criteria are checked and the issue is closed. Its owned branch was cleaned after ancestry/worktree verification. Strict checks, administrator enforcement and conversation resolution remain enabled. Prior pending #411/#412 entries below are dated history.
+
+There are **49 open issues** at this readback. Performance child #413 follows the existing #137 first-load JavaScript budget action: conditional optional analytics and on-demand notification controls, with unchanged provider initialization and existing notification loading/retry UI. Candidate app source `cb12393` has passed the six core production-build cold-navigation budgets at all six viewports (36 cases), existing notification journeys, 358 unit suites / 4,382 cases, Prisma/types/lint/format/build and unchanged 1,736 tracked copy occurrences. Today is 249,900 gzip bytes against the unchanged 250,000-byte budget; it has little headroom. Final exact-head hosted review/CI/normal merge remains required before #413 closure. Parent #137 reliability, device/network/load acceptance remains open.
+
+The screenshot gallery preserves **478 captures** with exact source and ordinary/expanded-copy mode labels. Its most recent list-overview app source is `d278267`, byte-identical to the later checked #412 app/test source; final #412 hosted checks are separate evidence. No historical gallery image is silently relabelled as the performance candidate.
+
+Existing Android debug-workflow approval (#370), legal/company/sender decision (#372), provider/production, physical-device, research and household acceptance gates remain unresolved. No paused native workflow, secrets, spend, scheduler, native/store upload or manual production promotion is included. Public runtime is recorded separately below; a protected merge does not establish deployment or acceptance.
+
+## Historical execution refresh — 2026-10-08, after #410
 
 Protected main is `6f96058875057d0e3704a0b54ced68410e3678a3`. Thirty-one cleanup PRs are verified merged, including #399/#397/#398, #402/#400, #404, #408/#406 and exact #410 head `af0e04a`. Normal merge/protection, checked-image and browser evidence remains in the source PRs; children #401/#403/#405/#407/#409 are evidence-backed closed with original criteria preserved. No old open PR is left. There are 49 open issues at this refresh, including prepared child #411. Original programme/release/owner/hardware/household criteria remain open unless their existing issue separately records full acceptance.
 
@@ -15,7 +43,7 @@ Last anonymous public read on 2026-10-08 still returned #396 source `4d9aec4e0db
 Earlier execution sections below are dated historical snapshots; pending statements and counts there do not override this refresh or current GitHub source.
 
 
-**Last reconciled:** 2026-10-08, against protected `main` at `6f96058875057d0e3704a0b54ced68410e3678a3` (#410)
+**Last reconciled:** 2026-10-08, against protected `main` at `101097956e09fca16a20e8aac9ae0cc1b5c17503` (#412)
 **Repository:** `camster91/family-planner`
 **Protected default branch:** `main` (renamed from `master` on 2026-10-01)
 

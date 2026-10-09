@@ -4,6 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { Download } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
+import { AccountDeletionLoading, AccountDeletionFailure } from './AccountDeletionStatus'
 import { downloadMyData } from '@/lib/data-export-client'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import {
@@ -183,22 +184,8 @@ export default function DeleteAccountDialog({
 
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} title={title} testId="delete-account-dialog">
-      {phase.kind === 'loading' && (
-        <p role="status" className="text-[16px] text-label-secondary">
-          Loading…
-        </p>
-      )}
-
-      {phase.kind === 'load-error' && (
-        <div className="space-y-4">
-          <p role="alert" className="text-[16px] text-[var(--danger-text)]">
-            Could not load your account details.
-          </p>
-          <button type="button" className="btn-tinted min-h-[44px] w-full" onClick={() => void load()}>
-            Try again
-          </button>
-        </div>
-      )}
+      {phase.kind === 'loading' && <AccountDeletionLoading />}
+      {phase.kind === 'load-error' && <AccountDeletionFailure onRetry={() => void load()} />}
 
       {options && blocked && (
         <div className="space-y-4">

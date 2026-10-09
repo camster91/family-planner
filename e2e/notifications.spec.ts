@@ -151,6 +151,51 @@ test.describe("notification preferences (Family A parent, Settings)", () => {
 test.describe("notification preferences (Family A child, user menu)", () => {
   test.use({ storageState: authFile("childA") });
 
+  test("a failed optional controls download retries inside the dialog", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      ![
+        "phone-390x844",
+        "tablet-portrait-800x1280",
+        "fridge-landscape-1280x800",
+      ].includes(testInfo.project.name),
+      "representative phone, portrait and fridge layouts",
+    );
+    await resetSpecState();
+    await page.goto("/dashboard");
+    const menu = page.getByRole("button", { name: "User menu" });
+    await menu.click();
+    await page.waitForLoadState("networkidle");
+    let blocked = false;
+    await page.route("**/_next/static/**/*.js", async (route) => {
+      if (!blocked) {
+        blocked = true;
+        await route.abort();
+      } else await route.continue();
+    });
+    await page.getByRole("button", { name: "Notifications" }).click();
+    const dialog = page.getByRole("dialog", { name: "Notifications" });
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "Couldn't load your notification settings.",
+    );
+    expect(blocked).toBe(true);
+    const retry = dialog.getByRole("button", { name: "Try again" });
+    const box = await retry.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await retry.click();
+    await expect(
+      dialog.getByRole("switch", { name: "Chores and rewards" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      await axeSerious(page, '[data-testid="notification-preferences-dialog"]'),
+    ).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(menu).toBeFocused();
+  });
+
   test("opens from the user menu, saves, and goes quiet offline", async ({
     page,
   }, testInfo) => {
