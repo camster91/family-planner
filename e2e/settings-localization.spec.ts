@@ -1252,7 +1252,30 @@ test.describe("parentA connected calendars", () => {
         });
         await expect(picker).toHaveValue("synthetic-calendar");
         await picker.focus();
-        await page.keyboard.press("Home");
+        await expect(picker).toBeFocused();
+        // Arrow navigation works with both inline and popup native selects;
+        // Enter commits a popup choice, and Escape closes any remaining popup.
+        const nativeKeys = [];
+        for (const key of [
+          "ArrowUp",
+          "ArrowUp",
+          "ArrowUp",
+          "Enter",
+          "Escape",
+        ]) {
+          await page.keyboard.press(key);
+          nativeKeys.push({
+            key,
+            value: await picker.inputValue(),
+            focused: await picker.evaluate(
+              (el) => el === document.activeElement,
+            ),
+          });
+        }
+        await info.attach("native-calendar-picker-keyboard", {
+          body: JSON.stringify(nativeKeys),
+          contentType: "application/json",
+        });
         await expect(picker).toHaveValue("synthetic-first");
         const pickerCount = s.calls.length;
         await language(page, next);
