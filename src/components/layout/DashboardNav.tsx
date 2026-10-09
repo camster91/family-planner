@@ -118,7 +118,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         aria-label={msg("mainNavigation")}
         className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
-        <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-3 lg:gap-6">
+        <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-2 lg:gap-6">
           {/* Logo + name */}
           {/* Keep the home name accessible even where the wordmark is hidden to leave room for actions. */}
           <Link
@@ -135,7 +135,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {/* Primary tabs — md+ (the phone tab bar covers smaller widths).
               Icons from lg, where there is room for them. */}
           <div
-            className="hidden md:flex items-center gap-1"
+            className="hidden md:flex min-w-0 items-center gap-1"
             data-testid="top-tabs"
           >
             {primaryTabs.map((tab) => {
@@ -147,7 +147,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   href={tab.href}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-[15px] transition-colors duration-200",
+                    "flex min-h-[44px] min-w-0 items-center gap-1.5 px-2 lg:px-3 rounded-full text-[15px] transition-colors duration-200",
                     isActive
                       ? "font-semibold text-accent bg-accent-fill/10"
                       : "font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]",
@@ -158,7 +158,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     strokeWidth={isActive ? 2.2 : 1.8}
                     aria-hidden="true"
                   />
-                  {tab.label}
+                  <span className="min-w-0 break-words text-center">
+                    {tab.label}
+                  </span>
                 </Link>
               );
             })}
