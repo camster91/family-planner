@@ -1,5 +1,13 @@
 # Herewoven issue acceptance matrix
 
+## Current reviewed candidate — 2026-10-09, account-dialog lifetime preserved
+
+Main remains1010979,32 cleanup PRs merged,50 open issues. Code review of the initial budget follow-up found that unmounting loaded account controls on close could lose an uncertain deletion’s retry key. A new regression test failed with two keys; the correction keeps the loaded canonical dialog mounted while closed and retains the original pending-key/401 recovery. Late download resolution after closing an unloaded dialog is still ignored.19 affected cases and359 full unit suites/4,385 cases pass,188 original opt-in cases skipped. Prisma/types/lint/format/build/inventory/tree/history secrets pass.
+
+Actual ordinary app build5d6bfe0 (2026-10-09T00:39:57.223Z) passes54 browser cases,30 configured skips, including36 unchanged core budgets and original account/notification plus cold-download retry/reopen/Escape/focus checks. Max gzip bytes: Today247,074 (2,926 headroom), calendar219,147, chores228,027, lists203,077, meals238,335, settings221,497. This reviewed source supersedes the earlier3536 candidate; final exact-head hosted build/image/E2E/review and protected normal merge remain required before #413 closure.
+
+Gallery/ZIP now742 source/mode-labelled captures, including66 ordinary store-section follow-up views at5444587, which predates this lifetime correction. Original676 identities remain intact; ZIP CRC, exact manifest,742 unique image paths and66 new hashes pass. Existing overview contact sheet is separate. #415 is preserved locally/unpublished at5444587, with362 unit suites/4,392 cases and78 browser cases passing; it must incorporate this correction and refresh final checks before publication after #414 merge. All owner/provider/native/production/research/household gates stay open. Earlier candidate entries below are dated history.
+
 ## Latest execution refresh — 2026-10-09, #414 budget repair
 
 Protected main remains `101097956e09fca16a20e8aac9ae0cc1b5c17503`: 32 verified cleanup PR merges, #411 closed, 50 open issues. Original #414 head `3f5f731` failed hosted E2E run37861641705: six Today cases measured250,123 gzip bytes against250,000;842 journeys passed and685 configured cases skipped. Build/Test and checked-image passed; no merge occurred. The targeted follow-up defers the child's account-deletion controls until its existing menu action, with original loading/retry presentation, download recovery, dismissal and focus restoration. Budgets, original tests and protections remain unchanged.

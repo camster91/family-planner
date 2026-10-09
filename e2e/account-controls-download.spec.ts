@@ -55,5 +55,14 @@ test("a failed account-controls download retries without deleting anything", asy
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(menu).toBeFocused();
+  await menu.click();
+  await page.getByRole("button", { name: "Delete my account" }).click();
+  await expect(dialog.getByLabel("Your password")).toHaveValue("");
+  await expect(
+    dialog.getByRole("button", { name: "Delete my account" }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(menu).toBeFocused();
   expect(writes).toEqual([]);
 });
