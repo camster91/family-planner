@@ -5415,6 +5415,21 @@
     "count": 1
   },
   {
+    "file": "src/components/account/AccountDeletionStatus.tsx",
+    "text": "Could not load your account details.",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/AccountDeletionStatus.tsx",
+    "text": "Loading…",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/AccountDeletionStatus.tsx",
+    "text": "Try again",
+    "count": 1
+  },
+  {
     "file": "src/components/account/BetaMetricsSwitch.tsx",
     "text": "Helps us check the beta works. Each day we count how many events and meals your household adds, chores it assigns, completes and checks, rewards claimed and members who joined. Only numbers: no names, messages or other content. Off unless a parent turns it on; turning it off deletes the counts.",
     "count": 1
@@ -5471,11 +5486,6 @@
   },
   {
     "file": "src/components/account/DeleteAccountDialog.tsx",
-    "text": "Could not load your account details.",
-    "count": 1
-  },
-  {
-    "file": "src/components/account/DeleteAccountDialog.tsx",
     "text": "Delete household",
     "count": 1
   },
@@ -5507,11 +5517,6 @@
   {
     "file": "src/components/account/DeleteAccountDialog.tsx",
     "text": "invite another parent",
-    "count": 1
-  },
-  {
-    "file": "src/components/account/DeleteAccountDialog.tsx",
-    "text": "Loading…",
     "count": 1
   },
   {
@@ -5551,11 +5556,6 @@
   },
   {
     "file": "src/components/account/DeleteAccountDialog.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/components/account/DeleteAccountDialog.tsx",
     "text": "Type",
     "count": 1
   },
@@ -5587,6 +5587,11 @@
   {
     "file": "src/components/account/DeleteAccountDialog.tsx",
     "text": "Your password",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/LazyDeleteAccountDialog.tsx",
+    "text": "Delete account",
     "count": 1
   },
   {
