@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
@@ -14,7 +15,9 @@ export const dynamic = 'force-dynamic'
  * version (#271) but never photos. With GET /api/device/today/version and
  * /api/device/me this is the entire non-elevated read surface.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteTelemetry('/api/device/today', handleGET)
+
+async function handleGET(request: NextRequest) {
   const off = killSwitch()
   if (off) return off
   try {

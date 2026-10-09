@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
@@ -14,7 +15,9 @@ export const dynamic = 'force-dynamic'
 const LIST_WINDOW_PAST_DAYS = 30
 
 // GET - List events for the user's family, or fetch one with ?id=
-export async function GET(request: NextRequest) {
+export const GET = withRouteTelemetry('/api/events', handleGET)
+
+async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
