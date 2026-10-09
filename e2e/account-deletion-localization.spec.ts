@@ -1,15 +1,21 @@
 /** #430: localized destructive presentation; all DELETEs are refused synthetic responses. */
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page, TestInfo } from "@playwright/test";
-import { test, expect, browserFetch, loginViaUi } from "./support/test";
+import { test, expect, browserFetch } from "./support/test";
 import { authFile } from "./support/env";
-import { FIXTURE_IDS, FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
+import {
+  FIXTURE_IDS,
+  FIXTURE_EMAILS,
+  FIXTURE_PASSWORD,
+} from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import {
   accountDeletionMessages as messages,
   type AccountDeletionMessage,
 } from "../src/i18n/account-deletion";
 import { navigationMessages } from "../src/i18n/navigation";
+import { settingsMessages } from "../src/i18n/settings";
+import { messages as sharedMessages } from "../src/i18n";
 import {
   isPseudolocaleEnabled,
   pseudolocalizeTemplate,
@@ -143,7 +149,25 @@ for (const role of ["parent", "teen", "child"] as const)
         });
         try {
           if (role === "teen") {
-            await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
+            // This fresh fixture context starts in English; use its actual
+            // expanded labels while retaining the real native sign-in flow.
+            await page.goto("/login");
+            await page
+              .getByLabel(translate(sharedMessages.en.auth.email), {
+                exact: true,
+              })
+              .fill(FIXTURE_EMAILS.familyA.teen);
+            await page
+              .getByLabel(translate(sharedMessages.en.auth.password), {
+                exact: true,
+              })
+              .fill(FIXTURE_PASSWORD);
+            await page
+              .getByRole("button", {
+                name: translate(sharedMessages.en.auth.signIn),
+                exact: true,
+              })
+              .click();
             await expect(page).toHaveURL(/\/dashboard(?:\/)?$/);
           } else await page.goto("/dashboard");
           const auth = await browserFetch(page, "/api/auth/me");
@@ -205,7 +229,10 @@ for (const role of ["parent", "teen", "child"] as const)
               .click();
           } else
             await page
-              .getByRole("button", { name: "Delete Account", exact: true })
+              .getByRole("button", {
+                name: translate(settingsMessages[locale].deleteAccount),
+                exact: true,
+              })
               .click();
           const dialog = page.getByTestId("delete-account-dialog");
           await loadingSeen;
