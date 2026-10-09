@@ -3,19 +3,20 @@
 import { useState, useEffect, useRef, createContext, useContext, useCallback } from 'react'
 import { CheckCircle, AlertCircle, Info, X, Trophy, Flame, Star, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { UndoLabel, useToastCopy } from '@/i18n/toast'
 
 type ToastType = 'success' | 'error' | 'info' | 'achievement' | 'streak' | 'levelup' | 'undo'
 
 export interface ToastAction {
-  label: string
+  label: React.ReactNode
   onClick: () => void
 }
 
 interface Toast {
   id: string
   type: ToastType
-  title: string
-  message?: string
+  title: React.ReactNode
+  message?: React.ReactNode
   duration?: number
   /** One button in the toast (Undo). Pressing it runs the action and dismisses the toast. */
   action?: ToastAction
@@ -55,13 +56,13 @@ export function useMaybeToast(): ToastContextType {
 export function useUndoToast() {
   const { addToast } = useToast()
   return useCallback(
-    (opts: { title: string; message?: string; onUndo: () => void; duration?: number }) =>
+    (opts: { title: React.ReactNode; message?: React.ReactNode; onUndo: () => void; duration?: number }) =>
       addToast({
         type: 'undo',
         title: opts.title,
         message: opts.message,
         duration: opts.duration ?? UNDO_TOAST_MS,
-        action: { label: 'Undo', onClick: opts.onUndo },
+        action: { label: <UndoLabel />, onClick: opts.onUndo },
       }),
     [addToast]
   )
@@ -178,6 +179,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  const copy = useToastCopy()
   // An actionable toast waits while the pointer or keyboard focus is on it.
   const [paused, setPaused] = useState(false)
   useEffect(() => {
@@ -219,7 +221,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Dismiss"
+          aria-label={copy('dismiss')}
           className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-label-tertiary hover:text-label-secondary"
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -266,7 +268,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={copy('dismiss')}
         className="-my-3 -mr-3 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center text-label-tertiary hover:text-muted-foreground"
       >
         <X className="w-4 h-4" aria-hidden="true" />
