@@ -1,6 +1,14 @@
 # Beta Launch Checklist
 
-## Latest execution refresh — 2026-10-09, calendar localization prepared
+## Latest execution refresh — 2026-10-09, after protected #420 merge
+
+Protected main isb53e5f109c8e438166a640176a80432d1e53ed21;36 cleanup PRs are verified merged and49 issues remain open. #420 exact47b1209 passed original Build/Test37875709577, fresh-image validation and E2E37875709527:881 journeys (718 configured skips),28 visuals (11 existing skips). GitGuardian/resolved threads and strict/admin/conversation protection verified; normal merge completed03:16:29UTC. All five original #419 criteria are checked/closed with wording/history preserved, including coupled record binding; only its verified owned local/remote branch was removed. Publish/VPS skipped. Cloud Codex review reported its account limit; no cloud review success is claimed.
+
+#421 is locally validated and includes accepted main through ordinary mergef76b0d17171a18b54173875dac7a0965d8894e51. Full app src/dependencies/schema/config/support/scripts are byte-identical to actual6a09e04 app build02:57:55.778Z, with367 suites/4,462 cases (188 existing opt-in skips), applicable Prisma/types/lint/format/build/inventory/tree/history checks,39 ordinary browser checks,18 expanded checks, both final18 capture-only checks and all36 unchanged core budgets passing. No new local build is invented for test/docs/integration commits. Exact-head original hosted build/image/E2E/review and normal merge remain required before #421 closure. See docs/testing/CALENDAR_FORM_LOCALIZATION.md.
+
+The verified1003-image gallery/ZIP preserves all883 older entries plus84 ordinary and36 separately labelled expanded QA calendar captures. Hashes/dimensions, paths, exact archived manifest and ZIPCRC pass. Both local server/database are stopped. Calendar copy localization preserves numeric/ISO and private household text; broader full-app/RTL/units/human/native/store, parent137/142 and owner/provider/production/research/real-household acceptance remain open. Earlier snapshots retain their original dates and observed evidence.
+
+## Historical execution refresh — 2026-10-09, calendar localization prepared
 
 Protected main remains4ced2d14042321ecae39065bb4da635493c7f3a2;35 cleanup PRs are verified merged and50 issues remain open after scoped #421 creation. #420 exact47b1209 for #419 passes original Build/Test37875709577 and checked-image validation; original E2E37875709527 remains live. It must pass and merge normally before original #419 closure or this follow-up publication. No source/check/retry/protection/production setting was changed solely for pending observation.
 
