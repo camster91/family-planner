@@ -6870,71 +6870,6 @@
     "count": 1
   },
   {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Choose what you hear about. Each switch saves straight away.",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Delete my account",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Family",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Food inventory",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Help",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Main navigation",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Messages",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Notifications",
-    "count": 3
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Search",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Settings",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Sign Out",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "Today board",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardNav.tsx",
-    "text": "User menu",
-    "count": 1
-  },
-  {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
     "text": "Add selected ingredients",
     "count": 1
@@ -7377,11 +7312,6 @@
   {
     "file": "src/components/ui/search-field.tsx",
     "text": "Clear",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/tab-bar.tsx",
-    "text": "Tabs",
     "count": 1
   },
   {

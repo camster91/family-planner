@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
-import type { NavUser, UserRole } from "@/types";
+import type { NavUser } from "@/types";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { TabBar } from "@/components/ui/tab-bar";
@@ -31,18 +31,23 @@ import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { useFeatures } from "@/components/providers/features-provider";
 import { homeHrefFor, isTabActive, tabsFor } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
+import { useTranslation } from "@/i18n";
+import {
+  navigationMessages,
+  navigationTabKey,
+  type NavigationMessage,
+} from "@/i18n/navigation";
 
 interface DashboardNavProps {
   user: NavUser | null;
 }
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  parent: "Parent",
-  child: "Child",
-  teen: "Teen",
-};
-
 export default function DashboardNav({ user }: DashboardNavProps) {
+  const { t } = useTranslation();
+  const msg = (
+    key: NavigationMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, navigationMessages);
   const pathname = usePathname();
   const router = useRouter();
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -57,7 +62,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const canSee = (href: string) => canRoleAccessPath(user?.role, href);
   const { features } = useFeatures();
   // Same tabs as the phone tab bar (#269): Today · Calendar · Meals · Lists · Family.
-  const primaryTabs = tabsFor(user?.role, features);
+  const primaryTabs = tabsFor(user?.role, features).map((tab) => {
+    const key = navigationTabKey(tab.href);
+    return key ? { ...tab, label: msg(key) } : tab;
+  });
   const homeHref = homeHrefFor(user?.role);
   const isKid = isKidRole(user?.role);
   // A kid who cannot open Settings (a child) gets its personal controls here.
@@ -107,7 +115,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     <>
       {/* ─── Apple HIG Desktop Top Bar ─── */}
       <nav
-        aria-label="Main navigation"
+        aria-label={msg("mainNavigation")}
         className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
         <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-3 lg:gap-6">
@@ -115,7 +123,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {/* Keep the home name accessible even where the wordmark is hidden to leave room for actions. */}
           <Link
             href={homeHref}
-            aria-label={PRODUCT_BRAND.homeLabel}
+            aria-label={msg("home", { brand: PRODUCT_BRAND.name })}
             className="flex min-h-[44px] items-center gap-2.5 shrink-0"
           >
             <BrandMark size={48} className="h-12 w-12" />
@@ -166,7 +174,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               <Link
                 href="/dashboard/search"
                 className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors"
-                aria-label="Search"
+                aria-label={msg("search")}
               >
                 <Search className="w-5 h-5" />
               </Link>
@@ -177,7 +185,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               <Link
                 href="/dashboard/notifications"
                 className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors relative"
-                aria-label="Notifications"
+                aria-label={msg("notifications")}
               >
                 <Bell className="w-5 h-5" />
               </Link>
@@ -189,11 +197,11 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 ref={avatarButtonRef}
                 onClick={() => setAvatarOpen((v) => !v)}
                 className="flex min-h-[44px] items-center gap-1.5 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-fill)] transition-colors"
-                aria-label="User menu"
+                aria-label={msg("userMenu")}
                 aria-expanded={avatarOpen}
               >
                 <Avatar
-                  name={user?.name ?? "User"}
+                  name={user?.name ?? msg("user")}
                   src={user?.avatar_url}
                   size="sm"
                 />
@@ -217,7 +225,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       {user?.name}
                     </p>
                     <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-[var(--surface-fill)] text-label-secondary">
-                      {ROLE_LABELS[user?.role ?? "child"]}
+                      {msg(user?.role ?? "child")}
                     </span>
                   </div>
 
@@ -230,7 +238,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         onClick={() => setAvatarOpen(false)}
                       >
                         <LayoutDashboard className="w-4 h-4 text-label-secondary" />
-                        Today board
+                        {msg("todayBoard")}
                       </Link>
                     )}
                     {inventoryOn && canSee("/dashboard/inventory") && (
@@ -243,7 +251,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                           className="w-4 h-4 text-label-secondary"
                           aria-hidden="true"
                         />
-                        Food inventory
+                        {msg("inventory")}
                       </Link>
                     )}
                     {messagesOn && canSee("/dashboard/messages") && (
@@ -253,7 +261,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         onClick={() => setAvatarOpen(false)}
                       >
                         <MessageCircle className="w-4 h-4 text-label-secondary" />
-                        Messages
+                        {msg("messages")}
                       </Link>
                     )}
                     {canSee("/dashboard/family") && (
@@ -263,7 +271,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         onClick={() => setAvatarOpen(false)}
                       >
                         <Users2 className="w-4 h-4 text-label-secondary" />
-                        Family
+                        {msg("family")}
                       </Link>
                     )}
                     {accountInMenu && (
@@ -279,7 +287,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                           className="w-4 h-4 text-label-secondary"
                           aria-hidden="true"
                         />
-                        Notifications
+                        {msg("notifications")}
                       </button>
                     )}
                     {canSee("/dashboard/settings") && (
@@ -289,7 +297,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         onClick={() => setAvatarOpen(false)}
                       >
                         <Settings className="w-4 h-4 text-label-secondary" />
-                        Settings
+                        {msg("settings")}
                       </Link>
                     )}
                     {/* Help (#146): parents and teens (O-37), like Settings. */}
@@ -303,7 +311,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                           className="w-4 h-4 text-label-secondary"
                           aria-hidden="true"
                         />
-                        Help
+                        {msg("help")}
                       </Link>
                     )}
                   </div>
@@ -320,7 +328,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 w-full text-[15px] text-label-secondary hover:bg-[var(--surface-fill)] transition-colors"
                       >
                         <Trash2 className="w-4 h-4" aria-hidden="true" />
-                        Delete my account
+                        {msg("deleteAccount")}
                       </button>
                     )}
                     <button
@@ -328,7 +336,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       className="flex items-center gap-3 px-4 py-2.5 w-full text-[15px] text-danger-text hover:bg-[var(--danger-tint)] transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
-                      Sign Out
+                      {msg("signOut")}
                     </button>
                   </div>
                 </div>
@@ -355,8 +363,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               // The menu item that opened it is gone; return focus to the menu button.
               avatarButtonRef.current?.focus();
             }}
-            title="Notifications"
-            description="Choose what you hear about. Each switch saves straight away."
+            title={msg("notifications")}
+            description={msg("notificationDescription")}
+            closeLabel={msg("close")}
             testId="notification-preferences-dialog"
           >
             <NotificationPreferences />
