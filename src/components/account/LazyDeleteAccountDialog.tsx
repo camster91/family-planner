@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/i18n";
+import {
+  accountDeletionStatusMessages,
+  type AccountDeletionStatusMessage,
+} from "@/i18n/account-deletion-status";
 import type { DeleteAccountDialogProps } from "./DeleteAccountDialog";
 import { loadDeleteAccountDialog } from "./load-delete-account-dialog";
 import { Dialog } from "@/components/ui/dialog";
@@ -13,6 +18,9 @@ import {
 export default function LazyDeleteAccountDialog(
   props: DeleteAccountDialogProps,
 ) {
+  const { t } = useTranslation();
+  const msg = (key: AccountDeletionStatusMessage) =>
+    t(key, undefined, accountDeletionStatusMessages);
   const [Controls, setControls] = useState<Awaited<
     ReturnType<typeof loadDeleteAccountDialog>
   > | null>(null);
@@ -41,7 +49,8 @@ export default function LazyDeleteAccountDialog(
     <Dialog
       open
       onClose={props.onClose}
-      title="Delete account"
+      title={msg("accountTitle")}
+      closeLabel={msg("close")}
       testId="delete-account-dialog"
     >
       {failed ? (
