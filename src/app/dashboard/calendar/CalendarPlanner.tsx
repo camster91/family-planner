@@ -1,6 +1,11 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { useTranslation } from "@/i18n";
+import {
+  calendarPlannerMessages,
+  type CalendarPlannerMessage,
+} from "@/i18n/calendar-planner";
 import { useRouter } from "next/navigation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
@@ -42,6 +47,11 @@ export function CalendarPlanner({
   refreshKey?: unknown;
   chooseLocalToday?: boolean;
 }) {
+  const { t } = useTranslation();
+  const msg = (
+    key: CalendarPlannerMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, calendarPlannerMessages);
   const router = useRouter(),
     locale = useDisplayLocale();
   const now = useNow(15000),
@@ -161,23 +171,24 @@ export function CalendarPlanner({
     }
   }, [selected]);
   const options = [
-    { id: "all", name: "All sources" },
-    { id: "local", name: "In-app" },
-    { id: "connected", name: "Connected calendar" },
+    { id: "all", name: msg("allSources") },
+    { id: "local", name: msg("inApp") },
+    { id: "connected", name: msg("connected") },
     ...sources.map((s) => ({ id: `ics:${s.id}`, name: s.name })),
   ];
   const sourceName = (e: PlanningEvent) =>
     e.source?.name ||
     (e.source_subscription_id
       ? sources.find((s) => s.id === e.source_subscription_id)?.name ||
-        "Subscribed calendar"
+        msg("subscribed")
       : e.source_connection_id
-        ? "Connected calendar"
-        : "In-app");
+        ? msg("connected")
+        : msg("inApp"));
   const sourceLabel = (e: PlanningEvent) =>
-    `${sourceName(e)}${e.source_subscription_id || e.source ? " · ICS subscription" : ""}`;
-  const label =
-    options.find((s) => s.id === filter)?.name || "Selected calendar";
+    e.source_subscription_id || e.source
+      ? msg("ics", { source: sourceName(e) })
+      : sourceName(e);
+  const label = options.find((s) => s.id === filter)?.name || msg("selected");
   const format = (d: Date, options: Intl.DateTimeFormatOptions) =>
     d.toLocaleString(locale, {
       ...options,
@@ -213,36 +224,38 @@ export function CalendarPlanner({
         <span className={styles.eventContent}>
           <span>
             {segment.continuesBefore && segment.continuesAfter
-              ? "Continuing timed event"
+              ? msg("continuing")
               : segment.continuesBefore
-                ? `Until ${time(segment.end)}`
+                ? msg("until", { time: time(segment.end) })
                 : segment.continuesAfter
-                  ? `From ${time(segment.start)} · continues`
+                  ? msg("fromContinues", { time: time(segment.start) })
                   : `${time(segment.start)}${+segment.start !== +segment.end ? ` – ${time(segment.end)}` : ""}`}
           </span>
           <strong>{e.title}</strong>
           <small>{sourceLabel(e)}</small>
           {segment.continuesBefore && (
             <small>
-              Continues from{" "}
-              {format(new Date(e.start_time), {
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                ...(clockChange ? { timeZoneName: "short" } : {}),
+              {msg("continuesFrom", {
+                time: format(new Date(e.start_time), {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  ...(clockChange ? { timeZoneName: "short" } : {}),
+                }),
               })}
             </small>
           )}
           {segment.continuesAfter && (
             <small>
-              Continues to{" "}
-              {format(new Date(e.end_time), {
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                ...(clockChange ? { timeZoneName: "short" } : {}),
+              {msg("continuesTo", {
+                time: format(new Date(e.end_time), {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  ...(clockChange ? { timeZoneName: "short" } : {}),
+                }),
               })}
             </small>
           )}
@@ -254,7 +267,7 @@ export function CalendarPlanner({
     <div className={styles.planner}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Calendar · Private planner</p>
+          <p className={styles.eyebrow}>{msg("eyebrow")}</p>
           <h1>
             {format(days[0], {
               weekday: view === "day" ? "long" : undefined,
@@ -267,7 +280,7 @@ export function CalendarPlanner({
               : ""}
           </h1>
         </div>
-        <nav aria-label="Calendar view" className={styles.views}>
+        <nav aria-label={msg("view")} className={styles.views}>
           {(["day", "week", "agenda"] as const).map((v) => (
             <button
               key={v}
@@ -276,20 +289,20 @@ export function CalendarPlanner({
               disabled={!planningRange(date, v, local)}
               onClick={() => move(date, v)}
             >
-              {v[0].toUpperCase() + v.slice(1)}
+              {msg(v)}
             </button>
           ))}
         </nav>
         <Link href="/dashboard/calendar/create" className="btn-filled">
-          Add event
+          {msg("add")}
         </Link>
       </header>
       <div className={styles.layout}>
         <aside className={styles.sources}>
-          <label htmlFor="calendar-source">Calendars</label>
+          <label htmlFor="calendar-source">{msg("calendars")}</label>
           <select
             id="calendar-source"
-            aria-label="Calendar source"
+            aria-label={msg("source")}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           >
@@ -311,23 +324,21 @@ export function CalendarPlanner({
               </button>
             ))}
           </div>
-          {sourceState === "loading" && <p role="status">Loading calendars…</p>}
+          {sourceState === "loading" && (
+            <p role="status">{msg("loadingSources")}</p>
+          )}
           {sourceState === "error" && (
             <p role="alert">
-              Calendar sources could not load.{" "}
+              {msg("sourcesFailed")}{" "}
               <button onClick={() => setRetry((n) => n + 1)}>
-                Retry sources
+                {msg("retrySources")}
               </button>
             </p>
           )}
-          <p>Source filters, not people. Subscribed calendars are read-only.</p>
-          <p>
-            {canEditEvents
-              ? "Parents may edit in-app and connected events."
-              : "Create and view events. Editing is not available."}
-          </p>
+          <p>{msg("sourceHelp")}</p>
+          <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
         </aside>
-        <section className={styles.main} aria-label="Calendar range">
+        <section className={styles.main} aria-label={msg("range")}>
           {displayState === "ready" && now !== null && loadedAt !== null && (
             <div className={styles.note}>
               <UpdatedLine
@@ -346,91 +357,78 @@ export function CalendarPlanner({
             </div>
           )}
           <div className={styles.controls}>
-            <nav aria-label="Change dates">
+            <nav aria-label={msg("changeDates")}>
               <button
                 type="button"
                 disabled={!planningRange(previousDate, view, local)}
                 onClick={() => move(previousDate)}
               >
-                Previous
+                {msg("previous")}
               </button>
               <button
                 type="button"
                 onClick={() => move(dayKey(new Date(), local))}
               >
-                Today
+                {msg("today")}
               </button>
               <button
                 type="button"
                 disabled={!planningRange(nextDate, view, local)}
                 onClick={() => move(nextDate)}
               >
-                Next
+                {msg("next")}
               </button>
             </nav>
-            <p>Showing: {label}</p>
+            <p>{msg("showing", { source: label })}</p>
           </div>
           {clockChange && (
             <p role="status" className={styles.note}>
-              Clock change in this range. Showing Agenda with time zones because
-              the timed grid cannot represent skipped or repeated hours.
+              {msg("clockChange")}
             </p>
           )}
           {displayState === "unsupported" && (
             <section className={styles.state} role="alert">
-              <h2>Unsupported calendar date</h2>
-              <p>
-                This full date range falls outside the supported UTC years
-                1–9999. Choose Today to return to a supported date.
-              </p>
+              <h2>{msg("unsupported")}</h2>
+              <p>{msg("unsupportedHelp")}</p>
             </section>
           )}
           {displayState === "loading" && (
             <section className={styles.state} role="status">
-              <h2>Loading this {view === "day" ? "day" : "week"}…</h2>
-              <p>Keeping your chosen dates and calendar source.</p>
+              <h2>{msg(view === "day" ? "loadingDay" : "loadingWeek")}</h2>
+              <p>{msg("keeping")}</p>
             </section>
           )}
           {displayState === "error" && (
             <section className={styles.state} role="alert">
-              <h2>Calendar couldn’t load</h2>
-              <p>
-                We haven’t loaded this range. This is not an empty calendar.
-              </p>
+              <h2>{msg("loadFailed")}</h2>
+              <p>{msg("notEmpty")}</p>
               <button
                 className="btn-filled"
                 onClick={() => setRetry((n) => n + 1)}
               >
-                Try again
+                {msg("tryAgain")}
               </button>
             </section>
           )}
           {displayState === "ready" && truncated && (
             <section role="status" className={styles.state}>
-              <h2>Only part of this range is loaded</h2>
-              <p>
-                Stopped after 10 pages (up to 2,000 events). Choose Day or a
-                narrower date range before relying on this schedule.
-              </p>
-              <button onClick={() => move(date, "day")}>Show Day</button>
+              <h2>{msg("partial")}</h2>
+              <p>{msg("partialHelp")}</p>
+              <button onClick={() => move(date, "day")}>
+                {msg("showDay")}
+              </button>
             </section>
           )}
           {displayState === "ready" && !hasVisible && (
             <section className={styles.state}>
-              <h2>
-                {filter === "all"
-                  ? "No events in this range"
-                  : "No events from this calendar"}
-              </h2>
+              <h2>{filter === "all" ? msg("empty") : msg("emptySource")}</h2>
               <p>
-                Showing: {label}
-                {truncated
-                  ? " · This partial result may omit matching events."
-                  : ""}
+                {msg("showing", { source: label })}
+                {truncated ? msg("partialSuffix") : ""}
               </p>
               {filter !== "all" && (
                 <button onClick={() => setFilter("all")}>
-                  Show all sources
+                  {msg("showAll")}
                 </button>
               )}
             </section>
@@ -456,7 +454,7 @@ export function CalendarPlanner({
                         </React.Fragment>
                       ))}
                     {!filtered.some((e) => segmentEvent(e, day, local)) && (
-                      <p>No events this day</p>
+                      <p>{msg("emptyDay")}</p>
                     )}
                   </section>
                 ))}
@@ -467,7 +465,7 @@ export function CalendarPlanner({
                   ref={gridViewport}
                   className={styles.gridScroll}
                   tabIndex={0}
-                  aria-label="Timed calendar, all 24 hours"
+                  aria-label={msg("timed")}
                 >
                   <div
                     className={styles.grid}
@@ -476,7 +474,7 @@ export function CalendarPlanner({
                     }}
                   >
                     <div className={styles.hours}>
-                      <span>Time</span>
+                      <span>{msg("time")}</span>
                       {Array.from({ length: 24 }, (_, h) => (
                         <span key={h}>
                           {new Date(Date.UTC(2026, 0, 1, h)).toLocaleTimeString(
@@ -524,13 +522,9 @@ export function CalendarPlanner({
                   (day) =>
                     layoutDayEvents(filtered, day, local).lateEvents.length > 0,
                 ) && (
-                  <section className={styles.agenda} aria-label="Late events">
-                    <h2>Late events</h2>
-                    <p>
-                      These events start too close to midnight for a
-                      minimum-size grid target. Their actual times are shown
-                      here.
-                    </p>
+                  <section className={styles.agenda} aria-label={msg("late")}>
+                    <h2>{msg("late")}</h2>
+                    <p>{msg("lateHelp")}</p>
                     {days.map((day) => {
                       const lateEvents = layoutDayEvents(
                         filtered,
@@ -559,13 +553,11 @@ export function CalendarPlanner({
               </>
             ))}
           <p className={styles.note}>
-            Times shown in{" "}
-            {local
-              ? Intl.DateTimeFormat().resolvedOptions().timeZone
-              : "UTC (loading viewer time)"}
-            . Continuing events keep their stored start and end. Local repeating
-            rules are not expanded here; this is not a complete repeating-event
-            planner.
+            {msg("timesHelp", {
+              zone: local
+                ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                : msg("loadingZone"),
+            })}
           </p>
         </section>
       </div>
@@ -614,19 +606,11 @@ export function CalendarPlanner({
             <p className={styles.description}>{selected.description}</p>
           )}
           {(selected.source_subscription_id || selected.source) && (
-            <p>
-              Read-only calendar. Changes belong in the original subscription
-              calendar.
-            </p>
+            <p>{msg("readOnly")}</p>
           )}
-          {selected.recurrence && (
-            <p>
-              Repeating rule stored on this event. Only the stored occurrence is
-              shown; series editing is not available.
-            </p>
-          )}
+          {selected.recurrence && <p>{msg("recurrence")}</p>}
           <div className={styles.detailActions}>
-            <button onClick={() => setSelected(null)}>Close details</button>
+            <button onClick={() => setSelected(null)}>{msg("close")}</button>
             {canEditEvents &&
               !selected.source_subscription_id &&
               !selected.source && (
@@ -634,7 +618,7 @@ export function CalendarPlanner({
                   className="btn-filled"
                   href={`/dashboard/calendar/edit?id=${encodeURIComponent(selected.id)}`}
                 >
-                  Edit event
+                  {msg("edit")}
                 </Link>
               )}
           </div>

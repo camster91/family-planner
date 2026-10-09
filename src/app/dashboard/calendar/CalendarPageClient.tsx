@@ -1,5 +1,11 @@
 "use client";
 import * as React from "react";
+import { useTranslation } from "@/i18n";
+import {
+  calendarPageMessages,
+  type CalendarPageMessage,
+  type CalendarPageError,
+} from "@/i18n/calendar-page";
 import { Sparkles, Undo2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CaptureBox } from "@/components/capture/CaptureBox";
@@ -34,6 +40,11 @@ export default function CalendarPageClient({
   canEditEvents = false,
   monthFromUrl = true,
 }: CalendarPageClientProps) {
+  const { t } = useTranslation();
+  const msg = (
+    key: CalendarPageMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, calendarPageMessages);
   const router = useRouter();
   const [importOpen, setImportOpen] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
@@ -73,7 +84,7 @@ export default function CalendarPageClient({
             onClick={() => setImportOpen(true)}
           >
             <Sparkles className="w-4 h-4" aria-hidden="true" />
-            Import from text or photo
+            {msg("import")}
           </button>
         </div>
       )}
@@ -103,17 +114,22 @@ export function SourceBadge({
   name: string;
   color: string | null;
 }) {
+  const { t } = useTranslation();
+  const msg = (
+    key: CalendarPageMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, calendarPageMessages);
   return (
     <span
       className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-full bg-[var(--surface-fill)] px-2 py-0.5 text-caption-1 text-label-secondary"
-      title={`Read-only. Imported from ${name}`}
+      title={msg("sourceTitle", { source: name })}
     >
       <span
         aria-hidden="true"
         className="inline-block h-2 w-2 shrink-0 rounded-full"
         style={{ backgroundColor: color ?? "var(--label-tertiary, #8e8e93)" }}
       />
-      <span className="truncate">From {name}</span>
+      <span className="truncate">{msg("source", { source: name })}</span>
     </span>
   );
 }
@@ -136,11 +152,16 @@ export function ImportUndoToast({
   onDismiss: () => void;
   onUndone: () => void;
 }) {
+  const { t } = useTranslation();
+  const msg = (
+    key: CalendarPageMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, calendarPageMessages);
   const [state, setState] = React.useState<
     | { kind: "added" }
     | { kind: "undoing" }
     | { kind: "undone"; count: number }
-    | { kind: "error"; message: string }
+    | { kind: "error"; message: CalendarPageError }
   >({ kind: "added" });
   const closesAt = Math.min(
     addedAt + IMPORT_UNDO_WINDOW_MS,
@@ -178,13 +199,13 @@ export function ImportUndoToast({
         kind: "error",
         message:
           typeof body?.error?.message === "string"
-            ? body.error.message
-            : "Could not undo. Try again.",
+            ? { raw: body.error.message }
+            : { key: "undoFailed" },
       });
     } catch {
       setState({
         kind: "error",
-        message: "Could not undo. Check your connection and try again.",
+        message: { key: "undoConnection" },
       });
     }
   };
@@ -192,8 +213,10 @@ export function ImportUndoToast({
   const n = result.count;
   const title =
     state.kind === "undone"
-      ? `Removed ${state.count} event${state.count === 1 ? "" : "s"}`
-      : `Added ${n} event${n === 1 ? "" : "s"}`;
+      ? msg(state.count === 1 ? "removedOne" : "removedMany", {
+          count: state.count,
+        })
+      : msg(n === 1 ? "addedOne" : "addedMany", { count: n });
 
   return (
     <div
@@ -211,7 +234,9 @@ export function ImportUndoToast({
           </p>
           {state.kind === "error" && (
             <p className="text-footnote text-[var(--danger-text)] break-words">
-              {state.message}
+              {"raw" in state.message
+                ? state.message.raw
+                : msg(state.message.key)}
             </p>
           )}
         </div>
@@ -226,13 +251,13 @@ export function ImportUndoToast({
               className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 rounded-lg text-subhead font-semibold text-[var(--accent)] active:bg-[var(--surface-fill)]"
             >
               <Undo2 className="w-4 h-4" aria-hidden="true" />
-              Undo
+              {msg("undo")}
             </button>
           )}
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Dismiss"
+          aria-label={msg("dismiss")}
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
         >
           <X className="w-4 h-4 text-label-tertiary" aria-hidden="true" />
