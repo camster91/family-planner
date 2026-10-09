@@ -7,7 +7,7 @@ import RegisterPage from '../page'
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
 }))
-jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: (key: string, _params?: Record<string, string | number>, scoped?: { en: Record<string, string> }) => scoped?.en[key] ?? key }) }))
 
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body })
 

@@ -1,114 +1,138 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { UserPlus, CheckCircle } from 'lucide-react'
-import { useTranslation } from '@/i18n'
-
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { UserPlus, CheckCircle } from "lucide-react";
+import { useTranslation } from "@/i18n";
+import {
+  authEntryMessages,
+  authEntryRoleKey,
+  type AuthEntryMessage,
+  type AuthEntryFeedback,
+} from "@/i18n/auth-entry";
 
 export default function RegisterPage() {
-  const { t } = useTranslation()
-  const router = useRouter()
-  const [showVerificationNotice, setShowVerificationNotice] = useState(false)
-  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
-  const [email, setEmail] = useState('')
-  const [emailLocked, setEmailLocked] = useState(false)
-  const [inviteToken, setInviteToken] = useState<string | null>(null)
-  const [inviteLabel, setInviteLabel] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation();
+  const copy = (key: AuthEntryMessage, params?: Record<string, string>) =>
+    t(key, params, authEntryMessages);
+  const router = useRouter();
+  const [showVerificationNotice, setShowVerificationNotice] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
+    "idle",
+  );
+  const [email, setEmail] = useState("");
+  // Uncontrolled DOM values preserve password-manager autofill without events.
+  // Invitation authority stays in state and overrides FormData on submission.
+  const emailInput = useRef<HTMLInputElement>(null);
+  const [emailLocked, setEmailLocked] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [invitation, setInvitation] = useState<{
+    familyName: string;
+    role: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<AuthEntryFeedback | null>(null);
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('token')
-    if (!token) return
-    setInviteToken(token)
+    const token = new URLSearchParams(window.location.search).get("token");
+    if (!token) return;
+    setInviteToken(token);
     fetch(`/api/family/invites/preview?token=${encodeURIComponent(token)}`)
       .then(async (res) => {
-        const data = await res.json()
+        const data = await res.json();
         if (!res.ok) {
-          setError(data.error || 'This invite is invalid or expired')
-          return
+          setError(
+            data.error ? { raw: data.error } : { owned: "inviteInvalid" },
+          );
+          return;
         }
-        setEmail(data.email)
-        setEmailLocked(true)
-        setInviteLabel(`Join ${data.familyName} as a ${data.role}`)
+        setEmail(data.email);
+        if (emailInput.current) emailInput.current.value = data.email;
+        setEmailLocked(true);
+        setInvitation({ familyName: data.familyName, role: data.role });
       })
-      .catch(() => setError('Could not load invite'))
-  }, [])
+      .catch(() => setError({ owned: "inviteLoadFailed" }));
+  }, []);
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+    e.preventDefault();
     // Password managers can fill fields without firing React change events.
     // Read their current values before any state update re-renders the form.
-    const fields = new FormData(e.currentTarget)
-    const name = String(fields.get('name') ?? '')
-    const submittedEmail = emailLocked ? email : String(fields.get('email') ?? '')
-    const password = String(fields.get('password') ?? '')
-    const confirmPassword = String(fields.get('confirmPassword') ?? '')
-    setEmail(submittedEmail)
-    setLoading(true)
-    setError(null)
+    const fields = new FormData(e.currentTarget);
+    const name = String(fields.get("name") ?? "");
+    const submittedEmail = emailLocked
+      ? email
+      : String(fields.get("email") ?? "");
+    const password = String(fields.get("password") ?? "");
+    const confirmPassword = String(fields.get("confirmPassword") ?? "");
+    setEmail(submittedEmail);
+    setLoading(true);
+    setError(null);
 
     if (password !== confirmPassword) {
-      setError(t('auth.passwordMismatch'))
-      setLoading(false)
-      return
+      setError({ shared: "auth.passwordMismatch" });
+      setLoading(false);
+      return;
     }
 
     if (password.length < 8) {
-      setError(t('auth.passwordTooShort'))
-      setLoading(false)
-      return
+      setError({ shared: "auth.passwordTooShort" });
+      setLoading(false);
+      return;
     }
 
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: submittedEmail,
           password,
           name,
           ...(inviteToken ? { inviteToken } : {}),
         }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t('auth.registrationFailed'))
-        return
+        setError(
+          data.error
+            ? { raw: data.error }
+            : { shared: "auth.registrationFailed" },
+        );
+        return;
       }
 
-      setError(null)
+      setError(null);
       if (data.joinedFamily) {
-        router.push('/dashboard')
-        router.refresh()
-        return
+        router.push("/dashboard");
+        router.refresh();
+        return;
       }
-      setShowVerificationNotice(true)
+      setShowVerificationNotice(true);
     } catch (err) {
-      setError(t('auth.unexpectedError'))
-      console.error(err)
+      setError({ shared: "auth.unexpectedError" });
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleResend = async () => {
-    setResendState('sending')
+    setResendState("sending");
     try {
       // Always answers 200 whether or not the account exists; nothing to
       // surface beyond the confirmation state.
-      await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
-      })
+      });
     } catch {
       // Transport error — the endpoint's own retries/rate limits apply.
     }
-    setResendState('sent')
-  }
+    setResendState("sent");
+  };
 
   if (showVerificationNotice) {
     return (
@@ -120,29 +144,29 @@ export default function RegisterPage() {
             </div>
           </div>
           <div className="card-apple p-6">
-            <h1 className="text-title-2 mb-2">Check Your Email</h1>
+            <h1 className="text-title-2 mb-2">{copy("checkEmail")}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mb-6">
-              We sent a verification link to your email address. Click the link to activate your account, then sign in.
+              {copy("verificationGuidance")}
             </p>
             <Link href="/login" className="btn-filled w-full py-3">
-              Go to Sign In
+              {copy("signIn")}
             </Link>
             <button
               type="button"
               className="btn-plain w-full py-3 mt-3"
               onClick={handleResend}
-              disabled={resendState !== 'idle'}
+              disabled={resendState !== "idle"}
             >
-              {resendState === 'sent'
-                ? 'Verification email sent again'
-                : resendState === 'sending'
-                  ? 'Sending…'
-                  : 'Resend verification email'}
+              {resendState === "sent"
+                ? copy("resendComplete")
+                : resendState === "sending"
+                  ? copy("sending")
+                  : copy("resend")}
             </button>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -150,21 +174,37 @@ export default function RegisterPage() {
       <div className="auth-panel">
         <div className="card-apple p-6">
           <div className="auth-heading">
-            <h1 className="text-title-2">{t('auth.createAccount')}</h1>
+            <h1 className="text-title-2">{t("auth.createAccount")}</h1>
             <p className="text-[15px] text-[var(--label-secondary)] mt-1">
-              {inviteLabel || t('auth.createAccountSubtitle')}
+              {invitation
+                ? copy("invitation", {
+                    familyName: invitation.familyName,
+                    role: authEntryRoleKey(invitation.role)
+                      ? copy(authEntryRoleKey(invitation.role)!)
+                      : invitation.role,
+                  })
+                : t("auth.createAccountSubtitle")}
             </p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-4">
             {error && (
-              <div role="alert" className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
-                {error}
+              <div
+                role="alert"
+                className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3"
+              >
+                {"raw" in error
+                  ? error.raw
+                  : "shared" in error
+                    ? t(error.shared)
+                    : copy(error.owned)}
               </div>
             )}
 
             <div>
-              <label htmlFor="name" className="label-apple">{t('auth.fullName')}</label>
+              <label htmlFor="name" className="label-apple">
+                {t("auth.fullName")}
+              </label>
               <input
                 id="name"
                 name="name"
@@ -172,29 +212,34 @@ export default function RegisterPage() {
                 required
                 autoComplete="name"
                 className="input-apple"
-                placeholder="John Doe"
+                placeholder={copy("namePlaceholder")}
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="label-apple">{t('auth.email')}</label>
+              <label htmlFor="email" className="label-apple">
+                {t("auth.email")}
+              </label>
               <input
                 id="email"
                 name="email"
                 type="email"
                 required
                 autoComplete="username"
-                value={email}
+                ref={emailInput}
+                defaultValue=""
                 onChange={(e) => setEmail(e.target.value)}
                 onInput={(e) => setEmail(e.currentTarget.value)}
                 className="input-apple"
-                placeholder="you@example.com"
+                placeholder={copy("emailPlaceholder")}
                 readOnly={emailLocked}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="label-apple">{t('auth.password')}</label>
+              <label htmlFor="password" className="label-apple">
+                {t("auth.password")}
+              </label>
               <input
                 id="password"
                 name="password"
@@ -206,12 +251,14 @@ export default function RegisterPage() {
                 placeholder="••••••••"
               />
               <p className="text-[13px] text-[var(--label-tertiary)] mt-2">
-                {t('auth.passwordHint')}
+                {t("auth.passwordHint")}
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="label-apple">{t('auth.confirmPassword')}</label>
+              <label htmlFor="confirmPassword" className="label-apple">
+                {t("auth.confirmPassword")}
+              </label>
               <input
                 id="confirmPassword"
                 name="confirmPassword"
@@ -225,20 +272,34 @@ export default function RegisterPage() {
             </div>
 
             <div className="flex items-start gap-2.5 pt-1">
-              <input
-                id="terms"
-                type="checkbox"
-                required
-                className="mt-0.5 h-4 w-4 rounded border-[var(--surface-separator)] bg-[var(--surface-fill)] accent-[var(--accent)]"
-              />
-              <label htmlFor="terms" className="text-[13px] text-[var(--label-secondary)] leading-4">
-                {t('auth.agreeToTerms')}{' '}
-                <Link href="/terms" className="text-[var(--accent)] hover:underline">
-                  {t('auth.termsOfService')}
-                </Link>{' '}
-                {t('auth.and')}{' '}
-                <Link href="/privacy" className="text-[var(--accent)] hover:underline">
-                  {t('auth.privacyPolicy')}
+              <label
+                htmlFor="terms"
+                className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded focus-within:ring-2 focus-within:ring-[var(--accent)]"
+              >
+                <input
+                  id="terms"
+                  type="checkbox"
+                  required
+                  className="h-4 w-4 rounded border-[var(--surface-separator)] bg-[var(--surface-fill)] accent-[var(--accent)]"
+                />
+              </label>
+              <label
+                htmlFor="terms"
+                className="min-h-11 py-2 text-[13px] text-[var(--label-secondary)] leading-4"
+              >
+                {t("auth.agreeToTerms")}{" "}
+                <Link
+                  href="/terms"
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  {t("auth.termsOfService")}
+                </Link>{" "}
+                {t("auth.and")}{" "}
+                <Link
+                  href="/privacy"
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  {t("auth.privacyPolicy")}
                 </Link>
               </label>
             </div>
@@ -251,12 +312,12 @@ export default function RegisterPage() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                  {t('auth.creatingAccount')}
+                  {t("auth.creatingAccount")}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <UserPlus className="w-4 h-4" />
-                  {t('auth.createAccountBtn')}
+                  {t("auth.createAccountBtn")}
                 </span>
               )}
             </button>
@@ -264,9 +325,12 @@ export default function RegisterPage() {
 
           <div className="mt-4 text-center">
             <p className="text-[15px] text-[var(--label-secondary)]">
-              {t('auth.alreadyHaveAccount')}{' '}
-              <Link href="/login" className="btn-plain py-1 px-2 -my-1">
-                {t('auth.signInLink')}
+              {t("auth.alreadyHaveAccount")}{" "}
+              <Link
+                href="/login"
+                className="btn-plain inline-flex min-h-11 items-center py-1 px-2 -my-1"
+              >
+                {t("auth.signInLink")}
               </Link>
             </p>
           </div>
@@ -274,11 +338,10 @@ export default function RegisterPage() {
 
         <div className="text-center mt-6">
           <p className="text-[13px] text-[var(--label-tertiary)]">
-            {t('auth.bySigningUp')}
+            {t("auth.bySigningUp")}
           </p>
-
         </div>
       </div>
     </div>
-  )
+  );
 }
