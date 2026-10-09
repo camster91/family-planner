@@ -1,6 +1,14 @@
 # Herewoven completion contract and durable release plan
 
-## Latest execution refresh — 2026-10-09, after protected #418 merge
+## Latest execution refresh — 2026-10-09, calendar localization prepared
+
+Protected main remains4ced2d14042321ecae39065bb4da635493c7f3a2;35 cleanup PRs are verified merged and50 issues remain open after scoped #421 creation. #420 exact47b1209 for #419 passes original Build/Test37875709577 and checked-image validation; original E2E37875709527 remains live. It must pass and merge normally before original #419 closure or this follow-up publication. No source/check/retry/protection/production setting was changed solely for pending observation.
+
+#421 is a local/unpublished calendar-form localization candidate. Actual ordinary app6a09e04 built02:57:55.778Z passes367 suites/4,462 cases (188 existing opt-in skips), Prisma/types/lint/format/build/inventory and tree/history secrets.42 route-owned direct-copy records/44 occurrences are removed from the unchanged practical guard inventory1722→1678. English/Spanish labels, hints, local errors, loading/empty/imported and delete copy are typed/scoped; household data, raw server errors, original instants/record ID and mounted pending state are preserved. Root dictionary, shared hints, dates/API/provider/schema/native contracts are unchanged.39 ordinary browser checks,18 expanded checks and all36 unchanged core budgets pass; both final18 capture-only runs pass after viewport-bound modal recording. See docs/testing/CALENDAR_FORM_LOCALIZATION.md for exact failures/repairs, commands, modes and limits.
+
+Gallery/ZIP now1003 verified unique captures, preserving every earlier883 manifest entry exactly. Added84 ordinary and36 artificial expanded-copy calendar views at actual6a09e04, with test-only head0c6cc26 retaining byte-identical app src. New dimensions/hashes, all paths, exact archived manifest and ZIPCRC pass. Local server and guarded database are stopped. This does not establish full-app/human/native/store/production acceptance. Parent142/137 and all owner/platform/provider/research/household gates retain their wider original scope; earlier snapshots below preserve their dates and evidence.
+
+## Historical execution refresh — 2026-10-09, after protected #418 merge
 
 Protected main is `4ced2d14042321ecae39065bb4da635493c7f3a2`; **35 cleanup PRs are verified merged**, 49 issues remain open. #418 final head a7f6d4d passed original Build/Test37871802210, checked image113633298100 and E2E37871802206: 863 journeys (700 configured skips), 28 visuals (11 existing skips). GitGuardian and resolved reviews, strict/admin/conversation protection passed; normal merge completed at02:25:17UTC. All five original #417 criteria are checked/closed with wording/history preserved; only its verified owned local/remote branch was cleaned. Publish/VPS skipped; no production activation or promotion.
 
