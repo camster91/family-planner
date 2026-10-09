@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { safeVerifyPassword, signToken } from '@/lib/auth'
@@ -15,7 +16,9 @@ import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visib
 const ACCOUNT_FAILURE_LIMIT = 10
 const ACCOUNT_FAILURE_WINDOW_MS = 15 * 60 * 1000
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteTelemetry('/api/auth/login', handlePOST)
+
+async function handlePOST(request: NextRequest) {
   const ip = getClientIp(request)
   try {
     // Rate limiting by IP (Postgres-backed, works across replicas)

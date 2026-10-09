@@ -154,7 +154,7 @@ Issue #413 implements an automated cold-navigation gzip check for the six core d
 
 Each needs its own issue. None adds a cron job.
 
-1. Wrap `GET /api/chores`, `/api/events`, `/api/lists`, `/api/family/board-version`, `POST /api/auth/login` and the device board routes with `withRouteTelemetry`, so their p95 can be read from logs. Small, additive.
+1. Core-route timing adoption is the scoped #417 candidate: `GET /api/chores`, `/api/events`, `/api/lists`, `/api/family/board-version`, `POST /api/auth/login`, `GET /api/device/today` and `/api/device/today/version` use the existing default-off `withRouteTelemetry`. Actual-handler tests verify preserved responses/cookies and content-free fixed templates. See `OBSERVABILITY.md` for the command and exact fields. This supplies instrumentation only; production activation, representative production latency/history and the wider SLO criteria remain open.
 2. Ask Cameron whether to turn on `ROUTE_TIMING_LOG=1` (maybe with `ROUTE_TIMING_SAMPLE_RATE=0.2`) in production. Environment change: needs approval.
 3. An outside uptime check of `/api/health` with an alert. Needs Cameron's approval for the provider (a free self-hosted or hosted pinger) and where alerts go.
 4. Keep more log history (larger rotation, or ship JSON lines to a self-hosted store) so a 30-day SLO can be scored.

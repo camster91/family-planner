@@ -1,3 +1,4 @@
+import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -31,7 +32,9 @@ export const dynamic = 'force-dynamic'
 // household (`template`: `{ id, frequency, rotation_member_ids }` of its
 // series' template when the chore is a generated copy, else null; `rotation`:
 // the series' take-turns order, O-39, or null), or 404.
-export async function GET(request: NextRequest) {
+export const GET = withRouteTelemetry('/api/chores', handleGET)
+
+async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
