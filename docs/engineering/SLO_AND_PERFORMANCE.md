@@ -4,7 +4,7 @@ Issues: #137 (reliability) and #134 (API contracts). Scope: the design-partner b
 
 This page says how fast and how reliable the app should be during the beta, what we can measure today, and what we cannot measure yet. It adds no new servers, services, cron jobs or schedulers.
 
-**Status: targets, not results.** No number on this page has been measured in production. The only recorded numbers are the local dev-server baseline in [`docs/testing/PERFORMANCE_BASELINE.md`](../testing/PERFORMANCE_BASELINE.md).
+**Status: targets, not results.** No number on this page has been measured in production. The recorded API latency baseline is the local dev-server result in [`docs/testing/PERFORMANCE_BASELINE.md`](../testing/PERFORMANCE_BASELINE.md). Core JavaScript measurements use isolated production builds and are recorded separately in [INITIAL_JS_BUDGET.md](../testing/INITIAL_JS_BUDGET.md). Neither supplies production-deployment, physical-device or real-network performance results.
 
 ## Words used here
 
@@ -70,7 +70,7 @@ Some failures are never "budget". A data leak between households, a lost write, 
 | Request ids            | Every response through `src/middleware.ts` has `X-Request-Id` (`src/lib/request-id.ts`). Adopted error bodies repeat it as `requestId`.                                                                 | Browser dev tools, bug reports                | None for this purpose.                                                                                                                                                   |
 | Server errors          | Unexpected route failures write one JSON line `{ event: 'route.error', route, requestId, errorName, ... }` (`logRouteError`, `src/lib/api-error.ts`). No private content.                               | `docker logs` on the VPS                      | Logs rotate at 3 x 10 MB, so they cover days, not 30 days. No counts are kept.                                                                                           |
 | Route timing           | `withRouteTelemetry` writes `{ event: 'http.request', route, status, durationMs, ... }` when `ROUTE_TIMING_LOG=1`.                                                                                      | `docker logs`                                 | Off by default. Only on 4 routes today: `/api/audit`, `/api/search`, `/api/users/preferences`, `/api/version`. **Not** on chores, events, lists, board-version or login. |
-| Local latency baseline | `npm run perf:baseline` times 10 endpoints against a local server on fixture data and prints p50/p95/max.                                                                                               | Terminal; record in `PERFORMANCE_BASELINE.md` | Local only (it refuses non-loopback targets). No production-build numbers yet.                                                                                           |
+| Local latency baseline | `npm run perf:baseline` times 10 endpoints against a local server on fixture data and prints p50/p95/max.                                                                                               | Terminal; record in `PERFORMANCE_BASELINE.md` | Local only (it refuses non-loopback targets). No production-build API latency numbers yet.                                                                                           |
 | Slow queries           | `PRISMA_QUERY_TIMING=1` logs slow SQL shapes.                                                                                                                                                           | Local terminal                                | Ignored in production by design.                                                                                                                                         |
 | Beta product metrics   | `npm run beta:scorecard` reads daily counts per household.                                                                                                                                              | Terminal                                      | Product use, not reliability.                                                                                                                                            |
 
@@ -81,12 +81,12 @@ Some failures are never "budget". A data leak between households, a lost write, 
 - **Latency of the key routes in production.** `GET /api/chores`, `/api/events`, `/api/lists`, `board-version`, `/dashboard/today` and login are not wrapped with `withRouteTelemetry`.
 - **Client-side speed.** No Web Vitals (time to first paint, interaction delay) from real phones or the fridge tablet.
 - **Android crashes and ANRs** (app not responding).
-- **Web bundle size.** No size budget is checked in CI.
+- **Wider client performance.** The automated core JavaScript gate covers Today, calendar, chores, lists, meals and settings in cold fixture contexts. Other dashboard routes, images, real-device/warm-launch/tap/network timings and production field performance still need their own evidence.
 - **Log history.** Logs rotate after about 30 MB, so a month of history does not exist.
 
 ## Web client performance budgets
 
-Targets only. None of these is checked automatically yet.
+The first-load JavaScript limits are automatically enforced for six core routes by the production-build browser gate below. The 300 KB target still applies to other dashboard routes, but they are not covered by that gate. Warm launch, interactive/tap timings and image targets remain separate acceptance work; no numeric target is changed.
 
 | Budget                                                            | Target                                                                  | Why                                                                                |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -146,19 +146,19 @@ docker logs "$C" 2>&1 | jq -R 'fromjson? | select(.event == "http.request" and .
 npx jest src/app/api/__tests__/error-envelope.test.ts --ci
 ```
 
-**Bundle size:** after a CI or local `npm run build`, open `/dashboard/today` in Chrome with the cache disabled and read the JS total in the Network tab (filter "JS"). Write the number in the PR when a change adds a large dependency.
+**Core bundle size:** use the isolated fixture/database prerequisites in [E2E.md](../testing/E2E.md), then run `npx playwright test e2e/initial-js-budget.spec.ts` against the production build. The attachment measures decoded bodies of actual initial script requests with consistent default gzip, including hydration and initial automatic prefetch. Network transfer totals or whole-manifest unions are different measurements and cannot replace this gate. Record its route/asset sizes in PRs that change startup dependencies.
 
 Issue #413 implements an automated cold-navigation gzip check for the six core dashboard routes in the existing production-build CI browser suite. Its measurement rules, commands and limits are in [INITIAL_JS_BUDGET.md](../testing/INITIAL_JS_BUDGET.md). This is a JavaScript budget check; wider production SLO and physical-device results are still required.
 
-## Follow-ups (not done here)
+## Follow-ups and status
 
-Each needs its own issue. None adds a cron job.
+Remaining work needs its own scoped issue. None adds a cron job. Source implementation, local checks, protected merge and production acceptance remain distinct.
 
 1. Wrap `GET /api/chores`, `/api/events`, `/api/lists`, `/api/family/board-version`, `POST /api/auth/login` and the device board routes with `withRouteTelemetry`, so their p95 can be read from logs. Small, additive.
 2. Ask Cameron whether to turn on `ROUTE_TIMING_LOG=1` (maybe with `ROUTE_TIMING_SAMPLE_RATE=0.2`) in production. Environment change: needs approval.
 3. An outside uptime check of `/api/health` with an alert. Needs Cameron's approval for the provider (a free self-hosted or hosted pinger) and where alerts go.
 4. Keep more log history (larger rotation, or ship JSON lines to a self-hosted store) so a 30-day SLO can be scored.
 5. Record a production-build baseline in `PERFORMANCE_BASELINE.md` on the CI runner.
-6. A small script that sums `.next/static` JS per route after `npm run build` and fails over budget. Run it in CI next to the build.
+6. Implemented in #413 / #414 as the fail-closed cold-navigation browser gate and gzip helper, rather than an unrelated static-file/manifest sum. It enforces the original 250,000/300,000-byte limits for six routes at six viewports. See [INITIAL_JS_BUDGET.md](../testing/INITIAL_JS_BUDGET.md) for source/build identities and exact-head hosted results; wider route/device/network/SLO acceptance stays open.
 7. Client Web Vitals from the fridge tablet and phones, content-free, after a privacy review (`OBSERVABILITY.md` "Privacy review").
 8. API errors: add the flat `code` and `requestId` fields to the shared helpers (`src/lib/api-auth.ts`, `feature-gate-server.ts`, rate-limit responses), as planned in `OBSERVABILITY.md` "Incremental adoption plan" step 2. The new error-envelope test only checks bodies written inline in route files; bodies built by helpers or with a computed status are not checked.
