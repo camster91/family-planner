@@ -1,6 +1,16 @@
 # Current State
 
-## Latest execution refresh — 2026-10-09, after protected #416 merge
+## Latest execution refresh — 2026-10-09, after protected #418 merge
+
+Protected main is `4ced2d14042321ecae39065bb4da635493c7f3a2`; **35 cleanup PRs are verified merged**, 49 issues remain open. #418 final head a7f6d4d passed original Build/Test37871802210, checked image113633298100 and E2E37871802206: 863 journeys (700 configured skips), 28 visuals (11 existing skips). GitGuardian and resolved reviews, strict/admin/conversation protection passed; normal merge completed at02:25:17UTC. All five original #417 criteria are checked/closed with wording/history preserved; only its verified owned local/remote branch was cleaned. Publish/VPS skipped; no production activation or promotion.
+
+#419 is the next validated local calendar candidate. Actual integrated app a616b8c includes protected main through an ordinary merge and was built at02:31:24.105UTC. Prisma/types/full lint/format/build, 365 suites/4,448 unit cases (188 existing opt-in skips), unchanged inventory and tree/history secrets pass. Real metadata edits preserve both fall-back occurrences and seconds/milliseconds; invalid civil/gap times are rejected; pending/obsolete record replies cannot submit stale fields. Regression-first failures are preserved. Final new browser21 checks, existing39 checks (3 configured skips), and all36 unchanged core budgets pass. Test/docs-only changes retain byte-identical app source. Exact-head hosted build/image/E2E/review and normal merge remain required before original #419 closure. See `docs/testing/CALENDAR_EVENT_INSTANTS.md` for exact commands, genuine harness/capture corrections and limits.
+
+The verified gallery/ZIP now preserves **883 unique source-labelled images**: all prior817 plus48 final form/loading/error and18 existing planner regression captures at actual a616b8c. New hashes/dimensions, all paths, exact archived manifest and fullZIPCRC pass. Calendar form copy remains English under Spanish app language; this slice is timestamp/data correctness, not full translation acceptance. Earlier captures retain their source/mode identities.
+
+Parent #137/#142 retain all wider original acceptance. Paused Android workflow, legal/company/sender, production/providers, real devices, human/research/real-household and store gates remain open with their named owners. No scheduler, paid provider, secrets, native publication or production household change. Earlier snapshots below preserve their original dates and evidence.
+
+## Historical execution refresh — 2026-10-09, after protected #416 merge
 
 Protected main is `5a325ce608afe17a6f2407e02ef859417899b83f`; **34 cleanup PRs are verified merged**, 49 issues remain open. #416 final head da4f4ea passed original Build/Test 37869025326, fresh-runner image, 863 hosted journeys (700 configured skips) and 28 visuals (11 existing skips), then merged normally at 01:43:02 UTC. Strict/admin/conversation protection and resolved review threads were verified. All five original #415 criteria are checked with wording/history preserved and the issue is closed. Only its verified owned local/remote branch was removed. Publish/VPS jobs skipped; no production promotion or acceptance is inferred.
 
