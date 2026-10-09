@@ -4,10 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
+import { useTranslation } from '@/i18n'
+import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
-import { missingFieldsHint } from '@/lib/form-hints'
 
 export default function CreateEventPage() {
+  const { t } = useTranslation()
+  const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -15,9 +18,9 @@ export default function CreateEventPage() {
   const [endDate, setEndDate] = useState('')
   const [endTime, setEndTime] = useState('')
   const [location, setLocation] = useState('')
-  const submitHint = missingFieldsHint([...(title.trim() ? [] : ['a title']), ...(startDate ? [] : ['a start date'])])
+  const submitHint = !title.trim() && !startDate ? message('requiredBoth') : !title.trim() ? message('requiredTitle') : !startDate ? message('requiredStart') : null
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<CalendarFormError | null>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,13 +36,13 @@ export default function CreateEventPage() {
       const endDateTime = range?.end
 
       if (!startDateTime || !endDateTime) {
-        setError('Invalid date/time')
+        setError({ key: 'invalidTime' })
         setLoading(false)
         return
       }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
-        setError('The end must be after the start. Check the end date and time.')
+        setError({ key: 'endBeforeStart' })
         setLoading(false)
         return
       }
@@ -58,14 +61,14 @@ export default function CreateEventPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Failed to create event')
+        setError(data.error ? { raw: data.error } : { key: 'createFailed' })
         return
       }
 
       router.push('/dashboard/calendar')
       router.refresh()
     } catch (err) {
-      setError('An unexpected error occurred')
+      setError({ key: 'unexpected' })
       console.error(err)
     } finally {
       setLoading(false)
@@ -78,26 +81,26 @@ export default function CreateEventPage() {
       <div className="px-4 pt-4">
         <Link href="/dashboard/calendar" className="btn-plain text-base py-2">
           <ArrowLeft className="w-5 h-5" />
-          <span>Calendar</span>
+          <span>{message('calendar')}</span>
         </Link>
       </div>
 
       <div className="px-4 pt-4">
-        <h1 className="text-large-title font-display">New Event</h1>
-        <p className="text-subhead text-label-secondary mt-1">Add an event to the family calendar.</p>
+        <h1 className="text-large-title font-display">{message('newEvent')}</h1>
+        <p className="text-subhead text-label-secondary mt-1">{message('createDescription')}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5 px-4">
 
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
-            <p role="alert" className="text-body text-[var(--danger-text)]">{error}</p>
+            <p role="alert" className="text-body text-[var(--danger-text)]">{'key' in error ? message(error.key) : error.raw}</p>
           </div>
         )}
 
         {/* Title */}
         <div>
-          <label className="label-apple" htmlFor="title">Title</label>
+          <label className="label-apple" htmlFor="title">{message('title')}</label>
           <input
             id="title"
             type="text"
@@ -105,26 +108,26 @@ export default function CreateEventPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="input-apple"
-            placeholder="e.g., Soccer practice, Family dinner"
+            placeholder={message('titlePlaceholder')}
           />
         </div>
 
         {/* Description */}
         <div>
-          <label className="label-apple" htmlFor="description">Description</label>
+          <label className="label-apple" htmlFor="description">{message('description')}</label>
           <textarea
             id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input-apple min-h-[80px] resize-none"
-            placeholder="Add details..."
+            placeholder={message('descriptionPlaceholder')}
             rows={3}
           />
         </div>
 
         {/* Start */}
         <div>
-          <label className="label-apple" htmlFor="startDate">Start</label>
+          <label className="label-apple" htmlFor="startDate">{message('start')}</label>
           <div className="grid grid-cols-2 gap-3">
             <input
               id="startDate"
@@ -137,7 +140,7 @@ export default function CreateEventPage() {
             />
             <input
               id="startTime"
-              aria-label="Start time"
+              aria-label={message('startTime')}
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
@@ -148,7 +151,7 @@ export default function CreateEventPage() {
 
         {/* End */}
         <div>
-          <label className="label-apple" htmlFor="endDate">End</label>
+          <label className="label-apple" htmlFor="endDate">{message('end')}</label>
           <div className="grid grid-cols-2 gap-3">
             <input
               id="endDate"
@@ -160,7 +163,7 @@ export default function CreateEventPage() {
             />
             <input
               id="endTime"
-              aria-label="End time"
+              aria-label={message('endTime')}
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
@@ -171,14 +174,14 @@ export default function CreateEventPage() {
 
         {/* Location */}
         <div>
-          <label className="label-apple" htmlFor="location">Location</label>
+          <label className="label-apple" htmlFor="location">{message('location')}</label>
           <input
             id="location"
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             className="input-apple"
-            placeholder="e.g., Home, School, 123 Main St"
+            placeholder={message('createLocationPlaceholder')}
           />
         </div>
 
@@ -190,7 +193,7 @@ export default function CreateEventPage() {
             aria-describedby={submitHint ? 'create-event-hint' : undefined}
             className="btn-filled w-full"
           >
-            {loading ? 'Creating...' : 'Create Event'}
+            {loading ? message('creating') : message('create')}
           </button>
           {submitHint && (
             <p id="create-event-hint" className="text-footnote text-label-secondary mt-2 text-center">

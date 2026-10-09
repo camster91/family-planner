@@ -6,10 +6,14 @@ import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { format } from 'date-fns'
+import { useTranslation } from '@/i18n'
+import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { eventFormRange } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
 
 function EditEventForm() {
+  const { t } = useTranslation()
+  const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -19,7 +23,7 @@ function EditEventForm() {
   const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<CalendarFormError | null>(null)
   // Imported events (#232) are read-only; the API refuses edits with 409.
   const [source, setSource] = useState<{ name: string } | null>(null)
   // DELETE /api/events is parent-only (like PATCH). Unknown until
@@ -27,7 +31,7 @@ function EditEventForm() {
   const [isParent, setIsParent] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<CalendarFormError | null>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const originalTimes = useRef<{ eventId: string; start: string; end: string | null } | null>(null)
   const router = useRouter()
@@ -56,7 +60,7 @@ function EditEventForm() {
     setSource(null)
     setConfirmOpen(false)
     if (!eventId) {
-      setError('No event ID provided')
+      setError({ key: 'noId' })
       setFetching(false)
       return
     }
@@ -85,14 +89,14 @@ function EditEventForm() {
           setLocation(event.location || '')
           setSource(event.source ? { name: event.source.name } : null)
         } else if (res.status === 404) {
-          setError('Event not found')
+          setError({ key: 'notFound' })
         } else {
-          setError('Failed to load event data')
+          setError({ key: 'loadFailed' })
         }
       } catch (err) {
         if (!active) return
         console.error('Error fetching event:', err)
-        setError('Failed to load event data')
+        setError({ key: 'loadFailed' })
       } finally {
         if (active) setFetching(false)
       }
@@ -121,13 +125,13 @@ function EditEventForm() {
       const endDateTime = range?.end
 
       if (!startDateTime || !endDateTime) {
-        setError('Invalid date/time')
+        setError({ key: 'invalidTime' })
         setLoading(false)
         return
       }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
-        setError('The end must be after the start. Check the end date and time.')
+        setError({ key: 'endBeforeStart' })
         setLoading(false)
         return
       }
@@ -147,14 +151,14 @@ function EditEventForm() {
 
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to update event')
+        setError(data.error ? { raw: data.error } : { key: 'updateFailed' })
         return
       }
 
       router.push('/dashboard/calendar')
       router.refresh()
     } catch (err) {
-      setError('An unexpected error occurred')
+      setError({ key: 'unexpected' })
       console.error(err)
     } finally {
       setLoading(false)
@@ -173,14 +177,14 @@ function EditEventForm() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
-        setDeleteError(typeof data?.error === 'string' ? data.error : 'Could not delete the event. Try again.')
+        setDeleteError(typeof data?.error === 'string' ? { raw: data.error } : { key: 'deleteFailed' })
         return
       }
       setConfirmOpen(false)
       router.push('/dashboard/calendar')
       router.refresh()
     } catch {
-      setDeleteError('Could not delete the event. Check your connection and try again.')
+      setDeleteError({ key: 'deleteConnection' })
     } finally {
       setDeleting(false)
     }
@@ -189,7 +193,7 @@ function EditEventForm() {
   if (fetching) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-label-secondary">Loading...</div>
+        <CalendarLoading />
       </div>
     )
   }
@@ -198,9 +202,9 @@ function EditEventForm() {
     return (
       <div className="max-w-xl mx-auto px-4 py-12 text-center">
         <div className="card-apple p-8">
-          <h2 className="text-title-2 text-label-primary mb-2">No Event Selected</h2>
-          <p className="text-body text-label-secondary mb-6">Please select an event to edit.</p>
-          <Link href="/dashboard/calendar" className="btn-filled">Back to Calendar</Link>
+          <h2 className="text-title-2 text-label-primary mb-2">{message('noEvent')}</h2>
+          <p className="text-body text-label-secondary mb-6">{message('selectEvent')}</p>
+          <Link href="/dashboard/calendar" className="btn-filled">{message('back')}</Link>
         </div>
       </div>
     )
@@ -211,12 +215,11 @@ function EditEventForm() {
       <div className="max-w-xl mx-auto px-4 py-12">
         <div className="card-apple p-8">
           <h1 className="text-title-2 text-label-primary mb-2">{title}</h1>
-          <p className="text-body text-label-secondary mb-2">From {source.name}</p>
+          <p className="text-body text-label-secondary mb-2">{message('from', { source: source.name })}</p>
           <p className="text-body text-label-secondary mb-6">
-            This event comes from a subscribed calendar, so it is read-only here. Change it in the original
-            calendar and it will update on the next refresh.
+            {message('readOnly')}
           </p>
-          <Link href="/dashboard/calendar" className="btn-filled">Back to Calendar</Link>
+          <Link href="/dashboard/calendar" className="btn-filled">{message('back')}</Link>
         </div>
       </div>
     )
@@ -228,26 +231,26 @@ function EditEventForm() {
       <div className="px-4 pt-4">
         <Link href="/dashboard/calendar" className="btn-plain text-base py-2">
           <ArrowLeft className="w-5 h-5" />
-          <span>Calendar</span>
+          <span>{message('calendar')}</span>
         </Link>
       </div>
 
       <div className="px-4 pt-4">
-        <h1 className="text-large-title font-display">Edit Event</h1>
-        <p className="text-subhead text-label-secondary mt-1">Update the event details.</p>
+        <h1 className="text-large-title font-display">{message('editEvent')}</h1>
+        <p className="text-subhead text-label-secondary mt-1">{message('editDescription')}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5 px-4">
 
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
-            <p role="alert" className="text-body text-[var(--danger-text)]">{error}</p>
+            <p role="alert" className="text-body text-[var(--danger-text)]">{'key' in error ? message(error.key) : error.raw}</p>
           </div>
         )}
 
         {/* Title */}
         <div>
-          <label className="label-apple" htmlFor="title">Title</label>
+          <label className="label-apple" htmlFor="title">{message('title')}</label>
           <input
             id="title"
             type="text"
@@ -255,26 +258,26 @@ function EditEventForm() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="input-apple"
-            placeholder="e.g., Soccer practice, Family dinner"
+            placeholder={message('titlePlaceholder')}
           />
         </div>
 
         {/* Description */}
         <div>
-          <label className="label-apple" htmlFor="description">Description</label>
+          <label className="label-apple" htmlFor="description">{message('description')}</label>
           <textarea
             id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input-apple min-h-[80px] resize-none"
-            placeholder="Add details..."
+            placeholder={message('descriptionPlaceholder')}
             rows={3}
           />
         </div>
 
         {/* Start */}
         <div>
-          <label className="label-apple" htmlFor="startDate">Start</label>
+          <label className="label-apple" htmlFor="startDate">{message('start')}</label>
           <div className="grid grid-cols-2 gap-3">
             <input
               id="startDate"
@@ -286,7 +289,7 @@ function EditEventForm() {
             />
             <input
               id="startTime"
-              aria-label="Start time"
+              aria-label={message('startTime')}
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
@@ -297,7 +300,7 @@ function EditEventForm() {
 
         {/* End */}
         <div>
-          <label className="label-apple" htmlFor="endDate">End</label>
+          <label className="label-apple" htmlFor="endDate">{message('end')}</label>
           <div className="grid grid-cols-2 gap-3">
             <input
               id="endDate"
@@ -309,7 +312,7 @@ function EditEventForm() {
             />
             <input
               id="endTime"
-              aria-label="End time"
+              aria-label={message('endTime')}
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
@@ -320,14 +323,14 @@ function EditEventForm() {
 
         {/* Location */}
         <div>
-          <label className="label-apple" htmlFor="location">Location</label>
+          <label className="label-apple" htmlFor="location">{message('location')}</label>
           <input
             id="location"
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             className="input-apple"
-            placeholder="e.g., Home, School"
+            placeholder={message('editLocationPlaceholder')}
           />
         </div>
 
@@ -338,7 +341,7 @@ function EditEventForm() {
             disabled={loading || !title || !startDate || originalTimes.current?.eventId !== eventId}
             className="btn-filled w-full"
           >
-            {loading ? 'Saving...' : 'Save Changes'}
+            {loading ? message('saving') : message('save')}
           </button>
         </div>
       </form>
@@ -355,7 +358,7 @@ function EditEventForm() {
             className="btn-plain w-full min-h-[44px] text-[var(--danger-text)]"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
-            <span>Delete event</span>
+            <span>{message('deleteEvent')}</span>
           </button>
         </div>
       )}
@@ -363,14 +366,15 @@ function EditEventForm() {
       <Dialog
         open={confirmOpen}
         onClose={deleting ? undefined : () => setConfirmOpen(false)}
-        title="Delete this event?"
-        description={`“${title}” will be removed from the family calendar for everyone.`}
+        title={message('deleteTitle')}
+        closeLabel={message('close')}
+        description={message('deleteDescription', { title })}
         initialFocusRef={cancelRef}
         testId="delete-event-dialog"
       >
         {deleteError && (
           <p role="alert" className="mb-4 text-body text-[var(--danger-text)]">
-            {deleteError}
+            {'key' in deleteError ? message(deleteError.key) : deleteError.raw}
           </p>
         )}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -381,7 +385,7 @@ function EditEventForm() {
             disabled={deleting}
             className="btn-tinted min-h-[44px]"
           >
-            Cancel
+            {message('cancel')}
           </button>
           <button
             type="button"
@@ -389,7 +393,7 @@ function EditEventForm() {
             disabled={deleting || originalTimes.current?.eventId !== eventId}
             className="btn-destructive min-h-[44px]"
           >
-            {deleting ? 'Deleting…' : 'Delete'}
+            {deleting ? message('deleting') : message('delete')}
           </button>
         </div>
       </Dialog>
@@ -397,11 +401,17 @@ function EditEventForm() {
   )
 }
 
+function CalendarLoading() {
+  const { t } = useTranslation()
+  const key: CalendarFormMessage = 'loading'
+  return <div className="text-label-secondary">{t(key, undefined, calendarFormMessages)}</div>
+}
+
 export default function EditEventPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center py-20">
-        <div className="text-label-secondary">Loading...</div>
+        <CalendarLoading />
       </div>
     }>
       <EditEventForm />
