@@ -25,9 +25,11 @@ import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { toDateOnlyLocal } from '@/lib/dates'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
-import { INVENTORY_LOCATIONS, LOCATION_LABELS, type InventoryLocation } from '@/lib/inventory'
+import { INVENTORY_LOCATIONS, type InventoryLocation } from '@/lib/inventory'
 import type { ScanSuggestion } from '@/lib/inventory-scan'
 import { PRODUCT_BRAND } from '@/lib/brand'
+import { inventoryFeedback as feedback, inventoryFeedbackEnglish, photoAddedFeedback, partialScanFeedback, type InventoryFeedback } from '@/i18n/inventory'
+import { InventoryText, useInventoryCopy } from './inventory-copy'
 
 /** Must match INVENTORY_SCAN_MAX_BYTES in src/lib/inventory-scan.ts (kept literal to stay out of the server module). */
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -43,7 +45,7 @@ interface Row {
   location: InventoryLocation
   expiresOn: string
   confidence: number
-  error: string | null
+  error: InventoryFeedback | null
   /** Sent with every create attempt of this row, so an in-doubt create is replayed, not repeated. */
   idempotencyKey: string
 }
@@ -52,7 +54,7 @@ type Phase =
   | { step: 'pick' }
   | { step: 'scanning' }
   | { step: 'review' }
-  | { step: 'error'; message: string }
+  | { step: 'error'; message: InventoryFeedback }
 
 export function confidenceLabel(confidence: number): string {
   if (confidence >= 0.8) return 'Likely'
@@ -99,7 +101,7 @@ async function prepareImage(file: Blob): Promise<Blob> {
   }
 }
 
-async function scanError(res: Response): Promise<string> {
+async function scanError(res: Response): Promise<InventoryFeedback> {
   let message: string | null = null
   try {
     const body = await res.json()
@@ -109,20 +111,26 @@ async function scanError(res: Response): Promise<string> {
   } catch {
     // fall through
   }
-  if (res.status === 404) return "Fridge scan isn't available right now. You can still add items by hand."
-  if (res.status === 403) return message ?? "You can't scan the fridge. Ask a parent."
-  if ([400, 413, 415, 429, 502].includes(res.status) && message) return message
-  return 'Something went wrong while scanning. Try again, or add items by hand.'
+  if (res.status === 404) return feedback('scanUnavailable')
+  if (res.status === 403) return message !== null ? { raw: message } : feedback('scanForbidden')
+  if ([400, 413, 415, 429, 502].includes(res.status) && message) return { raw: message }
+  return feedback('scanFailed')
 }
 
-const PROBABLY_ADDED =
-  'This item was probably added on an earlier try. Check your inventory before adding it again.'
+const PROBABLY_ADDED = feedback('probablyAdded')
 
-export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
+export function ScanFridgeDialog({ onClose, onDone, onFeedback }: {
+  onClose: () => void
+  onDone: (message: string) => void
+  /** Opt-in semantic feedback; legacy consumers still receive their original English string. */
+  onFeedback?: (message: InventoryFeedback) => void
+}) {
+  const copy = useInventoryCopy()
+  const report = (message: InventoryFeedback) => onFeedback ? onFeedback(message) : onDone(inventoryFeedbackEnglish(message))
   const [phase, setPhase] = React.useState<Phase>({ step: 'pick' })
   const [rows, setRows] = React.useState<Row[]>([])
   const [adding, setAdding] = React.useState(false)
-  const [addError, setAddError] = React.useState<string | null>(null)
+  const [addError, setAddError] = React.useState<InventoryFeedback | null>(null)
   const [addedCount, setAddedCount] = React.useState(0)
   const titleId = React.useId()
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -156,7 +164,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
     setAddError(null)
     const image = await prepareImage(file)
     if (image.size > MAX_UPLOAD_BYTES) {
-      setPhase({ step: 'error', message: 'That photo is too large. The limit is 8 MB.' })
+      setPhase({ step: 'error', message: feedback('photoLarge') })
       return
     }
     const form = new FormData()
@@ -171,7 +179,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
       setRows(toRows(Array.isArray(body?.items) ? (body.items as ScanSuggestion[]) : []))
       setPhase({ step: 'review' })
     } catch {
-      setPhase({ step: 'error', message: "Couldn't reach the scanner. Check your connection and try again." })
+      setPhase({ step: 'error', message: feedback('scanNetwork') })
     } finally {
       if (inputRef.current) inputRef.current.value = ''
     }
@@ -191,17 +199,17 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
       const amount = r.amount.trim() === '' ? null : Number(r.amount)
       if (!r.name.trim()) {
         invalid = true
-        return { ...r, error: 'Enter a name.' }
+        return { ...r, error: feedback('enterName') }
       }
       if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
         invalid = true
-        return { ...r, error: 'Amount must be a number of 0 or more.' }
+        return { ...r, error: feedback('amountInvalid') }
       }
       return r
     })
     if (invalid) {
       setRows(checked)
-      setAddError('Fix the highlighted items, then add again.')
+      setAddError(feedback('fixRows'))
       return
     }
 
@@ -228,12 +236,12 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
           continue
         }
         failed++
-        let message = 'Could not add this item.'
+        let message: InventoryFeedback = feedback('addFailed')
         let code: string | null = null
         try {
           const body = await res.json()
-          if (body?.error && typeof body.error.message === 'string') message = body.error.message
-          else if (typeof body?.error === 'string') message = body.error
+          if (body?.error && typeof body.error.message === 'string') message = { raw: body.error.message }
+          else if (typeof body?.error === 'string') message = { raw: body.error }
           if (body?.error && typeof body.error.code === 'string') code = body.error.code
         } catch {
           // keep the default
@@ -254,7 +262,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
         // Unknown outcome: the row keeps its key, so a retry replays a create that did land.
         failed++
         setRows((prev) =>
-          prev.map((r) => (r.key === row.key ? { ...r, error: 'Could not add this item. Check your connection.' } : r))
+          prev.map((r) => (r.key === row.key ? { ...r, error: feedback('addNetwork') } : r))
         )
       }
     }
@@ -262,18 +270,16 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
     const total = addedCount + added
     setAddedCount(total)
     if (failed === 0) {
-      onDone(`Added ${total} item${total === 1 ? '' : 's'} from your photo.`)
+      report(photoAddedFeedback(total))
     } else {
-      setAddError(
-        `Added ${total} item${total === 1 ? '' : 's'}. ${failed} couldn't be added; check ${failed === 1 ? 'it' : 'them'} and try again.`
-      )
+      setAddError(partialScanFeedback(total, failed))
     }
   }
 
   /** The only way out (Escape or Close): report anything already added so the page reloads. */
   const close = () => {
     if (adding) return
-    if (addedCount > 0) onDone(`Added ${addedCount} item${addedCount === 1 ? '' : 's'} from your photo.`)
+    if (addedCount > 0) report(photoAddedFeedback(addedCount))
     else onClose()
   }
 
@@ -281,7 +287,8 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
     <Dialog
       open
       onClose={close}
-      title="Scan the fridge"
+      title={copy('scanTitle')}
+      closeLabel={copy('close')}
       testId="scan-dialog"
       className="sm:max-w-xl"
       initialFocusRef={pickButtonRef}
@@ -304,11 +311,10 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
         {phase.step === 'pick' && (
           <div className="space-y-4">
             <p className="text-body text-label-primary">
-              Take a photo of your open fridge, freezer or pantry. We&apos;ll suggest what&apos;s in it, and you choose what to
-              add.
+              {copy('scanIntro')}
             </p>
             <p className="text-footnote text-label-secondary" data-testid="scan-privacy-note">
-              The photo is sent to our AI provider (Anthropic) to read it. It isn&apos;t saved by {PRODUCT_BRAND.name}.
+              {copy('scanPrivacy', { provider: 'Anthropic', brand: PRODUCT_BRAND.name })}
             </p>
             <button
               ref={(el) => {
@@ -320,7 +326,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
               onClick={() => inputRef.current?.click()}
             >
               <Camera className="w-4 h-4" aria-hidden="true" />
-              <span>Take or choose a photo</span>
+              <span>{copy('pickPhoto')}</span>
             </button>
           </div>
         )}
@@ -334,14 +340,14 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
             className="flex items-center gap-3 py-6 justify-center text-body text-label-primary outline-none"
           >
             <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-            <span>Looking for food in your photo…</span>
+            <span>{copy('scanning')}</span>
           </div>
         )}
 
         {phase.step === 'error' && (
           <div className="space-y-4">
             <p role="alert" className="text-body text-[var(--danger-text)]" data-testid="scan-error">
-              {phase.message}
+              <InventoryText feedback={phase.message} />
             </p>
             <button
               ref={setStepFocus}
@@ -350,7 +356,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
               onClick={() => inputRef.current?.click()}
             >
               <Camera className="w-4 h-4" aria-hidden="true" />
-              <span>Try another photo</span>
+              <span>{copy('tryPhoto')}</span>
             </button>
           </div>
         )}
@@ -359,11 +365,11 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
           (rows.length === 0 ? (
             <div className="space-y-4">
               <p ref={setStepFocus} tabIndex={-1} className="text-body text-label-primary outline-none" role="status">
-                {addedCount > 0 ? 'Everything from this photo was added.' : 'No food found in that photo.'}
+                {copy(addedCount > 0 ? 'scanAllAdded' : 'scanEmpty')}
               </p>
               <button type="button" className="btn-tinted w-full min-h-[44px]" onClick={() => inputRef.current?.click()}>
                 <Camera className="w-4 h-4" aria-hidden="true" />
-                <span>{addedCount > 0 ? 'Scan another photo' : 'Try another photo'}</span>
+                <span>{copy(addedCount > 0 ? 'anotherPhoto' : 'tryPhoto')}</span>
               </button>
             </div>
           ) : (
@@ -375,9 +381,9 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
                 data-testid="scan-found"
                 className="text-subhead text-label-secondary outline-none"
               >
-                Found {rows.length} item{rows.length === 1 ? '' : 's'}. Check them, untick anything that&apos;s wrong, then add.
+                {copy(rows.length === 1 ? 'foundOne' : 'foundMany', { count: rows.length })}
               </p>
-              <ul className="space-y-3" aria-label="Suggested items">
+              <ul className="space-y-3" aria-label={copy('suggested')}>
                 {rows.map((row, i) => (
                   <SuggestionRow key={row.key} row={row} index={i} idBase={titleId} disabled={adding} onChange={update} />
                 ))}
@@ -385,7 +391,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
               <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-6 py-4 space-y-2">
                 {addError && (
                   <p role="alert" className="text-subhead text-[var(--danger-text)]">
-                    {addError}
+                    <InventoryText feedback={addError} />
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -395,7 +401,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
                     onClick={pickAgain}
                     disabled={adding}
                   >
-                    Scan another photo
+                    {copy('anotherPhoto')}
                   </button>
                   <button
                     type="button"
@@ -404,7 +410,7 @@ export function ScanFridgeDialog({ onClose, onDone }: { onClose: () => void; onD
                     disabled={adding || selected.length === 0}
                     data-testid="scan-add"
                   >
-                    {adding ? 'Adding…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'}`}
+                    {adding ? copy('adding') : copy(selected.length === 1 ? 'addOne' : 'addMany', { count: selected.length })}
                   </button>
                 </div>
               </div>
@@ -428,15 +434,16 @@ function SuggestionRow({
   disabled: boolean
   onChange: (key: string, patch: Partial<Row>) => void
 }) {
+  const copy = useInventoryCopy()
   const id = `${idBase}-row${index}`
-  const label = confidenceLabel(row.confidence)
+  const label = copy(({ Likely: 'likely', 'Check this': 'checkConfidence', Unsure: 'unsure' } as const)[confidenceLabel(row.confidence) as 'Likely' | 'Check this' | 'Unsure'])
   return (
     <li
       data-testid="scan-suggestion"
       className={cn(
         'rounded-xl border p-3 space-y-3',
         row.error ? 'border-[var(--danger-text)]' : 'border-[var(--surface-separator)]',
-        !row.include && 'opacity-70'
+        !row.include && 'border-dashed'
       )}
     >
       <div className="flex items-center gap-3">
@@ -447,12 +454,12 @@ function SuggestionRow({
             onChange={(e) => onChange(row.key, { include: e.target.checked })}
             disabled={disabled}
             className="h-5 w-5 accent-[var(--accent)]"
-            aria-label={`Add ${row.name || `item ${index + 1}`}`}
+            aria-label={copy('includeName', { name: row.name || copy('itemNumber', { count: index + 1 }) })}
           />
         </label>
         <div className="flex-1 min-w-0">
           <label htmlFor={`${id}-name`} className="sr-only">
-            Name
+            {copy('name')}
           </label>
           <input
             id={`${id}-name`}
@@ -475,7 +482,7 @@ function SuggestionRow({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div>
           <label htmlFor={`${id}-amount`} className="text-footnote text-label-secondary block mb-1">
-            Amount
+            {copy('amount')}
           </label>
           <input
             id={`${id}-amount`}
@@ -491,7 +498,7 @@ function SuggestionRow({
         </div>
         <div>
           <label htmlFor={`${id}-unit`} className="text-footnote text-label-secondary block mb-1">
-            Unit
+            {copy('unit')}
           </label>
           <input
             id={`${id}-unit`}
@@ -505,7 +512,7 @@ function SuggestionRow({
         </div>
         <div>
           <label htmlFor={`${id}-location`} className="text-footnote text-label-secondary block mb-1">
-            Where
+            {copy('where')}
           </label>
           <select
             id={`${id}-location`}
@@ -516,14 +523,14 @@ function SuggestionRow({
           >
             {INVENTORY_LOCATIONS.map((loc) => (
               <option key={loc} value={loc}>
-                {LOCATION_LABELS[loc]}
+                {copy(loc)}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label htmlFor={`${id}-expires`} className="text-footnote text-label-secondary block mb-1">
-            Use by
+            {copy('use_by')}
           </label>
           <input
             id={`${id}-expires`}
@@ -538,7 +545,7 @@ function SuggestionRow({
 
       {row.error && (
         <p className="text-footnote text-[var(--danger-text)]" data-testid="scan-row-error">
-          {row.error}
+          <InventoryText feedback={row.error} />
         </p>
       )}
     </li>

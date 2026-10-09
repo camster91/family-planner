@@ -121,13 +121,13 @@ export default function RootLayout({
         <SiteOfflineBanner />
         <ThemeProvider>
           <PostHogProvider>
-            <ToastProvider>
-              <I18nProvider locale="en" persistLocale pseudolocalize={isPseudolocaleEnabled()}>
+            <I18nProvider locale="en" persistLocale pseudolocalize={isPseudolocaleEnabled()}>
+              <ToastProvider>
                 <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
                   {children}
                 </div>
-              </I18nProvider>
-            </ToastProvider>
+              </ToastProvider>
+            </I18nProvider>
           </PostHogProvider>
         </ThemeProvider>
       </body>

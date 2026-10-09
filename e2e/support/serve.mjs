@@ -10,7 +10,7 @@
 // The shim is added to NODE_OPTIONS for the server process only, never for the
 // build, so nothing time-shifted is baked into build output.
 import { spawn, spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
 const root = path.resolve(
@@ -19,6 +19,12 @@ const root = path.resolve(
   "..",
 );
 const port = process.env.E2E_PORT || "3100";
+const inventoryScanStub = process.env.E2E_INVENTORY_SCAN_STUB === "1";
+if (inventoryScanStub && process.env.E2E_SKIP_BUILD !== "1") {
+  throw new Error(
+    "Synthetic inventory scan is server-only; compile exact source separately first",
+  );
+}
 
 if (process.env.E2E_SKIP_BUILD !== "1") {
   const build = spawnSync("npm", ["run", "build"], {
@@ -40,6 +46,16 @@ const nodeOptions = [
 const server = spawn(
   process.execPath,
   [
+    ...(inventoryScanStub
+      ? [
+          "--experimental-strip-types",
+          "--disable-warning=ExperimentalWarning",
+          "--import",
+          pathToFileURL(
+            path.join(root, "e2e", "support", "inventory-scan-stub.mjs"),
+          ).href,
+        ]
+      : []),
     path.join(root, "node_modules", "next", "dist", "bin", "next"),
     "start",
     "-p",
@@ -52,6 +68,7 @@ const server = spawn(
       ...process.env,
       NODE_OPTIONS: nodeOptions,
       E2E_ALLOW_SERVER_CLOCK: "1",
+      ...(inventoryScanStub ? { E2E_ALLOW_INVENTORY_SCAN_STUB: "1" } : {}),
     },
   },
 );

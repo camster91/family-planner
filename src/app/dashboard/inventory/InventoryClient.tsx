@@ -54,12 +54,9 @@ import { cn } from '@/lib/utils'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import {
-  CATEGORY_LABELS,
   DATE_KINDS,
-  DATE_KIND_LABELS,
   INVENTORY_CATEGORIES,
   INVENTORY_LOCATIONS,
-  LOCATION_LABELS,
   asCategory,
   asDateKind,
   expiryLabel,
@@ -72,6 +69,8 @@ import {
   type UseSoonItem,
 } from '@/lib/inventory'
 import type { AdjustmentDto } from '@/lib/inventory-adjust'
+import { inventoryFeedback as feedback, expiryFeedback, type InventoryFeedback } from '@/i18n/inventory'
+import { InventoryText, useInventoryCopy } from './inventory-copy'
 
 type Load<T> = { state: 'loading' } | { state: 'error' } | { state: 'ready'; data: T }
 
@@ -107,12 +106,12 @@ const HISTORY_ROWS = 10
 export const OFFLINE_WRITE_MESSAGE = "You're offline. Connect to the internet to change the inventory."
 
 /** API error envelope `{ error: { message } }` or legacy `{ error: string }`. */
-async function errorMessage(res: Response, fallback: string): Promise<string> {
+async function errorMessage(res: Response, fallback: InventoryFeedback): Promise<InventoryFeedback> {
   try {
     const body = await res.json()
     const err = body?.error
-    if (typeof err === 'string') return err
-    if (err && typeof err.message === 'string') return err.message
+    if (typeof err === 'string') return { raw: err }
+    if (err && typeof err.message === 'string') return { raw: err.message }
   } catch {
     // fall through
   }
@@ -186,7 +185,7 @@ function ExpiryBadge({ status, daysLeft, dateKind }: { status: ExpiryStatus; day
       className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-footnote font-semibold', STATUS_STYLE[status])}
     >
       {status !== 'none' && status !== 'later' && <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-      {expiryLabel(status, daysLeft, dateKind)}
+      <InventoryText feedback={expiryFeedback(expiryLabel(status, daysLeft, dateKind))} />
     </span>
   )
 }
@@ -208,6 +207,7 @@ export default function InventoryClient({
   /** Parent, and the deployment has a fridge-scan provider key (#265). */
   canScan?: boolean
 }) {
+  const copy = useInventoryCopy()
   const mealsOn = useFeatureEnabled('meals')
   const online = useOnline()
   const displayLocale = useDisplayLocale()
@@ -216,7 +216,7 @@ export default function InventoryClient({
   const [loadedAt, setLoadedAt] = React.useState<Date | null>(null)
   const [refreshFailed, setRefreshFailed] = React.useState(false)
   const [editing, setEditing] = React.useState<{ mode: 'add' } | { mode: 'edit'; item: InventoryItemDto } | null>(null)
-  const [notice, setNotice] = React.useState<{ text: string; error?: boolean } | null>(null)
+  const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState('')
@@ -295,7 +295,7 @@ export default function InventoryClient({
     wasOnline.current = online
   }, [online, load])
 
-  const afterChange = async (message: string) => {
+  const afterChange = async (message: InventoryFeedback) => {
     setEditing(null)
     setScanning(false)
     setNotice({ text: message })
@@ -305,7 +305,7 @@ export default function InventoryClient({
   const undo = React.useCallback(
     async (adjustmentId: string, name: string) => {
       if (isOffline()) {
-        setNotice({ text: OFFLINE_WRITE_MESSAGE, error: true })
+        setNotice({ text: feedback('offlineWrite'), error: true })
         return
       }
       try {
@@ -315,12 +315,12 @@ export default function InventoryClient({
           newIdempotencyKey()
         )
         if (!res.ok) {
-          setNotice({ text: await errorMessage(res, `Could not put ${name} back. Try again.`), error: true })
+          setNotice({ text: await errorMessage(res, feedback('undoFailed', { name })), error: true })
         } else {
-          setNotice({ text: `Put ${name} back.` })
+          setNotice({ text: feedback('undoSuccess', { name }) })
         }
       } catch {
-        setNotice({ text: `Could not put ${name} back. Check your connection and try again.`, error: true })
+        setNotice({ text: feedback('undoNetwork', { name }), error: true })
       }
       // Refresh the list and the history either way, so every Undo shown
       // still works (a refused undo usually means the item changed).
@@ -331,8 +331,8 @@ export default function InventoryClient({
 
   /** "Used it" / "Throw away". Returns an error message, or null on success. */
   const adjust = React.useCallback(
-    async (target: AdjustTarget, kind: AdjustKind, amount: number | null = null, key?: string): Promise<string | null> => {
-      if (isOffline()) return OFFLINE_WRITE_MESSAGE
+    async (target: AdjustTarget, kind: AdjustKind, amount: number | null = null, key?: string): Promise<InventoryFeedback | null> => {
+      if (isOffline()) return feedback('offlineWrite')
       const body = kind === 'consume' && amount !== null ? { amount } : {}
       setBusy(target.id)
       try {
@@ -341,22 +341,18 @@ export default function InventoryClient({
           body,
           key ?? newIdempotencyKey()
         )
-        if (!res.ok) return await errorMessage(res, 'Could not save. Try again.')
+        if (!res.ok) return await errorMessage(res, feedback('saveFailed'))
         const result = (await res.json()) as { item: InventoryItemDto; adjustment: AdjustmentDto }
         const partial = kind === 'consume' && result.adjustment.status_after === 'active'
-        const title =
-          kind === 'discard'
-            ? `Threw away ${target.name}`
-            : partial && amount !== null
-              ? `Used ${formatAmount(amount)}${target.unit ? ` ${target.unit}` : ''} of ${target.name}`
-              : `Used ${target.name}`
+        const params = { name: target.name, amount: `${amount !== null ? formatAmount(amount) : ''}${target.unit ? ` ${target.unit}` : ''}` }
+        const title = feedback(kind === 'discard' ? 'threwName' : partial && amount !== null ? 'usedAmount' : 'usedName', params)
         setEditing(null)
-        setNotice({ text: `${title}.` })
-        showUndo({ title, onUndo: () => void undo(result.adjustment.id, target.name) })
+        setNotice({ text: feedback(kind === 'discard' ? 'threwNotice' : partial && amount !== null ? 'usedAmountNotice' : 'usedNotice', params) })
+        showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(result.adjustment.id, target.name) })
         await load()
         return null
       } catch {
-        return 'Could not save. Check your connection and try again.'
+        return feedback('saveNetwork')
       } finally {
         setBusy(null)
       }
@@ -411,7 +407,7 @@ export default function InventoryClient({
 
   const openAdd = () => {
     if (isOffline()) {
-      setNotice({ text: OFFLINE_WRITE_MESSAGE, error: true })
+      setNotice({ text: feedback('offlineWrite'), error: true })
       return
     }
     setEditing({ mode: 'add' })
@@ -421,9 +417,9 @@ export default function InventoryClient({
     <div className="space-y-6 max-w-3xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-large-title font-display">Food inventory</h1>
+          <h1 className="text-large-title font-display">{copy('title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">
-            What&apos;s in the fridge, freezer and pantry, as far as the family has noted it.
+            {copy('subtitle')}
           </p>
         </div>
         {(canWrite || canScan) && (
@@ -431,13 +427,13 @@ export default function InventoryClient({
             {canScan && (
               <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setScanning(true)}>
                 <Camera className="w-4 h-4" aria-hidden="true" />
-                <span>Scan fridge</span>
+                <span>{copy('scanFridge')}</span>
               </button>
             )}
             {canWrite && (
               <button type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
                 <Plus className="w-4 h-4" aria-hidden="true" />
-                <span>Add item</span>
+                <span>{copy('addItem')}</span>
               </button>
             )}
           </div>
@@ -447,7 +443,7 @@ export default function InventoryClient({
       <div role="status" aria-live="polite" className="empty:hidden" data-testid="inventory-notice">
         {notice && (
           <p className={cn('text-subhead', notice.error ? 'text-[var(--danger-text)]' : 'text-label-secondary')}>
-            {notice.text}
+            <InventoryText feedback={notice.text} />
           </p>
         )}
       </div>
@@ -466,12 +462,12 @@ export default function InventoryClient({
           )}
           <span className="flex-1 min-w-[12rem]">
             {!online
-              ? `Showing what was loaded at ${formatClock(loadedAt, displayLocale)}. Changes need a connection; the list refreshes when you're back online.`
-              : `Couldn't refresh. Showing what was loaded at ${formatClock(loadedAt, displayLocale)}, which may be out of date.`}
+              ? copy('savedOffline', { time: formatClock(loadedAt, displayLocale) })
+              : copy('stale', { time: formatClock(loadedAt, displayLocale) })}
           </span>
           {online && (
             <button type="button" className="btn-tinted min-h-[44px]" onClick={load}>
-              Try again
+              {copy('tryAgain')}
             </button>
           )}
         </div>
@@ -481,16 +477,16 @@ export default function InventoryClient({
         <EmptyState
           icon={online ? Refrigerator : WifiOff}
           glyphColor="meals"
-          title="Couldn't load the inventory"
-          description={online ? 'Check your connection and try again.' : "The inventory loads when you're back online."}
+          title={copy('loadFailed')}
+          description={online ? copy('connectionRetry') : copy('loadOffline')}
           action={
             <button type="button" className="btn-tinted min-h-[44px]" onClick={load}>
-              Try again
+              {copy('tryAgain')}
             </button>
           }
         />
       ) : data.state === 'loading' ? (
-        <div className="space-y-3" role="status" aria-label="Loading inventory">
+        <div className="space-y-3" role="status" aria-label={copy('loading')}>
           {[0, 1].map((i) => (
             <div key={i} className="card-apple p-4 space-y-3">
               <Skeleton className="h-4 w-24" />
@@ -515,17 +511,17 @@ export default function InventoryClient({
             <EmptyState
               icon={Refrigerator}
               glyphColor="meals"
-              title="Nothing tracked yet"
+              title={copy('nothingTracked')}
               description={
                 canWrite
-                  ? 'Add what is in your fridge, freezer and pantry. Add a best-before or use-by date to see what to use soon.'
-                  : 'A parent or teen can add what is in the fridge, freezer and pantry.'
+                  ? copy('emptyWriter')
+                  : copy('emptyReader')
               }
               action={
                 canWrite ? (
                   <button type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
                     <Plus className="w-4 h-4" aria-hidden="true" />
-                    <span>Add item</span>
+                    <span>{copy('addItem')}</span>
                   </button>
                 ) : undefined
               }
@@ -546,14 +542,14 @@ export default function InventoryClient({
               />
               {data.data.capped && (
                 <p className="text-footnote text-label-secondary" data-testid="items-capped">
-                  Showing the first {(ITEM_PAGE_SIZE * ITEM_MAX_PAGES).toLocaleString('en-US')} items.
+                  {copy('capped', { count: (ITEM_PAGE_SIZE * ITEM_MAX_PAGES).toLocaleString('en-US') })}
                 </p>
               )}
               {filtersOn && filtered.length === 0 ? (
                 <div className="card-apple p-4 flex flex-wrap items-center justify-between gap-2" data-testid="no-matches">
-                  <p className="text-subhead text-label-secondary">No items match your search.</p>
+                  <p className="text-subhead text-label-secondary">{copy('noMatches')}</p>
                   <button type="button" className="btn-tinted min-h-[44px]" onClick={clearFilters}>
-                    Clear search
+                    {copy('clearSearch')}
                   </button>
                 </div>
               ) : (
@@ -576,7 +572,7 @@ export default function InventoryClient({
         </>
       )}
 
-      {scanning && <ScanFridgeDialog onClose={() => setScanning(false)} onDone={afterChange} />}
+      {scanning && <ScanFridgeDialog onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
 
       {editing && (
         <ItemModal
@@ -630,15 +626,16 @@ function PastUseBySection({
   busy: string | null
   onDiscard: (target: AdjustTarget) => void
 }) {
+  const copy = useInventoryCopy()
   const locale = useDisplayLocale()
   return (
     <section aria-labelledby="inventory-past-use-by" data-testid="past-use-by">
       <h2 id="inventory-past-use-by" className="section-header">
-        Past use-by
+        {copy('pastUseBy')}
       </h2>
       <div className="card-apple overflow-hidden">
         <p className="px-4 pt-3 text-footnote text-label-secondary">
-          A use-by date is about safety, so these should not be eaten.
+          {copy('pastSafety')}
         </p>
         <ul className="divide-y divide-[var(--surface-separator)]">
           {items.map((item) => (
@@ -650,7 +647,7 @@ function PastUseBySection({
               <span className="flex-1 min-w-[10rem]">
                 <span className="block text-body text-label-primary break-words">{item.name}</span>
                 <span className="block text-footnote text-label-secondary">
-                  {LOCATION_LABELS[item.location]} · Use by {item.expires_on ? formatDateOnly(item.expires_on, undefined, locale) : ''}
+                  {copy(item.location)} · {copy('use_by')} {item.expires_on ? formatDateOnly(item.expires_on, undefined, locale) : ''}
                 </span>
               </span>
               <ExpiryBadge status={item.expiry.status} daysLeft={item.expiry.daysLeft} dateKind={item.date_kind} />
@@ -658,10 +655,10 @@ function PastUseBySection({
                 <ActionButton
                   icon={Trash2}
                   disabled={busy === item.id}
-                  label={`Throw away ${item.name}`}
+                  label={copy('throwAwayName', { name: item.name })}
                   onClick={() => onDiscard({ id: item.id, name: item.name })}
                 >
-                  Throw away
+                  {copy('throwAway')}
                 </ActionButton>
               )}
             </li>
@@ -683,15 +680,16 @@ function UseSoonSection({
   busy: string | null
   onAdjust: (target: AdjustTarget, kind: AdjustKind) => void
 }) {
+  const copy = useInventoryCopy()
   const locale = useDisplayLocale()
   return (
     <section aria-labelledby="inventory-use-soon" data-testid="use-soon">
       <h2 id="inventory-use-soon" className="section-header">
-        Use soon
+        {copy('useSoon')}
       </h2>
       <div className="card-apple overflow-hidden">
         {items.length === 0 ? (
-          <p className="p-4 text-subhead text-label-secondary">Nothing to use in the next 3 days.</p>
+          <p className="p-4 text-subhead text-label-secondary">{copy('nothingSoon')}</p>
         ) : (
           <ul className="divide-y divide-[var(--surface-separator)]">
             {items.map((item) => (
@@ -703,7 +701,7 @@ function UseSoonSection({
                 <span className="flex-1 min-w-[10rem]">
                   <span className="block text-body text-label-primary break-words">{item.name}</span>
                   <span className="block text-footnote text-label-secondary">
-                    {LOCATION_LABELS[item.location]} · {DATE_KIND_LABELS[asDateKind(item.dateKind)]}{' '}
+                    {copy(item.location)} · {copy(asDateKind(item.dateKind))}{' '}
                     {formatDateOnly(item.expiresOn, undefined, locale)}
                   </span>
                 </span>
@@ -713,18 +711,18 @@ function UseSoonSection({
                     <ActionButton
                       icon={Utensils}
                       disabled={busy === item.id}
-                      label={`Used ${item.name}`}
+                      label={copy('usedName', { name: item.name })}
                       onClick={() => onAdjust({ id: item.id, name: item.name }, 'consume')}
                     >
-                      Used it
+                      {copy('usedIt')}
                     </ActionButton>
                     <ActionButton
                       icon={Trash2}
                       disabled={busy === item.id}
-                      label={`Throw away ${item.name}`}
+                      label={copy('throwAwayName', { name: item.name })}
                       onClick={() => onAdjust({ id: item.id, name: item.name }, 'discard')}
                     >
-                      Throw away
+                      {copy('throwAway')}
                     </ActionButton>
                   </span>
                 )}
@@ -760,12 +758,13 @@ function FilterBar({
   filtersOn: boolean
   onClear: () => void
 }) {
+  const copy = useInventoryCopy()
   const id = React.useId()
   return (
-    <div role="search" aria-label="Search the inventory" className="card-apple p-3 space-y-3" data-testid="inventory-filters">
+    <div role="search" aria-label={copy('searchInventory')} className="card-apple p-3 space-y-3" data-testid="inventory-filters">
       <div className="relative">
         <label htmlFor={`${id}-q`} className="sr-only">
-          Search by name
+          {copy('searchName')}
         </label>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
         <input
@@ -774,14 +773,14 @@ function FilterBar({
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           maxLength={100}
-          placeholder="Search by name"
+          placeholder={copy('searchName')}
           className="w-full input-apple min-h-[44px] pl-9"
         />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor={`${id}-where`} className="text-footnote text-label-secondary mb-1 block">
-            Where
+            {copy('where')}
           </label>
           <select
             id={`${id}-where`}
@@ -789,17 +788,17 @@ function FilterBar({
             onChange={(e) => onWhere(e.target.value as InventoryLocation | 'all')}
             className="w-full input-apple min-h-[44px]"
           >
-            <option value="all">Everywhere</option>
+            <option value="all">{copy('everywhere')}</option>
             {INVENTORY_LOCATIONS.map((loc) => (
               <option key={loc} value={loc}>
-                {LOCATION_LABELS[loc]}
+                {copy(loc)}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label htmlFor={`${id}-category`} className="text-footnote text-label-secondary mb-1 block">
-            Category
+            {copy('category')}
           </label>
           <select
             id={`${id}-category`}
@@ -807,10 +806,10 @@ function FilterBar({
             onChange={(e) => onCategory(e.target.value as InventoryCategory | 'all')}
             className="w-full input-apple min-h-[44px]"
           >
-            <option value="all">All categories</option>
+            <option value="all">{copy('allCategories')}</option>
             {INVENTORY_CATEGORIES.map((c) => (
               <option key={c} value={c}>
-                {CATEGORY_LABELS[c]}
+                {copy(c)}
               </option>
             ))}
           </select>
@@ -819,10 +818,10 @@ function FilterBar({
       {filtersOn && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-footnote text-label-secondary" data-testid="filter-count">
-            Showing {shown} of {total} items
+            {copy('filterCount', { shown, total })}
           </p>
           <button type="button" className="btn-plain min-h-[44px]" onClick={onClear}>
-            Clear search
+            {copy('clearSearch')}
           </button>
         </div>
       )}
@@ -831,34 +830,35 @@ function FilterBar({
 }
 
 function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; onRetry: () => void; canOpenRecipes: boolean }) {
+  const copy = useInventoryCopy()
   return (
     <section aria-labelledby="inventory-cook" data-testid="what-can-i-cook">
       <h2 id="inventory-cook" className="section-header">
-        What can I cook
+        {copy('cook')}
       </h2>
       {load.state === 'loading' ? (
-        <div className="card-apple p-4 space-y-2" role="status" aria-label="Loading recipe suggestions">
+        <div className="card-apple p-4 space-y-2" role="status" aria-label={copy('loadingRecipes')}>
           <Skeleton className="h-5 w-1/2" />
           <Skeleton className="h-4 w-3/4" />
         </div>
       ) : load.state === 'error' ? (
         <div className="card-apple p-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-subhead text-[var(--danger-text)]">Couldn&apos;t load recipe suggestions.</p>
+          <p className="text-subhead text-[var(--danger-text)]">{copy('recipesFailed')}</p>
           <button type="button" className="btn-tinted min-h-[44px]" onClick={onRetry}>
-            Try again
+            {copy('tryAgain')}
           </button>
         </div>
       ) : load.data.suggestions.length === 0 ? (
         <p className="card-apple p-4 text-subhead text-label-secondary" data-testid="cook-empty">
           {load.data.inputsTruncated
-            ? 'No match among the recipes and items checked. You have more recipes or items than we can compare at once, so this may be incomplete.'
-            : 'No saved recipe uses what you have yet. Add items, or save recipes in Meals, to see ideas here.'}
+            ? copy('recipesEmptyCapped')
+            : copy('recipesEmpty')}
         </p>
       ) : (
         <>
           {load.data.inputsTruncated && (
             <p className="mb-3 text-footnote text-label-secondary" data-testid="cook-incomplete">
-              You have more recipes or items than we can compare at once, so this list may be incomplete.
+              {copy('recipesIncomplete')}
             </p>
           )}
           <ul className="space-y-3">
@@ -872,19 +872,19 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                     <h3 className="text-body font-semibold text-label-primary break-words">{s.title}</h3>
                     <p className="text-footnote text-label-secondary" data-testid="cook-coverage">
                       {s.missingCount === 0
-                        ? `You have all ${s.totalCount} ingredient${s.totalCount === 1 ? '' : 's'}`
-                        : `You have ${s.haveCount} of ${s.totalCount} ingredients`}
-                      {s.useSoonCount > 0 ? ` · uses ${s.useSoonCount} item${s.useSoonCount === 1 ? '' : 's'} to use soon` : ''}
+                        ? copy(s.totalCount === 1 ? 'haveAllOne' : 'haveAllMany', { count: s.totalCount })
+                        : copy('haveSome', { have: s.haveCount, total: s.totalCount })}
+                      {s.useSoonCount > 0 ? copy(s.useSoonCount === 1 ? 'cookSoonOne' : 'cookSoonMany', { count: s.useSoonCount }) : ''}
                     </p>
                   </div>
                 </div>
                 <p className="text-subhead text-label-primary break-words">
-                  <span className="font-semibold">In stock: </span>
+                  <span className="font-semibold">{copy('inStock')}</span>
                   {s.have.map((h) => h.name).join(', ')}
                 </p>
                 {s.missing.length > 0 && (
                   <p className="text-subhead text-label-primary break-words" data-testid="cook-missing">
-                    <span className="font-semibold">Missing: </span>
+                    <span className="font-semibold">{copy('missing')}</span>
                     {s.missing.map((m) => m.name).join(', ')}
                   </p>
                 )}
@@ -896,7 +896,7 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                     >
                       <BookOpen className="w-4 h-4" aria-hidden="true" />
                       <span>
-                        View recipe<span className="sr-only">: {s.title}</span>
+                        {copy('viewRecipe')}<span className="sr-only">: {s.title}</span>
                       </span>
                     </Link>
                   )}
@@ -905,7 +905,7 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                       className="flex-1 min-w-[14rem]"
                       recipeId={s.recipeId}
                       ingredientIds={s.missing.map((m) => m.ingredientId)}
-                      label={`Add ${s.missing.length} missing to groceries`}
+                      label={copy('addMissing', { count: s.missing.length })}
                     />
                   )}
                 </div>
@@ -918,15 +918,15 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
   )
 }
 
-function itemMeta(item: InventoryItemDto, locale: string): string {
+function itemMeta(item: InventoryItemDto, locale: string, copy: ReturnType<typeof useInventoryCopy>): string {
   const parts: string[] = []
   const amount = amountText(item)
   if (amount) parts.push(amount)
-  if (item.expires_on) parts.push(`${DATE_KIND_LABELS[asDateKind(item.date_kind)]} ${formatDateOnly(item.expires_on, undefined, locale)}`)
+  if (item.expires_on) parts.push(`${copy(asDateKind(item.date_kind))} ${formatDateOnly(item.expires_on, undefined, locale)}`)
   const category = asCategory(item.category)
-  if (category) parts.push(CATEGORY_LABELS[category])
-  if (item.opened_on) parts.push(`Opened ${formatDateOnly(item.opened_on, undefined, locale)}`)
-  return parts.join(' · ') || 'No amount or date'
+  if (category) parts.push(copy(category))
+  if (item.opened_on) parts.push(copy('openedDate', { date: formatDateOnly(item.opened_on, undefined, locale) }))
+  return parts.join(' · ') || copy('noAmountDate')
 }
 
 function LocationSection({
@@ -943,16 +943,17 @@ function LocationSection({
   onEdit: (item: InventoryItemDto) => void
 }) {
   const headingId = `inventory-${location}`
+  const copy = useInventoryCopy()
   const locale = useDisplayLocale()
   return (
     <section aria-labelledby={headingId} data-testid="inventory-location" data-location={location}>
       <h2 id={headingId} className="section-header">
-        {LOCATION_LABELS[location]} <span className="text-label-tertiary">({items.length})</span>
+        {copy(location)} <span className="text-label-tertiary">({items.length})</span>
       </h2>
       <div className="card-apple overflow-hidden">
         {items.length === 0 ? (
           <p className="p-4 text-subhead text-label-secondary">
-            {filtered ? `No matches in the ${LOCATION_LABELS[location].toLowerCase()}.` : `Nothing in the ${LOCATION_LABELS[location].toLowerCase()}.`}
+            {copy(filtered ? ({ fridge: 'matchesFridge', freezer: 'matchesFreezer', pantry: 'matchesPantry' } as const)[location] : ({ fridge: 'nothingFridge', freezer: 'nothingFreezer', pantry: 'nothingPantry' } as const)[location])}
           </p>
         ) : (
           <ul className="divide-y divide-[var(--surface-separator)]">
@@ -962,7 +963,7 @@ function LocationSection({
                   {/* A minimum width lets the badge wrap under a long name on a phone instead of squeezing it. */}
                   <span className="flex-1 min-w-[9rem]">
                     <span className="block text-body text-label-primary break-words">{item.name}</span>
-                    <span className="block text-footnote text-label-secondary break-words">{itemMeta(item, locale)}</span>
+                    <span className="block text-footnote text-label-secondary break-words">{itemMeta(item, locale, copy)}</span>
                   </span>
                   <ExpiryBadge status={item.expiry.status} daysLeft={item.expiry.daysLeft} dateKind={asDateKind(item.date_kind)} />
                 </>
@@ -973,7 +974,7 @@ function LocationSection({
                     <button
                       type="button"
                       onClick={() => onEdit(item)}
-                      aria-label={`Edit ${item.name}`}
+                      aria-label={copy('editName', { name: item.name })}
                       className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 min-h-[52px] text-left active:bg-[var(--surface-fill-secondary)]"
                     >
                       {body}
@@ -992,12 +993,17 @@ function LocationSection({
   )
 }
 
-function historyText(e: HistoryEntry): string {
-  if (e.kind === 'discard') return `Threw away ${e.item_name}`
+function historyText(e: HistoryEntry): InventoryFeedback {
+  if (e.kind === 'discard') return feedback('threwName', { name: e.item_name })
   if (e.status_after === 'active' && e.amount_delta !== null) {
-    return `Used ${formatAmount(-e.amount_delta)} of ${e.item_name}`
+    return feedback('usedAmount', { amount: formatAmount(-e.amount_delta), name: e.item_name })
   }
-  return `Used ${e.item_name}`
+  return feedback('usedName', { name: e.item_name })
+}
+
+function historyCopy(e: HistoryEntry, copy: ReturnType<typeof useInventoryCopy>): string {
+  const value = historyText(e)
+  return 'raw' in value ? value.raw : copy(value.key, value.params)
 }
 
 function HistorySection({
@@ -1009,11 +1015,12 @@ function HistorySection({
   canWrite: boolean
   onUndo: (entry: HistoryEntry) => void
 }) {
+  const copy = useInventoryCopy()
   const locale = useDisplayLocale()
   return (
     <section aria-labelledby="inventory-history" data-testid="inventory-history">
       <h2 id="inventory-history" className="section-header">
-        Recently used or thrown away
+        {copy('history')}
       </h2>
       <div className="card-apple overflow-hidden">
         <ul className="divide-y divide-[var(--surface-separator)]">
@@ -1021,7 +1028,7 @@ function HistorySection({
             <li key={e.id} data-testid="history-item" className="px-4 py-3 min-h-[52px] flex flex-wrap items-center gap-x-3 gap-y-2">
               <History className="w-4 h-4 shrink-0 text-label-tertiary" aria-hidden="true" />
               <span className="flex-1 min-w-[10rem]">
-                <span className="block text-body text-label-primary break-words">{historyText(e)}</span>
+                <span className="block text-body text-label-primary break-words"><InventoryText feedback={historyText(e)} /></span>
                 <span className="block text-footnote text-label-secondary">
                   {new Date(e.created_at).toLocaleString(locale, {
                     month: 'short',
@@ -1029,12 +1036,12 @@ function HistorySection({
                     hour: 'numeric',
                     minute: '2-digit',
                   })}
-                  {e.undone_at ? ' · Undone' : ''}
+                  {e.undone_at ? copy('undone') : ''}
                 </span>
               </span>
               {canWrite && e.undoable === true && (
-                <ActionButton icon={Undo2} label={`Undo: ${historyText(e)}`} onClick={() => onUndo(e)}>
-                  Undo
+                <ActionButton icon={Undo2} label={copy('undoHistory', { change: historyCopy(e, copy) })} onClick={() => onUndo(e)}>
+                  {copy('undo')}
                 </ActionButton>
               )}
             </li>
@@ -1055,9 +1062,10 @@ function ItemModal({
   mode: 'add' | 'edit'
   initial?: InventoryItemDto
   onClose: () => void
-  onDone: (message: string) => void
-  onAdjust: (target: AdjustTarget, kind: AdjustKind, amount: number | null, key: string) => Promise<string | null>
+  onDone: (message: InventoryFeedback) => void
+  onAdjust: (target: AdjustTarget, kind: AdjustKind, amount: number | null, key: string) => Promise<InventoryFeedback | null>
 }) {
+  const copy = useInventoryCopy()
   const [name, setName] = React.useState(initial?.name ?? '')
   const [location, setLocation] = React.useState<InventoryLocation>(initial?.location ?? 'fridge')
   const [amount, setAmount] = React.useState(initial?.amount != null ? String(initial.amount) : '')
@@ -1069,7 +1077,7 @@ function ItemModal({
   const [openedOn, setOpenedOn] = React.useState(initial?.opened_on ?? '')
   const [used, setUsed] = React.useState('')
   const [saving, setSaving] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<InventoryFeedback | null>(null)
   const titleId = React.useId()
   const saveKey = useChangeKey()
   const adjustKey = useChangeKey()
@@ -1087,16 +1095,16 @@ function ItemModal({
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Enter a name.')
+      setError(feedback('enterName'))
       return
     }
     const parsedAmount = amount.trim() === '' ? null : Number(amount)
     if (parsedAmount !== null && (!Number.isFinite(parsedAmount) || parsedAmount < 0)) {
-      setError('Amount must be a number of 0 or more.')
+      setError(feedback('amountInvalid'))
       return
     }
     if (isOffline()) {
-      setError(OFFLINE_WRITE_MESSAGE)
+      setError(feedback('offlineWrite'))
       return
     }
     const body = {
@@ -1119,12 +1127,12 @@ function ItemModal({
           : `/api/inventory?${todayQuery()}`
       const res = await postJson(url, body, saveKey(body), mode === 'edit' ? 'PATCH' : 'POST')
       if (!res.ok) {
-        setError(await errorMessage(res, 'Could not save. Try again.'))
+        setError(await errorMessage(res, feedback('saveFailed')))
         return
       }
-      onDone(mode === 'edit' ? `Saved ${trimmed}.` : `Added ${trimmed}.`)
+      onDone(feedback(mode === 'edit' ? 'savedName' : 'addedName', { name: trimmed }))
     } catch {
-      setError('Could not save. Check your connection and try again.')
+      setError(feedback('saveNetwork'))
     } finally {
       setSaving(false)
     }
@@ -1136,7 +1144,7 @@ function ItemModal({
     if (kind === 'consume' && used.trim() !== '') {
       usedAmount = Number(used)
       if (!Number.isFinite(usedAmount) || usedAmount <= 0) {
-        setError('How much you used must be a number more than 0, or leave it empty for all of it.')
+        setError(feedback('usedInvalid'))
         return
       }
     }
@@ -1150,11 +1158,11 @@ function ItemModal({
 
   const remove = async () => {
     if (!initial) return
-    if (!confirm(`Remove ${initial.name} and its history? Use "Used it" or "Throw away" instead if you want to keep a record.`)) {
+    if (!confirm(copy('removeConfirm', { name: initial.name }))) {
       return
     }
     if (isOffline()) {
-      setError(OFFLINE_WRITE_MESSAGE)
+      setError(feedback('offlineWrite'))
       return
     }
     setSaving(true)
@@ -1167,12 +1175,12 @@ function ItemModal({
         'DELETE'
       )
       if (!res.ok) {
-        setError(await errorMessage(res, 'Could not remove. Try again.'))
+        setError(await errorMessage(res, feedback('removeFailed')))
         return
       }
-      onDone(`Removed ${initial.name}.`)
+      onDone(feedback('removedName', { name: initial.name }))
     } catch {
-      setError('Could not remove. Check your connection and try again.')
+      setError(feedback('removeNetwork'))
     } finally {
       setSaving(false)
     }
@@ -1200,12 +1208,12 @@ function ItemModal({
       >
         <div className="flex items-center justify-between gap-2">
           <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
-            {mode === 'add' ? 'Add item' : `Edit ${initial?.name ?? 'item'}`}
+            {mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={copy('close')}
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
           >
             <X className="w-5 h-5 text-label-tertiary" aria-hidden="true" />
@@ -1214,11 +1222,11 @@ function ItemModal({
 
         {mode === 'edit' && initial && (
           <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">
-            <p className="text-subhead font-semibold text-label-primary">Used it or threw it away?</p>
+            <p className="text-subhead font-semibold text-label-primary">{copy('usedOrThrew')}</p>
             {initial.amount !== null && (
               <div>
                 <label htmlFor={`${titleId}-used`} className="text-subhead text-label-secondary mb-1 block">
-                  How much did you use? <span className="text-label-tertiary">(empty = all of it)</span>
+                  {copy('howMuch')}<span className="text-label-tertiary">{copy('emptyAll')}</span>
                 </label>
                 <input
                   id={`${titleId}-used`}
@@ -1228,7 +1236,7 @@ function ItemModal({
                   step="any"
                   value={used}
                   onChange={(e) => setUsed(e.target.value)}
-                  placeholder={`All ${amountText(initial) ?? ''}`.trim()}
+                  placeholder={copy('allAmount', { amount: amountText(initial) ?? '' }).trim()}
                   className="w-full input-apple"
                 />
               </div>
@@ -1236,11 +1244,11 @@ function ItemModal({
             <div className="grid grid-cols-2 gap-2">
               <button type="button" className="btn-tinted min-h-[44px]" onClick={() => adjust('consume')} disabled={saving}>
                 <Utensils className="w-4 h-4" aria-hidden="true" />
-                <span>Used it</span>
+                <span>{copy('usedIt')}</span>
               </button>
               <button type="button" className="btn-ghost min-h-[44px]" onClick={() => adjust('discard')} disabled={saving}>
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
-                <span>Throw away</span>
+                <span>{copy('throwAway')}</span>
               </button>
             </div>
           </div>
@@ -1249,7 +1257,7 @@ function ItemModal({
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div>
             <label htmlFor={`${titleId}-name`} className="text-subhead text-label-secondary mb-1 block">
-              Name
+              {copy('name')}
             </label>
             <input
               id={`${titleId}-name`}
@@ -1264,7 +1272,7 @@ function ItemModal({
           </div>
 
           <fieldset>
-            <legend className="text-subhead text-label-secondary mb-1">Where</legend>
+            <legend className="text-subhead text-label-secondary mb-1">{copy('where')}</legend>
             <div className="grid grid-cols-3 gap-2">
               {INVENTORY_LOCATIONS.map((loc) => (
                 <label key={loc} className={tile(location === loc)}>
@@ -1276,7 +1284,7 @@ function ItemModal({
                     onChange={() => setLocation(loc)}
                     className={tileInput}
                   />
-                  {LOCATION_LABELS[loc]}
+                  {copy(loc)}
                 </label>
               ))}
             </div>
@@ -1285,7 +1293,7 @@ function ItemModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor={`${titleId}-amount`} className="text-subhead text-label-secondary mb-1 block">
-                Amount <span className="text-label-tertiary">(optional)</span>
+                {copy('amount')} <span className="text-label-tertiary">{copy('optional')}</span>
               </label>
               <input
                 id={`${titleId}-amount`}
@@ -1300,7 +1308,7 @@ function ItemModal({
             </div>
             <div>
               <label htmlFor={`${titleId}-unit`} className="text-subhead text-label-secondary mb-1 block">
-                Unit <span className="text-label-tertiary">(optional)</span>
+                {copy('unit')} <span className="text-label-tertiary">{copy('optional')}</span>
               </label>
               <input
                 id={`${titleId}-unit`}
@@ -1308,7 +1316,7 @@ function ItemModal({
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
                 maxLength={32}
-                placeholder="e.g. g, L, pack"
+                placeholder={copy('unitExample')}
                 className="w-full input-apple"
               />
             </div>
@@ -1316,7 +1324,7 @@ function ItemModal({
 
           <fieldset className="space-y-2">
             <legend className="text-subhead text-label-secondary mb-1">
-              Date on the pack <span className="text-label-tertiary">(optional)</span>
+              {copy('packDate')} <span className="text-label-tertiary">{copy('optional')}</span>
             </legend>
             <div className="grid grid-cols-2 gap-2">
               {DATE_KINDS.map((kind) => (
@@ -1329,18 +1337,18 @@ function ItemModal({
                     onChange={() => setDateKind(kind)}
                     className={tileInput}
                   />
-                  {DATE_KIND_LABELS[kind]}
+                  {copy(kind)}
                 </label>
               ))}
             </div>
             <p className="text-footnote text-label-secondary" id={`${titleId}-date-help`}>
               {dateKind === 'use_by'
-                ? 'Use by is about safety: do not eat it after this day.'
-                : 'Best before is about quality: it may still be fine after this day.'}
+                ? copy('useBySafety')
+                : copy('bestBeforeQuality')}
             </p>
             <div className="flex gap-2">
               <label htmlFor={`${titleId}-expires`} className="sr-only">
-                {DATE_KIND_LABELS[dateKind]} date
+                {copy('dateLabel', { kind: copy(dateKind) })}
               </label>
               <input
                 id={`${titleId}-expires`}
@@ -1356,7 +1364,7 @@ function ItemModal({
                   onClick={() => setExpiresOn('')}
                   className="min-h-[44px] px-3 rounded-lg text-subhead text-[var(--accent-text)] active:bg-[var(--surface-fill)]"
                 >
-                  Clear date
+                  {copy('clearDate')}
                 </button>
               )}
             </div>
@@ -1364,7 +1372,7 @@ function ItemModal({
 
           <div>
             <label htmlFor={`${titleId}-category`} className="text-subhead text-label-secondary mb-1 block">
-              Category <span className="text-label-tertiary">(optional)</span>
+              {copy('category')} <span className="text-label-tertiary">{copy('optional')}</span>
             </label>
             <select
               id={`${titleId}-category`}
@@ -1372,10 +1380,10 @@ function ItemModal({
               onChange={(e) => setCategory(e.target.value as InventoryCategory | '')}
               className="w-full input-apple min-h-[44px]"
             >
-              <option value="">No category</option>
+              <option value="">{copy('noCategory')}</option>
               {INVENTORY_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {CATEGORY_LABELS[c]}
+                  {copy(c)}
                 </option>
               ))}
             </select>
@@ -1384,7 +1392,7 @@ function ItemModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor={`${titleId}-purchased`} className="text-subhead text-label-secondary mb-1 block">
-                Bought <span className="text-label-tertiary">(optional)</span>
+                {copy('bought')} <span className="text-label-tertiary">{copy('optional')}</span>
               </label>
               <input
                 id={`${titleId}-purchased`}
@@ -1396,7 +1404,7 @@ function ItemModal({
             </div>
             <div>
               <label htmlFor={`${titleId}-opened`} className="text-subhead text-label-secondary mb-1 block">
-                Opened <span className="text-label-tertiary">(optional)</span>
+                {copy('opened')} <span className="text-label-tertiary">{copy('optional')}</span>
               </label>
               <input
                 id={`${titleId}-opened`}
@@ -1410,18 +1418,18 @@ function ItemModal({
 
           {error && (
             <p role="alert" className="text-subhead text-[var(--danger-text)]">
-              {error}
+              <InventoryText feedback={error} />
             </p>
           )}
 
           <div className="flex gap-2 pt-2">
             {mode === 'edit' && (
               <button type="button" onClick={remove} className="btn-destructive flex-1 min-h-[44px]" disabled={saving}>
-                Remove
+                {copy('remove')}
               </button>
             )}
             <button type="submit" className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {copy(saving ? 'saving' : 'save')}
             </button>
           </div>
         </form>
