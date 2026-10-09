@@ -4,6 +4,7 @@ import { test as base, expect, browserFetch } from "./support/test";
 import { authFile, E2E_ANCHOR } from "./support/env";
 import { FIXTURE_IDS, FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
 import { PRODUCT_BRAND } from "../src/lib/brand";
+import { describeCalendarSync } from "../src/lib/calendar-sync-status";
 import {
   SettingsRequests,
   type Locale,
@@ -1434,7 +1435,15 @@ test.describe("parentA connected calendars", () => {
           start = "/api/calendar/connections/google/start";
         await expect(
           section.getByText(
-            msg(locale, "problem") + msg(locale, "reconnectFallback"),
+            msg(locale, "problem") +
+              describeCalendarSync({
+                lastAttemptAt: null,
+                failed: true,
+                error: null,
+                now: new Date(E2E_ANCHOR).getTime(),
+                verb: "synced",
+                failedFallback: msg(locale, "reconnectFallback"),
+              }).text,
             { exact: true },
           ),
         ).toBeVisible();
