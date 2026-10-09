@@ -1,6 +1,16 @@
 # Herewoven completion contract and durable release plan
 
-## Latest execution refresh — 2026-10-09, prepared store-section candidate
+## Latest execution refresh — 2026-10-09, after protected #414 merge
+
+Protected main is `7e2f20d4fcf34987e0fb830104b55e7969a3a17d`; **33 cleanup PRs are verified merged**,49 issues remain open. #414 exact reviewed head1a77c6e passed original Build/Test37866168350, fresh-image113615906073,851 hosted journeys (688 configured skips) and28 visual checks (11 existing skips), then merged normally at01:12:24UTC. GitGuardian passed, Cursorneutral, reviewthreads0; strict/admin/conversation protection was verified. All five original #413 criteria are checked with wording/history preserved; the issue is closed. Only its verified owned branch is cleaned. Publish/VPS jobs skipped; merge is not manual production promotion or acceptance.
+
+#415 is the next prepared candidate. Actual ordinary058d81f build00:44:56.371Z has4393 unit/78 browser cases passing, all36 unchanged core budgets (Today247117), full applicable source/inventory/type/lint/format/build/tree/history checks. Protected main7e2f20d is included by ordinary merge444221f; app src is byte-identical to that actual058 build. Later documentation does not invent another local build. Inventory1722 and original15 localized occurrence removals are explicit; selected i18n/store-section source matchesd732, with earlier expanded-copy evidence retained under its actuale3 identity. Final exact-head hosted build/image/E2E/review and normal protected merge remain required before415 closure.
+
+The808-image gallery/ZIP preserves every exact source/mode, including66 final reviewed ordinary058 views. New hashes/dimensions, all manifest paths, exact archived manifest and ZIP CRC pass; existing overview sheet is separate. #137 document-exists and #142 practical copy-guard criteria are now individually checked against previously merged1010979 evidence; both broader issues remain open with original remaining criteria intact. Core timing-wrapper adoption is the next identified unblocked reliability slice, still only a local scope draft.
+
+#370 Android-workflow, #372 legal/company/sender, provider/production, native/physical-device, research and household acceptance gates remain unresolved. No paused workflow, scheduler, provider/spend, secrets or manual promotion was changed. Earlier snapshots below are preserved as dated history.
+
+## Historical execution refresh — 2026-10-09, prepared store-section candidate
 
 Protected main remains101097956e09fca16a20e8aac9ae0cc1b5c17503,32 cleanup PRs merged,50 issues open. #414 reviewed head1a77c6e (actual app build5d6bfe0) has full4,385 unit and54 local browser cases passing, including preserved account-dialog retry identity across close/reopen and unchanged core byte budgets. Original3f hosted Today failure and superseded3536 candidate remain dated history below. Current exact-head Build/Test37866168350 and E2E37866168366 must pass with image/review/protection before normal merge/#413 closure.
 
