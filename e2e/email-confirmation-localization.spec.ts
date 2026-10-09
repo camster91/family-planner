@@ -198,25 +198,35 @@ for (const locale of ["en", "es"] as const)
     ).toBeDisabled();
     await capture(page, info, "confirm-pending", [signIn()]);
     await finish(503, {});
-    await expect(page.getByRole("alert")).toHaveText(copy("error"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      copy("error"),
+    );
     await capture(page, info, "confirm-server-error", [confirm(), signIn()]);
     mode = "network";
     await confirm().click();
     await expect.poll(() => posts.length).toBe(2);
     await expect(confirm()).toBeEnabled();
-    await expect(page.getByRole("alert")).toHaveText(copy("error"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      copy("error"),
+    );
     await capture(page, info, "confirm-network", [confirm()]);
     mode = "rate";
     await confirm().click();
-    await expect(page.getByRole("alert")).toHaveText(copy("rate_limited"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      copy("rate_limited"),
+    );
     await capture(page, info, "confirm-rate-limited", [confirm()]);
     mode = "malformed";
     await confirm().click();
-    await expect(page.getByRole("alert")).toHaveText(copy("error"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      copy("error"),
+    );
     await capture(page, info, "confirm-malformed", [confirm()]);
     mode = "invalid";
     await confirm().click();
-    await expect(page.getByRole("alert")).toHaveText(copy("invalid"));
+    await expect(page.locator(".auth-panel").getByRole("alert")).toHaveText(
+      copy("invalid"),
+    );
     await expect(confirm()).toHaveCount(0);
     await expect(
       page.getByText("Synthetic raw error must remain undisplayed"),
@@ -227,7 +237,9 @@ for (const locale of ["en", "es"] as const)
     expect(posts.length).toBe(5);
     mode = "already";
     await confirm().click();
-    await expect(page.getByRole("status")).toHaveText(copy("already_verified"));
+    await expect(page.locator(".auth-panel").getByRole("status")).toHaveText(
+      copy("already_verified"),
+    );
     await expect(confirm()).toHaveCount(0);
     await capture(page, info, "confirm-already-verified", [signIn()]);
     expect(posts.length).toBe(6);

@@ -19,3 +19,9 @@ The existing isolated public QA job separately compiles ordinary0/0 and expanded
 ## Acceptance limits and rollback
 
 Original #437 criteria remain unchecked until all original exact-head hosted/source/rendered/current protection/conversation gates pass and a normal merge/ancestry readback/owned cleanup completes. Implementing-agent review is not independent human acceptance. Full #142 localization, login/register feedback, provider delivery, legal/native/store/production/real-household requirements remain open. Rollback is a normal scoped source/dictionary/inventory/browser/workflow revert; no migration or API/auth/provider policy change.
+
+## First hosted failure and genuine harness correction
+
+Original c25a0e1c run37917701958 public QA compiled ordinary runtime9631bf70d61da7d15d1015cb5f3875db35207a9a and passed all6existing recovery cases;6confirmation cases failed at the first error assertion because unscoped `getByRole("alert")` also selected Next.js's `__next-route-announcer__`. Retained artifact11610488284/60,537,213bytes and reports prove that exact cause. Expanded compilation/cases were skipped after ordinary failure and are not claimed passed.
+
+Only confirmation notice selectors now scope to `.auth-panel`, consistent with the existing recovery spec. The intended message expectation, all10states,7exact intercepted raw-token requests, no automatic POST, accessibility targets, retries/timeouts/projects/outcome checks and workflow coverage are unchanged. This is a genuine selector correction; original runs/history/artifact remain retained and no red source is merged. The corrected exact source requires its own original ordinary/expanded reports/compilations and complete hosted/rendered/current normal gates before acceptance.

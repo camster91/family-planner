@@ -1,6 +1,8 @@
 # Current State
 
-## Current execution — 2026-10-09, email-confirmation localization
+## Current execution — 2026-10-09, email-confirmation selector correction
+
+#438originalc25public QA ordinary build passes but6confirmation cases fail on ambiguous global alert selector; artifact11610488284 retained. All6existing recovery cases pass, expanded steps skipped. Genuine selector correction scopes alerts/status to confirmation panel with all expectations/states/requests/guards unchanged. Newly corrected source requires original hosted/rendered acceptance; no red merge.
 
 44 cleanup PRs normal-merged; accepted main12e35cfef8a85be355d49f97f21ee1d31dbecea4 includes #436 exact4dbe after original Build/Test37913613858 and E2E37913613866 all viewport/visual/dualQA/aggregate/fresh image/security/manual/current protections/conversation gates. Original434fivecriteria CLOSED; both owned recovery branches cleaned and superseded435source retained in pushed archive tag. Gallery/ZIP2491 preserves all older objects/pixels and adds132actual current-source ordinary/expanded recovery views. Full parent/provider/native/production acceptance remains open.
 
