@@ -48,3 +48,7 @@ Verified gallery/ZIP:2293 unique source-labelled images, including324 final acco
 Owned ordinary/expanded servers and guarded PostgreSQL are stopped; ports3161/55437 verified empty. Primary dirty and auxiliary worktrees remain preserved. Final source/head publication, original hosted gates, exact manual review/current normal protections/resolved threads and normal merge remain required before checking/closing original #430 criteria. #429's own original hosted acceptance is a separate prerequisite; never substitute local/source passes for it.
 
 Rollback: revert presentation/dictionaries and their scoped inventory removals together. No data/API migration. Full #142/#128/provider/production/legal/human/native/store/household acceptance remains open.
+
+## Local CI-source integration — 2026-10-09
+
+Reviewed429 CI repair6cbd81d is locally integrated without claiming protected-main acceptance. All application/dependency/schema/config/support/scripts/public inputs remain byte-identical to actualb388d8b and the existing compiled/rendered source above; workflow bytes match6cbd81d exactly. Only the dated CURRENT_STATE prefix conflicted, and both full prefixes are archived verbatim with the original baseline tail unchanged. Current complete candidate case enumeration/secret/source checks remain required before publication; original429 hosted acceptance remains pending. No local tests/build/browser results are invented for this workflow/prose-only integration.
