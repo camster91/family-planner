@@ -148,7 +148,8 @@ for (const locale of ["en", "es"] as const) {
       test("sort, current, pending, error and automatic choices preserve canonical data", async ({
         page,
       }, info) => {
-        await page.goto(`/dashboard/lists/${listId}`);
+        const response = await page.goto(`/dashboard/lists/${listId}`);
+        expect(response?.status()).toBe(200);
         const sort = page.getByTestId("section-sort");
         await expect(sort).toContainText(text("grouped"));
         if (role === "parentA")
