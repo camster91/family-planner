@@ -13,6 +13,7 @@ import {
 import ListDetailClient, { type SectionSortProps } from "../ListDetailClient";
 import { GROCERY_SECTIONS } from "@/lib/grocery-sections";
 import { ToastProvider } from "@/components/ui/toast";
+import { I18nProvider, useTranslation } from "@/i18n";
 
 // Store sections (#273). The offline queue (#162) is covered by its own tests;
 // here the queue mock only lets a tick be shown as queued.
@@ -20,7 +21,7 @@ const mockQueued = new Map<string, boolean>();
 jest.mock("../use-list-item-sync", () => ({
   __emptyOperations: Object.freeze([]),
   useListItemSync: () => ({
-    operations: require('../use-list-item-sync').__emptyOperations,
+    operations: require("../use-list-item-sync").__emptyOperations,
     online: true,
     durable: true,
     pendingCount: 0,
@@ -101,6 +102,20 @@ const ITEMS = [
   { ...base, id: "peas", content: "Frozen peas", checked: false },
 ];
 
+function LocaleToggle() {
+  const { setLocale } = useTranslation();
+  return <button onClick={() => setLocale("es")}>Change locale</button>;
+}
+function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <I18nProvider>
+        <LocaleToggle />
+        {children}
+      </I18nProvider>
+    </ToastProvider>
+  );
+}
 function renderList(
   props: Partial<React.ComponentProps<typeof ListDetailClient>> = {},
 ) {
@@ -114,7 +129,7 @@ function renderList(
       sectionSort={sort()}
       {...props}
     />,
-    { wrapper: ToastProvider },
+    { wrapper: Providers },
   );
 }
 
@@ -419,6 +434,105 @@ describe("grocery list grouped by store section (#273)", () => {
     ).toBeTruthy();
   });
 
+  it("keeps an open current/chosen move target and exact automatic payload on locale change", async () => {
+    const content = "Milk {section} 🥛";
+    const fetchMock = jest.fn(async (_url: string, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        nameKey: "milk {section} 🥛",
+        override: null,
+        sections: { milk: "dairy_eggs" },
+      }),
+    }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderList({
+      items: ITEMS.map((item) =>
+        item.id === "milk" ? { ...item, content } : item,
+      ),
+      sectionSort: sort({ overrides: { "milk {section} 🥛": "dairy_eggs" } }),
+    });
+    const beforeOrder = order();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Move ${content} to another section`,
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: `Move “${content}”` });
+    expect(
+      within(dialog).getByRole("button", {
+        name: /Dairy & eggs/,
+        pressed: true,
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Change locale" }));
+    expect(screen.getByRole("dialog", { name: `Mover “${content}”` })).toBe(
+      dialog,
+    );
+    expect(
+      within(dialog).getByRole("button", {
+        name: /Lácteos y huevos/,
+        pressed: true,
+      }).textContent,
+    ).toContain("Actual");
+    expect(order()).toEqual(beforeOrder);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () =>
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Usar la sección automática",
+        }),
+      ),
+    );
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/lists/items/section");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]!.body))).toEqual({
+      itemId: "milk",
+      section: null,
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText(content)).toBeTruthy();
+  });
+
+  it("localizes sort headings and learned hints without changing order or writing on locale change", () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    renderList({ sectionSort: sort({ learned: true }) });
+    const beforeOrder = order();
+    fireEvent.click(screen.getByRole("button", { name: "Change locale" }));
+    expect(
+      screen
+        .getByRole("switch", { name: "Ordenar por sección de la tienda" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      screen.getByText(
+        "Las secciones siguen el orden en que suele comprar tu hogar.",
+      ),
+    ).toBeTruthy();
+    expect(sectionNames()).toEqual([
+      "Frutas y verduras",
+      "Panadería",
+      "Lácteos y huevos",
+      "Congelados",
+      "Artículos del hogar",
+    ]);
+    expect(order()).toEqual(beforeOrder);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the child sort state read-only and uses a complete localized state sentence", () => {
+    renderList({ sectionSort: sort({ canChange: false, enabled: false }) });
+    fireEvent.click(screen.getByRole("button", { name: "Change locale" }));
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(
+      screen.getByText("Ordenar por sección de la tienda: desactivado"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Los artículos conservan el orden en que se añadieron."),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("move-section")).toBeNull();
+  });
+
   it("a list stored with sorting off opens in category order", () => {
     renderList({ sectionSort: sort({ enabled: false }) });
     expect(screen.queryAllByTestId("store-section")).toHaveLength(0);
@@ -446,7 +560,9 @@ describe("grocery list grouped by store section (#273)", () => {
 });
 
 // Canonical refresh after a queued create; navigation is covered in browser tests.
-jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) }))
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: jest.fn() }),
+}));
 
 // Submitted-create replay has its own real-queue component and browser suite.
-jest.mock('../PersonGroceryAdd', () => ({ PersonGroceryAdd: () => null }))
+jest.mock("../PersonGroceryAdd", () => ({ PersonGroceryAdd: () => null }));

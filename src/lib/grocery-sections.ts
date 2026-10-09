@@ -29,9 +29,9 @@ export const GROCERY_SECTIONS = [
 export type GrocerySectionId = (typeof GROCERY_SECTIONS)[number]
 
 /**
- * Display labels. The list pages do not use `src/i18n` yet, so the labels live
- * here, keyed by the stable id the API stores and returns; a locale table can
- * replace this map without touching stored data.
+ * Default English labels for server and untouched consumers, keyed by the
+ * stable id the API stores and returns. Localized list controls use their
+ * route-owned display dictionary without changing this dependency-free map.
  */
 export const GROCERY_SECTION_LABELS: Record<GrocerySectionId, string> = {
   produce: 'Produce',
