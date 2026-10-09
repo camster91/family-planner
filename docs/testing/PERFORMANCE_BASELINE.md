@@ -35,7 +35,7 @@ To see which queries dominate, start the server with `PRISMA_QUERY_TIMING=1 PRIS
 | `GET /api/health` | Readiness probe (`SELECT 1`) |
 | `GET /dashboard/today` (page) | The home/Today board, server-rendered |
 | `GET /api/family/board-version` | The Today board's 25 s change poll: recomputes and hashes the board |
-| `GET /api/chores`, `/api/events`, `/api/lists` | Core collection reads (chores and lists are unbounded, see OBSERVABILITY.md) |
+| `GET /api/chores`, `/api/events`, `/api/lists` | Core collection reads (legacy chores capped at 500; events capped at 100; household lists have no row cap, see OBSERVABILITY.md) |
 | `GET /api/search?q=` | Household search (fixed synthetic query) |
 | `GET /api/audit` | Household audit history, first page |
 | `GET /api/users/preferences` | Small own-row read |
@@ -66,6 +66,53 @@ To see which queries dominate, start the server with `PRISMA_QUERY_TIMING=1 PRIS
 
 Reading it: the middleware/framework floor on this dev server is about 12 ms; single-household API reads add roughly 5-15 ms at fixture size; the server-rendered Today page is the most expensive path. Fixture households are tiny (a dozen chores and events), so these numbers say nothing about large households; the unbounded `GET /api/chores` and `GET /api/lists` are the first to grow.
 
-### Production build
+### 2026-10-09 — local production-build fixture baseline
 
-To be recorded on the CI runner (or a machine with enough disk) with `npm run build && npx next start`, using the commands above. Do not fill this in with estimates.
+**Label: compiled production build on an isolated loopback test server, small fabricated household.**
+This is a local comparison baseline, not production SLO, concurrency, realistic capacity, physical-device
+or full #134/#137 acceptance. The historical development numbers above retain their original environment
+and should not be compared directly with this different host/build.
+
+- Actual `/api/version`: commit `6a09e04f272690b60393da366d97acdb78b3d2f8`, builtAt
+  `2026-10-09T02:57:55.778Z`, version `0.1.0`. Published #422 head `e33f46d` has byte-identical
+  application/build inputs; it is not claimed as a separate build. Hosted merge acceptance remains separate.
+- Node 22.23.2, Next.js 16.3.8, PostgreSQL 16.14 (Homebrew), macOS/arm64, 10 logical CPUs and 16 GiB RAM.
+- Existing guarded fixture database, Family A parent sign-in, `http://127.0.0.1:3161`. Existing E2E server
+  clock shim uses `E2E_SERVER_NOW=2026-01-05T12:00:00Z`, matching the January fixture anchor; explicit
+  timestamps and baked build identity are unchanged. This test clock is not a production setting.
+- Family A cardinality: 4 members, 14 events, 12 chores, 2 meals, 5 lists, 19 list items, 3 recipes,
+  0 inventory rows. Counts alone do not establish realistic large-household coverage; inventory/AI traffic
+  and concurrent clients are outside this script.
+- Route/query timing logs and expanded-copy QA flags off. One sequential client, 3 warm-ups then
+  30 timed requests per endpoint, including discarded body transfer. All 300 timed requests returned 200.
+  Owned local server and PostgreSQL were stopped after observation; no remote target or production data used.
+
+Exact existing-script command (guarded local fixture environment):
+
+```bash
+PERF_BASE_URL=http://127.0.0.1:3161 PERF_ITERATIONS=30 PERF_WARMUP=3 npm run perf:baseline
+```
+
+| Endpoint | Status | p50 ms | p95 ms | max ms |
+|---|---|---:|---:|---:|
+| GET /api/version | 200×30 | 2.2 | 4.2 | 5.8 |
+| GET /api/health | 200×30 | 2.3 | 3.2 | 3.8 |
+| GET /dashboard/today (page) | 200×30 | 9.2 | 14.1 | 16.3 |
+| GET /api/family/board-version | 200×30 | 4.0 | 4.6 | 5.1 |
+| GET /api/chores | 200×30 | 3.2 | 3.9 | 4.5 |
+| GET /api/events | 200×30 | 2.8 | 4.0 | 4.3 |
+| GET /api/lists | 200×30 | 3.0 | 3.6 | 3.9 |
+| GET /api/search?q= | 200×30 | 3.5 | 3.9 | 4.2 |
+| GET /api/audit | 200×30 | 3.0 | 4.2 | 5.4 |
+| GET /api/users/preferences | 200×30 | 2.5 | 3.0 | 3.3 |
+
+Evidence retained in this task's `work/`: `422-production-build-perf-baseline.log`,
+`422-perf-runtime-version.json`, `422-perf-fixture-cardinality.json`,
+`422-perf-app-source-identity.txt` and server/database stop readbacks. This observation fills the former
+local production-build placeholder; realistic query-count/SQL, high-cardinality/load, retention/index,
+production history and native/customer evidence remain open in the original issues.
+
+Current-source correction to the historical interpretation above: legacy chores now cap at 500 and
+current parent-page chore reads have their own bounds. The historical September baseline was not rerun
+or relabelled. Lists and meal windows still require a compatible cardinality/pagination review; a date
+window or expected household size is not a row bound.

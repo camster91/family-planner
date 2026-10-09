@@ -135,18 +135,34 @@ The Today board (`/dashboard/today`, `GET /api/family/board-version` polled ever
 | `user.findMany` members | household size | `User(family_id)` |
 | `event.findMany` not finished, starting before window end | `take: MAX_EVENTS` | `Event(family_id, start_time)` |
 | `chore.findMany` due in window | `take: MAX_CHORES` | `Chore(family_id, due_date)` (added in #306, decision O-19) |
-| `familyMeal.findMany` dinners in window (meals on) | window days | `FamilyMeal(family_id, date)` |
+| `familyMeal.findMany` dinners in window (meals on) | date window only; no row cap (multiple meals per day are allowed) | `FamilyMeal(family_id, date)` |
 | `listItem.findMany` + `count` open shopping items | `take: 5` + count | `ListItem(list_id, checked)` via `List(family_id, type)` |
 | use-soon inventory (inventory on) | `limit` | see `src/lib/inventory.ts` |
 | `calendarSubscription.findMany` names | ids from the page | primary key + `family_id` |
 | `upload.findMany` ambient photos | `MAX_AMBIENT_PHOTOS` | primary key |
 
 Findings, not fixed here:
-- `GET /api/chores` supports opt-in `?limit=1..200&cursor=` paging (#307, decision O-19); without `limit` it still returns every chore of the household so installed clients keep working, and the web chores page now pages only older verified chores ("Load more" under All; open and recent chores still load in full on the server). Moving the Android client and the other web callers (chore edit, travel) onto paging is the remaining step. `GET /api/lists` returns one row per list (with item counts), which stays small per household, so it has no paging (O-19).
+- `GET /api/chores` supports opt-in `?limit=1..200&cursor=` paging (#307, decision O-19). Without `limit`, it retains the plain `{ chores }` shape but returns at most `CHORE_UNPAGED_MAX` (500), selected newest by due date/id and returned oldest first. The parent web page uses two separate `currentChoreQueries` reads capped at `CHORE_CURRENT_MAX` (500 each), plus older verified history pages (`CHORE_HISTORY_PAGE_SIZE` 50 plus one lookahead row). The optional streak, member and rotation-template reads are separate and must not be assumed bounded by those current/history caps. Installed Android and other callers still need compatibility-aware paging review.
+- `GET /api/lists` returns one row per household list with item counts and creator name, without a row cap or paging. Expected household size is not an enforced row bound. The deprecated `GET /api/lists/items` and current server list-detail page also load all items of an authorized list; neither has paging. A bounded implementation must preserve old-client contracts, store-section ordering and truthful completeness/recovery state.
+- Today dinner reads have a date predicate but no row cap; `GET /api/meals` similarly allows date ranges up to 62 days without row paging. ADR-0007 permits multiple meals per date/type, so neither range is a cardinality bound. Nested recipe ingredients also need review. Do not silently drop additional meals to make the query appear bounded. Missing-ingredient counts load inventory once through the capped `loadCookInventory`, then run a pure in-memory dinner loop; that loop alone does not prove N+1.
 - The Today-board and `GET /api/chores` queries filter `family_id` and order by `due_date`; the `Chore(family_id, due_date)` index (expand-only, #306) serves both. With fixture data every table is small enough that Postgres may still scan sequentially; confirm with the slow-query hook or `EXPLAIN` on a realistic household.
 - `board-version` recomputes the whole board to hash it on every poll (rate limit 1200/hour per member). It is the hottest path; watch its p95 in `docs/testing/PERFORMANCE_BASELINE.md` before adding tiles.
 
 Plan: run `npm run perf:baseline` against a local server started with `PRISMA_QUERY_TIMING=1 PRISMA_SLOW_QUERY_MS=0` on the fixtures (and later a larger synthetic household), record the slowest statements, `EXPLAIN (ANALYZE, BUFFERS)` them on a disposable database, and propose indexes or limits in the domain's own issue. No polling or background job is added for this.
+### Source audit limits and remaining core-flow evidence (#134)
+
+The callsite review above is source evidence, not a complete N+1, capacity or production query-plan audit.
+Trace helper/spread arguments, upstream cardinality and nested relation strategies before treating a query as
+bounded. Count actual SQL on realistic fabricated households; a single Prisma call can involve relation reads,
+and a date predicate or expected small household does not establish a row cap.
+
+Already inspected collection contracts include event range reads (`limit + 1`, stable start/id cursors),
+legacy event reads (`take: 100`), inventory and recipe lists (`limit + 1` with offsets), and the Today shopping
+snapshot (`take: 5` plus an exact count). Those bounds do not establish every calendar, grocery, inventory,
+meal, chore or AI path. Original #134 requirements for complete core-flow query/N+1 coverage, high-volume
+index/pagination/retention plans, safe migrations and representative load traffic remain open. No production
+query, index, scheduler, schema or infrastructure change is inferred from this source reconciliation.
+
 ### Local offline queue reports (#135)
 
 The support projection and exact semantics are in `OFFLINE_SYNC.md` → Local sync support diagnostics.
