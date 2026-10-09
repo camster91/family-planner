@@ -181,7 +181,8 @@ async function capture(
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: info.outputPath(name + ".png"),
-    fullPage: true,
+    // Modal overlays belong to the viewport; full-page stitching adds off-screen background.
+    fullPage: (await page.getByRole("dialog").count()) === 0,
   });
 }
 for (const locale of ["en", "es"] as const) {
