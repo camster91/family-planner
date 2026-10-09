@@ -443,7 +443,7 @@ function SuggestionRow({
       className={cn(
         'rounded-xl border p-3 space-y-3',
         row.error ? 'border-[var(--danger-text)]' : 'border-[var(--surface-separator)]',
-        !row.include && 'opacity-70'
+        !row.include && 'border-dashed'
       )}
     >
       <div className="flex items-center gap-3">

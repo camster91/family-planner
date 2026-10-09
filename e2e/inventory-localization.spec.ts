@@ -157,7 +157,7 @@ test.describe("inventory localization synthetic server", () => {
             msg(locale, "noMatches"),
           );
           await capture(page, info, `${role}-${locale}-filtered`, [
-            page.getByRole("button", {
+            page.getByTestId("no-matches").getByRole("button", {
               name: msg(locale, "clearSearch"),
               exact: true,
             }),
@@ -309,6 +309,7 @@ test.describe("inventory localization synthetic server", () => {
         await page.unroute("**/api/inventory/cook?*");
         // Twenty controlled nextOffset responses exercise the existing cap, not a 10,000-row database or load benchmark.
         const pages: string[] = [];
+        let template: Record<string, unknown> | undefined;
         await page.route(/\/api\/inventory\?/, async (route) => {
           const url = new URL(route.request().url());
           expect(route.request().method()).toBe("GET");
@@ -316,11 +317,22 @@ test.describe("inventory localization synthetic server", () => {
           expect(url.searchParams.get("offset")).toBe(
             String(pages.length * 500),
           );
+          if (pages.length === 0) {
+            const response = await route.fetch();
+            expect(response.status()).toBe(200);
+            const data = await response.json();
+            template = data.items.find(
+              (item: { id: string }) => item.id === ITEM,
+            );
+            expect(template?.name).toBe(PRIVATE_NAME);
+            expect(template?.unit).toBe(PRIVATE_UNIT);
+          }
           pages.push(url.href);
           await route.fulfill({
             json: {
               items: [
                 {
+                  ...template,
                   id: `controlled-cap-${pages.length}`,
                   name: PRIVATE_NAME,
                   amount: 2,
