@@ -564,14 +564,14 @@ it("AI pending key/model drafts and late saved notice survive language changes w
     expect(key).toHaveValue("");
     expect(key).toHaveAttribute("placeholder", "Saved: masked {hint} 李");
     fireEvent.change(key, { target: { value: "synthetic-fixture-input" } });
-    const model = screen.getByLabelText(/Model/);
+    const model = screen.getByLabelText("Model (optional)");
     fireEvent.change(model, { target: { value: "private-model-{name}-李" } });
     const aiSection = key.closest("details")!;
     await user.click(within(aiSection).getByRole("button", { name: "Save" }));
     const before = calls.length;
     await user.selectOptions(screen.getByLabelText("Preferred language"), "es");
     expect(key).toHaveValue("synthetic-fixture-input");
-    expect(screen.getByLabelText(/Modelo/)).toBe(model);
+    expect(screen.getByLabelText("Modelo (opcional)")).toBe(model);
     expect(model).toHaveValue("private-model-{name}-李");
     expect(
       within(aiSection).getByRole("button", { name: "Guardando…" }),
@@ -718,3 +718,75 @@ it("native password success uses current language but closes after the original 
     jest.useRealTimers();
   }
 });
+it.each(["future-outcome", "constructor", "toString"])(
+  "unknown provider outcome %s stays untouched without a fabricated notice or a repeated load",
+  async (outcome) => {
+    const calls = api(undefined, (url) =>
+      url === "/api/calendar/connections"
+        ? reply(200, { providers: [], connections: [] })
+        : undefined,
+    );
+    window.history.replaceState(
+      null,
+      "",
+      `/dashboard/settings?calendar_sync=${outcome}&keep=synthetic`,
+    );
+    const view = render(
+      <I18nProvider locale="en">
+        <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
+      </I18nProvider>,
+    );
+    try {
+      await screen.findByRole("heading", { name: "Connected calendars" });
+      const before = calls.length;
+      await spanish();
+      expect(window.location.search).toBe(
+        `?calendar_sync=${outcome}&keep=synthetic`,
+      );
+      expect(calls).toHaveLength(before);
+      expect(
+        calls.filter((x) => x.url === "/api/calendar/connections"),
+      ).toHaveLength(1);
+      expect(screen.queryByText("Calendar connected.")).toBeNull();
+    } finally {
+      view.unmount();
+      window.history.replaceState(null, "", "/");
+    }
+  },
+);
+it.each(["future-provider", "constructor", "toString"])(
+  "unknown provider id %s keeps its literal label and cannot select an inherited translation key",
+  async (id) => {
+    const label = "Future {provider} 李";
+    const calls = api(undefined, (url) =>
+      url === "/api/calendar/connections"
+        ? reply(200, { providers: [{ id, label }], connections: [] })
+        : undefined,
+    );
+    const view = render(
+      <I18nProvider locale="en">
+        <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
+      </I18nProvider>,
+    );
+    try {
+      await screen.findByRole("heading", { name: "Connected calendars" });
+      await userEvent.click(
+        screen
+          .getByRole("heading", { name: "Connected calendars" })
+          .closest("summary")!,
+      );
+      expect(
+        screen.getByRole("button", { name: "Connect Future {provider} 李" }),
+      ).toBeVisible();
+      const before = calls.length;
+      await spanish();
+      expect(
+        screen.getByRole("button", { name: "Conectar Future {provider} 李" }),
+      ).toBeVisible();
+      expect(calls).toHaveLength(before);
+      expect(calls.some((x) => x.init?.method === "POST")).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  },
+);

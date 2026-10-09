@@ -507,7 +507,7 @@ export default function SettingsClient({
                 htmlFor="profileAge"
                 className="block text-sm font-medium text-foreground mb-2"
               >
-                {copy("age")}
+                {copy("age")}{" "}
                 <span className="font-normal text-label-tertiary">
                   {copy("optional")}
                 </span>
@@ -866,7 +866,7 @@ export default function SettingsClient({
                     htmlFor="aiBaseUrl"
                     className="block text-sm font-medium text-foreground mb-2"
                   >
-                    {copy("providerUrl")}
+                    {copy("providerUrl")}{" "}
                     <span className="text-muted-foreground font-normal">
                       {copy("optional")}
                     </span>
@@ -885,7 +885,7 @@ export default function SettingsClient({
                     htmlFor="aiModel"
                     className="block text-sm font-medium text-foreground mb-2"
                   >
-                    {copy("model")}
+                    {copy("model")}{" "}
                     <span className="text-muted-foreground font-normal">
                       {copy("optional")}
                     </span>

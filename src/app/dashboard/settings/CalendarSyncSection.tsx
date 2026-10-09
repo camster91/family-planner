@@ -154,7 +154,10 @@ export default function CalendarSyncSection() {
       if (waiting) void openPicker(waiting);
     });
     try {
-      const known = outcome ? OUTCOMES[outcome] : undefined;
+      const known =
+        outcome && Object.prototype.hasOwnProperty.call(OUTCOMES, outcome)
+          ? OUTCOMES[outcome]
+          : undefined;
       if (known) {
         if (known.ok) setNotice(settingsFeedback(known.key));
         else setError(settingsFeedback(known.key));
@@ -559,7 +562,7 @@ export default function CalendarSyncSection() {
               <Link2 className="w-4 h-4 mr-2" aria-hidden="true" />
               {busy === `connect:${p.id}`
                 ? copy("opening")
-                : CONNECT_LABELS[p.id]
+                : Object.prototype.hasOwnProperty.call(CONNECT_LABELS, p.id)
                   ? copy(CONNECT_LABELS[p.id])
                   : copy("connectProvider", { provider: p.label })}
             </button>

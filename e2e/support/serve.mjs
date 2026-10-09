@@ -20,6 +20,12 @@ const root = path.resolve(
 );
 const port = process.env.E2E_PORT || "3100";
 const inventoryScanStub = process.env.E2E_INVENTORY_SCAN_STUB === "1";
+const settingsQa = Boolean(process.env.E2E_SETTINGS_QA);
+if (settingsQa && (inventoryScanStub || process.env.E2E_SKIP_BUILD !== "1")) {
+  throw new Error(
+    "Settings QA requires a separate prebuilt server without inventory transport",
+  );
+}
 if (inventoryScanStub && process.env.E2E_SKIP_BUILD !== "1") {
   throw new Error(
     "Synthetic inventory scan is server-only; compile exact source separately first",
@@ -46,13 +52,18 @@ const nodeOptions = [
 const server = spawn(
   process.execPath,
   [
-    ...(inventoryScanStub
+    ...(inventoryScanStub || settingsQa
       ? [
           "--experimental-strip-types",
           "--disable-warning=ExperimentalWarning",
           "--import",
           pathToFileURL(
-            path.join(root, "e2e", "support", "inventory-scan-stub.mjs"),
+            path.join(
+              root,
+              "e2e",
+              "support",
+              settingsQa ? "settings-qa.mjs" : "inventory-scan-stub.mjs",
+            ),
           ).href,
         ]
       : []),
@@ -69,6 +80,7 @@ const server = spawn(
       NODE_OPTIONS: nodeOptions,
       E2E_ALLOW_SERVER_CLOCK: "1",
       ...(inventoryScanStub ? { E2E_ALLOW_INVENTORY_SCAN_STUB: "1" } : {}),
+      ...(settingsQa ? { E2E_ALLOW_SETTINGS_QA: "1" } : {}),
     },
   },
 );
