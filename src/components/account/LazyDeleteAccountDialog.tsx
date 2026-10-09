@@ -13,17 +13,13 @@ import {
 export default function LazyDeleteAccountDialog(
   props: DeleteAccountDialogProps,
 ) {
-  // Remount after dismissal so late downloads cannot reopen a closed dialog.
-  return props.open ? <OpenDeleteAccountDialog {...props} /> : null;
-}
-
-function OpenDeleteAccountDialog(props: DeleteAccountDialogProps) {
   const [Controls, setControls] = useState<Awaited<
     ReturnType<typeof loadDeleteAccountDialog>
   > | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if (!props.open || Controls) return;
     let active = true;
     setFailed(false);
     void loadDeleteAccountDialog()
@@ -36,8 +32,11 @@ function OpenDeleteAccountDialog(props: DeleteAccountDialogProps) {
     return () => {
       active = false;
     };
-  }, [attempt]);
+  }, [attempt, props.open, Controls]);
+  // Keep loaded controls mounted while closed: their uncertain mutation retry
+  // key must survive dismissal, exactly as in the original eager dialog.
   if (Controls) return <Controls {...props} />;
+  if (!props.open) return null;
   return (
     <Dialog
       open
