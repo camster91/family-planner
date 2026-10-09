@@ -1,25 +1,5 @@
 [
   {
-    "file": "src/app/(auth)/forgot-password/page.tsx",
-    "text": ", you&apos;ll receive a password reset link.",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/forgot-password/page.tsx",
-    "text": "Check Your Email",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/forgot-password/page.tsx",
-    "text": "If an account exists with",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/forgot-password/page.tsx",
-    "text": "you@example.com",
-    "count": 1
-  },
-  {
     "file": "src/app/(auth)/login/page.tsx",
     "text": "Hide password",
     "count": 1
@@ -87,36 +67,6 @@
   {
     "file": "src/app/(auth)/register/page.tsx",
     "text": "you@example.com",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/reset-password/page.tsx",
-    "text": "Hide password",
-    "count": 2
-  },
-  {
-    "file": "src/app/(auth)/reset-password/page.tsx",
-    "text": "Invalid Link",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/reset-password/page.tsx",
-    "text": "Loading...",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/reset-password/page.tsx",
-    "text": "Show password",
-    "count": 2
-  },
-  {
-    "file": "src/app/(auth)/reset-password/page.tsx",
-    "text": "This password reset link is invalid or has expired.",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/reset-password/page.tsx",
-    "text": "Your password has been reset successfully.",
     "count": 1
   },
   {
