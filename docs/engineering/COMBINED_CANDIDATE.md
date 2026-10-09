@@ -1,6 +1,16 @@
 # Combined Family Planner review candidate (2026-10-07)
 
-## Current reviewed candidate — 2026-10-09, account-dialog lifetime preserved
+## Latest execution refresh — 2026-10-09, prepared store-section candidate
+
+Protected main remains101097956e09fca16a20e8aac9ae0cc1b5c17503,32 cleanup PRs merged,50 issues open. #414 reviewed head1a77c6e (actual app build5d6bfe0) has full4,385 unit and54 local browser cases passing, including preserved account-dialog retry identity across close/reopen and unchanged core byte budgets. Original3f hosted Today failure and superseded3536 candidate remain dated history below. Current exact-head Build/Test37866168350 and E2E37866168366 must pass with image/review/protection before normal merge/#413 closure.
+
+#415 is prepared locally and unpublished. Ordinary merge058d81f includes the reviewed prerequisite; actual ordinary build2026-10-09T00:44:56.371Z passes362 unit suites/4,393 cases (188 existing opt-in cases skipped),78 browser cases and66 configured project skips. The run retains original aisle/offline/child/household/account/notification assertions and tests12 scoped EN/ES cases,3 download-recovery cases and36 unchanged core budgets. Max gzip bytes: Today247,117, calendar219,190, chores228,070, lists203,120, meals238,378, settings221,540. Prisma/types/lint/format/build/inventory/tree/history secrets pass. No limit, baseline, protection or scanner waiver.
+
+The store-section/i18n source is byte-identical to d732df0:26 matching typed/context-documented route-owned EN/ES keys, additive optional scoped translation, verbatim household interpolation and localized headings/sort/Move/current/automatic/close/hints. IDs, classifier/default English/server callers, order/learning/override, pending selection, section-or-null payloads and role restrictions remain unchanged. Inventory1722 records the original15 selected occurrence removals plus the prerequisite’s one tracked fallback title. Original expanded-copy recordings at e3 remain labelled, with unchanged selected localization source; final ordinary runtime is058. Generic caller error stays English; parent142 retains wider language/layout/human/native acceptance.
+
+The gallery/ZIP preserves808 source/mode-labelled captures, including the final66 ordinary store-section views at058 and older66 at544 before the lifetime correction. All manifest image paths, new hashes/dimensions, exact archived manifest and ZIP CRC pass; the existing overview contact sheet is separate. Earlier captures retain exact source identities and are never relabelled as a live release. #415 still requires protected prerequisite inclusion and its own exact-head hosted build/image/E2E/review/normal merge before closure. Native-workflow/legal/sender/provider/production/research/household owner gates remain open. Earlier execution sections below are dated history.
+
+## Historical reviewed candidate — 2026-10-09, account-dialog lifetime preserved
 
 Main remains1010979,32 cleanup PRs merged,50 open issues. Code review of the initial budget follow-up found that unmounting loaded account controls on close could lose an uncertain deletion’s retry key. A new regression test failed with two keys; the correction keeps the loaded canonical dialog mounted while closed and retains the original pending-key/401 recovery. Late download resolution after closing an unloaded dialog is still ignored.19 affected cases and359 full unit suites/4,385 cases pass,188 original opt-in cases skipped. Prisma/types/lint/format/build/inventory/tree/history secrets pass.
 
@@ -8,7 +18,7 @@ Actual ordinary app build5d6bfe0 (2026-10-09T00:39:57.223Z) passes54 browser cas
 
 Gallery/ZIP now742 source/mode-labelled captures, including66 ordinary store-section follow-up views at5444587, which predates this lifetime correction. Original676 identities remain intact; ZIP CRC, exact manifest,742 unique image paths and66 new hashes pass. Existing overview contact sheet is separate. #415 is preserved locally/unpublished at5444587, with362 unit suites/4,392 cases and78 browser cases passing; it must incorporate this correction and refresh final checks before publication after #414 merge. All owner/provider/native/production/research/household gates stay open. Earlier candidate entries below are dated history.
 
-## Latest execution refresh — 2026-10-09, #414 budget repair
+## Historical execution refresh — 2026-10-09, #414 budget repair
 
 Protected main remains `101097956e09fca16a20e8aac9ae0cc1b5c17503`: 32 verified cleanup PR merges, #411 closed, 50 open issues. Original #414 head `3f5f731` failed hosted E2E run37861641705: six Today cases measured250,123 gzip bytes against250,000;842 journeys passed and685 configured cases skipped. Build/Test and checked-image passed; no merge occurred. The targeted follow-up defers the child's account-deletion controls until its existing menu action, with original loading/retry presentation, download recovery, dismissal and focus restoration. Budgets, original tests and protections remain unchanged.
 
@@ -18,7 +28,7 @@ Actual follow-up ordinary build `ca9e326`, built2026-10-09T00:28:51.917Z, passes
 
 Existing #370 paused Android-workflow decision, #372 legal/company/sender decision, provider/production, physical-device, research and household acceptance gates remain open. No native workflow, paid provider, scheduler, production setting, secrets or manual promotion was changed. Older pending-CI/local-state entries below are dated history; merge, deployment and acceptance remain distinct.
 
-## Latest execution refresh — 2026-10-08, after #412
+## Historical execution refresh — 2026-10-08, after #412
 
 Protected main is `101097956e09fca16a20e8aac9ae0cc1b5c17503`; **32 cleanup PRs are verified merged**. #412 exact checked head `26b55e3` passed its original Build/Test, checked image, 809 journeys and 28 visuals, then merged normally at 23:40:30 UTC. All five original #411 criteria are checked and the issue is closed. Its owned branch was cleaned after ancestry/worktree verification. Strict checks, administrator enforcement and conversation resolution remain enabled. Prior pending #411/#412 entries below are dated history.
 
