@@ -49,3 +49,15 @@ Gallery/ZIP now1003 unique source-labelled images, with all883 earlier entries p
 ## Accepted-main inclusion
 
 #420 passed original881 hosted journeys/28 visuals and merged normally asb53e5f109c8e438166a640176a80432d1e53ed21 at03:16:29UTC. Its five original #419 criteria are checked/closed with history intact; only its verified owned branch was removed. Ordinary mergef76b0d17171a18b54173875dac7a0965d8894e51 includes that accepted main here. Full app src,package/dependency files,next config,schema,Playwright config,support and scripts are byte-identical to the actual6a09e04 committed build. No new local runtime/build is claimed for documentation or this source-identical integration. Final types/format/tree/history checks and exact-head hosted gates remain recorded separately.
+
+## Verified normal merge and original closure — 2026-10-09
+
+#422 exact e33f46dd62c5c362b583477c9a503e88f0edd99d passed original Build/Test37878920351,
+checked-image113656189598 and E2E37878920362 (899 journeys/736 configured skips in30.0m;
+28 visuals/11 existing skips in39.5s). GitGuardian, manual exact-head review, resolved threads and
+strict/admin/conversation protection verified. Normal merge73805fe9e94048bddcb993a5ab49509ee28a90af
+completed03:56:36UTC. All five original #421 criteria are checked/closed preserving wording/history;
+only its exact accepted owned local/remote branch was cleaned. Earlier pending paragraphs above
+retain their original observation stage. Actual6a09e04 build and1003 source-labelled gallery identity
+remain unchanged. Publish/VPS skipped; no cloud review success, production/provider/native/store or
+wider #142 acceptance is inferred.
