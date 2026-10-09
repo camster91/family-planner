@@ -1,3 +1,7 @@
+# Current hosted gate repair — 2026-10-09
+
+Original429/8a7c4 browser run37898607134 was cancelled by its verified40-minute job deadline; it did not complete visuals. The only new source change partitions identical viewport coverage into two isolated jobs while retaining40-minute limits, tests/guards/baselines and a mandatory success aggregate. See [CI repair evidence](E2E_VIEWPORT_SHARDING.md). Earlier workflow-unchanged references below describe the original preference presentation stage; new original hosted acceptance is pending. No normal merge or original428 closure is claimed.
+
 # Notification preference presentation localization (#428)
 
 Existing category, morning-summary and quiet-hours controls, their computed success/rollback/validation feedback, and shared module/API loading/retry states use typed EN/ES dictionaries. Full control copy stays behind the existing lazy loader; the shared loading chunk carries only its three small keys. Canonical categories, notification delivery policy, default-off summary, older-server fallbacks, request/queue/storage/API/schema/permission/native/operator contracts remain unchanged.

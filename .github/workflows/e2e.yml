@@ -25,9 +25,20 @@ concurrency:
 
 jobs:
   e2e:
-    name: E2E (Playwright)
+    name: E2E viewport shard (${{ matrix.group }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # Each job owns a fresh service database and auth files. Keep one worker
+    # within a shard: existing specs deliberately mutate canonical fixtures.
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - group: phone-and-portrait
+            projects: --project=phone-390x844 --project=phone-430x932 --project=tablet-portrait-800x1280
+          - group: fridge-and-desktop
+            projects: --project=fridge-landscape-1280x800 --project=tablet-large-1920x1200 --project=desktop-1366x768
     services:
       postgres:
         image: postgres:17-alpine
@@ -80,7 +91,7 @@ jobs:
 
       # Global setup seeds the fixtures (npm run fixtures:seed) before each run.
       - name: Journeys and accessibility smoke
-        run: npx playwright test --grep-invert @visual
+        run: npx playwright test ${{ matrix.projects }} --grep-invert @visual
         env:
           E2E_SKIP_BUILD: "1"
           E2E_REPORT_DIR: playwright-report/journeys
@@ -88,7 +99,7 @@ jobs:
 
       - name: Visual snapshots
         if: ${{ !cancelled() && inputs.update_snapshots != true }}
-        run: npx playwright test --grep @visual
+        run: npx playwright test ${{ matrix.projects }} --grep @visual
         env:
           E2E_SKIP_BUILD: "1"
           E2E_REPORT_DIR: playwright-report/visual
@@ -96,7 +107,7 @@ jobs:
 
       - name: Regenerate visual baselines
         if: ${{ !cancelled() && inputs.update_snapshots == true }}
-        run: npx playwright test --grep @visual --update-snapshots=all
+        run: npx playwright test ${{ matrix.projects }} --grep @visual --update-snapshots=all
         env:
           E2E_SKIP_BUILD: "1"
           E2E_REPORT_DIR: playwright-report/visual
@@ -106,7 +117,7 @@ jobs:
         if: ${{ !cancelled() && inputs.update_snapshots == true }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-baselines-${{ github.sha }}
+          name: e2e-baselines-${{ matrix.group }}-${{ github.sha }}
           path: e2e/__screenshots__/
           if-no-files-found: error
           retention-days: 7
@@ -116,9 +127,21 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report-${{ github.sha }}
+          name: playwright-report-${{ matrix.group }}-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  verify:
+    name: E2E (Playwright)
+    needs: e2e
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every isolated viewport shard
+        env:
+          SHARD_RESULT: ${{ needs.e2e.result }}
+        run: test "$SHARD_RESULT" = success
