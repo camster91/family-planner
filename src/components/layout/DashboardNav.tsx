@@ -147,7 +147,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   href={tab.href}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex min-h-[44px] min-w-0 items-center gap-1.5 px-2 lg:px-3 rounded-full text-[15px] transition-colors duration-200",
+                    "flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 lg:px-3 rounded-full text-[15px] transition-colors duration-200",
                     isActive
                       ? "font-semibold text-accent bg-accent-fill/10"
                       : "font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]",
