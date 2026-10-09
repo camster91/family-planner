@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * App-wide "You're offline" banner (O-41). Mounted once in the dashboard
@@ -17,36 +17,45 @@
  *   mode) only add page-specific detail under it (queued ticks, when the
  *   data was loaded), without repeating it (OFFLINE_SYNC.md).
  */
-import * as React from 'react'
-import { Wifi, WifiOff } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useOnline } from '@/components/ui/use-online'
+import * as React from "react";
+import { Wifi, WifiOff } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useOnline } from "@/components/ui/use-online";
+import { useTranslation } from "@/i18n";
+import {
+  offlineBannerMessages,
+  type OfflineBannerMessage,
+} from "@/i18n/offline-banner";
 
 /** How long "Back online." stays before the banner goes. */
-export const BACK_ONLINE_MS = 3000
+export const BACK_ONLINE_MS = 3000;
 
-export const OFFLINE_TEXT = "You're offline. Some things may not load or save until you're back online."
-export const BACK_ONLINE_TEXT = 'Back online.'
+export const OFFLINE_TEXT =
+  "You're offline. Some things may not load or save until you're back online.";
+export const BACK_ONLINE_TEXT = "Back online.";
 
 export function OfflineBanner({ className }: { className?: string }) {
-  const online = useOnline()
-  const [backOnline, setBackOnline] = React.useState(false)
-  const wasOffline = React.useRef(false)
+  const { t } = useTranslation();
+  const msg = (key: OfflineBannerMessage) =>
+    t(key, undefined, offlineBannerMessages);
+  const online = useOnline();
+  const [backOnline, setBackOnline] = React.useState(false);
+  const wasOffline = React.useRef(false);
 
   React.useEffect(() => {
     if (!online) {
-      wasOffline.current = true
-      setBackOnline(false)
-      return
+      wasOffline.current = true;
+      setBackOnline(false);
+      return;
     }
-    if (!wasOffline.current) return
-    wasOffline.current = false
-    setBackOnline(true)
-    const timer = window.setTimeout(() => setBackOnline(false), BACK_ONLINE_MS)
-    return () => window.clearTimeout(timer)
-  }, [online])
+    if (!wasOffline.current) return;
+    wasOffline.current = false;
+    setBackOnline(true);
+    const timer = window.setTimeout(() => setBackOnline(false), BACK_ONLINE_MS);
+    return () => window.clearTimeout(timer);
+  }, [online]);
 
-  const state = !online ? 'offline' : backOnline ? 'back' : 'hidden'
+  const state = !online ? "offline" : backOnline ? "back" : "hidden";
 
   return (
     <div
@@ -54,25 +63,31 @@ export function OfflineBanner({ className }: { className?: string }) {
       aria-live="polite"
       aria-atomic="true"
       className={cn(
-        'pointer-events-none sticky z-40 flex justify-center px-4',
-        state === 'hidden' ? 'h-0' : 'py-2',
-        className
+        "pointer-events-none sticky z-40 flex justify-center px-4",
+        state === "hidden" ? "h-0" : "py-2",
+        className,
       )}
     >
-      {state !== 'hidden' && (
+      {state !== "hidden" && (
         <p
           data-testid="app-offline-banner"
           data-state={state}
           className="pointer-events-auto flex max-w-xl items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-2.5 text-[15px] leading-snug text-label-primary shadow-[var(--shadow-md)]"
         >
-          {state === 'offline' ? (
-            <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-label-secondary" aria-hidden="true" />
+          {state === "offline" ? (
+            <WifiOff
+              className="mt-0.5 h-4 w-4 shrink-0 text-label-secondary"
+              aria-hidden="true"
+            />
           ) : (
-            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-[var(--success-text)]" aria-hidden="true" />
+            <Wifi
+              className="mt-0.5 h-4 w-4 shrink-0 text-[var(--success-text)]"
+              aria-hidden="true"
+            />
           )}
-          <span>{state === 'offline' ? OFFLINE_TEXT : BACK_ONLINE_TEXT}</span>
+          <span>{msg(state === "offline" ? "offline" : "back")}</span>
         </p>
       )}
     </div>
-  )
+  );
 }
