@@ -212,8 +212,9 @@ for (const locale of ["en", "es"] as const) {
         } finally {
           release();
         }
+        // The caller's existing generic mutation error remains separate copy debt.
         await expect(dialog.getByRole("alert")).toHaveText(
-          "Fixture section error {current}",
+          "Couldn’t move this item. Try again.",
         );
         await page.unroute("**/api/lists/items/section");
         await capture(page, dialog, info, `${locale}-${role}-error`);
@@ -262,7 +263,18 @@ for (const locale of ["en", "es"] as const) {
             name: text("sort"),
             exact: true,
           });
+          const switched = page.waitForResponse(
+            (response) =>
+              response.url().endsWith("/api/lists/section-sort") &&
+              response.request().method() === "PATCH",
+          );
           await toggle.click();
+          const savedSort = await switched;
+          expect(savedSort.status()).toBe(200);
+          expect(savedSort.request().postDataJSON()).toEqual({
+            listId,
+            sortBySection: false,
+          });
           await expect(toggle).toHaveAttribute("aria-checked", "false");
           await expect(sort).toContainText(text("added"));
           await expect(move).toHaveCount(0);
