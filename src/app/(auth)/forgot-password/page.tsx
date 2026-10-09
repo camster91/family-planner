@@ -1,40 +1,51 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { KeyRound } from 'lucide-react'
-import { useTranslation } from '@/i18n'
+import { useState } from "react";
+import Link from "next/link";
+import { KeyRound } from "lucide-react";
+import { useTranslation } from "@/i18n";
+import {
+  authRecoveryMessages,
+  type AuthRecoveryMessage,
+  type RecoveryFeedback,
+} from "@/i18n/auth-recovery";
 
 export default function ForgotPasswordPage() {
-  const { t } = useTranslation()
-  const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const { t } = useTranslation();
+  const msg = (key: AuthRecoveryMessage) =>
+    t(key, undefined, authRecoveryMessages);
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<RecoveryFeedback | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t('common.error'))
-        return
+        setError(
+          data.error
+            ? { kind: "raw", text: data.error }
+            : { kind: "owned", key: "common.error" },
+        );
+        return;
       }
-      setSuccess(true)
+      setSuccess(true);
     } catch {
-      setError(t('auth.unexpectedError'))
+      setError({ kind: "owned", key: "auth.unexpectedError" });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (success) {
     return (
@@ -46,19 +57,25 @@ export default function ForgotPasswordPage() {
                 <KeyRound className="w-8 h-8 text-success-text" />
               </div>
             </div>
-            <h1 className="text-title-2 text-label-primary">Check Your Email</h1>
+            <h1 className="text-title-2 text-label-primary">
+              {msg("checkEmail")}
+            </h1>
             <p className="mt-2 text-[var(--label-secondary)]">
-              If an account exists with <span className="font-medium">{email}</span>, you&apos;ll receive a password reset link.
+              {msg("emailBefore")} <span className="font-medium">{email}</span>
+              {msg("emailAfter")}
             </p>
           </div>
           <div className="text-center">
-            <Link href="/login" className="text-[var(--accent-text)] hover:underline font-medium">
-              {t('auth.backToSignIn')}
+            <Link
+              href="/login"
+              className="inline-flex items-center min-h-11 text-[var(--accent-text)] hover:underline font-medium"
+            >
+              {t("auth.backToSignIn")}
             </Link>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -70,23 +87,31 @@ export default function ForgotPasswordPage() {
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-title-2 text-label-primary">{t('auth.forgotPasswordTitle')}</h1>
+          <h1 className="text-title-2 text-label-primary">
+            {t("auth.forgotPasswordTitle")}
+          </h1>
           <p className="mt-2 text-[var(--label-secondary)]">
-            {t('auth.forgotPasswordSubtitle')}
+            {t("auth.forgotPasswordSubtitle")}
           </p>
         </div>
 
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div role="alert" className="bg-[var(--danger-tint)] text-[var(--danger-text)] px-4 py-3 rounded-[var(--radius-md)]">
-                {error}
+              <div
+                role="alert"
+                className="bg-[var(--danger-tint)] text-[var(--danger-text)] px-4 py-3 rounded-[var(--radius-md)]"
+              >
+                {error.kind === "raw" ? error.text : t(error.key)}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[var(--label-primary)] mb-2">
-                {t('auth.email')}
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-[var(--label-primary)] mb-2"
+              >
+                {t("auth.email")}
               </label>
               <input
                 id="email"
@@ -96,7 +121,7 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-field"
-                placeholder="you@example.com"
+                placeholder={msg("emailPlaceholder")}
               />
             </div>
 
@@ -105,20 +130,23 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="btn-primary w-full py-3"
             >
-              {loading ? t('auth.sendingResetLink') : t('auth.sendResetLink')}
+              {loading ? t("auth.sendingResetLink") : t("auth.sendResetLink")}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-[var(--label-secondary)]">
-              {t('auth.alreadyHaveAccount')}{' '}
-              <Link href="/login" className="inline-flex items-center py-2 text-[var(--accent-text)] hover:underline font-medium min-h-11">
-                {t('auth.signInLink')}
+              {t("auth.alreadyHaveAccount")}{" "}
+              <Link
+                href="/login"
+                className="inline-flex items-center py-2 text-[var(--accent-text)] hover:underline font-medium min-h-11"
+              >
+                {t("auth.signInLink")}
               </Link>
             </p>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
