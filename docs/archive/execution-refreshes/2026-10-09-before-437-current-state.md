@@ -1,15 +1,5 @@
 # Current State
 
-## Current execution — 2026-10-09, email-confirmation selector correction
-
-#438originalc25public QA ordinary build passes but6confirmation cases fail on ambiguous global alert selector; artifact11610488284 retained. All6existing recovery cases pass, expanded steps skipped. Genuine selector correction scopes alerts/status to confirmation panel with all expectations/states/requests/guards unchanged. Newly corrected source requires original hosted/rendered acceptance; no red merge.
-
-44 cleanup PRs normal-merged; accepted main12e35cfef8a85be355d49f97f21ee1d31dbecea4 includes #436 exact4dbe after original Build/Test37913613858 and E2E37913613866 all viewport/visual/dualQA/aggregate/fresh image/security/manual/current protections/conversation gates. Original434fivecriteria CLOSED; both owned recovery branches cleaned and superseded435source retained in pushed archive tag. Gallery/ZIP2491 preserves all older objects/pixels and adds132actual current-source ordinary/expanded recovery views. Full parent/provider/native/production acceptance remains open.
-
-Scoped issue437 is implementing typed EN/ES explicit email-confirmation presentation. Ten regression-first cases failed against the old page; all67 affected mounted/key/expanded/helper/API/inventory tests now pass. Only8tracked owned occurrences removed,1512→1504. Canonical helpers/API/token/raw POST count/body/explicit-click scanner safety/outcomes/retry/redirect remain unchanged. Existing dual public QA commands add six anonymous confirmation cases per mode; all other workflow/ordinary matrix/recovery/budget/guard/aggregate controls preserved. Fresh Prisma generate/validate/types/lint/format and379suites4568tests pass62.455s/188existing skips; typed loading helper correction preserves shared key guard. Correct-root unchanged-config tree secrets pass. Original exact-source build/browser artifacts, rendered review, hosted/security/protection acceptance and normal merge remain pending. Historical local07d9 compiled output cannot prove this new source.
-
-Prior current-state document preserved verbatim at [the named archive](archive/execution-refreshes/2026-10-09-before-437-current-state.md); older dated sections below are history.
-
 ## Current execution — 2026-10-09, password recovery candidate
 
 Current correction:43cleanup PRs normal-merged; main5a1ba65db11c60387f1f76f145acca4c70d83c82 accepted #433 exact758bd874 at09:39:37Z after original integrated Build/Test37909865680/E2E37909865682/fresh image/security/manual/current normal protections/conversations. Original432fivecriteria CLOSED; owned docs branches/worktree cleaned. #43583f97167 is held after GitGuardian classified translated example-email/password-label display copy; no credential/exception/red merge claim. A fresh genuine reserved-domain repair candidate from accepted main is prepared; earlier source/build/browser evidence below is historical. Its exact source dual ordinary/expanded hosted artifact is mandatory before #434closure. Delivered2359gallery/ZIP now preserves all2293older objects/pixels and originalZIP bytes plus66ordinary recovery views; final corrected-source132views remain pending.

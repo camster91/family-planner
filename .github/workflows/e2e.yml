@@ -195,7 +195,7 @@ jobs:
           DESIGN_GALLERY_ENABLED: "0"
 
       - name: Ordinary anonymous recovery journeys
-        run: npx playwright test e2e/auth-recovery-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800 --no-deps
+        run: npx playwright test e2e/auth-recovery-localization.spec.ts e2e/email-confirmation-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800 --no-deps
         env:
           E2E_SKIP_BUILD: "1"
           I18N_PSEUDO_ENABLED: "0"
@@ -210,7 +210,7 @@ jobs:
           NODE_ENV: production
 
       - name: Expanded anonymous recovery journeys
-        run: npx playwright test e2e/auth-recovery-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800 --no-deps
+        run: npx playwright test e2e/auth-recovery-localization.spec.ts e2e/email-confirmation-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800 --no-deps
         env:
           E2E_SKIP_BUILD: "1"
           E2E_REPORT_DIR: playwright-report/recovery-expanded

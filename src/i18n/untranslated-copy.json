@@ -70,46 +70,6 @@
     "count": 1
   },
   {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "account.",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "Confirm my email",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "Confirm your email",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "Confirming…",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "Go to sign in",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "Loading...",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "Press the button to finish setting up your",
-    "count": 1
-  },
-  {
-    "file": "src/app/(auth)/verify-email/page.tsx",
-    "text": "That verification link is incomplete. Copy the whole link from the email, or sign in to get a new one.",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/allowance/page.tsx",
     "text": "10.00",
     "count": 1
