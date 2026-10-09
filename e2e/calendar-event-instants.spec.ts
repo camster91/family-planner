@@ -34,7 +34,7 @@ test.beforeEach(async ({ context, baseURL, page }, info) => {
 
 async function checkForm(page: Page, info: TestInfo, name: string) {
   const save = page.getByRole("button", {
-    name: /^(Save Changes|Create Event)$/,
+    name: /^(Save Changes|Create Event|Guardar cambios|Crear evento)$/,
   });
   await save.evaluate((el) =>
     el.scrollIntoView({ block: "center", inline: "nearest" }),
@@ -104,15 +104,17 @@ for (const locale of ["en", "es"] as const) {
           `/dashboard/calendar/edit?id=${encodeURIComponent(id)}`,
         );
         expect(response!.status()).toBe(200);
-        await expect(page.getByLabel("Title")).toHaveValue(
-          `Synthetic timezone ${name}`,
-        );
+        await expect(
+          page.getByLabel(locale === "es" ? "Título" : "Title"),
+        ).toHaveValue(`Synthetic timezone ${name}`);
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
         const title = `Synthetic revised ${name} — household text {unchanged} 🗓️`;
-        await page.getByLabel("Title").fill(title);
-        await page.getByLabel("Location").fill("Synthetic fixture location");
+        await page.getByLabel(locale === "es" ? "Título" : "Title").fill(title);
         await page
-          .getByLabel("Description")
+          .getByLabel(locale === "es" ? "Ubicación" : "Location")
+          .fill("Synthetic fixture location");
+        await page
+          .getByLabel(locale === "es" ? "Descripción" : "Description")
           .fill("Synthetic fixture description");
         await checkForm(page, info, `${locale}-${name}-edited`);
         const patch = page.waitForRequest(
@@ -125,7 +127,11 @@ for (const locale of ["en", "es"] as const) {
             new URL(response.url()).pathname === "/api/events" &&
             response.request().method() === "PATCH",
         );
-        await page.getByRole("button", { name: "Save Changes" }).click();
+        await page
+          .getByRole("button", {
+            name: locale === "es" ? "Guardar cambios" : "Save Changes",
+          })
+          .click();
         expect((await patch).postDataJSON()).toMatchObject({
           eventId: id,
           title,
@@ -189,12 +195,18 @@ for (const locale of ["en", "es"] as const) {
       )
         posts.push(request.url());
     });
-    await page.getByLabel("Title").fill("Synthetic nonexistent-time fixture");
+    await page
+      .getByLabel(locale === "es" ? "Título" : "Title")
+      .fill("Synthetic nonexistent-time fixture");
     await page.locator("#startDate").fill("2026-03-08");
     await page.locator("#startTime").fill("02:30");
-    await page.getByRole("button", { name: "Create Event" }).click();
+    await page
+      .getByRole("button", {
+        name: locale === "es" ? "Crear evento" : "Create Event",
+      })
+      .click();
     await expect(page.locator("main").getByRole("alert")).toHaveText(
-      "Invalid date/time",
+      locale === "es" ? "Fecha u hora no válida" : "Invalid date/time",
     );
     expect(posts).toEqual([]);
     await expect(page.locator("#startTime")).toHaveValue("02:30");
@@ -250,7 +262,11 @@ for (const locale of ["en", "es"] as const) {
       );
       expect(initial!.status()).toBe(200);
       await readyPromise;
-      await expect(page.getByText("Loading...", { exact: true })).toBeVisible();
+      await expect(
+        page.getByText(locale === "es" ? "Cargando..." : "Loading...", {
+          exact: true,
+        }),
+      ).toBeVisible();
       await page.screenshot({
         path: info.outputPath(`${locale}-previous-record-loading.png`),
         fullPage: true,
@@ -260,9 +276,9 @@ for (const locale of ["en", "es"] as const) {
         (path) => window.history.pushState(null, "", path),
         `/dashboard/calendar/edit?id=${encodeURIComponent(ids[1])}`,
       );
-      await expect(page.getByLabel("Title")).toHaveValue(
-        "Synthetic current record",
-      );
+      await expect(
+        page.getByLabel(locale === "es" ? "Título" : "Title"),
+      ).toHaveValue("Synthetic current record");
       const previousResponse = page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === "/api/events" &&
@@ -273,10 +289,12 @@ for (const locale of ["en", "es"] as const) {
       expect(completedPrevious.status()).toBe(200);
       expect(await completedPrevious.finished()).toBeNull();
       expect((await completedPrevious.json()).event.id).toBe(ids[0]);
-      await expect(page.getByLabel("Title")).toHaveValue(
-        "Synthetic current record",
-      );
-      await page.getByLabel("Title").fill("Synthetic current record revised");
+      await expect(
+        page.getByLabel(locale === "es" ? "Título" : "Title"),
+      ).toHaveValue("Synthetic current record");
+      await page
+        .getByLabel(locale === "es" ? "Título" : "Title")
+        .fill("Synthetic current record revised");
       await checkForm(
         page,
         info,
@@ -292,7 +310,11 @@ for (const locale of ["en", "es"] as const) {
           new URL(response.url()).pathname === "/api/events" &&
           response.request().method() === "PATCH",
       );
-      await page.getByRole("button", { name: "Save Changes" }).click();
+      await page
+        .getByRole("button", {
+          name: locale === "es" ? "Guardar cambios" : "Save Changes",
+        })
+        .click();
       expect((await patch).postDataJSON()).toMatchObject({
         eventId: ids[1],
         title: "Synthetic current record revised",

@@ -93,7 +93,11 @@ for (const locale of ["en", "es"] as const) {
       const title = await screen.findByDisplayValue("Fixture appointment");
       await user.clear(title);
       await user.type(title, "Updated fixture appointment");
-      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+      await user.click(
+        screen.getByRole("button", {
+          name: locale === "es" ? "Guardar cambios" : "Save Changes",
+        }),
+      );
       await waitFor(() => expect(patches).toHaveLength(1));
       expect(patches[0]).toMatchObject({
         eventId: "ev-1",
@@ -123,10 +127,10 @@ it("a mounted language change preserves original instants and numeric form field
   expect(
     screen.getByRole("button", { name: "Switch test locale: es" }),
   ).toBeTruthy();
-  expect((screen.getByLabelText("Start time") as HTMLInputElement).value).toBe(
-    "01:30",
-  );
-  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+  expect(
+    (screen.getByLabelText("Hora de inicio") as HTMLInputElement).value,
+  ).toBe("01:30");
+  await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(patches).toHaveLength(1));
   expect(patches[0]).toMatchObject({ start_time: start, end_time: end });
 });
