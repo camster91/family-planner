@@ -1,5 +1,15 @@
 # Herewoven completion contract and durable release plan
 
+## Latest execution refresh — 2026-10-09, #414 budget repair
+
+Protected main remains `101097956e09fca16a20e8aac9ae0cc1b5c17503`: 32 verified cleanup PR merges, #411 closed, 50 open issues. Original #414 head `3f5f731` failed hosted E2E run37861641705: six Today cases measured250,123 gzip bytes against250,000;842 journeys passed and685 configured cases skipped. Build/Test and checked-image passed; no merge occurred. The targeted follow-up defers the child's account-deletion controls until its existing menu action, with original loading/retry presentation, download recovery, dismissal and focus restoration. Budgets, original tests and protections remain unchanged.
+
+Actual follow-up ordinary build `ca9e326`, built2026-10-09T00:28:51.917Z, passes all36 core route/viewports: Today247,059, calendar219,132, chores228,012, lists203,062, meals maximum237,513, settings221,482 gzip bytes. Local54 browser cases pass (36 budgets,6 original isolated account-deletion journeys,9 notification cases and3 new download-recovery cases),30 configured skips;359 unit suites/4,384 cases pass,188 existing opt-in cases skipped. Prisma/types/lint/format/build/inventory/secret checks pass. The inventory is1,737 occurrences: three original records moved and one tracked fallback title. Exact follow-up hosted build/image/E2E/review and normal protected merge are still required before #413 closure. Later documentation commits do not change this recorded build identity.
+
+#415 store-section localization is preserved locally at `d732df0`, unpublished until #414 passes and merges. It has local4390 unit cases, ordinary/expanded/restored browser evidence and198 scoped captures. The delivered gallery/ZIP now preserves676 source/mode-labelled captures; earlier images retain their source identities. #415 must incorporate the prerequisite repair and refresh its own final checks before publication/closure.
+
+Existing #370 paused Android-workflow decision, #372 legal/company/sender decision, provider/production, physical-device, research and household acceptance gates remain open. No native workflow, paid provider, scheduler, production setting, secrets or manual promotion was changed. Older pending-CI/local-state entries below are dated history; merge, deployment and acceptance remain distinct.
+
 ## Latest execution refresh — 2026-10-08, after #412
 
 Protected main is `101097956e09fca16a20e8aac9ae0cc1b5c17503`; **32 cleanup PRs are verified merged**. #412 exact checked head `26b55e3` passed its original Build/Test, checked image, 809 journeys and 28 visuals, then merged normally at 23:40:30 UTC. All five original #411 criteria are checked and the issue is closed. Its owned branch was cleaned after ancestry/worktree verification. Strict checks, administrator enforcement and conversation resolution remain enabled. Prior pending #411/#412 entries below are dated history.
