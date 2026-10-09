@@ -188,25 +188,42 @@ export function isoToLocalDateTimeInput(value: Date | string): string {
   return format(date, "yyyy-MM-dd'T'HH:mm")
 }
 
+/** Manual form input must name a real local minute, never an offset or a normalized gap/date. */
+function eventFormInstant(value: string, original?: string | null): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return null
+  const instant = localDateTimeToISO(value)
+  if (!instant || isoToLocalDateTimeInput(instant) !== value) return null
+
+  // A minute-resolution input cannot distinguish both fall-back occurrences
+  // or represent stored seconds/milliseconds. Keep the original instant when
+  // its displayed fields were not edited; new wall times retain the existing
+  // runtime-local first-occurrence policy.
+  if (original) {
+    const stored = new Date(original)
+    if (!isNaN(stored.getTime()) && isoToLocalDateTimeInput(stored) === value) return stored.toISOString()
+  }
+  return instant
+}
+
 /**
  * Start and end instants for the event create/edit forms (local wall-clock
  * inputs). An end time with no end date means the same day as the start: a
  * parent entering "Soccer, 15:00 to 16:00" usually leaves the end date blank,
  * and that end time used to be dropped, saving a 15:00-15:00 event. An end
  * date with no time means the end of that day; neither means the start.
+ * Invalid local minutes/dates are rejected. On edit, optional original instants
+ * preserve the fold occurrence and sub-minute precision of unchanged fields.
  */
-export function eventFormRange(input: {
-  startDate: string
-  startTime: string
-  endDate: string
-  endTime: string
-}): { start: string; end: string } | null {
+export function eventFormRange(
+  input: { startDate: string; startTime: string; endDate: string; endTime: string },
+  original?: { start: string; end: string | null }
+): { start: string; end: string } | null {
   if (!input.startDate) return null
-  const start = localDateTimeToISO(`${input.startDate}T${input.startTime || '00:00'}`)
+  const start = eventFormInstant(`${input.startDate}T${input.startTime || '00:00'}`, original?.start)
   if (!start) return null
   let end: string | null = start
-  if (input.endDate) end = localDateTimeToISO(`${input.endDate}T${input.endTime || '23:59'}`)
-  else if (input.endTime) end = localDateTimeToISO(`${input.startDate}T${input.endTime}`)
+  if (input.endDate) end = eventFormInstant(`${input.endDate}T${input.endTime || '23:59'}`, original?.end)
+  else if (input.endTime) end = eventFormInstant(`${input.startDate}T${input.endTime}`, original?.end)
   if (!end) return null
   return { start, end }
 }

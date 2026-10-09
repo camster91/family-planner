@@ -29,6 +29,7 @@ function EditEventForm() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const originalTimes = useRef<{ eventId: string; start: string; end: string | null } | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
@@ -41,6 +42,19 @@ function EditEventForm() {
   }, [])
 
   useEffect(() => {
+    let active = true
+    originalTimes.current = null
+    setFetching(true)
+    setError(null)
+    setTitle('')
+    setDescription('')
+    setStartDate('')
+    setStartTime('')
+    setEndDate('')
+    setEndTime('')
+    setLocation('')
+    setSource(null)
+    setConfirmOpen(false)
     if (!eventId) {
       setError('No event ID provided')
       setFetching(false)
@@ -50,9 +64,13 @@ function EditEventForm() {
     const fetchEvent = async () => {
       try {
         const res = await fetch(`/api/events?id=${encodeURIComponent(eventId)}`)
+        if (!active) return
         if (res.ok) {
           const data = await res.json()
+          if (!active) return
           const event = data.event
+          if (event?.id !== eventId) throw new Error('EVENT_ID_MISMATCH')
+          originalTimes.current = { eventId: event.id, start: event.start_time, end: event.end_time ?? null }
           setTitle(event.title)
           setDescription(event.description || '')
           // Populate the form in the user's local time
@@ -72,19 +90,22 @@ function EditEventForm() {
           setError('Failed to load event data')
         }
       } catch (err) {
+        if (!active) return
         console.error('Error fetching event:', err)
         setError('Failed to load event data')
       } finally {
-        setFetching(false)
+        if (active) setFetching(false)
       }
     }
 
     fetchEvent()
+    return () => { active = false }
   }, [eventId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!eventId) return
+    const original = originalTimes.current
+    if (!eventId || !original || original.eventId !== eventId || fetching) return
 
     setLoading(true)
     setError(null)
@@ -92,7 +113,10 @@ function EditEventForm() {
     try {
       // Form values are local wall-clock time; send real ISO instants (with offset)
       // An end time without an end date is on the start day (src/lib/dates.ts).
-      const range = eventFormRange({ startDate, startTime, endDate, endTime })
+      const range = eventFormRange(
+        { startDate, startTime, endDate, endTime },
+        original
+      )
       const startDateTime = range?.start
       const endDateTime = range?.end
 
@@ -138,7 +162,7 @@ function EditEventForm() {
   }
 
   const handleDelete = async () => {
-    if (!eventId) return
+    if (!eventId || originalTimes.current?.eventId !== eventId || !isParent || source || deleting) return
     setDeleting(true)
     setDeleteError(null)
     try {
@@ -217,7 +241,7 @@ function EditEventForm() {
 
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
-            <p className="text-body text-[var(--danger-text)]">{error}</p>
+            <p role="alert" className="text-body text-[var(--danger-text)]">{error}</p>
           </div>
         )}
 
@@ -311,7 +335,7 @@ function EditEventForm() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={loading || !title || !startDate}
+            disabled={loading || !title || !startDate || originalTimes.current?.eventId !== eventId}
             className="btn-filled w-full"
           >
             {loading ? 'Saving...' : 'Save Changes'}
@@ -323,6 +347,7 @@ function EditEventForm() {
         <div className="px-4 pt-4">
           <button
             type="button"
+            disabled={deleting || originalTimes.current?.eventId !== eventId}
             onClick={() => {
               setDeleteError(null)
               setConfirmOpen(true)
@@ -361,7 +386,7 @@ function EditEventForm() {
           <button
             type="button"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || originalTimes.current?.eventId !== eventId}
             className="btn-destructive min-h-[44px]"
           >
             {deleting ? 'Deleting…' : 'Delete'}
