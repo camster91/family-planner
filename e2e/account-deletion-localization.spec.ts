@@ -111,6 +111,7 @@ for (const role of ["parent", "teen", "child"] as const)
           body: unknown;
           key: string | undefined;
         }> = [];
+        let offlineRefusal = false;
         let finishDelete!: () => Promise<void>;
         let pendingDelete!: () => void;
         const pendingSeen = new Promise<void>((r) => (pendingDelete = r));
@@ -121,6 +122,7 @@ for (const role of ["parent", "teen", "child"] as const)
             body: route.request().postDataJSON(),
             key: route.request().headers()["idempotency-key"],
           });
+          if (offlineRefusal) return route.abort("failed");
           if (deletes.length === 1) {
             finishDelete = () =>
               route.fulfill({
@@ -261,6 +263,9 @@ for (const role of ["parent", "teen", "child"] as const)
           const expected = household ? options.household.name : "DELETE";
           await confirmation.fill(expected);
           await expect(submit).toBeEnabled();
+          await password.focus();
+          await page.keyboard.press("Tab");
+          await expect(confirmation).toBeFocused();
           await capture(page, info, `${role}-${locale}-confirmed`, [
             password,
             confirmation,
@@ -291,6 +296,34 @@ for (const role of ["parent", "teen", "child"] as const)
             "Synthetic {message} / 李 refusal",
           );
           expect(deletes).toHaveLength(2);
+          offlineRefusal = true;
+          await context.setOffline(true);
+          await expect
+            .poll(() => page.evaluate(() => navigator.onLine))
+            .toBe(false);
+          await submit.click();
+          await expect(dialog.getByRole("alert")).toHaveText(
+            msg("noConnection"),
+          );
+          await expect(password).toHaveValue("fabricated-password");
+          await expect(confirmation).toHaveValue(expected);
+          await capture(page, info, `${role}-${locale}-offline-recovery`, [
+            submit,
+          ]);
+          offlineRefusal = false;
+          await context.setOffline(false);
+          await expect
+            .poll(() => page.evaluate(() => navigator.onLine))
+            .toBe(true);
+          await submit.click();
+          await expect(dialog.getByRole("alert")).toHaveText(
+            "Synthetic {message} / 李 refusal",
+          );
+          expect(deletes).toHaveLength(5);
+          expect(deletes[2].key).not.toBe(deletes[0].key);
+          expect(
+            new Set(deletes.slice(2).map((request) => request.key)).size,
+          ).toBe(1);
           expect(deletes[0].key).toMatch(/^[0-9a-f-]{36}$/);
           expect(deletes[1].key).toBe(deletes[0].key);
           const body = household
