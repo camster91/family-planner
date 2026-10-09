@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useRef, useState } from 'react'
-import Link from 'next/link'
-import { KeyRound, TabletSmartphone } from 'lucide-react'
-import { Dialog } from '@/components/ui/dialog'
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { KeyRound, TabletSmartphone } from "lucide-react";
+import { Dialog } from "@/components/ui/dialog";
 import {
   dangerButtonClass,
   errorTextClass,
@@ -11,19 +11,21 @@ import {
   labelClass,
   neutralButtonClass,
   primaryButtonClass,
-} from '@/components/device/styles'
-import { PRODUCT_BRAND } from '@/lib/brand'
+} from "@/components/device/styles";
+import { PRODUCT_BRAND } from "@/lib/brand";
+import { useSettingsCopy, SettingsText } from "./settings-copy";
+import { settingsFeedback, type SettingsFeedback } from "@/i18n/settings";
 
-async function errorCode(res: Response): Promise<{ code: string; retryAfter: number | null }> {
-  const body = await res.json().catch(() => null)
-  const code = typeof body?.error?.code === 'string' ? body.error.code : `HTTP_${res.status}`
-  const raw = Number.parseInt(res.headers.get('Retry-After') ?? '', 10)
-  return { code, retryAfter: Number.isFinite(raw) ? raw : null }
-}
-
-function minutes(seconds: number | null): string {
-  if (!seconds || seconds <= 60) return 'about a minute'
-  return `about ${Math.ceil(seconds / 60)} minutes`
+async function errorCode(
+  res: Response,
+): Promise<{ code: string; retryAfter: number | null }> {
+  const body = await res.json().catch(() => null);
+  const code =
+    typeof body?.error?.code === "string"
+      ? body.error.code
+      : `HTTP_${res.status}`;
+  const raw = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+  return { code, retryAfter: Number.isFinite(raw) ? raw : null };
 }
 
 /**
@@ -32,11 +34,16 @@ function minutes(seconds: number | null): string {
  * Rendered only for parents while the kill switch is on (decided server-side
  * in ./page.tsx).
  */
-export default function SharedDeviceSettings({ initialHasPin }: { initialHasPin: boolean }) {
-  const [hasPin, setHasPin] = useState(initialHasPin)
-  const [pinOpen, setPinOpen] = useState(false)
-  const [removeOpen, setRemoveOpen] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+export default function SharedDeviceSettings({
+  initialHasPin,
+}: {
+  initialHasPin: boolean;
+}) {
+  const copy = useSettingsCopy();
+  const [hasPin, setHasPin] = useState(initialHasPin);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [message, setMessage] = useState<SettingsFeedback | null>(null);
 
   return (
     <>
@@ -46,23 +53,26 @@ export default function SharedDeviceSettings({ initialHasPin }: { initialHasPin:
       >
         <TabletSmartphone className="w-4 h-4 text-primary" aria-hidden="true" />
         <div>
-          <div className="font-medium">Devices</div>
-          <div className="text-xs text-label-tertiary">Pair, rename or remove the family tablet</div>
+          <div className="font-medium">{copy("devices")}</div>
+          <div className="text-xs text-label-tertiary">
+            {copy("devicesDescription")}
+          </div>
         </div>
       </Link>
 
-      <div className="w-full p-3 rounded-lg flex flex-wrap items-center gap-3" data-testid="tablet-pin">
+      <div
+        className="w-full p-3 rounded-lg flex flex-wrap items-center gap-3"
+        data-testid="tablet-pin"
+      >
         <KeyRound className="w-4 h-4 text-primary" aria-hidden="true" />
         <div className="flex-1 min-w-[12rem]">
-          <div className="font-medium text-foreground">Tablet PIN</div>
+          <div className="font-medium text-foreground">{copy("pin")}</div>
           <div className="text-xs text-label-tertiary">
-            {hasPin
-              ? 'Set. Use it to unlock parent mode on the family tablet.'
-              : 'Not set. A 6-digit PIN unlocks parent mode on the family tablet without your password.'}
+            {hasPin ? copy("pinSetDescription") : copy("pinUnsetDescription")}
           </div>
           {message && (
             <p role="status" className="mt-1 text-sm text-foreground">
-              {message}
+              <SettingsText feedback={message} />
             </p>
           )}
         </div>
@@ -70,23 +80,23 @@ export default function SharedDeviceSettings({ initialHasPin }: { initialHasPin:
           <button
             type="button"
             onClick={() => {
-              setMessage(null)
-              setPinOpen(true)
+              setMessage(null);
+              setPinOpen(true);
             }}
             className={neutralButtonClass}
           >
-            {hasPin ? 'Change PIN' : 'Set PIN'}
+            {hasPin ? copy("changePin") : copy("setPin")}
           </button>
           {hasPin && (
             <button
               type="button"
               onClick={() => {
-                setMessage(null)
-                setRemoveOpen(true)
+                setMessage(null);
+                setRemoveOpen(true);
               }}
               className={neutralButtonClass}
             >
-              Remove PIN
+              {copy("removePin")}
             </button>
           )}
         </div>
@@ -97,17 +107,18 @@ export default function SharedDeviceSettings({ initialHasPin }: { initialHasPin:
         change={hasPin}
         onClose={() => setPinOpen(false)}
         onSaved={() => {
-          setHasPin(true)
-          setPinOpen(false)
-          setMessage('Tablet PIN saved.')
+          setHasPin(true);
+          setPinOpen(false);
+          setMessage(settingsFeedback("pinSaved"));
         }}
       />
 
       <Dialog
+        closeLabel={copy("close")}
         open={removeOpen}
         onClose={() => setRemoveOpen(false)}
-        title="Remove your tablet PIN?"
-        description="You can still unlock parent mode on the tablet with your account password."
+        title={copy("removePinTitle")}
+        description={copy("removePinDescription")}
         testId="remove-pin"
       >
         <div className="flex flex-wrap gap-3">
@@ -115,25 +126,31 @@ export default function SharedDeviceSettings({ initialHasPin }: { initialHasPin:
             type="button"
             className={dangerButtonClass}
             onClick={async () => {
-              const res = await fetch('/api/users/elevation-pin', { method: 'DELETE' }).catch(() => null)
-              setRemoveOpen(false)
+              const res = await fetch("/api/users/elevation-pin", {
+                method: "DELETE",
+              }).catch(() => null);
+              setRemoveOpen(false);
               if (res && res.ok) {
-                setHasPin(false)
-                setMessage('Tablet PIN removed.')
+                setHasPin(false);
+                setMessage(settingsFeedback("pinRemoved"));
               } else {
-                setMessage('Could not remove the PIN. Try again.')
+                setMessage(settingsFeedback("pinRemoveFailed"));
               }
             }}
           >
-            Remove PIN
+            {copy("removePin")}
           </button>
-          <button type="button" className={neutralButtonClass} onClick={() => setRemoveOpen(false)}>
-            Cancel
+          <button
+            type="button"
+            className={neutralButtonClass}
+            onClick={() => setRemoveOpen(false)}
+          >
+            {copy("cancel")}
           </button>
         </div>
       </Dialog>
     </>
-  )
+  );
 }
 
 function PinDialog({
@@ -142,76 +159,84 @@ function PinDialog({
   onClose,
   onSaved,
 }: {
-  open: boolean
-  change: boolean
-  onClose: () => void
-  onSaved: () => void
+  open: boolean;
+  change: boolean;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
-  const [pin, setPin] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const firstRef = useRef<HTMLInputElement>(null)
+  const copy = useSettingsCopy();
+  const [pin, setPin] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<SettingsFeedback | null>(null);
+  const [busy, setBusy] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
 
   const close = () => {
-    setPin('')
-    setConfirm('')
-    setPassword('')
-    setError(null)
-    onClose()
-  }
+    setPin("");
+    setConfirm("");
+    setPassword("");
+    setError(null);
+    onClose();
+  };
 
   const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!/^\d{6}$/.test(pin)) return setError('The PIN must be exactly 6 digits.')
-    if (pin !== confirm) return setError("The two PINs don't match.")
-    if (!password) return setError('Enter your current password.')
-    setBusy(true)
-    setError(null)
+    e.preventDefault();
+    if (!/^\d{6}$/.test(pin)) return setError(settingsFeedback("pinDigits"));
+    if (pin !== confirm) return setError(settingsFeedback("pinMismatch"));
+    if (!password) return setError(settingsFeedback("pinPasswordRequired"));
+    setBusy(true);
+    setError(null);
     try {
-      const res = await fetch('/api/users/elevation-pin', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/users/elevation-pin", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin, currentPassword: password }),
-      })
+      });
       if (res.ok) {
-        setPin('')
-        setConfirm('')
-        setPassword('')
-        onSaved()
-        return
+        setPin("");
+        setConfirm("");
+        setPassword("");
+        onSaved();
+        return;
       }
-      const { code, retryAfter } = await errorCode(res)
-      if (code === 'PIN_TOO_WEAK') {
-        setError('That PIN is too easy to guess. Avoid repeated digits like 111111 and runs like 123456.')
-      } else if (code === 'INVALID_PASSWORD') {
-        setError('Your current password is incorrect.')
+      const { code, retryAfter } = await errorCode(res);
+      if (code === "PIN_TOO_WEAK") {
+        setError(settingsFeedback("pinWeak"));
+      } else if (code === "INVALID_PASSWORD") {
+        setError(settingsFeedback("pinPasswordIncorrect"));
       } else if (res.status === 429) {
-        setError(`Too many PIN changes. Try again in ${minutes(retryAfter)}.`)
+        setError(
+          !retryAfter || retryAfter <= 60
+            ? settingsFeedback("pinRateMinute")
+            : settingsFeedback("pinRateMinutes", {
+                minutes: Math.ceil(retryAfter / 60),
+              }),
+        );
       } else {
-        setError('Could not save the PIN. Try again.')
+        setError(settingsFeedback("pinSaveFailed"));
       }
     } catch {
-      setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
+      setError(settingsFeedback("pinNetwork", { brand: PRODUCT_BRAND.name }));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
 
   return (
     <Dialog
+      closeLabel={copy("close")}
       open={open}
       onClose={close}
-      title={change ? 'Change tablet PIN' : 'Set tablet PIN'}
-      description="Only works on this household's paired tablet. It can't be used to sign in anywhere."
+      title={change ? copy("changePinTitle") : copy("setPinTitle")}
+      description={copy("pinDescription")}
       initialFocusRef={firstRef}
       testId="pin-dialog"
     >
       <form onSubmit={submit} className="space-y-5" noValidate>
         <div>
           <label htmlFor="tablet-pin-new" className={labelClass}>
-            New 6-digit PIN
+            {copy("newPin")}
           </label>
           <input
             ref={firstRef}
@@ -222,13 +247,15 @@ function PinDialog({
             maxLength={6}
             autoComplete="off"
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onChange={(e) =>
+              setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             className={inputClass}
           />
         </div>
         <div>
           <label htmlFor="tablet-pin-confirm" className={labelClass}>
-            Confirm PIN
+            {copy("confirmPin")}
           </label>
           <input
             id="tablet-pin-confirm"
@@ -238,13 +265,15 @@ function PinDialog({
             maxLength={6}
             autoComplete="off"
             value={confirm}
-            onChange={(e) => setConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onChange={(e) =>
+              setConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             className={inputClass}
           />
         </div>
         <div>
           <label htmlFor="tablet-pin-password" className={labelClass}>
-            Current password
+            {copy("pinCurrentPassword")}
           </label>
           <input
             id="tablet-pin-password"
@@ -257,18 +286,18 @@ function PinDialog({
         </div>
         {error && (
           <p role="alert" className={errorTextClass}>
-            {error}
+            <SettingsText feedback={error} />
           </p>
         )}
         <div className="flex flex-wrap gap-3">
           <button type="submit" disabled={busy} className={primaryButtonClass}>
-            Save PIN
+            {copy("savePin")}
           </button>
           <button type="button" onClick={close} className={neutralButtonClass}>
-            Cancel
+            {copy("cancel")}
           </button>
         </div>
       </form>
     </Dialog>
-  )
+  );
 }
