@@ -114,6 +114,7 @@ export default function SharedDeviceSettings({
       />
 
       <Dialog
+        closeLabel={copy("close")}
         open={removeOpen}
         onClose={() => setRemoveOpen(false)}
         title={copy("removePinTitle")}
@@ -224,6 +225,7 @@ function PinDialog({
 
   return (
     <Dialog
+      closeLabel={copy("close")}
       open={open}
       onClose={close}
       title={change ? copy("changePinTitle") : copy("setPinTitle")}

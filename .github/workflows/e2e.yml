@@ -317,9 +317,121 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  settings_localization:
+    name: Settings ordinary and expanded QA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres@localhost:5432/fp_e2e_ci
+      FIXTURES_ALLOW: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Record source tree for runtime proof
+        run: echo "E2E_SETTINGS_BUILD_TREE=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_ENV"
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Migrate database
+        run: node scripts/migrate.js
+      # Synthetic availability is installed only in the guarded server child, never compilation.
+      - name: Build ordinary Settings application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+          I18N_PSEUDO_ENABLED: "0"
+          DESIGN_GALLERY_ENABLED: "0"
+      - name: Ordinary guarded Settings journeys
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_SETTINGS_QA: "enabled"
+          I18N_PSEUDO_ENABLED: "0"
+          DESIGN_GALLERY_ENABLED: "0"
+          E2E_REPORT_DIR: playwright-report/settings-ordinary-enabled
+          E2E_OUTPUT_DIR: test-results/settings-ordinary-enabled
+      - name: Ordinary unavailable Settings role gates
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_SETTINGS_QA: "unavailable"
+          I18N_PSEUDO_ENABLED: "0"
+          DESIGN_GALLERY_ENABLED: "0"
+          E2E_REPORT_DIR: playwright-report/settings-ordinary-unavailable
+          E2E_OUTPUT_DIR: test-results/settings-ordinary-unavailable
+      - name: Build expanded Settings application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+          I18N_PSEUDO_ENABLED: "1"
+          DESIGN_GALLERY_ENABLED: "1"
+      - name: Expanded guarded Settings journeys
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_SETTINGS_QA: "enabled"
+          I18N_PSEUDO_ENABLED: "1"
+          DESIGN_GALLERY_ENABLED: "1"
+          E2E_REPORT_DIR: playwright-report/settings-expanded-enabled
+          E2E_OUTPUT_DIR: test-results/settings-expanded-enabled
+      - name: Expanded unavailable Settings role gates
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_SETTINGS_QA: "unavailable"
+          I18N_PSEUDO_ENABLED: "1"
+          DESIGN_GALLERY_ENABLED: "1"
+          E2E_REPORT_DIR: playwright-report/settings-expanded-unavailable
+          E2E_OUTPUT_DIR: test-results/settings-expanded-unavailable
+      - name: Preserve ordinary and expanded Settings proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: settings-qa-${{ github.sha }}
+          path: |
+            playwright-report/settings-ordinary-enabled/
+            test-results/settings-ordinary-enabled/
+            playwright-report/settings-ordinary-unavailable/
+            test-results/settings-ordinary-unavailable/
+            playwright-report/settings-expanded-enabled/
+            test-results/settings-expanded-enabled/
+            playwright-report/settings-expanded-unavailable/
+            test-results/settings-expanded-unavailable/
+          if-no-files-found: error
+          retention-days: 7
+
   verify:
     name: E2E (Playwright)
-    needs: [e2e, recovery_expanded, inventory_localization]
+    needs:
+      [e2e, recovery_expanded, inventory_localization, settings_localization]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -329,4 +441,5 @@ jobs:
           SHARD_RESULT: ${{ needs.e2e.result }}
           RECOVERY_RESULT: ${{ needs.recovery_expanded.result }}
           INVENTORY_RESULT: ${{ needs.inventory_localization.result }}
-        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success
+          SETTINGS_RESULT: ${{ needs.settings_localization.result }}
+        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success

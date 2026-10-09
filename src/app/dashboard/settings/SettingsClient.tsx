@@ -1012,6 +1012,7 @@ export default function SettingsClient({
 
       {/* Change Password Modal */}
       <Dialog
+        closeLabel={copy("close")}
         open={showPasswordModal}
         onClose={() => {
           setShowPasswordModal(false);

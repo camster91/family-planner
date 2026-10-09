@@ -790,3 +790,29 @@ it.each(["future-provider", "constructor", "toString"])(
     }
   },
 );
+
+it.each(["password", "pin", "remove"] as const)(
+  "Spanish %s modal exposes its close action in the mounted locale",
+  async (kind) => {
+    api();
+    render(
+      <I18nProvider locale="en" persistLocale>
+        <SettingsClient viewerRole="parent" sharedDevice={{ hasPin: true }} />
+      </I18nProvider>,
+    );
+    await screen.findByLabelText("Full Name");
+    await spanish();
+    await userEvent.click(
+      screen.getByRole("button", {
+        name:
+          kind === "password"
+            ? "Cambiar contraseña"
+            : kind === "pin"
+              ? "Cambiar PIN"
+              : "Quitar PIN",
+      }),
+    );
+    const modal = screen.getByRole("dialog");
+    expect(within(modal).getByRole("button", { name: "Cerrar" })).toBeVisible();
+  },
+);
