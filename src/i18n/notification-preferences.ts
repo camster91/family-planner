@@ -1,5 +1,10 @@
+import {
+  notificationPreferencesStatusEnglish,
+  notificationPreferencesStatusSpanish,
+} from "./notification-preferences-status";
 /** Preference presentation only; delivery/category policy remains canonical. */
 export const notificationPreferencesEnglish = {
+  ...notificationPreferencesStatusEnglish,
   choresLabel: "Chores and rewards",
   choresDescription:
     "When a chore is given to you, checked or sent back, and when rewards change.",
@@ -36,9 +41,6 @@ export const notificationPreferencesEnglish = {
     "You're offline. You can change these again when you're back online.",
   always:
     "Some messages always arrive: password resets, email checks, household invites, and notices a parent sends you.",
-  loading: "Loading your notification settings…",
-  loadFailed: "Couldn't load your notification settings.",
-  retry: "Try again",
 } as const;
 export type NotificationPreferencesMessage =
   keyof typeof notificationPreferencesEnglish;
@@ -46,6 +48,7 @@ export const notificationPreferencesSpanish: Record<
   NotificationPreferencesMessage,
   string
 > = {
+  ...notificationPreferencesStatusSpanish,
   choresLabel: "Tareas y recompensas",
   choresDescription:
     "Cuando te asignan, revisan o devuelven una tarea y cuando cambian las recompensas.",
@@ -84,9 +87,6 @@ export const notificationPreferencesSpanish: Record<
     "Sin conexión. Podrás cambiar estos ajustes cuando vuelva la conexión.",
   always:
     "Algunos mensajes siempre llegan: restablecimientos de contraseña, verificaciones de correo, invitaciones al hogar y avisos que te envía un padre o una madre.",
-  loading: "Cargando tus ajustes de notificaciones…",
-  loadFailed: "No se pudieron cargar tus ajustes de notificaciones.",
-  retry: "Intentar de nuevo",
 };
 export const notificationPreferencesMessages = {
   en: notificationPreferencesEnglish,

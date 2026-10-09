@@ -1,14 +1,14 @@
 "use client";
 import { useTranslation } from "@/i18n";
 import {
-  notificationPreferencesMessages,
-  type NotificationPreferencesMessage,
-} from "@/i18n/notification-preferences";
+  notificationPreferencesStatusMessages,
+  type NotificationPreferencesStatusMessage,
+} from "@/i18n/notification-preferences-status";
 /** Existing preference loading/retry UI, shared by module and API loading. */
 export function NotificationPreferencesLoading() {
   const { t } = useTranslation();
-  const msg = (key: NotificationPreferencesMessage) =>
-    t(key, undefined, notificationPreferencesMessages);
+  const msg = (key: NotificationPreferencesStatusMessage) =>
+    t(key, undefined, notificationPreferencesStatusMessages);
   return (
     <p className="py-3 text-[15px] text-label-secondary" role="status">
       {msg("loading")}
@@ -22,8 +22,8 @@ export function NotificationPreferencesFailure({
   onRetry: () => void;
 }) {
   const { t } = useTranslation();
-  const msg = (key: NotificationPreferencesMessage) =>
-    t(key, undefined, notificationPreferencesMessages);
+  const msg = (key: NotificationPreferencesStatusMessage) =>
+    t(key, undefined, notificationPreferencesStatusMessages);
   return (
     <div className="py-2">
       <p role="alert" className="text-[15px] text-label-primary">
