@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { navigationMessages, navigationTabKey } from "../navigation";
 import { offlineBannerMessages } from "../offline-banner";
-import { tabsFor } from "@/lib/nav-items";
+import { tabsFor, PRIMARY_TABS, KID_TABS, TEEN_TABS } from "@/lib/nav-items";
 import { defaultFeatures } from "@/lib/features";
 import { OFFLINE_TEXT, BACK_ONLINE_TEXT } from "@/components/ui/offline-banner";
 import { pseudolocalizeTemplate } from "../pseudo";
@@ -25,6 +25,12 @@ for (const [name, messages] of Object.entries({
     }
   });
 it("covers canonical role tabs by href without altering pure English defaults or gate policy", () => {
+  for (const tab of [...PRIMARY_TABS, ...KID_TABS, ...TEEN_TABS]) {
+    const key = navigationTabKey(tab.href);
+    expect(key).not.toBeNull();
+    expect(navigationMessages.en[key!]).toBe(tab.label);
+    expect(navigationMessages.es[key!]).toBeTruthy();
+  }
   for (const role of ["parent", "teen", "child"])
     for (const features of [
       defaultFeatures(),

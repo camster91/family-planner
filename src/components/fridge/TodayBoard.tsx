@@ -92,7 +92,7 @@ export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean): string
  * the accessibility tree and focus order too, not just covered.
  */
 const FRIDGE_CHROME_CSS = `
-nav[aria-label="Main navigation"], .tab-bar { display: none !important; }
+[data-dashboard-navigation], .tab-bar { display: none !important; }
 [data-offline-banner] { display: none !important; }
 #main-content { padding-top: 0 !important; padding-bottom: 0 !important; }
 #main-content > div { max-width: none !important; padding: 0 !important; }

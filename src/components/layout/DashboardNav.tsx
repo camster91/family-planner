@@ -115,6 +115,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     <>
       {/* ─── Apple HIG Desktop Top Bar ─── */}
       <nav
+        data-dashboard-navigation=""
         aria-label={msg("mainNavigation")}
         className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
