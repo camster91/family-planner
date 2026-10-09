@@ -940,16 +940,30 @@ const messages = {
 } as const
 
 type Messages = typeof messages.en
+/** Route-owned dictionaries are passed by their consumers, never imported here. */
+export type ScopedMessages = Record<Locale, Record<string, unknown>>
+
+function translateMessage(source: unknown, key: string, params?: Record<string, string | number>, pseudolocalize = false): string {
+  let value = source
+  for (const part of key.split('.')) {
+    if (value && typeof value === 'object' && part in value) value = (value as Record<string, unknown>)[part]
+    else return key
+  }
+  if (typeof value !== 'string') return key
+  const template = pseudolocalize ? pseudolocalizeTemplate(value) : value
+  if (!params) return template
+  return template.replace(/\{(\w+)\}/g, (_, part) => String(params[part] ?? `{${part}}`))
+}
 
 interface I18nContextType {
   locale: Locale
-  t: (key: string, params?: Record<string, string | number>) => string
+  t: (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages) => string
   setLocale: (locale: Locale) => void
 }
 
 const I18nContext = createContext<I18nContextType>({
   locale: 'en',
-  t: (key) => key,
+  t: (key, params, scoped) => scoped ? translateMessage(scoped.en, key, params) : key,
   setLocale: () => {},
 })
 
@@ -1020,21 +1034,8 @@ export function I18nProvider({
   )
 
   const t = useCallback(
-    (key: string, params?: Record<string, string | number>): string => {
-      const keys = key.split('.')
-      let value: unknown = messages[currentLocale]
-      for (const k of keys) {
-        if (value && typeof value === 'object' && k in value) {
-          value = (value as Record<string, unknown>)[k]
-        } else {
-          return key
-        }
-      }
-      if (typeof value !== 'string') return key
-      const template = pseudolocalize ? pseudolocalizeTemplate(value) : value
-      if (!params) return template
-      return template.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`))
-    },
+    (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages): string =>
+      translateMessage((scoped ?? messages)[currentLocale], key, params, pseudolocalize),
     [currentLocale, pseudolocalize]
   )
 

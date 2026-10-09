@@ -20,7 +20,6 @@ import { useListItemSync, type SyncNotice } from './use-list-item-sync'
 import { buildGrocerySections, groceryDetailText, isGroceryListType, storeSectionOf } from '@/lib/grocery-display'
 import {
   GROCERY_SECTIONS,
-  grocerySectionLabel,
   isGrocerySection,
   sectionNameKey,
   type GrocerySectionId,
@@ -28,6 +27,7 @@ import {
 import { MoveToSectionDialog, type MoveTarget } from './MoveToSectionDialog'
 import { useToast, useUndoToast } from '@/components/ui/toast'
 import { PersonGroceryAdd } from './PersonGroceryAdd'
+import { useStoreSectionText } from '@/i18n/store-sections'
 
 // -----------------------------------------------------------------------
 // Types
@@ -125,6 +125,7 @@ export default function ListDetailClient({
   canDeleteItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
 }: ListDetailClientProps) {
+  const storeText = useStoreSectionText()
   const router = useRouter()
   const readSync = useListVersionSync({ listId, version, generatedAt, refresh: () => router.refresh() })
   const now = useNow(60_000)
@@ -212,7 +213,7 @@ export default function ListDetailClient({
     ? buildGrocerySections(listItems, displayChecked, {
         sectionOf,
         order: sectionSort.order,
-        label: (key) => (isGrocerySection(key) ? grocerySectionLabel(key) : key),
+        label: (key) => (isGrocerySection(key) ? storeText(key) : key),
       })
     : buildGrocerySections(listItems, displayChecked)
 
@@ -447,12 +448,12 @@ export default function ListDetailClient({
               <button
                 type="button"
                 onClick={() => openMove(item)}
-                aria-label={`Move ${item.content} to another section`}
+                aria-label={storeText('moveItem', { item: item.content })}
                 aria-haspopup="dialog"
                 data-testid="move-section"
                 className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
               >
-                Move
+                {storeText('move')}
               </button>
             )}
           </div>
@@ -649,11 +650,12 @@ function SectionSortControl({
   error: string | null
   onChange: (next: boolean) => void
 }) {
+  const storeText = useStoreSectionText()
   const hint = enabled
     ? learned
-      ? 'Sections follow the order your household usually shops.'
-      : 'Items are grouped by store section.'
-    : 'Items stay in the order they were added.'
+      ? storeText('learned')
+      : storeText('grouped')
+    : storeText('added')
   return (
     <div className="card-apple px-4 py-2" data-testid="section-sort">
       {canChange ? (
@@ -665,10 +667,10 @@ function SectionSortControl({
           onClick={() => onChange(!enabled)}
           className="flex min-h-[44px] w-full items-center justify-between gap-3 text-left disabled:opacity-60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
         >
-          <span className="text-body text-label-primary">Sort by store section</span>
+          <span className="text-body text-label-primary">{storeText('sort')}</span>
           <span className="inline-flex shrink-0 items-center gap-2">
             <span className="text-subhead text-label-secondary" aria-hidden="true">
-              {enabled ? 'On' : 'Off'}
+              {storeText(enabled ? 'on' : 'off')}
             </span>
             <span
               aria-hidden="true"
@@ -688,7 +690,7 @@ function SectionSortControl({
         </button>
       ) : (
         <p className="flex min-h-[44px] items-center text-body text-label-primary">
-          Sort by store section: {enabled ? 'On' : 'Off'}
+          {storeText(enabled ? 'sortOn' : 'sortOff')}
         </p>
       )}
       <p className="pb-1 text-footnote text-label-secondary">{hint}</p>

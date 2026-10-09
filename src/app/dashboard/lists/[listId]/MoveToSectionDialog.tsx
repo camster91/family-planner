@@ -4,7 +4,8 @@ import * as React from 'react'
 import { Check } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { GROCERY_SECTIONS, grocerySectionLabel, type GrocerySectionId } from '@/lib/grocery-sections'
+import { GROCERY_SECTIONS, type GrocerySectionId } from '@/lib/grocery-sections'
+import { useStoreSectionText } from '@/i18n/store-sections'
 
 export interface MoveTarget {
   itemId: string
@@ -32,12 +33,14 @@ export function MoveToSectionDialog({
   onPick: (section: GrocerySectionId | null) => void
   onClose: () => void
 }) {
+  const storeText = useStoreSectionText()
   return (
     <Dialog
       open={target !== null}
       onClose={pending ? undefined : onClose}
-      title={target ? `Move “${target.content}”` : 'Move'}
-      description="Pick the store section. Your household’s lists will use it for this item from now on."
+      title={target ? storeText('moveTitle', { item: target.content }) : storeText('move')}
+      description={storeText('description')}
+      closeLabel={storeText('close')}
       testId="move-section-dialog"
     >
       {target && (
@@ -47,7 +50,7 @@ export function MoveToSectionDialog({
               {error}
             </p>
           )}
-          <ul className="space-y-1" aria-label="Store sections">
+          <ul className="space-y-1" aria-label={storeText('sections')}>
             {GROCERY_SECTIONS.map((section) => {
               const isCurrent = section === target.current
               return (
@@ -63,11 +66,11 @@ export function MoveToSectionDialog({
                       isCurrent && 'bg-[var(--surface-fill-secondary)] font-semibold'
                     )}
                   >
-                    <span className="min-w-0 break-words">{grocerySectionLabel(section)}</span>
+                    <span className="min-w-0 break-words">{storeText(section)}</span>
                     {isCurrent && (
                       <span className="inline-flex shrink-0 items-center gap-1 text-footnote text-label-secondary">
                         <Check className="h-4 w-4" aria-hidden="true" />
-                        Current
+                        {storeText('current')}
                       </span>
                     )}
                   </button>
@@ -82,7 +85,7 @@ export function MoveToSectionDialog({
               onClick={() => onPick(null)}
               className="min-h-[44px] w-full rounded-[var(--radius-lg)] px-4 text-left text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline disabled:opacity-60"
             >
-              Use the automatic section
+              {storeText('automatic')}
             </button>
           )}
         </div>
