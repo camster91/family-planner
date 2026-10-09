@@ -33,6 +33,9 @@ const projects = [
   "fridge-landscape-1280x800",
 ];
 const api = /\/api\/inventory(?:\?|\/|$)/;
+function labelPrefix(text: string) {
+  return new RegExp("^" + text.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+}
 test.describe("inventory localization synthetic server", () => {
   test.skip(
     process.env.E2E_INVENTORY_SCAN_STUB !== "1",
@@ -334,14 +337,6 @@ test.describe("inventory localization synthetic server", () => {
                 {
                   ...template,
                   id: `controlled-cap-${pages.length}`,
-                  name: PRIVATE_NAME,
-                  amount: 2,
-                  unit: PRIVATE_UNIT,
-                  location: "fridge",
-                  category: "produce",
-                  date_kind: "best_before",
-                  expires_on: null,
-                  status: "active",
                 },
               ],
               nextOffset: pages.length * 500,
@@ -426,11 +421,9 @@ test.describe("inventory localization synthetic server", () => {
         ]);
         const name = PREFIX + " authored {name} 李";
         await modal.getByLabel(msg(locale, "name"), { exact: true }).fill(name);
+        await modal.getByLabel(labelPrefix(msg(locale, "amount"))).fill("4");
         await modal
-          .getByLabel(new RegExp("^" + msg(locale, "amount")))
-          .fill("4");
-        await modal
-          .getByLabel(new RegExp("^" + msg(locale, "unit")))
+          .getByLabel(labelPrefix(msg(locale, "unit")))
           .fill(PRIVATE_UNIT);
         const creates: Array<{
           method: string;
@@ -487,9 +480,7 @@ test.describe("inventory localization synthetic server", () => {
             exact: true,
           })
           .click();
-        await modal
-          .getByLabel(new RegExp("^" + msg(locale, "howMuch").trim()))
-          .fill("1.5");
+        await modal.getByLabel(labelPrefix(msg(locale, "howMuch"))).fill("1.5");
         await modal
           .getByRole("button", { name: msg(locale, "usedIt"), exact: true })
           .click();
@@ -540,9 +531,13 @@ test.describe("inventory localization synthetic server", () => {
             exact: true,
           })
           .click();
-        await modal
-          .getByRole("radio", { name: msg(locale, "pantry"), exact: true })
-          .check();
+        const pantry = modal.getByRole("radio", {
+          name: msg(locale, "pantry"),
+          exact: true,
+        });
+        await pantry.focus();
+        await pantry.press("Space");
+        await expect(pantry).toBeChecked();
         await modal
           .getByRole("button", { name: msg(locale, "save"), exact: true })
           .click();
@@ -662,7 +657,7 @@ test.describe("inventory localization synthetic server", () => {
         const name = PREFIX + " refused {name} 李";
         await modal.getByLabel(msg(locale, "name"), { exact: true }).fill(name);
         await modal
-          .getByLabel(new RegExp("^" + msg(locale, "unit")))
+          .getByLabel(labelPrefix(msg(locale, "unit")))
           .fill(PRIVATE_UNIT);
         let release!: () => void;
         const waiting = new Promise<void>((r) => {
