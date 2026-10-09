@@ -92,11 +92,18 @@ export function Dialog({
       ).filter((el) => el.offsetParent !== null);
       if (items.length === 0) {
         e.preventDefault();
+        panel.focus();
         return;
       }
       const firstItem = items[0];
       const lastItem = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === firstItem) {
+      // A focused submit can become disabled while its request is pending.
+      // Recover from that node (or browser body focus) before native Tab can
+      // escape the modal; calculate the current enabled controls each time.
+      if (!items.includes(document.activeElement as HTMLElement)) {
+        e.preventDefault();
+        (e.shiftKey ? lastItem : firstItem).focus();
+      } else if (e.shiftKey && document.activeElement === firstItem) {
         e.preventDefault();
         lastItem.focus();
       } else if (!e.shiftKey && document.activeElement === lastItem) {

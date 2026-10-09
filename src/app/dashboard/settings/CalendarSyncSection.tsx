@@ -416,7 +416,11 @@ export default function CalendarSyncSection() {
                   <button
                     type="button"
                     className="btn-primary inline-flex items-center min-h-[44px]"
-                    disabled={busy !== null || !picking.value}
+                    disabled={
+                      busy !== null ||
+                      picking.calendars.length === 0 ||
+                      !picking.value
+                    }
                     onClick={async () => {
                       if (
                         await patch(

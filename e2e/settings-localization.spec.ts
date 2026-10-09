@@ -1,6 +1,6 @@
 /** Full owned #443 route matrix. Synthetic actions are never real provider/credential acceptance. */
 import type { Page, BrowserContext, TestInfo } from "@playwright/test";
-import { test as base, expect, browserFetch, loginViaUi } from "./support/test";
+import { test as base, expect, browserFetch } from "./support/test";
 import { authFile, E2E_ANCHOR } from "./support/env";
 import { FIXTURE_IDS, FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
 import { PRODUCT_BRAND } from "../src/lib/brand";
@@ -157,6 +157,7 @@ test.describe("parentA", () => {
       // Theme remains the canonical device preference, independent of locale.
       const themes = page
         .locator("#settings-account")
+        .locator("..")
         .getByRole("group")
         .first()
         .getByRole("button");
@@ -192,8 +193,8 @@ test.describe("parentA", () => {
       await expect(current).toHaveAttribute("autocomplete", "current-password");
       await expect(password).toHaveAttribute("autocomplete", "new-password");
       await current.fill("synthetic-current");
-      await password.fill("abc");
-      await confirm.fill("different");
+      await password.fill("synthetic-new-password");
+      await confirm.fill("synthetic-other-password");
       await modal
         .getByRole("button", {
           name: msg(locale, "changePassword"),
@@ -204,16 +205,26 @@ test.describe("parentA", () => {
         modal.getByText(msg(locale, "passwordMismatch"), { exact: true }),
       ).toBeVisible();
       expect(s.count("POST", "/api/auth/change-password")).toBe(0);
-      await confirm.fill("abc");
+      await password.fill("");
+      await password.pressSequentially("abc");
+      await confirm.fill("");
+      await confirm.pressSequentially("abc");
       await modal
         .getByRole("button", {
           name: msg(locale, "changePassword"),
           exact: true,
         })
         .click();
+      // The canonical native minlength rejects this before React submit.
+      expect(
+        await password.evaluate(
+          (el) => (el as HTMLInputElement).validity.tooShort,
+        ),
+      ).toBe(true);
       await expect(
-        modal.getByText(msg(locale, "passwordShort"), { exact: true }),
+        modal.getByText(msg(locale, "passwordHint"), { exact: true }),
       ).toBeVisible();
+      expect(s.count("POST", "/api/auth/change-password")).toBe(0);
       await password.fill("synthetic-new-password");
       await confirm.fill("synthetic-new-password");
       s.reply("POST", "/api/auth/change-password", {
@@ -1054,8 +1065,10 @@ test.describe("parentA connected calendars", () => {
         const section = await open(page, locale, "connectedCalendars");
         const own = section.locator("li").first();
         await expect(
-          section.getByText(msg(locale, "ownerReconnect", { name: owner }), {
-            exact: true,
+          section.getByRole("status").filter({
+            hasText:
+              msg(locale, "problem") +
+              msg(locale, "ownerReconnect", { name: owner }),
           }),
         ).toBeVisible();
         await expect(

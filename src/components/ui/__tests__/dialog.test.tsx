@@ -78,3 +78,42 @@ it("does not let Escape fall through a non-dismissible child", async () => {
   expect(screen.getAllByRole("dialog")).toHaveLength(2);
   expect(screen.getByRole("button", { name: "Finish inner" })).toHaveFocus();
 });
+
+it.each([false, true])(
+  "keeps %s-shift Tab inside when a pending submit becomes disabled",
+  (shiftKey) => {
+    const view = render(
+      <Dialog open title="Pending" onClose={() => undefined}>
+        <button>Cancel pending</button>
+        <button disabled={false}>Submit pending</button>
+      </Dialog>,
+    );
+    const panel = screen.getByRole("dialog");
+    for (const button of within(panel).getAllByRole("button"))
+      Object.defineProperty(button, "offsetParent", {
+        configurable: true,
+        get: () => panel,
+      });
+    const submit = screen.getByRole("button", { name: "Submit pending" });
+    submit.focus();
+    view.rerender(
+      <Dialog open title="Pending" onClose={() => undefined}>
+        <button>Cancel pending</button>
+        <button disabled>Submit pending</button>
+      </Dialog>,
+    );
+    const key = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(
+      screen.getByRole("button", {
+        name: shiftKey ? "Cancel pending" : "Close",
+      }),
+    ).toHaveFocus();
+  },
+);

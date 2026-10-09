@@ -1,8 +1,12 @@
 /** #443 real server role/household boundaries, isolated fabricated rows only. */
 import pg from "pg";
-import { test, expect, browserFetch, loginViaUi } from "./support/test";
+import { test, expect, browserFetch } from "./support/test";
 import { authFile } from "./support/env";
-import { FIXTURE_IDS, FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
+import {
+  FIXTURE_IDS,
+  FIXTURE_EMAILS,
+  FIXTURE_PASSWORD,
+} from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import {
   SettingsRequests,
@@ -150,7 +154,12 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
       }, info) => {
         await guard(context, baseURL!, locale);
         if (role === "teen") {
-          await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
+          await page.goto("/login");
+          // Existing native controls work in both locales; sign in through the
+          // real form without an API shortcut or changing persisted language.
+          await page.locator("#email").fill(FIXTURE_EMAILS.familyA.teen);
+          await page.locator("#password").fill(FIXTURE_PASSWORD);
+          await page.locator('form button[type="submit"]').click();
           await expect(page).toHaveURL(/\/dashboard\/?$/);
         } else await page.goto("/dashboard");
         const auth = await browserFetch(page, "/api/auth/me");

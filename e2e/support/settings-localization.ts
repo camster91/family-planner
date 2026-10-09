@@ -241,7 +241,13 @@ export async function open(page: Page, locale: Locale, name: SettingsMessage) {
       await page.keyboard.press("Enter");
   }
   await expect(details).toHaveAttribute("open", "");
-  return details;
+  // Mark this actual DOM node: translation can rename it, but a remount must
+  // lose the marker and fail the subsequent state-preservation assertions.
+  await details.evaluate(
+    (el, key) => el.setAttribute("data-settings-qa-disclosure", key),
+    name,
+  );
+  return page.locator(`[data-settings-qa-disclosure="${name}"]`);
 }
 export async function identity(
   page: Page,
@@ -331,7 +337,7 @@ export async function capture(
     owned ??
     ((await dialog.count())
       ? dialog
-      : page.locator("#settings-account").locator(".."));
+      : page.locator("#settings-account").locator("..").locator(".."));
   await scope.evaluate((el) => el.setAttribute("data-settings-qa-scope", ""));
   const violations = (
     await new AxeBuilder({ page })

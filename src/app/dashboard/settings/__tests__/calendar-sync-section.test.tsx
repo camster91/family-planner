@@ -148,3 +148,23 @@ describe('CalendarSyncSection', () => {
     expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull()
   })
 })
+
+
+it('does not save or sync an old calendar when no writable calendars remain', async () => {
+  const calls = mockApi(200, [{ ...MINE, calendar_id: 'old-calendar', calendar_name: 'Old calendar' }])
+  const original = global.fetch
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/calendars'))
+      return { ok: true, status: 200, json: async () => ({ calendars: [] }) } as Response
+    return original(input, init)
+  }) as unknown as typeof fetch
+  render(<CalendarSyncSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Change calendar for Google Calendar' }))
+  await screen.findByText('No calendars you can edit were found.')
+  const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save' })
+  expect(save.disabled).toBe(true)
+  await userEvent.click(save)
+  expect(calls.filter((call) => call.method !== 'GET')).toEqual([])
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(screen.getByText(/Old calendar/)).toBeTruthy()
+})
