@@ -64,6 +64,8 @@ async function checkForm(page: Page, info: TestInfo, name: string) {
     contentType: "application/json",
   });
   expect(violations).toEqual([]);
+  // Reset the capture origin after proving the primary action is reachable.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: info.outputPath(`${name}.png`),
     fullPage: true,
