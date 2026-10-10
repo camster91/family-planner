@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic'
  * - Child: never here. The kid allowlist (src/lib/kid-access.ts) sends them
  *   home first; this check is a last line in case that gate is bypassed.
  */
-export default async function SettingsPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ setup?: string }> } = {}) {
+export default async function SettingsPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ setup?: string }> }) {
   const sessionUser = await getServerUser()
   if (!sessionUser) redirect('/login')
   const profile = await prisma!.user.findUnique({
