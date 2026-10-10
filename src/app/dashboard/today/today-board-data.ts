@@ -37,9 +37,9 @@ import {
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
+import { COMING_UP_DAYS } from '@/lib/board-constants'
 
-/** Days after today covered by "Coming up". */
-export const COMING_UP_DAYS = 3
+export { COMING_UP_DAYS } from '@/lib/board-constants'
 
 /** Upper bound on rows per domain; the board shows far fewer. */
 const MAX_EVENTS = 60

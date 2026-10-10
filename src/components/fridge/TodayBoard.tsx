@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { BoardDisplayData, TodayBoardData } from '@/app/dashboard/today/today-board-data'
-import { COMING_UP_DAYS } from '@/app/dashboard/today/today-board-data'
+import { COMING_UP_DAYS } from '@/lib/board-constants'
 import { DEFAULT_BOARD_DISPLAY } from '@/lib/ambient'
 import {
   choresDueTodayByPerson,
