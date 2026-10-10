@@ -627,6 +627,7 @@ function MealsPageInner() {
           <p className="text-subhead text-label-secondary mt-0.5">
             {t("meals.subtitle")}
           </p>
+          <Link href="/dashboard/meals/explore" className="inline-flex min-h-[44px] items-center gap-2 text-subhead text-[var(--accent-text)]"><BookOpen className="w-4 h-4" aria-hidden="true" />Explore recipes</Link>
           {inventoryOn && (
             <Link
               href="/dashboard/inventory"

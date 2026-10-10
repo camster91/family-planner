@@ -40,19 +40,30 @@ export function TabBar({ user }: { user: NavUser | null }) {
     // can make the fixed bar taller. Include the border and react to font,
     // feature and viewport changes (including display:none above md).
     const property = "--phone-tab-bar-height";
-    const previous = main.style.getPropertyValue(property);
+    // Sibling in-flow launchers also need the measured clearance; keep the
+    // existing main value and share it from their common shell ancestor.
+    const shell = main.closest<HTMLElement>("[data-dashboard-shell]");
+    const targets = shell ? [main, shell] : [main];
+    const previous = targets.map((target) =>
+      target.style.getPropertyValue(property),
+    );
     const measure = () =>
-      main.style.setProperty(
-        property,
-        `${nav.getBoundingClientRect().height}px`,
+      targets.forEach((target) =>
+        target.style.setProperty(
+          property,
+          `${nav.getBoundingClientRect().height}px`,
+        ),
       );
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(nav);
     return () => {
       observer.disconnect();
-      if (previous) main.style.setProperty(property, previous);
-      else main.style.removeProperty(property);
+      targets.forEach((target, index) => {
+        if (previous[index])
+          target.style.setProperty(property, previous[index]);
+        else target.style.removeProperty(property);
+      });
     };
   }, []);
 

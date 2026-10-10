@@ -25,6 +25,7 @@ interface NotificationItem {
   title: string
   message?: string | null
   read: boolean
+  snoozed_until?: string | null
   created_at: string
 }
 
@@ -52,7 +53,16 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [filter, setFilter] = useState<'all' | 'unread' | 'snoozed'>('all')
+  const [now, setNow] = useState(() => Date.now())
+  const [snoozePending, setSnoozePending] = useState<string | null>(null)
+  const snoozeLock = useRef(false)
+  useEffect(() => {
+    const tick = () => setNow(Date.now())
+    const timer = setInterval(tick, 30_000)
+    window.addEventListener('focus', tick)
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick) }
+  }, [])
   const { addToast } = useToast()
   const showUndo = useUndoToast()
   // Deletes waiting out the Undo window: id -> timer and the row to restore.
@@ -69,7 +79,7 @@ export default function NotificationsPage() {
     setLoading(true)
     setLoadError(null)
     try {
-      const res = await fetch('/api/notifications', { cache: 'no-store' })
+      const res = await fetch('/api/notifications?includeSnoozed=true', { cache: 'no-store' })
       if (!res.ok) {
         setLoadError(await responseErrorMessage(res))
         return
@@ -177,9 +187,28 @@ export default function NotificationsPage() {
     [addToast, commitDelete, restore, showUndo]
   )
 
-  const filteredNotifications = filter === 'unread' ? notifications.filter(n => !n.read) : notifications
-
-  const unreadCount = notifications.filter(n => !n.read).length
+  const handleSnooze = async (notification: NotificationItem, minutes: number | null) => {
+    if (snoozeLock.current) return
+    snoozeLock.current = true
+    setSnoozePending(notification.id)
+    try {
+      const res = await fetch('/api/notifications/snooze', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: notification.id, minutes }),
+      })
+      if (!res.ok) { await failed("Couldn't change snooze", res); return }
+      const body = await res.json()
+      setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, snoozed_until: body.snoozed_until, read: false } : n))
+      setNow(Date.now())
+      addToast({ type: 'success', title: minutes === null ? 'Notification restored' : 'Notification snoozed' })
+    } catch { await failed("Couldn't change snooze") }
+    finally { snoozeLock.current = false; setSnoozePending(null) }
+  }
+  const isSnoozed = (n: NotificationItem) => Boolean(n.snoozed_until && Date.parse(n.snoozed_until) > now)
+  const active = notifications.filter(n => !isSnoozed(n))
+  const snoozed = notifications.filter(isSnoozed)
+  const filteredNotifications = filter === 'snoozed' ? snoozed : filter === 'unread' ? active.filter(n => !n.read) : active
+  const unreadCount = active.filter(n => !n.read).length
 
   const getNotificationIcon = (type: string) => {
     const iconMap: Record<string, string> = { chore: 'chore', event: 'calendar', message: 'messages', reward: 'rewards', system: 'bell' }
@@ -211,8 +240,8 @@ export default function NotificationsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2 px-4 mb-4">
-        {(['all', 'unread'] as const).map(f => (
+      <div className="flex flex-wrap gap-2 px-4 mb-4">
+        {(['all', 'unread', 'snoozed'] as const).map(f => (
           <button
             key={f}
             type="button"
@@ -225,7 +254,7 @@ export default function NotificationsPage() {
                 : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
             )}
           >
-            {f === 'all' ? `All (${notifications.length})` : `Unread (${unreadCount})`}
+            {f === 'all' ? `All (${active.length})` : f === 'unread' ? `Unread (${unreadCount})` : `Snoozed (${snoozed.length})`}
           </button>
         ))}
       </div>
@@ -252,8 +281,8 @@ export default function NotificationsPage() {
             icon={Bell}
             glyphColor="family"
             motion={MOTION.moon}
-            title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-            description={filter === 'unread' ? "You're all caught up!" : "You'll see notifications here when things happen in your family."}
+            title={filter === 'snoozed' ? 'No snoozed notifications' : filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+            description={filter === 'snoozed' ? 'Snoozed notifications return here when their delay ends. No extra email or push is sent.' : filter === 'unread' ? "You're all caught up!" : "You'll see notifications here when things happen in your family."}
           />
         ) : (
           <InsetList>
@@ -263,14 +292,14 @@ export default function NotificationsPage() {
                   key={notification.id}
                   data-testid="notification-row"
                   className={cn(
-                    'flex items-center gap-3 px-4 py-3 border-l-4',
+                    'flex flex-wrap items-center gap-3 px-4 py-3 border-l-4',
                     notification.read ? 'border-l-transparent' : 'border-l-chore bg-surface-fill'
                   )}
                 >
                   <Glyph color={GLYPH_COLORS[notification.type] || 'gray'} size="sm">
                     {getNotificationIcon(notification.type)}
                   </Glyph>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-[140px]">
                     <div className={cn('text-body text-label-primary truncate', !notification.read && 'font-semibold')}>
                       {!notification.read && <span className="sr-only">Unread: </span>}
                       {notification.title}
@@ -283,9 +312,22 @@ export default function NotificationsPage() {
                       <span className="text-caption-1 text-label-tertiary">{formatDate(notification.created_at)}</span>
                     </div>
                   </div>
-                  {!notification.read && (
+                  {isSnoozed(notification) && <p className="w-full text-caption-1 text-label-secondary">Returns {new Date(notification.snoozed_until!).toLocaleString()}</p>}
+                  {isSnoozed(notification) ? (
+                    <button type="button" disabled={snoozePending !== null} onClick={() => handleSnooze(notification, null)} className="btn-tinted min-h-[44px] disabled:opacity-50" aria-label={`Show "${notification.title}" now`}>Show now</button>
+                  ) : (
+                    <label className="inline-flex items-center gap-1 text-subhead text-label-secondary">
+                      <Clock className="h-4 w-4" aria-hidden="true" />
+                      <select aria-label={`Snooze "${notification.title}"`} value="" disabled={snoozePending !== null} onChange={e => { if (e.target.value) void handleSnooze(notification, Number(e.target.value)) }} className="min-h-[44px] max-w-[160px] rounded-xl bg-surface-fill px-2 text-label-primary disabled:opacity-50">
+                        <option value="">{snoozePending === notification.id ? 'Saving…' : 'Snooze'}</option>
+                        <option value="15">15 minutes</option><option value="60">1 hour</option><option value="180">3 hours</option><option value="1440">24 hours</option>
+                      </select>
+                    </label>
+                  )}
+                  {!isSnoozed(notification) && !notification.read && (
                     <button
                       type="button"
+                      disabled={snoozePending !== null}
                       onClick={() => handleMarkAsRead(notification.id)}
                       className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full px-2 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill-secondary shrink-0"
                       aria-label={`Mark "${notification.title}" as read`}
@@ -296,6 +338,7 @@ export default function NotificationsPage() {
                   )}
                   <button
                     type="button"
+                    disabled={snoozePending !== null}
                     onClick={() => handleDelete(notification)}
                     className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full hover:bg-surface-fill-secondary shrink-0"
                     aria-label={`Delete "${notification.title}"`}

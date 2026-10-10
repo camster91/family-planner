@@ -415,3 +415,24 @@ describe("chores — two households", () => {
     });
   });
 });
+
+
+it('creates the first weekly chore on a chosen day and persists all chosen weekdays', async () => {
+  db.reset()
+  const response = await create(req({as:'parentA',method:'POST',body:{...newChore,due_date:'2026-10-11',frequency:'weekly',weekly_days:[1,4]}}))
+  expect(response.status).toBe(200)
+  const {chore} = await response.json()
+  expect(chore.weekly_days).toEqual([1,4])
+  expect(new Date(chore.due_date).toISOString()).toBe('2026-10-12T00:00:00.000Z')
+  const rows = db.rows('chore').filter(row => row.recurrence_id === chore.id)
+  expect(rows.length).toBe(8)
+  expect(rows.every(row => [1,4].includes(new Date(row.due_date).getUTCDay()))).toBe(true)
+})
+
+it('keeps weekday changes parent-only and rejects a foreign household chore', async () => {
+  db.reset()
+  const body = {choreId:'chore-a',frequency:'weekly',weekly_days:[1,4],apply_to_series:true}
+  expect((await chores.PATCH(req({as:'childA',method:'PATCH',body}))).status).toBe(403)
+  expect((await chores.PATCH(req({as:'parentB',method:'PATCH',body}))).status).toBe(403)
+  expect(writesTo('chore').length).toBe(0)
+})

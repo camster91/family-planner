@@ -751,7 +751,7 @@ export default function SettingsClient({
                     readOnly
                     value={feedUrl}
                     onFocus={(e) => e.currentTarget.select()}
-                    className="input-field w-full text-xs font-mono"
+                    className="input-field w-full text-xs font-mono scroll-mt-24"
                   />
                   <p className="text-xs text-label-tertiary mt-2">
                     {copy("linkPrivacy")}
@@ -827,9 +827,10 @@ export default function SettingsClient({
           {calendarSync && <CalendarSyncSection />}
 
           {/* AI capture: the household's provider key. Only when the deployment
-              turns the form on, or a key is already saved (so it can be removed). */}
+              turns the form on, a key is already saved, or a parent follows the explicit AI setup link. */}
           {aiCaptureSettings && (
             <SettingsDisclosure
+              id="ai-capture"
               title={copy("aiCapture")}
               description={copy("aiDescription")}
               icon={<SettingsIcon icon={Sparkles} tone="violet" />}

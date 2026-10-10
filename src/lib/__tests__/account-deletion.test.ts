@@ -27,6 +27,9 @@ type Row = Record<string, any>
 function seedExtras() {
   const t = new Date('2026-09-01T00:00:00Z')
   const both = (fn: (f: 'a' | 'b', family: string) => Row) => [fn('a', FAMILY_A), fn('b', FAMILY_B)]
+  db.rows('appFeedback').push(
+    ...both((f, family_id) => ({ id: `feedback-${f}`, family_id, user_id: `parent-${f}`, title: 'Private fixture report' }))
+  )
   db.rows('householdDevice').push(
     ...both((f, family_id) => ({ id: `dev-${f}`, family_id, label: 'Tablet', created_by: `parent-${f}`, revoked_at: null }))
   )
@@ -422,6 +425,7 @@ describe('deleteMemberAccount', () => {
     expect(db.find('pickup', 'pickup-a')).toMatchObject({ assigned_to: null })
     // Personal rows and credentials are gone.
     expect(db.find('notification', 'notif-a')).toBeUndefined()
+    expect(db.find('appFeedback', 'feedback-a')).toBeUndefined()
     expect(db.find('message', 'msg-a')).toBeUndefined()
     expect(db.find('activity', 'act-a')).toBeUndefined()
     expect(db.rows('parentElevationPin').filter((p) => p.user_id === 'parent-a')).toHaveLength(0)

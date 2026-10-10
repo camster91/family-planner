@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+jest.mock('@/components/assistant/AssistantHost', () => ({ __esModule: true, default: () => null }))
 import * as React from 'react'
 import { render, screen } from '@testing-library/react'
 import DashboardLayout from '@/app/dashboard/layout'
@@ -18,4 +19,7 @@ it('uses a canonical grouped surface and names the actual dashboard for Herewove
   const { container } = render(await DashboardLayout({ children: <p>Household plans</p> }))
   expect(screen.getByRole('main', { name: 'Herewoven dashboard' }).textContent).toContain('Household plans')
   expect(container.firstElementChild?.className).toContain('bg-[var(--surface-grouped)]')
+  const content = screen.getByText('Household plans').parentElement
+  expect(content?.className).toContain('w-full')
+  expect(content?.className).not.toContain('max-w-7xl')
 })

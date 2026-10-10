@@ -2,6 +2,9 @@
  * Owned validation keys are stored as keys so mounted locale changes preserve drafts and requests.
  * Unknown server errors stay verbatim; this is not a server error-code translation contract. */
 export const calendarFormsEnglish = {
+  closeForm: "Close and return",
+  discardDraft: "Close to return. Unsaved changes will be cleared.",
+  pendingForm: "Please wait for saving to finish.",
   calendar: "Calendar",
   newEvent: "New Event",
   createDescription: "Add an event to the family calendar.",
@@ -13,6 +16,14 @@ export const calendarFormsEnglish = {
   descriptionPlaceholder: "Add details...",
   start: "Start",
   startTime: "Start time",
+  duration: "Duration",
+  customEnd: "Choose an end date and time",
+  customDuration: "Custom duration",
+  durationMinutes: "Duration in minutes",
+  minutes: "{count} minutes",
+  hour: "1 hour",
+  hours: "{count} hours",
+  endsAt: "Ends {time}",
   end: "End",
   endTime: "End time",
   location: "Location",
@@ -56,6 +67,9 @@ export const calendarFormsEnglish = {
 export type CalendarFormMessage = keyof typeof calendarFormsEnglish;
 export type CalendarFormError = { key: CalendarFormMessage } | { raw: string };
 export const calendarFormsSpanish: Record<CalendarFormMessage, string> = {
+  closeForm: "Cerrar y volver",
+  discardDraft: "Cierra para volver. Se borrarán los cambios sin guardar.",
+  pendingForm: "Espera a que termine de guardar.",
   calendar: "Calendario",
   newEvent: "Nuevo evento",
   createDescription: "Añade un evento al calendario familiar.",
@@ -67,6 +81,14 @@ export const calendarFormsSpanish: Record<CalendarFormMessage, string> = {
   descriptionPlaceholder: "Añade detalles...",
   start: "Inicio",
   startTime: "Hora de inicio",
+  duration: "Duración",
+  customEnd: "Elegir fecha y hora de fin",
+  customDuration: "Duración personalizada",
+  durationMinutes: "Duración en minutos",
+  minutes: "{count} minutos",
+  hour: "1 hora",
+  hours: "{count} horas",
+  endsAt: "Termina {time}",
   end: "Fin",
   endTime: "Hora de fin",
   location: "Ubicación",

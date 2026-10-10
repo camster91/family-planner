@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { BoardDisplayData, TodayBoardData } from '@/app/dashboard/today/today-board-data'
-import { COMING_UP_DAYS } from '@/app/dashboard/today/today-board-data'
+import { COMING_UP_DAYS } from '@/lib/board-constants'
 import { DEFAULT_BOARD_DISPLAY } from '@/lib/ambient'
 import {
   choresDueTodayByPerson,
@@ -37,6 +37,7 @@ import {
   type BoardPerson,
 } from './regions'
 import { actionLinkClass } from './styles'
+import TodayControls from './TodayControls'
 import { WeatherTile } from './weather-tile'
 import { UseSoonRegion } from './use-soon-region'
 import { useBoardTiles, type BoardActions } from './board-actions'
@@ -57,12 +58,12 @@ const CLOCK_TICK_MS = 15 * 1000
  */
 const GRID_BASE = 'grid gap-3 md:gap-4 2xl:gap-6'
 const GRID_APP = [
-  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_chores"_"groceries_chores"_"coming_coming"]',
-  'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"coming_coming_coming"]',
+  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"chores_chores"_"coming_coming"]',
+  'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"chores_coming_coming"]',
 ].join(' ')
 const GRID_APP_WITH_SLOT = [
-  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_chores"_"groceries_chores"_"usesoon_usesoon"_"coming_coming"]',
-  'lg:grid-cols-[6fr_5fr_5fr] lg:[grid-template-areas:"today_dinner_chores"_"today_groceries_chores"_"today_usesoon_chores"_"coming_coming_coming"]',
+  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"chores_chores"_"usesoon_usesoon"_"coming_coming"]',
+  'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"chores_coming_coming"_"usesoon_usesoon_usesoon"]',
 ].join(' ')
 const GRID_FRIDGE =
   'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:overflow-y-auto'
@@ -362,6 +363,10 @@ export default function TodayBoard({
             </div>
           </div>
         </header>
+
+        {!fridgeMode && viewer && !tileActions && (
+          <TodayControls links={data.links} role={viewer.role} onRefresh={refresh} online={online} />
+        )}
 
         {now && (
           <SyncNotice

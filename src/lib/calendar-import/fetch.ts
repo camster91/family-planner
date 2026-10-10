@@ -104,6 +104,8 @@ export type FetchLike = (
 ) => Promise<Response>;
 
 export interface FetchFeedOptions {
+  accept?: string;
+  userAgent?: string;
   etag?: string | null;
   lastModified?: string | null;
   fetchImpl?: FetchLike;
@@ -173,8 +175,8 @@ export async function fetchFeed(
       }
 
       const headers: Record<string, string> = {
-        Accept: "text/calendar, text/plain;q=0.9, */*;q=0.1",
-        "User-Agent": "FamilyPlanner-CalendarImport/1.0",
+        Accept: options.accept ?? "text/calendar, text/plain;q=0.9, */*;q=0.1",
+        "User-Agent": options.userAgent ?? "FamilyPlanner-CalendarImport/1.0",
       };
       // Validators only apply to the URL they came from, i.e. the first hop.
       if (hop === 0 && options.etag) headers["If-None-Match"] = options.etag;

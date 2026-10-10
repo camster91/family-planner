@@ -416,6 +416,22 @@ email (`sendAccountMail`). `src/lib/notifications-server.ts` (used by the chore 
 creates a `Notification` row or calls `sendMail`, or if a source file sends a type that is not in the table. There
 is no push channel today; a future one must go through the same helper.
 
+**Membership concurrency (#469).** Household-originated in-app sends pass their
+original `familyId` to the helper. It locks recipient/sender users in sorted order,
+then the household, and rechecks membership before reading preferences and inserting.
+Manual parent sends also recheck the sender's parent role. A removed recipient or
+sender creates nothing (`delivered: false`); this authorization refusal takes
+precedence over the always-send category policy. Removal uses the same locks, so
+a completed send is cleaned up by a later removal and a later send cannot recreate
+the removed member's notification. Legacy account-notice inputs remain compatible.
+Chore creation similarly locks/rechecks the parent, assignee and rotation members
+inside the creation/expansion transaction; a removed assignee/participant is `400`,
+and a removed/demoted actor is `403`. No schema or browser payload changes.
+
+The opt-in morning-summary **email** path (#470) still lacks original-household binding
+across send/removal. Do not enable its scheduler until that separate privacy gap
+is resolved and verified. In-app locking does not establish email safety.
+
 ### Quiet hours (#141, decision O-32)
 
 Each member can set quiet hours for themselves. Stored on `User` as `quiet_hours_enabled` (Boolean,

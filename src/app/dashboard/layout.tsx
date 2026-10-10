@@ -1,43 +1,51 @@
-import { ReactNode } from 'react'
-import { PRODUCT_BRAND } from '@/lib/brand'
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
-import DashboardNav, { TabBar } from '@/components/layout/DashboardNav'
-import { getServerUser } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { ErrorBoundary } from '@/components/ui/error-boundary'
-import { OfflineBanner } from '@/components/ui/offline-banner'
-import CommandPaletteHost from '@/components/layout/CommandPaletteHost'
-import { FeaturesProvider } from '@/components/providers/features-provider'
-import { defaultFeatures, normalizeFeatures } from '@/lib/features'
-import { canRoleAccessPath, isKidRole } from '@/lib/kid-access'
-import type { NavUser, UserRole } from '@/types'
+import { Suspense } from "react";
+import AssistantHost from "@/components/assistant/AssistantHost";
+import { ReactNode } from "react";
+import { PRODUCT_BRAND } from "@/lib/brand";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import DashboardNav, { TabBar } from "@/components/layout/DashboardNav";
+import { getServerUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { OfflineBanner } from "@/components/ui/offline-banner";
+import CommandPaletteHost from "@/components/layout/CommandPaletteHost";
+import { FeaturesProvider } from "@/components/providers/features-provider";
+import { defaultFeatures, normalizeFeatures } from "@/lib/features";
+import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
+import type { NavUser, UserRole } from "@/types";
 
 function toUserRole(role: string | null | undefined): UserRole {
-  return role === 'teen' || role === 'child' ? role : 'parent'
+  return role === "teen" || role === "child" ? role : "parent";
 }
 
 export default async function DashboardLayout({
   children,
+  forms,
 }: {
-  children: ReactNode
+  children: ReactNode;
+  forms?: ReactNode;
 }) {
   const sessionUser = (await getServerUser()) as {
-    id: string
-    email: string
-    role?: string
-    family_id?: string | null
-  } | null
+    id: string;
+    email: string;
+    role?: string;
+    family_id?: string | null;
+  } | null;
 
   if (!sessionUser) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Not Authenticated</h1>
-          <p className="mt-2 text-muted-foreground">Please sign in to access the dashboard.</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            Not Authenticated
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            Please sign in to access the dashboard.
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
   // Look up the role (don't trust the JWT for this — do a fresh DB read so
@@ -48,9 +56,15 @@ export default async function DashboardLayout({
   // /dashboard/today?mode=fridge on a tablet signed in as a person.
   const profile = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { id: true, name: true, role: true, avatar_url: true },
-  })
-  const role = profile?.role || sessionUser.role || 'parent'
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      avatar_url: true,
+      family_id: true,
+    },
+  });
+  const role = profile?.role || sessionUser.role || "parent";
 
   // Server-side role gate, second line of defence behind the middleware
   // (src/middleware.ts). Both read the SAME allowlist from src/lib/kid-access.ts,
@@ -65,19 +79,24 @@ export default async function DashboardLayout({
   // fallback: the Referer is the PREVIOUS page (or another site), so guessing
   // from it bounced kids to /dashboard after login or from external links.
   if (isKidRole(role)) {
-    const hdrs = await headers()
-    const route = hdrs.get('x-pathname') || ''
+    const hdrs = await headers();
+    const route = hdrs.get("x-pathname") || "";
     // If we cannot determine the route, allow it: the middleware ran first and
     // already enforced the allowlist. Failing closed here would lock kids out
     // of their own dashboard.
     if (route && !canRoleAccessPath(role, route)) {
-      redirect('/dashboard')
+      redirect("/dashboard");
     }
   }
 
   const navUser: NavUser | null = profile
-    ? { id: profile.id, name: profile.name, role: toUserRole(profile.role), avatar_url: profile.avatar_url }
-    : null
+    ? {
+        id: profile.id,
+        name: profile.name,
+        role: toUserRole(profile.role),
+        avatar_url: profile.avatar_url,
+      }
+    : null;
 
   // Get user's family features so the client can hydrate without a roundtrip
   const familyFeatures = sessionUser?.family_id
@@ -85,13 +104,16 @@ export default async function DashboardLayout({
         where: { id: sessionUser.family_id },
         select: { features: true },
       })
-    : null
+    : null;
   const initialFeatures = familyFeatures?.features
     ? normalizeFeatures(familyFeatures.features)
-    : defaultFeatures()
+    : defaultFeatures();
 
   return (
-    <div className="min-h-screen bg-[var(--surface-grouped)]">
+    <div
+      data-dashboard-shell
+      className="min-h-screen bg-[var(--surface-grouped)]"
+    >
       {/* Inline seed for the client-side FeaturesProvider.
           Safe JSON — only true/false per known feature key. */}
       <script
@@ -100,39 +122,48 @@ export default async function DashboardLayout({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(initialFeatures) }}
       />
 
-      <FeaturesProvider initial={initialFeatures} canManage={role === 'parent'}>
-        {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[var(--tint-family)] focus:text-white focus:text-subhead focus:font-semibold focus:shadow-[var(--shadow-lg)]"
-        >
-          Skip to main content
-        </a>
+      <FeaturesProvider initial={initialFeatures} canManage={role === "parent"}>
+        <div data-dashboard-background>
+          {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[var(--tint-family)] focus:text-white focus:text-subhead focus:font-semibold focus:shadow-[var(--shadow-lg)]"
+          >
+            Skip to main content
+          </a>
 
-        {/* Apple HIG top bar nav */}
-        <DashboardNav user={navUser} />
+          {/* Apple HIG top bar nav */}
+          <DashboardNav user={navUser} />
 
-        {/* Main content — padded for top bar height + TabBar safe area on mobile */}
-        <main
-          id="main-content"
-          className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
-          aria-label={`${PRODUCT_BRAND.name} dashboard`}
-        >
-          {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
-          <OfflineBanner className="top-16" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 md:py-6">
-            <ErrorBoundary>
-              {children}
-            </ErrorBoundary>
-          </div>
-        </main>
+          {/* Main content — padded for top bar height + TabBar safe area on mobile */}
+          <main
+            id="main-content"
+            className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
+            aria-label={`${PRODUCT_BRAND.name} dashboard`}
+          >
+            {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
+            <OfflineBanner className="top-16" />
+            <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
+              <ErrorBoundary>{children}</ErrorBoundary>
+            </div>
+          </main>
 
-        {/* Mobile-only bottom tab bar */}
-        <TabBar user={navUser} />
+          {/* Mobile-only bottom tab bar */}
+          <TabBar user={navUser} />
 
-        {/* Cmd+K global search palette */}
-        <CommandPaletteHost role={role} />
+          {/* Cmd+K global search palette */}
+          <CommandPaletteHost role={role} />
+        </div>
+        {navUser && (
+          <Suspense fallback={null}>
+            <AssistantHost
+              key={`${profile?.id}:${profile?.family_id}`}
+              role={role}
+            />
+          </Suspense>
+        )}
+        {forms}
       </FeaturesProvider>
     </div>
-  )
+  );
 }

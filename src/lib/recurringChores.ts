@@ -1,3 +1,4 @@
+import { normalizedWeekdays, nextSelectedWeekday } from '@/lib/chore-weekdays'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { describeError, log } from '@/lib/logger'
@@ -17,7 +18,7 @@ const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: n
  * Previously the expander advanced monthly by `setDate(+30)` while completion
  * advanced by `setMonth(+1)`; across a month boundary those disagree (#184).
  */
-export function nextDueDate(from: Date, frequency: string): Date | null {
+export function nextDueDate(from: Date, frequency: string, weeklyDays: readonly number[] = []): Date | null {
   // UTC throughout: due dates are stored as UTC midnight (the date pickers
   // send `YYYY-MM-DD`), so the result must not depend on the server's time
   // zone. Local `setHours`/`setDate` moved a UTC-midnight date to the
@@ -29,6 +30,7 @@ export function nextDueDate(from: Date, frequency: string): Date | null {
       d.setUTCDate(d.getUTCDate() + 1)
       return d
     case 'weekly':
+      if (normalizedWeekdays(weeklyDays).length) return nextSelectedWeekday(d, weeklyDays)
       d.setUTCDate(d.getUTCDate() + 7)
       return d
     case 'monthly':
@@ -95,6 +97,7 @@ export async function expandSeriesInTx(
       points: true,
       difficulty: true,
       frequency: true,
+      weekly_days: true,
       family_id: true,
       assigned_to: true,
       created_by: true,
@@ -109,7 +112,7 @@ export async function expandSeriesInTx(
   // Household-scoped: a template of another household is never expanded.
   if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
 
-  const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>]
+  const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>] * (original.frequency === 'weekly' ? Math.max(1, normalizedWeekdays(original.weekly_days).length) : 1)
   if (!windowSize) return 0
 
   // The series anchor is the template id. An occurrence is any row whose
@@ -122,7 +125,7 @@ export async function expandSeriesInTx(
   const firstDay = startOfDay(original.due_date)
   let horizon: Date = firstDay > today ? firstDay : today
   for (let i = 0; i < windowSize; i++) {
-    const next = nextDueDate(horizon, original.frequency)
+    const next = nextDueDate(horizon, original.frequency, original.weekly_days)
     if (!next) return 0
     horizon = next
   }
@@ -145,12 +148,12 @@ export async function expandSeriesInTx(
 
   const existingKeys = new Set(upcoming.map((c) => c.due_date.getTime()))
   const candidates: Date[] = []
-  let cursor = nextDueDate(anchorDate, original.frequency)
+  let cursor = nextDueDate(anchorDate, original.frequency, original.weekly_days)
   while (cursor && cursor < horizon && candidates.length < needed) {
     if (cursor >= today && !existingKeys.has(cursor.getTime())) {
       candidates.push(cursor)
     }
-    cursor = nextDueDate(cursor, original.frequency)
+    cursor = nextDueDate(cursor, original.frequency, original.weekly_days)
   }
 
   if (candidates.length === 0) return 0
@@ -289,6 +292,7 @@ export type FrequencyEditChore = {
   family_id: string
   frequency: string
   recurrence_id: string | null
+  weekly_days?: number[]
 }
 
 /**
@@ -318,40 +322,44 @@ export async function applyFrequencyEditInTx(
   tx: Prisma.TransactionClient,
   chore: FrequencyEditChore,
   newFrequency: string,
-  options: { applyToSeries?: boolean; now?: Date } = {}
+  options: { applyToSeries?: boolean; now?: Date; weeklyDays?: number[] } = {}
 ): Promise<void> {
   const now = options.now ?? new Date()
   const template = chore.recurrence_id
     ? await tx.chore.findFirst({
         where: { id: chore.recurrence_id, family_id: chore.family_id },
-        select: { id: true, frequency: true },
+        select: { id: true, frequency: true, weekly_days: true },
       })
     : null
 
+  const priorDays = normalizedWeekdays(template?.weekly_days ?? chore.weekly_days)
+  const nextDays = newFrequency === 'weekly' ? normalizedWeekdays(options.weeklyDays ?? priorDays) : []
+  const scheduleChanged = JSON.stringify(priorDays) !== JSON.stringify(nextDays)
+
   if (template && template.id !== chore.id) {
     // A generated copy.
-    if (!options.applyToSeries || newFrequency === template.frequency) return
-    await changeSeriesFrequencyInTx(tx, template.id, chore.family_id, newFrequency, chore.id, now)
+    if (!options.applyToSeries || (newFrequency === template.frequency && !scheduleChanged)) return
+    await changeSeriesFrequencyInTx(tx, template.id, chore.family_id, newFrequency, chore.id, now, nextDays)
     return
   }
 
   if (template) {
     // The series template itself.
-    if (newFrequency === template.frequency) return
-    await changeSeriesFrequencyInTx(tx, template.id, chore.family_id, newFrequency, chore.id, now)
+    if ((newFrequency === template.frequency && !scheduleChanged)) return
+    await changeSeriesFrequencyInTx(tx, template.id, chore.family_id, newFrequency, chore.id, now, nextDays)
     return
   }
 
   // No series (a plain chore, a legacy recurring row, or a copy whose template
   // was deleted).
-  if (newFrequency === chore.frequency) return
+  if (newFrequency === chore.frequency && !scheduleChanged) return
   if (newFrequency === 'once' || !isRepeating(newFrequency)) {
-    await tx.chore.update({ where: { id: chore.id }, data: { frequency: newFrequency } })
+    await tx.chore.update({ where: { id: chore.id }, data: { frequency: newFrequency, weekly_days: nextDays } })
     return
   }
   await tx.chore.update({
     where: { id: chore.id },
-    data: { frequency: newFrequency, recurrence_id: chore.id, is_template: true },
+    data: { frequency: newFrequency, weekly_days: nextDays, recurrence_id: chore.id, is_template: true },
   })
   await expandSeriesInTx(tx, chore.id, chore.family_id, now)
 }
@@ -366,12 +374,13 @@ async function changeSeriesFrequencyInTx(
   familyId: string,
   newFrequency: string,
   keepId: string,
-  now: Date
+  now: Date,
+  weeklyDays: number[] = []
 ): Promise<void> {
   const repeating = isRepeating(newFrequency)
   await tx.chore.update({
     where: { id: templateId },
-    data: { frequency: repeating ? newFrequency : 'once', is_template: repeating },
+    data: { frequency: repeating ? newFrequency : 'once', weekly_days: weeklyDays, is_template: repeating },
   })
   const tomorrow = startOfDay(now)
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)

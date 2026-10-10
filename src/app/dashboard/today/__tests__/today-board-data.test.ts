@@ -173,7 +173,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       calendar: '/dashboard/calendar',
       chores: '/dashboard/chores',
       meals: '/dashboard/meals',
-      lists: '/dashboard/lists',
+      lists: '/dashboard/lists/groceries',
       features: '/dashboard/features',
       // Inventory is off by default (#263), so no link.
       inventory: null,
@@ -193,13 +193,13 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
 
   it('offers kids only the links they can open', async () => {
     const expected: Record<string, unknown> = {
-      child: { calendar: null, chores: null, meals: null, lists: '/dashboard/lists', features: null, inventory: null },
+      child: { calendar: null, chores: null, meals: null, lists: '/dashboard/lists/groceries', features: null, inventory: null },
       // O-37: a teen may open the calendar and meals.
       teen: {
         calendar: '/dashboard/calendar',
         chores: null,
         meals: '/dashboard/meals',
-        lists: '/dashboard/lists',
+        lists: '/dashboard/lists/groceries',
         features: null,
         inventory: null,
       },
@@ -241,7 +241,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     const data = await buildTodayBoard(db as any, { familyId: FAMILY, audience: 'device', features: defaultFeatures(), now: NOW })
     expect(data.shopping).toEqual({ items: [], total: 0 })
     expect(data.groceryLists).toEqual([{ id: 'l1', name: 'Groceries' }])
-    expect(db.list.findMany).toHaveBeenCalledWith({ where: { family_id: FAMILY, type: { in: ['grocery', 'shopping'] } }, select: { id: true, name: true }, orderBy: [{ created_at: 'asc' }, { id: 'asc' }], take: 50 })
+    expect(db.list.findMany).toHaveBeenCalledWith({ where: { family_id: FAMILY, type: { in: ['grocery'] } }, select: { id: true, name: true }, orderBy: [{ created_at: 'asc' }, { id: 'asc' }], take: 50 })
   })
 
   it('never reads device list choices for person boards or when lists are disabled', async () => {

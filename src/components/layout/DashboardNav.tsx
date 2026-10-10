@@ -27,7 +27,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { TabBar } from "@/components/ui/tab-bar";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 import DeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
-import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { useFeatures } from "@/components/providers/features-provider";
 import { homeHrefFor, isTabActive, tabsFor } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
@@ -101,7 +100,13 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const handleSignOut = async () => {
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
+      const { clearAllPersonQueues } =
+        await import("@/lib/offline-queue-browser");
       await clearAllPersonQueues();
+    } catch {
+      // Queue loading/clearing is best-effort; it must not skip server logout.
+    }
+    try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // Offline or the request failed: still leave the signed-in UI. The
@@ -119,7 +124,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         aria-label={msg("mainNavigation")}
         className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
-        <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-2 lg:gap-6">
+        <div className="w-full h-full px-4 lg:px-8 flex items-center gap-2 lg:gap-6">
           {/* Logo + name */}
           {/* Keep the home name accessible even where the wordmark is hidden to leave room for actions. */}
           <Link

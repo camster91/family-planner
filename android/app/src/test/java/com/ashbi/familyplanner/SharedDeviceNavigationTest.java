@@ -11,6 +11,19 @@ import org.junit.Test;
 public class SharedDeviceNavigationTest {
 
     @Test
+    public void recoveryOnlyMatchesTheBundledLocalPage() {
+        assertTrue(SharedDeviceNavigation.isRecoveryPage("https://localhost/native-offline.html"));
+        assertTrue(SharedDeviceNavigation.isRecoveryPage("http://localhost/native-offline.html?x=1"));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage(null));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage("not a url"));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage("https://family.ashbi.ca/native-offline.html"));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage("https://evil.test/native-offline.html"));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage("https://localhost/dashboard"));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage("https://user@localhost/native-offline.html"));
+        assertFalse(SharedDeviceNavigation.isRecoveryPage("file:///native-offline.html"));
+    }
+
+    @Test
     public void devicePagesAreRecognised() {
         assertTrue(SharedDeviceNavigation.isDevicePage("https://family.ashbi.ca/device"));
         assertTrue(SharedDeviceNavigation.isDevicePage("https://family.ashbi.ca/device/today"));

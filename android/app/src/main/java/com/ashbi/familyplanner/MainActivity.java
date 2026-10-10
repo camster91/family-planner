@@ -31,7 +31,7 @@ public class MainActivity extends BridgeActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (SharedDeviceNavigation.isDevicePage(currentUrl())) {
+                if (SharedDeviceNavigation.isDevicePage(currentUrl()) || SharedDeviceNavigation.isRecoveryPage(currentUrl())) {
                     moveTaskToBack(true);
                     return;
                 }

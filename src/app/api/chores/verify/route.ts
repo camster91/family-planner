@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
     if (assignee) {
       try {
         await notificationServiceServer.sendNotification({
+          familyId: chore.family_id,
           userId: assignee.id,
           title: 'Chore Verified!',
           message: `Your chore "${chore.title}" has been verified. Great job!`,
@@ -170,6 +171,7 @@ export async function POST(request: NextRequest) {
         // Points & streaks off (#248), but the level-up message is not sent.
         if (outcome.xp?.levelUp && (await isGamificationOn(auth.user.family_id))) {
           await notificationServiceServer.sendNotification({
+            familyId: chore.family_id,
             userId: assignee.id,
             title: `Level Up! ${outcome.xp.newLevel}`,
             message: `You reached Level ${outcome.xp.newLevel}! Keep it up!`,
@@ -258,6 +260,7 @@ async function rejectChore(
   if (chore.assignee) {
     try {
       await notificationServiceServer.sendNotification({
+        familyId: chore.family_id,
         userId: chore.assignee.id,
         title: 'Have another go',
         message: reason ? `"${chore.title}": ${reason}` : `"${chore.title}" needs another go.`,

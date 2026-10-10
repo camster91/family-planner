@@ -48,6 +48,7 @@ function racingDb(afterCandidateRead: () => void) {
         return fakePrisma.upload.deleteMany(args);
       },
     },
+    list: fakePrisma.list,
     chore: fakePrisma.chore,
     choreAssignment: fakePrisma.choreAssignment,
     family: fakePrisma.family,
@@ -170,3 +171,13 @@ describe("pruneUnreferencedUploads — concurrent references", () => {
     expect(steps).not.toContain("delete");
   });
 });
+
+
+it('keeps a list cover attached after the cleanup candidate read', async () => {
+  db.reset()
+  const upload = seedUpload()
+  const {client} = racingDb(() => db.rows('list').push({id:'cover',family_id:FAMILY_A,image_url:`/api/files/chores/${upload.filename}`}))
+  const removed = await pruneUnreferencedUploads(client,FAMILY_A,{uploadDir:UPLOAD_DIR,removeFile:jest.fn()})
+  expect(removed).toBe(0)
+  expect(db.rows('upload').some(u => u.id === upload.id)).toBe(true)
+})

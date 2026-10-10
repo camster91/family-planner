@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get('unread') === 'true'
 
     const where: Record<string, unknown> = { user_id: userId }
+    if (searchParams.get('includeSnoozed') !== 'true') {
+      where.OR = [{ snoozed_until: null }, { snoozed_until: { lte: new Date() } }]
+    }
     if (unreadOnly) {
       where.read = false
     }
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
     // creates nothing and answers `delivered: false`. `system` is always sent.
     // A delivered notification adds `quiet` (#141, O-32): true when it was
     // stored during the recipient's quiet hours and must not interrupt them.
-    const result = await deliverNotification({ userId, title, message, type })
+    const result = await deliverNotification({ userId, title, message, type, familyId: auth.user.family_id, senderId: auth.user.id })
 
     if (!result.delivered) {
       return NextResponse.json({ success: true, delivered: false, notification: null })

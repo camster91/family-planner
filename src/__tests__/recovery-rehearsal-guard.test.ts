@@ -8,22 +8,24 @@
  * --guard-only) against port 1, where nothing listens: a refusal with the
  * guard's exit code proves no step ran.
  */
-import { runBash } from './helpers/run-bash';
+import { runBash } from "./helpers/run-bash";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 
 const SCRIPT = path.join(__dirname, "../../scripts/recovery-rehearsal.sh");
 const GUARD_EXIT = 3;
 
 function run(env: Record<string, string>, args: string[] = []) {
   const result = runBash(SCRIPT, args, {
-      PATH: process.env.PATH ?? "/usr/bin:/bin",
-      HOME: process.env.HOME ?? "/tmp",
-      NODE_ENV: "test",
-      PGHOST: "localhost",
-      PGPORT: "1",
-      GITHUB_ACTIONS: "",
-      REHEARSAL_RUN_ID: "unit",
-      ...env,
+    PATH: process.env.PATH ?? "/usr/bin:/bin",
+    HOME: process.env.HOME ?? "/tmp",
+    NODE_ENV: "test",
+    PGHOST: "localhost",
+    PGPORT: "1",
+    GITHUB_ACTIONS: "",
+    REHEARSAL_RUN_ID: "unit",
+    ...env,
   });
   return {
     status: result.status,
@@ -32,6 +34,31 @@ function run(env: Record<string, string>, args: string[] = []) {
 }
 
 describe("recovery rehearsal target guard", () => {
+  it("preserves existing report files and logs when a caller reuses a directory", () => {
+    const dir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "fp-rehearsal-report-guard-"),
+    );
+    const files = [
+      "logs/valuable.txt",
+      "SUMMARY.md",
+      "recovery-rehearsal.json",
+    ];
+    try {
+      fs.mkdirSync(path.join(dir, "logs"));
+      for (const file of files)
+        fs.writeFileSync(path.join(dir, file), "keep prior evidence");
+      run({ REHEARSAL_REPORT_DIR: dir });
+      for (const file of files)
+        expect(fs.readFileSync(path.join(dir, file), "utf8")).toBe(
+          "keep prior evidence",
+        );
+      expect(fs.readdirSync(dir).some((name) => name.startsWith("run."))).toBe(
+        true,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it.each([
     [
       "the default application database",

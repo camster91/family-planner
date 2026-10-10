@@ -82,6 +82,7 @@ export default async function CalendarPage({
       importEnabled={isEventImportConfigured() && canImportEvents(user?.role)}
       // Edit and delete are parent-only in the API; a teen (O-37) only views and adds.
       canEditEvents={isParentRole(user?.role)}
+      calendarSyncAvailable={isParentRole(user?.role) && isCalendarSyncEnabled()}
     />
   );
 }

@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
       })
       for (const parent of parents) {
         await notificationServiceServer.sendNotification({
+          familyId: auth.user.family_id,
           userId: parent.id,
           title: `${user?.name ?? 'Someone'} claimed a reward!`,
           message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${result.cost} points.`,

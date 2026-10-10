@@ -46,6 +46,8 @@ const choreRotationSchema = z
   .max(ROTATION_MAX, `Pick at most ${ROTATION_MAX} people to take turns`)
   .refine((ids) => new Set(ids).size === ids.length, 'Pick each person only once')
 
+const weeklyDaysSchema = z.array(z.number().int().min(0).max(6)).min(1, 'Choose at least one weekday').max(7).refine(days => new Set(days).size === days.length, 'Choose each weekday only once').transform(days => [...days].sort((a,b) => a-b))
+
 export const createChoreSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
@@ -57,6 +59,7 @@ export const createChoreSchema = z
     due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
     difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
     frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
+    weekly_days: weeklyDaysSchema.optional(),
     // An /api/upload result owned by the caller's family (D3); checked in the route.
     photo_url: z.string().max(500).nullable().optional(),
     icon: choreIconSchema.nullable().optional(),
@@ -66,6 +69,7 @@ export const createChoreSchema = z
     rotation: choreRotationSchema.nullable().optional(),
   })
   .superRefine((v, ctx) => {
+    if (v.weekly_days && v.frequency !== 'weekly') ctx.addIssue({ code: 'custom', path: ['weekly_days'], message: 'Weekdays require weekly frequency' })
     if (v.rotation && v.frequency === 'once') {
       ctx.addIssue({ code: 'custom', path: ['rotation'], message: 'Taking turns needs a chore that repeats' })
     }
@@ -190,11 +194,12 @@ export const deleteNotificationSchema = z.object({
 
 // Lists
 export const createListSchema = z.object({
+  image_url: z.string().max(200).nullable().optional(),
   name: z.string().trim().min(1).max(200),
   // O-8 (ADR-0007): the UI no longer offers 'meal_plan' for new lists; meals
   // live in FamilyMeal. The server still accepts it so installed Android
   // bundles that show the old picker keep working until a version gate exists.
-  type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping']),
+  type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping', 'custom']),
   // Accept null too (clients sometimes send null for optional fields); treat as undefined.
   description: z.union([z.string().max(500).trim(), z.null()]).optional().transform(v => v ?? undefined),
 })
@@ -245,6 +250,7 @@ export const updateChoreSchema = z.object({
   due_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date').optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   frequency: z.enum(['once', 'daily', 'weekly', 'monthly']).optional(),
+  weekly_days: weeklyDaysSchema.optional(),
   // For a generated copy of a recurring series: apply `frequency` to the whole
   // series (O-33). Without it a copy's frequency is left alone.
   apply_to_series: z.boolean().optional(),
@@ -258,6 +264,8 @@ export const updateChoreSchema = z.object({
   // Take turns (O-39), for the whole series this chore belongs to; null
   // stops taking turns. Parent-only; repeating chores only (checked in the route).
   rotation: choreRotationSchema.nullable().optional(),
+}).superRefine((v, ctx) => {
+  if (v.weekly_days && v.frequency !== 'weekly') ctx.addIssue({ code: 'custom', path: ['weekly_days'], message: 'Weekdays require weekly frequency' })
 })
 
 // Events (update + delete)

@@ -343,7 +343,7 @@ recorded in route comments, as the de facto matrix.
 | /api/chores | PATCH | family | match (403) | P or assignee; P-only fields | assigned_to verified; photo_url must be an `Upload` of the caller's family (400), or the chore's unchanged current value | chores/iso, chores/route.test.ts, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
 | /api/chores | DELETE | family | match (403) | P or assignee | none | chores/iso | ok |
 | /api/chores/complete | POST | family | match (403) | all (any family chore, by design) | photoUrl must be an `Upload` of the caller's family (400), or the chore's unchanged current value | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
-| /api/chores/create | POST | family | session family | P | assigned_to verified; photo_url must be an `Upload` of the caller's family (400) | chores/iso, src/__tests__/chore-photo-ownership.test.ts | implemented (D3) |
+| /api/chores/create | POST | family | session family; parent/assignee/rotation membership rechecked under user-then-household locks in the write transaction | P | assigned_to verified; photo_url must be an `Upload` of the caller's family (400) | chores/iso, src/__tests__/chore-photo-ownership.test.ts, membership-write-races.integration | implemented (D3, #469) |
 | /api/chores/uncomplete | POST | family | match (403) | P or assignee (403); only from `completed` (verified: 409 `CHORE_ALREADY_VERIFIED`) | none; removes only the pending one-off successor that completion recorded in `Chore.successor_id` (same household, by id; never inferred); a verify racing the Undo is re-read and returns 409 | chores/iso | implemented (#268) |
 | /api/chores/verify | POST | family | match (403) | P (approve and reject) | none; reject only from `completed` (verified: 409 `CHORE_ALREADY_VERIFIED`) and removes the recorded `successor_id` like uncomplete; a racing verify is re-read and returns 409 | chores/iso | ok (reject added with the chores-page check fix) |
 | /api/cron/recurring-chores | POST | cron | per-family expansion | n/a | none | src/__tests__/recurring-chores.test.ts | ok |
@@ -460,7 +460,7 @@ recorded in route comments, as the de facto matrix.
 | /api/notes/[id] | PATCH | family | match (403) | P; teen/child own (`created_by = self`) | none | notes/iso | implemented (D9) |
 | /api/notes/[id] | DELETE | family | match (403) | P | none | notes/iso | implemented (D9) |
 | /api/notifications | GET | session | own user | all | none | notifications/iso | ok |
-| /api/notifications | POST | family | target user must share caller's family (403); type must be in the policy table (400); recipient's preferences apply (#286) | P | userId verified | notifications/iso, lib/__tests__/notification-delivery.test.ts | ok |
+| /api/notifications | POST | family | target user must share caller's family (403); sender/recipient rechecked under user-then-household locks before insert (no delivery after membership loss); type must be in the policy table (400); recipient's preferences apply (#286) | P | userId verified | notifications/iso, lib/__tests__/notification-delivery.test.ts, membership-write-races.integration | implemented (#469); morning-summary email remains a separate open concurrency gap |
 | /api/notifications | PATCH | session | own user (404) | all | none | notifications/iso | ok |
 | /api/notifications | DELETE | session | own user (404) | all | none | notifications/iso | ok |
 | /api/pickups | GET | jwt | where | all | none | pickups/iso | ok |

@@ -37,6 +37,12 @@ const chore = {
   assignee: { name: 'Casey' },
   creator: { name: 'Pat' },
 }
+const recurringChore = {
+  ...chore,
+  id: 'weekly-c1',
+  title: 'Take out trash',
+  recurrence_id: 'weekly-template',
+}
 
 const completeCalls = () =>
   (global.fetch as jest.Mock).mock.calls.filter(([url]) => url === '/api/chores/complete')
@@ -100,4 +106,36 @@ describe('chore row actions', () => {
     expect(completeCalls()).toHaveLength(1)
     expect(JSON.parse(completeCalls()[0][1].body)).toEqual({ choreId: 'c1' })
   })
+
+  it('explains that snooze is unavailable for recurring occurrences', async () => {
+    const user = userEvent.setup()
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[recurringChore]}
+          familyMembers={[{ id: 'kid', name: 'Casey', role: 'child' }]}
+          currentUserId="parent"
+          userRole="parent"
+        />
+      </ToastProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'More actions for “Take out trash”' }))
+    const sheet = screen.getByRole('dialog', { name: 'More actions for “Take out trash”' })
+    expect(
+      (within(sheet).getByRole('button', { name: 'Snooze unavailable for repeating chores' }) as HTMLButtonElement).disabled
+    ).toBe(true)
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/chores', expect.anything())
+  })
+})
+
+
+it('the Routines view uses canonical completion and shows its updated status', async () => {
+  await userEvent.click(screen.getByRole('button', { name: 'Routines' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Complete Feed the cat' }))
+  expect(completeCalls()).toHaveLength(1)
+  expect(JSON.parse(completeCalls()[0][1].body)).toEqual({ choreId: 'c1' })
+  expect(await screen.findByText('Done · awaiting check')).toBeTruthy()
+  await userEvent.click(screen.getByRole('button', { name: 'Chore list' }))
+  expect(screen.getByText('All clear!')).toBeTruthy()
 })

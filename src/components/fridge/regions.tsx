@@ -98,7 +98,7 @@ export function Region({
       tabIndex={0}
       className={cn(regionClass, areaClass[area])}
     >
-      <div className="mb-3 flex items-center gap-2.5 2xl:mb-4">
+      <div className="mb-3 flex min-h-[48px] items-center gap-2.5 2xl:mb-4 2xl:min-h-[56px]">
         <Glyph color={glyph} size="md">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </Glyph>
@@ -342,6 +342,7 @@ export function GroceriesRegion({
   onTick?: ((item: ShoppingSnapshotItem) => void) | null
 }) {
   if (!shopping) return null
+  const groceriesHref = listsHref === '/dashboard/lists' ? '/dashboard/lists/groceries' : listsHref
   const more = shopping.total - shopping.items.length
   return (
     <Region
@@ -350,8 +351,8 @@ export function GroceriesRegion({
       title="Groceries"
       icon={ShoppingCart}
       glyph="lists"
-      href={listsHref}
-      hrefLabel="open lists"
+      href={groceriesHref}
+      hrefLabel="open grocery lists"
       action={action}
     >
       {shopping.items.length === 0 ? (
@@ -395,13 +396,14 @@ export function GroceriesRegion({
       {more > 0 &&
         (listsHref ? (
           <div className="mt-3">
-            <Link href={listsHref} className={actionLinkClass}>
+            <Link href={groceriesHref!} className={actionLinkClass}>
               {more} more to buy
             </Link>
           </div>
         ) : (
           <p className={cn(metaTextClass, 'mt-3')}>{more} more to buy</p>
         ))}
+      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">All shared lists <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className="text-footnote text-label-secondary">To-dos, wishlists and custom lists</p></div>}
     </Region>
   )
 }

@@ -31,7 +31,7 @@ export default function CreateFamilyPage() {
         return
       }
 
-      router.push('/dashboard')
+      router.push('/dashboard/family/invite')
       router.refresh()
     } catch (err) {
       setError('An unexpected error occurred')
@@ -84,7 +84,7 @@ export default function CreateFamilyPage() {
               <h3 className="text-subhead font-semibold text-label-primary mb-2">What happens next?</h3>
               <ul className="text-footnote text-label-secondary space-y-1.5">
                 <li>✓ You become the family admin (parent role)</li>
-                <li>✓ You can invite other family members to join</li>
+                <li>✓ Next, add everyone in your household</li>
                 <li>✓ Start creating chores and events right away</li>
               </ul>
             </div>

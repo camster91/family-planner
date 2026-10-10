@@ -6,6 +6,7 @@ import {
   type ScriptAsset,
 } from "../scripts/initial-js-budget";
 import { authFile, E2E_BASE_URL } from "./support/env";
+import type { Request } from "@playwright/test";
 import { expect, test } from "./support/test";
 
 test.use({ storageState: authFile("parentA") });
@@ -16,6 +17,20 @@ for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
     const scripts: ScriptAsset[] = [];
     const pending: Promise<void>[] = [];
     const failures: string[] = [];
+    const activeScripts = new Set<Request>();
+    let lastScriptActivity = Date.now();
+    page.on("request", (request) => {
+      if (request.resourceType() !== "script") return;
+      activeScripts.add(request);
+      lastScriptActivity = Date.now();
+    });
+    const finishScript = (request: Request) => {
+      if (request.resourceType() !== "script") return;
+      activeScripts.delete(request);
+      lastScriptActivity = Date.now();
+    };
+    page.on("requestfinished", finishScript);
+    page.on("requestfailed", finishScript);
     page.on("requestfailed", (request) => {
       if (request.resourceType() === "script")
         failures.push("An initial script request failed.");
@@ -42,7 +57,16 @@ for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
     await expect(menu).toHaveAttribute("aria-expanded", "true");
     await menu.click();
     await expect(menu).toHaveAttribute("aria-expanded", "false");
-    await page.waitForLoadState("networkidle");
+    // Measure hydrated JavaScript rather than waiting for the entire app's
+    // background sync to become idle. Keep all script failures and wait for
+    // both outstanding script transfers and a quiet script window.
+    await expect
+      .poll(
+        () =>
+          activeScripts.size === 0 && Date.now() - lastScriptActivity >= 500,
+        { timeout: 10_000, message: "Initial JavaScript transfers settle" },
+      )
+      .toBe(true);
     await Promise.all(pending);
     expect(failures).toEqual([]);
     const measured = measureInitialJavaScript(E2E_BASE_URL, scripts);

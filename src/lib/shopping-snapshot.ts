@@ -27,11 +27,12 @@ type ListItemDelegate = Pick<PrismaClient['listItem'], 'findMany' | 'count'>
 export async function getOpenShoppingItems(
   db: { listItem: ListItemDelegate },
   familyId: string,
-  limit = 5
+  limit = 5,
+  types: readonly ('grocery' | 'shopping')[] = SHOPPING_LIST_TYPES
 ): Promise<ShoppingSnapshot> {
   const where = {
     checked: false,
-    list: { family_id: familyId, type: { in: [...SHOPPING_LIST_TYPES] } },
+    list: { family_id: familyId, type: { in: [...types] } },
   }
   const [rows, total] = await Promise.all([
     db.listItem.findMany({

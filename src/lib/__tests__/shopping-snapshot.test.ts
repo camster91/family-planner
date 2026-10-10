@@ -41,3 +41,9 @@ describe('getOpenShoppingItems', () => {
     expect(snapshot).toEqual({ items: [], total: 0 })
   })
 })
+
+it('Today can request only groceries without changing the generic shopping default', async () => {
+ const db = fakeDb([], 0)
+ await getOpenShoppingItems(db as any, 'family-A', 5, ['grocery'])
+ expect(db.listItem.count).toHaveBeenCalledWith({ where: { checked: false, list: { family_id: 'family-A', type: { in: ['grocery'] } } } })
+})

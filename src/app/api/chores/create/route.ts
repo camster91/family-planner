@@ -1,3 +1,4 @@
+import { nextSelectedWeekday } from '@/lib/chore-weekdays'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -11,6 +12,7 @@ import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility
 import { recordChoreAssigned } from '@/lib/beta-metrics'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { lockHousehold, lockUser } from '@/lib/household-lock'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +45,8 @@ export async function POST(request: NextRequest) {
     const assigned_to = rotation ? rotation[0] : parsed.data.assigned_to!
 
     // due_date is a date-only value: store the UTC calendar day at midnight.
-    const dueDate = normalizeDateOnlyInput(due_date)
+    const startDate = normalizeDateOnlyInput(due_date)
+    const dueDate = startDate && frequency === 'weekly' && parsed.data.weekly_days ? nextSelectedWeekday(startDate, parsed.data.weekly_days, true) : startDate
     if (!dueDate) {
       return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
     }
@@ -81,6 +84,16 @@ export async function POST(request: NextRequest) {
     // these were three writes and a failure after the first was only logged,
     // so a "weekly" chore that never repeated was reported as created.
     const newChore = await prisma!.$transaction(async (tx) => {
+      // Match removal/join lock order. Validation above gives fast feedback;
+      // this validation is authoritative for the write and series expansion.
+      const memberIds = [...new Set([auth.user.id, assigned_to, ...(rotation ?? [])])].sort()
+      for (const id of memberIds) await lockUser(tx, id)
+      await lockHousehold(tx, auth.user.family_id)
+      const currentActor = await tx.user.findUnique({ where: { id: auth.user.id }, select: { family_id: true, role: true } })
+      if (currentActor?.family_id !== auth.user.family_id || currentActor.role !== 'parent') return 'actor-left' as const
+      const currentAssignee = await tx.user.findUnique({ where: { id: assigned_to }, select: { family_id: true } })
+      if (currentAssignee?.family_id !== auth.user.family_id) return 'member-left' as const
+      if (rotation && !(await rotationMembersInHousehold(tx, auth.user.family_id, rotation))) return 'member-left' as const
       const created = await tx.chore.create({
         data: {
           family_id: auth.user.family_id,
@@ -91,6 +104,7 @@ export async function POST(request: NextRequest) {
           due_date: dueDate,
           difficulty,
           frequency,
+          weekly_days: parsed.data.weekly_days ?? [],
           status: 'pending',
           created_by: auth.user.id,
           photo_url: photo.value ?? null,
@@ -115,6 +129,8 @@ export async function POST(request: NextRequest) {
       await expandSeriesInTx(tx, created.id, auth.user.family_id)
       return template
     })
+    if (newChore === 'actor-left') return NextResponse.json({ error: 'Only a parent of this household can create chores' }, { status: 403 })
+    if (newChore === 'member-left') return NextResponse.json({ error: 'Assigned users must still be in your family' }, { status: 400 })
 
     // Beta usage counts (#287): after the write; never fails the request.
     await recordChoreAssigned(prisma!, auth.user.family_id, newChore)

@@ -118,9 +118,10 @@ for (const locale of ["en", "es"] as const) {
           expect(created.status).toBe(200);
           listId = JSON.parse(created.body).list.id;
           await page.goto("/dashboard/lists");
-          const scope = page
-            .getByRole("heading", { name: text("title"), exact: true })
-            .locator("xpath=ancestor::header/..");
+          const scope = page.locator("main#main-content");
+          await expect(
+            scope.getByRole("heading", { name: text("title"), exact: true }),
+          ).toBeVisible();
           await expect(
             scope.getByText("Pan {count} 🥖 overview QA", { exact: true }),
           ).toBeVisible();
@@ -138,6 +139,12 @@ for (const locale of ["en", "es"] as const) {
           await grocery.click();
           await expect(grocery).toHaveAttribute("aria-pressed", "true");
           await expect(page).toHaveURL(/\/dashboard\/lists\?type=grocery$/);
+          await expect(
+            scope.getByRole("heading", {
+              name: text("groceryName"),
+              exact: true,
+            }),
+          ).toBeVisible();
           await expect(scope.getByRole("status")).toHaveText(
             text("groceryShowing"),
           );
@@ -158,9 +165,10 @@ for (const locale of ["en", "es"] as const) {
           page,
         }, info) => {
           await page.goto("/dashboard/lists?type=wishlist");
-          const scope = page
-            .getByRole("heading", { name: text("title"), exact: true })
-            .locator("xpath=ancestor::header/..");
+          const scope = page.locator("main#main-content");
+          await expect(
+            scope.getByRole("heading", { name: text("title"), exact: true }),
+          ).toBeVisible();
           await expect(
             scope.getByRole("heading", {
               name: text("wishlistEmpty"),
@@ -177,9 +185,10 @@ for (const locale of ["en", "es"] as const) {
         page,
       }, info) => {
         await page.goto("/dashboard/lists?type=meal_plan");
-        const scope = page
-          .getByRole("heading", { name: text("title"), exact: true })
-          .locator("xpath=ancestor::header/..");
+        const scope = page.locator("main#main-content");
+        await expect(
+          scope.getByRole("heading", { name: text("title"), exact: true }),
+        ).toBeVisible();
         await expect(
           scope.getByRole("heading", {
             name: text("meal_planEmpty"),

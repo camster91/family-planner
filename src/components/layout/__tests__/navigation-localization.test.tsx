@@ -1,7 +1,14 @@
 /** @jest-environment jsdom */
 import * as React from "react";
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import DashboardNav from "../DashboardNav";
 import { TabBar } from "@/components/ui/tab-bar";
 import { OfflineBanner, BACK_ONLINE_MS } from "@/components/ui/offline-banner";
@@ -113,7 +120,7 @@ it("updates open parent menu and both tab bars without changing private identity
   expect(opener).toHaveAttribute("aria-expanded", "false");
   expect(opener).toHaveFocus();
 });
-it("preserves child feature restrictions and an open notification shell through language changes", () => {
+it("preserves child feature restrictions and an open notification shell through language changes", async () => {
   mockFeatures = { ...defaultFeatures(), messages: false, inventory: false };
   localized(
     <>
@@ -124,6 +131,7 @@ it("preserves child feature restrictions and an open notification shell through 
   );
   fireEvent.click(screen.getByRole("button", { name: "User menu" }));
   fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+  await screen.findByRole("dialog", { name: "Notifications" });
   const originalDialogFocus = document.activeElement;
   act(() => changeLocale("es"));
   expect(document.activeElement).toBe(originalDialogFocus);
@@ -190,7 +198,7 @@ it("keeps an in-flight sign-out single across a mounted locale switch", async ()
   fireEvent.click(screen.getByRole("button", { name: "User menu" }));
   fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
   act(() => changeLocale("es"));
-  expect(mockClearQueues).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(mockClearQueues).toHaveBeenCalledTimes(1));
   expect(global.fetch).not.toHaveBeenCalled();
   expect(mockPush).not.toHaveBeenCalled();
   await act(async () => {
@@ -204,6 +212,18 @@ it("keeps an in-flight sign-out single across a mounted locale switch", async ()
   expect(mockPush).toHaveBeenCalledTimes(1);
   expect(mockPush).toHaveBeenCalledWith("/login");
   expect(mockRefresh).toHaveBeenCalledTimes(1);
+});
+it("still logs out on the server when queue loading or clearing fails", async () => {
+  mockClearQueues.mockRejectedValueOnce(new Error("Queue unavailable"));
+  (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
+  localized(<DashboardNav user={person("parent")} />, "en");
+  fireEvent.click(screen.getByRole("button", { name: "User menu" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/login"));
+  expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", {
+    method: "POST",
+  });
+  expect(global.fetch).toHaveBeenCalledTimes(1);
 });
 it("keeps a teen restricted to its canonical feature-gated tabs in Spanish", () => {
   mockFeatures = { ...defaultFeatures(), meals: false };

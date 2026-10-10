@@ -14,9 +14,20 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!user.family_id) return NextResponse.json({ members: [] })
 
+  // Email addresses are useful on the parent-only Family page, but this
+  // endpoint is also used by kid-accessible selectors (sick days and meals).
+  // Keep the shared member response name-only for teens/children.
+  const select = {
+    id: true,
+    name: true,
+    avatar_url: true,
+    role: true,
+    ...(user.role === 'parent' ? { email: true } : {}),
+  } as const
+
   const members = await prisma!.user.findMany({
     where: { family_id: user.family_id },
-    select: { id: true, name: true, avatar_url: true, role: true },
+    select,
     orderBy: { name: 'asc' },
   })
   return NextResponse.json({ members })

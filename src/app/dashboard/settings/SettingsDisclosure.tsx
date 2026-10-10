@@ -32,11 +32,22 @@ export default function SettingsDisclosure({
 }) {
   const ref = useRef<HTMLDetailsElement>(null)
   useEffect(() => {
+    if (!id) return
+    const openAnchor = () => {
+      if (window.location.hash !== `#${id}` || !ref.current) return
+      ref.current.open = true
+      ref.current.scrollIntoView({ block: 'start' })
+    }
+    openAnchor()
+    window.addEventListener('hashchange', openAnchor)
+    return () => window.removeEventListener('hashchange', openAnchor)
+  }, [id])
+  useEffect(() => {
     if (forceOpen && ref.current) ref.current.open = true
   }, [forceOpen])
 
   return (
-    <details ref={ref} id={id} className="card group" aria-labelledby={headingId}>
+    <details ref={ref} id={id} className="card group scroll-mt-24" aria-labelledby={headingId}>
       <summary className="-m-2 flex min-h-[44px] cursor-pointer list-none items-center gap-3 rounded-lg p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] [&::-webkit-details-marker]:hidden">
         {icon}
         <span className="min-w-0 flex-1">

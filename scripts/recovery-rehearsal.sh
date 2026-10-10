@@ -17,7 +17,7 @@
 #      not change after either run)
 #   7. smoke-read the restored copy through Prisma (scripts/recovery-rehearsal-smoke.mjs)
 #
-# Writes <report dir>/recovery-rehearsal.json and <report dir>/SUMMARY.md, and
+# Writes <report dir>/run.*/recovery-rehearsal.json and SUMMARY.md, and
 # drops both databases and deletes the dump on exit (pass or fail).
 #
 # Usage:
@@ -116,6 +116,11 @@ log "guard: allowed host=$PGHOST port=$PGPORT source=$SOURCE_DB restore=$RESTORE
 if [ "$MODE" = guard ]; then exit 0; fi
 
 # ------------------------------------------------------------- plumbing ----
+# Preserve earlier reports and unrelated caller files. Each run owns a newly
+# created child directory; never clear a path supplied through the environment.
+mkdir -p "$REPORT_DIR"
+REPORT_DIR="$(mktemp -d "$REPORT_DIR/run.XXXXXX")"
+readonly REPORT_DIR
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fp-rehearsal.XXXXXX")"
 readonly WORK_DIR
 mkdir -p "$REPORT_DIR" "$WORK_DIR/bin" "$WORK_DIR/backups"
@@ -239,9 +244,7 @@ on_exit() {
 trap on_exit EXIT
 trap 'exit 130' INT TERM
 
-rm -rf "$REPORT_DIR/logs"
 mkdir -p "$REPORT_DIR/logs"
-rm -f "$REPORT_DIR/recovery-rehearsal.json" "$REPORT_DIR/SUMMARY.md"
 
 # backup.sh and restore.sh run pg_dump/psql through `docker exec`. On a host
 # without the database container, this shim runs the same command locally

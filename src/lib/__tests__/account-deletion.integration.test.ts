@@ -124,6 +124,10 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.rewardRedemption.create({ data: { id: id('redeem'), family_id: f, reward_id: id('reward'), requested_by: child, points: 1 } })
     await db.familyGoal.create({ data: { id: id('goal'), family_id: f, title: 'Trip', target_points: 10, created_by: parent } })
     await db.pushSubscription.create({ data: { id: id('push'), family_id: f, user_id: parent, endpoint: `https://push.example.test/${h}`, keys: {} } })
+    await db.appFeedback.createMany({ data: [
+      { id: id('feedback-parent'), family_id: f, user_id: parent, request_id: id('feedback-request-parent'), kind: 'bug', title: 'Private parent report', details: 'Fabricated integration report', page: '/dashboard/today' },
+      { id: id('feedback-child'), family_id: f, user_id: child, request_id: id('feedback-request-child'), kind: 'feature', title: 'Private child report', details: 'Fabricated integration suggestion', page: '/dashboard/today' },
+    ] })
     // Messages, notifications, activity
     await db.message.create({ data: { id: id('msg'), family_id: f, sender_id: parent, content: 'hi', read_by: [child] } })
     await db.notification.create({ data: { id: id('notif'), user_id: child, title: 't', message: 'm', type: 'system' } })
@@ -407,6 +411,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(await prisma.event.count({ where: { id: `${P}-a-event-imported` } })).toBe(0)
     expect(await prisma.parentElevationPin.count({ where: { user_id: uid('a', 'parent') } })).toBe(0)
     expect(await prisma.idempotencyRecord.count({ where: { user_id: uid('a', 'parent') } })).toBe(0)
+    expect(await prisma.appFeedback.count({ where: { user_id: uid('a', 'parent') } })).toBe(0)
+    expect(await prisma.appFeedback.count({ where: { id: `${P}-a-feedback-child` } })).toBe(1)
     expect(await prisma.deviceSession.count({ where: { id: `${P}-a-dsess`, revoked_at: null } })).toBe(1)
     expect(await prisma.family.count({ where: { id: fam('a') } })).toBe(1)
     expect(await rowsOf('b')).toEqual(beforeB)
@@ -416,6 +422,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     const child = uid('a', 'child')
     await lib.deleteMemberAccount(child, { uploadDir, revokeCalendarGrant: async () => undefined })
     expect(await prisma.user.count({ where: { id: child } })).toBe(0)
+    expect(await prisma.appFeedback.count({ where: { user_id: child } })).toBe(0)
+    expect(await prisma.appFeedback.count({ where: { id: `${P}-a-feedback-parent` } })).toBe(1)
     expect(await prisma.chore.count({ where: { id: `${P}-a-chore` } })).toBe(0)
     expect(await prisma.chore.count({ where: { id: `${P}-a-chore-parent` } })).toBe(1)
     expect(await prisma.sickDay.count({ where: { id: `${P}-a-sick` } })).toBe(0)

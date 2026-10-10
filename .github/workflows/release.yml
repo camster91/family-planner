@@ -198,6 +198,7 @@ jobs:
           src/lib/__tests__/list-item-provenance.integration.test.ts
           src/lib/__tests__/list-item-update.integration.test.ts
           src/lib/__tests__/membership-locks.integration.test.ts
+          src/lib/__tests__/membership-write-races.integration.test.ts
           src/lib/__tests__/recurring-series.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts
           src/lib/calendar-sync/__tests__/sync.integration.test.ts

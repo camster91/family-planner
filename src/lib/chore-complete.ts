@@ -33,6 +33,7 @@ export const COMPLETABLE_CHORE_SELECT = {
   due_date: true,
   status: true,
   frequency: true,
+  weekly_days: true,
   difficulty: true,
   created_by: true,
   photo_url: true,
@@ -97,7 +98,7 @@ export async function completeChore(
     if (chore.recurrence_id) {
       await expandSeriesInTx(tx, chore.recurrence_id, chore.family_id, now)
     } else if (chore.frequency && chore.frequency !== 'once') {
-      const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency)
+      const nextDueDate = nextDueDateForCompletion(new Date(chore.due_date), chore.frequency, chore.weekly_days)
       if (nextDueDate) {
         const successor = await tx.chore.create({
           data: {

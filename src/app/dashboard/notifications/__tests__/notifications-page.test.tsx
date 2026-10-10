@@ -193,3 +193,39 @@ describe('/dashboard/notifications', () => {
     }
   })
 })
+
+it('snoozes, excludes unread counts, and restores early with Show now', async () => {
+ const user=userEvent.setup()
+ const until=new Date(Date.now()+3600_000).toISOString()
+ let snoozed=false
+ const calls=mockFetch((method,url)=>{
+   if(method==='PATCH' && url.endsWith('/snooze')) { snoozed=!snoozed;return {status:200,body:{success:true,snoozed_until:snoozed?until:null}} }
+   return list()
+ })
+ renderPage()
+ await user.selectOptions(await screen.findByRole('combobox',{name:'Snooze "Dishes done"'}),'60')
+ await waitFor(()=>expect(screen.queryByRole('combobox',{name:'Snooze "Dishes done"'})).toBeNull())
+ expect(screen.getByRole('button',{name:'Unread (0)'})).toBeTruthy()
+ await user.click(screen.getByRole('button',{name:'Snoozed (1)'}))
+ await user.click(screen.getByRole('button',{name:'Show "Dishes done" now'}))
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Snoozed (0)'})).toBeTruthy())
+ expect(calls.filter(c=>c.method==='PATCH').map(c=>c.body)).toEqual([{notificationId:'n1',minutes:60},{notificationId:'n1',minutes:null}])
+})
+it('keeps the row when snoozing fails',async()=>{
+ const user=userEvent.setup()
+ mockFetch(method=>method==='PATCH'?{status:500,body:{error:'Try later'}}:list())
+ renderPage()
+ await user.selectOptions(await screen.findByRole('combobox',{name:'Snooze "Dishes done"'}),'15')
+ expect(await screen.findByText("Couldn't change snooze")).toBeTruthy()
+ expect(screen.getByRole('combobox',{name:'Snooze "Dishes done"'})).toBeTruthy()
+})
+it('returns an expired snooze to unread without creating another notification',async()=>{
+ jest.useFakeTimers({now:new Date('2026-10-09T12:00:00Z')})
+ mockFetch(()=>({status:200,body:{notifications:[{...UNREAD,snoozed_until:new Date(Date.now()+60_000).toISOString()}]}}))
+ renderPage()
+ await act(async()=>{})
+ expect(screen.getByRole('button',{name:'Snoozed (1)'})).toBeTruthy()
+ await act(async()=>{jest.advanceTimersByTime(60_000)})
+ expect(screen.getByRole('button',{name:'Snoozed (0)'})).toBeTruthy()
+ expect(screen.getByRole('button',{name:'Unread (1)'})).toBeTruthy()
+})

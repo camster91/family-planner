@@ -76,6 +76,8 @@ REHEARSAL_SOURCE_DB=family_planner scripts/recovery-rehearsal.sh  # refused, exi
 
 Inputs are the standard `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD` (defaults `localhost`/`5432`/`postgres`), plus optional `REHEARSAL_RUN_ID`, `REHEARSAL_SOURCE_DB`, `REHEARSAL_RESTORE_DB`, `REHEARSAL_REPORT_DIR` (default `./recovery-rehearsal-report`, git-ignored) and `REHEARSAL_COMMIT` (recorded in the report; CI uses `GITHUB_SHA`).
 
+Each run writes into a fresh `run.*` child of the report directory and prints that path. Earlier reports and other files are preserved, even when the report directory is reused. CI uploads the parent directory including the current run.
+
 Evidence it produces, in the report directory:
 
 - `SUMMARY.md` is the human summary: overall PASS/FAIL, dump size and sha256, `identical/total` tables, total rows on each side, schema fingerprints, one line per step with its time, and the smoke checks.

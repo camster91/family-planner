@@ -83,6 +83,7 @@ describe("/dashboard/lists/type/[type] redirect", () => {
     ["meal_plan", "/dashboard/lists?type=meal_plan"],
     ["wishlist", "/dashboard/lists?type=wishlist"],
     ["shopping", "/dashboard/lists?type=shopping"],
+    ["custom", "/dashboard/lists?type=custom"],
     ["nonsense", "/dashboard/lists"],
     ["grocery?x=1", "/dashboard/lists"],
   ])("%s → %s, without reading any household data", async (type, target) => {
@@ -261,18 +262,18 @@ describe("localized list overview (#411)", () => {
       </>,
     );
     expect(screen.getByRole("status").textContent).toBe(
-      "Showing shopping lists only",
+      "Showing grocery lists only",
     );
     expect(
-      screen.getByRole("button", { name: "Shopping 2 lists", pressed: true }),
+      screen.getByRole("button", { name: "Groceries 2 lists", pressed: true }),
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Change language" }));
-    expect(screen.getByRole("heading", { name: "Listas" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Alimentos" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe(
-      "Solo se muestran listas de compras",
+      "Solo se muestran listas de alimentos",
     );
     expect(
-      screen.getByRole("button", { name: "Compras 2 listas", pressed: true }),
+      screen.getByRole("button", { name: "Alimentos 2 listas", pressed: true }),
     ).toBeTruthy();
     expect(screen.getByText(originalName)).toBeTruthy();
     expect(screen.getByText("Pan {count} 🥖")).toBeTruthy();
@@ -369,3 +370,12 @@ describe("localized list overview (#411)", () => {
     expect(screen.queryByRole("link", { name: "Crear lista" })).toBeNull();
   });
 });
+
+
+it('filters custom lists without renaming household content', async () => {
+  render(<ListsClient lists={[...lists, { id: 'custom1', name: 'Camping packing', type: 'custom', creator: { name: 'Pat' }, checked_count: 1, total_count: 5 }]} familyName="Our Family" initialType="custom" />)
+  expect(screen.getByText('Custom Lists')).toBeTruthy()
+  expect(screen.getByText('Camping packing')).toBeTruthy()
+  expect(screen.queryByText('Weekly shop')).toBeNull()
+  expect(screen.getByRole('link', { name: 'Add list' }).getAttribute('href')).toBe('/dashboard/lists/create?type=custom')
+})

@@ -31,6 +31,7 @@ export function RecipeEditor({
   onCreated,
   onCancel,
   initialRecipe,
+  initialDraft,
   onSaved,
   onSavingChange,
   disabled = false,
@@ -38,6 +39,7 @@ export function RecipeEditor({
 }: {
   onCreated?: (recipe: RecipeOption) => void;
   initialRecipe?: RecipeDetailData;
+  initialDraft?: { servings?: number | null; title: string; description: string; instructions: string; prep_time: number | null; cook_time: number | null };
   onSaved?: (recipe: RecipeDetailData) => void;
   onCancel: () => void;
   onSavingChange?: (saving: boolean) => void;
@@ -49,21 +51,21 @@ export function RecipeEditor({
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
   const nextKey = React.useRef(initialRecipe?.ingredients.length ?? 1);
-  const [title, setTitle] = React.useState(initialRecipe?.title ?? "");
+  const [title, setTitle] = React.useState(initialRecipe?.title ?? initialDraft?.title ?? "");
   const [servings, setServings] = React.useState(
-    String(initialRecipe?.servings ?? 2),
+    String(initialRecipe?.servings ?? initialDraft?.servings ?? 2),
   );
   const [description, setDescription] = React.useState(
-    initialRecipe?.description ?? "",
+    initialRecipe?.description ?? initialDraft?.description ?? "",
   );
   const [instructions, setInstructions] = React.useState(
-    initialRecipe?.instructions ?? "",
+    initialRecipe?.instructions ?? initialDraft?.instructions ?? "",
   );
   const [prep, setPrep] = React.useState(
-    initialRecipe?.prep_time == null ? "" : String(initialRecipe.prep_time),
+    (initialRecipe?.prep_time ?? initialDraft?.prep_time) == null ? "" : String(initialRecipe?.prep_time ?? initialDraft?.prep_time),
   );
   const [cook, setCook] = React.useState(
-    initialRecipe?.cook_time == null ? "" : String(initialRecipe.cook_time),
+    (initialRecipe?.cook_time ?? initialDraft?.cook_time) == null ? "" : String(initialRecipe?.cook_time ?? initialDraft?.cook_time),
   );
   const [lines, setLines] = React.useState<IngredientDraft[]>(() =>
     initialRecipe

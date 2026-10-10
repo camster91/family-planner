@@ -33,9 +33,14 @@ import {
   type OptInMailKind,
 } from '@/lib/notification-policy'
 import { QUIET_HOURS_SELECT, isInQuietHours, quietHoursFromRow } from '@/lib/quiet-hours'
+import { lockHousehold, lockUser } from '@/lib/household-lock'
 
 export interface NotificationInput {
   userId: string
+  /** Required for household-originated content; retained optional for legacy account notices. */
+  familyId?: string
+  /** Manual parent sends revalidate their sender under the same locks. */
+  senderId?: string
   title: string
   message: string
   type: InAppNotificationType
@@ -50,13 +55,35 @@ export interface NotificationInput {
  * `now` is for tests; it decides whether the recipient is in quiet hours.
  */
 export async function deliverNotification(input: NotificationInput, now: Date = new Date()) {
+  const familyId = input.familyId
+  if (familyId) {
+    return prisma!.$transaction(async tx => {
+      for (const id of [...new Set([input.userId, ...(input.senderId ? [input.senderId] : [])])].sort()) {
+        await lockUser(tx, id)
+      }
+      await lockHousehold(tx, familyId)
+      const recipient = await tx.user.findUnique({ where: { id: input.userId }, select: { family_id: true } })
+      if (recipient?.family_id !== familyId) return { delivered: false, notification: null } as const
+      if (input.senderId) {
+        const sender = await tx.user.findUnique({ where: { id: input.senderId }, select: { family_id: true, role: true } })
+        if (sender?.family_id !== familyId || sender?.role !== 'parent') {
+          return { delivered: false, notification: null } as const
+        }
+      }
+      return deliverInTransaction(tx, input, now)
+    })
+  }
+  return deliverInTransaction(prisma!, input, now)
+}
+
+async function deliverInTransaction(db: Pick<NonNullable<typeof prisma>, 'user' | 'notification'>, input: NotificationInput, now: Date) {
   const policy: NotificationPolicy = IN_APP_NOTIFICATION_POLICY[input.type]
   // One read of the recipient's own row: their category switch (unless ALWAYS)
   // and their quiet hours.
   const select: Record<string, true> = { ...QUIET_HOURS_SELECT }
   if (isOptInPolicy(policy)) select[OPT_IN_COLUMN[policy]] = true
   else if (policy !== ALWAYS_SEND) select[CATEGORY_COLUMN[policy]] = true
-  const row = (await prisma!.user.findUnique({ where: { id: input.userId }, select })) as Record<
+  const row = (await db.user.findUnique({ where: { id: input.userId }, select })) as Record<
     string,
     boolean | string | null
   > | null
@@ -70,7 +97,7 @@ export async function deliverNotification(input: NotificationInput, now: Date = 
   // lost. They only mark it as not to interrupt (applies to every in-app type,
   // including `system` notices; account mail is not in-app and always sent).
   const quiet = isInQuietHours(now, quietHoursFromRow(row))
-  const notification = await prisma!.notification.create({
+  const notification = await db.notification.create({
     data: {
       user_id: input.userId,
       title: input.title,

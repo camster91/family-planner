@@ -161,7 +161,7 @@ describe('Settings server page', () => {
   // Imported lazily so the mocks above apply.
   async function renderProps() {
     const { default: SettingsPage } = await import('../page')
-    const element = (await SettingsPage()) as React.ReactElement<Record<string, unknown>>
+    const element = (await SettingsPage({})) as React.ReactElement<Record<string, unknown>>
     return element.props
   }
 

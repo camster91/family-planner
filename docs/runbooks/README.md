@@ -1,7 +1,7 @@
 # Runbooks
 
 - `RELEASE_AND_ROLLBACK.md`
-- `COOLIFY_DEPLOY.md` — planned Coolify setup (build pack, database, health check, uploads volume, every environment variable, proxy hops, release-commit check, rollback); not the current production path, and setting it up needs Cameron's approval
+- `COOLIFY_DEPLOY.md` — existing protected-main Coolify source-build route, verified compose/Dockerfile recipe, health and revision checks, retained database/uploads, and rollback. Preserve the current application; deployment needs task-specific authorization. New setup, configuration changes and future immutable-image promotion require separate approval.
 - `INCIDENT_RESPONSE.md`
 - `SUPPORT.md` — handling a beta support request: verification or reset email, export and deletion, bug intake, privacy or child-safety escalation, response times (#146)
 - `TRANSACTIONAL_EMAIL.md` — Mailgun settings, DNS, verification/reset email tests and deliverability (#103); missing email is a beta launch blocker; production changes need Cameron's approval

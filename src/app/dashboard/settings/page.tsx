@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic'
  * - Child: never here. The kid allowlist (src/lib/kid-access.ts) sends them
  *   home first; this check is a last line in case that gate is bypassed.
  */
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ setup?: string }> }) {
   const sessionUser = await getServerUser()
   if (!sessionUser) redirect('/login')
   const profile = await prisma!.user.findUnique({
@@ -58,7 +58,7 @@ export default async function SettingsPage() {
       select: { beta_metrics_enabled: true, capture_ai_key_enc: true },
     })
     if (family) betaMetrics = { enabled: family.beta_metrics_enabled }
-    aiCaptureSettings = isCaptureAiSettingsEnabled() || Boolean(family?.capture_ai_key_enc)
+    aiCaptureSettings = isCaptureAiSettingsEnabled() || Boolean(family?.capture_ai_key_enc) || (await searchParams).setup === 'ai'
   }
   // Two-way calendar sync (#264) is dormant unless configured; the section
   // is not even mounted while it is off (its API would answer 404).

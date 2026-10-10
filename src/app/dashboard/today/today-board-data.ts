@@ -23,7 +23,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { addUTCDays, parseDateOnly, startOfTodayUTC, toDateOnlyUTC } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
-import { getOpenShoppingItems, SHOPPING_LIST_TYPES, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
+import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { FamilyFeatures } from '@/lib/features'
 import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
 import {
@@ -37,9 +37,9 @@ import {
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
+import { COMING_UP_DAYS } from '@/lib/board-constants'
 
-/** Days after today covered by "Coming up". */
-export const COMING_UP_DAYS = 3
+export { COMING_UP_DAYS } from '@/lib/board-constants'
 
 /** Upper bound on rows per domain; the board shows far fewer. */
 const MAX_EVENTS = 60
@@ -290,7 +290,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const windowEnd = addUTCDays(startOfTodayUTC(now), COMING_UP_DAYS + 2)
 
   const groceryLists = isDevice && includeShopping ? await db.list.findMany({
-    where: { family_id: familyId, type: { in: [...SHOPPING_LIST_TYPES] } },
+    where: { family_id: familyId, type: { in: ['grocery'] } },
     select: { id: true, name: true },
     orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     take: 50,
@@ -345,7 +345,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         }) as Promise<DinnerRow[]>
       : Promise.resolve(null),
-    includeShopping ? getOpenShoppingItems(db, familyId) : Promise.resolve(null),
+    includeShopping ? getOpenShoppingItems(db, familyId, 5, ['grocery']) : Promise.resolve(null),
     // "Use soon" (#263): only with the inventory feature on. Anchored one UTC
     // day ahead so the window covers the viewer's local today in every zone
     // (UTC-12..UTC+14); anything already expired is always included. The
@@ -435,7 +435,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           calendar: allowedLink(role, '/dashboard/calendar', features.calendar),
           chores: allowedLink(role, '/dashboard/chores', features.chores),
           meals: allowedLink(role, '/dashboard/meals', features.meals),
-          lists: allowedLink(role, '/dashboard/lists', features.lists),
+          lists: allowedLink(role, '/dashboard/lists/groceries', features.lists),
           features: allowedLink(role, '/dashboard/features'),
           inventory: allowedLink(role, '/dashboard/inventory', features.inventory),
         },

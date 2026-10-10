@@ -38,12 +38,14 @@ export function CalendarPlanner({
   initialDate,
   initialView,
   canEditEvents = false,
+  calendarSyncAvailable = false,
   refreshKey = 0,
   chooseLocalToday = false,
 }: {
   initialDate: string;
   initialView?: PlanningView;
   canEditEvents?: boolean;
+  calendarSyncAvailable?: boolean;
   refreshKey?: unknown;
   chooseLocalToday?: boolean;
 }) {
@@ -216,6 +218,7 @@ export function CalendarPlanner({
       <button
         type="button"
         className={styles.event}
+        data-calendar-kind={e.source_subscription_id || e.source ? "subscribed" : e.source_connection_id ? "connected" : "local"}
         onClick={(ev) => {
           trigger.current = ev.currentTarget;
           setSelected(e);
@@ -324,6 +327,17 @@ export function CalendarPlanner({
               </button>
             ))}
           </div>
+          {canEditEvents && (
+            <details className={styles.connectionMenu}>
+              <summary>{msg("addConnection")}</summary>
+              <div>
+                {calendarSyncAvailable && (
+                  <Link href="/dashboard/settings#calendar-sync">{msg("connectProvider")}</Link>
+                )}
+                <Link href="/dashboard/settings#calendar-subscriptions">{msg("subscribeLink")}</Link>
+              </div>
+            </details>
+          )}
           {sourceState === "loading" && (
             <p role="status">{msg("loadingSources")}</p>
           )}
@@ -420,7 +434,7 @@ export function CalendarPlanner({
             </section>
           )}
           {displayState === "ready" && !hasVisible && (
-            <section className={styles.state}>
+            <section className={view === "agenda" || clockChange ? styles.state : styles.emptyNotice}>
               <h2>{filter === "all" ? msg("empty") : msg("emptySource")}</h2>
               <p>
                 {msg("showing", { source: label })}
@@ -434,7 +448,6 @@ export function CalendarPlanner({
             </section>
           )}
           {displayState === "ready" &&
-            hasVisible &&
             (view === "agenda" || clockChange ? (
               <div className={styles.agenda}>
                 {days.map((day) => (
@@ -491,8 +504,12 @@ export function CalendarPlanner({
                           className={styles.dayColumn}
                           key={dayKey(day, local)}
                         >
-                          <h2>
-                            {format(day, { weekday: "short", day: "numeric" })}
+                          <h2
+                            aria-label={format(day, { weekday: "short", day: "numeric" })}
+                            aria-current={local && now !== null && dayKey(day, local) === dayKey(new Date(now), true) ? "date" : undefined}
+                          >
+                            <span className={styles.weekday}>{format(day, { weekday: "short" })}</span>
+                            <span className={styles.dayNumber}>{format(day, { day: "numeric" })}</span>
                           </h2>
                           <div
                             className={styles.dayGrid}

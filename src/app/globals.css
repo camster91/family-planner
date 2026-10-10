@@ -17,6 +17,8 @@
 
 @layer base {
   :root {
+    /* Keep native select menus, date pickers and other browser controls in the app theme. */
+    color-scheme: light;
     /* === Type families (next/font sets --font-newsreader and --font-manrope on <html> in layout.tsx) === */
     --font-family-serif: var(--font-newsreader), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
     --font-family-sans: var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -141,6 +143,7 @@
 
   /* Dark mode: deep forest surfaces and lifted Evergreen action shades. */
   .dark {
+    color-scheme: dark;
     --surface-base: #11211E;
     --surface-elevated: #182D2A;
     --surface-grouped: #11211E;
@@ -220,6 +223,19 @@
     font-family: var(--font-family-serif);
     font-optical-sizing: auto;
     letter-spacing: -0.012em;
+  }
+
+  /* Native popup rows may not inherit the select's translucent input fill.
+     Use a solid theme surface and its matching label; color-scheme handles
+     platform-owned popups that do not honor option styling. */
+  select option,
+  select optgroup {
+    background-color: var(--surface-elevated);
+    color: var(--label-primary);
+  }
+
+  select option:disabled {
+    color: var(--label-tertiary);
   }
 
   ::selection { background: var(--accent-tint-strong); }

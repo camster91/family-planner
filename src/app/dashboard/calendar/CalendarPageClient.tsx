@@ -24,6 +24,7 @@ interface CalendarPageClientProps {
   initialView?: PlanningView;
   importEnabled?: boolean;
   canEditEvents?: boolean;
+  calendarSyncAvailable?: boolean;
   monthFromUrl?: boolean;
 }
 /** Legacy month URLs remain valid; do not change this exported contract. */
@@ -38,6 +39,7 @@ export default function CalendarPageClient({
   initialView,
   importEnabled = false,
   canEditEvents = false,
+  calendarSyncAvailable = false,
   monthFromUrl = true,
 }: CalendarPageClientProps) {
   const { t } = useTranslation();
@@ -71,6 +73,7 @@ export default function CalendarPageClient({
         initialView={initialView}
         chooseLocalToday={!monthFromUrl}
         canEditEvents={canEditEvents}
+        calendarSyncAvailable={calendarSyncAvailable}
         refreshKey={`${refreshKey}:${JSON.stringify(events)}`}
       />
       <div className="px-4 my-5">

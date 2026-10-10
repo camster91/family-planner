@@ -20,7 +20,7 @@ import type {
   BoardMember,
   BoardUseSoonItem,
 } from '@/app/dashboard/today/today-board-data'
-import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus, isUseSoonStatus } from '@/lib/inventory'
+import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus, isUseSoonStatus } from '@/lib/inventory-display'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { MEMBER_COLOR_KEYS, type MemberColorKey } from '@/lib/member-colors'
 

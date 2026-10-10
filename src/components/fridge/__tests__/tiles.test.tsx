@@ -129,12 +129,13 @@ describe('tile headings open their section (no "Open …" buttons)', () => {
       'href',
       '/dashboard/chores'
     )
-    expect(within(groceries()).getByRole('link', { name: /Groceries\s*, open lists/ })).toHaveAttribute(
+    expect(within(groceries()).getByRole('link', { name: /Groceries\s*, open grocery lists/ })).toHaveAttribute(
       'href',
-      '/dashboard/lists'
+      '/dashboard/lists/groceries'
     )
+    expect(within(groceries()).getByRole('link', { name: 'All shared lists' })).toHaveAttribute('href', '/dashboard/lists')
     expect(within(screen.getByTestId('region-today')).getByRole('heading', { name: /Today/ })).toBeTruthy()
-    expect(within(groceries()).getByRole('link', { name: '1 more to buy' })).toHaveAttribute('href', '/dashboard/lists')
+    expect(within(groceries()).getByRole('link', { name: '1 more to buy' })).toHaveAttribute('href', '/dashboard/lists/groceries')
   })
 
   it('a paired tablet (links null) gets plain headings', async () => {
