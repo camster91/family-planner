@@ -231,6 +231,10 @@ The app runs **no scheduler of its own** (`AGENTS.md`). Work that should happen 
 
 **Morning summary (O-40).** One short daily message ("Today: 2 chores (Feed the cat, Make bed), Dentist at 3pm, Tacos for dinner.") by email and in-app, to members who turned on Settings → Notifications → Morning summary (off for everyone by default). It is **off** until **both** of these are true:
 
+**Privacy gate (#470): do not enable this scheduler until original-household
+authorization through email delivery is implemented and concurrency-tested.**
+The #469 in-app locking fix does not protect the separate opt-in email path.
+
 1. `CRON_SECRET` is set on the app (runtime variable, above). Without it the endpoint answers 500 and sends nothing.
 2. A schedule calls the endpoint each morning: every hour from 06:45 to 10:45 (one scheduled task). Each person still gets at most one summary a day; the later runs reach people whose quiet hours end after 06:45 (O-40).
 

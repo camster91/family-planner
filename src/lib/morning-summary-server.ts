@@ -320,6 +320,7 @@ export async function runMorningSummary(
           const inApp = await deliverNotification(
             {
               userId: user.id,
+              familyId: user.family_id!,
               type: 'summary',
               title: 'Your morning summary',
               message: summary.text,

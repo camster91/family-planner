@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
     if (reward.claimer) {
       try {
         await notificationServiceServer.sendNotification({
+          familyId: auth.user.family_id,
           userId: reward.claimer.id,
           title: 'Reward Approved!',
           message: `Your parent approved "${reward.name}". Enjoy your reward!`,

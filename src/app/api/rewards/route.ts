@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       })
       for (const member of members) {
         await notificationServiceServer.sendNotification({
+          familyId: auth.user.family_id,
           userId: member.id,
           title: 'New Reward Available!',
           message: `${name} is now available for ${cost} points`,
