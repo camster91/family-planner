@@ -291,10 +291,10 @@ for (const role of ["parent", "teen", "child"] as const)
           const from = prefs.getByLabel(msg("quietFrom"), { exact: true }),
             until = prefs.getByLabel(msg("quietUntil"), { exact: true });
           await until.fill(original.quietHours.start);
-          // Native time inputs commit on blur in some mobile Chromium/locale
-          // combinations. Commit the equal value before clicking the switch so
-          // the validation assertion observes the same draft the user sees.
-          await until.press("Tab");
+          // Tab can move between a native time input's internal segments while
+          // leaving the input focused. Focus the real switch to commit the
+          // time draft before activating it; the equal-time alert stays exact.
+          await quietSwitch.focus();
           await expect(until).not.toBeFocused();
           await prefs.getByTestId("quiet-hours").getByRole("switch").click();
           await expect(prefs.getByRole("alert")).toHaveText(

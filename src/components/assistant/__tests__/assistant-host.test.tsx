@@ -65,7 +65,17 @@ it("requires choosing an actual record and deletion checkbox", async () => {
             reply: "Choose the exact list.",
             action: { kind: "list_delete", title: "Trip" },
           }
-        : { lists: [{ id: "l", name: "Trip" }] },
+        : {
+            lists: [
+              { id: "l", name: "Trip", type: "custom", description: "Camping" },
+              {
+                id: "other",
+                name: "Trip",
+                type: "custom",
+                description: "Beach",
+              },
+            ],
+          },
     );
   }) as any;
   render(<AssistantHost role="parent" />);
@@ -73,6 +83,12 @@ it("requires choosing an actual record and deletion checkbox", async () => {
   await user.type(screen.getByLabelText("Your message"), "Remove Trip");
   await user.click(screen.getByRole("button", { name: "Send" }));
   await screen.findByLabelText("Item to remove");
+  expect(
+    screen.getByRole("option", { name: "Trip · custom · Camping" }),
+  ).toHaveValue("l");
+  expect(
+    screen.getByRole("option", { name: "Trip · custom · Beach" }),
+  ).toHaveValue("other");
   expect(
     screen.getByRole("button", { name: "Remove selected item" }),
   ).toBeDisabled();
@@ -146,7 +162,7 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
     "max-[320px]:w-full",
     "max-[320px]:flex-nowrap",
     "max-[320px]:justify-end",
-    "pb-[calc(max(1rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)]",
+    "pb-[calc(max(5rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)]",
     "md:pb-6",
   );
   const buttons = within(launchers).getAllByRole("button");

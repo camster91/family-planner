@@ -27,7 +27,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { TabBar } from "@/components/ui/tab-bar";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 import DeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
-import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { useFeatures } from "@/components/providers/features-provider";
 import { homeHrefFor, isTabActive, tabsFor } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
@@ -101,7 +100,13 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const handleSignOut = async () => {
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
+      const { clearAllPersonQueues } =
+        await import("@/lib/offline-queue-browser");
       await clearAllPersonQueues();
+    } catch {
+      // Queue loading/clearing is best-effort; it must not skip server logout.
+    }
+    try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // Offline or the request failed: still leave the signed-in UI. The

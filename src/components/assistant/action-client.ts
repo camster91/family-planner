@@ -23,7 +23,12 @@ function validated<T extends ZodTypeAny>(
     );
   return result.data;
 }
-export type RemovalTarget = { id: string; title: string; detail?: string };
+export type RemovalTarget = {
+  id: string;
+  title: string;
+  detail?: string;
+  context?: string;
+};
 export class ActionOutcomeUnknown extends Error {}
 async function request(
   path: string,
@@ -73,7 +78,7 @@ export async function removalTargets(
           : null;
   if (!domain) return [];
   const data = await request(`/api/${domain}`);
-  return (data[domain] ?? [])
+  const targets: RemovalTarget[] = (data[domain] ?? [])
     .filter(
       (r: { source_subscription_id?: string | null }) =>
         !r.source_subscription_id,
@@ -85,13 +90,39 @@ export async function removalTargets(
         name?: string;
         due_date?: string;
         start_time?: string;
+        type?: string;
+        description?: string | null;
+        creator?: { name?: string | null };
+        _count?: { items?: number };
       }) => ({
         id: r.id,
         title: r.title ?? r.name ?? "Untitled",
         detail: r.due_date ?? r.start_time,
+        context:
+          domain === "lists"
+            ? [
+                r.type,
+                r.description,
+                r.creator?.name,
+                r._count?.items === undefined
+                  ? undefined
+                  : `${r._count.items} items`,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            : undefined,
       }),
     )
     .slice(0, 100);
+  if (domain === "lists") {
+    const labels = targets.map((t) => `${t.title} · ${t.context ?? ""}`);
+    if (new Set(labels).size !== labels.length) {
+      throw new Error(
+        "Some lists have identical names and details. Open Lists to review or rename them before removing a list in chat.",
+      );
+    }
+  }
+  return targets;
 }
 export async function choreAssignees(): Promise<RemovalTarget[]> {
   const { members } = await request("/api/family/members");

@@ -510,6 +510,7 @@ export default function AssistantPanel({
                             {t.detail
                               ? ` · ${new Date(t.detail).toLocaleString()}`
                               : ""}
+                            {t.context ? ` · ${t.context}` : ""}
                           </option>
                         ))}
                       </select>

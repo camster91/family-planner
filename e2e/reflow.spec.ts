@@ -108,6 +108,7 @@ const PARENT_PAGES = [
 ];
 
 const PRIMARY_ACTIONS = [
+  "[data-person-assistant] button",
   ".btn-filled",
   ".btn-primary",
   ".btn-destructive",

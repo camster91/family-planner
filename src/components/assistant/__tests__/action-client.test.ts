@@ -87,6 +87,48 @@ it("filters read-only imported events from removal choices", async () => {
     ),
   ).toEqual(["a"]);
 });
+it("distinguishes same-named lists by household details", async () => {
+  fetchMock.mockResolvedValue(
+    ok({
+      lists: [
+        {
+          id: "a",
+          name: "Trip",
+          type: "custom",
+          description: "Camping",
+          _count: { items: 5 },
+        },
+        {
+          id: "b",
+          name: "Trip",
+          type: "custom",
+          description: "Beach",
+          _count: { items: 8 },
+        },
+      ],
+    }),
+  );
+  const choices = await removalTargets({ kind: "list_delete", title: "Trip" });
+  expect(choices.map((t) => t.context)).toEqual([
+    "custom · Camping · 5 items",
+    "custom · Beach · 8 items",
+  ]);
+});
+it("refuses indistinguishable list choices before any destructive write", async () => {
+  fetchMock.mockResolvedValue(
+    ok({
+      lists: [
+        { id: "a", name: "Trip", type: "custom", _count: { items: 0 } },
+        { id: "b", name: "Trip", type: "custom", _count: { items: 0 } },
+      ],
+    }),
+  );
+  await expect(
+    removalTargets({ kind: "list_delete", title: "Trip" }),
+  ).rejects.toThrow("Open Lists to review or rename");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][1].method).toBe("GET");
+});
 it("network loss on mutation reports uncertainty instead of success or auto-retry", async () => {
   fetchMock.mockRejectedValue(new Error("Offline"));
   await expect(

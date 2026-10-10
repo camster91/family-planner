@@ -114,7 +114,7 @@ export default function AssistantHost({ role }: { role: string }) {
         data-person-assistant
         data-launchers-suppressed={launcherSuppressed ? "true" : undefined}
         aria-hidden={launcherSuppressed ? "true" : undefined}
-        className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-[calc(max(1rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)] transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
+        className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-[calc(max(5rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)] transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
       >
         <button
           type="button"
