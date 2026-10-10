@@ -59,7 +59,8 @@ describeWithDatabase('board snapshot against Postgres', () => {
       data: { id: 'bsint-list', family_id: FAM, name: 'Groceries', type: 'grocery', created_by: USER },
     })
     await prisma.list.createMany({ data: [
-      { id: 'bsint-empty-list', family_id: FAM, name: 'Empty groceries', type: 'shopping', created_by: USER },
+      { id: 'bsint-empty-list', family_id: FAM, name: 'Empty groceries', type: 'grocery', created_by: USER },
+      { id: 'bsint-shopping-list', family_id: FAM, name: 'Shopping', type: 'shopping', created_by: USER },
       { id: 'bsint-foreign-list', family_id: FAM2, name: 'Foreign groceries', type: 'grocery', created_by: USER2 },
       { id: 'bsint-private-list', family_id: FAM, name: 'Private tasks', type: 'todo', created_by: USER },
     ] })
