@@ -34,13 +34,29 @@ describe('nextDueDate (UTC)', () => {
     // A time later in the UTC day still gives the next UTC calendar day.
     ['daily', utc(2026, 9, 1, 23), utc(2026, 9, 2)],
     ['daily', utc(2026, 9, 1, 1), utc(2026, 9, 2)],
-    // Year end and month overflow (Jan 31 + 1 month overflows into March).
+    // Year end and short months never skip February.
     ['daily', utc(2026, 12, 31), utc(2027, 1, 1)],
-    ['monthly', utc(2026, 1, 31), utc(2026, 3, 3)],
+    ['monthly', utc(2026, 1, 29), utc(2026, 2, 28)],
+    ['monthly', utc(2026, 1, 30), utc(2026, 2, 28)],
+    ['monthly', utc(2026, 1, 31), utc(2026, 2, 28)],
+    ['monthly', utc(2028, 1, 29), utc(2028, 2, 29)],
+    ['monthly', utc(2028, 1, 30), utc(2028, 2, 29)],
+    ['monthly', utc(2028, 1, 31), utc(2028, 2, 29)],
+    ['monthly', utc(2026, 12, 31), utc(2027, 1, 31)],
   ])('%s after %s is %s at UTC midnight', (frequency, from, expected) => {
     const next = nextDueDate(from as Date, frequency as string)!
     expect(next.toISOString()).toBe((expected as Date).toISOString())
     expect(isUtcMidnight(next)).toBe(true)
+  })
+
+  it.each([29, 30, 31])('restores day %s after February and clamps April independently', (anchor) => {
+    const feb = nextDueDate(utc(2026, 1, anchor), 'monthly', [], anchor)!
+    const mar = nextDueDate(feb, 'monthly', [], anchor)!
+    const apr = nextDueDate(mar, 'monthly', [], anchor)!
+    const may = nextDueDate(apr, 'monthly', [], anchor)!
+    expect([feb, mar, apr, may].map(d => d.toISOString().slice(0, 10))).toEqual([
+      '2026-02-28', `2026-03-${anchor}`, `2026-04-${Math.min(anchor, 30)}`, `2026-05-${anchor}`,
+    ])
   })
 
   it('once and unknown frequencies have no next date', () => {
