@@ -2,19 +2,12 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import CommandPaletteHost from "../CommandPaletteHost";
+import { I18nProvider } from "@/i18n";
+import { navigationMessages } from "@/i18n/navigation";
 
 const mockLoad = jest.fn();
 jest.mock("../load-command-palette", () => ({
   loadCommandPalette: () => mockLoad(),
-}));
-jest.mock("@/i18n", () => ({
-  useTranslation: () => ({
-    t: (
-      key: string,
-      _params: unknown,
-      messages: { en: Record<string, string> },
-    ) => messages.en[key],
-  }),
 }));
 function Palette({
   open,
@@ -64,18 +57,27 @@ it("opens before loading and toggles once per Cmd/Ctrl+K, then removes listeners
   expect(event.defaultPrevented).toBe(false);
 });
 
-it("keeps a dismissible loading shell and retries a refused chunk download", async () => {
-  mockLoad.mockRejectedValueOnce(new Error("Offline"));
-  render(<CommandPaletteHost role="parent" />);
-  fireEvent(document, new CustomEvent("open-command-palette"));
-  expect(screen.getByRole("status")).toHaveTextContent("Loading search");
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Could not load search.",
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByTestId("loaded-palette")).toBeVisible();
-  expect(mockLoad).toHaveBeenCalledTimes(2);
-});
+for (const locale of ["en", "es"] as const)
+  it(`${locale} keeps translated loading and retry controls after a refused chunk download`, async () => {
+    mockLoad.mockRejectedValueOnce(new Error("Offline"));
+    const messages = navigationMessages[locale];
+    render(
+      <I18nProvider locale={locale}>
+        <CommandPaletteHost role="parent" />
+      </I18nProvider>,
+    );
+    fireEvent(document, new CustomEvent("open-command-palette"));
+    expect(screen.getByRole("dialog", { name: messages.search })).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      messages.searchLoading,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      messages.searchLoadFailed,
+    );
+    fireEvent.click(screen.getByRole("button", { name: messages.retry }));
+    expect(await screen.findByTestId("loaded-palette")).toBeVisible();
+    expect(mockLoad).toHaveBeenCalledTimes(2);
+  });
 
 it("Escape closes the loading shell before its download finishes", () => {
   mockLoad.mockReturnValue(new Promise(() => undefined));

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
-import { navigationMessages } from "@/i18n/navigation";
+import { navigationMessages, type NavigationMessage } from "@/i18n/navigation";
 import { loadCommandPalette } from "./load-command-palette";
 
 /**
@@ -21,6 +21,7 @@ export default function CommandPaletteHost({ role }: { role?: string | null }) {
   const [failed, setFailed] = React.useState(false);
   const [attempt, setAttempt] = React.useState(0);
   const { t } = useTranslation();
+  const msg = (key: NavigationMessage) => t(key, undefined, navigationMessages);
   React.useEffect(() => {
     if (!loaded || Palette) return;
     let active = true;
@@ -65,24 +66,22 @@ export default function CommandPaletteHost({ role }: { role?: string | null }) {
     <Dialog
       open
       onClose={() => setOpen(false)}
-      title={t("search", undefined, navigationMessages)}
-      closeLabel={t("close", undefined, navigationMessages)}
+      title={msg("search")}
+      closeLabel={msg("close")}
     >
       {failed ? (
         <>
-          <p role="alert">
-            {t("searchLoadFailed", undefined, navigationMessages)}
-          </p>
+          <p role="alert">{msg("searchLoadFailed")}</p>
           <button
             type="button"
             className="btn-tinted min-h-[44px]"
             onClick={() => setAttempt((value) => value + 1)}
           >
-            {t("retry", undefined, navigationMessages)}
+            {msg("retry")}
           </button>
         </>
       ) : (
-        <p role="status">{t("searchLoading", undefined, navigationMessages)}</p>
+        <p role="status">{msg("searchLoading")}</p>
       )}
     </Dialog>
   );
