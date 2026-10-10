@@ -148,6 +148,39 @@ describe('tile headings open their section (no "Open …" buttons)', () => {
 })
 
 describe('person board (#274)', () => {
+  it('renders each personal-summary chore once while keeping other household work', async () => {
+    await renderBoard({ viewer: { id: 'c', role: 'child' }, choresShownElsewhere: ['c1'] })
+    expect(within(chores()).queryByText('Feed the cat')).toBeNull()
+    expect(within(chores()).getByText('Water plants')).toBeTruthy()
+  })
+
+  it('keeps additional rows for the same member when the bounded summary did not load them', async () => {
+    await renderBoard({
+      viewer: { id: 'c', role: 'child' },
+      choresShownElsewhere: ['c1'],
+      data: data({ chores: [
+        { id: 'c1', title: 'Feed the cat', dueDay: TODAY, status: 'pending', assigneeId: 'c' },
+        { id: 'extra', title: 'Pack school bag', dueDay: TODAY, status: 'pending', assigneeId: 'c' },
+      ] }),
+    })
+    expect(within(chores()).queryByText('Feed the cat')).toBeNull()
+    expect(within(chores()).getByRole('button', { name: /Mark Pack school bag done/ })).toBeTruthy()
+  })
+
+  it('omits an empty household tile when all its work is already in the personal summary', async () => {
+    await renderBoard({ viewer: { id: 'c', role: 'child' }, choresShownElsewhere: ['c1', 'c2'] })
+    expect(screen.queryByTestId('region-chores')).toBeNull()
+    expect(screen.queryByText('No chores due today.')).toBeNull()
+    expect(screen.getByTestId('board-grid').className).toContain('coming_coming_coming')
+    expect(screen.getByTestId('board-grid').className).not.toContain('chores_coming')
+  })
+
+  it('keeps the complete fridge board even when personal-summary IDs are supplied', async () => {
+    await renderBoard({ fridgeMode: true, viewer: { id: 'c', role: 'child' }, choresShownElsewhere: ['c1', 'c2'] })
+    expect(within(chores()).getByText('Feed the cat')).toBeTruthy()
+    expect(within(chores()).getByText('Water plants')).toBeTruthy()
+  })
+
   it('a child can tick only their own chore; a parent any chore', async () => {
     const { unmount } = await renderBoard({ viewer: { id: 'c', role: 'child' } })
     expect(within(chores()).getByRole('button', { name: 'Mark Feed the cat done, Casey' })).toBeTruthy()
