@@ -173,6 +173,58 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     expect(await prisma.chore.findUniqueOrThrow({ where: { id: 'rsint-foreign-weekdays' } })).toMatchObject({ due_date: day('2026-10-12'), weekly_days: [] })
   })
 
+  it.each([null, 'Evening reset'])('monthly series %s restores the template day after short months', async (routine) => {
+    const id = 'rsint-monthly'
+    await prisma.chore.create({ data: {
+      id, family_id: FAM, title: 'Monthly reset', created_by: PARENT, assigned_to: PARENT,
+      due_date: day('2026-01-31'), frequency: 'monthly', recurrence_id: id, is_template: true,
+      routine, routine_order: routine ? 1 : null,
+    } })
+    await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-01-31'))
+    expect(await seriesDays(id)).toEqual(['2026-01-31', '2026-02-28', '2026-03-31'])
+    const copy = await complete.findHouseholdChore(prisma,
+      (await prisma.chore.findFirstOrThrow({ where: { recurrence_id: id, due_date: day('2026-02-28') } })).id, FAM)
+    expect(await complete.completeChore(prisma, copy!, actor, { now: day('2026-02-28') })).toBe(true)
+    expect(await seriesDays(id)).toEqual(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30'])
+    expect(await complete.completeChore(prisma, copy!, actor, { now: day('2026-02-28') })).toBe(false)
+    await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-03-31'))
+    expect(await seriesDays(id)).toEqual(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31'])
+    const rows = await prisma.chore.findMany({ where: { recurrence_id: id } })
+    expect(rows.every(row => row.routine === routine)).toBe(true)
+    expect(await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM2, day('2026-05-31'))).toBe(0)
+  })
+
+  it('tops up a stale January-31 series on March 1 without underfilling the monthly window', async () => {
+    const id = 'rsint-stale-monthly'
+    await prisma.chore.create({ data: {
+      id, family_id: FAM, title: 'Monthly reset', created_by: PARENT, assigned_to: PARENT,
+      due_date: day('2026-01-31'), frequency: 'monthly', recurrence_id: id, is_template: true,
+    } })
+    await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-01-31'))
+    expect(await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-03-01'))).toBe(2)
+    expect(await seriesDays(id)).toEqual(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31'])
+    expect(await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-03-01'))).toBe(0)
+  })
+
+  it('preserves old overflow occurrences and completed history while new dates use the original anchor', async () => {
+    const id = 'rsint-old-monthly'
+    await prisma.chore.create({ data: {
+      id, family_id: FAM, title: 'Old monthly', created_by: PARENT, assigned_to: PARENT,
+      due_date: day('2026-01-31'), frequency: 'monthly', recurrence_id: id, is_template: true,
+      status: 'completed', completed_at: day('2026-01-31'),
+    } })
+    await prisma.chore.create({ data: {
+      id: 'rsint-old-overflow', family_id: FAM, title: 'Old monthly', created_by: PARENT, assigned_to: PARENT,
+      due_date: day('2026-03-03'), frequency: 'once', recurrence_id: id,
+    } })
+    await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-03-03'))
+    expect(await seriesDays(id)).toEqual(['2026-01-31', '2026-03-03', '2026-04-30', '2026-05-31'])
+    const historical = await prisma.chore.findUniqueOrThrow({ where: { id } })
+    expect(historical.status).toBe('completed')
+    expect(historical.completed_at).toEqual(day('2026-01-31'))
+    expect(await recurring.expandRecurringChores({ id, frequency: 'monthly' }, FAM, day('2026-03-03'))).toBe(0)
+  })
+
   it('completing a generated copy extends the series; repeat completes add nothing', async () => {
     await weeklyTemplate('rsint-t1', FAM, PARENT, day('2026-10-05'))
     await recurring.expandRecurringChores({ id: 'rsint-t1', frequency: 'weekly' }, FAM, NOW0)

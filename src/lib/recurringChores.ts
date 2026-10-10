@@ -18,7 +18,7 @@ const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: n
  * Previously the expander advanced monthly by `setDate(+30)` while completion
  * advanced by `setMonth(+1)`; across a month boundary those disagree (#184).
  */
-export function nextDueDate(from: Date, frequency: string, weeklyDays: readonly number[] = []): Date | null {
+export function nextDueDate(from: Date, frequency: string, weeklyDays: readonly number[] = [], monthlyAnchorDay = from.getUTCDate()): Date | null {
   // UTC throughout: due dates are stored as UTC midnight (the date pickers
   // send `YYYY-MM-DD`), so the result must not depend on the server's time
   // zone. Local `setHours`/`setDate` moved a UTC-midnight date to the
@@ -33,12 +33,15 @@ export function nextDueDate(from: Date, frequency: string, weeklyDays: readonly 
       if (normalizedWeekdays(weeklyDays).length) return nextSelectedWeekday(d, weeklyDays)
       d.setUTCDate(d.getUTCDate() + 7)
       return d
-    case 'monthly':
-      // Calendar month, not a fixed 30 days. A day the next month lacks
-      // overflows the way `Date` always has (Jan 31 -> Mar 3, or Mar 2 in a
-      // leap year), the same rule everywhere this is used.
+    case 'monthly': {
+      // Keep the template's day, clamping only this occurrence in short months.
+      // Move from day 1 so JavaScript cannot overflow Jan 31 into March.
+      d.setUTCDate(1)
       d.setUTCMonth(d.getUTCMonth() + 1)
+      const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+      d.setUTCDate(Math.min(monthlyAnchorDay, lastDay))
       return d
+    }
     default:
       return null
   }
@@ -123,9 +126,10 @@ export async function expandSeriesInTx(
   // Horizon: `windowSize` intervals after the later of today and the series'
   // first date (a series created to start next month still gets its window).
   const firstDay = startOfDay(original.due_date)
+  const monthlyAnchorDay = firstDay.getUTCDate()
   let horizon: Date = firstDay > today ? firstDay : today
   for (let i = 0; i < windowSize; i++) {
-    const next = nextDueDate(horizon, original.frequency, original.weekly_days)
+    const next = nextDueDate(horizon, original.frequency, original.weekly_days, monthlyAnchorDay)
     if (!next) return 0
     horizon = next
   }
@@ -148,12 +152,12 @@ export async function expandSeriesInTx(
 
   const existingKeys = new Set(upcoming.map((c) => c.due_date.getTime()))
   const candidates: Date[] = []
-  let cursor = nextDueDate(anchorDate, original.frequency, original.weekly_days)
+  let cursor = nextDueDate(anchorDate, original.frequency, original.weekly_days, monthlyAnchorDay)
   while (cursor && cursor < horizon && candidates.length < needed) {
     if (cursor >= today && !existingKeys.has(cursor.getTime())) {
       candidates.push(cursor)
     }
-    cursor = nextDueDate(cursor, original.frequency, original.weekly_days)
+    cursor = nextDueDate(cursor, original.frequency, original.weekly_days, monthlyAnchorDay)
   }
 
   if (candidates.length === 0) return 0
