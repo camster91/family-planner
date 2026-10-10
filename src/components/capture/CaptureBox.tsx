@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Sparkles, Loader2, Check, X, ListPlus, CalendarDays, ClipboardList, Camera } from 'lucide-react'
 import { CAPTURE_CHILD_MESSAGE } from '@/lib/role-capabilities'
+import { newIdempotencyKey } from '@/lib/idempotency-key'
 import { localDateTimeToISO } from '@/lib/dates'
 
 // Capture returns local wall-clock times without an offset ("2026-10-06T15:00").
@@ -116,6 +117,31 @@ export function CaptureBox({
   const [photoEvents, setPhotoEvents] = React.useState<PhotoEvent[] | null>(null)
   const [photoNote, setPhotoNote] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  // Proposal identity survives retries and partial batch filtering. Do not make
+  // a fresh key after an uncertain response, or a repeated effect could result.
+  const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string; listId?: string }>())
+  function operationFor(proposal: object) {
+    let operation = operations.current.get(proposal)
+    if (!operation) {
+      operation = { key: newIdempotencyKey(), at: Date.now() }
+      operations.current.set(proposal, operation)
+    }
+    // Server replay retention is seven days. Never silently replay an old
+    // unknown operation after that window; ask the person to check the app.
+    if (Date.now() - operation.at >= 6 * 24 * 60 * 60 * 1000) throw new Error('This preview is too old to retry safely. Check the app before making a new preview.')
+    return operation
+  }
+  async function postProposal(url: string, proposal: object, payload: unknown) {
+    const operation = operationFor(proposal)
+    const body = JSON.stringify(payload)
+    if (operation.body && operation.body !== body) throw new Error('This preview changed. Check the app before making a new preview.')
+    operation.body = body
+    try {
+      return await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': operation.key }, body })
+    } catch {
+      throw new Error('Could not confirm whether this was saved. Try again to check the same request.')
+    }
+  }
 
   // Is capture set up on this deployment?
   React.useEffect(() => {
@@ -159,37 +185,26 @@ export function CaptureBox({
       if (draft.kind === 'listitem') {
         // The household's default grocery list, found or created by the one
         // server rule recipe adds use too (ADR-0007 O-4), then add the item.
-        const listRes = await fetch('/api/lists/default-grocery', { method: 'POST' })
-        const listData = await listRes.json().catch(() => ({}))
-        if (!listRes.ok || !listData.list) {
-          throw new Error(listData.error || 'Could not find a grocery list')
+        const operation = operationFor(draft)
+        if (!operation.listId) {
+          const listRes = await fetch('/api/lists/default-grocery', { method: 'POST' })
+          const listData = await listRes.json().catch(() => ({}))
+          if (!listRes.ok || !listData.list) throw new Error(listData.error || 'Could not find a grocery list')
+          operation.listId = listData.list.id
         }
-        const list: { id: string } = listData.list
-
-        const itemRes = await fetch('/api/lists/items/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ listId: list.id, content: draft.title, quantity: 1 }),
-        })
+        const itemRes = await postProposal('/api/lists/items/create', draft, { listId: operation.listId, content: draft.title, quantity: 1 })
         if (!itemRes.ok) {
           const d = await itemRes.json().catch(() => ({}))
-          throw new Error(d.error || 'Could not add to the list')
+          throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Could not add to the list')
         }
       } else {
-        const res = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: draft.title,
-            start_time: toInstant(draft.start_time),
-            end_time: toInstant(draft.end_time),
-            location: draft.location,
-            event_type: draft.event_type || 'other',
-          }),
+        const res = await postProposal('/api/events', draft, {
+          title: draft.title, start_time: toInstant(draft.start_time), end_time: toInstant(draft.end_time),
+          location: draft.location, event_type: draft.event_type || 'other',
         })
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
-          throw new Error(d.error || 'Could not save')
+          throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Could not save')
         }
       }
       setSaved(`Added “${draft.title}”`)
@@ -245,16 +260,9 @@ export function CaptureBox({
     let added = 0
     try {
       for (const ev of photoEvents) {
-        const res = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: ev.title,
-            start_time: toInstant(ev.start_time),
-            end_time: toInstant(ev.end_time),
-            location: ev.location,
-            event_type: ev.event_type || 'other',
-          }),
+        const res = await postProposal('/api/events', ev, {
+          title: ev.title, start_time: toInstant(ev.start_time), end_time: toInstant(ev.end_time),
+          location: ev.location, event_type: ev.event_type || 'other',
         })
         if (res.ok) added += 1
         else failed.push(ev)

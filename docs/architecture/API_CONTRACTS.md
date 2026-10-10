@@ -708,3 +708,12 @@ restart, provider or production acceptance is inferred from this bounded browser
 The recovery row above uses a previously rendered item. Generic recovery for a deleted queued item
 whose list/content is unknown after a full browser restart remains a separate #135 follow-up; no
 new title/list context was added to the persisted checked-action payload in this slice.
+
+
+### Event creation replay and capture (#472)
+
+`POST /api/events` accepts an optional `Idempotency-Key` (`event.create`). Authentication and event validation precede replay. Older clients without a key keep distinct deliberate creates and the existing `{ event }` response. Event, activity and completed response commit in one transaction under the receipt row lock; overlapping lock takeovers recheck completion before writing. Failed completion rolls back the event. Replay after an event is deleted returns the historical receipt without resurrecting it; refresh the Calendar for current state.
+
+Capture retains one key and frozen payload per confirmed preview/photo row, including partial batch and unknown-response retries. Grocery capture also retains the first resolved default list ID, using the existing atomic item-create writer. Retrying the same keyed POST reconciles the receipt; no new status API or broad household data lookup is introduced. Previews older than six days refuse automatic retry before the seven-day server retention expires. Drafts/keys are not persisted through page reload in this slice; check canonical state before making a new preview after leaving an uncertain operation.
+
+Changed payload keeps the established `422 IDEMPOTENCY_KEY_REUSED` contract (rather than adding a route-specific 409); in-progress work retains `409 IDEMPOTENCY_IN_PROGRESS`. The #472 acceptance wording is reconciled with this pre-existing canonical contract. No global idempotency codes, schema, role rules or scheduler change.
