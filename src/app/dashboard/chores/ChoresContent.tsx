@@ -499,10 +499,20 @@ export default function ChoresContent({
         itemName={`“${chore.title}”`}
         showMenuButton
         actions={[
-          {
-            label: "Snooze a day",
-            onClick: () => handleSnoozeChore(chore.id, chore.due_date),
-          },
+          chore.recurrence_id
+            ? {
+                // Moving an occurrence onto an already-expanded date violates
+                // the series' (recurrence_id, due_date) key. Until a proper
+                // exception model exists, explain why this action is unavailable
+                // instead of sending a request that can fail or corrupt the series.
+                label: "Snooze unavailable for repeating chores",
+                onClick: () => undefined,
+                disabled: true,
+              }
+            : {
+                label: "Snooze a day",
+                onClick: () => handleSnoozeChore(chore.id, chore.due_date),
+              },
           {
             label: "Edit",
             onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),

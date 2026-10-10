@@ -22,6 +22,10 @@ export default function JoinFamilyPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [familyInfo, setFamilyInfo] = useState<{ name: string } | null>(null)
   const [loggedIn, setLoggedIn] = useState(false)
+  // A code lookup is intentionally session-gated. Keep that result separate
+  // from an invalid code so a signed-out person can continue to auth without
+  // making the family name lookup public.
+  const [signedOutCode, setSignedOutCode] = useState(false)
   // Set once the page is leaving (joined, or sent to log in / register): the
   // join button stays disabled through the success pause until the redirect,
   // so a second tap cannot send a second join.
@@ -63,20 +67,25 @@ export default function JoinFamilyPage() {
   const checkFamilyCode = async (familyCode: string) => {
     try {
       const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`)
-      // Signed out: the lookup needs a session. Say nothing yet; pressing Join
-      // sends the person to sign in and back here with the code filled in.
+      // Signed out: the lookup needs a session. Keep the code visible and
+      // offer the existing login flow, which returns to this page after auth.
       if (res.status === 401) {
+        setFamilyInfo(null)
+        setSignedOutCode(true)
         setError(null)
         return
       }
       const data = await res.json()
       if (!res.ok) {
+        setSignedOutCode(false)
         setError(data.error || 'Family not found. Please check the code.')
         return
       }
       setFamilyInfo(data.family)
+      setSignedOutCode(false)
       setError(null)
     } catch {
+      setSignedOutCode(false)
       setError('Failed to validate family code')
     }
   }
@@ -272,6 +281,7 @@ export default function JoinFamilyPage() {
                   onChange={(e) => {
                     setCode(e.target.value)
                     setFamilyInfo(null)
+                    setSignedOutCode(false)
                   }}
                   className="input-field flex-1 font-mono tabular-nums tracking-wider"
                   placeholder="e.g. K7QM-4XPD-2HNA"
@@ -303,14 +313,29 @@ export default function JoinFamilyPage() {
                 <div className="text-sm text-primary">Ready to join as a child or teen.</div>
               </div>
             )}
-            <button
-              type="submit"
-              disabled={busy || !code.trim() || !familyInfo}
-              className="btn-primary w-full py-3 inline-flex items-center justify-center"
-            >
-              {busy ? 'Joining...' : 'Join Family'}
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </button>
+            {signedOutCode && (
+              <div className="bg-[var(--accent-tint)] border border-[var(--accent-tint-strong)] rounded-lg p-4 space-y-3" role="status">
+                <p className="text-sm text-primary">Sign in to continue joining this family.</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Link
+                    href={`/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`}
+                    className="btn-tinted flex-1 justify-center"
+                  >
+                    Sign in to join
+                  </Link>
+                </div>
+              </div>
+            )}
+            {!signedOutCode && (
+              <button
+                type="submit"
+                disabled={busy || !code.trim() || !familyInfo}
+                className="btn-primary w-full py-3 inline-flex items-center justify-center"
+              >
+                {busy ? 'Joining...' : 'Join Family'}
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </button>
+            )}
           </form>
         </div>
       </div>

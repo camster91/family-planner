@@ -95,6 +95,44 @@ it("child gets reports but no paid assistant; shared fridge shows neither launch
   render(<AssistantHost role="parent" />);
   expect(screen.queryByRole("button", { name: "Report / Suggest" })).toBeNull();
 });
+it("tucks launchers away for external form focus and restores dialog focus", async () => {
+  const user = userEvent.setup();
+  render(
+    <>
+      <label htmlFor="settings-field">Settings field</label>
+      <input id="settings-field" />
+      <button type="button">Other control</button>
+      <AssistantHost role="parent" />
+    </>,
+  );
+  const launchers = document.querySelector("[data-person-assistant]")!;
+  const settingsField = screen.getByLabelText("Settings field");
+  const other = screen.getByRole("button", { name: "Other control" });
+  const assistantLauncher = screen.getByRole("button", {
+    name: "AI assistant",
+  });
+
+  await user.click(settingsField);
+  expect(launchers).toHaveAttribute("data-launchers-suppressed", "true");
+  expect(launchers).toHaveClass(
+    "invisible",
+    "pointer-events-none",
+    "opacity-0",
+  );
+  expect(assistantLauncher).toHaveAttribute("tabindex", "-1");
+
+  await user.click(other);
+  expect(launchers).not.toHaveAttribute("data-launchers-suppressed");
+  expect(launchers).not.toHaveClass("invisible");
+  expect(assistantLauncher).not.toHaveAttribute("tabindex");
+
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "AI assistant" })).toHaveFocus(),
+  );
+});
 it("saves private feedback and displays a real receipt", async () => {
   const user = userEvent.setup();
   global.fetch = jest.fn(async () =>

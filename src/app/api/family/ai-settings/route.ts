@@ -5,8 +5,17 @@ import { encryptSecret, decryptSecret, maskSecret } from '@/lib/secret-box'
 import { checkProviderUrlShape } from '@/lib/outbound-url'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { boundedRequestText, RequestBodyTooLarge } from '@/lib/bounded-request-text'
 
 export const dynamic = 'force-dynamic'
+
+// These settings are small configuration values. Keep the request bounded
+// before JSON parsing and avoid persisting unexpectedly large strings from a
+// direct API caller (the UI's input lengths are not an authorization boundary).
+const AI_SETTINGS_BODY_LIMIT = 16 * 1024
+const AI_KEY_MAX_LENGTH = 4096
+const AI_BASE_URL_MAX_LENGTH = 2048
+const AI_MODEL_MAX_LENGTH = 256
 
 // GET /api/family/ai-settings — is a key stored, and which provider/model?
 // Parents only. The key itself is NEVER returned, only a masked hint.
@@ -48,9 +57,18 @@ export async function POST(request: NextRequest) {
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
 
+    let raw: string
+    try {
+      raw = await boundedRequestText(request, AI_SETTINGS_BODY_LIMIT)
+    } catch (error) {
+      if (error instanceof RequestBodyTooLarge)
+        return NextResponse.json({ error: 'Request is too large' }, { status: 413 })
+      throw error
+    }
+
     let body: any
     try {
-      body = await request.json()
+      body = JSON.parse(raw)
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
@@ -71,6 +89,14 @@ export async function POST(request: NextRequest) {
     const rawKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : ''
     const baseUrl = typeof body?.baseUrl === 'string' ? body.baseUrl.trim() : ''
     const model = typeof body?.model === 'string' ? body.model.trim() : ''
+
+    if (
+      rawKey.length > AI_KEY_MAX_LENGTH ||
+      baseUrl.length > AI_BASE_URL_MAX_LENGTH ||
+      model.length > AI_MODEL_MAX_LENGTH
+    ) {
+      return NextResponse.json({ error: 'One or more AI settings are too long' }, { status: 400 })
+    }
 
     // Light validation. We do not call the provider here — that would make
     // saving depend on a third party being reachable; the first capture is the
@@ -112,6 +138,8 @@ export async function POST(request: NextRequest) {
       model: updated.capture_ai_model ?? '',
     })
   } catch (error) {
+    if (error instanceof RequestBodyTooLarge)
+      return NextResponse.json({ error: 'Request is too large' }, { status: 413 })
     logRouteError('POST /api/family/ai-settings', error, getRequestId(request))
     return NextResponse.json({ error: 'Could not save those settings' }, { status: 500 })
   }

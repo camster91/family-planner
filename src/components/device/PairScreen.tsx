@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 import { Loader2, TabletSmartphone } from 'lucide-react'
+import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import { DeviceApiError, formatCodeInput, isCompleteCode, PAIRING_POLL_MS } from '@/lib/device-client'
 import { formatCountdown, genericErrorText, useDeviceClient, waitText } from './use-device-client'
 import {
@@ -21,9 +23,29 @@ type PairState =
   | { kind: 'cancelled' }
   | { kind: 'device_limit' }
 
-function platform(): 'android' | 'web' {
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
-  return cap?.isNativePlatform?.() ? 'android' : 'web'
+export type PairingMetadata = {
+  platform: 'android' | 'web'
+  appVersion: string
+}
+
+/**
+ * The claim API currently accepts only `android` and `web`. Use the native
+ * Android version when the shell can provide it; keep browser and unsupported
+ * native platforms on the existing web contract until the API can represent
+ * them explicitly.
+ */
+export async function getPairingMetadata(): Promise<PairingMetadata> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+    return { platform: 'web', appVersion: 'web' }
+  }
+
+  try {
+    const version = (await App.getInfo()).version.trim()
+    return { platform: 'android', appVersion: version || 'unknown' }
+  } catch {
+    // A missing/older App plugin must not block pairing or invent a version.
+    return { platform: 'android', appVersion: 'unknown' }
+  }
 }
 
 const ENDED_COPY: Record<'expired' | 'cancelled' | 'device_limit', { title: string; body: string }> = {
@@ -132,7 +154,8 @@ export default function PairScreen() {
     setBusy(true)
     setError(null)
     try {
-      const claimed = await client.claim(code, platform(), 'web')
+      const metadata = await getPairingMetadata()
+      const claimed = await client.claim(code, metadata.platform, metadata.appVersion)
       setState({ kind: 'waiting', digits: claimed.confirmDigits, expiresAt: claimed.expiresAt })
     } catch (err) {
       if (err instanceof DeviceApiError && err.code === 'PAIRING_CODE_INVALID') {

@@ -9,7 +9,9 @@ import * as React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }) }))
+const push = jest.fn()
+const refresh = jest.fn()
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }))
 
 import JoinFamilyPage from '../page'
 
@@ -18,6 +20,8 @@ let calls: Array<{ url: string; body?: string }>
 
 beforeEach(() => {
   calls = []
+  push.mockClear()
+  refresh.mockClear()
   window.history.replaceState(null, '', '/join')
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -61,6 +65,7 @@ it('says nothing scary when a signed-out person opens a code link', async () => 
     const url = String(input)
     calls.push({ url })
     if (url.startsWith('/api/family/lookup')) return reply({ error: 'Unauthorized' }, 401)
+    if (url === '/api/auth/me') return reply({ error: 'Unauthorized' }, 401)
     return reply({})
   }) as unknown as typeof fetch
   window.history.replaceState(null, '', '/join?code=K7QM-4XPD-2HNA')
@@ -68,4 +73,9 @@ it('says nothing scary when a signed-out person opens a code link', async () => 
   await waitFor(() => expect(calls.some((c) => c.url.startsWith('/api/family/lookup'))).toBe(true))
   expect(screen.queryByText('Unauthorized')).toBeNull()
   expect((screen.getByLabelText('Family Code') as HTMLInputElement).value).toBe('K7QM-4XPD-2HNA')
+  expect(screen.getByRole('status').textContent).toContain('Sign in to continue joining this family.')
+  expect(screen.getByRole('link', { name: 'Sign in to join' }).getAttribute('href')).toBe(
+    '/login?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA',
+  )
+  expect(screen.queryByRole('button', { name: 'Sign in to join' })).toBeNull()
 })
