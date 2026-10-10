@@ -109,3 +109,14 @@ full authenticated navigation, provider acceptance and deployment remain gates.
 On the home and the navigation, colour marks a person or a state (done, needs a check, errors), not a
 category. The home has no coloured glyph tiles and no progress ring; Family and More use plain icons; role
 badges in Family and the user menu are neutral. Member colours on the board come with #262.
+
+### Explore visual review (2026-10-10)
+
+For #143 and the requested lowercase wordmark, Linux Chromium hosted comparisons
+at 1280×800 and 1366×768 were inspected in light and dark themes. The differences
+are confined to the header: lowercase `herewoven`, the resulting primary-link
+spacing, and the new parent Explore link. The uppercase H mark, account/search
+controls, Today content, geometry and clock masks stay unchanged. Only those four
+expected dashboard baselines were updated from the hosted runner's actual images;
+no screenshot thresholds or visual assertions were weakened. This is browser
+layout evidence, not physical-device or customer acceptance.
