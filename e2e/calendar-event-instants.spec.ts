@@ -371,6 +371,7 @@ for (const locale of ["en", "es"] as const) {
 
 test("intercepted event sheets update the mounted Calendar after create, edit and delete", async ({
   page,
+  request,
 }, info) => {
   await page.evaluate(() =>
     localStorage.setItem("familyPlanner_language", "en"),
@@ -383,7 +384,7 @@ test("intercepted event sheets update the mounted Calendar after create, edit an
   }).formatToParts(new Date(+E2E_ANCHOR + 14 * 86400000));
   const part = (type: string) => parts.find((p) => p.type === type)!.value;
   const date = `${part("year")}-${part("month")}-${part("day")}`;
-  const title = `Synthetic sheet refresh ${info.project.name}`;
+  const title = `Synthetic sheet refresh ${info.project.name} attempt ${info.retry}`;
   let eventId: string | undefined;
   try {
     const origin = `/dashboard/calendar?date=${date}&view=agenda`;
@@ -445,9 +446,18 @@ test("intercepted event sheets update the mounted Calendar after create, edit an
       fullPage: true,
     });
   } finally {
-    if (eventId)
-      expect(
-        (await browserSend(page, "DELETE", "/api/events", { eventId })).status,
-      ).toBe(200);
+    if (eventId) {
+      // Independent authenticated request cleanup still works after a timed-out
+      // page closes. Keep ordinary cookie authentication and CSRF protection.
+      const csrf = (await request.storageState()).cookies.find(
+        (cookie) => cookie.name === "csrf_token",
+      )?.value;
+      expect(csrf).toBeTruthy();
+      const removed = await request.delete("/api/events", {
+        headers: { "X-CSRF-Token": csrf! },
+        data: { eventId },
+      });
+      expect(removed.status()).toBe(200);
+    }
   }
 });

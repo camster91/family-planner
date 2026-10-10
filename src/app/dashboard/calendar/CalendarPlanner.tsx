@@ -639,6 +639,12 @@ export function CalendarPlanner({
                 <Link
                   className="btn-filled"
                   href={`/dashboard/calendar/edit?id=${encodeURIComponent(selected.id)}`}
+                  onClick={() => {
+                    // Native modal dialogs occupy the browser top layer. Close
+                    // details before an intercepted edit sheet opens above the page.
+                    dialog.current?.close?.();
+                    setSelected(null);
+                  }}
                 >
                   {msg("edit")}
                 </Link>

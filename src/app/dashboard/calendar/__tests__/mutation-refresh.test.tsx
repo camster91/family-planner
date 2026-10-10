@@ -231,3 +231,12 @@ it.each(["save", "delete"])(
     ).toBeInTheDocument();
   },
 );
+
+it('closes event details before navigating to the intercepted edit form', async () => {
+  committed = true
+  render(<CalendarPlanner initialDate="2099-12-15" initialView="agenda" canEditEvents />)
+  fireEvent.click(await screen.findByRole('button', { name: /New family event/ }))
+  expect(screen.getByRole('dialog', { name: 'New family event' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Edit event' }))
+  expect(screen.queryByRole('dialog', { name: 'New family event' })).toBeNull()
+})
