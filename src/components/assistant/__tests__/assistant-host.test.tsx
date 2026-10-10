@@ -141,16 +141,19 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
     "[data-person-assistant]",
   )!;
   expect(launchers).toHaveClass(
-    "max-[320px]:static",
+    "relative",
+    "w-full",
     "max-[320px]:w-full",
     "max-[320px]:flex-nowrap",
     "max-[320px]:justify-end",
-    "max-[320px]:pb-[calc(var(--phone-tab-bar-height,4rem)+1rem)]",
+    "pb-[calc(max(1rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)]",
+    "md:pb-6",
   );
   const buttons = within(launchers).getAllByRole("button");
   expect(buttons).toHaveLength(2);
   for (const button of buttons) {
     expect(button).toHaveClass(
+      "min-h-[44px]",
       "max-[320px]:h-11",
       "max-[320px]:w-11",
       "max-[320px]:shrink-0",
@@ -159,8 +162,18 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
   expect(screen.getByText("Report / Suggest")).toHaveClass(
     "max-[320px]:sr-only",
   );
-  expect(screen.getByText("AI assistant")).toHaveClass(
-    "max-[320px]:sr-only",
+  expect(screen.getByText("AI assistant")).toHaveClass("max-[320px]:sr-only");
+});
+it("keeps a chat draft when the assistant is closed and reopened", async () => {
+  const user = userEvent.setup();
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const message = screen.getByLabelText("Your message");
+  await user.type(message, "Add library pickup tomorrow");
+  await user.click(screen.getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  expect(screen.getByLabelText("Your message")).toHaveValue(
+    "Add library pickup tomorrow",
   );
 });
 it("saves private feedback and displays a real receipt", async () => {

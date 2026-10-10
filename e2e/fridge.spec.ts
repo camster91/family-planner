@@ -447,13 +447,13 @@ test.describe("Today board: Family A parent", () => {
     await expect(
       groceries.getByRole("link", { name: "1 more to buy" }),
     ).toHaveAttribute("href", "/dashboard/lists/groceries");
-    // #274: a grocery row ticks the item off in place; the heading opens lists.
+    // #274: a grocery row ticks the item off in place; the heading opens groceries.
     await expect(
       items.nth(0).getByRole("button", { name: "Tick off Milk, 2" }),
     ).toBeVisible();
     await expect(
-      groceries.getByRole("link", { name: /Groceries\s*, open lists/ }),
-    ).toHaveAttribute("href", "/dashboard/lists");
+      groceries.getByRole("link", { name: /Groceries\s*, open grocery lists/ }),
+    ).toHaveAttribute("href", "/dashboard/lists/groceries");
 
     // Chores due today, per person, household order, no points.
     const chores = region(page, "chores");
@@ -897,7 +897,7 @@ test.describe("Today board: Family A child", () => {
     ]) {
       expect(hrefs).not.toContain(blocked);
     }
-    expect(hrefs).toContain("/dashboard/lists");
+    expect(hrefs).toContain("/dashboard/lists/groceries");
 
     // Board settings are parent-only (#262).
     const settingsRes = await page.request.get("/api/family/board-settings");

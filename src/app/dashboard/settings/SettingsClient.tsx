@@ -751,7 +751,7 @@ export default function SettingsClient({
                     readOnly
                     value={feedUrl}
                     onFocus={(e) => e.currentTarget.select()}
-                    className="input-field w-full text-xs font-mono"
+                    className="input-field w-full text-xs font-mono scroll-mt-24"
                   />
                   <p className="text-xs text-label-tertiary mt-2">
                     {copy("linkPrivacy")}
