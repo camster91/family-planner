@@ -8,6 +8,7 @@
 import * as React from 'react'
 import { Clock, Users } from 'lucide-react'
 import { formatAmount } from '@/lib/grocery-display'
+import { publicRecipeUrl } from '@/lib/recipe-discovery'
 import { formatMinutes } from '@/lib/meal-slots'
 
 export interface RecipeDetailData {
@@ -28,6 +29,9 @@ export interface RecipeDetailData {
 }
 
 export function RecipeDetail({ recipe, actions }: { recipe: RecipeDetailData; actions?: React.ReactNode }) {
+  const sourceMatch = /^Source: (https:\/\/[^\n]+)\n/.exec(recipe.description ?? '')
+  const sourceUrl = sourceMatch ? publicRecipeUrl(sourceMatch[1]) : null
+  const description = sourceUrl ? recipe.description?.slice(sourceMatch![0].length) : recipe.description
   const prep = formatMinutes(recipe.prep_time)
   const cook = formatMinutes(recipe.cook_time)
   const facts: Array<{ label: string; value: string }> = []
@@ -41,9 +45,10 @@ export function RecipeDetail({ recipe, actions }: { recipe: RecipeDetailData; ac
         <h1 id="recipe-title" className="text-large-title font-display break-words">
           {recipe.title}
         </h1>
-        {recipe.description && (
-          <p className="text-body text-label-secondary break-words whitespace-pre-line">{recipe.description}</p>
+        {description && (
+          <p className="text-body text-label-secondary break-words whitespace-pre-line">{description}</p>
         )}
+        {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] break-all">Original recipe · {new URL(sourceUrl).hostname} ↗</a>}
         {facts.length > 0 && (
           <dl className="flex flex-wrap gap-x-5 gap-y-1 text-subhead text-label-secondary">
             {facts.map((f) => (

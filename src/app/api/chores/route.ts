@@ -116,7 +116,7 @@ async function getOneChore(id: string, familyId: string) {
     chore.recurrence_id && chore.recurrence_id !== chore.id
       ? await prisma!.chore.findFirst({
           where: { id: chore.recurrence_id, family_id: familyId },
-          select: { id: true, frequency: true, rotation_member_ids: true },
+          select: { id: true, frequency: true, weekly_days: true, rotation_member_ids: true },
         })
       : null
   // Take turns (O-39) is a series setting: on the template itself, or on the
@@ -167,7 +167,7 @@ export async function PATCH(request: NextRequest) {
 
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
-      select: { family_id: true, assigned_to: true, photo_url: true, frequency: true, recurrence_id: true },
+      select: { family_id: true, assigned_to: true, photo_url: true, frequency: true, weekly_days: true, recurrence_id: true },
     })
 
     if (!chore) {
@@ -191,7 +191,7 @@ export async function PATCH(request: NextRequest) {
     // so it is parent-only too.
     // `rotation` (take turns, O-39) decides who gets every future copy, so it
     // is parent-only like `assigned_to`.
-    const PARENT_ONLY_FIELDS = ['points', 'difficulty', 'assigned_to', 'frequency', 'rotation'] as const
+    const PARENT_ONLY_FIELDS = ['points', 'difficulty', 'assigned_to', 'frequency', 'weekly_days', 'rotation'] as const
     if (auth.user.role !== 'parent') {
       const attempted = PARENT_ONLY_FIELDS.filter((f) => updates[f] !== undefined)
       if (attempted.length > 0) {
@@ -270,9 +270,9 @@ export async function PATCH(request: NextRequest) {
               if (frequency !== undefined) {
                 await applyFrequencyEditInTx(
                   tx,
-                  { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id },
+                  { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id, weekly_days: chore.weekly_days },
                   frequency,
-                  { applyToSeries: updates.apply_to_series === true }
+                  { applyToSeries: updates.apply_to_series === true, weeklyDays: updates.weekly_days }
                 )
               }
               if (rotation !== undefined) {

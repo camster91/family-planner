@@ -220,6 +220,7 @@ export default function CalendarSubscriptionsSection() {
 
   return (
     <SettingsDisclosure
+      id="calendar-subscriptions"
       headingId="calendar-subscriptions-heading"
       title={copy("subscriptions")}
       description={copy("subscriptionsDescription")}

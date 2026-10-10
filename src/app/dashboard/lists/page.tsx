@@ -45,6 +45,7 @@ export default async function ListsPage({
   const listsWithCounts = lists.map((list: any) => ({
     id: list.id,
     name: list.name,
+    image_url: list.image_url ?? null,
     type: list.type,
     description: list.description,
     updated_at: list.updated_at,

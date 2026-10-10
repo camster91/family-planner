@@ -236,6 +236,16 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
+    "text": "Chore list",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/ChoresContent.tsx",
+    "text": "Chore view",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Chores",
     "count": 2
   },
@@ -291,6 +301,11 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
+    "text": "Routines",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Send back “",
     "count": 1
   },
@@ -315,252 +330,282 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
-    "text": "3 times",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/page.tsx",
-    "text": "4 times",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/page.tsx",
-    "text": "7 times",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Add photo",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Assign a task to a family member.",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Assign To",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Chores",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Create Chore",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Creating...",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Description",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "Details",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "Details & points",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Difficulty",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Due Date",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "e.g., Take out the trash",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "every day",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "every month",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Frequency",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Instructions or details...",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "New Chore",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
-    "text": "Photo",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "on the selected weekdays",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "Photo",
+    "count": 2
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Photo selected",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "Pictures & routine",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Points",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Preview",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Remove photo",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
-    "text": "This chore will repeat",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "This chore keeps repeating",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Title",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/page.tsx",
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Uploading...",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Add photo",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Assign To",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Back to Chores",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Chores",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Description",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
+    "text": "Details",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
+    "text": "Details & points",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Difficulty",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Due Date",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "e.g., Take out the trash",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Edit Chore",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Frequency",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Instructions or details...",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Loading...",
     "count": 2
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "No Chore Selected",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Photo",
-    "count": 1
+    "count": 2
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Photo selected",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
+    "text": "Pictures & routine",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Please select a chore to edit.",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Points",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Preview",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Remove photo",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Save Changes",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Saving...",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "This chore is part of a repeating series. Changing how often changes the whole series.",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "This time",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Title",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Update the chore details.",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/edit/page.tsx",
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Uploading...",
     "count": 1
   },
@@ -656,17 +701,17 @@
   },
   {
     "file": "src/app/dashboard/family/create/page.tsx",
+    "text": "✓ Next, add everyone in your household",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/family/create/page.tsx",
     "text": "✓ Start creating chores and events right away",
     "count": 1
   },
   {
     "file": "src/app/dashboard/family/create/page.tsx",
     "text": "✓ You become the family admin (parent role)",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ You can invite other family members to join",
     "count": 1
   },
   {
@@ -1606,6 +1651,11 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
+    "text": "list image",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "List not found",
     "count": 1
   },
@@ -1615,67 +1665,77 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "(optional)",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
+    "text": "A checklist for anything your family needs—packing, school supplies, or weekend plans.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Create a shared list for your family",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Create List",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Creating list",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Description",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "e.g. Weekly Groceries",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "List created",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Lists",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Name",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "New List",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Selected",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "Type",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/page.tsx",
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
+    "text": "Uploading image",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
     "text": "What is this list for?",
     "count": 1
   },
@@ -1755,6 +1815,191 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "← Meals",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Chicken, pasta, quick dinners…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Directions",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Directions were not available. Open the original recipe.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Explore recipes",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Find online",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Find something to cook. Keep your favourites in your household recipe box.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "https://…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Ingredients",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Load more recipes",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Loading recipes…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "No recipe links were available here. Try the source search below.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "No saved recipes match this search.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Open original ↗",
+    "count": 3
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Open saved recipe",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Original recipe:",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Read recipe",
+    "count": 2
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Reading…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Ready to use when adding a meal",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Recipe link",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Recipe reader",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Review and save",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Review before saving. Original ingredient quantities are kept in the directions; add ingredient rows below to use the grocery tools.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Save a recipe from a link, or add one while planning a meal.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Save from a link",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Search",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Search recipes",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Searching…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Show more recipes",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Some sites block embedded viewing. Use Open original if the page is blank.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Source",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Source:",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Try again",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "View original here",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "What would you like to cook?",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "You can also search directly on these sites. Copy any recipe link below to read and save it here.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/explore/page.tsx",
+    "text": "Your recipe box",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Add",
     "count": 1
@@ -1792,6 +2037,11 @@
   {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Current week",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Explore recipes",
     "count": 1
   },
   {
@@ -1991,6 +2241,31 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "\" now",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "1 hour",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "15 minutes",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "24 hours",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "3 hours",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
     "text": "All (",
     "count": 1
   },
@@ -2031,12 +2306,57 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "No snoozed notifications",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
     "text": "No unread notifications",
     "count": 1
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
     "text": "Notifications",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Returns",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Saving…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Show \"",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Show now",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Snooze",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Snooze \"",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Snoozed (",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "Snoozed notifications return here when their delay ends. No extra email or push is sent.",
     "count": 1
   },
   {
@@ -3380,6 +3700,376 @@
     "count": 1
   },
   {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": ". Reports stay private in the app; nothing is posted publicly.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": ". Status: received, awaiting review.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": ". Use Chores for pictures, rotations and routine stacks.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Add school pickup tomorrow at 3 for 30 minutes",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Adds to your household’s grocery list when there is exactly one. Choose a list in Lists when you have several.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "AI assistant",
+    "count": 2
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Ask to add an event, chore, list, grocery item or note; remove an event, chore or list; or open another section. Changes need your review. Chat text goes to your household’s configured AI provider. Household records are not attached.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Assistant",
+    "count": 2
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Assistant conversation",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Bug / fix",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Cancel proposal",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Chat stays only in this open app session.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Choose a family member…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Choose an item…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Choose the exact item",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Chore assignee",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Chore date",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Chore frequency",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Clear chat",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Confirm and save",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "continuing",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Daily",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Date",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Deletion is permanent. Deleting a list also removes its items. Repeating chores: only the selected occurrence is removed.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "End",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Feature suggestion",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Household AI setup in Settings",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "I confirm removing “",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Item to remove",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "List type:",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Loading reports…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Monthly",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "My reports",
+    "count": 2
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "No saved reports to show.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "None",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Note",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Once",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Open",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Open section",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Page:",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "points ·",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Proposed end",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Proposed note",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Proposed start",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Proposed title",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Receipt:",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Refresh reports",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Remove selected item",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "removing",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Repeats",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Report / Suggest",
+    "count": 2
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Report a bug or suggest a feature",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Report saved privately. Receipt:",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Review before",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Review proposed action",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Save a private bug report or feature suggestion. Avoid passwords and private family details. No screenshot is attached automatically.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Save report",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Saving…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Send",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Start",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Stop voice",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Times without an offset use your device’s time zone. Location:",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Title",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Title / item",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Type",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Voice input",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Voice is unavailable in this browser; typing works.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Voice uses your browser’s speech service. Review the transcript, then Send.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Weekly",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "What happened or what would help?",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Who does it?",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Working…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "You",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AssistantHost.tsx",
+    "text": "Your message",
+    "count": 1
+  },
+  {
     "file": "src/components/budget/BudgetDashboard.tsx",
     "text": "Add transaction",
     "count": 1
@@ -3680,13 +4370,28 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "1",
+    "file": "src/components/chores/RecurringChoreRows.tsx",
+    "text": "Next:",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RecurringChoreRows.tsx",
+    "text": "open dates · Expand to see dates",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RecurringChoreRows.tsx",
+    "text": "Takes turns",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RecurringChoreRows.tsx",
+    "text": "Unassigned",
     "count": 1
   },
   {
     "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Chores in the same routine show on the kid home as picture cards, in step order.",
+    "text": "1",
     "count": 1
   },
   {
@@ -3701,7 +4406,7 @@
   },
   {
     "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No picture selected. Young kids can follow a routine by its pictures.",
+    "text": "No picture selected. Pictures make steps easier to recognize at any age.",
     "count": 1
   },
   {
@@ -3736,7 +4441,107 @@
   },
   {
     "file": "src/components/chores/RoutineIconPicker.tsx",
+    "text": "Stack chores for any family member with the same routine name and numbered steps. View the stack under Chores → Routines.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineIconPicker.tsx",
     "text": "Step",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "· some awaiting check",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Add step",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "All steps done",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "and checked",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "checked",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Checked",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Complete",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Done",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "done ·",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Done · awaiting check",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Edit",
+    "count": 2
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Focus on the next step",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "No routines in this range. Give related chores the same routine name and step numbers to stack them.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "of",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Other chores",
+    "count": 2
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Routine stacks",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "To do",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Unassigned",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "Up next",
     "count": 1
   },
   {
@@ -3782,6 +4587,16 @@
   {
     "file": "src/components/chores/TakeTurnsPicker.tsx",
     "text": "Tap people in the order they take turns. Tap again to take someone out.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/WeeklyDaysPicker.tsx",
+    "text": "Choose one or more days each week.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/WeeklyDaysPicker.tsx",
+    "text": "Repeat on",
     "count": 1
   },
   {
@@ -4926,6 +5741,11 @@
   },
   {
     "file": "src/components/fridge/regions.tsx",
+    "text": "All shared lists",
+    "count": 1
+  },
+  {
+    "file": "src/components/fridge/regions.tsx",
     "text": "Chores today",
     "count": 1
   },
@@ -5052,6 +5872,11 @@
   {
     "file": "src/components/fridge/regions.tsx",
     "text": "to buy",
+    "count": 1
+  },
+  {
+    "file": "src/components/fridge/regions.tsx",
+    "text": "To-dos, wishlists and custom lists",
     "count": 1
   },
   {
@@ -5210,6 +6035,81 @@
     "count": 1
   },
   {
+    "file": "src/components/layout/DashboardFormSheets.tsx",
+    "text": "Close to return. Unsaved changes will be cleared.",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/DashboardFormSheets.tsx",
+    "text": "Edit Chore",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/DashboardFormSheets.tsx",
+    "text": "New Chore",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/DashboardFormSheets.tsx",
+    "text": "New List",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/DashboardFormSheets.tsx",
+    "text": "Please wait for saving or uploading to finish.",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Add image",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Choose list image",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Image selected",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "JPEG, PNG, WebP or HEIC · up to 5 MB. Shared with your household.",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "List image",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Optional",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Remove image",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Replace image",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Selected list image",
+    "count": 1
+  },
+  {
+    "file": "src/components/lists/ListImagePicker.tsx",
+    "text": "Uploading…",
+    "count": 1
+  },
+  {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
     "text": "Add selected ingredients",
     "count": 1
@@ -5317,6 +6217,11 @@
   {
     "file": "src/components/meals/RecipeDetail.tsx",
     "text": "No ingredients listed for this recipe.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeDetail.tsx",
+    "text": "Original recipe ·",
     "count": 1
   },
   {
@@ -5451,6 +6356,16 @@
   },
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
+    "text": "Add Everyone in Your Family",
+    "count": 1
+  },
+  {
+    "file": "src/components/onboarding/OnboardingFlow.tsx",
+    "text": "Add Family Members",
+    "count": 1
+  },
+  {
+    "file": "src/components/onboarding/OnboardingFlow.tsx",
     "text": "Already have a family code or invite?",
     "count": 1
   },
@@ -5476,17 +6391,17 @@
   },
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "First Chore",
+    "text": "Family name",
+    "count": 1
+  },
+  {
+    "file": "src/components/onboarding/OnboardingFlow.tsx",
+    "text": "Finish Later",
     "count": 1
   },
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
     "text": "Get Started",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Invite Family",
     "count": 1
   },
   {
@@ -5506,17 +6421,12 @@
   },
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "What should we call your family group?",
+    "text": "What should we call your family group? Next, we’ll add everyone.",
     "count": 1
   },
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "You&apos;re All Set!",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Your family is created. Now invite members, create your first chore, or explore the dashboard.",
+    "text": "Your family is created. Add the other parents, teens, and children who belong to your household. You can invite each person and choose their role.",
     "count": 1
   },
   {

@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get('unread') === 'true'
 
     const where: Record<string, unknown> = { user_id: userId }
+    if (searchParams.get('includeSnoozed') !== 'true') {
+      where.OR = [{ snoozed_until: null }, { snoozed_until: { lte: new Date() } }]
+    }
     if (unreadOnly) {
       where.read = false
     }

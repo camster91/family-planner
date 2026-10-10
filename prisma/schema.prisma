@@ -11,6 +11,7 @@ datasource db {
 
 // User model
 model User {
+  feedback_reports AppFeedback[]
   id                            String             @id @default(cuid())
   email                         String             @unique
   password                      String?
@@ -137,6 +138,7 @@ model User {
 }
 
 model Family {
+  feedback_reports AppFeedback[]
   id                 String    @id @default(cuid())
   name               String
   invite_code        String    @unique @default(cuid())
@@ -452,6 +454,8 @@ model Chore {
   // place is nullable, so older app versions keep working.
   rotation_member_ids String[] @default([])
   rotation_index      Int?
+  /// UTC date-only weekday numbers (Sunday=0); empty preserves legacy weekly cadence.
+  weekly_days         Int[] @default([])
 
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
@@ -872,6 +876,7 @@ model Message {
 }
 
 model Notification {
+  snoozed_until DateTime?
   id         String   @id @default(cuid())
   user_id    String
   title      String
@@ -896,6 +901,7 @@ model List {
   name              String
   type              String    @default("grocery") // 'grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'
   description       String?
+  image_url         String?
   is_repeatable     Boolean   @default(false)
   last_purchased_at DateTime?
   created_by        String
@@ -1711,4 +1717,22 @@ model BetaMetricDaily {
 
   @@id([family_id, day, metric])
   @@index([day])
+}
+
+
+model AppFeedback {
+ id String @id @default(cuid())
+ user_id String
+ family_id String
+ request_id String
+ kind String
+ title String
+ details String
+ page String
+ status String @default("received")
+ created_at DateTime @default(now())
+ user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+ family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+ @@unique([user_id, request_id])
+ @@index([family_id, user_id, created_at])
 }

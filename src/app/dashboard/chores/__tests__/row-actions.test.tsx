@@ -101,3 +101,14 @@ describe('chore row actions', () => {
     expect(JSON.parse(completeCalls()[0][1].body)).toEqual({ choreId: 'c1' })
   })
 })
+
+
+it('the Routines view uses canonical completion and shows its updated status', async () => {
+  await userEvent.click(screen.getByRole('button', { name: 'Routines' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Complete Feed the cat' }))
+  expect(completeCalls()).toHaveLength(1)
+  expect(JSON.parse(completeCalls()[0][1].body)).toEqual({ choreId: 'c1' })
+  expect(await screen.findByText('Done · awaiting check')).toBeTruthy()
+  await userEvent.click(screen.getByRole('button', { name: 'Chore list' }))
+  expect(screen.getByText('All clear!')).toBeTruthy()
+})

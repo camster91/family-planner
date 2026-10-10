@@ -118,6 +118,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
         {canDelete && <DeleteListButton listId={list.id} listName={list.name} />}
       </div>
 
+      {list.image_url && <div className="px-4 mb-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={list.image_url} alt={`${list.name} list image`} width={640} height={200} className="w-full max-h-48 object-contain rounded-xl bg-[var(--surface-fill)]" />
+      </div>}
+
       <ListDetailClient
         key={list.id}
         version={listVersion(list, items)}

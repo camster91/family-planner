@@ -282,3 +282,15 @@ it("an unexpected response ID cannot enable Save or Delete for another record", 
     error.mockRestore();
   }
 });
+
+it('editing duration preserves the original second-fold start and saves the requested elapsed length', async () => {
+ const start = '2026-11-01T06:30:45.123Z'
+ const patches = setup(start, '2026-11-01T06:45:55.456Z')
+ const user = userEvent.setup()
+ render(<EditEventPage />)
+ await screen.findByDisplayValue('Fixture appointment')
+ await user.selectOptions(screen.getByLabelText('Duration'), '60')
+ await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+ await waitFor(() => expect(patches).toHaveLength(1))
+ expect(patches[0]).toMatchObject({ start_time: start, end_time: '2026-11-01T07:30:45.123Z' })
+})

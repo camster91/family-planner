@@ -194,7 +194,8 @@ function throwIfTimedOut(err: unknown, signal: AbortSignal): void {
 async function callModel(
   config: CaptureConfig,
   userContent: Array<Record<string, unknown>>,
-  systemPrompt: string
+  systemPrompt: string,
+  assistantLimits = false
 ): Promise<unknown> {
   const { apiKey, baseUrl, model } = config
 
@@ -233,6 +234,7 @@ async function callModel(
           { role: 'user', content: userContent },
         ],
         temperature: 0,
+        ...(assistantLimits ? { max_tokens: 1300 } : {}),
         // Ask for JSON where the provider supports it; harmless where it does not.
         response_format: { type: 'json_object' },
       }),
@@ -252,7 +254,28 @@ async function callModel(
 
   let data: { choices?: Array<{ message?: { content?: string } }> }
   try {
-    data = (await res.json()) as typeof data
+    if (assistantLimits && res.body) {
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let bytes = 0
+      let body = ''
+      try {
+        while (true) {
+          const chunk = await reader.read()
+          if (chunk.done) break
+          bytes += chunk.value.byteLength
+          if (bytes > 64 * 1024) {
+            await reader.cancel()
+            throw new CaptureError('The AI answer was too large')
+          }
+          body += decoder.decode(chunk.value, { stream: true })
+        }
+        body += decoder.decode()
+        data = JSON.parse(body) as typeof data
+      } finally {
+        reader.releaseLock()
+      }
+    } else data = (await res.json()) as typeof data
   } catch (err) {
     throwIfTimedOut(err, signal)
     throw new CaptureError('The AI provider returned an unreadable answer')
@@ -365,4 +388,14 @@ export async function draftFromImage(
     confidence: d?.confidence === 'high' || d?.confidence === 'medium' ? d.confidence : 'low',
     note: d?.note || undefined,
   }
+}
+
+
+/** Structured chat planner; shares the vetted transport, never executes actions. */
+export async function structuredAssistantReply(
+  context: { messages: Array<{ role: string; content: string }>; localNow: string; timeZone: string },
+  config: CaptureConfig,
+  prompt: string
+): Promise<unknown> {
+  return callModel(config, [{ type: 'text', text: JSON.stringify(context) }], prompt, true)
 }

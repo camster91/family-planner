@@ -59,6 +59,11 @@ export interface Chore {
   assigned_to: string // user_id
   due_date: string
   status: ChoreStatus
+  recurrence_id?: string | null
+  /** Canonical template cadence for generated copies in the schedule overview. */
+  recurrence_frequency?: ChoreFrequency | null
+  recurrence_weekly_days?: number[]
+  weekly_days?: number[]
   frequency: ChoreFrequency
   difficulty: 'easy' | 'medium' | 'hard'
   photo_url?: string
@@ -133,7 +138,7 @@ export interface Notification {
 }
 
 // List types
-export type ListType = 'grocery' | 'todo' | 'meal_plan' | 'wishlist' | 'shopping'
+export type ListType = 'grocery' | 'todo' | 'meal_plan' | 'wishlist' | 'shopping' | 'custom'
 
 // List type
 export interface FamilyList {

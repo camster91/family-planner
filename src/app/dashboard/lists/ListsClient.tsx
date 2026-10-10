@@ -72,6 +72,14 @@ const TYPE_CONFIG: Record<ListTypeKey, TypeConfig> = {
     createFirstKey: "wishlistCreateFirst",
     color: "family",
   },
+  custom: {
+    nameKey: "customName",
+    showingKey: "customShowing",
+    headingKey: "customHeading",
+    emptyKey: "customEmpty",
+    createFirstKey: "customCreateFirst",
+    color: "lists",
+  },
   shopping: {
     nameKey: "shoppingName",
     showingKey: "shoppingShowing",
@@ -88,6 +96,7 @@ const ICONS: Record<string, LucideIcon> = {
   meal_plan: UtensilsCrossed,
   wishlist: Heart,
   shopping: ShoppingBag,
+  custom: List,
 };
 
 // -----------------------------------------------------------------------
@@ -95,6 +104,7 @@ const ICONS: Record<string, LucideIcon> = {
 // -----------------------------------------------------------------------
 
 interface ListSummary {
+  image_url?: string | null;
   id: string;
   name: string;
   type: string;
@@ -152,14 +162,14 @@ export default function ListsClient({
   // only while the household still has such lists, which keep opening as before.
   const hasMealPlanLists = lists.some((l) => l.type === "meal_plan");
   const mainTypes: ListTypeKey[] = hasMealPlanLists
-    ? ["grocery", "todo", "meal_plan", "wishlist"]
-    : ["grocery", "todo", "wishlist"];
+    ? ["grocery", "todo", "meal_plan", "wishlist", "custom"]
+    : ["grocery", "todo", "wishlist", "custom"];
 
   return (
     <div className="pb-20">
       <LargeHeader
         greeting={familyName}
-        title={text("title")}
+        title={text(typeFilter === "grocery" ? "groceryName" : "title")}
         trailing={
           canCreate ? (
             // Same filled primary "+" as Chores and Calendar.
@@ -250,11 +260,17 @@ export default function ListsClient({
                     title={list.name}
                     subtitle={list.creator.name}
                     trailing={
-                      list.total_count > 0 ? (
+                      <span className="flex items-center gap-2">
+                        {list.image_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={list.image_url} alt="" width={48} height={48} loading="lazy" className="h-12 w-12 rounded-lg object-cover" />
+                        )}
+                      {list.total_count > 0 ? (
                         <span className="text-footnote text-label-tertiary">
                           {list.checked_count}/{list.total_count}
                         </span>
-                      ) : undefined
+                      ) : null}
+                      </span>
                     }
                     last={i === shown.length - 1}
                   />

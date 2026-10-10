@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { watchNativeConnection } from '@/lib/native-app'
 
 /**
  * `navigator.onLine`, kept current by the `online` / `offline` events. Starts
@@ -15,7 +16,9 @@ export function useOnline(): boolean {
     const down = () => setOnline(false)
     window.addEventListener('online', up)
     window.addEventListener('offline', down)
+    const stopNative = watchNativeConnection(setOnline)
     return () => {
+      stopNative()
       window.removeEventListener('online', up)
       window.removeEventListener('offline', down)
     }

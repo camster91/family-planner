@@ -8,6 +8,7 @@ import { useTranslation } from '@/i18n'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
 import { isoToLocalDateTimeInput, localDateTimeToISO } from '@/lib/dates'
+import { canShareAppLink, shareAppLink } from '@/lib/native-app'
 
 // D2 (#102): the API returns every field to parents, everything except the
 // share token to teens, and only id/sitter_name/arrival_time/departure_time to
@@ -354,7 +355,7 @@ function ShareLinkDialog({
   const urlId = React.useId()
 
   React.useEffect(() => {
-    setCanNativeShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function')
+    setCanNativeShare(canShareAppLink())
   }, [])
 
   // A fresh start each time the dialog opens or a new link arrives.
@@ -383,8 +384,7 @@ function ShareLinkDialog({
 
   const nativeShare = () => {
     if (!url) return
-    navigator
-      .share({ title: `Handoff for ${handoff.sitter_name}`, url })
+    shareAppLink(`Handoff for ${handoff.sitter_name}`, url)
       // Dismissing the share sheet rejects; that is not an error.
       .catch(() => undefined)
   }

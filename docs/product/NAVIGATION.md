@@ -89,6 +89,17 @@ history too). Each can move to Undo when its page is reworked.
 
 ## Quiet colour
 
+### Calendar connections shortcut (local candidate, #456)
+
+The private Calendar source sidebar has a compact parent-only **Add connection**
+disclosure. Google/Outlook appears only when the existing server sync switch is
+enabled; calendar-link subscriptions remain available through their existing
+setup. Links go to Settings `#calendar-sync` or `#calendar-subscriptions`, whose
+native disclosures open and scroll into view after they mount. Opening the menu
+does not connect an account or enable a provider. Canonical Settings and API
+permissions still apply. This slice has focused and static rendered evidence;
+full authenticated navigation, provider acceptance and deployment remain gates.
+
 On the home and the navigation, colour marks a person or a state (done, needs a check, errors), not a
 category. The home has no coloured glyph tiles and no progress ring; Family and More use plain icons; role
 badges in Family and the user menu are neutral. Member colours on the board come with #262.

@@ -39,7 +39,7 @@ export function RoutineIconPicker({ value, onChange, idPrefix = 'chore-icon' }: 
         Picture
       </legend>
       <p className="text-footnote text-label-secondary mb-2" aria-live="polite">
-        {selectedLabel ? `Selected: ${selectedLabel}` : 'No picture selected. Young kids can follow a routine by its pictures.'}
+        {selectedLabel ? `Selected: ${selectedLabel}` : 'No picture selected. Pictures make steps easier to recognize at any age.'}
       </p>
       <div className="relative mb-3">
         <label htmlFor={searchId} className="sr-only">
@@ -171,7 +171,7 @@ export function RoutineFields({ routine, onRoutineChange, order, onOrderChange, 
         />
       </div>
       <p id={`${idPrefix}-routine-help`} className="col-span-2 -mt-1 text-footnote text-label-tertiary">
-        Chores in the same routine show on the kid home as picture cards, in step order.
+        Stack chores for any family member with the same routine name and numbered steps. View the stack under Chores → Routines.
       </p>
     </div>
   )

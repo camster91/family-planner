@@ -216,11 +216,19 @@ function eventFormInstant(value: string, original?: string | null): string | nul
  */
 export function eventFormRange(
   input: { startDate: string; startTime: string; endDate: string; endTime: string },
-  original?: { start: string; end: string | null }
+  original?: { start: string; end: string | null },
+  durationMinutes?: number
 ): { start: string; end: string } | null {
   if (!input.startDate) return null
   const start = eventFormInstant(`${input.startDate}T${input.startTime || '00:00'}`, original?.start)
   if (!start) return null
+  // Duration is elapsed time, so midnight and daylight-saving transitions
+  // cannot change the requested length. Preserve the original start instant.
+  if (durationMinutes !== undefined) {
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 525600) return null
+    const end = new Date(new Date(start).getTime() + durationMinutes * 60000)
+    return isNaN(end.getTime()) ? null : { start, end: end.toISOString() }
+  }
   let end: string | null = start
   if (input.endDate) end = eventFormInstant(`${input.endDate}T${input.endTime || '23:59'}`, original?.end)
   else if (input.endTime) end = eventFormInstant(`${input.startDate}T${input.endTime}`, original?.end)

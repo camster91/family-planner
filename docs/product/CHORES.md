@@ -127,3 +127,24 @@ DEFAULT '{}'` on the series template (empty = no rotation, the old behaviour; Pr
 and the empty default is a metadata-only change) and `rotation_index INTEGER NULL` on each row of a rotating series.
 Older app versions never read or write them and keep working; rolling the code back leaves them unused.
 
+
+
+## Weekly weekday choices (local candidate, #449)
+
+Create and edit forms now offer labelled weekday checkboxes when Weekly is selected. One or more days are required in the new form; old API clients omitting `weekly_days` retain seven-day repetition from their due date. Weekday numbers use the existing UTC date-only policy (Sunday 0 through Saturday 6). Weekly create/edit has no user-entered due-date field. New weekly chores calculate the first selected weekday on or after the viewer’s current calendar day; that occurrence date is passed internally through the existing API. Weekly edits omit due_date, preserving existing occurrence dates. One-time chores retain their date requirement. A Monday/Thursday series then produces Monday and Thursday occurrences, with a bounded four-week upcoming window and the existing series unique key, lazy top-up and rotation policy.
+
+`Chore.weekly_days` is an additive integer array defaulting to empty. The idempotent migration keeps existing rows unchanged. Changing weekdays on a series re-plans only pending future copies using the existing keep-row/history policy; a generated copy explicitly applies its schedule edit to the series. Non-weekly frequency changes clear the template choices. Permissions remain parent-only and household-scoped. Generated copies remain one-offs, with the schedule on their canonical template.
+
+This candidate is not deployed. Focused tests and a temporary-table PostgreSQL migration rehearsal are local evidence; compiled app/hosted/native/production acceptance remains separate.
+
+## Routines for everyone — local candidate (#450)
+
+The Chores page now has a Routines view for all roles using its existing authorized chore rows. Stacks are kept separate by member and due day, ordered by the existing routine step field, and show progress, check status and the next unfinished step. Focus on the next step is optional. Parents can edit a step or add the next step with routine/member/date prefilled; completion uses the existing API and undo. This extends the child picture view without replacing it. The builder, shared schedule, atomic reorder and pause/resume design is specified in [ROUTINE_STACKS.md](ROUTINE_STACKS.md), not yet implemented or released.
+
+## Compact repeating overview — local candidate (#451)
+
+Week and All show one collapsed schedule row per canonical recurring series when more than one open occurrence is in the selected range. The row shows cadence (Daily/Weekly/Monthly, selected weekdays when known), next open date, and the number of open dates in that range. A native details/summary disclosure expands to the existing per-occurrence rows/actions; it never completes or deletes the whole series. Today remains flat and actionable. One-off chores and different recurring series with the same title remain separate. Group identity includes household and recurrence ID, never title. Template schedule metadata is read with a household-scoped query because generated copies store frequency once. Missing templates use the honest Repeating fallback. Parent check queue, history paging and the date-specific routine view remain unchanged. No schema, migration or new API in this slice; rollback the grouping renderer and optional serialization metadata.
+
+## Short chore forms — local candidate (#453)
+
+New/Edit Chore now keep title, assignee and schedule visible. Wide layouts put essentials in two columns; narrow layouts stack them. Optional instructions, difficulty and enabled points live under Details (& points); pictures, routine and step under Pictures & routine; attachment under Photo. Native details/summary sections start closed and summarize selected values. Collapsing keeps the controls mounted and retains their state. Invalid optional inputs open their section so browser validation can reach them. Required fields never live in a collapsed section. Weekly weekday scheduling and local-day minimum dates remain in the essentials. This is the screen-shortening convention for affected forms: group by task, reveal optional complexity deliberately, retain summaries and recovery, and avoid forcing extra steps for a simple submission. Other routes are not claimed to have been rewritten.

@@ -54,6 +54,35 @@ beforeEach(() => {
         : { events: [event], hasMore: false, nextCursor: null },
   })) as jest.Mock;
 });
+it('offers direct setup shortcuts to parents without starting a provider request', async () => {
+  localized(<CalendarPlanner initialDate="2026-01-05" initialView="agenda" canEditEvents calendarSyncAvailable />, 'en');
+  await screen.findByRole('button', { name: /Fixture \{title\}/ });
+  const count = (fetch as jest.Mock).mock.calls.length;
+  fireEvent.click(screen.getByText('Add connection'));
+  expect(screen.getByRole('link', { name: 'Connect Google or Outlook' })).toHaveAttribute('href', '/dashboard/settings#calendar-sync');
+  expect(screen.getByRole('link', { name: 'Subscribe by calendar link' })).toHaveAttribute('href', '/dashboard/settings#calendar-subscriptions');
+  expect((fetch as jest.Mock).mock.calls).toHaveLength(count);
+});
+it('hides provider setup when sync is unavailable but keeps the subscription shortcut', async () => {
+  localized(<CalendarPlanner initialDate="2026-01-05" canEditEvents />, 'en');
+  await screen.findByRole('button', { name: /Fixture \{title\}/ });
+  fireEvent.click(screen.getByText('Add connection'));
+  expect(screen.queryByText('Connect Google or Outlook')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Subscribe by calendar link' })).toBeVisible();
+});
+it('keeps connections management hidden for a non-parent even if sync is configured', async () => {
+  localized(<CalendarPlanner initialDate="2026-01-05" calendarSyncAvailable />, 'en');
+  await screen.findByRole('button', { name: /Fixture \{title\}/ });
+  expect(screen.queryByText('Add connection')).not.toBeInTheDocument();
+  expect(screen.queryByText('Subscribe by calendar link')).not.toBeInTheDocument();
+});
+it('localizes the connections menu while preserving canonical setup URLs', async () => {
+  localized(<CalendarPlanner initialDate="2026-01-05" canEditEvents calendarSyncAvailable />);
+  await screen.findByRole('button', { name: /Fixture \{title\}/ });
+  fireEvent.click(screen.getByText('Añadir conexión'));
+  expect(screen.getByRole('link', { name: 'Conectar Google u Outlook' })).toHaveAttribute('href', '/dashboard/settings#calendar-sync');
+  expect(screen.getByRole('link', { name: 'Suscribirse con un enlace de calendario' })).toHaveAttribute('href', '/dashboard/settings#calendar-subscriptions');
+});
 it("translates real planner view/source controls while keeping private event and source text", async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" initialView="agenda" />);
   await screen.findByRole("button", { name: /Fixture \{title\}/ });

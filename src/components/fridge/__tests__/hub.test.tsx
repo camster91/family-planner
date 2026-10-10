@@ -78,7 +78,7 @@ afterEach(() => {
 describe('member colours (#262)', () => {
   it('gives the app schedule the full portrait row while retaining the four-column fridge fit', async () => {
     await renderBoard({ fridgeMode: false })
-    expect(boardGridClass(false, false)).toContain('"today_today"_"dinner_chores"_"groceries_chores"')
+    expect(boardGridClass(false, false)).toContain('"today_today"_"dinner_groceries"_"chores_chores"')
     expect(screen.getByTestId('region-today').className).toContain('md:[grid-area:today]')
     expect(boardGridClass(true, false)).toContain('lg:landscape:[&>*]:overflow-y-auto')
     expect(screen.getByTestId('today-board').className).toContain('[&_[data-testid=region-dinner]]:bg-accent-tint')
@@ -218,4 +218,16 @@ describe('"Use soon" slot (#263 extension point)', () => {
     expect(grid).toContain('"today_usesoon_chores_coming"')
     expect(grid).toContain('"usesoon_usesoon"')
   })
+})
+
+
+it('shows quick actions only on a signed-in app board', async () => {
+  const app = await renderBoard({ fridgeMode: false, viewer: { id: 'p', role: 'parent' } })
+  expect(screen.getByRole('navigation', { name: 'Today quick actions' })).toBeTruthy()
+  app.unmount()
+  const fridge = await renderBoard({ fridgeMode: true, viewer: { id: 'p', role: 'parent' } })
+  expect(screen.queryByRole('navigation', { name: 'Today quick actions' })).toBeNull()
+  fridge.unmount()
+  await renderBoard({ fridgeMode: false })
+  expect(screen.queryByRole('navigation', { name: 'Today quick actions' })).toBeNull()
 })

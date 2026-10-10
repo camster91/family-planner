@@ -10,6 +10,7 @@ import { isPseudolocaleEnabled } from '@/i18n/pseudo'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration'
 import { SiteOfflineBanner } from '@/components/ui/site-offline-banner'
+import { NativeAppLifecycle } from '@/components/providers/native-app-lifecycle'
 import './globals.css'
 
 // Approved Woven Grove fonts, vendored with SIL OFL licenses. Builds and
@@ -117,6 +118,7 @@ export default function RootLayout({
       </head>
       <body className="font-sans">
         <CsrfFetchPatch />
+        <NativeAppLifecycle />
         <ServiceWorkerRegistration />
         <SiteOfflineBanner />
         <ThemeProvider>

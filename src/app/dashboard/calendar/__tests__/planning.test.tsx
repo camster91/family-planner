@@ -151,3 +151,10 @@ it("loads a bounded week, discovers empty sources and opens teen details without
   });
   expect(screen.getByText("No events from this calendar")).toBeTruthy();
 });
+it('keeps the week grid available when there are no events', async () => {
+  global.fetch = jest.fn(async (url) => ({ ok: true, json: async () => String(url).includes('subscriptions') ? { subscriptions: [] } : { events: [], hasMore: false, nextCursor: null } })) as jest.Mock;
+  render(<CalendarPlanner initialDate="2026-01-05" initialView="week" />);
+  await screen.findByText('No events in this range');
+  expect(screen.getByLabelText('Timed calendar, all 24 hours')).toBeTruthy();
+  expect(screen.getByRole('heading', { name: /Mon/ }).textContent).toContain('5');
+});

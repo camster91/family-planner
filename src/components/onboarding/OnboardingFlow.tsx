@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Users, Plus, ArrowRight, CheckCircle, Sparkles, UserPlus } from 'lucide-react'
+import { Users, ArrowRight, CheckCircle, Sparkles, UserPlus } from 'lucide-react'
 import { PRODUCT_BRAND } from '@/lib/brand'
 
 interface OnboardingFlowProps {
@@ -11,13 +10,13 @@ interface OnboardingFlowProps {
 }
 
 export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
-  const router = useRouter()
   const [step, setStep] = useState(1)
   const [familyName, setFamilyName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   async function createFamily() {
+    if (loading) return
     if (!familyName.trim()) {
       setError('Please enter a family name')
       return
@@ -35,7 +34,7 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
         setError(data.error || 'Failed to create family')
         return
       }
-      router.refresh()
+      setStep(3)
     } catch (err) {
       setError('Network error')
     } finally {
@@ -84,12 +83,14 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
               <Users className="w-10 h-10 text-success-text" />
             </div>
             <h2 className="text-2xl font-bold text-foreground">Create Your Family</h2>
-            <p className="text-muted-foreground mt-2">What should we call your family group?</p>
+            <p className="text-muted-foreground mt-2">What should we call your family group? Next, we’ll add everyone.</p>
           </div>
 
           <div className="max-w-md mx-auto space-y-4">
             {error && <div className="bg-[var(--danger-tint)] text-danger-text p-3 rounded-lg text-sm">{error}</div>}
+            <label htmlFor="onboarding-family-name" className="block font-medium text-foreground">Family name</label>
             <input
+              id="onboarding-family-name"
               type="text"
               value={familyName}
               onChange={e => setFamilyName(e.target.value)}
@@ -120,25 +121,24 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
           <div className="w-20 h-20 bg-[var(--accent-tint)] rounded-2xl flex items-center justify-center mx-auto">
             <UserPlus className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">You&apos;re All Set!</h2>
+          <h2 className="text-2xl font-bold text-foreground">Add Everyone in Your Family</h2>
           <p className="text-muted-foreground max-w-md mx-auto">
-            Your family is created. Now invite members, create your first chore, or explore the dashboard.
+            Your family is created. Add the other parents, teens, and children who belong to your household. You can invite each person and choose their role.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
+            <Link
               href="/dashboard/family/invite"
               className="inline-flex items-center justify-center px-6 py-3 bg-accent-fill text-white rounded-xl font-semibold hover:bg-accent-fill-hover transition-colors"
             >
               <UserPlus className="w-5 h-5 mr-2" />
-              Invite Family
-            </a>
-            <a
-              href="/dashboard/chores/create"
+              Add Family Members
+            </Link>
+            <Link
+              href="/dashboard"
               className="inline-flex items-center justify-center px-6 py-3 bg-[var(--accent-tint)] text-primary rounded-xl font-semibold hover:bg-[var(--accent-tint-strong)] transition-colors"
             >
-              <Plus className="w-5 h-5 mr-2" />
-              First Chore
-            </a>
+              Finish Later
+            </Link>
           </div>
         </div>
       )}

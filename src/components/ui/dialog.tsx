@@ -28,10 +28,12 @@ export function Dialog({
   initialFocusRef,
   role = "dialog",
   closeLabel = "Close",
+  variant = "default",
 }: {
   open: boolean;
   /** Localized accessible label; defaults to the existing English label. */
   closeLabel?: string;
+  variant?: "default" | "form";
   /** Omit to make the dialog non-dismissible (no close button, no Escape). */
   onClose?: () => void;
   title: string;
@@ -152,10 +154,11 @@ export function Dialog({
         className={cn(
           "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
           "motion-safe:animate-spring-in",
+          variant === "form" && "flex max-h-[92dvh] flex-col overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-xl",
           className,
         )}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className={variant === "form" ? "flex shrink-0 items-start justify-between gap-4 border-b border-[var(--separator)] p-5" : "mb-4 flex items-start justify-between gap-4"}>
           <div className="min-w-0">
             <h2
               id={titleId}
@@ -183,7 +186,9 @@ export function Dialog({
             </button>
           )}
         </div>
-        {children}
+        {variant === "form" ? (
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">{children}</div>
+        ) : children}
       </div>
     </div>
   );

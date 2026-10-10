@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Connect to Herewoven</title>
+  <style>
+    :root { color-scheme:light dark; --bg:#f7f4ec; --card:#fffdf9; --text:#245b50; --muted:#425c55; --accent:#245b50; --on-accent:#fffdf9; }
+    @media(prefers-color-scheme:dark) { :root { --bg:#11211e; --card:#182d2a; --text:#f5eedf; --muted:#d5ccbb; --accent:#397d6e; } }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; min-height:100dvh; display:grid; place-items:center; background:var(--bg); color:var(--text); font:1rem/1.5 system-ui,sans-serif; padding:calc(24px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left)); }
+    main { width:100%; max-width:480px; border-radius:28px; padding:clamp(24px,6vw,40px); background:var(--card); }
+    .brand { font-weight:700; letter-spacing:.02em; margin:0 0 24px; }
+    h1 { font-family:Georgia,serif; font-size:clamp(1.8rem,6vw,2.4rem); line-height:1.15; margin:0 0 16px; }
+    p { margin:0 0 20px; color:var(--muted); }
+    nav { display:grid; gap:12px; margin:28px 0 20px; }
+    a { display:flex; align-items:center; justify-content:center; min-height:52px; padding:12px 16px; border-radius:16px; background:var(--accent); color:var(--on-accent); font-weight:650; text-decoration:none; text-align:center; }
+    a.secondary { background:transparent; color:var(--text); border:1px solid currentColor; }
+    a:focus-visible { outline:3px solid var(--text); outline-offset:4px; }
+    .note { font-size:.875rem; margin:0; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="brand">Herewoven</p>
+    <h1>Let's get connected.</h1>
+    <p>We can't reach Herewoven right now. Check your Wi-Fi or mobile connection, then try again.</p>
+    <nav aria-label="Reconnect">
+      <a href="https://family.ashbi.ca/">Open my app</a>
+      <a class="secondary" href="https://family.ashbi.ca/device/today">Open shared tablet</a>
+    </nav>
+    <p class="note">Your family information stays hidden here. Reconnecting checks your existing sign-in or tablet pairing. This screen doesn't save changes.</p>
+  </main>
+</body>
+</html>

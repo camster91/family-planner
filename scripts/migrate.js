@@ -147,6 +147,7 @@ ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine" TEXT;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_order" INTEGER;
 -- Take turns (O-39): additive. Empty list = no rotation (today's behaviour);
 -- a constant default is a metadata-only change, so this is cheap on a big table.
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "weekly_days" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "rotation_member_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "rotation_index" INTEGER;
 
@@ -296,6 +297,8 @@ CREATE TABLE IF NOT EXISTS "List" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE "List" ADD COLUMN IF NOT EXISTS "image_url" TEXT;
+ALTER TABLE "Notification" ADD COLUMN IF NOT EXISTS "snoozed_until" TIMESTAMP(3);
 ALTER TABLE "List" ADD COLUMN IF NOT EXISTS "is_repeatable" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "List" ADD COLUMN IF NOT EXISTS "last_purchased_at" TIMESTAMP(3);
 

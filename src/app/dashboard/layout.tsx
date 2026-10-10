@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+import AssistantHost from '@/components/assistant/AssistantHost'
 import { ReactNode } from 'react'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { headers } from 'next/headers'
@@ -19,8 +21,10 @@ function toUserRole(role: string | null | undefined): UserRole {
 
 export default async function DashboardLayout({
   children,
+  forms,
 }: {
   children: ReactNode
+  forms?: ReactNode
 }) {
   const sessionUser = (await getServerUser()) as {
     id: string
@@ -48,7 +52,7 @@ export default async function DashboardLayout({
   // /dashboard/today?mode=fridge on a tablet signed in as a person.
   const profile = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { id: true, name: true, role: true, avatar_url: true },
+    select: { id: true, name: true, role: true, avatar_url: true, family_id: true },
   })
   const role = profile?.role || sessionUser.role || 'parent'
 
@@ -101,6 +105,7 @@ export default async function DashboardLayout({
       />
 
       <FeaturesProvider initial={initialFeatures} canManage={role === 'parent'}>
+        <div data-dashboard-background>
         {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
         <a
           href="#main-content"
@@ -115,12 +120,12 @@ export default async function DashboardLayout({
         {/* Main content — padded for top bar height + TabBar safe area on mobile */}
         <main
           id="main-content"
-          className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
+          className="pt-16 pb-[calc(max(5rem,var(--phone-tab-bar-height,0px))+4rem)] md:pb-28"
           aria-label={`${PRODUCT_BRAND.name} dashboard`}
         >
           {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
           <OfflineBanner className="top-16" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 md:py-6">
+          <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
             <ErrorBoundary>
               {children}
             </ErrorBoundary>
@@ -132,6 +137,9 @@ export default async function DashboardLayout({
 
         {/* Cmd+K global search palette */}
         <CommandPaletteHost role={role} />
+        </div>
+        {navUser && <Suspense fallback={null}><AssistantHost key={`${profile?.id}:${profile?.family_id}`} role={role} /></Suspense>}
+        {forms}
       </FeaturesProvider>
     </div>
   )

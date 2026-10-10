@@ -555,6 +555,7 @@ async function recordMemberLeft(tx: any, user: { id: string; role: string }, fam
 
 /** Rows that belong to the person alone (any household). */
 async function deletePersonalRows(tx: any, userId: string): Promise<void> {
+  await tx.appFeedback.deleteMany({ where: { user_id: userId } })
   await tx.notification.deleteMany({ where: { user_id: userId } })
   await tx.pushSubscription.deleteMany({ where: { user_id: userId } })
   await tx.activity.deleteMany({ where: { user_id: userId } })
@@ -596,6 +597,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'calendarOAuthState', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'OAuth states' },
   { model: 'idempotencyRecord', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'stored responses' },
   { model: 'pushSubscription', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'push endpoints' },
+  { model: 'appFeedback', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'private feedback reports' },
   { model: 'handoff', scope: { kind: 'family' }, why: 'sitter share links' },
   // 3. Calendar integrations (connections already cleared one by one above; listed so none is missed).
   { model: 'calendarEventLink', scope: { kind: 'family' }, why: 'provider event links' },

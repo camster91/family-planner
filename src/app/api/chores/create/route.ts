@@ -1,3 +1,4 @@
+import { nextSelectedWeekday } from '@/lib/chore-weekdays'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -43,7 +44,8 @@ export async function POST(request: NextRequest) {
     const assigned_to = rotation ? rotation[0] : parsed.data.assigned_to!
 
     // due_date is a date-only value: store the UTC calendar day at midnight.
-    const dueDate = normalizeDateOnlyInput(due_date)
+    const startDate = normalizeDateOnlyInput(due_date)
+    const dueDate = startDate && frequency === 'weekly' && parsed.data.weekly_days ? nextSelectedWeekday(startDate, parsed.data.weekly_days, true) : startDate
     if (!dueDate) {
       return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
     }
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
           due_date: dueDate,
           difficulty,
           frequency,
+          weekly_days: parsed.data.weekly_days ?? [],
           status: 'pending',
           created_by: auth.user.id,
           photo_url: photo.value ?? null,

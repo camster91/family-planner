@@ -1,5 +1,6 @@
 .planner {
-  padding: 24px 16px 32px;
+  --calendar-line: color-mix(in srgb, var(--label-primary) 12%, transparent);
+  padding: 8px 0 24px;
   color: var(--label-primary);
   min-width: 0;
 }
@@ -10,7 +11,7 @@
   overflow-wrap: anywhere;
 }
 .planner h1 {
-  font-size: 32px;
+  font-size: clamp(24px, 2vw, 32px);
   line-height: 1.2;
 }
 .planner h2 {
@@ -19,9 +20,9 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 .header > div {
   flex: 1;
@@ -35,6 +36,9 @@
 .views {
   display: flex;
   gap: 4px;
+  padding: 3px;
+  border-radius: 14px;
+  background: var(--surface-fill);
 }
 .planner button,
 .planner select {
@@ -64,10 +68,15 @@
   background: var(--accent-fill);
   color: var(--on-accent);
 }
+.views button[aria-pressed="true"] {
+  background: var(--surface-elevated);
+  color: var(--label-primary);
+  box-shadow: var(--shadow-sm);
+}
 .layout {
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  gap: 32px;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 24px;
 }
 .sources {
   font-size: 13px;
@@ -87,21 +96,64 @@
 .sourceButtons {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
   margin-bottom: 16px;
 }
 .sourceButtons button {
   text-align: left;
+  border-color: transparent;
+  background: transparent;
+  color: var(--label-secondary);
+}
+.sourceButtons button[aria-pressed="true"] {
+  background: var(--surface-fill);
+  color: var(--label-primary);
 }
 .sources p {
   margin: 12px 0;
+}
+.connectionMenu {
+  margin: 12px 0;
+  border: 1px solid var(--surface-separator-opaque);
+  border-radius: 12px;
+  background: var(--surface-elevated);
+  color: var(--label-primary);
+}
+.connectionMenu summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.connectionMenu summary::-webkit-details-marker { display: none; }
+.connectionMenu summary::before { content: "+"; font-size: 18px; }
+.connectionMenu[open] summary::before { content: "−"; }
+.connectionMenu a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+  border-top: 1px solid var(--surface-separator-opaque);
+}
+.connectionMenu a:hover { background: var(--surface-fill); }
+.connectionMenu summary:focus-visible,
+.connectionMenu a:focus-visible {
+  outline: 3px solid var(--accent-text);
+  outline-offset: 3px;
+  border-radius: 12px;
 }
 .controls {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 .controls nav {
   display: flex;
@@ -125,6 +177,9 @@
   margin: 12px 0;
   color: var(--label-secondary);
 }
+.emptyNotice { padding: 8px 0 12px; color: var(--label-secondary); }
+.planner .emptyNotice h2 { font-size: 14px; font-family: inherit; font-weight: 500; }
+.emptyNotice p { font-size: 12px; margin: 4px 0; }
 .agenda {
   display: flex;
   flex-direction: column;
@@ -136,7 +191,9 @@
 .planner .event {
   text-align: left;
   color: var(--label-primary);
-  background: var(--surface-grouped);
+  background: color-mix(in srgb, var(--accent-fill) 18%, var(--surface-elevated));
+  border: 1px solid var(--calendar-line);
+  border-left: 3px solid var(--accent-text);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -146,6 +203,8 @@
   white-space: normal;
   border-radius: 8px;
 }
+.planner .event[data-calendar-kind="connected"] { border-left-color: var(--label-primary); }
+.planner .event[data-calendar-kind="subscribed"] { border-left-style: dashed; }
 .event strong {
   font-weight: 600;
 }
@@ -164,10 +223,10 @@
 }
 .gridScroll {
   overflow: auto;
-  max-height: 620px;
-  border-radius: 16px;
+  max-height: clamp(320px, calc(100dvh - 330px), 900px);
+  border-radius: 14px;
   background: var(--surface-elevated);
-  border: 1px solid var(--surface-separator-opaque);
+  border: 1px solid var(--calendar-line);
 }
 .grid {
   display: grid;
@@ -178,20 +237,27 @@
 }
 .hours {
   display: grid;
-  grid-template-rows: 44px repeat(24, 64px);
+  grid-template-rows: 64px repeat(24, 64px);
   font-size: 11px;
   color: var(--label-secondary);
 }
 .hours span {
-  padding: 8px 4px;
+  padding: 8px 6px;
+  text-align: right;
 }
+.hours span:first-child { position: sticky; top: 0; z-index: 2; background: var(--surface-elevated); }
 .dayColumn {
   min-width: 0;
-  border-left: 1px solid var(--surface-separator-opaque);
+  border-left: 1px solid var(--calendar-line);
 }
 .dayColumn > h2 {
-  height: 44px;
-  padding: 12px 6px;
+  height: 64px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   font-family: inherit;
   font-size: 13px;
   position: sticky;
@@ -199,6 +265,9 @@
   background: var(--surface-elevated);
   z-index: 1;
 }
+.weekday { font-size: 11px; color: var(--label-secondary); font-weight: 500; }
+.dayNumber { display: flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; font-size: 20px; font-weight: 600; }
+.dayColumn > h2[aria-current="date"] .dayNumber { border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
 .dayGrid {
   display: grid;
   grid-template-rows: repeat(48, 32px);
@@ -207,8 +276,8 @@
     to bottom,
     transparent 0,
     transparent 63px,
-    var(--surface-separator-opaque) 63px,
-    var(--surface-separator-opaque) 64px
+    var(--calendar-line) 63px,
+    var(--calendar-line) 64px
   );
   gap: 0 4px;
 }
@@ -223,10 +292,10 @@
   display: flex;
   align-items: stretch;
   justify-content: flex-start;
-  padding: 4px;
+  padding: 6px;
   overflow: clip;
-  font-size: 12px;
-  line-height: 14px;
+  font-size: 13px;
+  line-height: 17px;
 }
 .eventContent {
   display: flex;
@@ -235,11 +304,31 @@
 }
 .gridScroll .eventContent {
   position: sticky;
-  top: 44px;
+  top: 64px;
 }
+.eventContent strong { order: -1; }
 .gridScroll .eventContent > * {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gridScroll .eventContent strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 15px;
+  max-height: 30px;
+}
+.gridScroll .eventContent > span { font-size: 11px; }
+/* Source text remains in the accessible event label and full details. */
+.gridScroll .eventContent small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
 .note {

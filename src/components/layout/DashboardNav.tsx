@@ -119,7 +119,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         aria-label={msg("mainNavigation")}
         className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
-        <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center gap-2 lg:gap-6">
+        <div className="w-full h-full px-4 lg:px-8 flex items-center gap-2 lg:gap-6">
           {/* Logo + name */}
           {/* Keep the home name accessible even where the wordmark is hidden to leave room for actions. */}
           <Link

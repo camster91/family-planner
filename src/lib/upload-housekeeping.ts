@@ -9,6 +9,7 @@
 // nothing. References are:
 //   * Chore.photo_url and ChoreAssignment.photo_url, in any accepted spelling
 //     (`/api/files/chores/<f>`, legacy `/api/files/<f>`, bare `<f>`);
+//   * List.image_url (private list covers);
 //   * Family.ambient_photo_ids (Upload ids picked for the fridge board).
 // An upload is only ever attachable by its own household (chore-photos.ts), so
 // only this household's rows are consulted. Cleanup never fails the upload.
@@ -57,6 +58,7 @@ const MAX_REFERENCED_FOR_CLEANUP = 10_000
 type Db = {
   upload: any
   chore: any
+  list: any
   choreAssignment: any
   family: any
   $transaction: (fn: (tx: any) => Promise<any>) => Promise<any>
@@ -93,17 +95,18 @@ export async function pruneUnreferencedUploads(db: Db, familyId: string, options
     const now = options.now ?? Date.now()
     const cutoff = new Date(now - STALE_UPLOAD_AGE_MS)
 
-    const [chores, assignments, family] = await Promise.all([
+    const [chores, assignments, lists, family] = await Promise.all([
       db.chore.findMany({ where: { family_id: familyId, photo_url: { not: null } }, select: { photo_url: true } }),
       db.choreAssignment.findMany({
         where: { family_id: familyId, photo_url: { not: null } },
         select: { photo_url: true },
       }),
+      db.list.findMany({ where: { family_id: familyId, image_url: { not: null } }, select: { image_url: true } }),
       db.family.findUnique({ where: { id: familyId }, select: { ambient_photo_ids: true } }),
     ])
 
     const referenced = new Set<string>()
-    for (const row of [...chores, ...assignments] as Array<{ photo_url: string | null }>) {
+    for (const row of [...chores, ...assignments, ...lists.map((l: {image_url: string | null}) => ({photo_url: l.image_url}))] as Array<{ photo_url: string | null }>) {
       const name = row.photo_url ? referencedFilename(row.photo_url) : null
       if (name) referenced.add(name)
     }
@@ -133,16 +136,17 @@ export async function pruneUnreferencedUploads(db: Db, familyId: string, options
 
       // Re-read every reference to the candidates under the locks.
       const spellings = stale.flatMap(({ filename }) => [chorePhotoPath(filename), `/api/files/${filename}`, filename])
-      const [choreRefs, assignmentRefs, lockedFamily] = await Promise.all([
+      const [choreRefs, assignmentRefs, listRefs, lockedFamily] = await Promise.all([
         tx.chore.findMany({ where: { family_id: familyId, photo_url: { in: spellings } }, select: { photo_url: true } }),
         tx.choreAssignment.findMany({
           where: { family_id: familyId, photo_url: { in: spellings } },
           select: { photo_url: true },
         }),
+        tx.list.findMany({ where: { family_id: familyId, image_url: { in: spellings } }, select: { image_url: true } }),
         tx.family.findUnique({ where: { id: familyId }, select: { ambient_photo_ids: true } }),
       ])
       const nowReferenced = new Set<string>()
-      for (const row of [...choreRefs, ...assignmentRefs] as Array<{ photo_url: string | null }>) {
+      for (const row of [...choreRefs, ...assignmentRefs, ...listRefs.map((l: {image_url: string | null}) => ({photo_url: l.image_url}))] as Array<{ photo_url: string | null }>) {
         const name = row.photo_url ? referencedFilename(row.photo_url) : null
         if (name) nowReferenced.add(name)
       }

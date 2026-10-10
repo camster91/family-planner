@@ -3,7 +3,7 @@
  * old `/dashboard/lists/type/[type]` pages redirect to it.
  */
 
-export const LIST_TYPE_KEYS = ['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping'] as const
+export const LIST_TYPE_KEYS = ['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping', 'custom'] as const
 
 export type ListTypeKey = (typeof LIST_TYPE_KEYS)[number]
 

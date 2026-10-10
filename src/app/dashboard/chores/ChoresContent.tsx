@@ -4,6 +4,8 @@ import * as React from "react";
 import { Plus, CheckSquare, ChevronDown, Flame } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { RecurringChoreRows } from "@/components/chores/RecurringChoreRows";
+import { RoutineStacks } from "@/components/chores/RoutineStacks";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { ListRow } from "@/components/ui/list-row";
@@ -150,6 +152,7 @@ export default function ChoresContent({
   userRole,
   historyCursor = null,
 }: ChoresContentProps) {
+  const [view, setView] = React.useState<"chores" | "routines">("chores");
   const [filter, setFilter] = React.useState<FilterMode>("today");
   const [localChores, setLocalChores] = React.useState(chores);
   const [doneCollapsed, setDoneCollapsed] = React.useState(true);
@@ -412,6 +415,7 @@ export default function ChoresContent({
             c.id === choreId
               ? {
                   ...c,
+                  assigned_to: assigneeId,
                   assignee:
                     familyMembers.find((m) => m.id === assigneeId) ??
                     c.assignee,
@@ -485,6 +489,92 @@ export default function ChoresContent({
     .filter((c) => c.status === "completed" || c.status === "verified")
     .sort((a, b) => compareChoreOrder(b, a));
 
+  const renderOpenChore = (chore: (typeof todayChores)[number], i: number) =>
+    now && (
+      // A visible "⋯" opens the actions (they used to be long-press
+      // only), and only the check itself completes the chore, so a
+      // parent tapping the name to edit it doesn't tick it off.
+      <LongPressRow
+        key={chore.id}
+        itemName={`“${chore.title}”`}
+        showMenuButton
+        actions={[
+          {
+            label: "Snooze a day",
+            onClick: () => handleSnoozeChore(chore.id, chore.due_date),
+          },
+          {
+            label: "Edit",
+            onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
+          },
+          {
+            label: "Reassign",
+            // The action sheet hands focus back to its trigger on a
+            // 0 ms timer; open the dialog after that, so the dialog
+            // takes focus (and returns it to the trigger on close).
+            onClick: () =>
+              window.setTimeout(() => setReassignTarget(chore.id), 0),
+          },
+          {
+            label: "Mark complete",
+            onClick: () => handleCompleteChore(chore.id),
+          },
+          {
+            label: "Delete",
+            onClick: () => handleDeleteChore(chore.id),
+            destructive: true,
+          },
+        ]}
+      >
+        <CheckboxRow
+          checked={false}
+          toggleArea="control"
+          onChange={() => handleCompleteChore(chore.id)}
+          title={chore.title}
+          subtitle={[
+            chore.assignee?.name,
+            formatRelativeDueDate(chore.due_date, now, displayLocale),
+            routineLabel(chore),
+            chore.rotation_next_name
+              ? `Takes turns · next: ${chore.rotation_next_name}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          glyph={
+            <Glyph color="chore" size="sm">
+              {chore.icon ? (
+                <RoutineIcon icon={chore.icon} className="w-4 h-4 text-white" />
+              ) : (
+                <CheckSquare className="w-4 h-4 text-white" />
+              )}
+            </Glyph>
+          }
+          meta={
+            gamification && (chore.points > 0 || (chore.streak ?? 0) >= 3) ? (
+              <span className="flex items-center gap-1">
+                {chore.points > 0 && (
+                  <span className="text-footnote text-label-tertiary">
+                    +{chore.points}
+                  </span>
+                )}
+                {(chore.streak ?? 0) >= 3 && (
+                  <span
+                    className="flex items-center text-warning-text"
+                    title={`${chore.streak} day streak`}
+                  >
+                    <Flame className="w-3 h-3 fill-brand-mustard" />
+                    <span className="text-footnote">{chore.streak}</span>
+                  </span>
+                )}
+              </span>
+            ) : undefined
+          }
+          className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
+        />
+      </LongPressRow>
+    );
+
   const SegmentedControl = ({
     value,
     onChange,
@@ -539,6 +629,24 @@ export default function ChoresContent({
 
       <div className="px-4 mb-4">
         <SegmentedControl value={filter} onChange={setFilter} />
+        <div role="group" aria-label="Chore view" className="flex gap-2 mt-3">
+          {(["chores", "routines"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={view === option}
+              onClick={() => setView(option)}
+              className={cn(
+                "min-h-[44px] px-4 rounded-lg text-body",
+                view === option
+                  ? "bg-[var(--accent-tint)] text-[var(--accent)]"
+                  : "text-label-secondary",
+              )}
+            >
+              {option === "chores" ? "Chore list" : "Routines"}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-6 px-4">
@@ -622,105 +730,28 @@ export default function ChoresContent({
           >
             <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
           </section>
+        ) : view === "routines" ? (
+          <RoutineStacks
+            chores={filtered}
+            userRole={userRole}
+            currentUserId={currentUserId}
+            locale={displayLocale}
+            onComplete={handleCompleteChore}
+          />
         ) : todayChores.length > 0 ? (
           <section>
             <p className="section-header">{OPEN_HEADING[filter]}</p>
             <div className="list-inset stagger">
-              {todayChores.map((chore, i) => (
-                // A visible "⋯" opens the actions (they used to be long-press
-                // only), and only the check itself completes the chore, so a
-                // parent tapping the name to edit it doesn't tick it off.
-                <LongPressRow
-                  key={chore.id}
-                  itemName={`“${chore.title}”`}
-                  showMenuButton
-                  actions={[
-                    {
-                      label: "Snooze a day",
-                      onClick: () =>
-                        handleSnoozeChore(chore.id, chore.due_date),
-                    },
-                    {
-                      label: "Edit",
-                      onClick: () =>
-                        router.push(`/dashboard/chores/edit?id=${chore.id}`),
-                    },
-                    {
-                      label: "Reassign",
-                      // The action sheet hands focus back to its trigger on a
-                      // 0 ms timer; open the dialog after that, so the dialog
-                      // takes focus (and returns it to the trigger on close).
-                      onClick: () =>
-                        window.setTimeout(() => setReassignTarget(chore.id), 0),
-                    },
-                    {
-                      label: "Mark complete",
-                      onClick: () => handleCompleteChore(chore.id),
-                    },
-                    {
-                      label: "Delete",
-                      onClick: () => handleDeleteChore(chore.id),
-                      destructive: true,
-                    },
-                  ]}
-                >
-                  <CheckboxRow
-                    checked={false}
-                    toggleArea="control"
-                    onChange={() => handleCompleteChore(chore.id)}
-                    title={chore.title}
-                    subtitle={[
-                      chore.assignee?.name,
-                      formatRelativeDueDate(chore.due_date, now, displayLocale),
-                      routineLabel(chore),
-                      chore.rotation_next_name
-                        ? `Takes turns · next: ${chore.rotation_next_name}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    glyph={
-                      <Glyph color="chore" size="sm">
-                        {chore.icon ? (
-                          <RoutineIcon
-                            icon={chore.icon}
-                            className="w-4 h-4 text-white"
-                          />
-                        ) : (
-                          <CheckSquare className="w-4 h-4 text-white" />
-                        )}
-                      </Glyph>
-                    }
-                    meta={
-                      gamification &&
-                      (chore.points > 0 || (chore.streak ?? 0) >= 3) ? (
-                        <span className="flex items-center gap-1">
-                          {chore.points > 0 && (
-                            <span className="text-footnote text-label-tertiary">
-                              +{chore.points}
-                            </span>
-                          )}
-                          {(chore.streak ?? 0) >= 3 && (
-                            <span
-                              className="flex items-center text-warning-text"
-                              title={`${chore.streak} day streak`}
-                            >
-                              <Flame className="w-3 h-3 fill-brand-mustard" />
-                              <span className="text-footnote">
-                                {chore.streak}
-                              </span>
-                            </span>
-                          )}
-                        </span>
-                      ) : undefined
-                    }
-                    className={cn(
-                      "pr-3",
-                      i === todayChores.length - 1 && "border-b-0",
-                    )}
-                  />
-                </LongPressRow>
-              ))}
+              {filter === "today" ? (
+                todayChores.map(renderOpenChore)
+              ) : (
+                <RecurringChoreRows
+                  chores={todayChores}
+                  now={now}
+                  locale={displayLocale}
+                  renderRow={renderOpenChore}
+                />
+              )}
             </div>
           </section>
         ) : (
@@ -737,7 +768,7 @@ export default function ChoresContent({
           />
         )}
 
-        {doneChores.length > 0 && (
+        {view === "chores" && doneChores.length > 0 && (
           <section>
             <button
               type="button"

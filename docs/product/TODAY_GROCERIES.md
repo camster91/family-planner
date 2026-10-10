@@ -1,0 +1,5 @@
+# Today grocery navigation (#461)
+
+Groceries is a quick summary of unchecked grocery items, not every list or general shopping. Its heading and overflow open /dashboard/lists/groceries, which reads only the signed-in user current household grocery lists. Exactly one list opens directly. Zero or multiple opens the grocery-filtered overview; creation is an explicit existing action, never a side effect of navigation. The grocery filter is now labelled Groceries/Grocery Lists (Alimentos/Listas de alimentos); general Shopping remains separate.
+
+All shared lists is a distinct link below the card, identifying to-dos, wishlists and custom lists. Shared-device links remain null and no navigation is added for that audience. Device grocery-list options are grocery-only to match displayed content. The generic getOpenShoppingItems default still includes grocery and shopping for other consumers; Today explicitly requests grocery only. Canonical tick/undo, ownership checks and list detail permissions unchanged. No schema/data migration.

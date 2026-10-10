@@ -127,17 +127,21 @@ export default async function ChoresPage() {
   const seriesIds = [
     ...new Set(
       chores
-        .filter((c) => c.recurrence_id && c.rotation_index !== null && !['completed', 'verified', 'approved'].includes(c.status))
+        .filter((c) => c.recurrence_id && !['completed', 'verified', 'approved'].includes(c.status))
         .map((c) => c.recurrence_id as string)
     ),
   ]
+  const schedules = new Map<string, { frequency: string; weekly_days: number[] }>()
   const rotations = new Map<string, string[]>()
   if (familyId && seriesIds.length > 0) {
     const templates = await prisma!.chore.findMany({
-      where: { family_id: familyId, id: { in: seriesIds } },
-      select: { id: true, rotation_member_ids: true },
+      where: { family_id: familyId, id: { in: seriesIds }, is_template: true },
+      select: { id: true, rotation_member_ids: true, frequency: true, weekly_days: true },
     })
-    for (const t of templates) rotations.set(t.id, t.rotation_member_ids)
+    for (const t of templates) {
+      rotations.set(t.id, t.rotation_member_ids)
+      schedules.set(t.id, { frequency: t.frequency, weekly_days: t.weekly_days })
+    }
   }
   const memberNames = new Map(familyMembers.map((m) => [m.id, m.name]))
   const rotationNextName = (c: (typeof chores)[number]): string | null => {
@@ -156,6 +160,8 @@ export default async function ChoresPage() {
       photo_url: c.photo_url ?? null,
       streak: streakMap[c.assigned_to] ?? 0,
       rotation_next_name: rotationNextName(c),
+      recurrence_frequency: c.recurrence_id ? schedules.get(c.recurrence_id)?.frequency ?? null : null,
+      recurrence_weekly_days: c.recurrence_id ? schedules.get(c.recurrence_id)?.weekly_days ?? [] : [],
     }
     return gamification ? row : omitChorePoints(row)
   })
