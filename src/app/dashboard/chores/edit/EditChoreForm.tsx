@@ -1,6 +1,7 @@
 "use client";
 import { ChoreFormSection } from "@/components/chores/ChoreFormSection";
 import { routineIconLabel } from "@/lib/routine-icons";
+import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
 import { useState, useEffect, useRef, useId } from "react";
@@ -367,6 +368,8 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
             </div>
           )}
         </div>
+
+        {frequency === "monthly" && <MonthlyScheduleHint />}
 
         {frequency === "weekly" && (
           <WeeklyDaysPicker
