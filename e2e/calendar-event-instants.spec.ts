@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, browserFetch, browserSend } from "./support/test";
-import { authFile } from "./support/env";
+import { E2E_ANCHOR, authFile } from "./support/env";
 import { FIXTURE_EMAILS, FIXTURE_ID_PREFIX } from "../src/lib/fixtures/dataset";
 import type { Page, TestInfo } from "@playwright/test";
 
@@ -368,3 +368,83 @@ for (const locale of ["en", "es"] as const) {
     }
   });
 }
+
+test("intercepted event sheets update the mounted Calendar after create, edit and delete", async ({
+  page,
+}, info) => {
+  await page.evaluate(() =>
+    localStorage.setItem("familyPlanner_language", "en"),
+  );
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(E2E_ANCHOR);
+  const part = (type: string) => parts.find((p) => p.type === type)!.value;
+  const date = `${part("year")}-${part("month")}-${part("day")}`;
+  const title = `Synthetic sheet refresh ${info.project.name}`;
+  let eventId: string | undefined;
+  try {
+    await page.goto("/dashboard/calendar");
+    await expect(page.getByText("Updated just now")).toBeVisible();
+    await page.getByRole("link", { name: "Add event", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "New Event" })).toBeVisible();
+    await page.getByLabel("Title", { exact: true }).fill(title);
+    await page.locator("#startDate").fill(date);
+    await page.locator("#startTime").fill("12:00");
+    const created = page.waitForResponse(
+      (res) =>
+        new URL(res.url()).pathname === "/api/events" &&
+        res.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: "Create Event", exact: true })
+      .click();
+    const response = await created;
+    expect(response.status()).toBe(200);
+    eventId = (await response.json()).event.id;
+    await expect(
+      page.getByRole("button", { name: new RegExp(title) }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: new RegExp(title) }).click();
+    await page.getByRole("link", { name: "Edit event", exact: true }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Edit Event" }),
+    ).toBeVisible();
+    await page.getByLabel("Title", { exact: true }).fill(`${title} updated`);
+    await page
+      .getByRole("button", { name: "Save Changes", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`${title} updated`) }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: new RegExp(`${title} updated`) })
+      .click();
+    await page.getByRole("link", { name: "Edit event", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Delete event", exact: true })
+      .click();
+    await page
+      .getByRole("dialog", { name: "Delete this event?" })
+      .getByRole("button", { name: "Delete", exact: true })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Edit Event" })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole("button", { name: new RegExp(title) }),
+    ).toHaveCount(0);
+    eventId = undefined;
+    await page.screenshot({
+      path: info.outputPath("calendar-sheet-mutation-refresh.png"),
+      fullPage: true,
+    });
+  } finally {
+    if (eventId)
+      expect(
+        (await browserSend(page, "DELETE", "/api/events", { eventId })).status,
+      ).toBe(200);
+  }
+});

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { notifyCalendarChanged } from '@/lib/calendar-planning/changes'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
@@ -68,6 +69,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
         return
       }
 
+      notifyCalendarChanged()
       router.push('/dashboard/calendar')
       router.refresh()
     } catch (err) {

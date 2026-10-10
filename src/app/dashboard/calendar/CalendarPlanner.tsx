@@ -25,6 +25,7 @@ import {
   fetchPlanningRange,
   type PlanningEvent,
 } from "@/lib/calendar-planning/fetch";
+import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import styles from "./calendar-planner.module.css";
 import {
   SyncNotice,
@@ -156,12 +157,14 @@ export function CalendarPlanner({
   React.useEffect(() => {
     const refresh = () => setRetry((n) => n + 1);
     window.addEventListener("online", refresh);
+    window.addEventListener(CALENDAR_CHANGED_EVENT, refresh);
     const visible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", visible);
     return () => {
       window.removeEventListener("online", refresh);
+      window.removeEventListener(CALENDAR_CHANGED_EVENT, refresh);
       document.removeEventListener("visibilitychange", visible);
     };
   }, []);
