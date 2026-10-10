@@ -4,7 +4,7 @@
 **Status:** In progress — implementation exists; release, native-device and household-beta acceptance remain open (2026-10-08)\
 **Product:** Family Planner  
 **Primary surface:** Dedicated Android tablet in the home  
-**Companion surfaces:** Responsive web, Android phones/tablets, iPhone and iPad (planned; physical-device and store acceptance required)
+**Companion surfaces:** Mobile web / Android phone, later iOS if validated  
 **Repository:** `camster91/family-planner`
 
 ## 1. Product decision
@@ -827,14 +827,3 @@ the same content, list, acting member and idempotency key. The board refreshes
 only after confirmed creation. Pending dialogs cannot be dismissed; lifecycle hiding retains only an unconfirmed request in memory for exact retry. Stale-list 404s verify device identity before any purge. Shared-device privacy exclusions remain in force.
 This candidate still requires protected CI and rendered journey evidence; it is
 not a deployment or physical-device acceptance claim.
-
-
-## Execution refresh — 2026-10-10: all-device experience and family AI
-
-Cameron requested deeper QA and a market-leading UI/UX goal across web, Android fridge/tablet/phone, iPhone and iPad, including a family AI helper and wake commands. The detailed execution plan is [Cross-device experience roadmap](product/CROSS_DEVICE_ROADMAP.md); current live/source evidence is [Deep household QA](qa/2026-10-10-deep-household-qa.md). These are subordinate execution documents for #128, not a replacement charter or new backend. Original phases and end-to-end acceptance above remain in force.
-
-Production release #467 and privacy fix #469 are closed; main/deployed revision at the start of this refresh is `1454db208e3259a02fe4f6b24e828dbe057579f7`. Current isolated household QA proves specific personal-session web flows only. It does not establish name-only child profiles, all-features-on usability, grounded family AI, passive wake commands, native offline parity, physical-device readiness or market leadership. Earlier implementation/status notes in this document are historical observations, not a current release checklist.
-
-Delivery order: core correctness and identity; adaptive role-aware UX and routine workflows; native lifecycle/offline contracts; contextual AI with reviewed actions; platform-specific voice and opt-in fridge wake; physical-device and household beta. Deterministic app help and design work can proceed while provider, hardware and store decisions remain open.
-
-The pre-refresh program is preserved in [the archive](archive/execution-refreshes/2026-10-10-fridge-program-before-cross-device-refresh.md).
