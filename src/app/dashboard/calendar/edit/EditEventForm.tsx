@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { notifyCalendarChanged } from '@/lib/calendar-planning/changes'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
@@ -160,7 +161,9 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         return
       }
 
-      router.push('/dashboard/calendar')
+      notifyCalendarChanged()
+      if (inSheet) router.back()
+      else router.push('/dashboard/calendar')
       router.refresh()
     } catch (err) {
       setError({ key: 'unexpected' })
@@ -186,7 +189,9 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         return
       }
       setConfirmOpen(false)
-      router.push('/dashboard/calendar')
+      notifyCalendarChanged()
+      if (inSheet) router.back()
+      else router.push('/dashboard/calendar')
       router.refresh()
     } catch {
       setDeleteError({ key: 'deleteConnection' })
