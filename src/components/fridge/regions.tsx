@@ -403,7 +403,7 @@ export function GroceriesRegion({
         ) : (
           <p className={cn(metaTextClass, 'mt-3')}>{more} more to buy</p>
         ))}
-      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)]">All shared lists <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className="text-footnote text-label-secondary">To-dos, wishlists and custom lists</p></div>}
+      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">All shared lists <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className="text-footnote text-label-secondary">To-dos, wishlists and custom lists</p></div>}
     </Region>
   )
 }

@@ -313,17 +313,17 @@ export default function AssistantHost({ role }: { role: string }) {
         data-person-assistant
         data-launchers-suppressed={launcherSuppressed ? "true" : undefined}
         aria-hidden={launcherSuppressed ? "true" : undefined}
-        className={`fixed bottom-[calc(var(--phone-tab-bar-height,4rem)+1rem)] left-4 z-30 flex max-w-[calc(100vw-2rem)] flex-wrap gap-2 transition-opacity motion-reduce:transition-none md:bottom-5 md:left-6 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
+        className={`fixed bottom-[calc(var(--phone-tab-bar-height,4rem)+1rem)] left-4 z-30 flex max-w-[calc(100vw-2rem)] flex-wrap gap-2 transition-opacity motion-reduce:transition-none md:bottom-5 md:left-6 max-[320px]:static max-[320px]:w-full max-[320px]:max-w-none max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:py-2 max-[320px]:pb-[calc(var(--phone-tab-bar-height,4rem)+1rem)] ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
       >
         <button
           type="button"
           tabIndex={launcherSuppressed ? -1 : undefined}
           onClick={() => open("report")}
           disabled={busy}
-          className={`${target} md:min-h-[56px] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
+          className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
         >
           <MessageSquareWarning size={20} aria-hidden="true" />
-          Report / Suggest
+          <span className="max-[320px]:sr-only">Report / Suggest</span>
         </button>
         {canChat && (
           <button
@@ -331,10 +331,10 @@ export default function AssistantHost({ role }: { role: string }) {
             tabIndex={launcherSuppressed ? -1 : undefined}
             onClick={() => open("chat")}
             disabled={busy}
-            className={`${target} md:min-h-[56px] bg-[var(--accent-fill)] text-white shadow-lg inline-flex items-center gap-2`}
+            className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 bg-[var(--accent-fill)] text-white shadow-lg inline-flex items-center gap-2`}
           >
             <Sparkles size={20} aria-hidden="true" />
-            AI assistant
+            <span className="max-[320px]:sr-only">AI assistant</span>
           </button>
         )}
       </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
+import { useTranslation } from '@/i18n'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ type EmailInvite = {
 }
 
 export default function JoinFamilyPage() {
+  const { t } = useTranslation()
   const [code, setCode] = useState('')
   const [token, setToken] = useState<string | null>(null)
   const [emailInvite, setEmailInvite] = useState<EmailInvite | null>(null)
@@ -315,13 +317,13 @@ export default function JoinFamilyPage() {
             )}
             {signedOutCode && (
               <div className="bg-[var(--accent-tint)] border border-[var(--accent-tint-strong)] rounded-lg p-4 space-y-3" role="status">
-                <p className="text-sm text-primary">Sign in to continue joining this family.</p>
+                <p className="text-sm text-primary">{t('join.signInToContinue')}</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Link
                     href={`/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`}
                     className="btn-tinted flex-1 justify-center"
                   >
-                    Sign in to join
+                    {t('join.signInToJoin')}
                   </Link>
                 </div>
               </div>

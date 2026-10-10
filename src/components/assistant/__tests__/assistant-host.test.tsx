@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import * as React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AssistantHost from "../AssistantHost";
 let mockMode = "",
@@ -105,7 +105,9 @@ it("tucks launchers away for external form focus and restores dialog focus", asy
       <AssistantHost role="parent" />
     </>,
   );
-  const launchers = document.querySelector("[data-person-assistant]")!;
+  const launchers = document.querySelector<HTMLElement>(
+    "[data-person-assistant]",
+  )!;
   const settingsField = screen.getByLabelText("Settings field");
   const other = screen.getByRole("button", { name: "Other control" });
   const assistantLauncher = screen.getByRole("button", {
@@ -131,6 +133,34 @@ it("tucks launchers away for external form focus and restores dialog focus", asy
   await user.keyboard("{Escape}");
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "AI assistant" })).toHaveFocus(),
+  );
+});
+it("keeps both launcher actions reachable in a compact 320px layout", () => {
+  render(<AssistantHost role="parent" />);
+  const launchers = document.querySelector<HTMLElement>(
+    "[data-person-assistant]",
+  )!;
+  expect(launchers).toHaveClass(
+    "max-[320px]:static",
+    "max-[320px]:w-full",
+    "max-[320px]:flex-nowrap",
+    "max-[320px]:justify-end",
+    "max-[320px]:pb-[calc(var(--phone-tab-bar-height,4rem)+1rem)]",
+  );
+  const buttons = within(launchers).getAllByRole("button");
+  expect(buttons).toHaveLength(2);
+  for (const button of buttons) {
+    expect(button).toHaveClass(
+      "max-[320px]:h-11",
+      "max-[320px]:w-11",
+      "max-[320px]:shrink-0",
+    );
+  }
+  expect(screen.getByText("Report / Suggest")).toHaveClass(
+    "max-[320px]:sr-only",
+  );
+  expect(screen.getByText("AI assistant")).toHaveClass(
+    "max-[320px]:sr-only",
   );
 });
 it("saves private feedback and displays a real receipt", async () => {

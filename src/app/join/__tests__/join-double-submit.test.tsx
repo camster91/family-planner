@@ -6,12 +6,15 @@
 import * as React from 'react'
 import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n'
 
 const push = jest.fn()
 const refresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }))
 
 import JoinFamilyPage from '../page'
+
+const renderJoin = () => render(<I18nProvider locale="en"><JoinFamilyPage /></I18nProvider>)
 
 let joinCalls: number
 
@@ -42,7 +45,7 @@ afterEach(() => {
 it('keeps Join Family disabled after a successful join until the redirect', async () => {
   jest.useFakeTimers()
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-  render(<JoinFamilyPage />)
+  renderJoin()
 
   await user.type(screen.getByLabelText('Family Code'), 'ABC123')
   await user.click(screen.getByRole('button', { name: 'Check Code' }))
@@ -67,7 +70,7 @@ it('keeps Join Family disabled after a successful join until the redirect', asyn
 it('a double tap on an email invite sends one join', async () => {
   window.history.replaceState(null, '', '/join?token=tok123')
   const user = userEvent.setup()
-  render(<JoinFamilyPage />)
+  renderJoin()
 
   const join = await screen.findByRole('button', { name: /Join family/ })
   await user.dblClick(join)

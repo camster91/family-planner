@@ -43,8 +43,9 @@ const FAMILY_A_ONLY = [
 ];
 
 /**
- * Open items of a family's grocery/shopping lists in the order the Today
- * board's Groceries region shows them (oldest first, then id), as rendered titles.
+ * Open items of a family's grocery/shopping lists in the order the fixture
+ * uses for the Today board's shopping data (oldest first, then id), as
+ * rendered titles. The board itself intentionally filters this to groceries.
  */
 function openShoppingTitles(familyId: string) {
   const ds = buildFixtureDataset(E2E_ANCHOR);
@@ -350,12 +351,11 @@ test.describe("Family B parent", () => {
     for (const title of FAMILY_A_ONLY.filter((t) => t !== "Groceries")) {
       expect(text, `Family B dashboard leaked "${title}"`).not.toContain(title);
     }
-    // Groceries on the board: B's single open item, nothing from A.
+    // The fixture keeps B's open shopping item meaningful, while the board's
+    // Groceries region is grocery-only and therefore does not render it.
     const open = openShoppingTitles(FIXTURE_IDS.familyB.family);
     expect(open).toEqual(["Printer ink (Family B)"]);
-    await expect(
-      main.getByText("Printer ink (Family B)").first(),
-    ).toBeVisible();
+    await expect(main.getByText("Printer ink (Family B)")).toHaveCount(0);
     await expect(main.getByText(/more to buy$/)).toHaveCount(0);
     await expect(main.getByText("Light bulbs (Family B)")).toHaveCount(0);
     for (const title of openShoppingTitles(FIXTURE_IDS.familyA.family)) {

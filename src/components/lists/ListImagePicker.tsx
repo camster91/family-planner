@@ -17,7 +17,7 @@ export function ListImagePicker({
   const [uploading, setUploading] = useState(false),
     [error, setError] = useState<string | null>(null);
   return (
-    <details className="card-apple p-4">
+    <details open className="card-apple p-4">
       <summary className="min-h-[44px] cursor-pointer text-body text-label-primary">
         List image{" "}
         <span className="text-footnote text-label-secondary">

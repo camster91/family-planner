@@ -446,7 +446,7 @@ test.describe("Today board: Family A parent", () => {
     await expect(groceries).not.toContainText("Dish soap");
     await expect(
       groceries.getByRole("link", { name: "1 more to buy" }),
-    ).toHaveAttribute("href", "/dashboard/lists");
+    ).toHaveAttribute("href", "/dashboard/lists/groceries");
     // #274: a grocery row ticks the item off in place; the heading opens lists.
     await expect(
       items.nth(0).getByRole("button", { name: "Tick off Milk, 2" }),

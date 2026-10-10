@@ -150,6 +150,8 @@ const messages = {
       joining: 'Joining...',
       invalidCode: 'Invalid family code',
       backToLogin: 'Back to Login',
+      signInToContinue: 'Sign in to continue joining this family.',
+      signInToJoin: 'Sign in to join',
     },
     common: {
       save: 'Save',
@@ -678,6 +680,8 @@ const messages = {
       joining: 'Uniendo...',
       invalidCode: 'Codigo familiar invalido',
       backToLogin: 'Volver al inicio',
+      signInToContinue: 'Inicia sesión para continuar uniéndote a esta familia.',
+      signInToJoin: 'Inicia sesión para unirte',
     },
     common: {
       save: 'Guardar',

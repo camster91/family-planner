@@ -8,12 +8,15 @@
 import * as React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n'
 
 const push = jest.fn()
 const refresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }))
 
 import JoinFamilyPage from '../page'
+
+const renderJoin = () => render(<I18nProvider locale="en"><JoinFamilyPage /></I18nProvider>)
 
 const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
 let calls: Array<{ url: string; body?: string }>
@@ -34,7 +37,7 @@ beforeEach(() => {
 })
 
 it('sets the field up for typing a code on a phone', () => {
-  render(<JoinFamilyPage />)
+  renderJoin()
   const input = screen.getByLabelText('Family Code') as HTMLInputElement
   expect(input.getAttribute('autocapitalize')).toBe('characters')
   expect(input.getAttribute('autocomplete')).toBe('off')
@@ -48,7 +51,7 @@ it('sets the field up for typing a code on a phone', () => {
 
 it('looks up and joins with the code as typed (XXXX-XXXX-XXXX)', async () => {
   const user = userEvent.setup()
-  render(<JoinFamilyPage />)
+  renderJoin()
   await user.type(screen.getByLabelText('Family Code'), 'K7QM-4XPD-2HNA')
   await user.click(screen.getByRole('button', { name: 'Check Code' }))
   await screen.findByText('Ready to join as a child or teen.')
@@ -69,7 +72,7 @@ it('says nothing scary when a signed-out person opens a code link', async () => 
     return reply({})
   }) as unknown as typeof fetch
   window.history.replaceState(null, '', '/join?code=K7QM-4XPD-2HNA')
-  render(<JoinFamilyPage />)
+  renderJoin()
   await waitFor(() => expect(calls.some((c) => c.url.startsWith('/api/family/lookup'))).toBe(true))
   expect(screen.queryByText('Unauthorized')).toBeNull()
   expect((screen.getByLabelText('Family Code') as HTMLInputElement).value).toBe('K7QM-4XPD-2HNA')

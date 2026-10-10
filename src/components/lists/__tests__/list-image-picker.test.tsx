@@ -5,6 +5,12 @@ import userEvent from '@testing-library/user-event'
 import {ListImagePicker} from '../ListImagePicker'
 const url='/api/files/chores/abcdef0123456789.jpg'
 function Harness(){const[value,setValue]=useState<string|null>(null);return <ListImagePicker value={value} onChange={setValue} onBusyChange={jest.fn()}/>}
+it('shows the image action by default while keeping the section collapsible',async()=>{
+ const user=userEvent.setup();const{container}=render(<Harness/>);const details=container.querySelector('details')!;const summary=details.querySelector('summary')!
+ expect(details.open).toBe(true);expect(screen.getByRole('button',{name:'Add image'})).toBeTruthy()
+ await user.click(summary);expect(details.open).toBe(false)
+ await user.click(summary);expect(screen.getByRole('button',{name:'Add image'})).toBeTruthy()
+})
 it('uploads privately, previews and removes the image',async()=>{
  global.fetch=jest.fn(async()=>({ok:true,json:async()=>({url})})) as unknown as typeof fetch
  const user=userEvent.setup();const{container}=render(<Harness/>);await user.click(container.querySelector('summary')!)
