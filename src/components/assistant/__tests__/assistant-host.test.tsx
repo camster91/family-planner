@@ -192,6 +192,28 @@ it("keeps a chat draft when the assistant is closed and reopened", async () => {
     "Add library pickup tomorrow",
   );
 });
+it("keeps exact report labels and unsent values after reopening", async () => {
+  const user = userEvent.setup();
+  render(<AssistantHost role="parent" />);
+  const launcher = screen.getByRole("button", { name: "Report / Suggest" });
+  await user.click(launcher);
+  await user.type(
+    screen.getByLabelText("Title", { exact: true }),
+    "Fixture report draft",
+  );
+  await user.type(
+    screen.getByLabelText("What happened or what would help?", { exact: true }),
+    "Fixture details remain private and unsent.",
+  );
+  await user.click(screen.getByRole("button", { name: "Close" }));
+  await user.click(launcher);
+  expect(screen.getByLabelText("Title", { exact: true })).toHaveValue(
+    "Fixture report draft",
+  );
+  expect(
+    screen.getByLabelText("What happened or what would help?", { exact: true }),
+  ).toHaveValue("Fixture details remain private and unsent.");
+});
 it("saves private feedback and displays a real receipt", async () => {
   const user = userEvent.setup();
   global.fetch = jest.fn(async () =>

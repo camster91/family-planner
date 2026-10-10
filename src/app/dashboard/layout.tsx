@@ -138,7 +138,7 @@ export default async function DashboardLayout({
           {/* Main content — padded for top bar height + TabBar safe area on mobile */}
           <main
             id="main-content"
-            className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-28"
+            className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
             aria-label={`${PRODUCT_BRAND.name} dashboard`}
           >
             {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}

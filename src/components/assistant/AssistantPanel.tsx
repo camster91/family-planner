@@ -681,9 +681,12 @@ export default function AssistantPanel({
                 className="input-apple w-full"
               />
             </label>
-            <label className="block">
-              What happened or what would help?
+            <div>
+              <label htmlFor="feedback-details" className="block">
+                What happened or what would help?
+              </label>
               <textarea
+                id="feedback-details"
                 disabled={busy}
                 required
                 minLength={10}
@@ -695,7 +698,7 @@ export default function AssistantPanel({
                 }}
                 className="input-apple min-h-28 w-full"
               />
-            </label>
+            </div>
             <p className="text-xs text-label-secondary">
               Page: {pathname}. Reports stay private in the app; nothing is
               posted publicly.
