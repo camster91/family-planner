@@ -63,3 +63,44 @@ export async function shareAppLink(title: string, url: string): Promise<void> {
   }
   throw new Error('Sharing is unavailable. Copy the link instead.')
 }
+
+export type NativeClientDetails = {
+  platform: 'web' | 'android' | 'ios' | 'unknown'
+  installed: 'not-native' | 'available' | 'unavailable'
+  version: string
+  build: string
+  id: string
+  plugins: { App: boolean; Network: boolean; Share: boolean }
+}
+
+/** Public binary metadata only, measured on a deliberate support action. */
+export async function readNativeClientDetails(): Promise<NativeClientDetails> {
+  const result: NativeClientDetails = {
+    platform: 'web', installed: 'not-native', version: 'unknown', build: 'unknown', id: 'unknown',
+    plugins: { App: false, Network: false, Share: false },
+  }
+  try {
+    if (!Capacitor.isNativePlatform()) return result
+    result.installed = 'unavailable'
+    result.platform = 'unknown'
+    const platform = Capacitor.getPlatform()
+    result.platform = platform === 'android' || platform === 'ios' ? platform : 'unknown'
+    for (const name of ['App', 'Network', 'Share'] as const) {
+      result.plugins[name] = Capacitor.isPluginAvailable(name)
+    }
+    if (!result.plugins.App) return result
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const info = await Promise.race([
+        App.getInfo(),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Unavailable')), 3000) }),
+      ])
+      const publicValue = (value: unknown) => typeof value === 'string' && /^[a-zA-Z0-9._+-]{1,100}$/.test(value) ? value : 'unknown'
+      result.version = publicValue(info.version)
+      result.build = publicValue(info.build)
+      result.id = publicValue(info.id)
+      result.installed = 'available'
+    } finally { if (timer) clearTimeout(timer) }
+  } catch { /* Legacy bridges remain usable; never include raw errors. */ }
+  return result
+}

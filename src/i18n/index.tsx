@@ -1,6 +1,7 @@
 'use client'
 
 import { listOverviewEnglish, listOverviewSpanish } from './list-overview'
+import { appDiagnosticsEnglish, appDiagnosticsSpanish } from './app-diagnostics'
 import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
 import { PRODUCT_BRAND } from '@/lib/brand'
@@ -12,6 +13,7 @@ import { pseudolocalizeTemplate } from './pseudo'
 // Inline messages — no external library needed
 const messages = {
   en: {
+    appDiagnostics: appDiagnosticsEnglish,
     groceries: groceryEnglish,
     listOverview: listOverviewEnglish,
     preferences: {
@@ -477,6 +479,7 @@ const messages = {
     },
   },
   es: {
+    appDiagnostics: appDiagnosticsSpanish,
     groceries: grocerySpanish,
     listOverview: listOverviewSpanish,
     preferences: {

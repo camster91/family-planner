@@ -180,3 +180,11 @@ Android restricts background foreground-service starts and while-in-use micropho
 ## Next bounded action
 
 Fix #457's reproduced Calendar return-refresh behavior and verify create/edit/close/reload in the isolated household; retain and finish the approved lowercase wordmark change separately. Then address capture replay integrity and #471 before expanding AI writes. Name-only profiles and the adaptive design specification follow as larger reviewed slices. No remaining feature/native issue is closed by this planning document.
+
+### App identity support slice (#473)
+
+The Help app-details card uses the existing shared card, typography, disclosure and 44px action patterns. Reading is deliberate, has a pending state and bounded native/server waits, and offers a selectable local report with an explicit Copy action. English and Spanish copy use the central dictionary. The existing parent/teen Help boundary excludes children.
+
+The report distinguishes installed binary platform/version/build/id and measured App/Network/Share plugin presence from the public loaded server version/commit/build timestamp. Plugin presence is not permission or feature readiness. No family/account identifier, raw exception, provider setting, automatic export or persistent report is included. Older App bridges, offline servers and /api/version 404 remain usable partial reports. /api/version retains its exact three-key response.
+
+This is support evidence only. It does not implement the versioned capability handshake, minimum-client policy, queued-write compatibility, or current/previous-client physical matrix required to close #473. Rollback removes the optional Help card and helper without a data migration or installed-shell change.
