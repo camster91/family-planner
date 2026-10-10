@@ -40,7 +40,7 @@ One household model, backend, authorization system and set of domain APIs serve 
 | iPhone | Same core phone contracts, native share/camera/notifications and platform voice actions | Entitlements, deep links, permissions, lifecycle/privacy cover, HEIC conversion | Signed candidate on physical phones, denied permissions, lock/resume and upgrade |
 | iPad | Adaptive tablet split layouts and touch/keyboard support | Split View/Stage Manager as supported, scene lifecycle, native integrations | Physical iPad portrait/landscape/multi-window, keyboard and safe-area checks |
 
-Parent: configure household, members and permitted modules. Teen: own planning and permitted shared operations. Child: own missions, allowed lists and emergency access. Name-only members require a new profile/account distinction (#446), not fabricated emails. Shared-device member attribution records who acted; it is not proof of a parent identity. Private parent actions require a fresh elevated personal session. Personal `?mode=fridge` rendering is not paired-device authorization evidence.
+Parent: configure household, members and permitted modules. Teen: own planning and permitted shared operations. Child: own missions, allowed lists and read-only emergency cards on the authenticated personal child surface; emergency/medical cards remain excluded from shared-device and AI retrieval DTOs. Name-only members require a new profile/account distinction (#446), not fabricated emails. Shared-device member attribution records who acted; it is not proof of a parent identity. Private parent actions require a fresh authenticated personal session; shared-device elevation permits only explicitly allowlisted tablet actions and does not create a personal session or unlock private dashboard routes. Personal `?mode=fridge` rendering is not paired-device authorization evidence.
 
 ## Delivery sequence
 
@@ -72,7 +72,7 @@ Natural language is not unlimited authority. Account/role changes, invitations, 
 
 ### Shared device
 
-Current assistant is hidden on paired/shared surfaces. Add a separate safe capability set, initially read-only Today help. Use the existing sanitized shared-board contract; exclude parent notes, addresses, messages, finance, medical records, contact emails, credentials and unnecessary photos/free text. Later allow only reviewed grocery/task actions with explicit member attribution. Parent elevation must be a real authorization flow, not a spoken name or voice match.
+Current assistant is hidden on paired/shared surfaces. Add a separate safe capability set, initially read-only Today help. Use the existing sanitized shared-board contract; exclude parent notes, addresses, messages, finance, medical records, contact emails, credentials and unnecessary photos/free text. Later allow only reviewed grocery/task actions with explicit member attribution. Shared-device elevation must be a real authorization flow limited to allowlisted tablet actions, not a spoken name or voice match; private parent work requires a separate authenticated personal session.
 
 ### Voice and wake commands
 
