@@ -1,5 +1,6 @@
 'use client'
 
+import { choreScheduleMessages } from './chore-schedule'
 import { listOverviewEnglish, listOverviewSpanish } from './list-overview'
 import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
@@ -12,6 +13,7 @@ import { pseudolocalizeTemplate } from './pseudo'
 // Inline messages — no external library needed
 const messages = {
   en: {
+    choreSchedule: choreScheduleMessages.en,
     groceries: groceryEnglish,
     listOverview: listOverviewEnglish,
     preferences: {
@@ -477,6 +479,7 @@ const messages = {
     },
   },
   es: {
+    choreSchedule: choreScheduleMessages.es,
     groceries: grocerySpanish,
     listOverview: listOverviewSpanish,
     preferences: {
