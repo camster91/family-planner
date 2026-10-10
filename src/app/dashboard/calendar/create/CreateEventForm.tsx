@@ -70,7 +70,8 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
       }
 
       notifyCalendarChanged()
-      router.push('/dashboard/calendar')
+      if (inSheet) router.back()
+      else router.push('/dashboard/calendar')
       router.refresh()
     } catch (err) {
       setError({ key: 'unexpected' })

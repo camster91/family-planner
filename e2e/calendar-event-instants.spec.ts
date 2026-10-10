@@ -380,13 +380,14 @@ test("intercepted event sheets update the mounted Calendar after create, edit an
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(E2E_ANCHOR);
+  }).formatToParts(new Date(+E2E_ANCHOR + 14 * 86400000));
   const part = (type: string) => parts.find((p) => p.type === type)!.value;
   const date = `${part("year")}-${part("month")}-${part("day")}`;
   const title = `Synthetic sheet refresh ${info.project.name}`;
   let eventId: string | undefined;
   try {
-    await page.goto("/dashboard/calendar");
+    const origin = `/dashboard/calendar?date=${date}&view=agenda`;
+    await page.goto(origin);
     await expect(page.getByText("Updated just now")).toBeVisible();
     await page.getByRole("link", { name: "Add event", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "New Event" })).toBeVisible();
@@ -403,6 +404,7 @@ test("intercepted event sheets update the mounted Calendar after create, edit an
       .click();
     const response = await created;
     expect(response.status()).toBe(200);
+    await expect(page).toHaveURL(new RegExp(`date=${date}.*view=agenda`));
     eventId = (await response.json()).event.id;
     await expect(
       page.getByRole("button", { name: new RegExp(title) }),
@@ -416,6 +418,7 @@ test("intercepted event sheets update the mounted Calendar after create, edit an
     await page
       .getByRole("button", { name: "Save Changes", exact: true })
       .click();
+    await expect(page).toHaveURL(new RegExp(`date=${date}.*view=agenda`));
     await expect(
       page.getByRole("button", { name: new RegExp(`${title} updated`) }),
     ).toBeVisible();

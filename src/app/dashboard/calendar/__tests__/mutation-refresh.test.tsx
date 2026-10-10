@@ -13,10 +13,13 @@ import CreateEventForm from "../create/CreateEventForm";
 import EditEventForm from "../edit/EditEventForm";
 import { notifyCalendarChanged } from "@/lib/calendar-planning/changes";
 
+const mockBack = jest.fn();
+const mockPush = jest.fn();
 jest.mock("../calendar-planner.module.css", () => ({}));
 jest.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: jest.fn(),
+    back: mockBack,
+    push: mockPush,
     replace: jest.fn(),
     refresh: jest.fn(),
   }),
@@ -36,6 +39,8 @@ let succeeds: boolean;
 let reads: number;
 let currentEvent: typeof event;
 beforeEach(() => {
+  mockBack.mockClear();
+  mockPush.mockClear();
   committed = false;
   succeeds = true;
   reads = 0;
@@ -97,7 +102,7 @@ function fillAndSubmit() {
     screen.getByRole("button", { name: "Create Event" }).closest("form")!,
   );
 }
-it("shows a successful sheet-created event in the already mounted Calendar without navigation or reload", async () => {
+it("shows a successful sheet-created event in the already mounted Calendar when the sheet reports a committed change", async () => {
   render(
     <>
       <CalendarPlanner initialDate="2099-12-15" initialView="agenda" />
@@ -111,6 +116,8 @@ it("shows a successful sheet-created event in the already mounted Calendar witho
     await screen.findByRole("button", { name: /New family event/ }),
   ).toBeInTheDocument();
   expect(reads).toBeGreaterThan(before);
+  expect(mockBack).toHaveBeenCalledTimes(1);
+  expect(mockPush).not.toHaveBeenCalled();
 });
 it("does not announce a failed save as a calendar change", async () => {
   succeeds = false;
@@ -192,3 +199,35 @@ it("removes a deleted event from the mounted Calendar after explicit confirmatio
   );
   expect(committed).toBe(false);
 });
+
+it.each(["save", "delete"])(
+  "keeps the mounted range unchanged after a failed edit %s",
+  async (action) => {
+    committed = true;
+    succeeds = false;
+    render(
+      <>
+        <CalendarPlanner initialDate="2099-12-15" initialView="agenda" />
+        <EditEventForm inSheet />
+      </>,
+    );
+    await screen.findByRole("button", { name: /New family event/ });
+    await screen.findByDisplayValue(event.title);
+    const before = reads;
+    if (action === "save") {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Save Changes" }).closest("form")!,
+      );
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "Delete event" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    }
+    await screen.findByText(
+      action === "save" ? "Could not save fixture" : "Could not delete fixture",
+    );
+    expect(reads).toBe(before);
+    expect(
+      screen.getByRole("button", { name: /New family event/ }),
+    ).toBeInTheDocument();
+  },
+);

@@ -74,6 +74,7 @@ export function CalendarPlanner({
     ),
     [truncated, setTruncated] = React.useState(false),
     [retry, setRetry] = React.useState(0);
+  const [eventRevision, setEventRevision] = React.useState(0);
   const [selected, setSelected] = React.useState<PlanningEvent | null>(null);
   const gridViewport = React.useRef<HTMLDivElement>(null);
   const requestId = React.useRef(0),
@@ -129,7 +130,7 @@ export function CalendarPlanner({
           setState("error");
       });
     return () => controller.abort();
-  }, [start, end, local, retry, refreshKey]);
+  }, [start, end, local, retry, refreshKey, eventRevision]);
   React.useEffect(() => {
     const controller = new AbortController();
     setSourceState("loading");
@@ -157,14 +158,15 @@ export function CalendarPlanner({
   React.useEffect(() => {
     const refresh = () => setRetry((n) => n + 1);
     window.addEventListener("online", refresh);
-    window.addEventListener(CALENDAR_CHANGED_EVENT, refresh);
+    const changed = () => setEventRevision((n) => n + 1);
+    window.addEventListener(CALENDAR_CHANGED_EVENT, changed);
     const visible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", visible);
     return () => {
       window.removeEventListener("online", refresh);
-      window.removeEventListener(CALENDAR_CHANGED_EVENT, refresh);
+      window.removeEventListener(CALENDAR_CHANGED_EVENT, changed);
       document.removeEventListener("visibilitychange", visible);
     };
   }, []);

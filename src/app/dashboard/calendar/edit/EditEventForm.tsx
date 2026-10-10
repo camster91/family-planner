@@ -162,7 +162,8 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
 
       notifyCalendarChanged()
-      router.push('/dashboard/calendar')
+      if (inSheet) router.back()
+      else router.push('/dashboard/calendar')
       router.refresh()
     } catch (err) {
       setError({ key: 'unexpected' })
@@ -189,7 +190,8 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
       setConfirmOpen(false)
       notifyCalendarChanged()
-      router.push('/dashboard/calendar')
+      if (inSheet) router.back()
+      else router.push('/dashboard/calendar')
       router.refresh()
     } catch {
       setDeleteError({ key: 'deleteConnection' })
