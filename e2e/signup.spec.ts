@@ -304,6 +304,16 @@ test.describe("new household sign-up journey", () => {
       await page.getByRole("button", { name: "Create Family" }).click();
       expect((await created).status()).toBe(200);
 
+      // #446: creating a household first prompts the parent to add everyone.
+      await expect(
+        page.getByRole("heading", { name: "Add Everyone in Your Family" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Add Family Members" }),
+      ).toHaveAttribute("href", "/dashboard/family/invite");
+      await expectNoHorizontalOverflow(page, "add everyone onboarding");
+      await page.getByRole("link", { name: "Finish Later" }).click();
+
       // A parent's home is the Today board (#269).
       await page.waitForURL(/\/dashboard\/today/);
       await expect(page.getByTestId("region-chores")).toContainText(
