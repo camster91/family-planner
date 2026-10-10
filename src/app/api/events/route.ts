@@ -147,12 +147,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
     }
 
-    return await withIdempotency(
+    const response = await withIdempotency(
       prisma!, key,
       { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'event.create' },
       parsed.data,
       ({ recordId }) => createPersonEvent(prisma!, parsed.data, { familyId: auth.user.family_id, userId: auth.user.id, name: auth.user.name }, recordId),
     )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (error) {
     logRouteError('POST /api/events', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

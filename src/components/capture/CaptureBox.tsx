@@ -281,10 +281,10 @@ export function CaptureBox({
       if (added > 0) {
         setSaved(`Added ${added} of ${total} events`)
         setError(
-          `${failed.length} event${failed.length === 1 ? '' : 's'} could not be saved. Try again, or remove ${failed.length === 1 ? 'it' : 'them'}.`
+          `${failed.length} event${failed.length === 1 ? '' : 's'} could not be saved. Try again to check the same requests, or check the app before removing ${failed.length === 1 ? 'it' : 'them'}.`
         )
       } else {
-        setError('Could not save those events')
+        setError('Could not save those events. Try again to check the same requests, or check the app before making a new preview.')
       }
     }
     setPhotoBusy(false)
