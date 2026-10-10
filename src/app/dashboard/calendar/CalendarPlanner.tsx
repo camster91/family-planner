@@ -25,6 +25,7 @@ import {
   fetchPlanningRange,
   type PlanningEvent,
 } from "@/lib/calendar-planning/fetch";
+import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import styles from "./calendar-planner.module.css";
 import {
   SyncNotice,
@@ -73,6 +74,7 @@ export function CalendarPlanner({
     ),
     [truncated, setTruncated] = React.useState(false),
     [retry, setRetry] = React.useState(0);
+  const [eventRevision, setEventRevision] = React.useState(0);
   const [selected, setSelected] = React.useState<PlanningEvent | null>(null);
   const gridViewport = React.useRef<HTMLDivElement>(null);
   const requestId = React.useRef(0),
@@ -128,7 +130,7 @@ export function CalendarPlanner({
           setState("error");
       });
     return () => controller.abort();
-  }, [start, end, local, retry, refreshKey]);
+  }, [start, end, local, retry, refreshKey, eventRevision]);
   React.useEffect(() => {
     const controller = new AbortController();
     setSourceState("loading");
@@ -156,12 +158,15 @@ export function CalendarPlanner({
   React.useEffect(() => {
     const refresh = () => setRetry((n) => n + 1);
     window.addEventListener("online", refresh);
+    const changed = () => setEventRevision((n) => n + 1);
+    window.addEventListener(CALENDAR_CHANGED_EVENT, changed);
     const visible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", visible);
     return () => {
       window.removeEventListener("online", refresh);
+      window.removeEventListener(CALENDAR_CHANGED_EVENT, changed);
       document.removeEventListener("visibilitychange", visible);
     };
   }, []);
@@ -634,6 +639,12 @@ export function CalendarPlanner({
                 <Link
                   className="btn-filled"
                   href={`/dashboard/calendar/edit?id=${encodeURIComponent(selected.id)}`}
+                  onClick={() => {
+                    // Native modal dialogs occupy the browser top layer. Close
+                    // details before an intercepted edit sheet opens above the page.
+                    dialog.current?.close?.();
+                    setSelected(null);
+                  }}
                 >
                   {msg("edit")}
                 </Link>
