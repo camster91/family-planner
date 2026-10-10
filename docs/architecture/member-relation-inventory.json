@@ -21,7 +21,7 @@
       "to_user_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Anniversary.creator",
@@ -37,7 +37,7 @@
       "person_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "AppFeedback.user",
@@ -93,7 +93,7 @@
       "assigned_to"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Chore.creator",
@@ -117,7 +117,7 @@
       "assigned_to"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "ChoreAssignment.completer",
@@ -149,7 +149,7 @@
       "user_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "EmergencyContact.person",
@@ -157,7 +157,7 @@
       "person_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Event.creator",
@@ -197,7 +197,7 @@
       "cook_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "FamilyMeal.creator",
@@ -229,7 +229,7 @@
       "user_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Handoff.creator",
@@ -333,7 +333,7 @@
       "person_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Message.sender",
@@ -365,7 +365,7 @@
       "assigned_to"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Pickup.creator",
@@ -397,7 +397,7 @@
       "assigned_to"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "PushSubscription.user",
@@ -429,7 +429,7 @@
       "claimed_by"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Reward.creator",
@@ -453,7 +453,7 @@
       "requested_by"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "ShoppingList.creator",
@@ -477,7 +477,7 @@
       "person_id"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "Transaction.user",
@@ -501,7 +501,7 @@
       "requested_by"
     ],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining the legacy User link/history during migration and profile archive/link/unlink. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
     "relation": "WishlistItem.status_changer",
