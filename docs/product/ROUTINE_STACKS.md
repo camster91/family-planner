@@ -22,3 +22,10 @@ This is a local UI slice and a specification, not a released routine builder. Te
 ## Unstacked occurrence context (#450 / #451)
 
 Other chores show assignee and due day on each row. In Week/All only, canonical household + recurrence_id groups collapse repeated unstacked chores behind a native disclosure; each expanded dated row retains its own completion/edit target and member authorization. Today remains individual actionable rows. Completed and checked statuses remain explicit and are never labeled open dates. Matching titles and unrelated series do not merge. Routine stacks themselves remain separated by member/day; this does not implement or replace the planned atomic multi-step builder. Rollback removes optional collapse rendering without a schema or API change.
+
+## Monthly chores and steps (#471)
+Monthly recurrence keeps the template's UTC date-only day of the month. A January 31 start generates February 28 (29 in a leap year), March 31 and April 30. Short-month clamping affects only that occurrence; it never replaces the original anchor. Ordinary chores and routine steps use the same expander, including completion and lazy top-up. Create and edit forms explain this before save. A legacy recurring row without a series retains its single successor behavior; its own day anchors that successor.
+
+Compatibility: no schema or scheduler change. Already generated dates, started/check-pending/completed rows, points, rotations and history are retained. Existing overflow series continue from their latest stored occurrence, using the original template day for newly generated later months. This does not backfill skipped past months or replace already scheduled overflow dates. Any deliberate schedule change follows the existing series-edit rules; changing only the displayed occurrence's date does not redefine a template's monthly anchor.
+
+Rollback: revert the date generator and form hint. Generated rows remain canonical stored dates; rollback does not delete or rewrite them. No historical data migration is included.
