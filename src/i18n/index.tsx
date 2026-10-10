@@ -1,6 +1,7 @@
 'use client'
 
 import { listOverviewEnglish, listOverviewSpanish } from './list-overview'
+import { routineViewsEnglish, routineViewsSpanish } from './routine-views'
 import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
 import { PRODUCT_BRAND } from '@/lib/brand'
@@ -12,6 +13,7 @@ import { pseudolocalizeTemplate } from './pseudo'
 // Inline messages — no external library needed
 const messages = {
   en: {
+    routineViews: routineViewsEnglish,
     groceries: groceryEnglish,
     listOverview: listOverviewEnglish,
     preferences: {
@@ -477,6 +479,7 @@ const messages = {
     },
   },
   es: {
+    routineViews: routineViewsSpanish,
     groceries: grocerySpanish,
     listOverview: listOverviewSpanish,
     preferences: {

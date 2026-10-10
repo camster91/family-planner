@@ -18,3 +18,7 @@ Before builder implementation, define atomic transaction boundaries, optimistic 
 
 ## Evidence and release
 This is a local UI slice and a specification, not a released routine builder. Test grouping, progress, role controls, canonical completion and existing chore interactions. Render the real component with isolated labelled fixtures before claiming visual quality. Full authenticated route, phone/native behavior and hosted build remain release gates. Rollback the UI additions; no new schema or API in this slice.
+
+## Unstacked occurrence context (#450 / #451)
+
+Other chores show assignee and due day on each row. In Week/All only, canonical household + recurrence_id groups collapse repeated unstacked chores behind a native disclosure; each expanded dated row retains its own completion/edit target and member authorization. Today remains individual actionable rows. Completed and checked statuses remain explicit and are never labeled open dates. Matching titles and unrelated series do not merge. Routine stacks themselves remain separated by member/day; this does not implement or replace the planned atomic multi-step builder. Rollback removes optional collapse rendering without a schema or API change.
