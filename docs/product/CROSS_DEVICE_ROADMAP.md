@@ -28,6 +28,63 @@ One household model, backend, authorization system and set of domain APIs serve 
 6. Phone Calendar starts with Agenda; larger screens use a stable source rail and spacious week grid. Collapse setup/help after setup. Duration presets, conflict/error states and immediate data refresh are part of the event workflow. Month view remains tracked separately in #376.
 7. Recipe discovery/import/save/curation flows share one recipe model and support meal planning and groceries. Embed a source only if that publisher supports embedding; otherwise offer a clear attributed import or source link, never a blank blocked iframe. Select licensed providers separately after feasibility/cost review (#460/#122).
 
+## UI/UX alignment across every feature
+
+Cameron's added requirement (2026-10-10): align all features, not only Today, Calendar and the AI panel. This is an explicit exit criterion for milestone 2 and the overall product goal. Execute through existing #143 (every-screen migration), #152 (shared tokens/components), #151 (navigation), #133 (adaptive UI) and #139 (QA). Keep their original acceptance; this scope clarification creates no duplicate epic.
+
+### Shared interaction contract
+
+- One semantic typography, spacing, color/contrast, radius, elevation, icon, focus and motion system mapped from approved Figma foundations. Use existing reusable controls and tokens before adding primitives; preserve compatible aliases during migration.
+- A consistent page header, context/filter area and primary action placement. Align grid edges and content gutters; use compact, reading, collection and workspace page-frame variants rather than unrelated page-specific widths.
+- The same Add/Edit/Save/Cancel vocabulary, labeled validation and pending/saved/conflict feedback. Reuse the rounded sheet/dialog system, short sections, keyboard-safe sticky actions, draft handling, Back/Escape and focus restoration. Explain destructive or irreversible actions consistently.
+- Reuse list rows, selection, search/filter, date/time/duration/recurrence, member picker, image picker, overflow actions and notification/undo patterns. Domain-specific behavior remains appropriate: a chat conversation, calendar grid and financial ledger need different content layouts within the shared system.
+- Every applicable surface includes designed loading, empty, permission/feature-unavailable, error/retry, offline/pending, conflict and success states. Do not report a failed fetch as an empty household. Sync and AI uncertainty must be visible, recoverable and phrased consistently.
+- Same identity, names, member colors and date/timezone conventions everywhere. Feature availability and role authorization come from canonical rules; personalization cannot bypass them. Parent-private data never becomes shared because a card is pinned.
+- Explore/search/pinned shortcuts, Today sections and deep links must use the same destination map. With every feature enabled, group destinations and keep Today curated rather than adding every module automatically.
+
+### Feature coverage and migration order
+
+This table assigns every current feature key from `src/lib/features.ts` plus supporting flows to the alignment program. It is a scope/ownership map, not a claim that these screens have passed rendered QA. Codex owns audit/design/implementation/evidence for each row; Cameron reviews significant visual candidates and supplies physical-device/customer acceptance. Existing API/role allowlists remain authoritative.
+
+| Feature or flow | UI/UX alignment focus | Delivery wave / issue linkage |
+|---|---|---|
+| Today and child home | Clear hierarchy, no duplicate task content, My/Family context, configurable sections, first-fold actions | A: #462/#133/#143 |
+| Chores and routines | Compact schedule summaries, identifiable occurrences, stack builder, approval/snooze/undo consistency | A: #449/#450/#451/#453 |
+| Calendar and connections | Unified toolbar/source rail, agenda/week, duration, short event sheets, fresh return data | A: #456/#457/#458 |
+| Lists: grocery, to-do, shopping, wishlist/custom | Discoverable types, reusable rows/filter/edit actions, direct routing, image/failure states | A: #447/#454/#461 |
+| Family and onboarding | Add everyone, member/profile picker, role explanations, child without email, account conversion | A: #446/#132 |
+| Meals and recipes | Shared weekly hierarchy, explore/import/save/curate, recipe detail and grocery handoff | A: #460/#122 |
+| Food inventory | Consistent item rows, quantity/units, use-soon and recoverable adjustments | B: #121/#143 |
+| Pinned notes | Consistent note cards/editors, scope/visibility and empty/error feedback | B: #143/#152 |
+| Birthdays and anniversaries | Date/recurrence conventions, member context, clear reminders | B: #143/#142 |
+| Points and streaks | Calm optional progress, consistent member identity; no forced gamification | B: #143/#151 |
+| Rewards | Dependency explanation, browse/redeem/review states, child versus parent controls | B: #143/#136 |
+| Budget | Reading/ledger frame, dates/currency/forms; preserve parent/private boundaries | B: #143/#136 |
+| Projects | Project/task hierarchy, shared task patterns, short editors | B: #143/#152 |
+| Family chat | Conversation layout, unread/send/retry states, keyboard behavior; shared-device exclusion | B: #143/#136 |
+| Analytics | Consistent date filters, understandable labels, accessible charts, optional points dependency | B: #143/#139 |
+| Wishlist | Consistent item/media/ownership controls and permission-aware actions | B: #143/#454 |
+| Emergency contacts | Readable personal emergency cards, print/accessibility, explicit privacy/edit scope | C: #143/#136 |
+| Locations | Address editors and picker consistency; private data excluded from shared surfaces | C: #143/#136 |
+| Pickups and dropoffs | Calendar/member/date conventions, clear ownership and completion states | C: #143/#133 |
+| Allowance and IOUs | Ledger patterns, own-member views, review and currency conventions | C: #143/#136 |
+| Babysitter handoff | Readable grouped summary, deliberate sharing and reduced-role view | C: #143/#136 |
+| Sick days and medications | Clear own/private scope, safe date/time/forms; never general shared AI context | C: #143/#136 |
+| Travel | Plan/task/calendar reuse, explicit pause/resume behavior and context | C: #143/#151 |
+| Search, notifications and Help | One destination language, consistent results/empty/error, notification snooze and app guidance | A–C: #463/#146/#151 |
+| Settings, features, profiles, device pairing/revocation and auth | Grouped short sections, consistent controls/validation, permission-aware recovery | A–C: #143/#136/#120/#242/#465 |
+| AI, voice and Report/Suggest | Shared overlay/side-panel conventions, clear listening/review/cancel/error and role scopes | D: #464/#123/#125/#144 |
+
+Wave A aligns the most frequent journeys after correctness fixes; B and C migrate the remaining enabled modules by vertical slice; D extends the same interaction system to AI/voice. Shared primitives/design specification can proceed in parallel. No wave is complete merely because its common controls compile.
+
+### Alignment acceptance and evidence ledger
+
+Before editing a feature, update the existing [route/domain inventory](../refactor/ROUTE_AND_DOMAIN_INVENTORY.md) with its disposition, shared primitives, canonical data source, current role restrictions, migration owner and affected paths. Add dated issue/PR evidence for audit, design, implementation, rendered QA and device acceptance separately. Include supporting create/edit/detail routes, not just the landing screen. Update inventory role claims against current source rather than copying old observations as current truth.
+
+Review approved Figma flows and reusable foundations before significant layout changes. Capture deterministic whole-screen fixtures for each affected feature on phone, tablet and desktop, and its actual shared-device surface where supported. Use empty/new, populated, long text, error/offline and all-features-on households; cover light/dark/night where supported, keyboard/screen reader, increased text, safe areas, and fixed chrome. Compare related screens side by side to detect different gutters, headings, button placement, form behavior and feedback.
+
+A feature is aligned only when its complete journey uses the shared contract, data/authorization remains intact, affected checks pass, and rendered evidence shows no clipping, unreadable options, hidden actions/focus, redundant navigation or accidental private shared content. Native-facing changes add applicable Back/lifecycle/permission/offline checks. The overall alignment milestone stays open until every feature row and supporting flow has an evidence-backed disposition; deliberately deferred work is named and does not count as migrated.
+
 ## Device and role contract
 
 | Surface | Primary experience | Native/platform work | Acceptance evidence |
@@ -50,7 +107,7 @@ Effort bands are planning estimates: S = bounded slice, M = multiple coordinated
 |---|---|---|---|
 | 0. Correct and trustworthy basics | Calendar return refresh #457; monthly anchor #471; capture retry keys #472 under #134/#135; AI stale destructive targets #464; summary privacy #470 | Immediate; S–M | Lost-response replay creates one effect; Jan 31 short-month policy; fresh return rendering; privacy checks. Codex. No scheduler enabled for #470. |
 | 1. Everyone and real routines | No-email member profiles and conversion #446/#136; atomic routine builder #450; recurring exceptions/grouping #449/#451; adult approval defaults; rotation transition fix; same-day timezone #452 | Identity and recurrence design; L | Parent creates a preschool child without login, assigns a multi-day routine, completes/undoes/snoozes an occurrence without shifting its series. Codex; Cameron reviews the identity UX. |
-| 2. Calm adaptive experience | Page frames, Explore/grouped destinations, per-member Today sections #132/#133/#151/#462; sheets #453/#455; dark dropdown #448; lists/custom/images #447/#454; recipe curation #460; calendar #456/#457/#458; alignment #459 | Figma-first significant flows; M–L | Full-feature and busy-household matrices pass; no hidden role controls; first-fold content useful. Codex designs/implements; Cameron reviews visual candidate. |
+| 2. Calm adaptive experience | Every-feature migration #143 and shared tokens/components #152; page frames, Explore/grouped destinations, per-member Today sections #132/#133/#151/#462; sheets #453/#455; dark dropdown #448; lists/custom/images #447/#454; recipe curation #460; calendar #456/#457/#458; alignment #459 | Figma-first significant flows; M–L | Full-feature and busy-household matrices pass; no hidden role controls; first-fold content useful. Codex designs/implements; Cameron reviews visual candidate. |
 | 3. Native reliability | Client/server release contract #473 under #145/#138; scoped offline queue #135/#371/#466; Android phone/tablet/fridge #120/#242; iPhone/iPad #465; deep links/push #141; privacy covers/HEIC/permissions | Core contracts; L | Physical lifecycle, reinstall/upgrade, revocation, queue replay/conflicts, compatibility and rollback proof. Codex prepares candidates; Cameron supplies target devices and signing/store access. |
 | 4. Useful family helper | Deterministic app help first; authorized context broker #123; structured action proposals #464; evaluation/budgets #144; feedback #146 | Reliable writes before action expansion; M–L | Grounded answers link to current records; role/device filtering before provider call; review, conflict recovery and owned undo; provider failure still leaves usable help. Codex. Provider activation/cost choice: Cameron. |
 | 5. Voice and wake | Native push-to-talk and editable transcript #125; Siri/Shortcuts actions; opt-in local foreground fridge wake prototype #120/#125; audio states, cancel, noise/night behavior | Milestones 3–4; hardware feasibility; L | Real audio/device tests and role-safe actions; no write from a wake word alone; no background/global wake promise without platform proof. Codex prototype; Cameron hardware/privacy review. |
