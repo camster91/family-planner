@@ -395,3 +395,23 @@ for (const role of ["parent", "teen", "child"] as const)
         });
     }
   });
+
+// #143: direct discovery reuses the canonical, role-gated feature hub.
+test.describe('Explore feature shortcut', () => {
+  test.use({ storageState: authFile('parentA') })
+  test('opens the feature hub without passing through Family', async ({ page }, info) => {
+    assertFixtureTargetAllowed(process.env)
+    await page.goto('/dashboard/today')
+    const viewport = page.viewportSize()!
+    if (viewport.width < 1280) {
+      await page.getByRole('button', { name: text(navigationMessages.en.userMenu), exact: true }).click()
+    }
+    const explore = page.getByRole('link', { name: text(navigationMessages.en.explore), exact: true }).filter({ visible: true })
+    await expect(explore).toHaveCount(1)
+    await capture(page, info, 'explore-shortcut', [explore])
+    await explore.click()
+    await expect(page).toHaveURL(/\/dashboard\/family\/more$/)
+    await expect(page.getByRole('heading', { name: 'More', exact: true })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Features', exact: true })).toBeVisible()
+  })
+})

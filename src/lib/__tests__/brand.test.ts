@@ -6,6 +6,7 @@ it('provides one display-only Herewoven brand contract', () => {
   const { PRODUCT_BRAND } = require('../brand')
   expect(PRODUCT_BRAND).toEqual({
     name: 'Herewoven',
+    wordmark: 'herewoven',
     tagline: 'Everyday life, held together.',
     description: 'A shared place for the everyday work of home.',
     homeLabel: 'Herewoven home',

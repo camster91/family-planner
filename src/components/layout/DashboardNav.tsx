@@ -18,6 +18,7 @@ import {
   Trash2,
   BellRing,
   CircleHelp,
+  Compass,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
@@ -134,7 +135,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           >
             <BrandMark size={48} className="h-12 w-12" />
             <span className="font-display text-[20px] font-semibold tracking-tight text-label-primary hidden min-[390px]:block md:hidden lg:block lg:text-[22px]">
-              {PRODUCT_BRAND.name}
+              {PRODUCT_BRAND.wordmark}
             </span>
           </Link>
 
@@ -173,6 +174,16 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           </div>
 
           {/* Spacer */}
+          {canSee("/dashboard/family/more") && (
+            <Link
+              href="/dashboard/family/more"
+              className="hidden xl:inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-sm font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
+            >
+              <Compass className="w-4 h-4" aria-hidden="true" />
+              {msg("explore")}
+            </Link>
+          )}
+
           <div className="flex-1" />
 
           {/* Right-side action cluster — md+ */}
@@ -239,6 +250,16 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
                   {/* Menu items */}
                   <div className="py-1.5">
+                    {canSee("/dashboard/family/more") && (
+                      <Link
+                        href="/dashboard/family/more"
+                        className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <Compass className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        {msg("explore")}
+                      </Link>
+                    )}
                     {isKid && canSee("/dashboard/today") && (
                       <Link
                         href="/dashboard/today"

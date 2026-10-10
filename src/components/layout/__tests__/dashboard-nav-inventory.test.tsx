@@ -69,3 +69,16 @@ describe('DashboardNav user menu: food inventory', () => {
     expect(screen.getByRole('link', { name: 'Today board' }).getAttribute('href')).toBe('/dashboard/today')
   })
 })
+
+// Discovery reuses the existing parent feature hub; it grants no new role access.
+it('offers the parent Explore shortcut in the header and menu', async () => {
+  await openMenu('parent')
+  const links = screen.getAllByRole('link', { name: 'Explore' })
+  expect(links).toHaveLength(2)
+  expect(links.every(link => link.getAttribute('href') === '/dashboard/family/more')).toBe(true)
+  expect(links.every(link => link.className.includes('min-h-[44px]'))).toBe(true)
+})
+it.each(['child', 'teen'] as const)('does not expose the parent feature hub to a %s', async role => {
+  await openMenu(role)
+  expect(screen.queryByRole('link', { name: 'Explore' })).toBeNull()
+})

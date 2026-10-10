@@ -49,6 +49,12 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
   stays current on `/dashboard/chores`; the Family tab stays current on Emergency, Features, More and every
   page listed under More.
 
+## Explore shortcut (#143)
+
+Parents can open the existing More feature hub directly through Explore in the desktop header (from `xl`, 1280px) or through Explore in the user menu at every width. Five primary tabs remain stable. Smaller tablet/phone headers keep their current width budget; the shortcut stays in the user menu there. This adds no new route or role privilege, and does not enable features. The hub still filters by existing canonical feature flags. Children and teens keep their current permitted entry points.
+
+This bounded entry-point change follows the existing navigation and Woven Grove foundations in `design/README.md`. Grouping the long More list, pinned destinations and a broader cross-device exploration flow remain separate #143/#152 design work; the shortcut is not proof of their acceptance.
+
 ## Family and More
 
 - Family: members, then a Household group with Emergency (moved here from its own tab) and More.

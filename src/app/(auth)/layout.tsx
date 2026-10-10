@@ -10,7 +10,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <header className="auth-brand-header">
         <Link href="/" aria-label={PRODUCT_BRAND.homeLabel} className="brand-wordmark min-h-[44px]">
           <BrandMark size={48} className="h-12 w-12" />
-          <span>{PRODUCT_BRAND.name}</span>
+          <span>{PRODUCT_BRAND.wordmark}</span>
         </Link>
       </header>
       <aside className="auth-art" aria-hidden="true">
