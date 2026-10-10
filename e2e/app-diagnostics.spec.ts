@@ -47,5 +47,12 @@ test("Help app details are deliberate, readable and recover when server identity
     .include('section[aria-labelledby="help-app-details"]')
     .analyze();
   expect(audit.violations).toEqual([]);
+  await card
+    .getByRole("button", { name: "Copy app report", exact: true })
+    .click();
+  await expect(card.getByRole("status")).toHaveText(
+    /Copied\.|Could not copy\./,
+  );
+  await card.getByText("Report for support", { exact: true }).click();
   await card.screenshot({ path: test.info().outputPath("app-details.png") });
 });
