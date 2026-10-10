@@ -124,7 +124,7 @@ describe('CaptureBox', () => {
     render(<CaptureBox onSaved={onSaved} />)
     await readPhoto(user)
     await user.click(screen.getByRole('button', { name: 'Add 3' }))
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Could not save those events'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Could not save those events. Try again to check the same requests'))
     expect(screen.getByRole('button', { name: 'Add 3' })).toBeTruthy()
     expect(onSaved).not.toHaveBeenCalled()
   })
