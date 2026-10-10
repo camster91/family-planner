@@ -4,6 +4,7 @@ import { useTodayKey } from "@/components/ui/use-hydrated";
 import { parseDateOnly, toDateOnlyLocal } from "@/lib/dates";
 import { ChoreFormSection } from "@/components/chores/ChoreFormSection";
 import { routineIconLabel } from "@/lib/routine-icons";
+import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
 import { useState, useEffect, useRef, useId } from "react";
@@ -317,6 +318,8 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             </div>
           )}
         </div>
+
+        {frequency === "monthly" && <MonthlyScheduleHint />}
 
         {frequency === "weekly" && (
           <WeeklyDaysPicker days={weeklyDays} onChange={setWeeklyDays} />
