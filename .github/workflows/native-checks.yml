@@ -32,6 +32,9 @@ jobs:
           java-version: '21'
           distribution: temurin
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: 'false'
       - name: Install Android 36 platform
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - name: Install locked dependencies
@@ -41,3 +44,13 @@ jobs:
       - name: Test and build without signing or publishing
         working-directory: android
         run: ./gradlew testDebugUnitTest compileDebugAndroidTestJavaWithJavac assembleRelease bundleRelease
+      - name: Enable hardware acceleration on the ephemeral test runner
+        run: sudo chmod 666 /dev/kvm
+      - name: Run installed-app identity and security checks
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808 # v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: cd android && ./gradlew connectedDebugAndroidTest
