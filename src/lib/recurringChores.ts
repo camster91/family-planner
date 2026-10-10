@@ -393,5 +393,27 @@ async function changeSeriesFrequencyInTx(
       due_date: { gte: tomorrow },
     },
   })
+  // The template and the edited copy retain their identities. A future,
+  // pending row must still follow the new selected weekdays; keeping its id
+  // must not leave a Monday occurrence in a Wednesday-only schedule. Today,
+  // past and completed rows remain unchanged, including their recorded dates.
+  if (newFrequency === 'weekly' && weeklyDays.length) {
+    const future = await tx.chore.findMany({
+      where: { family_id: familyId, recurrence_id: templateId, due_date: { gte: tomorrow } },
+      select: { id: true, due_date: true, status: true },
+      orderBy: { due_date: 'asc' },
+    })
+    const occupied = new Set(future.map(row => row.due_date.getTime()))
+    for (const row of future) {
+      if (row.status !== 'pending' || ![templateId, keepId].includes(row.id) || weeklyDays.includes(row.due_date.getUTCDay())) continue
+      occupied.delete(row.due_date.getTime())
+      let next = nextSelectedWeekday(row.due_date, weeklyDays, true)!
+      // Preserve completed rows and any retained occurrence on that day.
+      // The series' unique date constraint remains the final guard.
+      while (occupied.has(next.getTime())) next = nextSelectedWeekday(next, weeklyDays)!
+      await tx.chore.update({ where: { id: row.id }, data: { due_date: next } })
+      occupied.add(next.getTime())
+    }
+  }
   if (repeating) await expandSeriesInTx(tx, templateId, familyId, now)
 }

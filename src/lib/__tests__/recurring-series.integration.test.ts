@@ -127,6 +127,52 @@ describeWithDatabase('recurring chore series against Postgres', () => {
 
   afterAll(cleanup)
 
+  it.each(['template', 'copy', 'copy with reserved day'])('weekly day edits align retained future %s rows without rewriting history', async (target) => {
+    const id = 'rsint-weekday-edit'
+    await weeklyTemplate(id, FAM, PARENT, day('2026-10-12'))
+    await prisma.chore.update({ where: { id }, data: { weekly_days: [1] } })
+    await recurring.expandRecurringChores({ id, frequency: 'weekly' }, FAM, NOW0)
+    const copy = await prisma.chore.findFirstOrThrow({ where: { recurrence_id: id, due_date: day('2026-10-19') } })
+    const completed = await prisma.chore.findFirstOrThrow({ where: { recurrence_id: id, due_date: day('2026-10-26') } })
+    await prisma.chore.update({ where: { id: completed.id }, data: { status: 'verified' } })
+    for (const date of ['2026-10-04', '2026-10-05']) {
+      await prisma.chore.create({ data: {
+        id: `rsint-history-${date}`, family_id: FAM, created_by: PARENT, assigned_to: PARENT,
+        title: 'History stays', recurrence_id: id, frequency: 'once', due_date: day(date),
+      } })
+    }
+    if (target === 'copy with reserved day') {
+      await prisma.chore.create({ data: {
+        id: 'rsint-reserved-day', family_id: FAM, created_by: PARENT, assigned_to: PARENT,
+        title: 'Already verified', recurrence_id: id, frequency: 'once',
+        due_date: day('2026-10-21'), status: 'verified',
+      } })
+    }
+    await weeklyTemplate('rsint-foreign-weekdays', FAM2, OTHER, day('2026-10-12'))
+    const edited = await prisma.chore.findUniqueOrThrow({ where: { id: target === 'template' ? id : copy.id } })
+    await prisma.$transaction(tx => recurring.applyFrequencyEditInTx(tx, edited, 'weekly', {
+      applyToSeries: true, weeklyDays: [3], now: NOW0,
+    }))
+    const pending = await prisma.chore.findMany({ where: {
+      recurrence_id: id, status: 'pending', due_date: { gt: day('2026-10-05') },
+    } })
+    expect(pending.length).toBeGreaterThan(0)
+    expect(pending.every(row => row.due_date.getUTCDay() === 3)).toBe(true)
+    expect(await prisma.chore.findUniqueOrThrow({ where: { id: edited.id } })).toMatchObject({
+      due_date: day(target === 'template' ? '2026-10-14' : target === 'copy' ? '2026-10-21' : '2026-10-28'),
+    })
+    if (target === 'copy with reserved day') {
+      expect(await prisma.chore.findUniqueOrThrow({ where: { id: 'rsint-reserved-day' } })).toMatchObject({ status: 'verified', due_date: day('2026-10-21') })
+    }
+    expect(await prisma.chore.findUniqueOrThrow({ where: { id: completed.id } })).toMatchObject({
+      status: 'verified', due_date: day('2026-10-26'),
+    })
+    for (const date of ['2026-10-04', '2026-10-05']) {
+      expect(await prisma.chore.findUniqueOrThrow({ where: { id: `rsint-history-${date}` } })).toMatchObject({ due_date: day(date), status: 'pending' })
+    }
+    expect(await prisma.chore.findUniqueOrThrow({ where: { id: 'rsint-foreign-weekdays' } })).toMatchObject({ due_date: day('2026-10-12'), weekly_days: [] })
+  })
+
   it('completing a generated copy extends the series; repeat completes add nothing', async () => {
     await weeklyTemplate('rsint-t1', FAM, PARENT, day('2026-10-05'))
     await recurring.expandRecurringChores({ id: 'rsint-t1', frequency: 'weekly' }, FAM, NOW0)
