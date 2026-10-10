@@ -51,4 +51,3 @@ describe('GET /api/family/members', () => {
     expect(db.writes).toHaveLength(0)
   })
 })
-

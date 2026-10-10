@@ -129,4 +129,3 @@ describe('POST /api/family/ai-settings bounds and compatibility', () => {
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
-
