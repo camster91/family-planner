@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerUser } from '@/lib/supabase/server'
+import { refusePairedDevice } from '@/lib/device-refusal'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
@@ -41,6 +42,9 @@ const updateMedicationSchema = z
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const deviceRefusal = await refusePairedDevice(request as NextRequest)
+    if (deviceRefusal) return deviceRefusal
+
     const { id } = await params
     const user = (await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -113,6 +117,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const deviceRefusal = await refusePairedDevice(request as NextRequest)
+    if (deviceRefusal) return deviceRefusal
+
     const { id } = await params
     const user = (await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

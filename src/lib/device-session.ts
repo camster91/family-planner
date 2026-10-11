@@ -4,10 +4,10 @@
  * Contract: docs/architecture/SHARED_DEVICE.md §4, §6, §8; ADR-0006.
  *
  * A device is never a person. Nothing here produces a `TokenPayload` or reads
- * `session_token`, and the person auth helpers (`authenticateRequest`,
- * `getServerUser`, `verifySessionToken`) never read the device cookies, so
- * every existing route refuses a device by construction. The actor types below
- * are the only identities a device request can resolve to.
+ * `session_token`; the shared refusal layer checks device cookies before
+ * person authentication, while this module remains the source of truth for
+ * device identity. The actor types below are the only identities a device
+ * request can resolve to.
  *
  * Every token is 256 random bits behind a versioned `fpd1_` prefix and is
  * stored only as `sha256` hex (`hashToken`). Plaintext exists only in the

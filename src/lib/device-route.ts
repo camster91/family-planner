@@ -13,11 +13,10 @@ import type { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { isParentRole } from '@/lib/role-capabilities'
-import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
+import { deviceClock, deviceError } from '@/lib/device-http'
 import {
   clearDeviceCookies,
   DEVICE_ELEVATION_HEADER,
-  isPairedDeviceRequest,
   readDeviceCookies,
   resolveDeviceAccess,
   resolveElevation,
@@ -25,6 +24,10 @@ import {
   type DeviceRow,
   type ElevatedParentActor,
 } from '@/lib/device-session'
+
+// Kept here for existing route imports; the implementation lives in a lower
+// level module so api-auth can use the same boundary without an import cycle.
+export { refusePairedDevice } from '@/lib/device-refusal'
 
 type Fail = { ok: false; response: NextResponse }
 
@@ -61,17 +64,4 @@ export async function requireDeviceManager(request: NextRequest): Promise<Device
   if (!isParentRole(payload.role)) return { ok: false, response: deviceError(403, 'PARENT_REQUIRED') }
   if (!payload.family_id) return { ok: false, response: deviceError(403, 'FAMILY_REQUIRED') }
   return { ok: true, userId: payload.userId, familyId: payload.family_id }
-}
-
-/**
- * Person write routes that stay closed to a paired shared device until #157
- * device writes exist (e.g. ADR-0007 `from-recipe`). Runs BEFORE person auth,
- * so the tablet gets 403 `DEVICE_WRITE_NOT_ALLOWED` rather than 401, and even a
- * stray `session_token` next to a live device credential does not open the
- * route. Returns null for every other request (and always while the kill
- * switch is off, when device cookies are ignored).
- */
-export async function refusePairedDevice(request: NextRequest): Promise<NextResponse | null> {
-  if (!(await isPairedDeviceRequest(prisma!, request, deviceClock.now(), isSharedDeviceEnabled()))) return null
-  return deviceError(403, 'DEVICE_WRITE_NOT_ALLOWED')
 }

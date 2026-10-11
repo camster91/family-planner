@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { verifySessionToken } from '@/lib/session'
+import { hasLivePairedDevice } from '@/lib/device-refusal'
 
 // Returns the authenticated user from the session cookie. Used by server
 // components and route handlers. `role` and `family_id` are the member's
@@ -19,6 +20,11 @@ export async function getServerUser(): Promise<{
   family_id?: string | null
 } | null> {
   const cookieStore = await cookies()
+  // Server components cannot return an API response, so they treat a live
+  // paired tablet as anonymous. API route handlers that need the stable 403
+  // contract call refusePairedDevice(request) before this helper.
+  if (await hasLivePairedDevice({ cookies: cookieStore })) return null
+
   const token = cookieStore.get('session_token')?.value
   if (!token) return null
 

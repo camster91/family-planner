@@ -153,6 +153,10 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Member controls (O-34): a parent's household account controls, never the tablet's.
   "POST /api/family/invite-code": [403],
   "DELETE /api/family/members/[id]": [403],
+  // A configured OAuth callback reaches authenticateWithFamily and therefore
+  // returns the explicit refusal; an unconfigured/malformed callback remains
+  // a 401/404 redirect or not-found response.
+  "GET /api/calendar/connections/[provider]/callback": [401, 403, 404],
 };
 
 /**
@@ -335,7 +339,228 @@ const PRIVATE_PERSON_ROUTES = [
     method: "DELETE",
     path: "/api/sick-days/unknown-id",
   },
+  // Person-only routes that read the session through getServerUser rather
+  // than authenticateRequest. These are intentionally listed separately so
+  // the combined-cookie regression catches bypasses of the common API guard.
+  {
+    route: "GET /api/allowance",
+    module: "../allowance/route",
+    method: "GET",
+    path: "/api/allowance",
+  },
+  {
+    route: "POST /api/allowance",
+    module: "../allowance/route",
+    method: "POST",
+    path: "/api/allowance",
+  },
+  {
+    route: "PATCH /api/allowance/[id]",
+    module: "../allowance/[id]/route",
+    method: "PATCH",
+    path: "/api/allowance/unknown-id",
+  },
+  {
+    route: "GET /api/family/features",
+    module: "../family/features/route",
+    method: "GET",
+    path: "/api/family/features",
+  },
+  {
+    route: "PATCH /api/family/features",
+    module: "../family/features/route",
+    method: "PATCH",
+    path: "/api/family/features",
+  },
+  {
+    route: "GET /api/family/members",
+    module: "../family/members/route",
+    method: "GET",
+    path: "/api/family/members",
+  },
+  {
+    route: "GET /api/family/travel",
+    module: "../family/travel/route",
+    method: "GET",
+    path: "/api/family/travel",
+  },
+  {
+    route: "PATCH /api/family/travel",
+    module: "../family/travel/route",
+    method: "PATCH",
+    path: "/api/family/travel",
+  },
+  {
+    route: "GET /api/medications",
+    module: "../medications/route",
+    method: "GET",
+    path: "/api/medications",
+  },
+  {
+    route: "POST /api/medications",
+    module: "../medications/route",
+    method: "POST",
+    path: "/api/medications",
+  },
+  {
+    route: "PATCH /api/medications/[id]",
+    module: "../medications/[id]/route",
+    method: "PATCH",
+    path: "/api/medications/unknown-id",
+  },
+  {
+    route: "DELETE /api/medications/[id]",
+    module: "../medications/[id]/route",
+    method: "DELETE",
+    path: "/api/medications/unknown-id",
+  },
+  {
+    route: "GET /api/pickups",
+    module: "../pickups/route",
+    method: "GET",
+    path: "/api/pickups",
+  },
+  {
+    route: "POST /api/pickups",
+    module: "../pickups/route",
+    method: "POST",
+    path: "/api/pickups",
+  },
+  {
+    route: "PATCH /api/pickups/[id]",
+    module: "../pickups/[id]/route",
+    method: "PATCH",
+    path: "/api/pickups/unknown-id",
+  },
+  {
+    route: "DELETE /api/pickups/[id]",
+    module: "../pickups/[id]/route",
+    method: "DELETE",
+    path: "/api/pickups/unknown-id",
+  },
 ] as const;
+
+/**
+ * All other person-authenticated handler methods. They inherit the refusal
+ * from authenticateRequest, so keep their method inventory explicit alongside
+ * the route allowlist: a newly authenticated handler must be reviewed here
+ * before it can become a shared-device surface.
+ */
+const COMMON_PERSON_AUTH_ROUTES = [
+  "GET /api/activity",
+  "GET /api/auth/me",
+  "POST /api/admin/imports/[source]",
+  "GET /api/admin/imports",
+  "PATCH /api/anniversaries/[id]",
+  "DELETE /api/anniversaries/[id]",
+  "GET /api/anniversaries",
+  "POST /api/anniversaries",
+  "POST /api/assistant",
+  "POST /api/auth/change-password",
+  "POST /api/calendar/subscriptions/[id]/refresh",
+  "PATCH /api/calendar/subscriptions/[id]",
+  "DELETE /api/calendar/subscriptions/[id]",
+  "GET /api/calendar/subscriptions",
+  "POST /api/calendar/subscriptions",
+  "GET /api/capture",
+  "POST /api/capture",
+  "POST /api/chores/complete",
+  "POST /api/chores/create",
+  "GET /api/chores",
+  "PATCH /api/chores",
+  "DELETE /api/chores",
+  "POST /api/chores/uncomplete",
+  "POST /api/chores/verify",
+  "GET /api/events",
+  "POST /api/events",
+  "PATCH /api/events",
+  "DELETE /api/events",
+  "GET /api/family/ai-settings",
+  "POST /api/family/ai-settings",
+  "GET /api/family/board-settings/places",
+  "GET /api/family/board-settings",
+  "PATCH /api/family/board-settings",
+  "GET /api/family/board-version",
+  "GET /api/family/feed-token",
+  "POST /api/family/feed-token",
+  "DELETE /api/family/invites/[id]",
+  "GET /api/family/invites",
+  "POST /api/family/invites",
+  "POST /api/family/join",
+  "GET /api/family/lookup",
+  "POST /api/family",
+  "GET /api/family",
+  "PATCH /api/family",
+  "GET /api/feedback",
+  "POST /api/feedback",
+  "GET /api/files/[filename]",
+  "GET /api/files/chores/[filename]",
+  "GET /api/inventory/[id]",
+  "GET /api/inventory/adjustments",
+  "GET /api/inventory/cook",
+  "GET /api/inventory",
+  "GET /api/inventory/use-soon",
+  "GET /api/lists/[id]/version",
+  "POST /api/lists/create",
+  "POST /api/lists/default-grocery",
+  "POST /api/lists/items/create",
+  "DELETE /api/lists/items/delete",
+  "PATCH /api/lists/items/edit",
+  "POST /api/lists/items/grocery-add",
+  "GET /api/lists/items",
+  "PATCH /api/lists/items/update",
+  "GET /api/lists",
+  "DELETE /api/lists",
+  "PATCH /api/meals/[id]",
+  "DELETE /api/meals/[id]",
+  "GET /api/meals",
+  "POST /api/meals",
+  "PATCH /api/notes/[id]",
+  "DELETE /api/notes/[id]",
+  "GET /api/notes",
+  "POST /api/notes",
+  "GET /api/notifications",
+  "POST /api/notifications",
+  "PATCH /api/notifications",
+  "DELETE /api/notifications",
+  "PATCH /api/notifications/snooze",
+  "GET /api/projects/[id]",
+  "PATCH /api/projects/[id]",
+  "DELETE /api/projects/[id]",
+  "POST /api/projects/[id]/send-to-calendar",
+  "PATCH /api/projects/[id]/tasks/[taskId]",
+  "DELETE /api/projects/[id]/tasks/[taskId]",
+  "GET /api/projects/[id]/tasks",
+  "POST /api/projects/[id]/tasks",
+  "GET /api/projects",
+  "POST /api/projects",
+  "GET /api/recipes/[id]",
+  "PATCH /api/recipes/[id]",
+  "DELETE /api/recipes/[id]",
+  "POST /api/recipes/discover",
+  "POST /api/recipes/preview",
+  "GET /api/recipes",
+  "POST /api/recipes",
+  "POST /api/rewards/approve",
+  "POST /api/rewards/claim",
+  "GET /api/rewards",
+  "POST /api/rewards",
+  "PATCH /api/rewards",
+  "GET /api/search",
+  "POST /api/upload",
+  "GET /api/users/export",
+  "GET /api/users",
+  "PATCH /api/users",
+  "PATCH /api/wishlist/[id]",
+  "DELETE /api/wishlist/[id]",
+  "PATCH /api/wishlist/[id]/status",
+  "GET /api/wishlist",
+  "POST /api/wishlist",
+] as const;
+
+for (const route of COMMON_PERSON_AUTH_ROUTES) {
+  DEVICE_REFUSED_ROUTES[route] = [403];
+}
 
 // Keep the existing all-route device-only allowlist in sync with the focused
 // combined-cookie regression above. These handlers now intentionally return
@@ -507,6 +732,58 @@ describe("device cookie route allowlist", () => {
     expect(failures).toEqual([]);
   });
 
+  it("refuses every common person-auth route before a paired device can use a parent session", async () => {
+    const failures: string[] = [];
+
+    for (const route of COMMON_PERSON_AUTH_ROUTES) {
+      const [method, routePath] = route.split(" ", 2);
+      const file = files.find((candidate) => urlPath(candidate) === routePath);
+      if (!file) {
+        failures.push(`${route}: route file not found`);
+        continue;
+      }
+
+      db.reset();
+      enableSharedDevice();
+      const fx = seedDevices();
+      const csrf = "c".repeat(64);
+      const mod = require(file);
+      const handler = mod[method];
+      if (typeof handler !== "function") {
+        failures.push(`${route}: handler not found`);
+        continue;
+      }
+
+      let res: any;
+      try {
+        res = await handler(
+          deviceReq({
+            method,
+            path: routePath.replace(/\[(\w+)\]/g, "unknown-id"),
+            cookies: { ...fx.d1.cookies, csrf_token: csrf },
+            headers: { "x-csrf-token": csrf },
+            as: "parentA",
+            body: {},
+          }),
+          { params: Promise.resolve(anyParam) },
+        );
+      } catch (error) {
+        failures.push(`${route}: threw ${(error as Error).message}`);
+        continue;
+      }
+
+      const text = await bodyText(res);
+      if (res?.status !== 403 || !text.includes("DEVICE_WRITE_NOT_ALLOWED")) {
+        failures.push(`${route}: status ${res?.status}, body ${text}`);
+      }
+      const leaked = H1_CANARIES.filter((canary) => text.includes(canary));
+      if (leaked.length) failures.push(`${route}: leaked ${leaked.join(", ")}`);
+      if (db.writes.length) failures.push(`${route}: wrote ${JSON.stringify(db.writes)}`);
+    }
+
+    expect(failures).toEqual([]);
+  });
+
   it.each(["revoked", "expired", "switch-off"] as const)(
     "keeps a clean person session working when the paired credential is %s",
     async (state) => {
@@ -531,7 +808,7 @@ describe("device cookie route allowlist", () => {
     },
   );
 
-  it("calendar sync routes (#264) refuse a device cookie with 401 even when sync is configured", async () => {
+  it("calendar sync routes (#264) refuse a device cookie before auth when sync is configured", async () => {
     const {
       setSyncEnv,
       clearSyncEnv,
@@ -563,11 +840,37 @@ describe("device cookie route allowlist", () => {
           );
           expect([`${method} ${urlPath(file)}`, res.status]).toEqual([
             `${method} ${urlPath(file)}`,
-            401,
+            403,
           ]);
           expect(db.writes).toEqual([]);
         }
       }
+    } finally {
+      clearSyncEnv();
+    }
+  });
+
+  it("calendar OAuth callback refuses a paired device carrying a lingering person session", async () => {
+    const { setSyncEnv, clearSyncEnv } = require("@/lib/calendar-sync/__tests__/fakes");
+    setSyncEnv();
+    try {
+      db.reset();
+      const fx = seedDevices();
+      const csrf = "c".repeat(64);
+      const mod = require("../calendar/connections/[provider]/callback/route");
+      const res = await mod.GET(
+        deviceReq({
+          method: "GET",
+          path: "/api/calendar/connections/google/callback?code=ignored&state=ignored",
+          cookies: { ...fx.d1.cookies, csrf_token: csrf },
+          headers: { "x-csrf-token": csrf },
+          as: "parentA",
+        }),
+        { params: Promise.resolve({ provider: "google" }) },
+      );
+      expect(res.status).toBe(403);
+      expect(await bodyText(res)).toContain("DEVICE_WRITE_NOT_ALLOWED");
+      expect(db.writes).toEqual([]);
     } finally {
       clearSyncEnv();
     }

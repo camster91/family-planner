@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { signToken, TokenPayload } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTokenVersion, verifySessionToken } from '@/lib/session'
+import { refusePairedDevice } from '@/lib/device-refusal'
 
 /**
  * Attach a session cookie carrying the user's current session generation.
@@ -36,6 +37,12 @@ export async function authenticateRequest(
 ): Promise<[TokenPayload, null] | [null, NextResponse]> {
   const unauthorized = () =>
     NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // A paired tablet may carry a stale person cookie after pairing or from a
+  // prior browser session. Refuse it before reading/verifying that cookie so
+  // every authenticateWithUser/Family route shares one privacy boundary.
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return [null, deviceRefusal]
 
   const token = request.cookies.get('session_token')?.value
   if (!token) {

@@ -298,8 +298,9 @@ callers.
   `DEVICE_SESSION_INVALID` it purges (§8) and shows the paired-device-removed screen with a link to `/device/pair`.
   The middleware only checks cookie presence (no database call); the page and API do the real validation.
 - `/device/*` pages and `/api/device/*` routes authenticate only the device cookie. `/dashboard/*` pages and all
-  existing `/api/*` routes authenticate only `session_token`, so a device alone is redirected to `/login` or gets
-  `401`.
+  existing person `/api/*` routes refuse a live paired-device credential before reading `session_token`, so a device
+  alone (or a device carrying a lingering person cookie) cannot use person capabilities. Invalid, expired or revoked
+  device credentials continue through the normal person-session contract.
 
 ## 5. Pairing
 
@@ -612,8 +613,8 @@ sent once with a fresh key and roll back with a message when the tablet is offli
 | Destructive operations       | any delete, member/role changes                                                                                                                              | all                                                                                                                                      |
 | Device management            | other devices, audit history                                                                                                                                 | `/api/family/devices/**`                                                                                                                 |
 
-These routes need no change: they authenticate only `session_token`, so a device is refused. The route-allowlist
-test (§14) keeps it that way.
+These routes need no change: they authenticate only `session_token` after the shared refusal boundary, so a live paired
+device is refused before person authentication. The route-allowlist test (§14) keeps it that way.
 
 ## 10. Audit events
 
@@ -792,8 +793,8 @@ tablet D1b; **H2** with parent P2 and tablet D2. Each household has canary strin
 ### 14.1 Structural
 
 1. **Route allowlist:** enumerate every exported handler under `src/app/api/**/route.ts`; call each with only a
-   valid D1 device cookie (plus CSRF); assert `401`/`404` for every route not in `DEVICE_ALLOWED_ROUTES`, and that
-   no response body contains an H1 canary.
+   valid D1 device cookie (plus CSRF); assert `401`/`404` for ordinary person/public routes, `403
+   DEVICE_WRITE_NOT_ALLOWED` for explicitly refused person routes, and that no response body contains an H1 canary.
 2. **Page allowlist (E2E):** with only D1's cookie, every `/dashboard/*` path redirects to `/login`; `/device/today`
    renders.
 3. **Payload canaries (E2E):** `/device/today` HTML and RSC payload contain no member email, age, avatar URL, XP,
