@@ -45,12 +45,6 @@ async function serverError(res: Response): Promise<string | null> {
   return data && typeof data.error === 'string' && data.error ? data.error : null
 }
 
-const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = [
-  { key: 'yellow', label: 'Yellow' },
-  { key: 'pink', label: 'Pink' },
-  { key: 'blue', label: 'Blue' },
-]
-
 export default function NotesPage() {
   const enabled = useFeatureEnabled('notes')
   return enabled ? <NotesPageInner /> : <NotesFeatureOffState />
@@ -78,6 +72,11 @@ function NotesFeatureOffState() {
 
 function NotesPageInner() {
   const { t } = useTranslation()
+  const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = [
+    { key: 'yellow', label: t('notes.colorYellow') },
+    { key: 'pink', label: t('notes.colorPink') },
+    { key: 'blue', label: t('notes.colorBlue') },
+  ]
   const [notes, setNotes] = React.useState<Note[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)

@@ -39,6 +39,8 @@ const NOTE_TITLE_PREFIX = "E2E Notes D9";
 const NOTES_DEVICE_ID = "fx_e2e_notes_device";
 const NOTES_DEVICE_ACCESS = "fpd1_a_e2e_notes_valid";
 const NOTES_DEVICE_REFRESH = "fpd1_r_e2e_notes_valid";
+const NOTE_FAMILIES = [A.family, B.family] as const;
+const NOTE_OWNERS = [A.parent, A.teen, A.child, B.parent] as const;
 const NOTE_TITLES = {
   parent: `${NOTE_TITLE_PREFIX} parent-owned`,
   teen: `${NOTE_TITLE_PREFIX} teen-owned`,
@@ -49,17 +51,23 @@ const NOTE_TITLES = {
 type Locale = "en" | "es";
 type Role = "parent" | "teen" | "child";
 type Who = "parentA" | "teenA" | "childA" | "parentB";
+type NoteCopy = {
+  title: string;
+  add: string;
+  save: string;
+  cancel: string;
+  delete: string;
+  colors: readonly string[];
+};
 
-const COPY: Record<
-  Locale,
-  { title: string; add: string; save: string; cancel: string; delete: string }
-> = {
+const COPY: Record<Locale, NoteCopy> = {
   en: {
     title: "Notes",
     add: "Add Note",
     save: "Save",
     cancel: "Cancel",
     delete: "Delete",
+    colors: ["Yellow", "Pink", "Blue"],
   },
   es: {
     title: "Notas",
@@ -67,6 +75,7 @@ const COPY: Record<
     save: "Guardar",
     cancel: "Cancelar",
     delete: "Eliminar",
+    colors: ["Amarillo", "Rosa", "Azul"],
   },
 };
 
@@ -144,8 +153,14 @@ async function setNotesFeature(enabled: boolean) {
 async function cleanupNotes(db: pg.Client) {
   await db.query(
     `DELETE FROM "PinnedNote"
-     WHERE id = ANY($1::text[]) OR title LIKE $2`,
-    [Object.values(NOTE_IDS), `${NOTE_TITLE_PREFIX}%`],
+     WHERE id = ANY($1::text[])
+        OR (title LIKE $2 AND family_id = ANY($3::text[]) AND created_by = ANY($4::text[]))`,
+    [
+      Object.values(NOTE_IDS),
+      `${NOTE_TITLE_PREFIX}%`,
+      NOTE_FAMILIES,
+      NOTE_OWNERS,
+    ],
   );
 }
 
@@ -219,17 +234,32 @@ async function openAs(
         ? authFile(who === "parentB" ? "parentB" : "parentA")
         : authFile(who),
   });
-  await guardContext(context, use.baseURL!);
-  await configurePresentation(context, locale);
-  if (who === "teenA") {
-    const login = await context.request.post("/api/auth/login", {
-      data: { email: FIXTURE_EMAILS.familyA.teen, password: FIXTURE_PASSWORD },
-    });
-    expect(login.status(), await login.text()).toBe(200);
+  try {
+    await guardContext(context, use.baseURL!);
+    await configurePresentation(context, locale);
+    if (who === "teenA") {
+      const login = await context.request.post("/api/auth/login", {
+        data: {
+          email: FIXTURE_EMAILS.familyA.teen,
+          password: FIXTURE_PASSWORD,
+        },
+      });
+      expect(login.status(), await login.text()).toBe(200);
+    }
+    const page = await context.newPage();
+    await page.clock.install({ time: E2E_ANCHOR });
+    return { context, page };
+  } catch (error) {
+    try {
+      await context.close();
+    } catch (closeError) {
+      throw new AggregateError(
+        [error, closeError],
+        "Notes identity setup and context cleanup failed",
+      );
+    }
+    throw error;
   }
-  const page = await context.newPage();
-  await page.clock.install({ time: E2E_ANCHOR });
-  return { context, page };
 }
 
 async function visitNotes(page: Page, locale: Locale) {
@@ -394,6 +424,11 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           dialog.getByRole("button", { name: copy.delete, exact: true }),
         ).toHaveCount(role === "parent" ? 1 : 0);
+        for (const color of copy.colors) {
+          await expect(
+            dialog.getByRole("button", { name: color, exact: true }),
+          ).toBeVisible();
+        }
         await dialog
           .getByRole("button", { name: copy.cancel, exact: true })
           .click();

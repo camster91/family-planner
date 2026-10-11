@@ -51,13 +51,6 @@ export function FeatureOffState({
   testId?: string
 }) {
   const meta = FEATURES.find((f) => f.key === featureKey)
-  const defaultTitle = meta?.title ?? 'Feature'
-  const resolvedCopy = copy ?? {
-    title: `${defaultTitle} is off`,
-    description: `${defaultTitle} is turned off for your family. You can turn it on in Features settings.`,
-    askParent: `${defaultTitle} is turned off for your family. Ask a parent to turn it on.`,
-    openFeatures: 'Open Features',
-  }
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
 
   return (
@@ -65,16 +58,27 @@ export function FeatureOffState({
       <div className="empty-state-icon mx-auto">
         <Lock className="w-9 h-9 text-white" />
       </div>
-      <Heading className="text-title-2 mb-2">{resolvedCopy.title}</Heading>
+      {copy ? (
+        <Heading className="text-title-2 mb-2">{copy.title}</Heading>
+      ) : (
+        <h2 className="text-title-2 mb-2">{meta?.title ?? 'Feature'} is off</h2>
+      )}
       <p className="text-body text-label-secondary mb-6">
-        {canManage ? resolvedCopy.description : resolvedCopy.askParent}
+        {copy ? (
+          canManage ? copy.description : copy.askParent
+        ) : (
+          <>
+            {meta?.title ?? 'This feature'} is turned off for your family.{' '}
+            {canManage ? 'You can turn it on in Features settings.' : 'Ask a parent to turn it on.'}
+          </>
+        )}
       </p>
       {canManage && (
         <Link
           href="/dashboard/features"
           className="btn-filled"
         >
-          {resolvedCopy.openFeatures}
+          {copy ? copy.openFeatures : <>Open Features</>}
           <ChevronRight className="w-4 h-4" />
         </Link>
       )}
