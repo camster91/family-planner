@@ -23,6 +23,10 @@ describeWithDatabase(
     let familyEvents: typeof import("../events/route");
     let familyFeatures: typeof import("../family/features/route");
     let familyMembers: typeof import("../family/members/route");
+    let familyDevices: typeof import("../family/devices/route");
+    let budgetCategories: typeof import("../budget/categories/route");
+    let files: typeof import("../files/[filename]/route");
+    let assistant: typeof import("../assistant/route");
     let deviceMe: typeof import("../device/me/route");
     let logout: typeof import("../auth/logout/route");
 
@@ -161,6 +165,10 @@ describeWithDatabase(
       familyEvents = await import("../events/route");
       familyFeatures = await import("../family/features/route");
       familyMembers = await import("../family/members/route");
+      familyDevices = await import("../family/devices/route");
+      budgetCategories = await import("../budget/categories/route");
+      files = await import("../files/[filename]/route");
+      assistant = await import("../assistant/route");
       deviceMe = await import("../device/me/route");
       logout = await import("../auth/logout/route");
       await seedSyntheticRows();
@@ -190,6 +198,29 @@ describeWithDatabase(
       );
       await expectDeviceRefusal(
         await familyMembers.GET(request("/api/family/members")),
+      );
+      await expectDeviceRefusal(
+        await familyDevices.GET(request("/api/family/devices")),
+      );
+      await expectDeviceRefusal(
+        await budgetCategories.GET(request("/api/budget/categories")),
+      );
+      await expectDeviceRefusal(
+        await files.GET(request("/api/files/0000000000000000.jpg"), {
+          params: Promise.resolve({ filename: "0000000000000000.jpg" }),
+        }),
+      );
+      await expectDeviceRefusal(
+        await assistant.POST(
+          request("/api/assistant", {
+            method: "POST",
+            body: {
+              messages: [{ role: "user", content: PRIVATE_CANARY }],
+              localNow: "2026-10-11T12:00:00.000Z",
+              timeZone: "America/Toronto",
+            },
+          }),
+        ),
       );
 
       const events = await prisma.event.count({ where: { family_id: FAMILY } });

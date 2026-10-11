@@ -441,6 +441,86 @@ const PRIVATE_PERSON_ROUTES = [
 ] as const;
 
 /**
+ * Parent management handlers use requireDeviceManager rather than the
+ * ordinary person/private route helpers. A paired device carrying a valid
+ * parent session must still be refused before any manager mutation or read.
+ * Keep this separate from DEVICE_REFUSED_ROUTES: device-only calls have no
+ * person session and correctly remain 401 in the all-route matrix.
+ */
+const DEVICE_MANAGER_ROUTES = [
+  {
+    route: "GET /api/family/devices",
+    module: "../family/devices/route",
+    method: "GET",
+    path: "/api/family/devices",
+  },
+  {
+    route: "PATCH /api/family/devices/[id]",
+    module: "../family/devices/[id]/route",
+    method: "PATCH",
+    path: "/api/family/devices/unknown-id",
+  },
+  {
+    route: "GET /api/family/devices/[id]/events",
+    module: "../family/devices/[id]/events/route",
+    method: "GET",
+    path: "/api/family/devices/unknown-id/events",
+  },
+  {
+    route: "POST /api/family/devices/[id]/revoke",
+    module: "../family/devices/[id]/revoke/route",
+    method: "POST",
+    path: "/api/family/devices/unknown-id/revoke",
+  },
+  {
+    route: "POST /api/family/devices/pairings",
+    module: "../family/devices/pairings/route",
+    method: "POST",
+    path: "/api/family/devices/pairings",
+  },
+  {
+    route: "GET /api/family/devices/pairings/[id]",
+    module: "../family/devices/pairings/[id]/route",
+    method: "GET",
+    path: "/api/family/devices/pairings/unknown-id",
+  },
+  {
+    route: "DELETE /api/family/devices/pairings/[id]",
+    module: "../family/devices/pairings/[id]/route",
+    method: "DELETE",
+    path: "/api/family/devices/pairings/unknown-id",
+  },
+  {
+    route: "POST /api/family/devices/pairings/[id]/confirm",
+    module: "../family/devices/pairings/[id]/confirm/route",
+    method: "POST",
+    path: "/api/family/devices/pairings/unknown-id/confirm",
+  },
+  {
+    route: "PUT /api/users/elevation-pin",
+    module: "../users/elevation-pin/route",
+    method: "PUT",
+    path: "/api/users/elevation-pin",
+  },
+  {
+    route: "DELETE /api/users/elevation-pin",
+    module: "../users/elevation-pin/route",
+    method: "DELETE",
+    path: "/api/users/elevation-pin",
+  },
+] as const;
+
+/** Calendar sync routes are gated before auth when no provider is configured. */
+const CALENDAR_SYNC_ROUTES = [
+  "GET /api/calendar/connections",
+  "POST /api/calendar/connections/[provider]/start",
+  "GET /api/calendar/sync-connections/[id]/calendars",
+  "PATCH /api/calendar/sync-connections/[id]",
+  "DELETE /api/calendar/sync-connections/[id]",
+  "POST /api/calendar/sync-connections/[id]/sync",
+] as const;
+
+/**
  * All other person-authenticated handler methods. They inherit the refusal
  * from authenticateRequest, so keep their method inventory explicit alongside
  * the route allowlist: a newly authenticated handler must be reviewed here
@@ -569,6 +649,13 @@ for (const { route } of PRIVATE_PERSON_ROUTES) {
   DEVICE_REFUSED_ROUTES[route] = [403];
 }
 
+// Calendar sync checks its provider kill switch before person auth. The
+// configured path is an explicit paired-device refusal; the default-off path
+// remains a safe 404 and is accepted by the all-route matrix.
+for (const route of CALENDAR_SYNC_ROUTES) {
+  DEVICE_REFUSED_ROUTES[route] = [403, 404];
+}
+
 function enableAuditedPrivateFeatures() {
   const family = db.find("family", FAMILY_A)!;
   family.features = {
@@ -691,6 +778,7 @@ describe("device cookie route allowlist", () => {
       ...DEVICE_ALLOWED_ROUTES,
       ...Object.keys(PUBLIC_ROUTES),
       ...Object.keys(DEVICE_REFUSED_ROUTES),
+      ...DEVICE_MANAGER_ROUTES.map(({ route }) => route),
     ]) {
       expect(seen).toContain(route);
     }
@@ -778,7 +866,53 @@ describe("device cookie route allowlist", () => {
       }
       const leaked = H1_CANARIES.filter((canary) => text.includes(canary));
       if (leaked.length) failures.push(`${route}: leaked ${leaked.join(", ")}`);
-      if (db.writes.length) failures.push(`${route}: wrote ${JSON.stringify(db.writes)}`);
+      if (db.writes.length)
+        failures.push(`${route}: wrote ${JSON.stringify(db.writes)}`);
+    }
+
+    expect(failures).toEqual([]);
+  });
+
+  it("refuses every device-manager route before a paired device can use a parent session", async () => {
+    const failures: string[] = [];
+
+    for (const entry of DEVICE_MANAGER_ROUTES) {
+      db.reset();
+      enableSharedDevice();
+      const fx = seedDevices();
+      const csrf = "c".repeat(64);
+      const mod = require(entry.module);
+      const handler = mod[entry.method];
+      if (typeof handler !== "function") {
+        failures.push(`${entry.route}: handler not found`);
+        continue;
+      }
+
+      let res: any;
+      try {
+        const request = deviceReq({
+          method: entry.method,
+          path: entry.path,
+          cookies: { ...fx.d1.cookies, csrf_token: csrf },
+          headers: { "x-csrf-token": csrf },
+          as: "parentA",
+          body: {},
+        });
+        res = await handler(request, { params: Promise.resolve(anyParam) });
+      } catch (error) {
+        failures.push(`${entry.route}: threw ${(error as Error).message}`);
+        continue;
+      }
+
+      const text = await bodyText(res);
+      if (res?.status !== 403 || !text.includes("DEVICE_WRITE_NOT_ALLOWED")) {
+        failures.push(`${entry.route}: status ${res?.status}, body ${text}`);
+      }
+      const leaked = H1_CANARIES.filter((canary) => text.includes(canary));
+      if (leaked.length)
+        failures.push(`${entry.route}: leaked ${leaked.join(", ")}`);
+      if (db.writes.length)
+        failures.push(`${entry.route}: wrote ${JSON.stringify(db.writes)}`);
     }
 
     expect(failures).toEqual([]);
@@ -850,8 +984,61 @@ describe("device cookie route allowlist", () => {
     }
   });
 
+  it("calendar sync routes remain refused with both cookies when sync is configured", async () => {
+    const {
+      setSyncEnv,
+      clearSyncEnv,
+    } = require("@/lib/calendar-sync/__tests__/fakes");
+    setSyncEnv();
+    try {
+      const failures: string[] = [];
+      for (const route of CALENDAR_SYNC_ROUTES) {
+        const [method, routePath] = route.split(" ", 2);
+        const file = files.find(
+          (candidate) => urlPath(candidate) === routePath,
+        );
+        if (!file) {
+          failures.push(`${route}: route file not found`);
+          continue;
+        }
+        db.reset();
+        const fx = seedDevices();
+        const csrf = "c".repeat(64);
+        const mod = require(file);
+        const handler = mod[method];
+        if (typeof handler !== "function") {
+          failures.push(`${route}: handler not found`);
+          continue;
+        }
+        const res = await handler(
+          deviceReq({
+            method,
+            path: routePath.replace(/\[(\w+)\]/g, "unknown-id"),
+            cookies: { ...fx.d1.cookies, csrf_token: csrf },
+            headers: { "x-csrf-token": csrf },
+            as: "parentA",
+            body: {},
+          }),
+          { params: Promise.resolve({ provider: "google", id: "unknown-id" }) },
+        );
+        const text = await bodyText(res);
+        if (res?.status !== 403 || !text.includes("DEVICE_WRITE_NOT_ALLOWED")) {
+          failures.push(`${route}: status ${res?.status}, body ${text}`);
+        }
+        if (db.writes.length)
+          failures.push(`${route}: wrote ${JSON.stringify(db.writes)}`);
+      }
+      expect(failures).toEqual([]);
+    } finally {
+      clearSyncEnv();
+    }
+  });
+
   it("calendar OAuth callback refuses a paired device carrying a lingering person session", async () => {
-    const { setSyncEnv, clearSyncEnv } = require("@/lib/calendar-sync/__tests__/fakes");
+    const {
+      setSyncEnv,
+      clearSyncEnv,
+    } = require("@/lib/calendar-sync/__tests__/fakes");
     setSyncEnv();
     try {
       db.reset();

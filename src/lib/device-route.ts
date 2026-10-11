@@ -60,7 +60,16 @@ export type DeviceManager = { ok: true; userId: string; familyId: string }
 /** Person session, parent role and a household, all from the database (D6). */
 export async function requireDeviceManager(request: NextRequest): Promise<DeviceManager | Fail> {
   const [payload, authError] = await authenticateRequest(request)
-  if (authError) return { ok: false, response: deviceError(401, 'UNAUTHORIZED') }
+  // Preserve the paired-device refusal emitted before person auth. Flatten
+  // ordinary authentication failures to the manager's stable 401 contract,
+  // but do not turn a live tablet plus a lingering session into an apparently
+  // unauthenticated request.
+  if (authError) {
+    if (authError.status === 403 && request.cookies.get('session_token')?.value) {
+      return { ok: false, response: authError }
+    }
+    return { ok: false, response: deviceError(401, 'UNAUTHORIZED') }
+  }
   if (!isParentRole(payload.role)) return { ok: false, response: deviceError(403, 'PARENT_REQUIRED') }
   if (!payload.family_id) return { ok: false, response: deviceError(403, 'FAMILY_REQUIRED') }
   return { ok: true, userId: payload.userId, familyId: payload.family_id }
