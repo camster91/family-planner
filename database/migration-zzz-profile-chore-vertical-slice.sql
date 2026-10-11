@@ -96,6 +96,13 @@ END $$;
 CREATE OR REPLACE FUNCTION guard_chore_member_subject() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF TG_OP = 'UPDATE' THEN
+    IF OLD.member_subject_erased AND (
+      NEW.assigned_to IS DISTINCT FROM OLD.assigned_to
+      OR NEW.assigned_member_id IS DISTINCT FROM OLD.assigned_member_id
+      OR NEW.family_id IS DISTINCT FROM OLD.family_id
+    ) THEN
+      RAISE EXCEPTION 'erased chore member subject cannot be reassigned' USING ERRCODE = '23514';
+    END IF;
     IF OLD.member_subject_erased AND NOT NEW.member_subject_erased THEN
       RAISE EXCEPTION 'erased chore member subject cannot be restored' USING ERRCODE = '23514';
     END IF;

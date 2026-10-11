@@ -247,7 +247,7 @@ export async function PATCH(request: NextRequest) {
 
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
-      select: { family_id: true, assigned_to: true, assigned_member_id: true, photo_url: true, frequency: true, weekly_days: true, recurrence_id: true },
+      select: { family_id: true, assigned_to: true, assigned_member_id: true, member_subject_erased: true, photo_url: true, frequency: true, weekly_days: true, recurrence_id: true },
     })
 
     if (!chore) {
@@ -256,6 +256,13 @@ export async function PATCH(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    if (chore.member_subject_erased && updates.assigned_to !== undefined && updates.assigned_to !== chore.assigned_to) {
+      return NextResponse.json(
+        { error: 'An erased chore subject cannot be reassigned', code: 'IDENTITY_CONFLICT' },
+        { status: 409, headers: { 'Cache-Control': 'private, no-store' } }
+      )
+    }
 
     if (chore.assigned_to === null && chore.assigned_member_id != null) {
       return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
