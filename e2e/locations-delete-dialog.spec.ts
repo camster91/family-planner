@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
@@ -71,6 +72,7 @@ for (const locale of ["en", "es"] as const) {
                     label: LABEL,
                     address: PRIVATE_ADDRESS,
                     is_primary: false,
+                    user_id: FIXTURE_IDS.familyA.parent,
                   },
                 ],
           }),
@@ -101,6 +103,23 @@ for (const locale of ["en", "es"] as const) {
         }
       } else await route.continue();
     });
+    const contextRequest = async (
+      method: "GET" | "PATCH",
+      path: string,
+      body?: unknown,
+    ) => {
+      const csrf =
+        (await context.cookies()).find((cookie) => cookie.name === "csrf_token")
+          ?.value ?? "";
+      return context.request.fetch(new URL(path, baseURL!).href, {
+        method,
+        data: body,
+        headers:
+          method === "GET"
+            ? {}
+            : { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      });
+    };
     try {
       const enabled = await browserSend(page, "PATCH", "/api/family/features", {
         features: { ...originalFeatures, locations: true },
@@ -250,28 +269,27 @@ for (const locale of ["en", "es"] as const) {
         let response;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           try {
-            response = await browserSend(
-              page,
-              "PATCH",
-              "/api/family/features",
-              { features: originalFeatures },
-            );
-            if (response.status === 200 || response.status < 500) break;
+            response = await contextRequest("PATCH", "/api/family/features", {
+              features: originalFeatures,
+            });
+            if (response.status() === 200 || response.status() < 500) break;
           } catch (error) {
             if (attempt === 1) throw error;
           }
         }
         expect(response).toBeDefined();
-        expect(response!.status, response!.body).toBe(200);
-        const canonical = await browserFetch(page, "/api/family/features");
-        expect(canonical.status, canonical.body).toBe(200);
-        expect(JSON.parse(canonical.body).features).toEqual(originalFeatures);
+        const responseBody = await response!.text();
+        expect(response!.status(), responseBody).toBe(200);
+        const canonical = await contextRequest("GET", "/api/family/features");
+        const canonicalBody = await canonical.text();
+        expect(canonical.status(), canonicalBody).toBe(200);
+        expect(JSON.parse(canonicalBody).features).toEqual(originalFeatures);
         restored = true;
       } finally {
         try {
           await cleanAudit(restored);
         } finally {
-          await page.unroute("**/api/locations**");
+          if (!page.isClosed()) await page.unroute("**/api/locations**");
         }
       }
     }
