@@ -450,11 +450,15 @@ for (const locale of ["en", "es"] as const) {
       expect(featuresResponse?.status()).toBe(200);
       await assertFeaturesSurface(page, ALL_ON);
       const gamification = page.getByRole("switch", {
-        name: "Disable Points & streaks",
+        name: /^(?:Disable|Enable) Points & streaks$/,
+      });
+      await expect(gamification).toHaveAttribute("aria-checked", "true");
+      await gamification.click();
+      const gamificationOff = page.getByRole("switch", {
+        name: "Enable Points & streaks",
         exact: true,
       });
-      await gamification.click();
-      await expect(gamification).toHaveAttribute("aria-checked", "false");
+      await expect(gamificationOff).toHaveAttribute("aria-checked", "false");
       await expect(
         page.getByRole("switch", { name: "Enable Rewards", exact: true }),
       ).toBeDisabled();
