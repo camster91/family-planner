@@ -203,7 +203,7 @@ async function selectSyntheticCategory(dialog: Locator) {
   await category.selectOption(SYNTHETIC_CATEGORY.id);
   await expect(category).toHaveValue(SYNTHETIC_CATEGORY.id);
   await expect(category.locator("option:checked")).toHaveText(
-    SYNTHETIC_CATEGORY.name,
+    `${SYNTHETIC_CATEGORY.icon} ${SYNTHETIC_CATEGORY.name}`,
   );
 }
 
@@ -478,7 +478,9 @@ for (const locale of ["en", "es"] as const) {
         await runtimeIdentity(page, info, locale);
 
         const copy = budgetMessages[locale];
-        const refresh = page.locator('button[aria-label="Refresh budget"]');
+        const refresh = page.getByRole("button", {
+          name: copy.refreshBudget,
+        });
         const refreshRecovery = page
           .locator("#main-content")
           .getByRole("alert")
@@ -520,7 +522,7 @@ for (const locale of ["en", "es"] as const) {
         await refresh.click();
         await expect.poll(() => harness.statsCalls).toBe(5);
         await expect(
-          page.locator('button[aria-label="Refreshing budget"]'),
+          page.getByRole("button", { name: copy.refreshingBudget }),
         ).toBeDisabled();
 
         await page.locator('button[aria-label="Add transaction"]').click();
