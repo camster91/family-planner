@@ -9,6 +9,41 @@ export async function canonicalChoreAssigneeInTx(
   familyId: string,
   userId: string,
 ): Promise<{ assigned_to: string; assigned_member_id: string }> {
+  const assignee = await eligibleChoreAssigneeInTx(tx, familyId, userId, {
+    requireCanonical: true,
+  });
+  if (!assignee?.assigned_member_id)
+    throw new HouseholdMemberIdentityConflict();
+  return {
+    assigned_to: userId,
+    assigned_member_id: assignee.assigned_member_id,
+  };
+}
+
+/** Legacy rows remain supported until explicit mappings exist; inactive owners never receive new work. */
+export async function choreAssigneeForCreateInTx(
+  tx: Prisma.TransactionClient,
+  familyId: string,
+  userId: string,
+  options: { requireCanonical?: boolean; historical?: boolean } = {},
+): Promise<{ assigned_to: string; assigned_member_id?: string }> {
+  const assignee = await eligibleChoreAssigneeInTx(
+    tx,
+    familyId,
+    userId,
+    options,
+  );
+  if (!assignee) throw new HouseholdMemberIdentityConflict();
+  return assignee;
+}
+
+/** For automatic series top-up only: an inactive participant is skipped, a contradictory identity is refused. */
+export async function eligibleChoreAssigneeInTx(
+  tx: Prisma.TransactionClient,
+  familyId: string,
+  userId: string,
+  options: { requireCanonical?: boolean; historical?: boolean } = {},
+): Promise<{ assigned_to: string; assigned_member_id?: string } | null> {
   await lockHousehold(tx, familyId);
   const [account, mappings, links] = await Promise.all([
     tx.user.findFirst({
@@ -26,22 +61,21 @@ export async function canonicalChoreAssigneeInTx(
   ]);
   const refs = [...mappings, ...links];
   const ids = [...new Set(refs.map((r) => r.member_id))];
-  if (
-    !account ||
-    refs.some((r) => r.family_id !== familyId) ||
-    ids.length !== 1
-  )
+  if (refs.some((r) => r.family_id !== familyId) || ids.length > 1)
     throw new HouseholdMemberIdentityConflict();
+  if (!account) return null;
+  if (ids.length === 0) {
+    if (options.requireCanonical) throw new HouseholdMemberIdentityConflict();
+    return { assigned_to: userId };
+  }
   const id = ids[0];
   const [member, otherMappings, otherLinks] = await Promise.all([
     tx.householdMember.findFirst({
       where: {
         id,
         family_id: familyId,
-        archived_at: null,
-        erasure_user_id: null,
       },
-      select: { id: true },
+      select: { id: true, archived_at: true, erasure_user_id: true },
     }),
     tx.householdMemberLegacyMapping.count({
       where: { member_id: id, user_id: { not: userId } },
@@ -52,5 +86,7 @@ export async function canonicalChoreAssigneeInTx(
   ]);
   if (!member || otherMappings || otherLinks)
     throw new HouseholdMemberIdentityConflict();
+  if (member.erasure_user_id || (member.archived_at && !options.historical))
+    return null;
   return { assigned_to: userId, assigned_member_id: id };
 }

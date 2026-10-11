@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { describeError, log } from '@/lib/logger'
 import type { ChoreFrequency } from '@/types'
 import { planRotationTurns } from '@/lib/chore-rotation'
+import { eligibleChoreAssigneeInTx } from '@/lib/chore-member-subject'
+import { lockHousehold } from '@/lib/household-lock'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
   daily: { occurrences: 7, unit: 'day', amount: 1 },
@@ -91,6 +93,7 @@ export async function expandSeriesInTx(
   familyId: string,
   now: Date = new Date()
 ): Promise<number> {
+  await lockHousehold(tx, familyId)
   const original = await tx.chore.findUnique({
     where: { id: templateId },
     select: {
@@ -103,6 +106,7 @@ export async function expandSeriesInTx(
       weekly_days: true,
       family_id: true,
       assigned_to: true,
+      assigned_member_id: true,
       created_by: true,
       due_date: true,
       icon: true,
@@ -164,16 +168,22 @@ export async function expandSeriesInTx(
 
   // Take turns (O-39, src/lib/chore-rotation.ts): each new copy takes the
   // place after the latest occurrence, in due-date order. Members no longer
-  // in the household are skipped; if nobody in the list is, the copy goes to
-  // the template's assignee like any series.
+  // eligible in the household are skipped. If nobody is eligible, retain the
+  // history and create no new work; never fall back to a removed owner.
   const rotation = original.rotation_member_ids ?? []
+  const assignees = new Map<string, { assigned_to: string; assigned_member_id?: string }>()
+  for (const id of new Set(rotation.length ? rotation : [original.assigned_to])) {
+    const subject = await eligibleChoreAssigneeInTx(tx, familyId, id, { requireCanonical: !!original.assigned_member_id })
+    if (subject) assignees.set(id, subject)
+  }
+  if (assignees.size === 0) return 0
   let turns: Array<{ index: number; assignee: string | null }> = []
   if (rotation.length > 0) {
     const members = await tx.user.findMany({
       where: { id: { in: rotation }, family_id: familyId },
       select: { id: true },
     })
-    const active = new Set(members.map((m) => m.id))
+    const active = new Set(members.map((m) => m.id).filter(id => assignees.has(id)))
     turns = planRotationTurns(rotation, latest?.rotation_index ?? null, candidates.length, (id) => active.has(id))
   }
 
@@ -186,7 +196,7 @@ export async function expandSeriesInTx(
     // Instances are one-offs: only the template recurs, so the cron can
     // never mistake a generated row for a template.
     frequency: 'once',
-    assigned_to: turns[i]?.assignee ?? original.assigned_to,
+    ...assignees.get(turns[i]?.assignee ?? original.assigned_to)!,
     rotation_index: turns[i]?.index ?? null,
     created_by: original.created_by,
     // Picture routines (#272): every occurrence keeps the template's picture and step.

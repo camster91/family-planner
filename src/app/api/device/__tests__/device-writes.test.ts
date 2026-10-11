@@ -36,6 +36,7 @@ import * as complete from '../chores/[id]/complete/route'
 import * as undo from '../chores/[id]/uncomplete/route'
 import * as settings from '../elevated/board-settings/route'
 import * as places from '../elevated/board-settings/places/route'
+import * as completionEngine from '@/lib/chore-complete'
 import * as memberSubjects from '@/lib/chore-member-subject'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 
@@ -380,6 +381,20 @@ describe('shared-tablet writes (#274)', () => {
   describe('POST /api/device/chores/:id/complete', () => {
     beforeEach(() => allowWrites())
 
+    it('completion engine identity conflict is no-store without an audit', async () => {
+      const chore=db.find('chore','chore-today-a')!;
+      chore.assigned_member_id='hm_fixture_child'; chore.frequency='weekly'; chore.recurrence_id=null;
+      const before=structuredClone(chore);
+      const spy=jest.spyOn(completionEngine,'completeChore').mockRejectedValue(new HouseholdMemberIdentityConflict());
+      try {
+        const response=await complete.POST(postReq({actingMemberId:'child-a'}),params(chore.id));
+        expect(response.status).toBe(409);
+        expect(await errorCode(response)).toBe('IDENTITY_CONFLICT');
+        expect(response.headers.get('Cache-Control')).toContain('no-store');
+      } finally { spy.mockRestore(); }
+      expect(db.find('chore',chore.id)).toEqual(before);
+      expect(audits()).toHaveLength(0);
+    });
     it('completes a chore due today (waiting for a parent check), names the picked member, never XP', async () => {
       const xpBefore = db.find('user', 'child-a')!.xp
       const res = await complete.POST(postReq({ actingMemberId: 'child-a' }), params('chore-today-a'))

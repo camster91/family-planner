@@ -6,6 +6,8 @@ import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { completeChore, findHouseholdChore, isDueTodaySomewhere } from '@/lib/chore-complete'
 import { getRequestId } from '@/lib/request-id'
 
+import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
+
 export const dynamic = 'force-dynamic'
 
 const ACTION = 'device.chore.complete'
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: false } }
     })
   } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict) return deviceError(409, 'IDENTITY_CONFLICT')
     return deviceInternalError('device.chore_complete', error, getRequestId(request))
   }
 }

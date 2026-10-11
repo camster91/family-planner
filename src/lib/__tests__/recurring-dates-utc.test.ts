@@ -89,6 +89,10 @@ describe('expandSeriesInTx (UTC)', () => {
     }
     const created: Array<{ due_date: Date }> = []
     const tx = {
+      $queryRaw: async () => [{locked:1}],
+      user: {findFirst: async ({where}: any) => where.id === "kid" && where.family_id === "fam" ? {id:"kid"}:null},
+      householdMemberLegacyMapping: {findMany: async () => []},
+      householdMemberAccountLink: {findMany: async () => []},
       chore: {
         findUnique: async () => template,
         findMany: async () => [{ due_date: template.due_date }],

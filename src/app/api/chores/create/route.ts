@@ -13,6 +13,8 @@ import { recordChoreAssigned } from '@/lib/beta-metrics'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
+import { choreAssigneeForCreateInTx } from '@/lib/chore-member-subject'
+import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
           title,
           description: description || null,
           points,
-          assigned_to,
+          ...(await choreAssigneeForCreateInTx(tx, auth.user.family_id, assigned_to)),
           due_date: dueDate,
           difficulty,
           frequency,
@@ -155,6 +157,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ chore: newChore })
   } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

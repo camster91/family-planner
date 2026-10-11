@@ -7,6 +7,8 @@ import { COMPLETABLE_CHORE_SELECT, completeChore } from '@/lib/chore-complete'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
+import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
+
 export const dynamic = 'force-dynamic'
 
 /**
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest) {
       choreId,
     })
   } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/complete', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

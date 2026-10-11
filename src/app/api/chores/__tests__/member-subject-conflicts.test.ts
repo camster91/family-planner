@@ -22,6 +22,8 @@ jest.mock(
   () => require("@/__tests__/helpers/two-household").notificationsMock,
 );
 
+import * as completion from "@/lib/chore-complete";
+import { POST as complete } from "../complete/route";
 import { PATCH } from "../route";
 import { POST as undo } from "../uncomplete/route";
 import { POST as verify } from "../verify/route";
@@ -64,3 +66,22 @@ it.each(["edit", "undo", "reject"])(
     expect(db.find("chore", chore.id)).toEqual(before);
   },
 );
+
+it("completion maps an engine identity conflict without writing route side effects", async () => {
+  const chore = db.find("chore", "chore-a")!;
+  chore.assigned_member_id = "hm_fixture_child";
+  chore.frequency = "weekly";
+  chore.recurrence_id = null;
+  const before = structuredClone(chore);
+  const activitiesBefore = structuredClone(db.rows("activity"));
+  jest
+    .spyOn(completion, "completeChore")
+    .mockRejectedValue(new HouseholdMemberIdentityConflict());
+  const response = await complete(
+    req({ as: "parentA", body: { choreId: chore.id } }),
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ code: "IDENTITY_CONFLICT" });
+  expect(db.find("chore", chore.id)).toEqual(before);
+  expect(db.rows("activity")).toEqual(activitiesBefore);
+});

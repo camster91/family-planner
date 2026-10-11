@@ -19,6 +19,10 @@ import {
 } from "@/lib/chore-rotation";
 import { reopenCompletedChoreInTx } from "@/lib/chore-reopen";
 import { canonicalChoreAssigneeInTx } from "@/lib/chore-member-subject";
+import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
+import { expandSeriesInTx } from "@/lib/recurringChores";
+import { completeChore, findHouseholdChore } from "@/lib/chore-complete";
+import { importChoreChamps } from "@/lib/imports/persist-chore-champs";
 import { lockHousehold } from "@/lib/household-lock";
 
 const dbDescribe =
@@ -39,6 +43,14 @@ const migration = fs.readFileSync(
 dbDescribe("chore canonical subject rehearsal", () => {
   let db: pg.Client;
   async function cleanup() {
+    await db.query(
+      'DELETE FROM "ImportedRecord" WHERE family_id = ANY($1::text[])',
+      [[A, B]],
+    );
+    await db.query(
+      'DELETE FROM "ImportJob" WHERE family_id = ANY($1::text[])',
+      [[A, B]],
+    );
     await db.query('DELETE FROM "Chore" WHERE family_id = ANY($1::text[])', [
       [A, B],
     ]);
@@ -103,6 +115,373 @@ dbDescribe("chore canonical subject rehearsal", () => {
   afterAll(async () => {
     await cleanup();
     await db.end();
+  });
+
+  it("resolves only explicit create subjects and preserves unmigrated accounts", async () => {
+    expect(
+      await prisma!.$transaction((tx) => choreAssigneeForCreateInTx(tx, A, C)),
+    ).toEqual({ assigned_to: C, assigned_member_id: member() });
+    await db.query(
+      'DELETE FROM "HouseholdMemberLegacyMapping" WHERE user_id=$1',
+      [C],
+    );
+    expect(
+      await prisma!.$transaction((tx) => choreAssigneeForCreateInTx(tx, A, C)),
+    ).toEqual({ assigned_to: C });
+    await expect(
+      prisma!.$transaction((tx) =>
+        choreAssigneeForCreateInTx(tx, A, C, { requireCanonical: true }),
+      ),
+    ).rejects.toMatchObject({ name: "HouseholdMemberIdentityConflict" });
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int n FROM "User" WHERE family_id=$1',
+          [A],
+        )
+      ).rows[0].n,
+    ).toBe(2);
+  });
+  async function weekly(rotation: string[] = []) {
+    await rehearseChoreMembers(db, A, true);
+    await db.query(
+      'UPDATE "Chore" SET frequency=$2, weekly_days=ARRAY[1,4], recurrence_id=id, is_template=true, rotation_member_ids=$3 WHERE id=$1',
+      [CH, "weekly", rotation],
+    );
+  }
+  const expand = () =>
+    prisma!.$transaction((tx) =>
+      expandSeriesInTx(tx, CH, A, new Date("2026-01-04T12:00:00Z")),
+    );
+  it("writes canonical multiple-weekday occurrences idempotently without changing credit", async () => {
+    await weekly();
+    expect(await expand()).toBeGreaterThan(0);
+    expect(await expand()).toBe(0);
+    const rows = (
+      await db.query(
+        'SELECT assigned_to,assigned_member_id,due_date,points FROM "Chore" WHERE recurrence_id=$1 AND id<>$1',
+        [CH],
+      )
+    ).rows;
+    expect(rows.length).toBeGreaterThan(1);
+    for (const row of rows) {
+      expect(row).toMatchObject({
+        assigned_to: C,
+        assigned_member_id: member(),
+        points: 15,
+      });
+      expect([1, 4]).toContain(new Date(row.due_date).getUTCDay());
+    }
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,xp_awarded FROM "ChoreAssignment" WHERE id=$1',
+          [AS],
+        )
+      ).rows[0],
+    ).toEqual({ assigned_to: C, xp_awarded: 15 });
+  });
+  it("skips archived rotation participants and stops when none remain", async () => {
+    await weekly([C, P]);
+    await db.query(
+      'UPDATE "HouseholdMember" SET archived_at=CURRENT_TIMESTAMP WHERE id=$1',
+      [member()],
+    );
+    expect(await expand()).toBeGreaterThan(0);
+    const rows = (
+      await db.query(
+        'SELECT assigned_to,assigned_member_id FROM "Chore" WHERE recurrence_id=$1 AND id<>$1',
+        [CH],
+      )
+    ).rows;
+    expect(
+      rows.every(
+        (row) =>
+          row.assigned_to === P &&
+          row.assigned_member_id === memberIdForLegacyUser(A, P),
+      ),
+    ).toBe(true);
+    await db.query('DELETE FROM "Chore" WHERE recurrence_id=$1 AND id<>$1', [
+      CH,
+    ]);
+    await db.query(
+      'UPDATE "HouseholdMember" SET archived_at=CURRENT_TIMESTAMP WHERE family_id=$1',
+      [A],
+    );
+    expect(await expand()).toBe(0);
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_member_id,status FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({ assigned_member_id: member(), status: "verified" });
+  });
+  it("refuses incomplete canonical rotation reconciliation atomically", async () => {
+    await weekly([C, P]);
+    await db.query(
+      'DELETE FROM "HouseholdMemberLegacyMapping" WHERE user_id=$1',
+      [P],
+    );
+    await expect(expand()).rejects.toMatchObject({
+      name: "HouseholdMemberIdentityConflict",
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int n FROM "Chore" WHERE family_id=$1',
+          [A],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("rereads completion metadata and canonical successor subject instead of the caller snapshot", async () => {
+    await rehearseChoreMembers(db, A, true);
+    await db.query('UPDATE "Chore" SET status=$2,frequency=$3 WHERE id=$1', [
+      CH,
+      "pending",
+      "weekly",
+    ]);
+    const stale = await findHouseholdChore(prisma!, CH, A);
+    await db.query(
+      'UPDATE "Chore" SET assigned_to=$2,assigned_member_id=$3,title=$4 WHERE id=$1',
+      [CH, P, memberIdForLegacyUser(A, P), "Fresh title"],
+    );
+    expect(
+      await completeChore(
+        prisma!,
+        stale!,
+        { id: P, name: "Parent" },
+        { now: new Date("2026-01-05T12:00:00Z") },
+      ),
+    ).toBe(true);
+    expect(
+      await completeChore(prisma!, stale!, { id: P, name: "Parent" }),
+    ).toBe(false);
+    const successors = (
+      await db.query(
+        'SELECT title,assigned_to,assigned_member_id FROM "Chore" WHERE family_id=$1 AND id<>$2',
+        [A, CH],
+      )
+    ).rows;
+    expect(successors).toEqual([
+      {
+        title: "Fresh title",
+        assigned_to: P,
+        assigned_member_id: memberIdForLegacyUser(A, P),
+      },
+    ]);
+  });
+  it("rolls back completion, activity and successor when canonical ownership is inactive", async () => {
+    await rehearseChoreMembers(db, A, true);
+    await db.query('UPDATE "Chore" SET status=$2,frequency=$3 WHERE id=$1', [
+      CH,
+      "pending",
+      "weekly",
+    ]);
+    const chore = await findHouseholdChore(prisma!, CH, A);
+    await db.query(
+      'UPDATE "HouseholdMember" SET archived_at=CURRENT_TIMESTAMP WHERE id=$1',
+      [member()],
+    );
+    await expect(
+      completeChore(prisma!, chore!, { id: P, name: "Parent" }),
+    ).rejects.toMatchObject({ name: "HouseholdMemberIdentityConflict" });
+    expect(
+      (
+        await db.query(
+          'SELECT status,completed_at,successor_id FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({ status: "pending", completed_at: null, successor_id: null });
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int n FROM "Activity" WHERE family_id=$1',
+          [A],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int n FROM "Chore" WHERE family_id=$1',
+          [A],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  const imported = {
+    version: "1",
+    family: { id: "source-family", name: "Fixture" },
+    kids: [{ id: "kid-1", name: "Sam" }],
+    chores: [
+      {
+        id: "chore-1",
+        title: "Dishes",
+        basePoints: 12,
+        difficulty: "HARD",
+        recurring: "DAILY",
+        isActive: true,
+        createdAt: "2026-08-01T00:00:00Z",
+      },
+    ],
+    assignments: [
+      {
+        id: "assignment-1",
+        choreId: "chore-1",
+        kidId: "kid-1",
+        dueDate: "2026-08-29T12:00:00Z",
+        status: "COMPLETED",
+        completedAt: "2026-08-29T13:00:00Z",
+        createdAt: "2026-08-28T12:00:00Z",
+      },
+    ],
+  };
+  it("imports canonical subjects and reuses content without minting accounts", async () => {
+    const options = {
+      familyId: A,
+      startedBy: P,
+      kidToUserId: { "kid-1": C },
+      dryRun: false,
+    };
+    const first = await importChoreChamps(imported, options);
+    expect(first.summary.created).toMatchObject({
+      Chore: 1,
+      ChoreAssignment: 1,
+    });
+    const second = await importChoreChamps(imported, options);
+    expect(second.summary.reused).toMatchObject({
+      Chore: 1,
+      ChoreAssignment: 1,
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id FROM "Chore" WHERE family_id=$1 AND id<>$2',
+          [A, CH],
+        )
+      ).rows,
+    ).toEqual([{ assigned_to: C, assigned_member_id: member() }]);
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,status FROM "ChoreAssignment" WHERE family_id=$1 AND id<>$2',
+          [A, AS],
+        )
+      ).rows,
+    ).toEqual([
+      { assigned_to: C, assigned_member_id: member(), status: "completed" },
+    ]);
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int n FROM "User" WHERE family_id=$1',
+          [A],
+        )
+      ).rows[0].n,
+    ).toBe(2);
+  });
+  it("keeps mixed canonical and unmigrated historical assignments independently", async () => {
+    await db.query(
+      'DELETE FROM "HouseholdMemberLegacyMapping" WHERE user_id=$1',
+      [P],
+    );
+    const input = {
+      ...imported,
+      kids: [...imported.kids, { id: "kid-2", name: "Older account" }],
+      assignments: [
+        ...imported.assignments,
+        { ...imported.assignments[0], id: "assignment-2", kidId: "kid-2" },
+      ],
+    };
+    await importChoreChamps(input, {
+      familyId: A,
+      startedBy: P,
+      kidToUserId: { "kid-1": C, "kid-2": P },
+      dryRun: false,
+    });
+    const rows = (
+      await db.query(
+        'SELECT assigned_to,assigned_member_id FROM "ChoreAssignment" WHERE family_id=$1 AND id<>$2 ORDER BY assigned_to',
+        [A, AS],
+      )
+    ).rows;
+    expect(rows).toEqual([
+      { assigned_to: C, assigned_member_id: member() },
+      { assigned_to: P, assigned_member_id: null },
+    ]);
+  });
+  it("allows archived historical import but refuses new work and erasure-owned history", async () => {
+    await db.query(
+      'UPDATE "HouseholdMember" SET archived_at=CURRENT_TIMESTAMP WHERE id=$1',
+      [member()],
+    );
+    const options = {
+      familyId: A,
+      startedBy: P,
+      kidToUserId: { "kid-1": C },
+      dryRun: false,
+    };
+    await expect(importChoreChamps(imported, options)).rejects.toMatchObject({
+      name: "HouseholdMemberIdentityConflict",
+    });
+    const history = {
+      ...imported,
+      chores: [{ ...imported.chores[0], isActive: false }],
+    };
+    await importChoreChamps(history, options);
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_member_id,status FROM "Chore" WHERE family_id=$1 AND id<>$2',
+          [A, CH],
+        )
+      ).rows,
+    ).toEqual([{ assigned_member_id: member(), status: "archived" }]);
+    await db.query(
+      'UPDATE "HouseholdMember" SET erasure_user_id=$2 WHERE id=$1',
+      [member(), C],
+    );
+    const newHistory = {
+      ...history,
+      chores: [{ ...history.chores[0], id: "chore-erased" }],
+      assignments: [
+        {
+          ...history.assignments[0],
+          id: "assignment-erased",
+          choreId: "chore-erased",
+        },
+      ],
+    };
+    await expect(importChoreChamps(newHistory, options)).rejects.toMatchObject({
+      name: "HouseholdMemberIdentityConflict",
+    });
+  });
+  it("rejects foreign unused import mappings and child actors before recording a job", async () => {
+    const invalidOptions: Parameters<typeof importChoreChamps>[1][] = [
+      {
+        familyId: A,
+        startedBy: P,
+        kidToUserId: { "kid-1": C, unused: BP },
+        dryRun: false,
+      },
+      { familyId: A, startedBy: C, kidToUserId: { "kid-1": C }, dryRun: false },
+    ];
+    for (const options of invalidOptions)
+      await expect(importChoreChamps(imported, options)).rejects.toMatchObject({
+        name: "HouseholdMemberIdentityConflict",
+      });
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int n FROM "ImportJob" WHERE family_id=$1',
+          [A],
+        )
+      ).rows[0].n,
+    ).toBe(0);
   });
 
   it("reruns additive migration without changing legacy history or assigning members", async () => {
