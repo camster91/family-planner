@@ -2,9 +2,11 @@
  * Family AI Today: opt-in rendered proof for the dormant person-chat slice.
  *
  * The browser uses the real fixture parent session and verifies the actual
- * `/api/users` role/household. Only `/api/assistant` provider traffic is
- * synthetic; external traffic and every other state-changing request are
- * blocked. The server must be started with ASSISTANT_TODAY_ENABLED=1.
+ * `/api/users` role/household. The `/api/assistant` POST is intercepted with a
+ * synthetic assistant transport, so this spec proves rendered client behavior
+ * rather than the server route, provider or Today database broker. External
+ * traffic and every other state-changing request are blocked. The server must
+ * be started with ASSISTANT_TODAY_ENABLED=1.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
@@ -34,6 +36,9 @@ const PROJECTS = [
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const TODAY_PROTOCOL = "herewoven.assistant-today.v1";
 const TODAY_GENERATED = "2026-10-11T14:00:00.000Z";
+
+// The setup project creates this state; dependencies do not apply it to tests.
+test.use({ storageState: authFile("parentA") });
 
 const COPY = {
   en: {
@@ -131,7 +136,7 @@ async function assertRuntimePerson(page: Page, info: TestInfo, locale: Locale) {
       role: user.role,
       familyId: user.family_id,
       locale,
-      transport: "synthetic local assistant provider; real parent session",
+      transport: "synthetic local assistant transport; real parent session",
     }),
     contentType: "application/json",
   });
@@ -391,6 +396,8 @@ test("child person session never receives Today assistant capability", async ({
     "The role-boundary check runs once; parent proof covers all six sizes",
   );
   assertFixtureTargetAllowed(process.env);
+  const blockedExternal: string[] = [];
+  const blockedWrites: string[] = [];
   const context = await browser.newContext({
     baseURL,
     storageState: authFile("childA"),
@@ -416,10 +423,12 @@ test("child person session never receives Today assistant capability", async ({
         return;
       }
       if (!LOCAL_HOSTS.has(url.hostname)) {
+        blockedExternal.push(`${request.method()} ${request.url()}`);
         await route.abort();
         return;
       }
       if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+        blockedWrites.push(`${request.method()} ${url.pathname}`);
         await route.abort();
         return;
       }
@@ -448,6 +457,8 @@ test("child person session never receives Today assistant capability", async ({
     await expect(page.getByText("Include Today", { exact: true })).toHaveCount(
       0,
     );
+    expect(blockedExternal).toEqual([]);
+    expect(blockedWrites).toEqual([]);
   } finally {
     await context.close();
   }
