@@ -529,7 +529,7 @@ function EmergencyPageInner() {
             {isParent && (
               <button
                 onClick={() => setShowAdd(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent-fill)] text-white text-subhead font-semibold"
+                className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent-fill)] text-white text-subhead font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 {t('emergency.addCard')}
@@ -541,12 +541,12 @@ function EmergencyPageInner() {
         {contacts.length === 0 ? (
           <div className="card-apple p-8 text-center">
             <Heart className="w-10 h-10 text-label-tertiary mx-auto mb-3" />
-            <h3 className="text-title-3 text-label-primary">{t('emergency.empty')}</h3>
+            <h2 className="text-title-3 text-label-primary">{t('emergency.empty')}</h2>
             <p className="text-subhead text-label-secondary mt-1">{t('emergency.emptySubtitle')}</p>
             {isParent && (
               <button
                 onClick={() => setShowAdd(true)}
-                className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
+                className="mt-4 min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
               >
                 {t('emergency.addCard')}
               </button>
