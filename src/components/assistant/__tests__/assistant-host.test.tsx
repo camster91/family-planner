@@ -3,6 +3,7 @@ import "@testing-library/jest-dom";
 import * as React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { I18nProvider, useTranslation } from "@/i18n";
 import AssistantHost from "../AssistantHost";
 let mockMode = "",
   mockRecognition: any;
@@ -314,4 +315,127 @@ it("requires choosing a real household member before creating a weekly chore", a
   await screen.findByText("Saved “Recycling”.");
   expect(calls[2].path).toBe("/api/chores/create");
   expect(JSON.parse(calls[2].options.body).assigned_to).toBe("member-a");
+});
+
+it("localizes the shell, report and voice copy while retaining an unsent draft", async () => {
+  const user = userEvent.setup();
+  function LocaleSwitcher() {
+    const { setLocale } = useTranslation();
+    return (
+      <button type="button" onClick={() => setLocale("es")}>
+        Cambiar idioma
+      </button>
+    );
+  }
+  render(
+    <I18nProvider locale="en">
+      <LocaleSwitcher />
+      <AssistantHost role="parent" />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  const message = within(dialog).getByLabelText("Your message");
+  await user.type(message, "Keep this unsent");
+  await user.click(screen.getByRole("button", { name: "Cambiar idioma" }));
+
+  expect(
+    within(dialog).getByRole("heading", { name: "Asistente de IA" }),
+  ).toBeInTheDocument();
+  expect(within(dialog).getByLabelText("Tu mensaje")).toHaveValue(
+    "Keep this unsent",
+  );
+  expect(
+    within(dialog).getByRole("button", { name: "Entrada de voz" }),
+  ).toBeDisabled();
+  expect(dialog).toHaveTextContent(
+    "La voz no está disponible en este navegador; puedes escribir.",
+  );
+
+  await user.click(
+    within(dialog).getByRole("button", { name: "Informar / Sugerir" }),
+  );
+  expect(
+    within(dialog).getByRole("heading", {
+      name: "Informar de un error o sugerir una función",
+    }),
+  ).toBeInTheDocument();
+  expect(
+    within(dialog).getByLabelText("¿Qué ocurrió o qué ayudaría?"),
+  ).toBeInTheDocument();
+  expect(
+    within(dialog).getByRole("button", { name: "Guardar informe" }),
+  ).toBeInTheDocument();
+});
+
+it("localizes the proposed-action review without translating generated titles", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn(async (path) =>
+    response(
+      path === "/api/assistant"
+        ? {
+            reply: "Review this list.",
+            action: {
+              kind: "list_create",
+              title: "Weekend trip",
+              type: "custom",
+            },
+          }
+        : { list: { id: "l" } },
+    ),
+  ) as any;
+  render(
+    <I18nProvider locale="es">
+      <AssistantHost role="parent" />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(
+    within(dialog).getByLabelText("Tu mensaje"),
+    "Crea una lista",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Enviar" }));
+  const review = await within(dialog).findByRole("region", {
+    name: "Revisar acción propuesta",
+  });
+  expect(within(review).getByLabelText("Título propuesto")).toHaveValue(
+    "Weekend trip",
+  );
+  expect(
+    within(review).getByRole("button", { name: "Confirmar y guardar" }),
+  ).toBeInTheDocument();
+  expect(
+    within(review).getByRole("button", { name: "Cancelar propuesta" }),
+  ).toBeInTheDocument();
+});
+
+it("localizes semantic voice errors without changing recognition behavior", async () => {
+  class Recognition {
+    lang = "";
+    continuous = false;
+    interimResults = false;
+    onresult: any;
+    onerror: any;
+    onend: any;
+    start = jest.fn();
+    abort = jest.fn();
+    constructor() {
+      mockRecognition = this;
+    }
+  }
+  (window as any).SpeechRecognition = Recognition;
+  const user = userEvent.setup();
+  render(
+    <I18nProvider locale="es">
+      <AssistantHost role="parent" />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  await user.click(screen.getByRole("button", { name: "Entrada de voz" }));
+  const { act } = require("@testing-library/react");
+  act(() => mockRecognition.onerror({ error: "not-allowed" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Se denegó el acceso al micrófono. Aún puedes escribir.",
+  );
 });
