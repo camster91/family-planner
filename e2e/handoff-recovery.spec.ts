@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { LOCALE_STORAGE_KEY, messages } from "../src/i18n";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
+import { ownFeatureAudit } from "./support/feature-audit";
 import { authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
@@ -163,6 +164,8 @@ for (const locale of ["en", "es"] as const) {
     const originalFeatures = JSON.parse(featuresResponse.body)
       .features as Record<string, boolean>;
 
+    const cleanFeatureAudit = await ownFeatureAudit(["handoff"]);
+
     let handoffAttempts = 0;
     const releaseSuccessfulResponse = {
       current: null as (() => void) | null,
@@ -274,7 +277,11 @@ for (const locale of ["en", "es"] as const) {
           (JSON.parse(canonical.body) as { features: unknown }).features,
         ).toEqual(originalFeatures);
       } finally {
-        await page.unroute("**/api/handoff**");
+        try {
+          await cleanFeatureAudit();
+        } finally {
+          await page.unroute("**/api/handoff**");
+        }
       }
     }
   });
