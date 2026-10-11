@@ -30,6 +30,23 @@ function pageData(overrides: Partial<BudgetPageData> = {}): BudgetPageData {
   }
 }
 
+function transaction(overrides: Partial<BudgetPageData['recent_transactions'][number]> = {}) {
+  return {
+    id: 'tx-1',
+    amount: 42,
+    type: 'expense',
+    description: 'Still here',
+    notes: null,
+    category_id: null,
+    date: '2026-10-09T00:00:00.000Z',
+    is_recurring: false,
+    recurring_interval: null,
+    category: null,
+    user: { id: 'u1', name: 'Cameron', avatar_url: null },
+    ...overrides,
+  }
+}
+
 let fetchMock: jest.Mock
 
 beforeEach(() => {
@@ -70,4 +87,56 @@ it('refreshes the viewer’s local month', async () => {
 it('loads the local month when the server rendered a different (UTC) month', async () => {
   render(<BudgetDashboard initialData={pageData({ month: '1999-01' })} userId="u1" />)
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/budget/stats?month=${localMonth()}`))
+})
+
+it('keeps existing rows and offers a retry when a refresh response is not ok', async () => {
+  const stale = pageData({ recent_transactions: [transaction()] })
+  fetchMock = jest
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 503 })
+    .mockResolvedValueOnce({ ok: true, json: async () => pageData({ recent_transactions: [] }) })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={stale} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: 'Refresh budget' }))
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Showing saved rows')
+  expect(screen.getByText('Still here')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Retry budget refresh' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+})
+
+it('shows a connection recovery message without clearing the current budget', async () => {
+  const stale = pageData({ recent_transactions: [transaction()] })
+  fetchMock = jest.fn().mockRejectedValueOnce(new Error('offline'))
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={stale} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: 'Refresh budget' }))
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Check your connection')
+  expect(screen.getByText('Still here')).toBeTruthy()
+})
+
+it('allows only one budget refresh while the current request is pending', async () => {
+  let resolveRefresh: (value: { ok: boolean; json: () => Promise<BudgetPageData> }) => void = () => {}
+  fetchMock = jest.fn(
+    () =>
+      new Promise((resolve) => {
+        resolveRefresh = resolve
+      })
+  )
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData()} userId="u1" />)
+  const refresh = screen.getByRole('button', { name: 'Refresh budget' })
+  await user.click(refresh)
+
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect((screen.getByRole('button', { name: 'Refreshing budget' }) as HTMLButtonElement).disabled).toBe(true)
+  resolveRefresh({ ok: true, json: async () => pageData() })
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh budget' }) as HTMLButtonElement).disabled).toBe(false))
 })

@@ -13,6 +13,7 @@ import { formatDateOnly, formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC 
 import { useMaybeToast } from '@/components/ui/toast'
 import { budgetProgress } from '@/lib/budget'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { useBudgetText } from '@/i18n/budget'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 // -----------------------------------------------------------------------
@@ -99,8 +100,11 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const [editing, setEditing] = React.useState<Transaction | null>(null)
   const hydrated = useHydrated()
   const { addToast } = useMaybeToast()
+  const text = useBudgetText()
   const [filter, setFilter] = React.useState<'all' | 'income' | 'expense'>('all')
   const [isLoading, setIsLoading] = React.useState(false)
+  const [refreshError, setRefreshError] = React.useState<'server' | 'network' | null>(null)
+  const refreshInFlight = React.useRef(false)
 
   // All transactions from the data
   const allTransactions = data.recent_transactions as Transaction[]
@@ -123,23 +127,29 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const ring = budgetProgress(spent, budgetLimit)
 
   const refreshData = React.useCallback(async () => {
+    if (refreshInFlight.current) return
+    refreshInFlight.current = true
     setIsLoading(true)
+    setRefreshError(null)
     try {
       // Ask for the viewer's local month (O-31): without it the server picks
       // the UTC month, which is wrong for the hours around a month change.
       const res = await fetch(`/api/budget/stats?month=${localYearMonth()}`)
-      if (res.ok) {
-        const json = await res.json()
-        setData({
-          ...json,
-          monthly_trend: json.monthly_trend,
-          recent_transactions: json.recent_transactions,
-          category_breakdown: json.category_breakdown,
-        } as BudgetPageData)
+      if (!res.ok) {
+        setRefreshError('server')
+        return
       }
-    } catch (err) {
-      console.error('Failed to refresh:', err)
+      const json = await res.json()
+      setData({
+        ...json,
+        monthly_trend: json.monthly_trend,
+        recent_transactions: json.recent_transactions,
+        category_breakdown: json.category_breakdown,
+      } as BudgetPageData)
+    } catch {
+      setRefreshError('network')
     } finally {
+      refreshInFlight.current = false
       setIsLoading(false)
     }
   }, [])
@@ -173,7 +183,14 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
         title="Budget"
         subtitle={data.month}
         trailing={
-          <button onClick={refreshData} aria-label="Refresh budget" type="button" className={cn('btn-ghost h-11 w-11 p-0', isLoading && 'opacity-50')}>
+          <button
+            onClick={refreshData}
+            aria-label={isLoading ? text('refreshingBudget') : text('refreshBudget')}
+            aria-busy={isLoading}
+            disabled={isLoading}
+            type="button"
+            className={cn('btn-ghost h-11 w-11 p-0', isLoading && 'opacity-50')}
+          >
             <RefreshCw aria-hidden="true" className={cn('w-4 h-4', isLoading && 'motion-safe:animate-spin')} />
           </button>
         }
@@ -181,6 +198,22 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
       />
 
       <div className="space-y-5 px-4">
+        {refreshError && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--tint-rewards)] bg-[var(--tint-rewards)]/10 px-4 py-3">
+            <p className="text-subhead text-label-primary">
+              {refreshError === 'network' ? text('refreshNetworkError') : text('refreshFailed')}
+            </p>
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={isLoading}
+              className="btn-ghost min-h-[44px] shrink-0 px-3"
+            >
+              {text('retryRefresh')}
+            </button>
+          </div>
+        )}
+
         {/* Progress ring + summary */}
         <div className="card-apple p-5 flex items-center gap-5">
           {ring && budgetLimit !== null && (
