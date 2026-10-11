@@ -614,6 +614,7 @@ test.describe("capture receipt recovery", () => {
       expect(eventRequests[1]!.key).toBe(eventRequests[0]!.key);
       expect(eventRequests[1]!.body).toBe(eventRequests[0]!.body);
       expect(serverEventIds).toEqual([createdEventId, createdEventId]);
+      expect(requests).toHaveLength(1);
       expect(
         await discoverOwnedCaptureEvents(page, fixture, eventTitle),
       ).toHaveLength(1);
@@ -626,6 +627,9 @@ test.describe("capture receipt recovery", () => {
         eventTitle,
       );
       expect(eventPostCount).toBe(2);
+      // The retry above performs its own authoritative receipt check. Isolate
+      // this post-reload button assertion so it proves exactly one new check.
+      requests.length = 0;
       expect(
         await discoverOwnedCaptureEvents(page, fixture, eventTitle),
       ).toHaveLength(1);
@@ -840,7 +844,7 @@ test.describe("capture receipt recovery", () => {
       ).toContainText("1 event could not be saved");
       await expect(
         page
-          .getByText("Found 2 events", { exact: true })
+          .getByText("Found 1 event", { exact: true })
           .locator("..")
           .getByText("Synthetic photo failure", { exact: true }),
       ).toBeVisible();
