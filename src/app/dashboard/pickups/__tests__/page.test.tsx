@@ -267,6 +267,8 @@ it("keeps a reopened draft open when the previous close back arrives late", asyn
   renderPage();
   const add = await screen.findByRole("button", { name: "Add" });
   await user.click(add);
+  const firstMarker = (window.history.state as { pickupForm?: unknown })
+    .pickupForm;
   await user.keyboard("{Escape}");
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -278,6 +280,10 @@ it("keeps a reopened draft open when the previous close back arrives late", asyn
   window.dispatchEvent(new PopStateEvent("popstate"));
 
   expect(dialog).toBeInTheDocument();
+  const reopenedMarker = (window.history.state as { pickupForm?: unknown })
+    .pickupForm;
+  expect(reopenedMarker).toMatch(/^pickup-form-/);
+  expect(reopenedMarker).not.toBe(firstMarker);
   expect(backSpy).toHaveBeenCalledTimes(1);
   backSpy.mockRestore();
 });
@@ -299,6 +305,46 @@ it("consumes its marker when the form owner unmounts", async () => {
   view.unmount();
 
   await waitFor(() => expect(backSpy).toHaveBeenCalledTimes(1));
+  backSpy.mockRestore();
+});
+
+it("removes only its marker when unmount inherits a changed-route Next state", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  const view = renderPage();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  const marker = (window.history.state as { pickupForm?: unknown }).pickupForm;
+  expect(marker).toEqual(expect.stringMatching(/^pickup-form-/));
+  view.unmount();
+
+  window.history.pushState(
+    {
+      __N: true,
+      customNextState: "preserve-me",
+      pickupForm: marker,
+    },
+    "",
+    "/dashboard/next",
+  );
+  await waitFor(() => {
+    expect((window.history.state as { pickupForm?: unknown }).pickupForm).toBe(
+      undefined,
+    );
+  });
+  expect(window.history.state).toMatchObject({
+    __N: true,
+    customNextState: "preserve-me",
+  });
+  expect(backSpy).not.toHaveBeenCalled();
   backSpy.mockRestore();
 });
 

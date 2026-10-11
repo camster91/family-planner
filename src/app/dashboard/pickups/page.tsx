@@ -39,6 +39,13 @@ const EMPTY_DRAFT = {
   notes: "",
 };
 
+let pickupHistoryMarkerSequence = 0;
+
+function createPickupHistoryMarker(): string {
+  pickupHistoryMarkerSequence += 1;
+  return `pickup-form-${Date.now().toString(36)}-${pickupHistoryMarkerSequence.toString(36)}`;
+}
+
 function pickupHistoryMarker(state: unknown): string | null {
   if (!state || typeof state !== "object") return null;
   const marker = (state as { pickupForm?: unknown }).pickupForm;
@@ -50,6 +57,11 @@ function pickupHistoryMarker(state: unknown): string | null {
 function isPickupHistoryMarker(state: unknown, marker: string): boolean {
   return pickupHistoryMarker(state) === marker;
 }
+
+type PickupHistoryEntry = {
+  marker: string;
+  ownerUrl: string;
+};
 
 export default function PickupsPage() {
   return (
@@ -79,10 +91,7 @@ function PickupsPageInner() {
   const loadInFlightRef = React.useRef(false);
   const addButtonRef = React.useRef<HTMLButtonElement>(null);
   const titleRef = React.useRef<HTMLInputElement>(null);
-  const historyEntryRef = React.useRef<{
-    marker: string;
-  } | null>(null);
-  const historyMarkerSequenceRef = React.useRef(0);
+  const historyEntryRef = React.useRef<PickupHistoryEntry | null>(null);
   const historyCloseRef = React.useRef<{ marker: string } | null>(null);
   const historyCleanupTimerRef = React.useRef<number | null>(null);
   const backgroundStateRef = React.useRef<{
@@ -167,8 +176,8 @@ function PickupsPageInner() {
       historyCleanupTimerRef.current = null;
     }
 
-    const currentState = window.history.state;
-    const pendingClose = historyCloseRef.current;
+    let currentState = window.history.state;
+    let pendingClose = historyCloseRef.current;
     if (
       pendingClose &&
       !isPickupHistoryMarker(currentState, pendingClose.marker)
@@ -177,18 +186,34 @@ function PickupsPageInner() {
       // gone, so this form owns a fresh entry.
       historyCloseRef.current = null;
       historyEntryRef.current = null;
+      pendingClose = null;
     }
 
     const existingEntry = historyEntryRef.current;
     const existingMarker = pickupHistoryMarker(window.history.state);
+    if (!pendingClose && !existingEntry && existingMarker) {
+      // A prior form owner may have unmounted while Next changed the route
+      // and carried its state forward. Remove only that marker before this
+      // form creates its own entry; preserve every other Next state field.
+      const stateWithoutMarker =
+        currentState && typeof currentState === "object"
+          ? Object.fromEntries(
+              Object.entries(currentState).filter(
+                ([key]) => key !== "pickupForm",
+              ),
+            )
+          : {};
+      window.history.replaceState(stateWithoutMarker, "", window.location.href);
+      currentState = stateWithoutMarker;
+    }
     const marker =
-      historyCloseRef.current?.marker ??
+      pendingClose?.marker ??
       (existingEntry &&
       isPickupHistoryMarker(currentState, existingEntry.marker)
         ? existingEntry.marker
-        : (existingMarker ??
-          `pickup-form-${++historyMarkerSequenceRef.current}`));
-    historyEntryRef.current = { marker };
+        : createPickupHistoryMarker());
+    const ownerUrl = existingEntry?.ownerUrl ?? window.location.href;
+    historyEntryRef.current = { marker, ownerUrl };
     const state =
       currentState && typeof currentState === "object" ? currentState : {};
     if (!isPickupHistoryMarker(currentState, marker)) {
@@ -207,12 +232,15 @@ function PickupsPageInner() {
         historyCloseRef.current = null;
         historyEntryRef.current = null;
         if (addingRef.current) {
-          const nextMarker = `pickup-form-${++historyMarkerSequenceRef.current}`;
+          const nextMarker = createPickupHistoryMarker();
           const nextState =
             window.history.state && typeof window.history.state === "object"
               ? window.history.state
               : {};
-          historyEntryRef.current = { marker: nextMarker };
+          historyEntryRef.current = {
+            marker: nextMarker,
+            ownerUrl: window.location.href,
+          };
           window.history.pushState(
             { ...nextState, pickupForm: nextMarker },
             "",
@@ -259,7 +287,23 @@ function PickupsPageInner() {
           return;
         }
         historyEntryRef.current = null;
-        window.history.back();
+        if (window.location.href === entry.ownerUrl) {
+          window.history.back();
+          return;
+        }
+        const currentState = window.history.state;
+        if (currentState && typeof currentState === "object") {
+          const stateWithoutMarker = Object.fromEntries(
+            Object.entries(currentState).filter(
+              ([key]) => key !== "pickupForm",
+            ),
+          );
+          window.history.replaceState(
+            stateWithoutMarker,
+            "",
+            window.location.href,
+          );
+        }
       }, 0);
     };
   }, [adding, lockBackground, unlockBackground]);
