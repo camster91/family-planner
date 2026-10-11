@@ -294,6 +294,10 @@ for (const locale of ["en", "es"] as const) {
             guardInstalled = true;
             await page.route(/\/api\/(?:users|family)$/, async (route) => {
               const request = route.request();
+              if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+                await route.fallback();
+                return;
+              }
               if (request.method() !== "DELETE") {
                 unknownWrites.push(
                   `${request.method()} ${new URL(request.url()).pathname}`,
