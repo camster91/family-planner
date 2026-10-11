@@ -28,11 +28,11 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  FEATURES,
   isFeatureEnabled,
   type FamilyFeatures,
   type FeatureKey,
-} from "@/lib/features";
+} from "@/lib/feature-flags";
+import { featureNavMeta } from "@/lib/feature-nav-meta";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 
 /**
@@ -174,7 +174,7 @@ export function isTabActive(tab: TabItem, pathname: string): boolean {
       matchesPath(pathname, "/dashboard/emergency") ||
       matchesPath(pathname, "/dashboard/features") ||
       MORE_FEATURE_KEYS.some((k) => {
-        const meta = FEATURES.find((f) => f.key === k);
+        const meta = featureNavMeta(k);
         return meta ? matchesPath(pathname, meta.href) : false;
       })
     );
@@ -245,14 +245,15 @@ function moreItem(
   key: FeatureKey,
   resolveDisplay?: FeatureDisplayResolver,
 ): MoreItem {
-  const meta = FEATURES.find((f) => f.key === key)!;
+  const meta = featureNavMeta(key);
+  if (!meta) throw new Error(`Missing navigation metadata for ${key}`);
   const display = resolveDisplay?.(key);
   return {
     key,
     title: display?.title ?? meta.title,
     description: display?.description ?? meta.description,
     href: meta.href,
-    icon: MORE_ICONS[key] ?? meta.icon,
+    icon: MORE_ICONS[key] ?? LayoutGrid,
   };
 }
 

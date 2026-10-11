@@ -240,6 +240,14 @@ for (const locale of ["en", "es"] as const) {
           exact: true,
         }),
       ).toBeVisible();
+      if (locale === "es") {
+        await search.fill("points & streaks");
+        await expect(
+          page.getByText(getFeatureDisplayCopy(locale, "gamification").title, {
+            exact: true,
+          }),
+        ).toBeVisible();
+      }
       await expect(
         page.getByRole("button", { name: copy.openAll }),
       ).toHaveCount(0);

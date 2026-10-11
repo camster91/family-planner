@@ -4,6 +4,7 @@ import {
   featureDisplaySpanish,
   getFeatureDisplayCopy,
 } from "../feature-display";
+import { getFeatureNavTitle } from "../feature-nav";
 
 const registryKeys = FEATURES.map(({ key }) => key).sort();
 
@@ -18,6 +19,22 @@ describe("feature display copy", () => {
       );
       expect(getFeatureDisplayCopy("es", key).title).not.toBe("");
       expect(getFeatureDisplayCopy("es", key).description).not.toBe("");
+    }
+  });
+
+  it("keeps the shared kid navigation labels aligned with the full catalog", () => {
+    for (const locale of ["en", "es"] as const) {
+      for (const key of [
+        "wishlist",
+        "allowance",
+        "handoff",
+        "sick-days",
+        "notes",
+      ] as const) {
+        expect(getFeatureNavTitle(locale, key)).toBe(
+          getFeatureDisplayCopy(locale, key).title,
+        );
+      }
     }
   });
 

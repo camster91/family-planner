@@ -59,6 +59,9 @@ export default function FeaturesPage() {
           const needsTitle = feature.requires
             ? featureDisplay(feature.requires).title
             : undefined
+          const needsDescription = feature.requires
+            ? featureDisplay(feature.requires).description
+            : undefined
           const display = featureDisplay(feature.key)
           // Search accepts the canonical English metadata as an alias while
           // the row itself remains localized. This keeps a familiar query
@@ -69,6 +72,7 @@ export default function FeaturesPage() {
             display.description,
             feature.title,
             feature.description,
+            needsDescription,
             title,
             subtitle,
             needsTitle,

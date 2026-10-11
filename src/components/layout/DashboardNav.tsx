@@ -36,7 +36,7 @@ import {
   navItemDisplayName,
   tabsFor,
 } from "@/lib/nav-items";
-import { isFeatureEnabled } from "@/lib/features";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useTranslation } from "@/i18n";
 import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
