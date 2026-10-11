@@ -599,7 +599,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
   });
 
   it("rejects removals from a new stack without changing a legacy chore", async () => {
-    const label = `${PREFIX}-new-stack-removal-rejected`;
+    const label = `${PREFIX}-reject-remove`;
     await db.chore.create({
       data: {
         id: LEGACY_UNSTACKED,
