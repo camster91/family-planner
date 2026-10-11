@@ -530,6 +530,9 @@ for (const locale of LOCALES) {
         await page.goto("/dashboard/chores");
         await runtimeIdentity(page, info, locale);
         await page
+          .getByRole("button", { name: "Routines", exact: true })
+          .click();
+        await page
           .getByRole("link", { name: copy[locale].build, exact: true })
           .click();
         const dialog = page.getByRole("dialog");
@@ -705,6 +708,9 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].discard, exact: true })
           .click();
         await page.goto("/dashboard/chores");
+        await page
+          .getByRole("button", { name: "Routines", exact: true })
+          .click();
         await page
           .getByRole("link", { name: copy[locale].build, exact: true })
           .click();
