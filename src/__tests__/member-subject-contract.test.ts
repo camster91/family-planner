@@ -39,7 +39,7 @@ it("rejects stale and missing decisions", () => {
   expect(
     subjectDifferences(
       collectMemberSubjects(schema).filter(
-        (row) => row.relation !== "Chore.assigneeMember",
+        (row: { relation: string }) => row.relation !== "Chore.assigneeMember",
       ),
       inventory,
     ),
