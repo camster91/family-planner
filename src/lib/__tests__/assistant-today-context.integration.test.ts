@@ -168,6 +168,7 @@ dbSuite("assistant Today broker PostgreSQL contract", () => {
           title: "Teen's own chore",
           assigned_to: TEEN_A,
           created_by: PARENT_A,
+          created_at: new Date("2026-10-01T00:00:00.000Z"),
           due_date: TODAY,
         },
         {
@@ -176,6 +177,7 @@ dbSuite("assistant Today broker PostgreSQL contract", () => {
           title: "Sibling chore must stay out of teen view",
           assigned_to: SIBLING_A,
           created_by: PARENT_A,
+          created_at: new Date("2026-10-01T00:01:00.000Z"),
           due_date: TODAY,
         },
         {
@@ -353,6 +355,7 @@ dbSuite("assistant Today broker PostgreSQL contract", () => {
 
     expect(result?.viewer.localDate).toBe("2026-10-11");
     expect(result?.today.events.map((event) => event.title)).toEqual([
+      "Own family event",
       "Toronto evening boundary",
     ]);
   });
