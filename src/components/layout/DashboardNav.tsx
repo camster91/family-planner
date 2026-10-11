@@ -29,9 +29,15 @@ import { TabBar } from "@/components/ui/tab-bar";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 import DeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
 import { useFeatures } from "@/components/providers/features-provider";
-import { homeHrefFor, isTabActive, tabsFor } from "@/lib/nav-items";
+import {
+  homeHrefFor,
+  isTabActive,
+  kidFeatureNavItems,
+  tabsFor,
+} from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
 import { useTranslation } from "@/i18n";
+import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import {
   navigationMessages,
   navigationTabKey,
@@ -41,6 +47,15 @@ import {
 interface DashboardNavProps {
   user: NavUser | null;
 }
+
+const KID_FEATURE_MENU_LABEL_KEYS: Readonly<Record<string, NavigationMessage>> =
+  {
+    "/dashboard/wishlist": "wishlist",
+    "/dashboard/allowance": "allowance",
+    "/dashboard/handoff": "handoff",
+    "/dashboard/sick-days": "sickDays",
+    "/dashboard/notes": "notes",
+  };
 
 export default function DashboardNav({ user }: DashboardNavProps) {
   const { t } = useTranslation();
@@ -75,6 +90,23 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   // keyboard-only). Parents also find it under Family → More.
   const inventoryOn = isFeatureEnabled(features, "inventory");
   const messagesOn = isFeatureEnabled(features, "messages");
+  // These routes are on the kid allowlist but do not belong in the parent-only
+  // Family → More page. Reuse the command-palette source entries so labels and
+  // icons stay aligned, then apply the same role and effective-feature gates.
+  const kidFeatureItems = isKid
+    ? kidFeatureNavItems
+        .filter(
+          (item) =>
+            item.href in KID_FEATURE_MENU_LABEL_KEYS &&
+            item.featureKey !== undefined &&
+            isFeatureEnabled(features, item.featureKey) &&
+            canSee(item.href),
+        )
+        .map((item) => ({
+          ...item,
+          labelKey: KID_FEATURE_MENU_LABEL_KEYS[item.href],
+        }))
+    : [];
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -99,6 +131,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   }, [avatarOpen]);
 
   const handleSignOut = async () => {
+    // Capture recovery contains normalized household content and belongs only
+    // to the signed-in session. Clear it before leaving the account, even if
+    // the server logout request is unavailable offline.
+    clearCaptureRecoveryStorage(undefined);
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
       const { clearAllPersonQueues } =
@@ -256,7 +292,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
-                        <Compass className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        <Compass
+                          className="w-4 h-4 text-label-secondary"
+                          aria-hidden="true"
+                        />
                         {msg("explore")}
                       </Link>
                     )}
@@ -292,6 +331,32 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         <MessageCircle className="w-4 h-4 text-label-secondary" />
                         {msg("messages")}
                       </Link>
+                    )}
+                    {kidFeatureItems.length > 0 && (
+                      <div
+                        role="group"
+                        aria-label={msg("personalFeatures")}
+                        data-testid="kid-feature-menu-group"
+                        className="mt-1 border-t border-[var(--surface-separator)] pt-1"
+                      >
+                        {kidFeatureItems.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
+                              onClick={() => setAvatarOpen(false)}
+                            >
+                              <Icon
+                                className="w-4 h-4 text-label-secondary"
+                                aria-hidden="true"
+                              />
+                              {msg(item.labelKey)}
+                            </Link>
+                          );
+                        })}
+                      </div>
                     )}
                     {canSee("/dashboard/family") && (
                       <Link

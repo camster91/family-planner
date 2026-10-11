@@ -13,6 +13,7 @@ import {
 } from "@/i18n/auth-entry";
 
 import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
+import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import { loginNoticeFor, safeRedirectPath } from "@/lib/safe-redirect";
 
 export default function LoginPage() {
@@ -40,6 +41,7 @@ export default function LoginPage() {
     // Nobody is signed in on this page (the middleware sends a signed-in user
     // away), so offline changes left by an ended session are dropped, never
     // replayed (#162, OFFLINE_SYNC.md "Security").
+    clearCaptureRecoveryStorage(undefined);
     void clearAllPersonQueues();
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");

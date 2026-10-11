@@ -11,6 +11,7 @@ const NAV = [
   { href: '/dashboard', label: 'Today' },
   { href: '/dashboard/calendar', label: 'Calendar' },
   { href: '/dashboard/lists', label: 'Lists' },
+  { href: '/dashboard/notes', label: 'Notes' },
   { href: '/dashboard/emergency', label: 'Emergency' },
   { href: '/dashboard/family', label: 'Family' },
   { href: '/dashboard/wishlist', label: 'Wishlist' },
@@ -27,7 +28,7 @@ describe('nav filtering by role (same allowlist as the middleware redirect)', ()
   })
 
   it('shows a child only home and kid-allowlisted links', () => {
-    expect(filterNavForRole(NAV, 'child').map((i) => i.label)).toEqual(['Today', 'Lists', 'Emergency', 'Wishlist'])
+    expect(filterNavForRole(NAV, 'child').map((i) => i.label)).toEqual(['Today', 'Lists', 'Notes', 'Emergency', 'Wishlist'])
   })
 
   it('shows a teen the kid links plus calendar, meals, settings, help and notifications (O-37)', () => {
@@ -35,6 +36,7 @@ describe('nav filtering by role (same allowlist as the middleware redirect)', ()
       'Today',
       'Calendar',
       'Lists',
+      'Notes',
       'Emergency',
       'Wishlist',
       'Meals',
@@ -61,6 +63,7 @@ describe('kid allowlist after the #102 decisions', () => {
     '/dashboard/lists',
     '/dashboard/lists/fx_list_a_grocery',
     '/dashboard/lists/type/grocery',
+    '/dashboard/notes',
     '/dashboard/allowance',
     '/dashboard/handoff',
     '/dashboard/sick-days',
@@ -148,7 +151,6 @@ describe('teen routes (owner decision O-37)', () => {
     '/dashboard/budget',
     '/dashboard/locations',
     '/dashboard/travel',
-    '/dashboard/notes',
   ])('keeps teens and children out of %s', (path) => {
     expect(canRoleAccessPath('teen', path)).toBe(false)
     expect(canRoleAccessPath('child', path)).toBe(false)

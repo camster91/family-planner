@@ -254,13 +254,19 @@ test.describe("Family A parent", () => {
       .filter({ has: page.getByText("To check", { exact: true }) });
     for (const s of STEPS) await expect(queue.getByText(s.title)).toBeVisible();
 
-    page.once("dialog", (d) => d.accept("Teeth need another go"));
     const checked = page.waitForResponse((r) =>
       r.url().endsWith("/api/chores/verify"),
     );
     await queue
       .getByRole("button", { name: `Send back “${STEPS[0].title}”` })
       .click();
+    const verificationDialog = page.getByRole("dialog", {
+      name: `Send “${STEPS[0].title}” back`,
+    });
+    await verificationDialog
+      .getByRole("textbox", { name: "Reason (optional)" })
+      .fill("Teeth need another go");
+    await verificationDialog.getByRole("button", { name: "Send back" }).click();
     const res = await checked;
     expect(res.status()).toBe(200);
     expect(res.request().postDataJSON()).toEqual({

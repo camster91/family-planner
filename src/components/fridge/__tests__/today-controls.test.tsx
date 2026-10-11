@@ -9,21 +9,30 @@ const links: BoardLinks = { calendar: '/dashboard/calendar', chores: '/dashboard
 const refresh = jest.fn()
 function mount(role='parent', online=true, choices=links) { return render(<TodayControls role={role} links={choices} onRefresh={refresh} online={online} />) }
 beforeEach(() => refresh.mockClear())
-it('parents get canonical create routes and separate grocery and all-list destinations', () => {
-  mount()
+it.each(['parent', 'teen'] as const)('%s gets the relative event-create route and separate grocery and all-list destinations', role => {
+  mount(role)
   expect(screen.getByRole('link', {name:'Add event'})).toHaveAttribute('href','/dashboard/calendar/create')
-  expect(screen.getByRole('link', {name:'Add chore'})).toHaveAttribute('href','/dashboard/chores/create')
+  if (role === 'parent') {
+    expect(screen.getByRole('link', {name:'Add chore'})).toHaveAttribute('href','/dashboard/chores/create')
+  } else {
+    expect(screen.queryByText('Add chore')).not.toBeInTheDocument()
+    expect(screen.queryByText('Household features')).not.toBeInTheDocument()
+  }
   expect(screen.getByRole('link', {name:'Groceries'})).toHaveAttribute('href','/dashboard/lists/groceries')
   expect(screen.getByRole('link', {name:'All lists'})).toHaveAttribute('href','/dashboard/lists')
 })
-it.each(['teen','child'])('does not offer parent creation/features to %s', role => {
-  mount(role)
+it('does not offer event creation or parent-only actions to a child', () => {
+  mount('child')
   expect(screen.queryByText('Add event')).not.toBeInTheDocument()
   expect(screen.queryByText('Add chore')).not.toBeInTheDocument()
   expect(screen.queryByText('Household features')).not.toBeInTheDocument()
 })
+it.each(['parent', 'teen', 'child'] as const)('does not offer event creation when the calendar link is absent for %s', role => {
+  mount(role, true, {calendar:null, chores:null, meals:null, lists:null, features:null})
+  expect(screen.queryByRole('link', {name:'Add event'})).not.toBeInTheDocument()
+})
 it('respects absent feature links', () => {
-  mount('parent',true,{calendar:null,chores:null,meals:null,lists:null,features:null})
+  mount('parent',true,{calendar:'/dashboard/calendar',chores:null,meals:null,lists:null,features:null})
   expect(screen.queryByRole('link',{name:'Groceries'})).not.toBeInTheDocument()
   expect(screen.queryByRole('link',{name:'Plan meals'})).not.toBeInTheDocument()
 })

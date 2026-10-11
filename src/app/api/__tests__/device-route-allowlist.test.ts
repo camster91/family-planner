@@ -157,6 +157,11 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // returns the explicit refusal; an unconfigured/malformed callback remains
   // a 401/404 redirect or not-found response.
   "GET /api/calendar/connections/[provider]/callback": [401, 403, 404],
+  // Pinned notes are person-session routes; paired tablets are refused before auth.
+  "GET /api/notes": [403],
+  "POST /api/notes": [403],
+  "PATCH /api/notes/[id]": [403],
+  "DELETE /api/notes/[id]": [403],
 };
 
 /**
@@ -544,6 +549,8 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "POST /api/calendar/subscriptions",
   "GET /api/capture",
   "POST /api/capture",
+  "POST /api/capture/grocery",
+  "GET /api/capture/receipt",
   "POST /api/chores/complete",
   "POST /api/chores/create",
   "GET /api/chores",

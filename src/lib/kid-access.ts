@@ -28,6 +28,10 @@ export const KID_ALLOWED_PREFIXES = [
   // teens may create a list; deleting a list or an item is parent-only. The
   // API enforces each rule; the pages hide the controls a role cannot use.
   '/dashboard/lists',
+  // Pinned notes (D9, #102): every member may read and create; a teen or child
+  // may edit only their own note. Deleting remains parent-only in the API.
+  // This is a person-session route; shared-device notes stay excluded.
+  '/dashboard/notes',
   // Their own allowance, read-only (D5, #102). The API returns only rows paid
   // to the caller and refuses POST/PATCH.
   '/dashboard/allowance',

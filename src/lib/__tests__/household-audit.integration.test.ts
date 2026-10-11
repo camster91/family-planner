@@ -252,7 +252,7 @@ describeWithDatabase('household audit history against Postgres', () => {
     await isLocked
     const patch = (userId: string, key: string) =>
       asUser(userId, () =>
-        featuresRoute.PATCH({ json: async () => ({ key, enabled: true }) } as unknown as Request)
+        featuresRoute.PATCH(request(userId, { method: 'PATCH', path: '/api/family/features', body: { key, enabled: true } }))
       )
     const both = Promise.all([patch(PARENT, 'travel'), patch(PARENT2, 'pickups')])
     await new Promise((r) => setTimeout(r, 500))

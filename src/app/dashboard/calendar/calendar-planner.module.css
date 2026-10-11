@@ -28,6 +28,14 @@
   flex: 1;
   min-width: 200px;
 }
+.header > .headerActions {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
 .eyebrow {
   font-size: 13px;
   color: var(--label-secondary);
@@ -371,6 +379,9 @@
     margin-bottom: 16px;
   }
   .header > div {
+    flex-basis: 100%;
+  }
+  .header > .headerActions {
     flex-basis: 100%;
   }
   .header h1 {

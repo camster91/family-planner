@@ -18,8 +18,7 @@ jest.mock('../home-summary-data', () => ({ loadHomeSummary: async () => ({ chore
 jest.mock('../get-started-data', () => ({ allStepsDone: () => false, loadGetStarted: async () => ({}) }))
 jest.mock('@/components/fridge/TodayBoard', () => ({ __esModule: true, default: ({ choresShownElsewhere }: { choresShownElsewhere?: string[] }) => <div data-testid="board" data-excluded={JSON.stringify(choresShownElsewhere ?? [])} /> }))
 jest.mock('@/components/dashboard/HomeSummary', () => ({ __esModule: true, default: () => <div data-testid="summary" /> }))
-jest.mock('@/components/dashboard/GetStarted', () => ({ __esModule: true, default: () => <div data-testid="setup" /> }))
-jest.mock('@/components/dashboard/FeatureSuggestions', () => ({ __esModule: true, default: () => <div data-testid="suggestions" /> }))
+jest.mock('@/components/dashboard/TodaySetup', () => ({ __esModule: true, default: () => <div data-testid="setup" /> }))
 
 it('puts household plans before optional setup so Today is content-first', async () => {
   render(await TodayBoardPage({ searchParams: Promise.resolve({}) }))

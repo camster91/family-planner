@@ -22,7 +22,7 @@ describe('searchResultHref', () => {
     expect(searchResultHref(role, { type: 'list', id: 'l1' })).toBe('/dashboard/lists/l1')
     expect(searchResultHref(role, { type: 'inventory' })).toBe('/dashboard/inventory')
     expect(searchResultHref(role, { type: 'member' })).toBeNull()
-    expect(searchResultHref(role, { type: 'note' })).toBeNull()
+    expect(searchResultHref(role, { type: 'note' })).toBe('/dashboard/notes')
     expect(searchResultHref(role, { type: 'chore' })).toBeNull()
   })
 
@@ -68,7 +68,7 @@ describe('searchableTypes', () => {
   it('follows the features and the role', () => {
     const all = normalizeFeatures({ inventory: true })
     expect(searchableTypes('parent', all)).toEqual(['member', 'event', 'chore', 'list', 'list_item', 'recipe', 'note', 'inventory'])
-    expect(searchableTypes('child', all)).toEqual(['list', 'list_item', 'inventory'])
+    expect(searchableTypes('child', all)).toEqual(['list', 'list_item', 'note', 'inventory'])
     expect(searchableTypes('parent', defaultFeatures())).not.toContain('inventory')
     expect(searchableTypes('parent', normalizeFeatures({ meals: false, notes: false }))).toEqual([
       'member',

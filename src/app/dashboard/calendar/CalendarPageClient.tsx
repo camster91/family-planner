@@ -8,7 +8,7 @@ import {
 } from "@/i18n/calendar-page";
 import { Sparkles, Undo2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { CaptureBox } from "@/components/capture/CaptureBox";
+import { CaptureSheet } from "@/components/capture/CaptureSheet";
 import {
   IMPORT_UNDO_WINDOW_MS,
   type ImportCommitResult,
@@ -75,10 +75,8 @@ export default function CalendarPageClient({
         canEditEvents={canEditEvents}
         calendarSyncAvailable={calendarSyncAvailable}
         refreshKey={`${refreshKey}:${JSON.stringify(events)}`}
+        headerAction={<CaptureSheet onSaved={refresh} />}
       />
-      <div className="px-4 my-5">
-        <CaptureBox onSaved={refresh} />
-      </div>
       {importEnabled && (
         <div className="px-4 mb-5">
           <button

@@ -119,9 +119,17 @@ describeWithDatabase('household search against Postgres', () => {
     expect(JSON.stringify(other)).not.toMatch(/Mine|Robin/)
   })
 
-  it('a child gets only lists, list items and food', async () => {
+  it('a child gets only household lists, list items, notes and food', async () => {
     const rows = await search(CHILD, 'pancake')
-    expect(rows.map((r) => r.type)).toEqual(['list', 'list_item', 'inventory'])
+    expect(rows.map((r) => r.type)).toEqual(['list', 'list_item', 'note', 'inventory'])
+    expect(rows.find((row) => row.type === 'note')).toEqual({
+      type: 'note',
+      id: expect.any(String),
+      title: 'Mine note',
+      subtitle: 'Note',
+      href: '/dashboard/notes',
+    })
+    expect(JSON.stringify(rows)).not.toMatch(/Theirs|Pancake Other|pancake day is Tuesday|old pancake/)
   })
 
   it('treats % and _ as plain characters, not wildcards', async () => {

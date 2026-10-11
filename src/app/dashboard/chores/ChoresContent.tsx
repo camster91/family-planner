@@ -25,6 +25,7 @@ import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { cn } from "@/lib/utils";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
+import { useChoreVerificationText } from "@/i18n/chore-verification";
 import {
   formatDateOnly,
   formatRelativeDueDate,
@@ -171,6 +172,91 @@ export default function ChoresContent({
   // Due dates are shown in the viewer's locale ("Oct 5", "5 Oct"); stored
   // due_date values and the snooze payload stay YYYY-MM-DD.
   const displayLocale = useDisplayLocale();
+  const verificationText = useChoreVerificationText();
+  const verificationBusyRef = React.useRef(new Set<string>());
+  const verificationDialogRef = React.useRef<string | null>(null);
+  const verificationCancelRef = React.useRef<HTMLButtonElement>(null);
+  const verificationReasonRef = React.useRef<HTMLTextAreaElement>(null);
+  const verificationRetryRef = React.useRef<HTMLButtonElement>(null);
+  const verificationFallbackRef = React.useRef<HTMLButtonElement>(null);
+  const verificationFallbackConsumedRef = React.useRef(0);
+  const verificationFallbackCancelledRef = React.useRef(0);
+  const [verificationFallbackRequest, requestVerificationFallback] =
+    React.useState(0);
+  const [verificationBusyIds, setVerificationBusyIds] = React.useState(
+    new Set<string>(),
+  );
+  const [verificationDialog, setVerificationDialog] = React.useState<{
+    choreId: string;
+    notes: string;
+    error: string | null;
+  } | null>(null);
+
+  const scheduleVerificationFallback = React.useCallback(() => {
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (
+        (active === document.body || !active?.isConnected) &&
+        verificationFallbackRef.current?.isConnected
+      ) {
+        verificationFallbackRef.current.focus();
+      }
+    }, 0);
+  }, []);
+
+  // A successful send-back removes the opener row at the same time as the
+  // dialog. Dialog's passive cleanup can only restore a connected opener, so
+  // wait until that cleanup has run before focusing the stable page control.
+  React.useEffect(() => {
+    if (
+      !verificationFallbackRequest ||
+      !verificationDialog ||
+      verificationFallbackRequest <= verificationFallbackConsumedRef.current
+    )
+      return;
+    verificationFallbackCancelledRef.current = verificationFallbackRequest;
+  }, [verificationDialog, verificationFallbackRequest]);
+
+  React.useEffect(() => {
+    if (
+      !verificationFallbackRequest ||
+      verificationDialog ||
+      verificationFallbackRequest <= verificationFallbackConsumedRef.current ||
+      verificationFallbackRequest === verificationFallbackCancelledRef.current
+    )
+      return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (
+        cancelled ||
+        verificationDialog ||
+        verificationFallbackRequest === verificationFallbackCancelledRef.current
+      )
+        return;
+      const fallback = verificationFallbackRef.current;
+      if (!fallback) return;
+      fallback.focus();
+      verificationFallbackConsumedRef.current = verificationFallbackRequest;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [verificationDialog, verificationFallbackRequest]);
+
+  // Keep keyboard focus on the recovery action after a failed decision. The
+  // request clears its busy latch in a later render, so waiting for that
+  // transition also avoids focusing the disabled button while the request is
+  // still in flight.
+  React.useEffect(() => {
+    if (!verificationDialog?.error || verificationBusyIds.size > 0) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) verificationRetryRef.current?.focus();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [verificationBusyIds.size, verificationDialog?.error]);
 
   React.useEffect(() => {
     setLocalChores(chores);
@@ -283,18 +369,26 @@ export default function ChoresContent({
   // through POST /api/chores/verify; PATCH /api/chores drops status fields, so
   // the old PATCH here silently did nothing. Optimistic, then the server's
   // state; a failure puts the row back and says why.
-  const handleCheckChore = React.useCallback(
-    async (choreId: string, decision: "approve" | "reject") => {
+  const submitVerification = React.useCallback(
+    async (choreId: string, decision: "approve" | "reject", notes?: string) => {
+      if (verificationBusyRef.current.has(choreId)) return;
       const before = localChores.find((c) => c.id === choreId);
       if (!before) return;
-      let notes: string | undefined;
+
+      // This ref is the synchronous latch. React state alone would allow two
+      // same-tick touch/keyboard activations to send duplicate POSTs.
+      verificationBusyRef.current.add(choreId);
+      setVerificationBusyIds((previous) => {
+        const next = new Set(previous);
+        next.add(choreId);
+        return next;
+      });
       if (decision === "reject") {
-        const answer = window.prompt(
-          "What needs another go? (they will see this)",
+        setVerificationDialog((current) =>
+          current?.choreId === choreId ? { ...current, error: null } : current,
         );
-        if (answer === null) return;
-        notes = answer.trim() || undefined;
       }
+
       const applyServer = (state: CheckedChoreState) =>
         setLocalChores((prev) =>
           prev.map((c) =>
@@ -324,40 +418,93 @@ export default function ChoresContent({
             : c,
         ),
       );
-      const result = await checkChore(choreId, decision, notes);
-      if (!result.ok) {
-        // Show what the server has now (a 409 carries it); otherwise put the row back.
+      try {
+        const result = await checkChore(choreId, decision, notes);
+        if (!result.ok) {
+          // Show what the server has now (a 409 carries it); otherwise put the row back.
+          if (result.chore) applyServer(result.chore);
+          else
+            setLocalChores((prev) =>
+              prev.map((c) => (c.id === choreId ? before : c)),
+            );
+          if (decision === "reject") {
+            // Keep the dialog and its notes mounted so network, validation and
+            // conflict responses can be retried without re-entering the note.
+            setVerificationDialog((current) =>
+              current?.choreId === choreId
+                ? { ...current, error: result.message }
+                : current,
+            );
+          } else {
+            addToast({
+              type: "error",
+              title: verificationText("verifyFailed", undefined),
+              message: result.message,
+            });
+          }
+          return;
+        }
         if (result.chore) applyServer(result.chore);
-        else
-          setLocalChores((prev) =>
-            prev.map((c) => (c.id === choreId ? before : c)),
-          );
-        addToast({
-          type: "error",
-          title:
-            decision === "approve"
-              ? "Couldn't verify"
-              : "Couldn't send it back",
-          message: result.message,
+        if (decision === "reject") {
+          verificationDialogRef.current = null;
+          setVerificationDialog(null);
+          // A successful send-back removes the row that opened the dialog.
+          // Return focus to a stable, 44px page control after Dialog's cleanup
+          // has finished instead of leaving keyboard users on document.body.
+          requestVerificationFallback((request) => request + 1);
+        }
+        addToast(
+          decision === "approve"
+            ? {
+                type: "success",
+                title: verificationText("verifiedTitle", undefined),
+                message: verificationText("verifiedMessage", {
+                  title: before.title,
+                }),
+              }
+            : {
+                type: "success",
+                title: verificationText("sentBackTitle", undefined),
+                message: verificationText("sentBackMessage", {
+                  title: before.title,
+                }),
+              },
+        );
+      } finally {
+        verificationBusyRef.current.delete(choreId);
+        setVerificationBusyIds((previous) => {
+          const next = new Set(previous);
+          next.delete(choreId);
+          return next;
         });
+      }
+    },
+    [addToast, localChores, verificationText],
+  );
+
+  const closeVerificationDialog = React.useCallback(() => {
+    const choreId = verificationDialogRef.current;
+    if (!choreId || verificationBusyRef.current.has(choreId)) return;
+    verificationDialogRef.current = null;
+    setVerificationDialog(null);
+    scheduleVerificationFallback();
+  }, [scheduleVerificationFallback]);
+
+  const handleCheckChore = React.useCallback(
+    (choreId: string, decision: "approve" | "reject") => {
+      if (
+        verificationBusyRef.current.has(choreId) ||
+        verificationDialogRef.current === choreId
+      )
+        return;
+      if (decision === "reject") {
+        verificationDialogRef.current = choreId;
+        setVerificationDialog({ choreId, notes: "", error: null });
         return;
       }
-      if (result.chore) applyServer(result.chore);
-      addToast(
-        decision === "approve"
-          ? {
-              type: "success",
-              title: "Chore verified",
-              message: `“${before.title}” is checked.`,
-            }
-          : {
-              type: "success",
-              title: "Sent back",
-              message: `“${before.title}” is open again.`,
-            },
-      );
+      void submitVerification(choreId, decision);
     },
-    [addToast, localChores],
+    [submitVerification],
   );
 
   const handleSnoozeChore = React.useCallback(
@@ -597,6 +744,7 @@ export default function ChoresContent({
         <button
           key={opt}
           type="button"
+          ref={opt === "today" ? verificationFallbackRef : undefined}
           onClick={() => onChange(opt)}
           aria-pressed={value === opt}
           className={cn(
@@ -702,30 +850,57 @@ export default function ChoresContent({
                               ? `Assigned to ${chore.assignee.name}`
                               : null,
                             routineLabel(chore),
-                            "Waiting for your check",
+                            verificationText("waitingForCheck", undefined),
                           ]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
                       </div>
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleCheckChore(chore.id, "approve")}
-                          aria-label={`Verify “${chore.title}”`}
-                          className="btn-filled text-sm py-1.5 px-3 min-h-[44px]"
-                        >
-                          Verify
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCheckChore(chore.id, "reject")}
-                          aria-label={`Send back “${chore.title}”`}
-                          className="btn-destructive text-sm py-1.5 px-3 min-h-[44px]"
-                        >
-                          Reject
-                        </button>
-                      </div>
+                      {(() => {
+                        const verificationBusy = verificationBusyIds.has(
+                          chore.id,
+                        );
+                        const verificationDialogOpen =
+                          verificationDialog?.choreId === chore.id;
+                        const actionsDisabled =
+                          verificationBusy || verificationDialogOpen;
+                        return (
+                          <div
+                            className="flex gap-2 shrink-0"
+                            aria-busy={verificationBusy || undefined}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCheckChore(chore.id, "approve")
+                              }
+                              aria-label={verificationText("verifyAriaLabel", {
+                                title: chore.title,
+                              })}
+                              disabled={actionsDisabled}
+                              className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                            >
+                              {verificationBusy
+                                ? verificationText("verifying", undefined)
+                                : verificationText("verify", undefined)}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCheckChore(chore.id, "reject")
+                              }
+                              aria-label={verificationText(
+                                "sendBackAriaLabel",
+                                { title: chore.title },
+                              )}
+                              disabled={actionsDisabled}
+                              className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                            >
+                              {verificationText("sendBack", undefined)}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -866,6 +1041,94 @@ export default function ChoresContent({
           }}
           onCancel={() => setReassignTarget(null)}
         />
+      )}
+
+      {verificationDialog && (
+        <Dialog
+          open
+          onClose={
+            verificationBusyIds.has(verificationDialog.choreId)
+              ? undefined
+              : closeVerificationDialog
+          }
+          closeLabel={verificationText("close", undefined)}
+          title={verificationText("dialogTitle", {
+            title:
+              localChores.find((c) => c.id === verificationDialog.choreId)
+                ?.title ?? "",
+          })}
+          description={verificationText("dialogDescription", undefined)}
+          initialFocusRef={verificationCancelRef}
+          testId="chore-verification-dialog"
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const notes = verificationDialog.notes.trim() || undefined;
+              void submitVerification(
+                verificationDialog.choreId,
+                "reject",
+                notes,
+              );
+            }}
+            aria-busy={
+              verificationBusyIds.has(verificationDialog.choreId) || undefined
+            }
+            className="space-y-4"
+          >
+            <label
+              htmlFor="chore-verification-reason"
+              className="block text-body font-medium text-label-primary"
+            >
+              {verificationText("reasonLabel", undefined)}
+            </label>
+            <textarea
+              id="chore-verification-reason"
+              ref={verificationReasonRef}
+              value={verificationDialog.notes}
+              onChange={(event) =>
+                setVerificationDialog((current) =>
+                  current ? { ...current, notes: event.target.value } : current,
+                )
+              }
+              placeholder={verificationText("reasonPlaceholder", undefined)}
+              disabled={verificationBusyIds.has(verificationDialog.choreId)}
+              rows={4}
+              className="w-full min-h-[112px] rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill-secondary)] px-3 py-3 text-body text-label-primary placeholder:text-label-tertiary focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[var(--accent-text)] disabled:opacity-50"
+            />
+            {verificationDialog.error && (
+              <p
+                role="alert"
+                className="rounded-lg bg-[var(--danger-fill)] px-3 py-2 text-footnote text-[var(--danger-text)]"
+              >
+                {verificationDialog.error}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                ref={verificationCancelRef}
+                type="button"
+                onClick={closeVerificationDialog}
+                disabled={verificationBusyIds.has(verificationDialog.choreId)}
+                className="flex-1 min-h-[44px] rounded-xl px-3 py-2.5 text-body font-medium text-label-secondary active:bg-[var(--surface-fill-secondary)] disabled:opacity-40"
+              >
+                {verificationText("cancel", undefined)}
+              </button>
+              <button
+                ref={verificationRetryRef}
+                type="submit"
+                disabled={verificationBusyIds.has(verificationDialog.choreId)}
+                className="btn-destructive flex-1 min-h-[44px] px-3 py-2.5 text-body font-medium disabled:opacity-40"
+              >
+                {verificationBusyIds.has(verificationDialog.choreId)
+                  ? verificationText("sendingBack", undefined)
+                  : verificationDialog.error
+                    ? verificationText("tryAgain", undefined)
+                    : verificationText("sendBack", undefined)}
+              </button>
+            </div>
+          </form>
+        </Dialog>
       )}
     </div>
   );
