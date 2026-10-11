@@ -5,8 +5,10 @@
 // a failed send says why and keeps the text, and older history can be loaded
 // with GET /api/messages?cursor=<oldest created_at>.
 import * as React from 'react'
+import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n'
 import { mergeLatest, prependEarlier } from '../thread'
 
 jest.mock('@/components/ui/feature-gate', () => ({
@@ -92,6 +94,85 @@ async function runPoll() {
   })
   await waitFor(() => expect(calls.filter((c) => c.url === '/api/messages').length).toBeGreaterThan(1))
 }
+
+describe('initial loading recovery', () => {
+  it('shows localized retry instead of a false empty state, then recovers', async () => {
+    const user = userEvent.setup()
+    global.fetch = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }),
+      }) as unknown as typeof fetch
+
+    render(
+      <I18nProvider locale="es">
+        <MessagesPage />
+      </I18nProvider>
+    )
+
+    const recovery = await screen.findByTestId('messages-load-error')
+    expect(recovery).toHaveTextContent('No se pudieron cargar los mensajes')
+    expect(screen.queryByText('No messages yet')).not.toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Intentar de nuevo' })
+    expect(retry.className).toContain('min-h-[44px]')
+
+    await user.click(retry)
+    expect(await screen.findByText('Message 3')).toBeInTheDocument()
+    expect(screen.queryByTestId('messages-load-error')).not.toBeInTheDocument()
+  })
+
+  it('keeps the thread and typed draft when a later poll fails', async () => {
+    const user = userEvent.setup()
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+    const input = screen.getByRole('textbox', { name: 'Message text' }) as HTMLInputElement
+    await user.type(input, 'Draft stays here')
+
+    ;(global.fetch as jest.Mock).mockImplementationOnce(async () => {
+      throw new Error('offline')
+    })
+    await act(async () => {
+      poll?.()
+    })
+
+    expect(await screen.findByTestId('messages-load-error')).toBeInTheDocument()
+    expect(screen.getByText('Message 3')).toBeInTheDocument()
+    expect(input).toHaveValue('Draft stays here')
+  })
+
+  it('does not refetch when only the presentation locale changes', async () => {
+    const view = render(
+      <I18nProvider locale="en">
+        <MessagesPage />
+      </I18nProvider>
+    )
+    await screen.findByText('Message 3')
+    const callsAfterLoad = (global.fetch as jest.Mock).mock.calls.length
+
+    view.rerender(
+      <I18nProvider locale="es">
+        <MessagesPage />
+      </I18nProvider>
+    )
+    await waitFor(() => expect(screen.getByText('Message 3')).toBeInTheDocument())
+    expect((global.fetch as jest.Mock).mock.calls.length).toBe(callsAfterLoad)
+  })
+
+  it('rejects a malformed successful response without showing a false empty state', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ messages: [], members: [], userId: 42 }),
+    })) as unknown as typeof fetch
+    render(<MessagesPage />)
+
+    expect(await screen.findByTestId('messages-load-error')).toHaveTextContent("Couldn't load messages")
+    expect(screen.queryByText('No messages yet')).not.toBeInTheDocument()
+  })
+})
 
 describe('polling', () => {
   it('scrolls to the newest message once on load, and a quiet poll does not scroll again', async () => {

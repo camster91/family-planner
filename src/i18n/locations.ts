@@ -2,6 +2,10 @@
 import { useTranslation } from '@/i18n'
 
 export const locationsEnglish = {
+  loadErrorTitle: 'Couldn\'t load locations',
+  loadErrorDescription: 'We couldn\'t load your family\'s saved places.',
+  retry: 'Try again',
+  refreshing: 'Refreshing…',
   removeTitle: 'Remove “{label}”?',
   removeDescription:
     'This permanently removes “{label}” from the family’s saved places.',
@@ -16,6 +20,10 @@ export const locationsEnglish = {
 export type LocationsMessage = keyof typeof locationsEnglish
 
 export const locationsSpanish: Record<LocationsMessage, string> = {
+  loadErrorTitle: 'No se pudieron cargar los lugares',
+  loadErrorDescription: 'No se pudieron cargar los lugares guardados de tu familia.',
+  retry: 'Intentar de nuevo',
+  refreshing: 'Actualizando…',
   removeTitle: '¿Quitar «{label}»?',
   removeDescription:
     'Esto quitará permanentemente «{label}» de los lugares guardados de la familia.',

@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { cn, formatDate } from '@/lib/utils'
+import { useMessagesText } from '@/i18n/messages'
 import { mergeLatest, prependEarlier } from './thread'
 
 /** GET /api/messages page size (the route's default). */
@@ -38,6 +39,45 @@ function sameIds(a: { id: string }[], b: { id: string }[]): boolean {
   return a.length === b.length && a.every((m, i) => m.id === b[i]?.id)
 }
 
+function isChatMessage(value: unknown): value is ChatMessage {
+  if (!value || typeof value !== 'object') return false
+  const message = value as Record<string, unknown>
+  const sender = message.sender
+  return (
+    typeof message.id === 'string' &&
+    typeof message.created_at === 'string' &&
+    !Number.isNaN(Date.parse(message.created_at)) &&
+    typeof message.content === 'string' &&
+    typeof message.sender_id === 'string' &&
+    (sender === undefined || sender === null || (
+      typeof sender === 'object' &&
+      typeof (sender as Record<string, unknown>).id === 'string' &&
+      typeof (sender as Record<string, unknown>).name === 'string' &&
+      ((sender as Record<string, unknown>).avatar_url === undefined ||
+        (sender as Record<string, unknown>).avatar_url === null ||
+        typeof (sender as Record<string, unknown>).avatar_url === 'string')
+    ))
+  )
+}
+
+function isMember(value: unknown): value is Member {
+  if (!value || typeof value !== 'object') return false
+  const member = value as Record<string, unknown>
+  return typeof member.id === 'string' && typeof member.name === 'string'
+}
+
+function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; members: Member[]; userId: string } | null {
+  if (!value || typeof value !== 'object') return null
+  const data = value as Record<string, unknown>
+  return (
+    Array.isArray(data.messages) && data.messages.every(isChatMessage) &&
+    Array.isArray(data.members) && data.members.every(isMember) &&
+    typeof data.userId === 'string'
+  )
+    ? { messages: data.messages, members: data.members, userId: data.userId }
+    : null
+}
+
 // Gated like the other feature pages (route inventory F-2): with Family chat
 // off nothing below mounts, so it neither polls /api/messages nor shows a 403.
 export default function MessagesPage() {
@@ -53,6 +93,7 @@ function MessagesContent() {
   const [newMessage, setNewMessage] = useState('')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -69,28 +110,28 @@ function MessagesContent() {
   const firstLoadRef = useRef(true)
   // Thread scroll height just before earlier messages are put in front.
   const prependAnchorRef = useRef<number | null>(null)
+  const messageText = useMessagesText()
 
   const loadData = useCallback(async () => {
     try {
       const res = await fetch('/api/messages')
-      const data = await res.json()
-      if (res.ok) {
-        if (Array.isArray(data.messages)) {
-          // Same newest message and count: keep the same array, so a quiet
-          // poll neither re-renders the thread nor scrolls it.
-          setMessages(prev => mergeLatest(prev, data.messages as ChatMessage[]))
-          if (firstLoadRef.current) {
-            firstLoadRef.current = false
-            setHasEarlier(data.messages.length >= PAGE_SIZE)
-          }
-        }
-        if (Array.isArray(data.members)) {
-          setFamilyMembers(prev => (sameIds(prev, data.members) ? prev : data.members))
-        }
-        if (data.userId) setCurrentUserId(data.userId)
+      const data = res.ok ? parseMessagesResponse(await res.json().catch(() => null)) : null
+      if (!res.ok || !data) {
+        setLoadError(true)
+        return
       }
-    } catch (err) {
-      console.error('Error loading data:', err)
+      // Same newest message and count: keep the same array, so a quiet
+      // poll neither re-renders the thread nor scrolls it.
+      setMessages(prev => mergeLatest(prev, data.messages))
+      if (firstLoadRef.current) {
+        firstLoadRef.current = false
+        setHasEarlier(data.messages.length >= PAGE_SIZE)
+      }
+      setFamilyMembers(prev => (sameIds(prev, data.members) ? prev : data.members))
+      setCurrentUserId(data.userId)
+      setLoadError(false)
+    } catch {
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -145,7 +186,14 @@ function MessagesContent() {
         return
       }
       const data = await res.json()
-      const older: ChatMessage[] = Array.isArray(data.messages) ? data.messages : []
+      const older: ChatMessage[] =
+        data && typeof data === 'object' && Array.isArray(data.messages) && data.messages.every(isChatMessage)
+          ? data.messages
+          : []
+      if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || !data.messages.every(isChatMessage)) {
+        setEarlierError('Couldn\'t load earlier messages. Please try again.')
+        return
+      }
       setHasEarlier(older.length >= PAGE_SIZE)
       if (older.length > 0) {
         prependAnchorRef.current = threadRef.current?.scrollHeight ?? null
@@ -221,11 +269,27 @@ function MessagesContent() {
           aria-label="Messages thread"
           tabIndex={0}
         >
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-subhead text-label-secondary">Loading…</div>
+          {loadError && !loading && (
+            <div data-testid="messages-load-error" role="alert" className="card-apple m-4 flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <p className="text-body font-semibold text-label-primary">{messageText('loadErrorTitle')}</p>
+                <p className="text-footnote text-label-secondary">{messageText('loadErrorDescription')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setLoading(true); void loadData() }}
+                disabled={loading}
+                className="btn-tinted min-h-[44px] min-w-[44px]"
+              >
+                {loading ? messageText('refreshing') : messageText('retry')}
+              </button>
             </div>
-          ) : messages.length === 0 ? (
+          )}
+          {loading && messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-subhead text-label-secondary">{messageText('refreshing')}</div>
+            </div>
+          ) : !loadError && messages.length === 0 ? (
             <div className="flex items-center justify-center h-full px-4">
               <EmptyState
                 icon={MessageSquare}
@@ -235,7 +299,7 @@ function MessagesContent() {
                 description="Start the conversation with your family."
               />
             </div>
-          ) : (
+          ) : messages.length > 0 ? (
             <div className="py-3">
               {hasEarlier && (
                 <div className="flex flex-col items-center gap-1 px-4 pb-2">
@@ -285,7 +349,7 @@ function MessagesContent() {
                 )
               })}
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Bottom anchored input */}
