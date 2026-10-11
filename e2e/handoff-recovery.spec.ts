@@ -43,7 +43,8 @@ async function runtimeIdentity(
     commit: string;
     builtAt: string;
   };
-  if (process.env.RELEASE_SHA) expect(runtime.commit).toBe(process.env.RELEASE_SHA);
+  if (process.env.RELEASE_SHA)
+    expect(runtime.commit).toBe(process.env.RELEASE_SHA);
 
   const identity = {
     runtime,
@@ -128,10 +129,8 @@ for (const locale of ["en", "es"] as const) {
     const identity = await runtimeIdentity(page, info, locale);
     const featuresResponse = await browserFetch(page, "/api/family/features");
     expect(featuresResponse.status, featuresResponse.body).toBe(200);
-    const originalFeatures = JSON.parse(featuresResponse.body).features as Record<
-      string,
-      boolean
-    >;
+    const originalFeatures = JSON.parse(featuresResponse.body)
+      .features as Record<string, boolean>;
 
     let handoffAttempts = 0;
     const releaseSuccessfulResponse = {
@@ -204,7 +203,9 @@ for (const locale of ["en", "es"] as const) {
           new URL(response.url()).pathname === "/api/handoff",
       );
       await retry.click();
-      await expect(main.getByText(copy.common.loading, { exact: true })).toBeVisible();
+      await expect(
+        main.getByText(copy.common.loading, { exact: true }),
+      ).toBeVisible();
       expect(handoffAttempts).toBe(2);
       await captureState(page, info, "loading", identity);
 
@@ -217,9 +218,14 @@ for (const locale of ["en", "es"] as const) {
       await captureState(page, info, "empty", identity);
     } finally {
       releaseSuccessfulResponse.current?.();
-      const restored = await browserSend(page, "PATCH", "/api/family/features", {
-        features: originalFeatures,
-      });
+      const restored = await browserSend(
+        page,
+        "PATCH",
+        "/api/family/features",
+        {
+          features: originalFeatures,
+        },
+      );
       expect(restored.status, restored.body).toBe(200);
       await page.unroute("**/api/handoff**");
     }
