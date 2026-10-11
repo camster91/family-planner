@@ -56,6 +56,7 @@ type NoteCopy = {
   titleLabel: string;
   add: string;
   retry: string;
+  loading: string;
   save: string;
   cancel: string;
   delete: string;
@@ -68,6 +69,7 @@ const COPY: Record<Locale, NoteCopy> = {
     titleLabel: "Title",
     add: "Add Note",
     retry: "Retry",
+    loading: "Loading notes...",
     save: "Save",
     cancel: "Cancel",
     delete: "Delete",
@@ -78,6 +80,7 @@ const COPY: Record<Locale, NoteCopy> = {
     titleLabel: "Titulo",
     add: "Agregar nota",
     retry: "Reintentar",
+    loading: "Cargando notas...",
     save: "Guardar",
     cancel: "Cancelar",
     delete: "Eliminar",
@@ -496,12 +499,15 @@ for (const locale of ["en", "es"] as const) {
       });
 
       await visitNotes(page, locale);
-      const retry = page.getByRole("button", { name: copy.retry, exact: true });
-      await expect(retry).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: copy.retry, exact: true }),
+      ).toBeVisible();
+      const retry = page.getByTestId("notes-retry");
       await retry.focus();
       await page.keyboard.press("Enter");
       await expect(retry).toBeDisabled();
       await expect(retry).toHaveAttribute("aria-busy", "true");
+      await expect(retry).toHaveAccessibleName(copy.loading);
       expect(getAttempts).toBe(2);
       releaseRetry?.();
       releaseRetry = undefined;
