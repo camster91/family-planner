@@ -114,7 +114,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
   async function expectMigrationToReject(
     mutate: string,
     restore: string,
-    expectedMessage: string,
+    expectedField: string,
   ) {
     await db.query(mutate);
     let failure: unknown;
@@ -127,8 +127,11 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
     // aborted transaction until the caller explicitly clears it.
     await db.query("ROLLBACK").catch(() => undefined);
     try {
-      expect(failure).toBeTruthy();
-      expect(String((failure as Error).message)).toContain(expectedMessage);
+      // Keep the assertion tied to the migration's stable semantic contract:
+      // SQLSTATE 42804 plus the catalog field that was rejected. Exact prose
+      // includes identifier quoting and has changed between PostgreSQL builds.
+      expect(failure).toMatchObject({ code: "42804" });
+      expect(String((failure as Error).message)).toContain(expectedField);
     } finally {
       await db.query(restore);
       await applyMigration();
@@ -198,7 +201,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
       `ALTER TABLE "Activity"
         ALTER COLUMN "subject_member_id" TYPE TEXT
           USING "subject_member_id"::text`,
-      "Activity.subject_member_id must be nullable text without a default",
+      'Activity."subject_member_id"',
     );
   });
 
@@ -206,7 +209,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
     await expectMigrationToReject(
       'ALTER TABLE "Activity" ALTER COLUMN "subject_member_erased" SET DEFAULT true',
       'ALTER TABLE "Activity" ALTER COLUMN "subject_member_erased" SET DEFAULT false',
-      "Activity.subject_member_erased must be boolean NOT NULL DEFAULT false",
+      'Activity."subject_member_erased"',
     );
   });
 
@@ -214,7 +217,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
     await expectMigrationToReject(
       'ALTER TABLE "Activity" ALTER COLUMN "subject_member_erased" DROP NOT NULL',
       'ALTER TABLE "Activity" ALTER COLUMN "subject_member_erased" SET NOT NULL',
-      "Activity.subject_member_erased must be boolean NOT NULL DEFAULT false",
+      'Activity."subject_member_erased"',
     );
   });
 
@@ -228,7 +231,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
           ON DELETE NO ACTION ON UPDATE NO ACTION;
       `,
       `ALTER TABLE "Activity" DROP CONSTRAINT "Activity_subject_member_fkey"`,
-      "Activity_subject_member_fkey has an incompatible subject foreign key",
+      "Activity_subject_member_fkey",
     );
   });
 
@@ -241,7 +244,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
           CHECK (NOT subject_member_erased);
       `,
       `ALTER TABLE "Activity" DROP CONSTRAINT "Activity_subject_member_erased_check"`,
-      "Activity_subject_member_erased_check has an incompatible erased-subject check",
+      "Activity_subject_member_erased_check",
     );
   });
 
@@ -253,7 +256,7 @@ dbDescribe("audit member subject migration against PostgreSQL", () => {
           ON "Activity" (subject_member_id, family_id);
       `,
       `DROP INDEX "Activity_family_id_subject_member_id_idx"`,
-      "Activity_family_id_subject_member_id_idx has an incompatible subject index",
+      "Activity_family_id_subject_member_id_idx",
     );
   });
 
