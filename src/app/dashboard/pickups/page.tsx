@@ -492,7 +492,7 @@ function PickupsPageInner() {
 
   return (
     <>
-      <div data-pickups-background className="space-y-6 max-w-2xl mx-auto">
+      <div data-pickups-background className="w-full min-w-0 space-y-6">
         <LargeHeader
           greeting={text("greeting")}
           title={text("title")}
