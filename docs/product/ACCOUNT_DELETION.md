@@ -46,6 +46,10 @@ Define and test:
 ## Data execution
 Prefer a documented job/transaction sequence with observable status for large cascades. Do not rely on accidental database cascades as the entire deletion policy. Retention exceptions must be explicit and minimal.
 
+## Dormant household profiles (#480)
+
+Existing account removal/deletion now handles copied profiles through [member lifecycle compatibility](../architecture/member-lifecycle-compatibility.md). Parent removal archives an exclusively associated profile and detaches login/mapping access while preserving private erasure provenance. Permanent account deletion explicitly erases current and historic copied profiles, including after removal or joining another household. That provenance never grants access or appears in shared DTOs. Contradictory identities are refused with `409 IDENTITY_CONFLICT`; they are not guessed or handed to another person. Whole-household deletion explicitly includes the three new tables. This does not activate profile-only setup or replace the required future per-domain member-subject erasure ledger.
+
 ## Export
 Where required/valuable, offer export before deletion. Export authorization must not leak another household.
 

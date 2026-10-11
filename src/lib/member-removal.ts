@@ -56,6 +56,7 @@ import { auditSummary, writeAuditLog, type AuditEntry } from '@/lib/household-au
 import { CLEARED_ELEVATION, revokeDeviceInTransaction } from '@/lib/device-session'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { dropMemberFromRotationsInTx } from '@/lib/chore-rotation'
+import { archiveAccountProfilesInTx, HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import {
   HOUSEHOLD_CLEARED_REFERENCES,
   HOUSEHOLD_HANDOVER_COLUMNS,
@@ -65,7 +66,7 @@ import {
   type DeletionDeps,
 } from '@/lib/account-deletion'
 
-export type MemberRemovalCode = 'NOT_A_PARENT' | 'CANNOT_REMOVE_SELF' | 'MEMBER_NOT_FOUND' | 'LAST_PARENT'
+export type MemberRemovalCode = 'NOT_A_PARENT' | 'CANNOT_REMOVE_SELF' | 'MEMBER_NOT_FOUND' | 'LAST_PARENT' | 'IDENTITY_CONFLICT'
 
 export class MemberRemovalError extends Error {
   constructor(
@@ -133,6 +134,14 @@ export async function removeHouseholdMember(
       }
 
       // Membership and sessions first: nothing issued to them stays live.
+      try {
+        await archiveAccountProfilesInTx(tx, target.id, familyId, now)
+      } catch (error) {
+        if (error instanceof HouseholdMemberIdentityConflict) {
+          throw new MemberRemovalError('IDENTITY_CONFLICT', 409, error.message)
+        }
+        throw error
+      }
       await tx.user.update({
         where: { id: target.id },
         data: { family_id: null, token_version: { increment: 1 } },

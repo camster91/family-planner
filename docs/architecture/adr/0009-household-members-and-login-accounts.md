@@ -9,7 +9,7 @@
 
 A preschool child can participate without email, credentials or a personal device. Current User is both login identity and household person. Its required unique email and the 64 explicit User FK owners prevent treating a name-only child as a complete household member. Nullable email or a generated address would leave authorization, assignments, points and shared-device attribution conflated.
 
-`member-relation-inventory.json` classifies each current owned User relationship as member subject, real account, authenticated actor, or actor plus separate member attribution. The original baseline contains 64 relationships; the dormant legacy mapping and optional account link add two account-owned relationships, for 66 total. `node scripts/member-contract.cjs` and its test reject missing, stale, changed or duplicate decisions. This checks schema inventory coverage only. It cannot prove runtime migration, non-FK identity coverage or authorization.
+`member-relation-inventory.json` classifies each current owned User relationship as member subject, real account, authenticated actor, or actor plus separate member attribution. The original baseline contains 64 relationships; the dormant legacy mapping, optional account link and private archived-profile erasure provenance add three account-owned relationships, for 67 total. `node scripts/member-contract.cjs` and its test reject missing, stale, changed or duplicate decisions. This checks schema inventory coverage only. It cannot prove runtime migration, non-FK identity coverage or authorization.
 
 ## Target identity contract
 
@@ -29,7 +29,7 @@ Account linking requires fresh parent management authority plus proof from the i
 
 No new scheduler is involved. Any production migration/activation is a separate release gate with the exact candidate, backup and recovery evidence. No store signing or provider activation follows from this ADR.
 
-The expand-only migration creates empty member, legacy-mapping and account-link tables at startup; it does not copy users or activate profile writes. The fixture-only rehearsal is documented in [member-foundation-rehearsal.md](../member-foundation-rehearsal.md). A legacy mapping is not an active verified account link. Once mappings exist, composite foreign keys intentionally reject unmanaged User family changes. All join/leave, link/unlink and erasure paths must be adapted before any production backfill. Account deletion currently cascades mapping/link rows but does not erase a member profile; the reviewed erasure ledger is therefore mandatory before activation.
+The expand-only migration creates empty member, legacy-mapping and account-link tables at startup; it does not copy users or activate profile writes. The fixture-only rehearsal is documented in [member-foundation-rehearsal.md](../member-foundation-rehearsal.md). A legacy mapping is not an active verified account link. Once mappings exist, composite foreign keys intentionally reject unmanaged User family changes. All join/leave, link/unlink and erasure paths must be adapted before any production backfill. Existing removal and account erasure now handle the dormant copied profiles as described in [member-lifecycle-compatibility.md](../member-lifecycle-compatibility.md); the complete member-domain erasure ledger remains mandatory before activation.
 
 ## Domain coverage and non-FK contracts
 
