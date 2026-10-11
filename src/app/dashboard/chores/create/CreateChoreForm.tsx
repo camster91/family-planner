@@ -26,6 +26,13 @@ import {
   normalizeRoutineName,
 } from "@/lib/routine-icons";
 import { ROTATION_MIN } from "@/lib/chore-rotation";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import {
+  readApiErrorCode,
+  readHouseholdProfiles,
+  type HouseholdProfile,
+} from "@/lib/household-profile-types";
+import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
@@ -56,6 +63,8 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   // so XP keeps accruing in the background if the family turns it back on.
   const gamification = useFeatureEnabled("gamification");
   const [assignedTo, setAssignedTo] = useState("");
+  const [profileTargetId, setProfileTargetId] = useState<string | null>(null);
+  const [profileOptions, setProfileOptions] = useState<HouseholdProfile[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [frequency, setFrequency] = useState<Frequency>("once");
@@ -71,6 +80,8 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const profileText = useProfileSetupText();
+  const profileIdempotencyKey = useRef<string | null>(null);
   useEffect(() => { onBusyChange?.(loading || photoUploading); }, [loading, photoUploading, onBusyChange]);
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
@@ -93,7 +104,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       ? rotation.length < ROTATION_MIN
         ? [`at least ${ROTATION_MIN} people to take turns`]
         : []
-      : assignedTo
+      : assignedTo || profileTargetId
         ? []
         : ["who does it"]),
   ]);
@@ -135,6 +146,27 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     loadFamilyMembers();
   }, [assignedTo]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProfiles() {
+      try {
+        const response = await fetch("/api/family/profiles", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload: unknown = await response.json();
+        const profiles = readHouseholdProfiles(payload);
+        if (!cancelled && profiles) {
+          setProfileOptions(profiles.filter((profile) => !profile.archived_at));
+        }
+      } catch {
+        // Profile setup is optional; the account assignment path remains available.
+      }
+    }
+    void loadProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (frequency === "weekly" && !weeklyDays.length) {
@@ -145,10 +177,29 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     setError(null);
 
     try {
-      const res = await fetch("/api/chores/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const profileTarget = profileTargetId
+        ? profileOptions.find((profile) => profile.id === profileTargetId)
+        : null;
+      const isProfileTarget = Boolean(profileTarget);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      let requestBody: Record<string, unknown>;
+      if (profileTarget) {
+        const key = profileIdempotencyKey.current ?? newIdempotencyKey();
+        profileIdempotencyKey.current = key;
+        headers[IDEMPOTENCY_HEADER] = key;
+        requestBody = {
+          protocol: 2,
+          selection: { memberId: profileTarget.id },
+          title: title.trim(),
+          description: description.trim() || null,
+          points: 10,
+          due_date: dueDate,
+          difficulty,
+          frequency: "once",
+          photo_url: photoUrl,
+        };
+      } else {
+        requestBody = {
           title,
           description: description || null,
           points,
@@ -171,15 +222,31 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           photo_url: photoUrl,
           icon,
           ...routineRequestFields(routine, routineOrder),
-        }),
+        };
+      }
+      const res = await fetch("/api/chores/create", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to create chore");
+        if (isProfileTarget) {
+          const code = readApiErrorCode(data);
+          if (code === "MEMBER_PROTOCOL_UNAVAILABLE") {
+            profileIdempotencyKey.current = null;
+            setError(profileText("profileTargetUnsupported"));
+          } else {
+            setError(profileText("profileTargetError"));
+          }
+        } else {
+          setError(data.error || "Failed to create chore");
+        }
         return;
       }
 
+      if (isProfileTarget) profileIdempotencyKey.current = null;
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {
@@ -244,16 +311,37 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                 <select
                   id="assignedTo"
                   required
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
+                  value={profileTargetId ? `profile:${profileTargetId}` : assignedTo}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.startsWith("profile:")) {
+                      setProfileTargetId(value.slice("profile:".length));
+                      setFrequency("once");
+                      setTakeTurns(false);
+                      setRotation([]);
+                    } else {
+                      setProfileTargetId(null);
+                      setAssignedTo(value);
+                    }
+                  }}
                   className="input-apple"
                 >
                   {familyMembers.map((member) => (
-                    <option key={member.id} value={member.id}>
+                  <option key={member.id} value={member.id}>
                       {member.name}
                     </option>
                   ))}
+                  {profileOptions.length > 0 && (
+                    <optgroup label={profileText("profileTargets")}>
+                      {profileOptions.map((profile) => (
+                        <option key={profile.id} value={`profile:${profile.id}`}>
+                          {profile.name} · {profileText(profile.role === "child" ? "roleChild" : profile.role === "teen" ? "roleTeen" : "roleParent")}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
+                {profileTargetId && <p className="text-footnote text-label-secondary mt-1.5">{profileText("profileTargetOnce")}</p>}
               </div>
             )}
           </div>
@@ -275,6 +363,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                   key={opt.value}
                   type="button"
                   onClick={() => setFrequency(opt.value)}
+                  disabled={Boolean(profileTargetId) && opt.value !== "once"}
                   aria-pressed={frequency === opt.value}
                   className={cn(
                     "flex-1 min-h-[44px] py-2 rounded-md text-sm font-medium transition-all duration-200",
@@ -337,8 +426,8 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         )}
 
         <ChoreFormSection
-          title={gamification ? "Details & points" : "Details"}
-          summary={`${description.trim() ? "Instructions added · " : ""}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} difficulty${gamification ? ` · ${points} points` : ""}`}
+          title={gamification && !profileTargetId ? "Details & points" : "Details"}
+          summary={`${description.trim() ? "Instructions added · " : ""}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} difficulty${gamification && !profileTargetId ? ` · ${points} points` : ""}`}
         >
           {/* Description */}
           <div>
@@ -387,7 +476,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             </div>
           </div>
 
-          {gamification && (
+          {gamification && !profileTargetId && (
             <div>
               <label className="label-apple" htmlFor="points">
                 Points
@@ -405,24 +494,26 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           )}
         </ChoreFormSection>
 
-        <ChoreFormSection
-          title="Pictures & routine"
-          summary={[
-            routine.trim()
-              ? `${routine}${routineOrder ? ` · Step ${routineOrder}` : ""}`
-              : "No routine",
-            routineIconLabel(icon) ?? "No picture",
-          ].join(" · ")}
-        >
-          {/* Picture routines (#272): picture, routine and step */}
-          <RoutineIconPicker value={icon} onChange={setIcon} />
-          <RoutineFields
-            routine={routine}
-            onRoutineChange={setRoutine}
-            order={routineOrder}
-            onOrderChange={setRoutineOrder}
-          />
-        </ChoreFormSection>
+        {!profileTargetId && (
+          <ChoreFormSection
+            title="Pictures & routine"
+            summary={[
+              routine.trim()
+                ? `${routine}${routineOrder ? ` · Step ${routineOrder}` : ""}`
+                : "No routine",
+              routineIconLabel(icon) ?? "No picture",
+            ].join(" · ")}
+          >
+            {/* Picture routines (#272): picture, routine and step */}
+            <RoutineIconPicker value={icon} onChange={setIcon} />
+            <RoutineFields
+              routine={routine}
+              onRoutineChange={setRoutine}
+              order={routineOrder}
+              onOrderChange={setRoutineOrder}
+            />
+          </ChoreFormSection>
+        )}
 
         <ChoreFormSection
           title="Photo"

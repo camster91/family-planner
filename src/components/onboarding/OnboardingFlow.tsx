@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Users, ArrowRight, CheckCircle, Sparkles, UserPlus } from 'lucide-react'
 import { PRODUCT_BRAND } from '@/lib/brand'
+import { ProfileSetupPanel } from '@/components/family/ProfileSetupPanel'
 
 interface OnboardingFlowProps {
   userId: string
@@ -133,6 +134,7 @@ export default function OnboardingFlow({ userId }: OnboardingFlowProps) {
               <UserPlus className="w-5 h-5 mr-2" />
               Add Family Members
             </Link>
+            <ProfileSetupPanel />
             <Link
               href="/dashboard"
               className="inline-flex items-center justify-center px-6 py-3 bg-[var(--accent-tint)] text-primary rounded-xl font-semibold hover:bg-[var(--accent-tint-strong)] transition-colors"
