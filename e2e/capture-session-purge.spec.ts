@@ -305,6 +305,11 @@ for (const locale of ["en", "es"] as const) {
                 path: new URL(request.url()).pathname,
                 body: request.postDataJSON(),
               });
+              // Model the server clearing the authenticated session after a
+              // successful deletion. Without this, the real middleware
+              // redirects the still-authenticated fixture back to /dashboard
+              // instead of allowing the deletion landing page to render.
+              await context.clearCookies();
               await route.fulfill({
                 status: 200,
                 contentType: "application/json",
@@ -401,9 +406,14 @@ for (const locale of ["en", "es"] as const) {
             await expectCapturePurged(page, captureKey);
             expect(unknownWrites).toEqual([]);
           } finally {
-            if (deletionRouteInstalled)
-              await page.unroute(/\/api\/(?:users|family)$/);
-            if (guardInstalled) await context.unroute("**/*");
+            // A stopped/interrupted browser can close the page before the
+            // fixture reaches cleanup. The test fixture will clean up the
+            // context; avoid turning that interruption into a cleanup error.
+            if (!page.isClosed()) {
+              if (deletionRouteInstalled)
+                await page.unroute(/\/api\/(?:users|family)$/);
+              if (guardInstalled) await context.unroute("**/*");
+            }
           }
         });
       });
