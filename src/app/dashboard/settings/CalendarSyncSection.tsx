@@ -8,6 +8,9 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarSync, Link2, RefreshCw, Unlink } from "lucide-react";
 import { describeCalendarSync } from "@/lib/calendar-sync-status";
 import { useNow } from "@/components/fridge/sync-status";
+import CalendarRemovalDialog, {
+  focusCalendarSection,
+} from "./CalendarRemovalDialog";
 import SettingsDisclosure from "./SettingsDisclosure";
 import SettingsIcon from "./SettingsIcon";
 import {
@@ -106,6 +109,7 @@ export default function CalendarSyncSection() {
   const [connections, setConnections] = useState<Connection[]>([]);
   // Keeps "Last synced 3 min ago" current (#271).
   const now = useNow(30 * 1000) ?? Date.now();
+  const [disconnecting, setDisconnecting] = useState<Connection | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<SettingsFeedback | null>(null);
   const [notice, setNotice] = useState<SettingsFeedback | null>(null);
@@ -291,16 +295,6 @@ export default function CalendarSyncSection() {
   };
 
   const disconnect = async (c: Connection) => {
-    if (
-      !window.confirm(
-        copy(c.is_mine ? "disconnectMineConfirm" : "disconnectOtherConfirm", {
-          provider: c.provider_label,
-          calendar: c.calendar_name ? ` (${c.calendar_name})` : "",
-          name: c.owner.name,
-        }),
-      )
-    )
-      return;
     setBusy(`remove:${c.id}`);
     setError(null);
     setNotice(null);
@@ -315,6 +309,8 @@ export default function CalendarSyncSection() {
         return;
       }
       setConnections((prev) => prev.filter((x) => x.id !== c.id));
+      setDisconnecting(null);
+      focusCalendarSection("calendar-sync-heading");
       setNotice(
         settingsFeedback("disconnected", { provider: c.provider_label }),
       );
@@ -537,7 +533,10 @@ export default function CalendarSyncSection() {
                   )}
                 <button
                   type="button"
-                  onClick={() => disconnect(c)}
+                  onClick={() => {
+                    setError(null);
+                    setDisconnecting(c);
+                  }}
                   disabled={busy !== null}
                   className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[var(--danger-tint)] text-danger-text hover:bg-[var(--danger-tint)] disabled:opacity-60"
                   aria-label={copy("disconnectLabel", {
@@ -578,7 +577,7 @@ export default function CalendarSyncSection() {
       </p>
 
       <div aria-live="polite" className="mt-3">
-        {error && (
+        {error && !disconnecting && (
           <p className="text-sm text-danger-text">
             <SettingsText feedback={error} />
           </p>
@@ -589,6 +588,31 @@ export default function CalendarSyncSection() {
           </p>
         )}
       </div>
+      {disconnecting && (
+        <CalendarRemovalDialog
+          title={`${copy("disconnect")} ${disconnecting.provider_label}`}
+          description={copy(
+            disconnecting.is_mine
+              ? "disconnectMineConfirm"
+              : "disconnectOtherConfirm",
+            {
+              provider: disconnecting.provider_label,
+              calendar: disconnecting.calendar_name
+                ? ` (${disconnecting.calendar_name})`
+                : "",
+              name: disconnecting.owner.name,
+            },
+          )}
+          action={copy("disconnect")}
+          busy={busy !== null}
+          error={error}
+          onCancel={() => {
+            setDisconnecting(null);
+            setError(null);
+          }}
+          onConfirm={() => void disconnect(disconnecting)}
+        />
+      )}
     </SettingsDisclosure>
   );
 }
