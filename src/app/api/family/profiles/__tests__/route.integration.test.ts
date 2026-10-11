@@ -157,6 +157,8 @@ dbDescribe(
   "dormant household profile HTTP routes against guarded PostgreSQL",
   () => {
     let db: PrismaClient;
+    const initialProfileSetupEnabled =
+      process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
 
     async function clean() {
       if (!db) return;
@@ -176,6 +178,7 @@ dbDescribe(
     beforeAll(async () => {
       // This guard must precede client loading, migration and every query.
       assertFixtureTargetAllowed(process.env);
+      process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = "1";
       db = await loadDatabase();
       mockRuntime.prisma = db;
       const pg = await import("pg");
@@ -237,6 +240,11 @@ dbDescribe(
       await clean();
       mockRuntime.prisma = null;
       if (db) await db.$disconnect();
+      if (initialProfileSetupEnabled === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+      else
+        process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED =
+          initialProfileSetupEnabled;
     });
 
     it("reads only unlinked profiles from the current family and fails closed on a malformed role", async () => {

@@ -45,10 +45,12 @@ import {
 } from "@/lib/household-profile-management";
 import { refusePairedDevice } from "@/lib/device-route";
 import { NextResponse } from "next/server";
+import { PROFILE_SETUP_UNSUPPORTED_CODE } from "@/lib/household-profile-http";
 
 const manage = manageHouseholdProfile as jest.Mock;
 const refuse = refusePairedDevice as jest.Mock;
 const KEY = "profile-request-0001";
+const initialProfileSetupEnabled = process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
 
 function profile(id: string, family_id: string, name = "Toddler") {
   return {
@@ -73,6 +75,7 @@ function keyed(as: UserKey, body: unknown, path = "/api/family/profiles") {
 }
 
 beforeEach(() => {
+  process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = "1";
   db.reset();
   manage.mockReset();
   refuse.mockReset().mockResolvedValue(null);
@@ -81,9 +84,65 @@ beforeEach(() => {
   jest.spyOn(console, "log").mockImplementation(() => undefined);
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  if (initialProfileSetupEnabled === undefined)
+    delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+  else process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = initialProfileSetupEnabled;
+  jest.restoreAllMocks();
+});
+
+async function withProfileSetupDisabled<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+  delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined)
+      delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+    else process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = previous;
+  }
+}
 
 describe("GET /api/family/profiles", () => {
+  it("returns recoverable unsupported capability before list or mutation when disabled", async () => {
+    const findMany = jest.spyOn(fakePrisma.householdMember, "findMany");
+    await withProfileSetupDisabled(async () => {
+      const read = await GET(
+        req({ as: "parentA", path: "/api/family/profiles" }),
+      );
+      expect(read.status).toBe(409);
+      expect(read.headers.get("Cache-Control")).toBe("private, no-store");
+      expect((await bodyOf(read)).error).toMatchObject({
+        code: PROFILE_SETUP_UNSUPPORTED_CODE,
+        retryable: true,
+      });
+      expect(findMany).not.toHaveBeenCalled();
+
+      const write = await createProfile(
+        keyed("parentA", { name: "No write while dormant" }),
+      );
+      expect(write.status).toBe(409);
+      expect(write.headers.get("Cache-Control")).toBe("private, no-store");
+      expect((await bodyOf(write)).error.code).toBe(
+        PROFILE_SETUP_UNSUPPORTED_CODE,
+      );
+      expect(manage).not.toHaveBeenCalled();
+      expect(db.writes).toHaveLength(0);
+    });
+  });
+
+  it("requires the explicit server opt-in for an enabled route contract", async () => {
+    manage.mockResolvedValueOnce({
+      profile: profile("new-profile", FAMILY_A),
+      replayed: false,
+    });
+    const response = await createProfile(
+      keyed("parentA", { name: "Enabled child" }),
+    );
+    expect(response.status).toBe(201);
+    expect(manage).toHaveBeenCalledTimes(1);
+  });
+
   it("returns only the current household and a strict public DTO", async () => {
     db.rows("householdMember").push(
       profile("profile-a-active-alpha", FAMILY_A, "Aaron"),

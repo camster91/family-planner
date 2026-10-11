@@ -14,6 +14,10 @@ import {
 import { prisma } from "@/lib/prisma";
 
 export const NO_STORE = { "Cache-Control": "private, no-store" };
+export const PROFILE_SETUP_ENABLE_ENV = "HOUSEHOLD_PROFILE_SETUP_ENABLED";
+export const PROFILE_SETUP_UNSUPPORTED_CODE = "PROFILE_SETUP_UNSUPPORTED";
+const PROFILE_SETUP_UNSUPPORTED_MESSAGE =
+  "Household profile setup is not available on this server yet. Try again later.";
 
 const CREATE_KEYS = new Set(["name", "role", "age"]);
 const EDIT_KEYS = new Set(["name", "role", "age", "revision"]);
@@ -33,6 +37,29 @@ export function withNoStore(response: NextResponse): NextResponse {
 }
 
 /**
+ * Profile routes stay source-dormant until the member-domain compatibility
+ * gates are accepted. This is deliberately a server opt-in rather than a
+ * client-visible capability: auth and paired-device policy must still run
+ * before the unsupported response is returned.
+ */
+export function requireProfileSetupEnabled(
+  request: NextRequest,
+): NextResponse | null {
+  if (process.env[PROFILE_SETUP_ENABLE_ENV] === "1") return null;
+  return apiError(
+    409,
+    PROFILE_SETUP_UNSUPPORTED_CODE,
+    PROFILE_SETUP_UNSUPPORTED_MESSAGE,
+    {
+      requestId: getRequestId(request),
+      shape: "nested",
+      retryable: true,
+      headers: NO_STORE,
+    },
+  );
+}
+
+/**
  * Profile setup is a person-session operation. Keep this refusal before auth,
  * even though authenticateWithFamily repeats the shared boundary internally,
  * so a paired tablet never gets a chance to use a lingering person cookie.
@@ -47,6 +74,8 @@ export async function authenticateProfileParent(
   if (error) return [null, withNoStore(error)];
   const parentError = requireParent(auth.user.role);
   if (parentError) return [null, withNoStore(parentError)];
+  const setupError = requireProfileSetupEnabled(request);
+  if (setupError) return [null, setupError];
   return [
     {
       payload: auth.payload,
