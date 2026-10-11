@@ -372,47 +372,73 @@ async function cleanupOwnedCaptureEvents(
   assertFixtureTargetAllowed(process.env);
   expect(fixture.userId).toBe(FIXTURE_IDS.familyA.parent);
   expect(fixture.familyId).toBe(FIXTURE_IDS.familyA.family);
-  const candidateIds = new Set(
-    await discoverOwnedCaptureEvents(page, fixture, title),
-  );
+
+  // Seed the response-observed id before discovery. If the bounded listing is
+  // transiently unavailable, the committed response can still be verified and
+  // removed safely by this independent detail read.
+  const candidateIds = new Set<string>();
   if (knownEventId) candidateIds.add(knownEventId);
+  const cleanupErrors: string[] = [];
+  try {
+    for (const candidateId of await discoverOwnedCaptureEvents(
+      page,
+      fixture,
+      title,
+    )) {
+      candidateIds.add(candidateId);
+    }
+  } catch (error) {
+    cleanupErrors.push(
+      `marker discovery: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   const deleted: string[] = [];
+  // Every candidate is isolated so a bad detail read/delete cannot strand the
+  // other exact-marker rows. Each candidate is re-read and must still belong
+  // to the authenticated parent before DELETE.
   for (const candidateId of candidateIds) {
-    const detail = await browserFetch(
-      page,
-      `/api/events?id=${encodeURIComponent(candidateId)}`,
-    );
-    if (detail.status === 404) continue;
-    expect(detail.status, detail.body).toBe(200);
-    const detailData = JSON.parse(detail.body) as {
-      event?: {
-        id?: unknown;
-        title?: unknown;
-        creator?: { id?: unknown } | null;
+    try {
+      const detail = await browserFetch(
+        page,
+        `/api/events?id=${encodeURIComponent(candidateId)}`,
+      );
+      if (detail.status === 404) continue;
+      expect(detail.status, detail.body).toBe(200);
+      const detailData = JSON.parse(detail.body) as {
+        event?: {
+          id?: unknown;
+          title?: unknown;
+          creator?: { id?: unknown } | null;
+        };
       };
-    };
-    const event = detailData.event;
-    if (
-      !event ||
-      event.id !== candidateId ||
-      event.title !== title ||
-      event.creator?.id !== fixture.userId
-    ) {
-      throw new Error(
-        `Capture cleanup refused event ${candidateId}: marker/owner mismatch`,
+      const event = detailData.event;
+      if (
+        !event ||
+        event.id !== candidateId ||
+        event.title !== title ||
+        event.creator?.id !== fixture.userId
+      ) {
+        throw new Error(
+          `Capture cleanup refused event ${candidateId}: marker/owner mismatch`,
+        );
+      }
+      const response = await browserSend(page, "DELETE", "/api/events", {
+        eventId: candidateId,
+      });
+      if (response.status !== 200 && response.status !== 404) {
+        throw new Error(
+          `Capture cleanup failed for ${candidateId}: ${response.status}`,
+        );
+      }
+      deleted.push(candidateId);
+    } catch (error) {
+      cleanupErrors.push(
+        `event ${candidateId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const response = await browserSend(page, "DELETE", "/api/events", {
-      eventId: candidateId,
-    });
-    if (response.status !== 200 && response.status !== 404) {
-      throw new Error(
-        `Capture cleanup failed for ${candidateId}: ${response.status}`,
-      );
-    }
-    deleted.push(candidateId);
   }
+
   await info.attach("capture-event-cleanup", {
     body: JSON.stringify({
       fixtureFamily: fixture.familyId,
@@ -421,9 +447,15 @@ async function cleanupOwnedCaptureEvents(
       knownEventId,
       discoveredCandidates: [...candidateIds],
       deleted,
+      cleanupErrors,
     }),
     contentType: "application/json",
   });
+  if (cleanupErrors.length) {
+    throw new Error(
+      `Capture event cleanup failed: ${cleanupErrors.join("; ")}`,
+    );
+  }
 }
 
 function assertFixtureAndLoopback(baseURL: string | undefined): void {
