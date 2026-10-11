@@ -26,7 +26,7 @@ import { DEVICE_IDB_NAME, DEVICE_QUEUE_KEY } from '@/lib/device-client'
 // Policy. Product policy numbers, documented in OFFLINE_SYNC.md; change them
 // here and there together.
 
-/** Version of the stored queue container. Unknown versions are dropped on load. */
+/** Version of the stored queue container. Unknown versions pause for compatible-client recovery. */
 export const QUEUE_SCHEMA_VERSION = 1
 /** Maximum operations kept (all states). Enqueueing beyond it is refused, never evicts. */
 export const QUEUE_MAX_OPS = 50
@@ -383,9 +383,13 @@ export function requiresCompatibleQueueClient(text: string | null, namespace: Qu
   if (text === null) return false
   let data: unknown
   try { data = JSON.parse(text) } catch { return false }
-  if (!isRecord(data) || !Array.isArray(data.ops)) return false
+  if (!isRecord(data)) return false
   if (typeof data.v !== 'number' || !Number.isSafeInteger(data.v) || data.v < 1) return false
   if (data.v !== QUEUE_SCHEMA_VERSION) return true
+  // A future container may change the operation field name or envelope shape.
+  // Its positive version is enough to quarantine it before the v1 parser can
+  // classify the missing `ops` field as corrupt and overwrite it.
+  if (!Array.isArray(data.ops)) return false
   return data.ops.some(raw => {
     if (!isRecord(raw) || typeof raw.action !== 'string' || typeof raw.v !== 'number' || !Number.isSafeInteger(raw.v) || raw.v < 1) return false
     if (!isQueueableAction(raw.action)) return true
