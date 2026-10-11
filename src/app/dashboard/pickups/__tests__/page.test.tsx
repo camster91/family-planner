@@ -34,14 +34,15 @@ function response(body: unknown, ok = true, status = ok ? 200 : 500) {
   return { ok, status, json: async () => body } as Response;
 }
 
-function renderPage(locale: "en" | "es" = "en") {
-  return render(
+function renderPage(locale: "en" | "es" = "en", strict = false) {
+  const page = (
     <I18nProvider locale={locale}>
       <ToastProvider>
         <PickupsPage />
       </ToastProvider>
-    </I18nProvider>,
+    </I18nProvider>
   );
+  return render(strict ? <React.StrictMode>{page}</React.StrictMode> : page);
 }
 
 beforeEach(() => {
@@ -232,6 +233,73 @@ it("consumes the form history marker when Escape closes the draft", async () => 
   expect(replaceSpy).not.toHaveBeenCalled();
   backSpy.mockRestore();
   replaceSpy.mockRestore();
+});
+
+it("does not duplicate the history marker during StrictMode effect replay", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const pushSpy = jest.spyOn(window.history, "pushState");
+  renderPage("en", true);
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+
+  expect(pushSpy).toHaveBeenCalledTimes(1);
+  pushSpy.mockRestore();
+});
+
+it("keeps a reopened draft open when the previous close back arrives late", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  renderPage();
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+
+  await user.click(add);
+  const dialog = await screen.findByRole("dialog", { name: "New pickup" });
+  window.history.replaceState({}, "", "/dashboard/pickups");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+
+  expect(dialog).toBeInTheDocument();
+  expect(backSpy).toHaveBeenCalledTimes(1);
+  backSpy.mockRestore();
+});
+
+it("consumes its marker when the form owner unmounts", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  const view = renderPage();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  view.unmount();
+
+  await waitFor(() => expect(backSpy).toHaveBeenCalledTimes(1));
+  backSpy.mockRestore();
 });
 
 it("blocks dismissal and duplicate submits while saving, then restores Add focus", async () => {
