@@ -12,7 +12,7 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-it("summarizes selected weekdays and the next occurrence in English", () => {
+it("summarizes selected weekdays without inventing a canonical next date", () => {
   render(
     <I18nProvider locale="en">
       <WeeklyDaysPicker days={[4, 1]} onChange={jest.fn()} />
@@ -20,11 +20,11 @@ it("summarizes selected weekdays and the next occurrence in English", () => {
   );
 
   expect(screen.getByTestId("weekly-schedule-summary").textContent).toBe(
-    "Every Monday, Thursday · next Oct 12",
+    "Every Monday, Thursday",
   );
 });
 
-it("uses the Spanish weekday and date labels", () => {
+it("uses the Spanish picker and weekday labels", () => {
   render(
     <I18nProvider locale="es">
       <WeeklyDaysPicker days={[4, 1]} onChange={jest.fn()} />
@@ -32,8 +32,11 @@ it("uses the Spanish weekday and date labels", () => {
   );
 
   expect(screen.getByTestId("weekly-schedule-summary").textContent).toBe(
-    "Cada lunes, jueves · próxima 12 oct",
+    "Cada lunes, jueves",
   );
+  expect(screen.getByText("Repetir los")).toBeTruthy();
+  expect(screen.getByText("Elige uno o más días de cada semana.")).toBeTruthy();
+  expect(screen.getByRole("checkbox", { name: "Lunes" })).toBeTruthy();
 });
 
 it("does not show a schedule result before a weekday is selected", () => {
@@ -44,4 +47,24 @@ it("does not show a schedule result before a weekday is selected", () => {
   );
 
   expect(screen.queryByTestId("weekly-schedule-summary")).toBeNull();
+});
+
+it("honors explicit copy overrides for the picker chrome and day labels", () => {
+  render(
+    <I18nProvider locale="es">
+      <WeeklyDaysPicker
+        days={[1]}
+        onChange={jest.fn()}
+        copy={{
+          legend: "Custom repeat",
+          hint: "Pick a day",
+          weekdays: { 1: "Monday override" },
+        }}
+      />
+    </I18nProvider>,
+  );
+
+  expect(screen.getByText("Custom repeat")).toBeTruthy();
+  expect(screen.getByText("Pick a day")).toBeTruthy();
+  expect(screen.getByText("Monday override")).toBeTruthy();
 });
