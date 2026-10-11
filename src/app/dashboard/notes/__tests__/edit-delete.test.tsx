@@ -74,6 +74,58 @@ it('deleting DELETEs /api/notes/<id>', async () => {
   expect(calls.find((c) => c.method === 'DELETE')!.url).toBe('/api/notes/n%201')
 })
 
+it('keeps an open draft while a failed notes load is retried', async () => {
+  const user = userEvent.setup()
+  let getAttempts = 0
+  let releaseRetry!: () => void
+  const retryPending = new Promise<void>((resolve) => {
+    releaseRetry = resolve
+  })
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/notes' && method === 'GET') {
+      getAttempts += 1
+      if (getAttempts === 1) {
+        return { ok: false, status: 503, json: async () => ({}) } as Response
+      }
+      await retryPending
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          notes: [{
+            id: 'recovered-note',
+            title: 'Recovered note',
+            body: 'Recovered after retry',
+            color: 'yellow',
+            created_at: '2026-09-01T00:00:00Z',
+          }],
+        }),
+      } as Response
+    }
+    return mutationReply()
+  }) as unknown as typeof fetch
+
+  render(<NotesPage />)
+  await user.click(await screen.findByRole('button', { name: 'notes.addNote' }))
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Fridge note')
+  await user.type(screen.getByLabelText('notes.noteBody'), 'Keep this draft')
+
+  const retry = await screen.findByRole('button', { name: 'notes.retry' })
+  await user.click(retry)
+  const pending = screen.getByRole('button', { name: 'notes.loading' }) as HTMLButtonElement
+  expect(pending.disabled).toBe(true)
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Fridge note')
+  expect((screen.getByLabelText('notes.noteBody') as HTMLTextAreaElement).value).toBe('Keep this draft')
+  expect(getAttempts).toBe(2)
+
+  releaseRetry()
+  await waitFor(() => expect(screen.getByText('Recovered note')).toBeTruthy())
+  expect(screen.queryByRole('button', { name: 'notes.retry' })).toBeNull()
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Fridge note')
+})
+
 describe('failures are shown in the modal, which stays open with the text', () => {
   it("a failed save shows the server's error", async () => {
     mutationReply = async () => ({ ok: false, status: 400, json: async () => ({ error: 'Title is too long' }) }) as Response
