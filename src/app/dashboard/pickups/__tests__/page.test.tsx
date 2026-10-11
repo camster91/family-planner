@@ -79,8 +79,9 @@ it("uses the broader board frame while keeping the add flow in a form sheet", as
   const board = document.querySelector<HTMLElement>(
     "[data-pickups-background]",
   );
-  expect(board).toHaveClass("max-w-4xl", "mx-auto");
+  expect(board).toHaveClass("w-full", "min-w-0");
   expect(board).not.toHaveClass("max-w-2xl");
+  expect(board).not.toHaveClass("max-w-4xl");
 
   await user.click(await screen.findByRole("button", { name: "Add" }));
   expect(screen.getByRole("dialog", { name: "New pickup" })).toHaveClass(
