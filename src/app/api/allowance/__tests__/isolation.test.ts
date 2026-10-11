@@ -15,7 +15,7 @@ describe("allowance — two households; parents manage, kids read their own", ()
 
   it("returns 401 without a session", async () => {
     req({ as: null });
-    expect((await allowance.GET()).status).toBe(401);
+    expect((await allowance.GET(req({ as: null }))).status).toBe(401);
     expect((await allowance.POST(req({ body: { to_user_id: "child-a", amount: 5 } }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
   });
@@ -32,7 +32,7 @@ describe("allowance — two households; parents manage, kids read their own", ()
       created_at: new Date("2026-09-02T00:00:00Z"),
     });
     req({ as: "childA" });
-    const res = await allowance.GET();
+    const res = await allowance.GET(req({ as: "childA" }));
     expect(res.status).toBe(200);
     const body = await expectNoForeignData(res);
     expect(body.items.map((a: any) => a.id)).toEqual(["allow-a"]);
@@ -41,19 +41,19 @@ describe("allowance — two households; parents manage, kids read their own", ()
 
   it("D5: a teen reads only their own allowance rows (none for a sibling)", async () => {
     req({ as: "teenA" });
-    const body = await expectNoForeignData(await allowance.GET());
+    const body = await expectNoForeignData(await allowance.GET(req({ as: "teenA" })));
     expect(body.items).toEqual([]);
   });
 
   it("D5: a family-B child never sees family A's rows", async () => {
     req({ as: "childB" });
-    const body = await (await allowance.GET()).json();
+    const body = await (await allowance.GET(req({ as: "childB" }))).json();
     expect(body.items.map((a: any) => a.id)).toEqual(["allow-b"]);
   });
 
   it("a parent lists only their own family", async () => {
     req({ as: "parentA" });
-    const body = await expectNoForeignData(await allowance.GET());
+    const body = await expectNoForeignData(await allowance.GET(req({ as: "parentA" })));
     expect(body.items.map((a: any) => a.id)).toEqual(["allow-a"]);
   });
 
@@ -70,7 +70,7 @@ describe("allowance — two households; parents manage, kids read their own", ()
 
   it("D6: a role change in the database applies on the next request (getServerUser re-reads it)", async () => {
     req({ as: "childA" });
-    expect((await (await allowance.GET()).json()).items.map((a: any) => a.id)).toEqual(["allow-a"]);
+    expect((await (await allowance.GET(req({ as: "childA" }))).json()).items.map((a: any) => a.id)).toEqual(["allow-a"]);
     // Same session, member demoted/promoted out of band: the route follows the DB.
     db.find("user", "child-a")!.role = "parent";
     expect((await allowance.POST(req({ as: "childA", body: { to_user_id: "teen-a", amount: 1 } }))).status).toBe(201);

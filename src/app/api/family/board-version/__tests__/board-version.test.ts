@@ -6,8 +6,9 @@
 // - the version moves when the caller's household changes what the board
 //   shows, and never because of the other household;
 // - it matches the version the full board carries (page and device DTO);
-// - a paired tablet is refused on the person route and uses its own route,
-//   with the device's household only, kill switch 404, no cookie 401;
+// - a paired tablet is refused on the person route with the shared refusal
+//   policy (403 DEVICE_WRITE_NOT_ALLOWED) and uses its own route, with the
+//   device's household only, kill switch 404, no cookie 401;
 // - both routes are rate limited;
 // - photos (person only) move the person version, never the device one.
 
@@ -107,9 +108,11 @@ describe('board version (#271)', () => {
       expect((await personVersion.GET(req({ as: 'loner' }))).status).toBe(400)
     })
 
-    it("a paired tablet's cookie is not a session (401)", async () => {
+    it("a paired tablet is refused before person auth (403, no write)", async () => {
       const res = await personVersion.GET(deviceReq({ cookies: fx.d1.cookies }))
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(403)
+      expect(await errorCode(res)).toBe('DEVICE_WRITE_NOT_ALLOWED')
+      expect(db.writes).toHaveLength(0)
     })
 
     it("moves when the caller's household changes what the board shows, never for the other household", async () => {

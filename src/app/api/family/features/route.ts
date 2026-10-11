@@ -18,11 +18,9 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
  * Returns the current family's enabled features.
  * Parents get full read; kids/teen can read too (so the UI can gate itself).
  */
-export async function GET(request?: NextRequest) {
-  if (request) {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
-  }
+export async function GET(request: NextRequest) {
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return deviceRefusal
 
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -2,15 +2,19 @@
 // belong to the caller's family, otherwise a parent could attach records to
 // another household's rows.
 
-jest.mock("next/server", () => ({
-  NextResponse: {
-    json: (data: unknown, init?: any) => ({
-      status: init?.status ?? 200,
-      headers: new Headers(init?.headers),
-      json: async () => data,
-    }),
-  },
-}));
+jest.mock("next/server", () => {
+  const { NextRequest } = jest.requireActual("next/server") as typeof import("next/server");
+  return {
+    NextRequest,
+    NextResponse: {
+      json: (data: unknown, init?: any) => ({
+        status: init?.status ?? 200,
+        headers: new Headers(init?.headers),
+        json: async () => data,
+      }),
+    },
+  };
+});
 
 jest.mock("@/lib/supabase/server", () => ({
   getServerUser: jest.fn(),
@@ -29,6 +33,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 import { POST } from "../route";
+import { NextRequest } from "next/server";
 import { getServerUser } from "@/lib/supabase/server";
 import { featureGate } from "@/lib/feature-gate-server";
 import { prisma } from "@/lib/prisma";
@@ -52,7 +57,11 @@ const SICK_DAYS = [
 const user = (id: string) => USERS.find((u) => u.id === id)!;
 
 function makeRequest(body: unknown) {
-  return { json: async () => body } as any;
+  return new NextRequest("http://localhost/api/medications", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 const base = { name: "Ibuprofen", dosage: "5ml", schedule: "every 6h" };

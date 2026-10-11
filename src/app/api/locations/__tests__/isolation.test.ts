@@ -15,8 +15,7 @@ describe("locations — two households, parent only", () => {
   beforeEach(() => db.reset());
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
-    expect((await locations.GET()).status).toBe(401);
-    req({ as: null });
+    expect((await locations.GET(req({ as: null }))).status).toBe(401);
     expect((await locations.POST(req({ body: { label: "Gym" } }))).status).toBe(401);
     expect((await location.DELETE(req(), params({ id: "loc-a" }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
@@ -24,7 +23,7 @@ describe("locations — two households, parent only", () => {
 
   it.each<[UserKey]>([["teenA"], ["childA"]])("%s cannot read, add or delete addresses", async (who) => {
     req({ as: who });
-    const read = await locations.GET();
+    const read = await locations.GET(req({ as: who }));
     expect(read.status).toBe(403);
     expect(JSON.stringify(await read.json())).not.toContain("Street");
     expect((await locations.POST(req({ as: who, body: { label: "Gym" } }))).status).toBe(403);
@@ -34,7 +33,7 @@ describe("locations — two households, parent only", () => {
 
   it("a parent lists only their own family's places", async () => {
     req({ as: "parentA" });
-    const body = await expectNoForeignData(await locations.GET());
+    const body = await expectNoForeignData(await locations.GET(req({ as: "parentA" })));
     expect(body.locations.map((l: any) => l.id)).toEqual(["loc-a"]);
   });
 

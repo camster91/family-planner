@@ -10,11 +10,9 @@ type SessionUser = { id: string; email: string; role?: string; family_id?: strin
  * Returns basic info about the user's family members.
  * Used by feature pages that need an assignee selector (pickups, allowance).
  */
-export async function GET(request?: NextRequest) {
-  if (request) {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
-  }
+export async function GET(request: NextRequest) {
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return deviceRefusal
 
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

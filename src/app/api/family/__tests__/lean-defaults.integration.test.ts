@@ -88,7 +88,7 @@ describeWithDatabase('lean feature defaults (Postgres, O-38)', () => {
   }
 
   async function getFeatures(): Promise<Record<string, boolean>> {
-    const res: any = await featuresRoute.GET()
+    const res: any = await featuresRoute.GET(request())
     expect(res.status).toBe(200)
     return (await res.json()).features
   }

@@ -1,15 +1,19 @@
 // Route-level test for POST /api/sick-days: the sick person must be a member
 // of the caller's family.
 
-jest.mock("next/server", () => ({
-  NextResponse: {
-    json: (data: unknown, init?: any) => ({
-      status: init?.status ?? 200,
-      headers: new Headers(init?.headers),
-      json: async () => data,
-    }),
-  },
-}));
+jest.mock("next/server", () => {
+  const { NextRequest } = jest.requireActual("next/server") as typeof import("next/server");
+  return {
+    NextRequest,
+    NextResponse: {
+      json: (data: unknown, init?: any) => ({
+        status: init?.status ?? 200,
+        headers: new Headers(init?.headers),
+        json: async () => data,
+      }),
+    },
+  };
+});
 
 jest.mock("@/lib/supabase/server", () => ({
   getServerUser: jest.fn(),
@@ -27,6 +31,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 import { POST } from "../route";
+import { NextRequest } from "next/server";
 import { getServerUser } from "@/lib/supabase/server";
 import { featureGate } from "@/lib/feature-gate-server";
 import { prisma } from "@/lib/prisma";
@@ -45,7 +50,11 @@ const USERS = [
 const user = (id: string) => USERS.find((u) => u.id === id)!;
 
 function makeRequest(body: unknown) {
-  return { json: async () => body } as any;
+  return new NextRequest("http://localhost/api/sick-days", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 describe("POST /api/sick-days — cross-family references", () => {

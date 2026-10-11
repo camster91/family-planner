@@ -9,11 +9,9 @@ import { createAllowanceSchema } from '@/lib/validations'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
-export async function GET(request?: NextRequest) {
-  if (request) {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
-  }
+export async function GET(request: NextRequest) {
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return deviceRefusal
 
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

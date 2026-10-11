@@ -6,7 +6,7 @@ jest.mock('@/lib/supabase/server', () => ({ getServerUser: jest.fn() }))
 
 import { GET } from '../route'
 import { getServerUser } from '@/lib/supabase/server'
-import { db, expectNoForeignData } from '@/__tests__/helpers/two-household'
+import { db, expectNoForeignData, req } from '@/__tests__/helpers/two-household'
 
 const mockGetServerUser = getServerUser as jest.Mock
 
@@ -19,7 +19,7 @@ describe('GET /api/family/members', () => {
   it('returns same-household email addresses to a parent for the Family page', async () => {
     mockGetServerUser.mockResolvedValue({ id: 'parent-a', role: 'parent', family_id: 'family-A' })
 
-    const body = await expectNoForeignData(await GET())
+    const body = await expectNoForeignData(await GET(req()))
 
     expect(body.members).toHaveLength(3)
     expect(body.members.every((member: any) => typeof member.email === 'string')).toBe(true)
@@ -36,7 +36,7 @@ describe('GET /api/family/members', () => {
   ])('does not expose member email addresses to a %s caller', async (_role, id) => {
     mockGetServerUser.mockResolvedValue({ id, role: _role, family_id: 'family-A' })
 
-    const body = await expectNoForeignData(await GET())
+    const body = await expectNoForeignData(await GET(req()))
 
     expect(body.members).toHaveLength(3)
     expect(body.members.every((member: any) => !('email' in member))).toBe(true)
@@ -45,7 +45,7 @@ describe('GET /api/family/members', () => {
   it('returns 401 without a current session', async () => {
     mockGetServerUser.mockResolvedValue(null)
 
-    const response = await GET()
+    const response = await GET(req({ as: null }))
 
     expect(response.status).toBe(401)
     expect(db.writes).toHaveLength(0)

@@ -44,10 +44,10 @@ describe("family settings — two households", () => {
     ];
     req({ as: null });
     statuses.push(
-      (await features.GET()).status,
+      (await features.GET(req({ as: null }))).status,
       (await features.PATCH(req({ body: { key: "meals", enabled: false } }))).status,
-      (await members()).status,
-      (await travel.GET()).status,
+      (await members(req({ as: null }))).status,
+      (await travel.GET(req({ as: null }))).status,
       (await travel.PATCH(req({ body: { travel_mode_active: false } }))).status
     );
     expect(new Set(statuses)).toEqual(new Set([401]));
@@ -88,14 +88,14 @@ describe("family settings — two households", () => {
       (await travel.PATCH(req({ as: who, body: { travel_mode_active: false } }))).status,
     ];
     req({ as: who });
-    statuses.push((await travel.GET()).status);
+    statuses.push((await travel.GET(req({ as: who }))).status);
     expect(new Set(statuses)).toEqual(new Set([403]));
     expect(db.writes).toHaveLength(0);
   });
 
   it("kids never see travel plans (parent-only)", async () => {
     req({ as: "teenA" });
-    const res = await travel.GET();
+    const res = await travel.GET(req({ as: "teenA" }));
     expect(res.status).toBe(403);
     expect(JSON.stringify(await res.json())).not.toContain("Lisbon");
   });
@@ -106,10 +106,10 @@ describe("family settings — two households", () => {
     const inv = await expectNoForeignData(await invites.GET(req({ as: "parentA" })));
     expect(inv.invites.map((i: any) => i.id)).toEqual(["invite-a"]);
     req({ as: "childA" });
-    const mem = await expectNoForeignData(await members());
+    const mem = await expectNoForeignData(await members(req({ as: "childA" })));
     expect(mem.members.map((m: any) => m.id).sort()).toEqual(["child-a", "parent-a", "teen-a"]);
     req({ as: "parentA" });
-    const trip = await expectNoForeignData(await travel.GET());
+    const trip = await expectNoForeignData(await travel.GET(req({ as: "parentA" })));
     expect(trip.travel_destination).toBe("Lisbon");
 
     await feedToken.POST(req({ as: "parentA", body: { regenerate: true } }));

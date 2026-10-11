@@ -1,15 +1,19 @@
 // Route-level test for PATCH /api/allowance/[id]: only a parent of the owning
 // family may change an allowance, and only to a known status.
 
-jest.mock("next/server", () => ({
-  NextResponse: {
-    json: (data: unknown, init?: any) => ({
-      status: init?.status ?? 200,
-      headers: new Headers(init?.headers),
-      json: async () => data,
-    }),
-  },
-}));
+jest.mock("next/server", () => {
+  const { NextRequest } = jest.requireActual("next/server") as typeof import("next/server");
+  return {
+    NextRequest,
+    NextResponse: {
+      json: (data: unknown, init?: any) => ({
+        status: init?.status ?? 200,
+        headers: new Headers(init?.headers),
+        json: async () => data,
+      }),
+    },
+  };
+});
 
 jest.mock("@/lib/supabase/server", () => ({
   getServerUser: jest.fn(),
@@ -29,6 +33,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 import { PATCH } from "../route";
+import { NextRequest } from "next/server";
 import { getServerUser } from "@/lib/supabase/server";
 import { featureGate } from "@/lib/feature-gate-server";
 import { prisma } from "@/lib/prisma";
@@ -49,7 +54,11 @@ const ALLOWANCES: Record<string, { family_id: string; status: string }> = {
 };
 
 function makeRequest(body: unknown) {
-  return { json: async () => body } as any;
+  return new NextRequest("http://localhost/api/allowance/allow-a", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 function ctx(id: string) {
@@ -111,7 +120,11 @@ describe("PATCH /api/allowance/[id]", () => {
 
   it("rejects a malformed JSON body with 400", async () => {
     mockGetServerUser.mockResolvedValue(USERS.parentA);
-    const req = { json: async () => { throw new SyntaxError("bad json"); } } as any;
+    const req = new NextRequest("http://localhost/api/allowance/allow-a", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
 
     const res = await PATCH(req, ctx("allow-a"));
 
