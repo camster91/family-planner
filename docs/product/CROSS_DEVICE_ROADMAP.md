@@ -163,6 +163,8 @@ Targets below are proposed release criteria; measure baseline and refine through
 
 ## QA and release matrix
 
+The [all-feature UX alignment contract](../refactor/ROUTE_AND_DOMAIN_INVENTORY.md#all-feature-ux-alignment-contract--2026-10-11) defines per-feature coverage, supporting flows, shared interaction rules and the evidence required for each vertical migration. It supplements this sequence under #143/#152/#133/#139; it does not mark features migrated.
+
 Use fabricated isolated households: empty/new; two adults plus email-free preschool child and teen; all features on; busy multi-week schedules/recurrences; long names/text and localization; large lists/images; multiple groceries/custom lists; provider disabled/failing; slow/offline/reconnected devices. Cross every affected journey with parent/teen/child/shared authorization, light/dark/night, keyboard/screen reader and meaningful viewport boundaries.
 
 Core journeys: add everyone; later account conversion; day/month recurrence and routines; occurrence snooze/undo; calendar create/edit/duration/return refresh/provider disconnect; recipe import/curate/plan/groceries; task review; personalization/reset; image HEIC/failure; notification snooze; AI answer/proposal/confirm/conflict/undo; pairing/revocation; offline concurrent edits.
