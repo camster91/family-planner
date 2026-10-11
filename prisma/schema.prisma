@@ -63,6 +63,7 @@ model User {
   // Dormant #480 identity foundation; not used by auth or profile APIs.
   household_member_mapping       HouseholdMemberLegacyMapping? @relation("LegacyMemberUser")
   household_member_account_link  HouseholdMemberAccountLink? @relation("LinkedMemberUser")
+  archived_member_erasure_profiles HouseholdMember[] @relation("ArchivedMemberErasureAccount")
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
   assigned_chores               Chore[]            @relation("AssignedChores")
@@ -1752,15 +1753,19 @@ model HouseholdMember {
   avatar_url     String?
   board_color    String?
   archived_at    DateTime?
+  /// Private erasure provenance for a detached archived profile; never authentication.
+  erasure_user_id String?
   revision       Int       @default(0)
   created_at     DateTime  @default(now())
   updated_at     DateTime  @default(now()) @updatedAt
   family         Family    @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   legacy_mapping HouseholdMemberLegacyMapping?
   account_link   HouseholdMemberAccountLink?
+  erasure_account User? @relation("ArchivedMemberErasureAccount", fields: [erasure_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([id, family_id])
   @@index([family_id, archived_at])
+  @@index([erasure_user_id])
 }
 
 // Compatibility mapping is not an active verified account link.
