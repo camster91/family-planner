@@ -330,6 +330,8 @@ CREATE TABLE IF NOT EXISTS "Activity" (
   "id" TEXT PRIMARY KEY,
   "family_id" TEXT NOT NULL,
   "user_id" TEXT NOT NULL,
+  "subject_member_id" TEXT,
+  "subject_member_erased" BOOLEAN NOT NULL DEFAULT false,
   "type" TEXT NOT NULL,
   "title" TEXT NOT NULL,
   "description" TEXT,
@@ -600,6 +602,8 @@ CREATE TABLE IF NOT EXISTS "DeviceAuditEvent" (
   "family_id" TEXT NOT NULL,
   "device_id" TEXT,
   "actor_user_id" TEXT,
+  "subject_member_id" TEXT,
+  "subject_member_erased" BOOLEAN NOT NULL DEFAULT false,
   "type" TEXT NOT NULL,
   "metadata" JSONB,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP

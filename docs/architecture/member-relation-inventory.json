@@ -5,7 +5,7 @@
       "user_id"
     ],
     "kind": "actor-and-member",
-    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+    "migration": "Keep the required authenticated User actor and add the separate Activity.subject_member attribution. Preserve both during ordinary profile operations; explicit account erasure clears only the identifying subject and leaves the actor/deletion policy unchanged."
   },
   {
     "relation": "Allowance.from_user",
@@ -132,8 +132,8 @@
     "fields": [
       "actor_user_id"
     ],
-    "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "kind": "actor-and-member",
+    "migration": "Keep the existing device/user actor provenance and add the separate DeviceAuditEvent.subject_member attribution. Preserve both during ordinary member operations; explicit account erasure clears only the identifying subject and leaves the actor/set-null policy unchanged."
   },
   {
     "relation": "DevicePairing.creator",

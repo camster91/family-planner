@@ -637,6 +637,8 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'budgetCategory', scope: { kind: 'family' }, why: 'budget categories' },
   { model: 'projectTask', scope: { kind: 'parent', relation: 'project' }, why: 'project tasks' },
   { model: 'project', scope: { kind: 'family' }, why: 'projects' },
+  // Activity keeps a NO ACTION member-subject FK; remove rows before profiles.
+  { model: 'activity', scope: { kind: 'family' }, why: 'activity feed and member subjects' },
   { model: 'choreAssignment', scope: { kind: 'family' }, why: 'chore assignments' },
   // Member subjects use non-cascading history FKs; delete profiles after chores.
   { model: 'chore', scope: { kind: 'family' }, why: 'chores' },
@@ -662,7 +664,6 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'financialArchiveRecord', scope: { kind: 'family' }, why: 'archived finance records' },
   { model: 'message', scope: { kind: 'family' }, why: 'messages' },
   { model: 'notification', scope: { kind: 'members', column: 'user_id' }, why: 'notifications' },
-  { model: 'activity', scope: { kind: 'family' }, why: 'activity feed' },
   { model: 'pinnedNote', scope: { kind: 'family' }, why: 'notes' },
   { model: 'anniversary', scope: { kind: 'family' }, why: 'anniversaries' },
   { model: 'familyLocation', scope: { kind: 'family' }, why: 'addresses' },

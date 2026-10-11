@@ -7,14 +7,51 @@ import { hashIdempotentRequest, IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
 import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const name = z.string().trim().min(1).max(100);
-const age = z.number().int().min(0).max(17).nullable().optional();
+const profileRole = z.enum(["child", "teen", "parent"]);
+const age = z.number().int().min(0).max(120).nullable().optional();
+const profileAgeBounds: Record<
+  HouseholdProfileRole,
+  { min: number; max: number }
+> = {
+  child: { min: 0, max: 17 },
+  teen: { min: 13, max: 17 },
+  // Age is presentation metadata. It never grants or removes account authority.
+  parent: { min: 18, max: 120 },
+};
+export type HouseholdProfileRole = z.infer<typeof profileRole>;
+
+/** A profile role describes a household person's shared-surface presentation only. */
+function isProfileAgeAllowed(
+  role: HouseholdProfileRole,
+  value: number | null | undefined,
+) {
+  if (value === undefined || value === null) return true;
+  const bounds = profileAgeBounds[role];
+  return value >= bounds.min && value <= bounds.max;
+}
+
 const target = {
   id: z.string().min(1).max(128),
   revision: z.number().int().nonnegative(),
 };
 export const householdProfileCommand = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), name, age }).strict(),
-  z.object({ action: z.literal("edit"), ...target, name, age }).strict(),
+  z
+    .object({
+      action: z.literal("create"),
+      name,
+      role: profileRole.default("child"),
+      age,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("edit"),
+      ...target,
+      name,
+      role: profileRole.optional(),
+      age,
+    })
+    .strict(),
   z.object({ action: z.literal("archive"), ...target }).strict(),
 ]);
 const display = {
@@ -31,13 +68,17 @@ const publicProfile = z
     id: z.string(),
     family_id: z.string(),
     name: z.string(),
-    role: z.literal("child"),
+    role: profileRole,
     age: z.number().int().nullable(),
     archived_at: z.string().nullable(),
     revision: z.number().int(),
   })
   .strict();
-export type PublicChildProfile = z.infer<typeof publicProfile>;
+export type PublicHouseholdProfile = z.infer<typeof publicProfile>;
+/** Compatibility alias for callers that only use the original child slice. */
+export type PublicChildProfile = Omit<PublicHouseholdProfile, "role"> & {
+  role: "child";
+};
 
 export class HouseholdProfileError extends Error {
   constructor(
@@ -66,6 +107,17 @@ export async function manageHouseholdProfile(
   if (!parsed.success || !isValidIdempotencyKey(key))
     throw new HouseholdProfileError("INVALID");
   const command = parsed.data;
+  if (
+    command.action === "create" &&
+    !isProfileAgeAllowed(command.role, command.age)
+  )
+    throw new HouseholdProfileError("INVALID");
+  if (
+    command.action === "edit" &&
+    command.role !== undefined &&
+    !isProfileAgeAllowed(command.role, command.age)
+  )
+    throw new HouseholdProfileError("INVALID");
   const action = `household-profile.${command.action}`;
   const requestHash = hashIdempotentRequest(action, command);
   const scope = `user:${actor.userId}`;
@@ -132,7 +184,7 @@ export async function manageHouseholdProfile(
           family_id: actor.familyId,
           name: command.name,
           age: command.age ?? null,
-          role: "child",
+          role: command.role,
         },
         select: display,
       });
@@ -147,10 +199,19 @@ export async function manageHouseholdProfile(
         },
       });
       if (!member) throw new HouseholdProfileError("NOT_FOUND");
-      // This command owns name-only children; linked/mapped accounts retain their
-      // reviewed account lifecycle. No implicit account edits or unlinking.
+      const currentRole = profileRole.safeParse(member.role);
+      if (!currentRole.success) throw new HouseholdProfileError("CONFLICT");
       if (
-        member.role !== "child" ||
+        command.action === "edit" &&
+        !isProfileAgeAllowed(
+          command.role ?? currentRole.data,
+          command.age !== undefined ? command.age : member.age,
+        )
+      )
+        throw new HouseholdProfileError("INVALID");
+      // This command owns unlinked presentation profiles; linked/mapped accounts
+      // retain their reviewed account lifecycle. No implicit account edits or unlinking.
+      if (
         member.legacy_mapping ||
         member.account_link ||
         member.erasure_user_id ||
@@ -165,6 +226,7 @@ export async function manageHouseholdProfile(
             ? { archived_at: now, revision: { increment: 1 } }
             : {
                 name: command.name,
+                ...(command.role !== undefined ? { role: command.role } : {}),
                 ...(command.age !== undefined ? { age: command.age } : {}),
                 revision: { increment: 1 },
               },

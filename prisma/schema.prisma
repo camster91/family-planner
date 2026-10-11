@@ -1018,22 +1018,26 @@ model ListItem {
 }
 
 model Activity {
-  id          String   @id @default(cuid())
-  family_id   String
-  user_id     String
-  type        String // 'chore_completed', 'chore_verified', 'list_completed', 'event_created'
-  title       String
-  description String?
-  metadata    String? // JSON string for extra data
-  created_at  DateTime @default(now())
+  id                   String          @id @default(cuid())
+  family_id            String
+  user_id              String
+  subject_member_id    String?
+  subject_member_erased Boolean         @default(false)
+  type                 String          // 'chore_completed', 'chore_verified', 'list_completed', 'event_created'
+  title                String
+  description          String?
+  metadata             String?         // JSON string for extra data
+  created_at           DateTime        @default(now())
 
   // Relations
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  user   User   @relation("UserActivities", fields: [user_id], references: [id], onDelete: Cascade)
+  family         Family         @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user           User           @relation("UserActivities", fields: [user_id], references: [id], onDelete: Cascade)
+  subject_member HouseholdMember? @relation("ActivitySubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "Activity_subject_member_fkey")
 
   @@index([family_id])
   @@index([family_id, created_at])
   @@index([user_id])
+  @@index([family_id, subject_member_id])
 }
 
 model Reward {
@@ -1533,20 +1537,24 @@ model ParentElevationPin {
 }
 
 model DeviceAuditEvent {
-  id            String   @id @default(cuid())
-  family_id     String
-  device_id     String?
-  actor_user_id String?
-  type          String // fixed vocabulary, SHARED_DEVICE.md §10
-  metadata      Json? // fixed keys only; never content, credentials or IPs
-  created_at    DateTime @default(now())
+  id                   String          @id @default(cuid())
+  family_id            String
+  device_id            String?
+  actor_user_id        String?
+  subject_member_id    String?
+  subject_member_erased Boolean         @default(false)
+  type                 String          // fixed vocabulary, SHARED_DEVICE.md §10
+  metadata             Json?           // fixed keys only; never content, credentials or IPs
+  created_at           DateTime        @default(now())
 
-  family Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  device HouseholdDevice? @relation(fields: [device_id], references: [id], onDelete: SetNull)
-  actor  User?            @relation("DeviceAuditActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
+  family         Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  device         HouseholdDevice? @relation(fields: [device_id], references: [id], onDelete: SetNull)
+  actor          User?            @relation("DeviceAuditActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
+  subject_member HouseholdMember? @relation("DeviceAuditSubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "DeviceAuditEvent_subject_member_fkey")
 
   @@index([family_id, created_at])
   @@index([device_id, created_at])
+  @@index([family_id, subject_member_id])
 }
 
 // Durable idempotency record for retryable mutations (#162; contract in
@@ -1803,6 +1811,8 @@ model HouseholdMember {
   erasure_account User? @relation("ArchivedMemberErasureAccount", fields: [erasure_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   chores Chore[] @relation("MemberChores")
   chore_assignments ChoreAssignment[] @relation("MemberChoreAssignments")
+  activities Activity[] @relation("ActivitySubjectMember")
+  device_audit_events DeviceAuditEvent[] @relation("DeviceAuditSubjectMember")
 
   @@unique([id, family_id])
   @@index([family_id, archived_at])
