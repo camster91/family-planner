@@ -39,7 +39,7 @@ The phone frame studies form content and rounded presentation; it does not yet d
 | Ready | Name and child-profile context, Add, Finish later; no email required | Canonical API persistence and return refresh |
 | Loading/pending | Announced saving, no repeat submission, preserved fields | Slow request, timeout, replay and native Back |
 | Empty | Only signed-in owner; invitation is optional | Fresh onboarding through first useful task |
-| Validation/error | Labeled field issue; retain name and role; Retry when valid | Screen reader, keyboard, server failure |
+| Validation/error | Labeled field issue; retain name and child-profile context; Retry when valid | Screen reader, keyboard, server failure |
 | Offline/stale | Unsaved/pending state; no fake success | Disconnect, reconnect and process-death recovery |
 | Conflict/permission loss | Generic explanation, no foreign identity disclosure, safe refresh | Two households, revoked role/device and direct API negatives |
 | Success | Add once, return to updated overview, stable profile ID | No-login/no-mail proof, assignment/history and replay |
