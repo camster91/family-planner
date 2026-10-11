@@ -98,6 +98,8 @@ function TravelPageInner() {
   const [travel, setTravel] = React.useState<TravelState | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState(false)
+  const [writeUnconfirmed, setWriteUnconfirmed] = React.useState(false)
+  const [checkingState, setCheckingState] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [destination, setDestination] = React.useState('')
   const [startDate, setStartDate] = React.useState('')
@@ -117,9 +119,12 @@ function TravelPageInner() {
     [addToast, text]
   )
 
-  const fetchTravel = React.useCallback(async () => {
+  const fetchTravel = React.useCallback(async (options: { preserveDraft?: boolean; reconcile?: boolean } = {}) => {
+    const preserveDraft = options.preserveDraft ?? false
+    const reconcile = options.reconcile ?? false
     const requestId = ++travelRequestRef.current
     setLoading(true)
+    if (reconcile) setCheckingState(true)
     try {
       const res = await fetch('/api/family/travel')
       if (res.ok) {
@@ -132,9 +137,12 @@ function TravelPageInner() {
         }
         setTravel(parsed)
         setLoadError(false)
-        setDestination(parsed.travel_destination ?? '')
-        setStartDate(parsed.travel_start_date ? toDateOnlyUTC(parsed.travel_start_date) : '')
-        setEndDate(parsed.travel_end_date ? toDateOnlyUTC(parsed.travel_end_date) : '')
+        if (!preserveDraft) {
+          setDestination(parsed.travel_destination ?? '')
+          setStartDate(parsed.travel_start_date ? toDateOnlyUTC(parsed.travel_start_date) : '')
+          setEndDate(parsed.travel_end_date ? toDateOnlyUTC(parsed.travel_end_date) : '')
+        }
+        if (reconcile) setWriteUnconfirmed(false)
       } else {
         if (requestId === travelRequestRef.current) setLoadError(true)
       }
@@ -142,8 +150,13 @@ function TravelPageInner() {
       if (requestId === travelRequestRef.current) setLoadError(true)
     } finally {
       if (requestId === travelRequestRef.current) setLoading(false)
+      if (reconcile && requestId === travelRequestRef.current) setCheckingState(false)
     }
   }, [])
+
+  const checkCurrentState = React.useCallback(() => {
+    void fetchTravel({ preserveDraft: true, reconcile: true })
+  }, [fetchTravel])
 
   // Only the trip's chores: the due-date window, not every household chore.
   const tripStart = travel?.travel_mode_active ? travel.travel_start_date : null
@@ -182,7 +195,7 @@ function TravelPageInner() {
   }, [fetchChores])
 
   const handleToggle = async () => {
-    if (!travel || loading || loadError || mutationRef.current) return
+    if (!travel || loading || loadError || writeUnconfirmed || mutationRef.current) return
     mutationRef.current = true
     setSaving(true)
     try {
@@ -204,13 +217,13 @@ function TravelPageInner() {
         if (parsed) {
           setTravel(parsed)
         } else {
-          notifyFailure('toggleFailed')
+          setWriteUnconfirmed(true)
         }
       } else {
         notifyFailure('toggleFailed')
       }
     } catch {
-      notifyFailure('toggleFailed')
+      setWriteUnconfirmed(true)
     } finally {
       mutationRef.current = false
       setSaving(false)
@@ -218,7 +231,7 @@ function TravelPageInner() {
   }
 
   const handleSaveDetails = async () => {
-    if (!travel || loading || loadError || mutationRef.current) return
+    if (!travel || loading || loadError || writeUnconfirmed || mutationRef.current) return
     mutationRef.current = true
     setSaving(true)
     try {
@@ -237,13 +250,13 @@ function TravelPageInner() {
         if (parsed) {
           setTravel(parsed)
         } else {
-          notifyFailure('detailsFailed')
+          setWriteUnconfirmed(true)
         }
       } else {
         notifyFailure('detailsFailed')
       }
     } catch {
-      notifyFailure('detailsFailed')
+      setWriteUnconfirmed(true)
     } finally {
       mutationRef.current = false
       setSaving(false)
@@ -299,7 +312,23 @@ function TravelPageInner() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
-      {loadError && (
+      {writeUnconfirmed && (
+        <div className="card-apple flex flex-wrap items-center justify-between gap-3 p-4" role="alert">
+          <div>
+            <p className="text-body font-semibold text-label-primary">{text('writeUnconfirmedTitle')}</p>
+            <p className="text-footnote text-label-secondary">{text('writeUnconfirmedDescription')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={checkCurrentState}
+            disabled={checkingState || loading}
+            className="btn-tinted min-h-[44px]"
+          >
+            {checkingState ? text('checkingState') : text('checkCurrentState')}
+          </button>
+        </div>
+      )}
+      {loadError && !writeUnconfirmed && (
         <div className="card-apple flex flex-wrap items-center justify-between gap-3 p-4" role="alert">
           <div>
             <p className="text-body font-semibold text-label-primary">{text('loadErrorTitle')}</p>
@@ -341,7 +370,7 @@ function TravelPageInner() {
           <button
             type="button"
             onClick={handleToggle}
-            disabled={saving || loading || loadError}
+            disabled={saving || loading || loadError || writeUnconfirmed}
             className={cn(
               'relative inline-flex h-11 min-h-[44px] w-12 items-center rounded-full transition-colors duration-300',
               isActive ? 'bg-[var(--accent-fill)]' : 'bg-[var(--surface-fill-secondary)]'
@@ -408,7 +437,7 @@ function TravelPageInner() {
             <button
               type="button"
               onClick={handleSaveDetails}
-              disabled={saving || loading || loadError}
+              disabled={saving || loading || loadError || writeUnconfirmed}
               className="btn-filled w-full min-h-[44px]"
             >
               {saving ? text('saving') : text('save')}

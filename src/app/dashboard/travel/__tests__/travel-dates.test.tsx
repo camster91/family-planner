@@ -44,6 +44,7 @@ let choreLoadFailures: number
 let travelBodyOverride: unknown
 let choreBodyOverride: unknown
 let patchBodyOverride: unknown
+let patchNetworkFailures: number
 
 // The runner's zone is not ours to pick, so simulate a viewer west of UTC:
 // any local-time formatting (no explicit timeZone) lands in Toronto.
@@ -63,6 +64,7 @@ beforeEach(() => {
   travelBodyOverride = undefined
   choreBodyOverride = undefined
   patchBodyOverride = undefined
+  patchNetworkFailures = 0
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
     if (url.startsWith('/api/chores')) {
       choreUrls.push(url)
@@ -75,6 +77,10 @@ beforeEach(() => {
     if (init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body))
       patches.push(body)
+      if (patchNetworkFailures > 0) {
+        patchNetworkFailures -= 1
+        throw new Error('temporary network failure')
+      }
       return { ok: true, json: async () => patchBodyOverride ?? { ...travelState, ...body } }
     }
     if (travelLoadFailures > 0) {
@@ -203,6 +209,12 @@ it('uses Spanish travel copy for controls and localized recovery feedback', asyn
   expect(screen.getByText('Desactivado')).toBeTruthy()
   expect(screen.getByText('No están viajando. Activa el modo viaje cuando estén fuera.')).toBeTruthy()
   expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false')
+
+  patchBodyOverride = { travel_mode_active: 'yes' }
+  await userEvent.click(screen.getByRole('switch', { name: 'Activar modo viaje' }))
+  expect(await screen.findByText('No pudimos confirmar el cambio')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Comprobar estado actual' })).toBeEnabled()
+  expect(screen.getByRole('switch', { name: 'Activar modo viaje' })).toBeDisabled()
 })
 
 it('latches same-tick toggle and details saves while retaining the draft after refusal', async () => {
@@ -239,10 +251,11 @@ it('latches same-tick toggle and details saves while retaining the draft after r
   releasePatch({ ok: false, status: 403, json: async () => ({ error: 'Parents only' }) } as Response)
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't change travel mode"))
   expect(destination).toHaveValue('Lisbon')
+  expect(screen.queryByRole('button', { name: 'Check current state' })).toBeNull()
   expect(screen.getByRole('alert')).not.toHaveTextContent('Parents only')
 })
 
-it('keeps the confirmed control state and draft after a malformed successful PATCH, then recovers on an explicit save', async () => {
+it('blocks after a malformed successful PATCH, then reconciles current state without overwriting the draft', async () => {
   travelState = ACTIVE
   patchBodyOverride = { travel_mode_active: 'yes' }
   renderPage()
@@ -253,14 +266,45 @@ it('keeps the confirmed control state and draft after a malformed successful PAT
   await userEvent.type(destination, 'Lisbon')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save the trip details")
-  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeTruthy()
-  expect(screen.queryByRole('switch', { name: 'Turn on travel mode' })).toBeNull()
+  expect(await screen.findByText("We couldn't confirm the change")).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Check current state' })).toBeEnabled()
+  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   expect(destination).toHaveValue('Lisbon')
   expect(patches).toHaveLength(1)
 
-  patchBodyOverride = ACTIVE
+  travelBodyOverride = { ...ACTIVE, travel_destination: 'Rome' }
+  await userEvent.click(screen.getByRole('button', { name: 'Check current state' }))
+  await waitFor(() => expect(screen.queryByText("We couldn't confirm the change")).toBeNull())
+  expect(destination).toHaveValue('Lisbon')
+  expect(patches).toHaveLength(1)
+  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeTruthy()
+
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(patches).toHaveLength(2))
-  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeTruthy()
+  expect(patches[1].travel_destination).toBe('Lisbon')
+})
+
+it('blocks after a network-unknown save until current state is checked', async () => {
+  travelState = ACTIVE
+  patchNetworkFailures = 1
+  renderPage()
+
+  await screen.findByRole('switch', { name: 'Turn off travel mode' })
+  const destination = screen.getByLabelText('Destination') as HTMLInputElement
+  await userEvent.clear(destination)
+  await userEvent.type(destination, 'Lisbon')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+  expect(await screen.findByText("We couldn't confirm the change")).toBeTruthy()
+  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Check current state' })).toBeEnabled()
+  expect(patches).toHaveLength(1)
+
+  travelBodyOverride = { ...ACTIVE, travel_destination: 'Rome' }
+  await userEvent.click(screen.getByRole('button', { name: 'Check current state' }))
+  await waitFor(() => expect(screen.queryByText("We couldn't confirm the change")).toBeNull())
+  expect(destination).toHaveValue('Lisbon')
+  expect(patches).toHaveLength(1)
 })

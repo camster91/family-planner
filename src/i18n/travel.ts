@@ -31,6 +31,10 @@ export const travelEnglish = {
   retry: "Try again",
   toggleFailed: "Couldn't change travel mode",
   detailsFailed: "Couldn't save the trip details",
+  writeUnconfirmedTitle: "We couldn't confirm the change",
+  writeUnconfirmedDescription: "The current state is unknown. Check it before trying again.",
+  checkCurrentState: "Check current state",
+  checkingState: "Checking current state…",
   networkError: "Check your connection and try again.",
   unassigned: "Unassigned",
 } as const;
@@ -68,6 +72,10 @@ export const travelSpanish: TravelMessages = {
   retry: "Intentar de nuevo",
   toggleFailed: "No se pudo cambiar el modo viaje",
   detailsFailed: "No se pudieron guardar los detalles del viaje",
+  writeUnconfirmedTitle: "No pudimos confirmar el cambio",
+  writeUnconfirmedDescription: "El estado actual no está confirmado. Compruébalo antes de intentarlo de nuevo.",
+  checkCurrentState: "Comprobar estado actual",
+  checkingState: "Comprobando estado actual…",
   networkError: "Revisa tu conexión e inténtalo de nuevo.",
   unassigned: "Sin asignar",
 };
