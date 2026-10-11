@@ -3,6 +3,8 @@
 **Scope:** reopened #480, based on `5b996a5` (2026-10-11)  
 **Status:** planning only. This document does not activate a route, capability, schema writer, account link, backfill, native client, provider or production migration.
 
+This plan adds no scheduler, cron job or background worker. Profile creation, reconciliation, assignment and recovery remain request-driven or explicitly operator-run fixture/release actions; any future scheduled work needs its own approved contract.
+
 This plan turns the original #480 acceptance into a sequence that can be reviewed and released one boundary at a time. The current repository has the dormant `HouseholdMember`, legacy mapping and optional account-link tables, an internal `manageHouseholdProfile` command core, account/profile lifecycle handling, and a public capability manifest that advertises member protocol 1 only. None of those facts means that a parent can currently create a name-only child in the app or assign work to one.
 
 The governing contracts are [ADR-0009](../architecture/adr/0009-household-members-and-login-accounts.md), the [dormant foundation rehearsal](../architecture/member-foundation-rehearsal.md), the [profile command contract](../architecture/member-profile-commands.md), the [lifecycle contract](../architecture/member-lifecycle-compatibility.md), the [chore subject compatibility contract](../architecture/chore-member-subject-compatibility.md), and [native/API compatibility](../architecture/NATIVE_API_COMPATIBILITY.md). The original acceptance remains the authority for outcome and evidence:
@@ -22,6 +24,8 @@ The first implementation slice is a parent-controlled **child** profile. The ser
 `HouseholdMember` owns the stable household-person identity. `User` continues to own authentication, verified email, providers, sessions, token versions, push/delivery settings, elevation credentials and authenticated actor provenance. `HouseholdMemberLegacyMapping` is a deterministic compatibility mapping, not proof of an active link. `HouseholdMemberAccountLink` is reserved for a future owner-verified link flow. Names and email matches are never identity evidence.
 
 The current `manageHouseholdProfile` core is deliberately internal. Before a route calls it, the route must establish a real personal session, use the existing parent authority boundary, recheck current membership/token state under the existing lock order, and return only the allowlisted profile DTO. A shared-device selected profile cannot be passed as the actor context.
+
+The existing account-backed `GET /api/family/members` contract remains unchanged during migration, including its current `User`-based fields and email behavior for authenticated account members. It must not be widened by adding name-only profiles or by replacing User IDs in-place. Future name-only/profile listing uses a separate parent-scoped route and allowlisted `HouseholdMember` DTO; readers and clients must not conflate that DTO with the existing account-backed members response.
 
 The current `/api/capabilities` manifest advertises member protocol `[1]` only. Protocol 1 means account-backed IDs and existing payloads. Protocol 2 means explicit `HouseholdMember` subjects and separate optional linked-account identity; it must not be advertised until the domain and recovery gates below are complete.
 
@@ -64,7 +68,7 @@ Expose a narrow route around the existing command core only after the domain com
 
 | Operation | Request | Result | Required rules |
 |---|---|---|---|
-| List | authenticated parent, current family | allowlisted active/archived member DTOs | current family only; no email, token, link, mapping or erasure fields |
+| List | authenticated parent, current family | separate allowlisted active/archived `HouseholdMember` DTOs | current family only; no email, token, link, mapping or erasure fields; preserve `GET /api/family/members` as the existing User/account DTO |
 | Create | name, optional age, idempotency key | stable child profile | server-derived family and child role; no account, invite, password or email |
 | Edit | member ID, expected revision, name/age, idempotency key | revised profile | active name-only child only; stale revision is a generic conflict |
 | Archive | member ID, expected revision, idempotency key | archived profile | retain history; stop new assignment; no implicit unarchive or account removal |
