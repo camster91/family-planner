@@ -111,7 +111,9 @@ describe("board member protocol negotiation", () => {
       expect(res.status).toBe(409);
       expect(res.headers.get("Cache-Control")).toBe("private, no-store");
       const body = await bodyOf(res);
-      expect(body.code).toBe("MEMBER_PROTOCOL_UNAVAILABLE");
+      expect(route === personVersion ? body.code : body.error.code).toBe(
+        "MEMBER_PROTOCOL_UNAVAILABLE",
+      );
       expect(JSON.stringify(body)).not.toMatch(
         /partial-profile|secret-partial-version/,
       );

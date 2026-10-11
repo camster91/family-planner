@@ -63,6 +63,8 @@ export const todayBoardEnglish = {
   protocolCompatibilityBody:
     "A newer family profile is waiting to be shown. Refresh to load it safely. Pending work is kept.",
   refreshBoard: "Refresh family plan",
+  profilePickerTitle: "Who is this chore for?",
+  profilePickerDescription: "Choose the family profile completing this chore.",
 } as const;
 
 export type TodayBoardMessage = keyof typeof todayBoardEnglish;
@@ -130,6 +132,8 @@ export const todayBoardSpanish: TodayBoardMessages = {
   protocolCompatibilityBody:
     "Hay un perfil familiar nuevo esperando para mostrarse. Actualiza para cargarlo de forma segura. El trabajo pendiente se conserva.",
   refreshBoard: "Actualizar el plan familiar",
+  profilePickerTitle: "¿Para quién es esta tarea?",
+  profilePickerDescription: "Elige el perfil familiar que hará esta tarea.",
 };
 
 export const todayBoardMessages = {

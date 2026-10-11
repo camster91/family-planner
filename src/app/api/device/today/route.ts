@@ -4,12 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { loadTodayBoard } from "@/app/dashboard/today/board-snapshot";
 import {
   requestedMemberProtocol,
-  profileChoreLegacyWriteRefusal,
+  profileChoreProtocolRefusal,
 } from "@/lib/chore-profile";
 import {
   deviceClock,
   deviceInternalError,
   deviceJson,
+  deviceError,
   killSwitch,
 } from "@/lib/device-http";
 import { authenticateDevice } from "@/lib/device-route";
@@ -47,7 +48,9 @@ async function handleGET(request: NextRequest) {
       withWeather: true,
     });
     if (data.protocolError)
-      return deviceJson(profileChoreLegacyWriteRefusal(), 409);
+      return deviceError(409, "MEMBER_PROTOCOL_UNAVAILABLE", {
+        extra: profileChoreProtocolRefusal(),
+      });
     return deviceJson(data);
   } catch (error) {
     return deviceInternalError("device.today", error, getRequestId(request));

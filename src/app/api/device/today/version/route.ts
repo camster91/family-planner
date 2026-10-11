@@ -4,13 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { loadTodayBoard } from "@/app/dashboard/today/board-snapshot";
 import {
   requestedMemberProtocol,
-  profileChoreLegacyWriteRefusal,
+  profileChoreProtocolRefusal,
 } from "@/lib/chore-profile";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import {
   deviceClock,
   deviceInternalError,
   deviceJson,
+  deviceError,
   killSwitch,
   rateLimited,
 } from "@/lib/device-http";
@@ -52,7 +53,9 @@ async function handleGET(request: NextRequest) {
       now: deviceClock.now(),
     });
     if (board.protocolError)
-      return deviceJson(profileChoreLegacyWriteRefusal(), 409);
+      return deviceError(409, "MEMBER_PROTOCOL_UNAVAILABLE", {
+        extra: profileChoreProtocolRefusal(),
+      });
     return deviceJson({ version: board.version });
   } catch (error) {
     return deviceInternalError(
