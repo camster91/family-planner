@@ -193,6 +193,20 @@ async function assertTouchTarget(page: Page, target: Locator) {
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
 }
 
+async function selectSyntheticCategory(dialog: Locator) {
+  const category = dialog.getByRole("combobox", { name: "Category" });
+  await expect(category).toBeVisible();
+  await expect(category).toBeEnabled();
+  await expect(
+    category.locator("option", { hasText: SYNTHETIC_CATEGORY.name }),
+  ).toHaveCount(1);
+  await category.selectOption(SYNTHETIC_CATEGORY.id);
+  await expect(category).toHaveValue(SYNTHETIC_CATEGORY.id);
+  await expect(category.locator("option:checked")).toHaveText(
+    SYNTHETIC_CATEGORY.name,
+  );
+}
+
 async function assertAccessibleAndContained(
   page: Page,
   info: TestInfo,
@@ -521,12 +535,7 @@ for (const locale of ["en", "es"] as const) {
         });
         await assertTouchTarget(page, retryCategories);
         await retryCategories.click();
-        await expect(
-          dialog.getByRole("option", { name: /Synthetic Food/ }),
-        ).toBeVisible();
-        await dialog
-          .getByRole("combobox", { name: "Category" })
-          .selectOption(SYNTHETIC_CATEGORY.id);
+        await selectSyntheticCategory(dialog);
         await dialog.getByLabel("Amount").fill("25");
         await dialog.getByLabel("Description").fill("Synthetic queued save");
 
@@ -555,9 +564,7 @@ for (const locale of ["en", "es"] as const) {
         const recoveryDialog = page.getByRole("dialog", {
           name: "Add Transaction",
         });
-        await expect(
-          recoveryDialog.getByRole("option", { name: /Synthetic Food/ }),
-        ).toBeVisible();
+        await selectSyntheticCategory(recoveryDialog);
         await recoveryDialog.getByLabel("Amount").fill("50");
         await recoveryDialog
           .getByLabel("Description")
