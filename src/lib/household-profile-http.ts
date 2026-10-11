@@ -17,7 +17,7 @@ export const NO_STORE = { "Cache-Control": "private, no-store" };
 export const PROFILE_SETUP_ENABLE_ENV = "HOUSEHOLD_PROFILE_SETUP_ENABLED";
 export const PROFILE_SETUP_UNSUPPORTED_CODE = "PROFILE_SETUP_UNSUPPORTED";
 const PROFILE_SETUP_UNSUPPORTED_MESSAGE =
-  "Household profile setup is not available on this server yet. Try again later.";
+  "Household profile setup is not enabled for this server configuration. Use a compatible app or server.";
 
 const CREATE_KEYS = new Set(["name", "role", "age"]);
 const EDIT_KEYS = new Set(["name", "role", "age", "revision"]);
@@ -53,7 +53,7 @@ export function requireProfileSetupEnabled(
     {
       requestId: getRequestId(request),
       shape: "nested",
-      retryable: true,
+      retryable: false,
       headers: NO_STORE,
     },
   );

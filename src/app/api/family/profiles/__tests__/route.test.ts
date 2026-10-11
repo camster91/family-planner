@@ -91,9 +91,13 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-async function withProfileSetupDisabled<T>(fn: () => Promise<T>): Promise<T> {
+async function withProfileSetupValue<T>(
+  value: string | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
   const previous = process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
-  delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+  if (value === undefined) delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+  else process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = value;
   try {
     return await fn();
   } finally {
@@ -104,31 +108,34 @@ async function withProfileSetupDisabled<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 describe("GET /api/family/profiles", () => {
-  it("returns recoverable unsupported capability before list or mutation when disabled", async () => {
+  it("returns stable unsupported capability before list or mutation unless exactly opted in", async () => {
     const findMany = jest.spyOn(fakePrisma.householdMember, "findMany");
-    await withProfileSetupDisabled(async () => {
-      const read = await GET(
-        req({ as: "parentA", path: "/api/family/profiles" }),
-      );
-      expect(read.status).toBe(409);
-      expect(read.headers.get("Cache-Control")).toBe("private, no-store");
-      expect((await bodyOf(read)).error).toMatchObject({
-        code: PROFILE_SETUP_UNSUPPORTED_CODE,
-        retryable: true,
-      });
-      expect(findMany).not.toHaveBeenCalled();
+    for (const value of [undefined, "0"]) {
+      await withProfileSetupValue(value, async () => {
+        const read = await GET(
+          req({ as: "parentA", path: "/api/family/profiles" }),
+        );
+        expect(read.status).toBe(409);
+        expect(read.headers.get("Cache-Control")).toBe("private, no-store");
+        expect((await bodyOf(read)).error).toMatchObject({
+          code: PROFILE_SETUP_UNSUPPORTED_CODE,
+          retryable: false,
+        });
+        expect(findMany).not.toHaveBeenCalled();
 
-      const write = await createProfile(
-        keyed("parentA", { name: "No write while dormant" }),
-      );
-      expect(write.status).toBe(409);
-      expect(write.headers.get("Cache-Control")).toBe("private, no-store");
-      expect((await bodyOf(write)).error.code).toBe(
-        PROFILE_SETUP_UNSUPPORTED_CODE,
-      );
-      expect(manage).not.toHaveBeenCalled();
-      expect(db.writes).toHaveLength(0);
-    });
+        const write = await createProfile(
+          keyed("parentA", { name: "No write while dormant" }),
+        );
+        expect(write.status).toBe(409);
+        expect(write.headers.get("Cache-Control")).toBe("private, no-store");
+        expect((await bodyOf(write)).error).toMatchObject({
+          code: PROFILE_SETUP_UNSUPPORTED_CODE,
+          retryable: false,
+        });
+        expect(manage).not.toHaveBeenCalled();
+        expect(db.writes).toHaveLength(0);
+      });
+    }
   });
 
   it("requires the explicit server opt-in for an enabled route contract", async () => {
