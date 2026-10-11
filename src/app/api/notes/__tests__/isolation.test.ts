@@ -12,6 +12,7 @@ jest.mock("@/lib/feature-gate-server", () => ({
 import * as notes from "../route";
 import * as note from "../[id]/route";
 import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { hashDeviceToken } from "@/lib/device-session";
 
 describe("notes — two households", () => {
   beforeEach(() => {
@@ -56,6 +57,49 @@ describe("notes — two households", () => {
     expect((await notes.GET(req({ as: "parentA" }))).status).toBe(403);
     expect((await notes.POST(req({ as: "parentA", body: { title: "Blocked" } }))).status).toBe(403);
     expect(db.writes).toHaveLength(0);
+  });
+
+  it("refuses a valid paired device before person auth on every Notes handler", async () => {
+    process.env.SHARED_DEVICE_ENABLED = "1";
+    try {
+      const future = new Date(Date.now() + 60 * 60 * 1000);
+      db.rows("householdDevice").push({ id: "dev-a", family_id: "family-A", revoked_at: null });
+      db.rows("deviceSession").push({
+        id: "ds-a",
+        device_id: "dev-a",
+        family_id: "family-A",
+        access_token_hash: hashDeviceToken("tablet-token"),
+        refresh_token_hash: "refresh-hash",
+        access_expires_at: future,
+        refresh_expires_at: future,
+        revoked_at: null,
+        rotated_at: null,
+      });
+      const writes = db.writes.length;
+      const requests = [
+        [notes.GET, req({ as: "parentA" })],
+        [notes.POST, req({ as: "parentA", method: "POST", body: { title: "blocked" } })],
+        [note.PATCH, req({ as: "parentA", method: "PATCH", body: { id: "note-a", title: "blocked" } })],
+        [note.DELETE, req({ as: "parentA", method: "DELETE", body: { id: "note-a" } })],
+      ] as const;
+
+      for (const [handler, request] of requests) {
+        request.cookies = {
+          get: (name: string) =>
+            name === "fp_device"
+              ? { value: "tablet-token" }
+              : name === "session_token"
+                ? { value: "session:parent-a" }
+                : undefined,
+        };
+        const response = await handler(request);
+        expect(response.status).toBe(403);
+        expect((await response.json()).error.code).toBe("DEVICE_WRITE_NOT_ALLOWED");
+      }
+      expect(db.writes).toHaveLength(writes);
+    } finally {
+      delete process.env.SHARED_DEVICE_ENABLED;
+    }
   });
 
   it("refuses to update or delete another family's note", async () => {

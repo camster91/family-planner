@@ -2,7 +2,8 @@
 
 import * as React from 'react'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
-import { FeatureGate } from '@/components/ui/feature-gate'
+import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
+import { FeatureOffState } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Dialog } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -51,10 +52,27 @@ const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = 
 ]
 
 export default function NotesPage() {
+  const enabled = useFeatureEnabled('notes')
+  return enabled ? <NotesPageInner /> : <NotesFeatureOffState />
+}
+
+function NotesFeatureOffState() {
+  const { canManage } = useFeatures()
+  const { t } = useTranslation()
+
   return (
-    <FeatureGate featureKey="notes">
-      <NotesPageInner />
-    </FeatureGate>
+    <FeatureOffState
+      featureKey="notes"
+      canManage={canManage}
+      headingLevel={1}
+      testId="notes-feature-off"
+      copy={{
+        title: t('notes.featureOffTitle'),
+        description: t('notes.featureOffDescription'),
+        askParent: t('notes.featureOffAskParent'),
+        openFeatures: t('notes.openFeatures'),
+      }}
+    />
   )
 }
 

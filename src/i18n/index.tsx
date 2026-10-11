@@ -260,6 +260,10 @@ const messages = {
     notes: {
       title: 'Notes',
       subtitle: 'Pinned to the fridge',
+      featureOffTitle: 'Pinned notes is off',
+      featureOffDescription: 'Pinned notes are turned off for your family. You can turn them on in Features settings.',
+      featureOffAskParent: 'Pinned notes are turned off for your family. Ask a parent to turn them on.',
+      openFeatures: 'Open Features',
       addNote: 'Add Note',
       newNote: 'New Note',
       empty: 'No notes yet. Add your first one.',
@@ -729,6 +733,10 @@ const messages = {
     notes: {
       title: 'Notas',
       subtitle: 'Pegadas al refrigerador',
+      featureOffTitle: 'Las notas fijadas están desactivadas',
+      featureOffDescription: 'Las notas fijadas están desactivadas para tu familia. Puedes activarlas en la configuración de funciones.',
+      featureOffAskParent: 'Las notas fijadas están desactivadas para tu familia. Pide a un padre que las active.',
+      openFeatures: 'Abrir funciones',
       addNote: 'Agregar nota',
       newNote: 'Nueva nota',
       empty: 'No hay notas todavia. Agrega la primera.',

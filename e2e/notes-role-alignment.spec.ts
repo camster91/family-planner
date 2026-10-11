@@ -6,6 +6,7 @@
  * blob. The shared device deliberately gets no person-session note route.
  */
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
+import { hashDeviceToken } from "../src/lib/device-session";
 import pg from "pg";
 import {
   FIXTURE_EMAILS,
@@ -35,6 +36,9 @@ const NOTE_IDS = {
   foreign: "fx_e2e_notes_foreign",
 } as const;
 const NOTE_TITLE_PREFIX = "E2E Notes D9";
+const NOTES_DEVICE_ID = "fx_e2e_notes_device";
+const NOTES_DEVICE_ACCESS = "fpd1_a_e2e_notes_valid";
+const NOTES_DEVICE_REFRESH = "fpd1_r_e2e_notes_valid";
 const NOTE_TITLES = {
   parent: `${NOTE_TITLE_PREFIX} parent-owned`,
   teen: `${NOTE_TITLE_PREFIX} teen-owned`,
@@ -67,6 +71,7 @@ const COPY: Record<
 };
 
 let originalFeatures: unknown;
+let originalFeaturesCaptured = false;
 
 async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
   assertFixtureTargetAllowed(process.env);
@@ -80,6 +85,9 @@ async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
 }
 
 async function restoreFeatures(db?: pg.Client) {
+  if (!originalFeaturesCaptured) {
+    throw new Error("Notes fixture original feature state was not captured");
+  }
   const run = async (client: pg.Client) => {
     await client.query(
       `UPDATE "Family" SET features = $1::jsonb WHERE id = $2`,
@@ -91,6 +99,35 @@ async function restoreFeatures(db?: pg.Client) {
   };
   if (db) return run(db);
   return withDb(run);
+}
+
+async function seedSharedDevice(db: pg.Client) {
+  await cleanupSharedDevice(db);
+  await db.query(
+    `INSERT INTO "HouseholdDevice" (id, family_id, label, platform, created_by, confirmed_by, paired_at, created_at, updated_at)
+     VALUES ($1, $2, $3, 'web', $4, $4, $5, $5, $5)`,
+    [NOTES_DEVICE_ID, A.family, "Notes fixture tablet", A.parent, E2E_ANCHOR],
+  );
+  await db.query(
+    `INSERT INTO "DeviceSession" (id, device_id, family_id, access_token_hash, refresh_token_hash, access_expires_at, refresh_expires_at, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      `${NOTES_DEVICE_ID}_session`,
+      NOTES_DEVICE_ID,
+      A.family,
+      hashDeviceToken(NOTES_DEVICE_ACCESS),
+      hashDeviceToken(NOTES_DEVICE_REFRESH),
+      new Date(E2E_ANCHOR.getTime() + 60 * 60 * 1000),
+      new Date(E2E_ANCHOR.getTime() + 30 * 24 * 60 * 60 * 1000),
+      E2E_ANCHOR,
+    ],
+  );
+}
+
+async function cleanupSharedDevice(db: pg.Client) {
+  await db.query(`DELETE FROM "HouseholdDevice" WHERE id = $1`, [
+    NOTES_DEVICE_ID,
+  ]);
 }
 
 async function setNotesFeature(enabled: boolean) {
@@ -247,15 +284,39 @@ test.beforeAll(async () => {
     );
     expect(current.rows).toHaveLength(1);
     originalFeatures = current.rows[0].features;
+    originalFeaturesCaptured = true;
     await seedNotes(db);
+    await seedSharedDevice(db);
   });
 });
 
 test.afterAll(async () => {
-  await withDb(async (db) => {
-    await cleanupNotes(db);
-    await restoreFeatures(db);
-  });
+  const errors: Error[] = [];
+  const attempt = async (label: string, work: () => Promise<void>) => {
+    try {
+      await work();
+    } catch (error) {
+      errors.push(
+        new Error(
+          `${label}: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+  await attempt("Notes fixture cleanup", () =>
+    withDb(async (db) => {
+      await cleanupNotes(db);
+    }),
+  );
+  await attempt("Notes device cleanup", () =>
+    withDb(async (db) => {
+      await cleanupSharedDevice(db);
+    }),
+  );
+  await attempt("Notes feature restoration", () => restoreFeatures());
+  if (errors.length > 0) {
+    throw new AggregateError(errors, "Notes D9 E2E cleanup failed");
+  }
 });
 
 test.beforeEach(async ({}, testInfo) => {
@@ -442,10 +503,11 @@ test("feature-off keeps Notes locked and refuses reads and writes", async ({
   try {
     await setNotesFeature(false);
     await opened.page.goto("/dashboard/notes");
-    // Feature metadata currently uses the canonical English feature title in
-    // both locales; route-owned buttons remain localized when the feature is on.
     await expect(
-      opened.page.getByRole("heading", { name: "Notes is off", level: 2 }),
+      opened.page.getByRole("heading", {
+        name: "Pinned notes is off",
+        level: 1,
+      }),
     ).toBeVisible();
     await expect(
       opened.page.getByRole("button", { name: "Add Note", exact: true }),
@@ -461,9 +523,21 @@ test("feature-off keeps Notes locked and refuses reads and writes", async ({
       ).status,
     ).toBe(403);
   } finally {
-    await restoreFeatures();
+    const errors: Error[] = [];
+    try {
+      await restoreFeatures();
+    } catch (error) {
+      errors.push(error instanceof Error ? error : new Error(String(error)));
+    }
+    try {
+      await opened.context.close();
+    } catch (error) {
+      errors.push(error instanceof Error ? error : new Error(String(error)));
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, "Notes feature-off cleanup failed");
+    }
   }
-  await opened.context.close();
 });
 
 test("shared-device cookies cannot enter the person Notes route or API", async ({
@@ -476,12 +550,12 @@ test("shared-device cookies cannot enter the person Notes route or API", async (
   );
   const context = await browser.newContext({
     baseURL,
-    storageState: { cookies: [], origins: [] },
+    storageState: authFile("parentA"),
   });
   try {
     await guardContext(context, baseURL!);
     await context.addCookies([
-      { name: "fp_device", value: "fpd1_a_synthetic-invalid", url: baseURL! },
+      { name: "fp_device", value: NOTES_DEVICE_ACCESS, url: baseURL! },
     ]);
     const pageResponse = await context.request.get(
       `${baseURL}/dashboard/notes`,
@@ -492,7 +566,10 @@ test("shared-device cookies cannot enter the person Notes route or API", async (
       "/device/today",
     );
     const apiResponse = await context.request.get(`${baseURL}/api/notes`);
-    expect(apiResponse.status()).toBe(401);
+    expect(apiResponse.status()).toBe(403);
+    expect((await apiResponse.json()).error.code).toBe(
+      "DEVICE_WRITE_NOT_ALLOWED",
+    );
   } finally {
     await context.close();
   }

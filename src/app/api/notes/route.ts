@@ -5,6 +5,7 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { createNoteSchema } from '@/lib/validations'
+import { refusePairedDevice } from '@/lib/device-route'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,9 @@ function notePermissions(role: string, userId: string, createdBy: string) {
 // GET - List all pinned notes for the user's family
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -46,6 +50,9 @@ export async function GET(request: NextRequest) {
 // POST - Create a new note
 export async function POST(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
