@@ -131,6 +131,8 @@ for (const locale of ["en", "es"] as const) {
     );
     await page.goto("/dashboard/today");
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
+    if (locale === "es") await expect(page.locator("html")).toHaveClass(/dark/);
+    else await expect(page.locator("html")).not.toHaveClass(/dark/);
     const identity = await runtimeIdentity(page, info, locale);
     const copy =
       locale === "es"

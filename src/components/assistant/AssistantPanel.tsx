@@ -15,6 +15,8 @@ import {
   executeAssistantAction,
   removalTargets,
   choreAssignees,
+  AssistantActionError,
+  type AssistantActionErrorCode,
   type RemovalTarget,
 } from "./action-client";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
@@ -50,6 +52,7 @@ export type AssistantPanelProps = {
 
 type AssistantError =
   | { kind: "copy"; key: AssistantMessage }
+  | { kind: "action"; key: AssistantActionErrorCode }
   | { kind: "voice"; key: VoiceErrorCode }
   | { kind: "raw"; message: string };
 
@@ -61,6 +64,18 @@ class AssistantCopyError extends Error {
     this.name = "AssistantCopyError";
     this.key = key;
   }
+}
+
+function toAssistantError(
+  error: unknown,
+  fallback: AssistantMessage,
+): AssistantError {
+  if (error instanceof AssistantActionError)
+    return { kind: "action", key: error.code };
+  if (error instanceof AssistantCopyError)
+    return { kind: "copy", key: error.key };
+  if (error instanceof Error) return { kind: "raw", message: error.message };
+  return { kind: "copy", key: fallback };
 }
 
 export default function AssistantPanel({
@@ -203,13 +218,7 @@ export default function AssistantPanel({
         }
       }
     } catch (e) {
-      setError(
-        e instanceof AssistantCopyError
-          ? { kind: "copy", key: e.key }
-          : e instanceof Error
-            ? { kind: "raw", message: e.message }
-            : { kind: "copy", key: "chatFailed" },
-      );
+      setError(toAssistantError(e, "chatFailed"));
       setAction(null);
     } finally {
       lock.current = false;
@@ -254,11 +263,7 @@ export default function AssistantPanel({
       setDeleteConfirm(false);
       router.refresh();
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? { kind: "raw", message: e.message }
-          : { kind: "copy", key: "actionFailed" },
-      );
+      setError(toAssistantError(e, "actionFailed"));
       setAction(null);
     } finally {
       lock.current = false;
@@ -294,13 +299,7 @@ export default function AssistantPanel({
       setDetails("");
       requestId.current = "";
     } catch (e) {
-      setError(
-        e instanceof AssistantCopyError
-          ? { kind: "copy", key: e.key }
-          : e instanceof Error
-            ? { kind: "raw", message: e.message }
-            : { kind: "copy", key: "reportSaveFailed" },
-      );
+      setError(toAssistantError(e, "reportSaveFailed"));
     } finally {
       lock.current = false;
       setBusy(false);
@@ -360,9 +359,11 @@ export default function AssistantPanel({
           >
             {error.kind === "copy"
               ? msg(error.key)
-              : error.kind === "voice"
+              : error.kind === "action"
                 ? msg(error.key)
-                : error.message}
+                : error.kind === "voice"
+                  ? msg(error.key)
+                  : error.message}
           </p>
         )}
         {tab === "chat" && (
@@ -454,6 +455,19 @@ export default function AssistantPanel({
                     {action.frequency === "weekly" ? (
                       <WeeklyDaysPicker
                         days={action.weekdays}
+                        copy={{
+                          legend: msg("repeatOn"),
+                          hint: msg("weeklyHint"),
+                          weekdays: {
+                            0: msg("sunday"),
+                            1: msg("monday"),
+                            2: msg("tuesday"),
+                            3: msg("wednesday"),
+                            4: msg("thursday"),
+                            5: msg("friday"),
+                            6: msg("saturday"),
+                          },
+                        }}
                         onChange={(weekdays) =>
                           setAction({ ...action, weekdays })
                         }

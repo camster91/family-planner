@@ -4215,16 +4215,6 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/WeeklyDaysPicker.tsx",
-    "text": "Choose one or more days each week.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/WeeklyDaysPicker.tsx",
-    "text": "Repeat on",
-    "count": 1
-  },
-  {
     "file": "src/components/dashboard/FeatureSuggestions.tsx",
     "text": "Not now",
     "count": 1

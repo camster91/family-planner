@@ -30,6 +30,15 @@ export const assistantEnglish = {
   daily: "Daily",
   weekly: "Weekly",
   monthly: "Monthly",
+  repeatOn: "Repeat on",
+  weeklyHint: "Choose one or more days each week.",
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
   date: "Date",
   choreDate: "Chore date",
   pointsDetails: "{points} points · {difficulty}. {guidance}",
@@ -92,6 +101,22 @@ export const assistantEnglish = {
   replyUnreadable: "The AI reply was unreadable. Try rephrasing your message.",
   chatFailed: "Chat failed.",
   actionFailed: "Action failed. Check the app before retrying.",
+  checkProposedDetails: "Check the proposed details.",
+  loadChoicesFailed: "Could not load choices.",
+  connectionInterrupted:
+    "The connection ended before confirmation. Check the app before trying this action again.",
+  unreadableResponse:
+    "The server response was unreadable. Check the app before trying again.",
+  duplicateListTargets:
+    "Some lists have identical names and details. Open Lists to review or rename them before removing a list in chat.",
+  chooseChoreAssignee: "Choose who does this chore.",
+  invalidChoreSchedule: "Choose a valid date or at least one weekly day.",
+  chooseRemovalTarget: "Choose the exact item to remove.",
+  invalidEventTime:
+    "Choose a valid start and later end time. Daylight-saving gaps need another time.",
+  chooseGroceryList:
+    "Choose a grocery list in Lists first. Chat adds only when there is exactly one grocery list.",
+  actionOpenSectionError: "Open this section to continue.",
   reportSaveFailed: "Could not save. Retry this draft.",
   voiceUnavailableError:
     "Voice is unavailable in this browser. Type your message instead.",
@@ -133,6 +158,15 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   daily: "Diaria",
   weekly: "Semanal",
   monthly: "Mensual",
+  repeatOn: "Repetir los",
+  weeklyHint: "Elige uno o más días de cada semana.",
+  monday: "Lunes",
+  tuesday: "Martes",
+  wednesday: "Miércoles",
+  thursday: "Jueves",
+  friday: "Viernes",
+  saturday: "Sábado",
+  sunday: "Domingo",
   date: "Fecha",
   choreDate: "Fecha de la tarea",
   pointsDetails: "{points} puntos · {difficulty}. {guidance}",
@@ -200,6 +234,22 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   chatFailed: "No se pudo enviar el chat.",
   actionFailed:
     "La acción falló. Revisa la aplicación antes de volver a intentarlo.",
+  checkProposedDetails: "Revisa los detalles propuestos.",
+  loadChoicesFailed: "No se pudieron cargar las opciones.",
+  connectionInterrupted:
+    "La conexión terminó antes de la confirmación. Revisa la aplicación antes de volver a intentar esta acción.",
+  unreadableResponse:
+    "No se pudo leer la respuesta del servidor. Revisa la aplicación antes de volver a intentarlo.",
+  duplicateListTargets:
+    "Algunas listas tienen nombres y detalles idénticos. Abre Listas para revisarlas o cambiarles el nombre antes de eliminar una lista en el chat.",
+  chooseChoreAssignee: "Elige quién hace esta tarea.",
+  invalidChoreSchedule: "Elige una fecha válida o al menos un día semanal.",
+  chooseRemovalTarget: "Elige el artículo exacto que quieres eliminar.",
+  invalidEventTime:
+    "Elige un inicio válido y una hora de finalización posterior. Los saltos por horario de verano requieren otra hora.",
+  chooseGroceryList:
+    "Elige primero una lista de compras en Listas. El chat solo añade artículos cuando hay exactamente una lista de compras.",
+  actionOpenSectionError: "Abre esta sección para continuar.",
   reportSaveFailed: "No se pudo guardar. Intenta de nuevo este borrador.",
   voiceUnavailableError:
     "La voz no está disponible en este navegador. Escribe tu mensaje.",

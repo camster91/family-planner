@@ -439,3 +439,89 @@ it("localizes semantic voice errors without changing recognition behavior", asyn
     "Se denegó el acceso al micrófono. Aún puedes escribir.",
   );
 });
+
+it("localizes weekly action review controls and weekday choices", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn(async (path) =>
+    response(
+      path === "/api/assistant"
+        ? {
+            reply: "Choose the weekly days.",
+            action: {
+              kind: "chore_create",
+              title: "Recycling",
+              frequency: "weekly",
+              weekdays: [1, 4],
+              points: 10,
+              difficulty: "easy",
+            },
+          }
+        : { members: [{ id: "member-a", name: "Avery" }] },
+    ),
+  ) as any;
+  render(
+    <I18nProvider locale="es">
+      <AssistantHost role="parent" />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(
+    within(dialog).getByLabelText("Tu mensaje"),
+    "Añade reciclaje",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Enviar" }));
+  expect(await within(dialog).findByText("Repetir los")).toBeInTheDocument();
+  expect(
+    within(dialog).getByText("Elige uno o más días de cada semana."),
+  ).toBeInTheDocument();
+  expect(
+    within(dialog).getByRole("checkbox", { name: "Lunes" }),
+  ).toBeInTheDocument();
+  expect(
+    within(dialog).getByRole("checkbox", { name: "Jueves" }),
+  ).toBeInTheDocument();
+});
+
+it("re-localizes a static action failure after switching language", async () => {
+  const user = userEvent.setup();
+  function LocaleSwitcher() {
+    const { setLocale } = useTranslation();
+    return (
+      <button type="button" onClick={() => setLocale("es")}>
+        Cambiar idioma
+      </button>
+    );
+  }
+  global.fetch = jest.fn(async () =>
+    response({
+      reply: "Review the event time.",
+      action: {
+        kind: "event_create",
+        title: "Pickup",
+        start: "2026-10-10T15:00",
+        end: "2026-10-10T14:00",
+      },
+    }),
+  ) as any;
+  render(
+    <I18nProvider locale="en">
+      <LocaleSwitcher />
+      <AssistantHost role="parent" />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(within(dialog).getByLabelText("Your message"), "Add pickup");
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Confirm and save" }),
+  );
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Choose a valid start and later end time.",
+  );
+  await user.click(screen.getByRole("button", { name: "Cambiar idioma" }));
+  expect(within(dialog).getByRole("alert")).toHaveTextContent(
+    "Elige un inicio válido y una hora de finalización posterior.",
+  );
+});
