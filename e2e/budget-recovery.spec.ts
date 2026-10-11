@@ -67,6 +67,7 @@ const RECOVERED_TRANSACTION = {
 const FRESH_TRANSACTION = {
   ...SYNTHETIC_TRANSACTION,
   id: "fx_e2e_budget_fresh",
+  type: "income",
   description: "Synthetic post-save budget row",
 };
 
