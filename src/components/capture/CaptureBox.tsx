@@ -5,6 +5,15 @@ import { Sparkles, Loader2, Check, X, ListPlus, CalendarDays, ClipboardList, Cam
 import { CAPTURE_CHILD_MESSAGE } from '@/lib/role-capabilities'
 import { newIdempotencyKey } from '@/lib/idempotency-key'
 import { localDateTimeToISO } from '@/lib/dates'
+import {
+  activateCaptureRecoveryStorage,
+  CAPTURE_RECOVERY_RETENTION_MS,
+  hashCaptureRequest,
+  loadCaptureRecovery,
+  saveCaptureRecovery,
+  type CaptureRecoveryAction,
+  type CaptureRecoveryEnvelope,
+} from '@/lib/capture-recovery'
 
 // Capture returns local wall-clock times without an offset ("2026-10-06T15:00").
 // Convert them in the browser to an instant so the server (UTC) stores the time
@@ -99,6 +108,26 @@ function friendlyTime(iso?: string): string {
   })
 }
 
+type RecoveryIdentity = { userId: string; familyId: string }
+
+function eventPayload(value: Pick<Draft | PhotoEvent, 'title' | 'start_time' | 'end_time' | 'location' | 'event_type'>) {
+  return {
+    title: value.title.trim(),
+    start_time: toInstant(value.start_time),
+    ...(value.end_time ? { end_time: toInstant(value.end_time) } : {}),
+    ...(value.location ? { location: value.location.trim() } : {}),
+    event_type: value.event_type || 'other',
+  }
+}
+
+function recoveryActionFor(action: CaptureRecoveryAction): string {
+  return action === 'event.create' ? '/api/events' : '/api/capture/grocery'
+}
+
+function recoveryTitle(row: CaptureRecoveryEnvelope): string {
+  return row.title || (row.kind === 'event' ? 'Calendar event' : 'Grocery item')
+}
+
 export function CaptureBox({
   onSaved,
 }: {
@@ -116,10 +145,15 @@ export function CaptureBox({
   const [photoBusy, setPhotoBusy] = React.useState(false)
   const [photoEvents, setPhotoEvents] = React.useState<PhotoEvent[] | null>(null)
   const [photoNote, setPhotoNote] = React.useState<string | null>(null)
+  const [recoveryOperations, setRecoveryOperations] = React.useState<CaptureRecoveryEnvelope[]>([])
+  const [recoveryBusyKey, setRecoveryBusyKey] = React.useState<string | null>(null)
+  const [recoveryMessage, setRecoveryMessage] = React.useState<string | null>(null)
+  const recoveryIdentity = React.useRef<RecoveryIdentity | null>(null)
+  const recoveryRows = React.useRef(new Map<string, CaptureRecoveryEnvelope>())
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   // Proposal identity survives retries and partial batch filtering. Do not make
   // a fresh key after an uncertain response, or a repeated effect could result.
-  const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string; listId?: string }>())
+  const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string }>())
   function operationFor(proposal: object) {
     let operation = operations.current.get(proposal)
     if (!operation) {
@@ -128,16 +162,61 @@ export function CaptureBox({
     }
     // Server replay retention is seven days. Never silently replay an old
     // unknown operation after that window; ask the person to check the app.
-    if (Date.now() - operation.at >= 6 * 24 * 60 * 60 * 1000) throw new Error('This preview is too old to retry safely. Check the app before making a new preview.')
+    if (Date.now() - operation.at >= CAPTURE_RECOVERY_RETENTION_MS) throw new Error('This preview is too old to retry safely. Check the app before making a new preview.')
     return operation
   }
-  async function postProposal(url: string, proposal: object, payload: unknown) {
-    const operation = operationFor(proposal)
+  function syncRecoveryRows(rows: CaptureRecoveryEnvelope[]) {
+    recoveryRows.current = new Map(rows.map((row) => [row.key, row]))
+    setRecoveryOperations(rows)
+    const identity = recoveryIdentity.current
+    if (identity) saveCaptureRecovery(window.localStorage, identity.userId, identity.familyId, rows)
+  }
+
+  function rememberRecovery(row: CaptureRecoveryEnvelope) {
+    const next = [...recoveryRows.current.values()].filter((current) => current.key !== row.key)
+    next.unshift(row)
+    syncRecoveryRows(next)
+  }
+
+  function forgetRecovery(key: string) {
+    syncRecoveryRows([...recoveryRows.current.values()].filter((row) => row.key !== key))
+  }
+
+  async function rememberPayload(
+    action: CaptureRecoveryAction,
+    operation: { key: string; at: number; body?: string },
+    payload: unknown,
+    title: string,
+    photo: boolean,
+  ): Promise<string> {
     const body = JSON.stringify(payload)
     if (operation.body && operation.body !== body) throw new Error('This preview changed. Check the app before making a new preview.')
     operation.body = body
+    const requestHash = await hashCaptureRequest(action, payload)
+    if (!requestHash) throw new Error('Could not prepare a safe retry. Try again in a supported browser.')
+    const envelope: CaptureRecoveryEnvelope = {
+      version: 1,
+      key: operation.key,
+      action,
+      requestHash,
+      body,
+      title: title.trim().slice(0, 200),
+      kind: action === 'event.create' ? 'event' : 'listitem',
+      createdAt: operation.at,
+      photo,
+    }
+    rememberRecovery(envelope)
+    return body
+  }
+
+  async function postProposal(url: string, proposal: object, payload: unknown, title: string, photo = false) {
+    const operation = operationFor(proposal)
+    const action: CaptureRecoveryAction = url === '/api/events' ? 'event.create' : 'capture.grocery.add'
+    const body = await rememberPayload(action, operation, payload, title, photo)
     try {
-      return await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': operation.key }, body })
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': operation.key }, body })
+      if (response.ok) forgetRecovery(operation.key)
+      return response
     } catch {
       throw new Error('Could not confirm whether this was saved. Try again to check the same request.')
     }
@@ -150,9 +229,108 @@ export function CaptureBox({
       .then((d) => {
         if (d && d.allowed === false) setChildBlocked(true)
         else if (d && d.configured === false) setUnavailable(true)
+        if (d?.userId && d?.familyId) {
+          const identity = { userId: String(d.userId), familyId: String(d.familyId) }
+          const previousIdentity = recoveryIdentity.current
+          const sameIdentity = previousIdentity?.userId === identity.userId && previousIdentity.familyId === identity.familyId
+          const pending = sameIdentity ? [...recoveryRows.current.values()] : []
+          recoveryIdentity.current = identity
+          activateCaptureRecoveryStorage(window.localStorage, identity.userId, identity.familyId)
+          const persisted = loadCaptureRecovery(window.localStorage, identity.userId, identity.familyId)
+          syncRecoveryRows([...persisted, ...pending.filter((row) => !persisted.some((saved) => saved.key === row.key))])
+        }
       })
       .catch(() => {})
   }, [])
+
+  async function checkRecovery(row: CaptureRecoveryEnvelope) {
+    if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
+      forgetRecovery(row.key)
+      setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
+      return
+    }
+    if (!row.requestHash) {
+      forgetRecovery(row.key)
+      setRecoveryMessage('Status is unavailable for this saved request. Start a new preview after checking the app.')
+      return
+    }
+    setRecoveryBusyKey(row.key)
+    setRecoveryMessage(null)
+    try {
+      const response = await fetch('/api/capture/receipt', {
+        headers: {
+          'Idempotency-Key': row.key,
+          'X-Capture-Action': row.action,
+          'X-Capture-Request-Hash': row.requestHash,
+        },
+      })
+      const data = (await response.json().catch(() => ({}))) as { state?: string; current?: string }
+      if (response.status === 409) {
+        forgetRecovery(row.key)
+        setRecoveryMessage('This capture changed. Start a new preview.')
+      } else if (!response.ok) {
+        setRecoveryMessage('Could not check this capture. Try again when you have a connection.')
+      } else if (data.state === 'committed' && data.current === 'present') {
+        forgetRecovery(row.key)
+        setSaved(`Already added “${recoveryTitle(row)}”`)
+        onSaved?.()
+      } else if (data.state === 'committed' && data.current === 'removed') {
+        forgetRecovery(row.key)
+        setRecoveryMessage('This capture was saved earlier, but it is no longer present. It was not recreated.')
+      } else if (data.state === 'committed') {
+        forgetRecovery(row.key)
+        setRecoveryMessage('This capture was saved earlier. Refresh the app before making a new preview.')
+      } else if (data.state === 'pending') {
+        setRecoveryMessage('This capture is still being processed. Check again or retry later.')
+      } else if (data.state === 'expired') {
+        forgetRecovery(row.key)
+        setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
+      } else {
+        setRecoveryMessage('No saved result was found. Retry the same request to check it.')
+      }
+    } catch {
+      setRecoveryMessage('Could not check this capture. Try again when you have a connection.')
+    } finally {
+      setRecoveryBusyKey(null)
+    }
+  }
+
+  async function retryRecovery(row: CaptureRecoveryEnvelope) {
+    if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
+      forgetRecovery(row.key)
+      setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
+      return
+    }
+    setRecoveryBusyKey(row.key)
+    setRecoveryMessage(null)
+    try {
+      const response = await fetch(recoveryActionFor(row.action), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': row.key },
+        body: row.body,
+      })
+      if (response.ok) {
+        // A successful keyed replay only proves the receipt response. Read
+        // the family-scoped resource state before claiming it is present; a
+        // committed item may have been deleted since the original attempt.
+        await checkRecovery(row)
+      } else if (response.status === 422) {
+        forgetRecovery(row.key)
+        setRecoveryMessage('This capture changed. Start a new preview.')
+      } else if (response.status === 404 && row.action === 'capture.grocery.add') {
+        forgetRecovery(row.key)
+        setRecoveryMessage('The grocery list changed. Start a new preview.')
+      } else if (response.status === 409) {
+        setRecoveryMessage('The original request is still being processed. Check status before retrying.')
+      } else {
+        setRecoveryMessage('Could not save this capture. Try again when you have a connection.')
+      }
+    } catch {
+      setRecoveryMessage('Could not save this capture. Try again when you have a connection.')
+    } finally {
+      setRecoveryBusyKey(null)
+    }
+  }
 
   async function interpret() {
     const phrase = text.trim()
@@ -183,25 +361,16 @@ export function CaptureBox({
     setError(null)
     try {
       if (draft.kind === 'listitem') {
-        // The household's default grocery list, found or created by the one
-        // server rule recipe adds use too (ADR-0007 O-4), then add the item.
-        const operation = operationFor(draft)
-        if (!operation.listId) {
-          const listRes = await fetch('/api/lists/default-grocery', { method: 'POST' })
-          const listData = await listRes.json().catch(() => ({}))
-          if (!listRes.ok || !listData.list) throw new Error(listData.error || 'Could not find a grocery list')
-          operation.listId = listData.list.id
-        }
-        const itemRes = await postProposal('/api/lists/items/create', draft, { listId: operation.listId, content: draft.title, quantity: 1 })
+        // Resolve the household default list and add the item in one keyed
+        // server transaction so a lost list-resolution response cannot strand
+        // a request without a durable receipt.
+        const itemRes = await postProposal('/api/capture/grocery', draft, { content: draft.title.trim(), quantity: 1 }, draft.title)
         if (!itemRes.ok) {
           const d = await itemRes.json().catch(() => ({}))
           throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Could not add to the list')
         }
       } else {
-        const res = await postProposal('/api/events', draft, {
-          title: draft.title, start_time: toInstant(draft.start_time), end_time: toInstant(draft.end_time),
-          location: draft.location, event_type: draft.event_type || 'other',
-        })
+        const res = await postProposal('/api/events', draft, eventPayload(draft), draft.title)
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
           throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Could not save')
@@ -260,10 +429,7 @@ export function CaptureBox({
     let added = 0
     try {
       for (const ev of photoEvents) {
-        const res = await postProposal('/api/events', ev, {
-          title: ev.title, start_time: toInstant(ev.start_time), end_time: toInstant(ev.end_time),
-          location: ev.location, event_type: ev.event_type || 'other',
-        })
+        const res = await postProposal('/api/events', ev, eventPayload(ev), ev.title, true)
         if (res.ok) added += 1
         else failed.push(ev)
       }
@@ -373,6 +539,42 @@ export function CaptureBox({
         <p role="status" className="text-subhead text-[var(--success,#059669)] mt-3 flex items-center gap-1">
           <Check className="w-4 h-4" aria-hidden="true" /> {saved}
         </p>
+      )}
+
+      {recoveryOperations.length > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--separator)] p-3" aria-labelledby="capture-recovery-title" data-testid="capture-recovery">
+          <h3 id="capture-recovery-title" className="text-body font-medium">Needs attention</h3>
+          <p className="text-footnote text-label-secondary mt-1">A previous add may have completed. Check its status before making a new preview.</p>
+          <ul className="mt-2 space-y-2">
+            {recoveryOperations.map((row) => {
+              const busyRecovery = recoveryBusyKey === row.key
+              return (
+                <li key={row.key} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-subhead min-w-0 truncate">{recoveryTitle(row)}</span>
+                  <span className="flex shrink-0 gap-2">
+                    <button
+                      className="btn-plain min-h-[44px] px-3"
+                      onClick={() => checkRecovery(row)}
+                      disabled={recoveryBusyKey !== null}
+                      aria-label={`Check status for ${recoveryTitle(row)}`}
+                    >
+                      {busyRecovery ? 'Checking…' : 'Check status'}
+                    </button>
+                    <button
+                      className="btn-filled min-h-[44px] px-3"
+                      onClick={() => retryRecovery(row)}
+                      disabled={recoveryBusyKey !== null || !row.requestHash}
+                      aria-label={`Retry ${recoveryTitle(row)}`}
+                    >
+                      Retry
+                    </button>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+          {recoveryMessage && <p role="alert" className="text-subhead text-[var(--danger-text)] mt-3">{recoveryMessage}</p>}
+        </section>
       )}
 
       {draft && (

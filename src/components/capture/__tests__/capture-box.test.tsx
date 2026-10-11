@@ -207,16 +207,11 @@ it('keeps each photo row key after partial success and an uncertain response', a
   expect(attempts.get('Book fair')).toHaveLength(1)
 })
 
-it('retains the original grocery target and key after an uncertain item save', async () => {
+it('retains the grocery operation key and body after an uncertain combined save', async () => {
   const items: RequestInit[] = []
-  let listLookups = 0
   global.fetch = jest.fn(async (url, init) => {
     if (String(url) === '/api/capture') return json(200, init?.method === 'POST' ? { draft: { kind: 'listitem', title: 'Milk', confidence: 'high' } } : { configured: true, allowed: true })
-    if (String(url) === '/api/lists/default-grocery') {
-      listLookups += 1
-      return json(200, { list: { id: `grocery-${listLookups}` } })
-    }
-    if (String(url) === '/api/lists/items/create') {
+    if (String(url) === '/api/capture/grocery') {
       items.push(init!)
       if (items.length === 1) throw new Error('lost response')
       return json(200, { success: true, item: { id: 'item-1' } })
@@ -234,5 +229,48 @@ it('retains the original grocery target and key after an uncertain item save', a
   expect(listLookups).toBe(1)
   expect(items[1].headers).toEqual(items[0].headers)
   expect(items[1].body).toBe(items[0].body)
-  expect(JSON.parse(String(items[1].body)).listId).toBe('grocery-1')
+  expect(JSON.parse(String(items[1].body))).toEqual({ content: 'Milk', quantity: 1 })
+})
+
+it('restores a confirmed operation after reload without submitting until Retry', async () => {
+  window.localStorage.clear()
+  const calls: RequestInit[] = []
+  let eventAttempts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture') {
+      return json(200, { draft: { kind: 'event', title: 'Dentist', start_time: '2026-10-06T19:00:00.000Z', confidence: 'high' } })
+    }
+    if (String(url) === '/api/events') {
+      calls.push(init!)
+      const envelope = JSON.parse(window.localStorage.getItem('family-planner:capture-recovery:v1:user-a:family-a') || '[]')[0]
+      expect(envelope.requestHash).toMatch(/^[a-f0-9]{64}$/)
+      eventAttempts += 1
+      if (eventAttempts === 1) throw new Error('response lost after commit')
+      return json(201, { event: { id: 'event-a' } })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  const first = render(<CaptureBox />)
+  await user.type(screen.getByLabelText('What would you like to add?'), 'dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await user.click(await screen.findByRole('button', { name: 'Add it' }))
+  await screen.findByText(/Could not confirm whether this was saved/)
+  first.unmount()
+
+  render(<CaptureBox />)
+  const recovery = await screen.findByTestId('capture-recovery')
+  expect(recovery).toHaveTextContent('Dentist')
+  expect(calls).toHaveLength(1)
+  const retry = await screen.findByRole('button', { name: 'Retry Dentist' })
+  await waitFor(() => expect(retry).toBeEnabled())
+  await user.click(retry)
+  await screen.findByText('Added “Dentist”')
+  expect(calls).toHaveLength(2)
+  expect(calls[1].body).toBe(calls[0].body)
+  expect(calls[1].headers).toEqual(calls[0].headers)
 })
