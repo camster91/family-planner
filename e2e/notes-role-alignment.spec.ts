@@ -505,7 +505,7 @@ test("parent delete remains available while Family B cannot cross household boun
         title: `${NOTE_TITLE_PREFIX} cross-household edit`,
       },
     );
-    expect([403, 404]).toContain(crossHouseholdEdit.status);
+    expect(crossHouseholdEdit.status).toBe(403);
     const crossHouseholdDelete = await browserSend(
       familyB.page,
       "DELETE",
@@ -514,7 +514,14 @@ test("parent delete remains available while Family B cannot cross household boun
         id: NOTE_IDS.parent,
       },
     );
-    expect([403, 404]).toContain(crossHouseholdDelete.status);
+    expect(crossHouseholdDelete.status).toBe(403);
+    const parentNotesAfter = await notesBody(parent.page);
+    expect(
+      parentNotesAfter.notes.find((note) => note.id === NOTE_IDS.parent),
+    ).toMatchObject({
+      id: NOTE_IDS.parent,
+      title: NOTE_TITLES.parent,
+    });
   } finally {
     await parent.context.close();
     await familyB.context.close();
