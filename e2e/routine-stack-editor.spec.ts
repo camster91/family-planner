@@ -731,6 +731,8 @@ for (const locale of LOCALES) {
         await loginViaUi(page, fixture.parentEmail);
         await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
+        await page.goto("/dashboard/chores");
+        await expectChoreListView(page);
         await page.goto(`/dashboard/chores/routines?occurrence_date=${DATE}`);
         await runtimeIdentity(page, info, locale);
         await expectSurface(page, info, locale, "direct-draft");
@@ -753,6 +755,7 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].discard, exact: true })
           .click();
         await page.goto("/dashboard/chores");
+        await expectChoreListView(page);
         await page
           .getByRole("button", { name: "Routines", exact: true })
           .click();
@@ -812,6 +815,8 @@ for (const locale of LOCALES) {
           }
           return route.continue();
         });
+        await page.goto("/dashboard/chores");
+        await expectChoreListView(page);
         await page.goto(`/dashboard/chores/routines?occurrence_date=${DATE}`);
         await runtimeIdentity(page, info, locale);
         await expect(
@@ -859,13 +864,13 @@ for (const locale of LOCALES) {
         await editor
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
-        await expect(page.getByRole("alert")).toContainText(
+        await expect(editor.getByRole("alert")).toContainText(
           copy[locale].unknownSave,
         );
         await page
           .getByRole("button", { name: copy[locale].retrySave, exact: true })
           .click();
-        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expectChoreListView(page);
         expect(postAttempts).toBe(2);
         expect(posts[0]).toEqual(posts[1]);
 
@@ -875,13 +880,13 @@ for (const locale of LOCALES) {
         await secondEditor
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
-        await expect(page.getByRole("alert")).toContainText(
+        await expect(secondEditor.getByRole("alert")).toContainText(
           copy[locale].unknownSave,
         );
         await page
           .getByRole("button", { name: copy[locale].retrySave, exact: true })
           .click();
-        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expectChoreListView(page);
         expect(postAttempts).toBe(4);
         expect(posts[2]).toEqual(posts[3]);
       } finally {
@@ -919,13 +924,15 @@ for (const locale of LOCALES) {
           }
           return route.continue();
         });
+        await page.goto("/dashboard/chores");
+        await expectChoreListView(page);
         await page.goto(`/dashboard/chores/routines?occurrence_date=${DATE}`);
         await runtimeIdentity(page, info, locale);
         const editor = await makeDraft(page, fixture, locale);
         await editor
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
-        await expect(page.getByRole("alert")).toBeVisible();
+        await expect(editor.getByRole("alert")).toBeVisible();
         await page
           .getByRole("button", { name: copy[locale].reload, exact: true })
           .click();
