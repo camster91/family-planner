@@ -25,6 +25,13 @@ type SetupChunkBoundaryProps = {
 
 type SetupChunkBoundaryState = { failed: boolean }
 
+type SetupCardFactory<Props> = () => React.LazyExoticComponent<React.ComponentType<Props>>
+
+type LazySetupCardProps<Props> = {
+  createCard: SetupCardFactory<Props>
+  cardProps: Props
+}
+
 class SetupChunkBoundary extends React.Component<SetupChunkBoundaryProps, SetupChunkBoundaryState> {
   state: SetupChunkBoundaryState = { failed: false }
 
@@ -37,8 +44,21 @@ class SetupChunkBoundary extends React.Component<SetupChunkBoundaryProps, SetupC
   }
 }
 
-function SetupChunkFallback({ status, onRetry }: { status: 'loading' | 'error'; onRetry?: () => void }) {
+function SetupChunkFallback({
+  status,
+  onRetry,
+  retryRef,
+}: {
+  status: 'loading' | 'error'
+  onRetry?: () => void
+  retryRef?: React.RefObject<HTMLButtonElement>
+}) {
   const text = useTodayBoardText()
+
+  React.useEffect(() => {
+    if (status === 'error') retryRef?.current?.focus({ preventScroll: true })
+  }, [retryRef, status])
+
   return (
     <div
       role={status === 'error' ? 'alert' : 'status'}
@@ -47,7 +67,12 @@ function SetupChunkFallback({ status, onRetry }: { status: 'loading' | 'error'; 
     >
       <span>{status === 'loading' ? text('setupLoading') : text('setupError')}</span>
       {status === 'error' && onRetry && (
-        <button type="button" className="btn-secondary min-h-[44px] min-w-[44px]" onClick={onRetry}>
+        <button
+          ref={retryRef}
+          type="button"
+          className="btn-secondary min-h-[44px] min-w-[44px]"
+          onClick={onRetry}
+        >
           {text('retry')}
         </button>
       )}
@@ -59,28 +84,51 @@ function createGetStarted() {
   return React.lazy(() => import('./GetStarted'))
 }
 
-function LazyGetStarted({ viewer, familyId, steps }: GetStartedProps) {
+function LoadedSetupCard({ onLoaded, children }: { onLoaded: () => void; children: React.ReactNode }) {
+  React.useEffect(() => onLoaded(), [onLoaded])
+  return children
+}
+
+export function LazySetupCard<Props>({ createCard, cardProps }: LazySetupCardProps<Props>) {
   const [attempt, setAttempt] = React.useState(0)
-  const [GetStartedCard, setGetStartedCard] = React.useState(createGetStarted)
-  const retry = React.useCallback(() => {
-    setGetStartedCard(createGetStarted())
-    setAttempt((value) => value + 1)
+  const [Card, setCard] = React.useState(createCard)
+  const retryRef = React.useRef<HTMLButtonElement>(null)
+  const regionRef = React.useRef<HTMLDivElement>(null)
+  const restoreFocusOnLoadRef = React.useRef(false)
+
+  const onLoaded = React.useCallback(() => {
+    if (!restoreFocusOnLoadRef.current) return
+    restoreFocusOnLoadRef.current = false
+    regionRef.current?.focus({ preventScroll: true })
   }, [])
 
+  const retry = React.useCallback(() => {
+    restoreFocusOnLoadRef.current = true
+    setCard(createCard())
+    setAttempt((value) => value + 1)
+  }, [createCard])
   return (
-    <SetupChunkBoundary
-      key={attempt}
-      fallback={<SetupChunkFallback status="error" onRetry={retry} />}
-    >
-      <React.Suspense fallback={<SetupChunkFallback status="loading" />}>
-        <GetStartedCard viewer={viewer} familyId={familyId} steps={steps} />
-      </React.Suspense>
-    </SetupChunkBoundary>
+    <div ref={regionRef} tabIndex={-1} data-testid="today-setup-region" className="min-w-0">
+      <SetupChunkBoundary
+        key={attempt}
+        fallback={<SetupChunkFallback status="error" onRetry={retry} retryRef={retryRef} />}
+      >
+        <React.Suspense fallback={<SetupChunkFallback status="loading" />}>
+          <LoadedSetupCard onLoaded={onLoaded}>
+            {React.createElement(Card as unknown as React.ComponentType<never>, cardProps as never)}
+          </LoadedSetupCard>
+        </React.Suspense>
+      </SetupChunkBoundary>
+    </div>
   )
 }
 
 function createFeatureSuggestions() {
   return React.lazy(() => import('./FeatureSuggestions'))
+}
+
+function LazyGetStarted({ viewer, familyId, steps }: GetStartedProps) {
+  return <LazySetupCard createCard={createGetStarted} cardProps={{ viewer, familyId, steps }} />
 }
 
 function LazyFeatureSuggestions({
@@ -89,27 +137,11 @@ function LazyFeatureSuggestions({
   setupDone,
   initialPicked,
 }: FeatureSuggestionsProps) {
-  const [attempt, setAttempt] = React.useState(0)
-  const [FeatureSuggestionsCard, setFeatureSuggestionsCard] = React.useState(createFeatureSuggestions)
-  const retry = React.useCallback(() => {
-    setFeatureSuggestionsCard(createFeatureSuggestions())
-    setAttempt((value) => value + 1)
-  }, [])
-
   return (
-    <SetupChunkBoundary
-      key={attempt}
-      fallback={<SetupChunkFallback status="error" onRetry={retry} />}
-    >
-      <React.Suspense fallback={<SetupChunkFallback status="loading" />}>
-        <FeatureSuggestionsCard
-          viewer={viewer}
-          familyId={familyId}
-          setupDone={setupDone}
-          initialPicked={initialPicked}
-        />
-      </React.Suspense>
-    </SetupChunkBoundary>
+    <LazySetupCard
+      createCard={createFeatureSuggestions}
+      cardProps={{ viewer, familyId, setupDone, initialPicked }}
+    />
   )
 }
 
