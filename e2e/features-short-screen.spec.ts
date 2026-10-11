@@ -5,6 +5,7 @@ import fs from "node:fs";
 import type { BrowserContext, Page } from "@playwright/test";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { FEATURES } from "../src/lib/features";
+import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
@@ -172,7 +173,17 @@ for (const locale of ["en", "es"] as const) {
       if (locale === "es")
         await expect(page.locator("html")).toHaveClass(/dark/);
       else await expect(page.locator("html")).not.toHaveClass(/dark/);
+      await info.attach("features-compact-screen", {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
       const identity = await assertRuntimeIdentity(page);
+      const profileResponse = await browserFetch(page, "/api/users");
+      expect(profileResponse.status, profileResponse.body).toBe(200);
+      const profile = JSON.parse(profileResponse.body).user;
+      expect(profile.id).toBe(FIXTURE_IDS.familyA.parent);
+      expect(profile.family_id).toBe(FIXTURE_IDS.familyA.family);
+      expect(profile.role).toBe("parent");
       const copy = GROUPS[locale];
       const groups = page.getByRole("navigation", {
         name: copy.navigation,
@@ -182,7 +193,7 @@ for (const locale of ["en", "es"] as const) {
       const core = page.locator("#feature-group-core");
       const family = page.locator("#feature-group-family");
 
-      // The stable first paint is compact for every viewport. Planning is the
+      // The initial interactive layout is compact for every viewport. Planning is the
       // first useful group; the explicit control opens the complete catalog.
       await expect(planning.getByRole("switch")).toHaveCount(11);
       await expect(core.getByRole("switch")).toHaveCount(0);
