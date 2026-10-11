@@ -380,10 +380,20 @@ async function installSyntheticTransport(
       state.pendingPost = { release, complete: completed };
       try {
         await released;
+        await route.fulfill({
+          status: 409,
+          json: {
+            error: {
+              code: "IDENTITY_CONFLICT",
+              message: "synthetic private financial implementation detail",
+            },
+          },
+        });
       } finally {
         state.pendingPost = null;
         complete();
       }
+      return;
     }
     await route.fulfill({
       status: 409,
