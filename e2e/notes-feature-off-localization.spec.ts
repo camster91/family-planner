@@ -1,9 +1,10 @@
 /** Spanish Notes feature-off copy and role gate, using the real feature API. */
 import type { Browser, BrowserContext, TestInfo } from "@playwright/test";
+import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
-import { authFile } from "./support/env";
+import { E2E_ANCHOR, authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
 const PROJECTS = ["phone-390x844", "desktop-1366x768"] as const;
@@ -66,7 +67,9 @@ async function openChild(browser: Browser, info: TestInfo, baseURL: string) {
   });
   await guardContext(context, baseURL);
   await setSpanish(context);
-  return { context, page: await context.newPage() };
+  const page = await context.newPage();
+  await page.clock.install({ time: E2E_ANCHOR });
+  return { context, page };
 }
 
 test.use({ storageState: authFile("parentA") });
@@ -84,6 +87,21 @@ test("Spanish Notes feature-off state preserves parent and child role copy", asy
   const parentContext = page.context();
   await guardContext(parentContext, baseURL!);
   await setSpanish(parentContext);
+
+  // The fixture page starts at about:blank. Bootstrap the authenticated
+  // origin before same-origin browserFetch/browserSend calls.
+  const bootstrap = await page.goto("/dashboard");
+  expect(bootstrap?.status()).toBe(200);
+  const profile = await browserFetch(page, "/api/users");
+  expect(profile.status, profile.body).toBe(200);
+  const profileUser = (
+    JSON.parse(profile.body) as {
+      user: { id?: string; family_id?: string; role?: string };
+    }
+  ).user;
+  expect(profileUser.id).toBe(FIXTURE_IDS.familyA.parent);
+  expect(profileUser.family_id).toBe(FIXTURE_IDS.familyA.family);
+  expect(profileUser.role).toBe("parent");
 
   const originalResponse = await browserFetch(page, "/api/family/features");
   expect(originalResponse.status, originalResponse.body).toBe(200);
