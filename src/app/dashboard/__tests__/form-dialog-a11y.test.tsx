@@ -141,9 +141,9 @@ it.each([
       </ToastProvider>,
     );
     await user.click(await screen.findByRole("button", { name: "Add" }));
-    const form = (await screen.findByText(heading)).closest(
-      "form",
-    ) as HTMLElement;
+    const dialog = screen.queryByRole("dialog", { name: heading });
+    const form =
+      dialog ?? (screen.getByText(heading).closest("form") as HTMLElement);
     for (const label of labels)
       expect(within(form).getByLabelText(label)).toBeTruthy();
     expectNamedControls(document.body);
