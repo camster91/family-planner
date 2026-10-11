@@ -65,6 +65,30 @@ it("keeps the English and Spanish pickup dictionaries in lockstep", () => {
   }
 });
 
+it("uses the broader board frame while keeping the add flow in a form sheet", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  renderPage();
+
+  const board = document.querySelector<HTMLElement>(
+    "[data-pickups-background]",
+  );
+  expect(board).toHaveClass("w-full", "min-w-0");
+  expect(board).not.toHaveClass("max-w-2xl");
+  expect(board).not.toHaveClass("max-w-4xl");
+
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  expect(screen.getByRole("dialog", { name: "New pickup" })).toHaveClass(
+    "sm:max-w-xl",
+  );
+});
+
 it("does not show a false empty state after a failed load and recovers with retry", async () => {
   let pickupRequests = 0;
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {

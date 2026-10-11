@@ -65,6 +65,21 @@ export const todayBoardEnglish = {
   refreshBoard: "Refresh family plan",
   profilePickerTitle: "Who is this chore for?",
   profilePickerDescription: "Choose the family profile completing this chore.",
+  todayQuickActions: "Today quick actions",
+  addEvent: "Add event",
+  addChore: "Add chore",
+  groceriesAction: "Groceries",
+  planMeals: "Plan meals",
+  allLists: "All lists",
+  todayControls: "Today controls",
+  refreshNow: "Refresh now",
+  reconnectToRefresh: "Reconnect to refresh.",
+  householdFeatures: "Household features",
+  mySettings: "My settings",
+  todayBoardLoading: "Loading today's board",
+  time: "Time: ",
+  exitFridgeMode: "Exit fridge mode",
+  fridgeMode: "Fridge mode",
 } as const;
 
 export type TodayBoardMessage = keyof typeof todayBoardEnglish;
@@ -134,6 +149,21 @@ export const todayBoardSpanish: TodayBoardMessages = {
   refreshBoard: "Actualizar el plan familiar",
   profilePickerTitle: "¿Para quién es esta tarea?",
   profilePickerDescription: "Elige el perfil familiar que hará esta tarea.",
+  todayQuickActions: "Acciones rápidas de hoy",
+  addEvent: "Añadir evento",
+  addChore: "Añadir tarea",
+  groceriesAction: "Alimentos",
+  planMeals: "Planear comidas",
+  allLists: "Todas las listas",
+  todayControls: "Controles de hoy",
+  refreshNow: "Actualizar ahora",
+  reconnectToRefresh: "Conéctate para actualizar.",
+  householdFeatures: "Funciones del hogar",
+  mySettings: "Mis ajustes",
+  todayBoardLoading: "Cargando el panel de hoy",
+  time: "Hora: ",
+  exitFridgeMode: "Salir del modo frigorífico",
+  fridgeMode: "Modo frigorífico",
 };
 
 export const todayBoardMessages = {
