@@ -59,6 +59,14 @@ describe("member audit-subject expand contract", () => {
     expect(migration).toContain("JOIN pg_index i");
     expect(migration).toContain("actual_default IS DISTINCT FROM 'false'");
     expect(migration).toContain("actual_default IS NOT NULL");
+    expect(
+      "CHECK ((NOT subject_member_erased) OR (subject_member_id IS NULL))"
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, ""),
+    ).toBe("checknotsubject_member_erasedorsubject_member_idisnull");
+    expect(migration).toContain(
+      "normalized_definition <> 'checknotsubject_member_erasedorsubject_member_idisnull'",
+    );
     expect(migration).toContain("ON DELETE NO ACTION ON UPDATE NO ACTION");
     expect(migration).toContain(
       "ARRAY[member_attnum, family_attnum]::SMALLINT[]",

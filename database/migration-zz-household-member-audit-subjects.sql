@@ -137,7 +137,7 @@ BEGIN
     ELSE
       normalized_definition := regexp_replace(lower(existing.definition), '[^a-z0-9_]', '', 'g');
       IF existing.contype <> 'c'
-        OR normalized_definition <> 'check(notsubject_member_erasedorsubject_member_idisnull)'
+        OR normalized_definition <> 'checknotsubject_member_erasedorsubject_member_idisnull'
         OR NOT existing.convalidated THEN
         RAISE EXCEPTION '% has an incompatible erased-subject check', constraint_name USING ERRCODE = '42804';
       END IF;
