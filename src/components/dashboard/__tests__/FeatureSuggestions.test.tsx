@@ -17,6 +17,8 @@ import { getStartedStorageKey } from '../GetStarted'
 import { FeaturesProvider, useFeatures } from '@/components/providers/features-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { defaultFeatures, normalizeFeatures, type FamilyFeatures } from '@/lib/features'
+import { I18nProvider } from '@/i18n'
+import type { Locale } from '@/i18n/types'
 
 const FAMILY = 'fam_lean'
 
@@ -52,15 +54,17 @@ const flags = (): FamilyFeatures => JSON.parse(screen.getByTestId('flags').textC
 
 function renderCard(
   props: Partial<FeatureSuggestionsProps> = {},
-  opts: { features?: FamilyFeatures; canManage?: boolean } = {}
+  opts: { features?: FamilyFeatures; canManage?: boolean; locale?: Locale } = {}
 ) {
   return render(
-    <ToastProvider>
-      <FeaturesProvider initial={opts.features ?? defaultFeatures()} canManage={opts.canManage ?? true}>
-        <FeatureSuggestions viewer={{ role: 'parent' }} familyId={FAMILY} setupDone {...props} />
-        <Flags />
-      </FeaturesProvider>
-    </ToastProvider>
+    <I18nProvider locale={opts.locale ?? 'en'}>
+      <ToastProvider>
+        <FeaturesProvider initial={opts.features ?? defaultFeatures()} canManage={opts.canManage ?? true}>
+          <FeatureSuggestions viewer={{ role: 'parent' }} familyId={FAMILY} setupDone {...props} />
+          <Flags />
+        </FeaturesProvider>
+      </ToastProvider>
+    </I18nProvider>
   )
 }
 
@@ -95,12 +99,21 @@ describe('FeatureSuggestions', () => {
       'feature-suggestion-budget',
       'feature-suggestion-messages',
     ])
-    expect(items[0].textContent).toContain('Rewards & points')
-    expect(items[0].textContent).toContain('Kids earn points for chores')
+    expect(items[0].textContent).toContain('Rewards')
+    expect(items[0].textContent).toContain('Kids spend their chore points')
     expect(within(card).getByRole('button', { name: 'Turn on Budget' })).toBeTruthy()
     expect(within(card).getByRole('link', { name: /See all features/ }).getAttribute('href')).toBe(
       '/dashboard/features'
     )
+  })
+
+  it('uses Spanish feature metadata and suggestion actions', () => {
+    renderCard({}, { locale: 'es' })
+    const card = screen.getByRole('region', { name: 'Activa más funciones' })
+    expect(within(card).getByText('Recompensas', { exact: true })).toBeTruthy()
+    expect(within(card).getByText('Los niños gastan sus puntos', { exact: false })).toBeTruthy()
+    expect(within(card).getByRole('button', { name: 'Activar Presupuesto' })).toBeTruthy()
+    expect(within(card).getByRole('link', { name: /Ver todas las funciones/ })).toBeTruthy()
   })
 
   it('waits while Get started is open, and shows once it is hidden', () => {
@@ -145,7 +158,7 @@ describe('FeatureSuggestions', () => {
   it('Rewards turns on Points & streaks too, and Undo turns both back off', async () => {
     const user = userEvent.setup()
     renderCard()
-    await user.click(screen.getByRole('button', { name: 'Turn on Rewards & points' }))
+    await user.click(screen.getByRole('button', { name: 'Turn on Rewards' }))
     expect(calls[0].body).toEqual({ features: { gamification: true, rewards: true } })
     await waitFor(() => expect(stored).toMatchObject({ gamification: true, rewards: true }))
     const toast = await screen.findByTestId('undo-toast')

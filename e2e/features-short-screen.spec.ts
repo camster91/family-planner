@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Page } from "@playwright/test";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { getFeatureDisplayCopy } from "../src/i18n/feature-display";
 import { FEATURES } from "../src/lib/features";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -234,7 +235,19 @@ for (const locale of ["en", "es"] as const) {
       expect(searchBox!.height).toBeGreaterThanOrEqual(44);
       expect(searchBox!.width).toBeGreaterThanOrEqual(44);
       await search.fill("budget");
-      await expect(page.getByText("Budget", { exact: true })).toBeVisible();
+      await expect(
+        page.getByText(getFeatureDisplayCopy(locale, "budget").title, {
+          exact: true,
+        }),
+      ).toBeVisible();
+      if (locale === "es") {
+        await search.fill("points & streaks");
+        await expect(
+          page.getByText(getFeatureDisplayCopy(locale, "gamification").title, {
+            exact: true,
+          }),
+        ).toBeVisible();
+      }
       await expect(
         page.getByRole("button", { name: copy.openAll }),
       ).toHaveCount(0);

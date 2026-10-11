@@ -2,7 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
-import { manageHouseholdProfile } from "@/lib/household-profile-management";
+import {
+  householdProfileCommand,
+  manageHouseholdProfile,
+} from "@/lib/household-profile-management";
 import { IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
 
 const dbDescribe =
@@ -17,8 +20,39 @@ const key = "profile_command_key_01";
 const input = { action: "create", name: "Alex", age: 3 };
 const now = new Date("2026-01-05T12:00:00Z");
 
+async function loadDatabase(): Promise<PrismaClient> {
+  const configuredModule = process.env.HOUSEHOLD_PROFILE_PRISMA_CLIENT_MODULE;
+  const loaded = configuredModule
+    ? await import(configuredModule)
+    : await import("@/lib/prisma");
+  const candidate = loaded as {
+    prisma?: unknown;
+    default?: { prisma?: unknown } | unknown;
+  };
+  const configured =
+    candidate.prisma ??
+    (candidate.default &&
+    typeof candidate.default === "object" &&
+    "prisma" in candidate.default
+      ? (candidate.default as { prisma: unknown }).prisma
+      : candidate.default) ??
+    loaded;
+  if (!configured || typeof configured !== "object") {
+    throw new Error(
+      "Household-profile integration needs a generated Prisma client module with a prisma export.",
+    );
+  }
+  const db = configured as PrismaClient;
+  if (!db.householdMember) {
+    throw new Error(
+      "Household-profile integration needs a Prisma client with HouseholdMember models; set HOUSEHOLD_PROFILE_PRISMA_CLIENT_MODULE for the ROOT-owned client.",
+    );
+  }
+  return db;
+}
+
 dbDescribe(
-  "name-only child profile commands against guarded PostgreSQL",
+  "name-only household profile commands against guarded PostgreSQL",
   () => {
     let db: PrismaClient;
     async function clean() {
@@ -33,7 +67,7 @@ dbDescribe(
     ) => manageHouseholdProfile(db, person, requestKey, body, clock);
     beforeAll(async () => {
       assertFixtureTargetAllowed(process.env);
-      db = (await import("@/lib/prisma")).prisma!;
+      db = await loadDatabase();
       // Real custom SQL, including owner guards/deferral absent from Prisma's DSL.
       const pg = await import("pg");
       const sqlDb = new pg.Client({
@@ -114,6 +148,83 @@ dbDescribe(
         }),
       ).toBe(0);
     });
+    it("creates explicit presentation roles without changing account authority", async () => {
+      const parentProfile = await run(
+        { action: "create", name: "Grandparent", role: "parent", age: 67 },
+        "profile_parent_key_01",
+      );
+      const teenProfile = await run(
+        { action: "create", name: "Taylor", role: "teen", age: 15 },
+        "profile_teen_key_01",
+      );
+      expect(parentProfile.profile).toMatchObject({
+        role: "parent",
+        age: 67,
+        family_id: A,
+      });
+      expect(teenProfile.profile).toMatchObject({
+        role: "teen",
+        age: 15,
+        family_id: A,
+      });
+      expect(await db.user.count({ where: { family_id: A } })).toBe(2);
+      expect(
+        (
+          await run(
+            { action: "create", name: "Grandparent", role: "parent", age: 67 },
+            "profile_parent_key_01",
+          )
+        ).replayed,
+      ).toBe(true);
+    });
+    it("validates a role-only edit against the stored age and permits an explicit age clear", async () => {
+      const child = await run(input, "profile_role_child_key_01");
+      await expect(
+        run(
+          {
+            action: "edit",
+            id: child.profile.id,
+            revision: 0,
+            name: "Alex",
+            role: "parent",
+          },
+          "profile_role_child_edit_key_01",
+        ),
+      ).rejects.toMatchObject({ code: "INVALID" });
+
+      const adult = await run(
+        { action: "create", name: "Morgan", role: "parent", age: 67 },
+        "profile_role_adult_key_01",
+      );
+      await expect(
+        run(
+          {
+            action: "edit",
+            id: adult.profile.id,
+            revision: 0,
+            name: "Morgan",
+            role: "teen",
+          },
+          "profile_role_adult_edit_key_01",
+        ),
+      ).rejects.toMatchObject({ code: "INVALID" });
+      const cleared = await run(
+        {
+          action: "edit",
+          id: adult.profile.id,
+          revision: 0,
+          name: "Morgan",
+          role: "teen",
+          age: null,
+        },
+        "profile_role_adult_edit_key_02",
+      );
+      expect(cleared.profile).toMatchObject({
+        role: "teen",
+        age: null,
+        revision: 1,
+      });
+    });
     it("serializes duplicate creation and commits one replay record with the effect", async () => {
       const results = await Promise.all([run(input), run(input)]);
       expect(results.map((r) => r.replayed).sort()).toEqual([false, true]);
@@ -168,12 +279,15 @@ dbDescribe(
           id: created.profile.id,
           revision: 0,
           name: "Alex Junior",
+          role: "teen",
+          age: 15,
         },
         "profile_edit_key_01",
       );
       expect(edited.profile).toMatchObject({
         name: "Alex Junior",
-        age: 3,
+        role: "teen",
+        age: 15,
         revision: 1,
       });
       await expect(
@@ -277,11 +391,14 @@ dbDescribe(
 
 describe("profile command input boundary", () => {
   it.each([
-    { ...input, role: "parent" },
     { ...input, email: "child@example.test" },
     { ...input, name: " " },
     { ...input, age: -1 },
     { ...input, age: 18 },
+    { ...input, role: "admin" },
+    { ...input, role: "teen", age: 12 },
+    { ...input, role: "parent", age: 17 },
+    { ...input, role: "parent", age: 121 },
   ])("rejects invalid/authority-bearing fields before writes", async (body) => {
     const db = { $transaction: jest.fn() } as unknown as Pick<
       PrismaClient,
@@ -292,4 +409,25 @@ describe("profile command input boundary", () => {
     ).rejects.toMatchObject({ code: "INVALID" });
     expect(db.$transaction).not.toHaveBeenCalled();
   });
+
+  it("keeps an omitted role backward-compatible with a child profile", async () => {
+    expect(householdProfileCommand.parse(input)).toMatchObject({
+      role: "child",
+    });
+  });
+
+  it.each([
+    { ...input, role: "child", age: 17 },
+    { ...input, role: "teen", age: 13 },
+    { ...input, role: "parent", age: null },
+    { ...input, role: "parent", age: 120 },
+  ])(
+    "accepts the bounded age range for the $role presentation role",
+    (body) => {
+      expect(householdProfileCommand.parse(body)).toMatchObject({
+        role: body.role,
+        age: body.age,
+      });
+    },
+  );
 });

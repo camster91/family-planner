@@ -4,6 +4,7 @@ import type { APIRequestContext, BrowserContext } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { pickupsMessages } from "../src/i18n/pickups";
 import { FEATURES } from "../src/lib/features";
 import { FIXTURE_EMAILS, FIXTURE_PASSWORD } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -20,7 +21,25 @@ const VIEWPORTS = [
   "tablet-large-1920x1200",
   "desktop-1366x768",
 ];
-const SHORTCUTS = ["wishlist", "allowance", "handoff", "sick-days", "notes"];
+const SHORTCUTS = [
+  "wishlist",
+  "allowance",
+  "handoff",
+  "sick-days",
+  "notes",
+  "pickups",
+];
+const ROLE_PICKUP = {
+  id: "fx_e2e_role_pickup_same_family",
+  title: "Family A school pickup",
+  location: "School",
+  pickup_time: "2030-10-15T15:00:00.000Z",
+  completed: false,
+  assigned_to: "fx_user_a_child",
+  assignee_name: "Sam",
+  assignee_avatar: null,
+  notes: null,
+};
 let teenState: Awaited<ReturnType<APIRequestContext["storageState"]>>;
 
 test.use({ storageState: authFile("parentA") });
@@ -107,6 +126,41 @@ for (const role of ["parent", "teen", "child"] as const) {
         await guard(context, locale);
         const page = await context.newPage();
         await page.clock.install({ time: E2E_ANCHOR });
+        if (role !== "parent") {
+          // Exercise the role surface with a fabricated same-family response;
+          // this journey never creates a pickup row. Cross-household
+          // authorization remains covered by the API permission suites.
+          await page.route("**/api/pickups**", async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+            if (url.pathname === "/api/pickups" && request.method() === "GET") {
+              await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({ pickups: [ROLE_PICKUP] }),
+              });
+              return;
+            }
+            if (
+              url.pathname === `/api/pickups/${ROLE_PICKUP.id}` &&
+              request.method() === "PATCH"
+            ) {
+              const body = request.postDataJSON() as { completed?: unknown };
+              await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                  pickup: {
+                    ...ROLE_PICKUP,
+                    completed: body.completed === true,
+                  },
+                }),
+              });
+              return;
+            }
+            await route.continue();
+          });
+        }
         const enabled = await browserSend(
           parentPage,
           "PATCH",
@@ -210,6 +264,60 @@ for (const role of ["parent", "teen", "child"] as const) {
           await expect(
             page.locator('nav a[href="/dashboard/family/more"]'),
           ).toHaveCount(0);
+        if (role !== "parent") {
+          const pickupCopy = pickupsMessages[locale];
+          const pickupLink = page.locator('nav a[href="/dashboard/pickups"]');
+          await pickupLink.click();
+          await expect(page).toHaveURL(/\/dashboard\/pickups$/);
+          const pickupMain = page.locator("#main-content");
+          await expect(
+            pickupMain.getByRole("heading", {
+              level: 1,
+              name: pickupCopy.title,
+            }),
+          ).toBeVisible();
+          await expect(
+            pickupMain.getByRole("button", {
+              name: pickupCopy.add,
+              exact: true,
+            }),
+          ).toBeVisible();
+          const pickupRow = pickupMain
+            .getByRole("checkbox")
+            .filter({ hasText: ROLE_PICKUP.title });
+          await expect(pickupRow).toBeVisible();
+          await expect(pickupRow).toHaveAttribute("aria-checked", "false");
+          await pickupRow.click();
+          // Completion is the row's accessible checkbox action; the title is
+          // household data and stays verbatim while state is announced by ARIA.
+          await expect(pickupRow).toHaveAttribute("aria-checked", "true");
+          await expect(
+            pickupMain.getByRole("button", { name: /delete|eliminar/i }),
+          ).toHaveCount(0);
+          await expect(
+            pickupMain.getByRole("link", { name: /delete|eliminar/i }),
+          ).toHaveCount(0);
+          // The intercepted response intentionally contains only the current
+          // household row; a Family B marker must never appear here.
+          await expect(pickupMain).not.toContainText("Family B");
+          const pickupViolations = (
+            await new AxeBuilder({ page }).include("#main-content").analyze()
+          ).violations.filter(
+            (v) => v.impact === "serious" || v.impact === "critical",
+          );
+          expect(pickupViolations).toEqual([]);
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+          ).toBe(true);
+          await info.attach("pickups-role-surface", {
+            body: await page.screenshot(),
+            contentType: "image/png",
+          });
+          await page.goto("/dashboard/today");
+          await userMenu.click();
+        }
         const violations = (
           await new AxeBuilder({ page }).include("nav").analyze()
         ).violations.filter(
@@ -257,6 +365,25 @@ for (const role of ["parent", "teen", "child"] as const) {
           await expect(
             page.locator(`nav a[href="/dashboard/${key}"]`),
           ).toHaveCount(0);
+        if (role !== "parent") {
+          const pickupCopy = pickupsMessages[locale];
+          await page.goto("/dashboard/pickups");
+          await expect(
+            page.getByRole("heading", {
+              name:
+                locale === "es"
+                  ? "Función desactivada: Recogidas y entregas"
+                  : "Pickups & dropoffs is off",
+              level: 2,
+            }),
+          ).toBeVisible();
+          await expect(
+            page.getByRole("button", { name: pickupCopy.add, exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            page.getByRole("link", { name: /Open Features|Abrir funciones/ }),
+          ).toHaveCount(0);
+        }
       } finally {
         try {
           let response;

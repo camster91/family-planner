@@ -9,6 +9,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { defaultFeatures } from '@/lib/features'
 import CommandPalette from '../CommandPalette'
+import { I18nProvider } from '@/i18n'
 
 const mockPush = jest.fn()
 jest.mock('@/components/providers/features-provider', () => ({
@@ -72,4 +73,17 @@ it('offers a child neither Calendar, Meals nor Settings', async () => {
   for (const name of ['Calendar', 'Meals', 'Settings', 'Features']) {
     expect(screen.queryByRole('button', { name: new RegExp(`^${name}`) })).toBeNull()
   }
+})
+
+it('searches and presents enabled feature destinations with Spanish display titles', async () => {
+  const user = userEvent.setup()
+  render(
+    <I18nProvider locale="es">
+      <CommandPalette open onClose={() => undefined} role="parent" />
+    </I18nProvider>,
+  )
+  await user.type(input(), 'emergencia')
+  const result = screen.getByRole('button', { name: 'Contactos de emergencia' })
+  expect(result).toBeTruthy()
+  expect(result.querySelector('svg')).toBeTruthy()
 })

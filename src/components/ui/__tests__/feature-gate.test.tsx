@@ -8,6 +8,7 @@ import { render, screen } from '@testing-library/react'
 import { FeatureGate, FeatureOffState } from '../feature-gate'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { defaultFeatures } from '@/lib/features'
+import { I18nProvider } from '@/i18n'
 
 jest.mock('next/link', () => ({
   __esModule: true,
@@ -29,6 +30,16 @@ describe('FeatureOffState', () => {
     render(<FeatureOffState featureKey="budget" canManage={false} />)
     expect(screen.queryByRole('link', { name: /Open Features/ })).toBeNull()
     expect(screen.getByText(/Ask a parent to turn it on/)).toBeTruthy()
+  })
+
+  it('uses the effective provider locale for a direct server-page caller', () => {
+    render(
+      <I18nProvider locale="es">
+        <FeatureOffState featureKey="budget" />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('heading', { name: 'Función desactivada: Presupuesto' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Abrir funciones/ })).toBeTruthy()
   })
 
   it('accepts route-owned localized copy and heading metadata without changing defaults', () => {
@@ -62,5 +73,21 @@ describe('FeatureOffState', () => {
     )
     expect(screen.queryByText('budget page')).toBeNull()
     expect(screen.queryByRole('link', { name: /Open Features/ })).toBeNull()
+  })
+
+  it('localizes default off-state copy while preserving the parent affordance', () => {
+    const off = { ...defaultFeatures(), budget: false }
+    render(
+      <I18nProvider locale="es">
+        <FeaturesProvider initial={off} canManage>
+          <FeatureGate featureKey="budget">
+            <p>budget page</p>
+          </FeatureGate>
+        </FeaturesProvider>
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('heading', { name: 'Función desactivada: Presupuesto' })).toBeTruthy()
+    expect(screen.getByText(/La función «Presupuesto» está desactivada/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Abrir funciones/ }).getAttribute('href')).toBe('/dashboard/features')
   })
 })

@@ -7,7 +7,7 @@ import {
   normalizeFeatures,
   type FeatureKey,
   type FamilyFeatures,
-} from "@/lib/features";
+} from "@/lib/feature-flags";
 
 /**
  * useFeatures — client hook that returns the current family's feature flags.

@@ -9,7 +9,7 @@ import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Dialog } from '@/components/ui/dialog'
 import { useFeatures } from '@/components/providers/features-provider'
-import { isFeatureEnabled } from '@/lib/features'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
 
 /**
