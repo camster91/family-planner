@@ -4,6 +4,7 @@ import {
   assistantDestination,
 } from "../assistant-actions";
 import { defaultFeatures } from "../features";
+import { assistantEnglish, assistantSpanish } from "@/i18n/assistant";
 it("rejects arbitrary URLs, code tools and record ids from AI", () => {
   expect(
     assistantReplySchema.safeParse({
@@ -53,4 +54,34 @@ it("gates disabled domains and parent destinations", () => {
     canUseAssistantAction({ kind: "open", destination: "features" }, "teen", f),
   ).toBe(false);
   expect(assistantDestination("recipes")).toBe("/dashboard/meals/explore");
+});
+it("parses and localizes analytics navigation while enforcing role and dependency gates", () => {
+  const allOn = {
+    ...defaultFeatures(),
+    gamification: true,
+    analytics: true,
+  };
+  const action = { kind: "open", destination: "analytics" } as const;
+
+  expect(
+    assistantReplySchema.safeParse({ reply: "Open it", action }).success,
+  ).toBe(true);
+  expect(assistantDestination("analytics")).toBe("/dashboard/analytics");
+  expect(canUseAssistantAction(action, "parent", allOn)).toBe(true);
+  expect(canUseAssistantAction(action, "teen", allOn)).toBe(false);
+  expect(canUseAssistantAction(action, "child", allOn)).toBe(false);
+  expect(
+    canUseAssistantAction(action, "parent", { ...allOn, gamification: false }),
+  ).toBe(false);
+  expect(
+    canUseAssistantAction(action, "parent", { ...allOn, analytics: false }),
+  ).toBe(false);
+  expect(assistantEnglish.analytics).toBe("Analytics");
+  expect(assistantSpanish.analytics).toBe("Análisis");
+  expect(
+    assistantReplySchema.safeParse({
+      reply: "Open it",
+      action: { kind: "open", destination: "Analytics" },
+    }).success,
+  ).toBe(false);
 });
