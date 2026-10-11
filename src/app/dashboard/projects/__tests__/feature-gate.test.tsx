@@ -21,6 +21,7 @@ import CreateProjectPage from '../create/page'
 import { FeaturesProvider } from '@/components/providers/features-provider'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { defaultFeatures } from '@/lib/features'
+import { I18nProvider } from '@/i18n'
 
 function familyWith(projects: boolean) {
   mockPrisma.user.findUnique.mockResolvedValue({
@@ -38,8 +39,8 @@ it('shows the off state and reads no projects when Projects is off', async () =>
   familyWith(false)
   const page = await ProjectsPage()
   expect(page?.type).toBe(FeatureOffState)
-  render(page!)
-  expect(screen.getByRole('heading', { name: 'Projects is off' })).toBeTruthy()
+  render(<I18nProvider locale="es">{page}</I18nProvider>)
+  expect(screen.getByRole('heading', { name: 'Función desactivada: Proyectos' })).toBeTruthy()
   expect(screen.queryByRole('link', { name: 'New' })).toBeNull()
   expect(mockPrisma.project.findMany).not.toHaveBeenCalled()
 })

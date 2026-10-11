@@ -35,14 +35,14 @@ function ClientFeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
 }
 
 /**
- * The calm "this is off" state. No hooks, so server components can render it
- * too (the rewards page gates on the server, #248).
+ * The calm "this is off" state. Server-gated pages can return this client
+ * boundary; it reads the effective UI locale from the root provider.
  */
 export function FeatureOffState({
   featureKey,
   canManage = true,
   copy,
-  locale = 'en',
+  locale,
   headingLevel = 2,
   testId,
 }: {
@@ -56,8 +56,10 @@ export function FeatureOffState({
   headingLevel?: 1 | 2
   testId?: string
 }) {
-  const display = getFeatureDisplayCopy(locale, featureKey)
-  const defaultCopy = getFeatureOffCopy(locale, display.title)
+  const { locale: contextLocale } = useTranslation()
+  const effectiveLocale = locale ?? contextLocale
+  const display = getFeatureDisplayCopy(effectiveLocale, featureKey)
+  const defaultCopy = getFeatureOffCopy(effectiveLocale, display.title)
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
 
   return (

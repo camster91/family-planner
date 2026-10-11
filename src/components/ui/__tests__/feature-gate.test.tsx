@@ -32,6 +32,16 @@ describe('FeatureOffState', () => {
     expect(screen.getByText(/Ask a parent to turn it on/)).toBeTruthy()
   })
 
+  it('uses the effective provider locale for a direct server-page caller', () => {
+    render(
+      <I18nProvider locale="es">
+        <FeatureOffState featureKey="budget" />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('heading', { name: 'Función desactivada: Presupuesto' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Abrir funciones/ })).toBeTruthy()
+  })
+
   it('accepts route-owned localized copy and heading metadata without changing defaults', () => {
     render(
       <FeatureOffState
