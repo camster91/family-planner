@@ -50,9 +50,7 @@ const ROUTINE_CLIENT_IPS = {
 
 function routineClientIp(info: TestInfo): string {
   const ip =
-    ROUTINE_CLIENT_IPS[
-      info.project.name as keyof typeof ROUTINE_CLIENT_IPS
-    ];
+    ROUTINE_CLIENT_IPS[info.project.name as keyof typeof ROUTINE_CLIENT_IPS];
   if (!ip) {
     throw new Error(
       `No dedicated routine editor client address for ${info.project.name}`,
