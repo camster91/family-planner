@@ -664,9 +664,27 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
     expect(
       await profileSubjectForVerify(db as any, row.id, FAMILY_B),
     ).toBeNull();
+    // A valid profile chore keeps its presentation subject role/age
+    // compatible. A harmless compatible edit is allowed, but changing the
+    // same member to an incompatible teen age is rejected by the database
+    // trigger and leaves the existing profile untouched.
+    await sql.query('UPDATE "HouseholdMember" SET age = $1 WHERE id = $2', [
+      9,
+      CHILD_A,
+    ]);
+    await expectSqlFailure(
+      'UPDATE "HouseholdMember" SET role = $1, age = $2 WHERE id = $3',
+      ["teen", 9, CHILD_A],
+      "23514",
+    );
+    const unchanged = await sql.query<{ role: string; age: number }>(
+      'SELECT role, age FROM "HouseholdMember" WHERE id = $1',
+      [CHILD_A],
+    );
+    expect(unchanged.rows).toEqual([{ role: "child", age: 9 }]);
     await sql.query(
-      'UPDATE "HouseholdMember" SET erasure_user_id = $1 WHERE id = $2',
-      [PARENT_A, CHILD_A],
+      'UPDATE "HouseholdMember" SET archived_at = $1, erasure_user_id = $2 WHERE id = $3',
+      [NOON, PARENT_A, CHILD_A],
     );
     expect(
       await profileSubjectForVerify(db as any, row.id, FAMILY_A),
@@ -680,5 +698,61 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
         now: NOON,
       }),
     ).toBe("profile_unavailable");
+  });
+
+  it("keeps same-name catalog objects semantically attached to their profile tables", async () => {
+    const constraints = await sql.query<{
+      name: string;
+      table_name: string;
+      definition: string;
+    }>(`
+      SELECT c.conname AS name, c.conrelid::regclass::text AS table_name,
+             pg_get_constraintdef(c.oid, true) AS definition
+      FROM pg_constraint c
+      WHERE c.conname IN (
+        'Chore_at_least_one_subject_check',
+        'Chore_member_subject_fkey'
+      )
+      ORDER BY c.conname
+    `);
+    expect(constraints.rows).toEqual([
+      expect.objectContaining({
+        name: "Chore_at_least_one_subject_check",
+        table_name: '"Chore"',
+      }),
+      expect.objectContaining({
+        name: "Chore_member_subject_fkey",
+        table_name: '"Chore"',
+      }),
+    ]);
+    expect(constraints.rows[0]?.definition).toContain("assigned_member_id");
+    expect(constraints.rows[1]?.definition).toContain("HouseholdMember");
+
+    const indexes = await sql.query<{
+      name: string;
+      table_name: string;
+      keys: string;
+      is_valid: boolean;
+      is_ready: boolean;
+      predicate: string | null;
+      expressions: string | null;
+    }>(`
+      SELECT c.relname AS name, i.indrelid::regclass::text AS table_name,
+             i.indkey::text AS keys, i.indisvalid AS is_valid,
+             i.indisready AS is_ready, pg_get_expr(i.indpred, i.indrelid) AS predicate,
+             pg_get_expr(i.indexprs, i.indrelid) AS expressions
+      FROM pg_class c
+      JOIN pg_index i ON i.indexrelid = c.oid
+      WHERE c.relname = 'Chore_family_member_due_idx'
+    `);
+    expect(indexes.rows).toHaveLength(1);
+    expect(indexes.rows[0]).toMatchObject({
+      table_name: '"Chore"',
+      is_valid: true,
+      is_ready: true,
+      predicate: null,
+      expressions: null,
+    });
+    expect(indexes.rows[0]?.keys.split(" ")).toHaveLength(3);
   });
 });
