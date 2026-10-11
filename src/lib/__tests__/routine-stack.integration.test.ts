@@ -19,9 +19,11 @@ import {
 } from "@/lib/routine-stack";
 import { hashIdempotentRequest } from "@/lib/idempotency";
 import {
+  readParentRoutineStackCandidates,
   readParentRoutineStack,
   saveParentRoutineStack,
 } from "@/lib/routine-stack-api";
+import { decodeChoreCursor } from "@/lib/chore-paging";
 import {
   mutateRoutineStack,
   mutateRoutineStackInTx,
@@ -70,6 +72,21 @@ const MEMBER_PARENT_B = `${PREFIX}-member-parent-b`;
 const MEMBER_DORMANT_A = `${PREFIX}-member-dormant-a`;
 const MEMBER_ARCHIVED_A = `${PREFIX}-member-archived-a`;
 const MEMBER_ERASED_A = `${PREFIX}-member-erased-a`;
+const CANDIDATE_LEGACY_USER = `${PREFIX}-candidate-legacy-user`;
+const CANDIDATE_ARCHIVED_USER = `${PREFIX}-candidate-archived-user`;
+const CANDIDATE_ERASED_USER = `${PREFIX}-candidate-erased-user`;
+const CANDIDATE_ARCHIVED_MEMBER = `${PREFIX}-candidate-archived-member`;
+const CANDIDATE_ERASED_MEMBER = `${PREFIX}-candidate-erased-member`;
+const CANDIDATE_DORMANT_MEMBER = `${PREFIX}-candidate-dormant-member`;
+const CANDIDATE_CANONICAL = `${PREFIX}-candidate-canonical`;
+const CANDIDATE_LEGACY = `${PREFIX}-candidate-legacy`;
+const CANDIDATE_ARCHIVED = `${PREFIX}-candidate-archived`;
+const CANDIDATE_ERASED = `${PREFIX}-candidate-erased`;
+const CANDIDATE_DORMANT = `${PREFIX}-candidate-dormant`;
+const CANDIDATE_FOREIGN_ACCOUNT = `${PREFIX}-candidate-foreign-account`;
+const CANDIDATE_ORPHAN = `${PREFIX}-candidate-orphan`;
+const CANDIDATE_ERASED_SUBJECT = `${PREFIX}-candidate-erased-subject`;
+const CANDIDATE_TEMPLATE = `${PREFIX}-candidate-template`;
 const STACK_A = `${PREFIX}-stack-a`;
 const STACK_FOREIGN = `${PREFIX}-stack-foreign`;
 const STACK_B = `${PREFIX}-stack-b`;
@@ -183,7 +200,19 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       where: { family_id: { in: [FAMILY_A, FAMILY_B] } },
     });
     await db.user.deleteMany({
-      where: { id: { in: [PARENT_A, OTHER_PARENT_A, CHILD_A, PARENT_B] } },
+      where: {
+        id: {
+          in: [
+            PARENT_A,
+            OTHER_PARENT_A,
+            CHILD_A,
+            PARENT_B,
+            CANDIDATE_LEGACY_USER,
+            CANDIDATE_ARCHIVED_USER,
+            CANDIDATE_ERASED_USER,
+          ],
+        },
+      },
     });
     await db.family.deleteMany({ where: { id: { in: [FAMILY_A, FAMILY_B] } } });
   }
@@ -923,6 +952,374 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       fingerprintRoutineStackSnapshot(persistedRows),
     );
     expect(read?.compact.fingerprint).toBe(read?.fingerprint);
+  });
+
+  it("reads only eligible parent candidates and keeps account options privacy-safe", async () => {
+    await db.user.createMany({
+      data: [
+        {
+          id: CANDIDATE_LEGACY_USER,
+          email: `${CANDIDATE_LEGACY_USER}@example.test`,
+          name: "Legacy account",
+          role: "child",
+          family_id: FAMILY_A,
+        },
+        {
+          id: CANDIDATE_ARCHIVED_USER,
+          email: `${CANDIDATE_ARCHIVED_USER}@example.test`,
+          name: "Archived account",
+          role: "child",
+          family_id: FAMILY_A,
+        },
+        {
+          id: CANDIDATE_ERASED_USER,
+          email: `${CANDIDATE_ERASED_USER}@example.test`,
+          name: "Erased account",
+          role: "child",
+          family_id: FAMILY_A,
+        },
+      ],
+    });
+    await db.householdMember.createMany({
+      data: [
+        {
+          id: CANDIDATE_ARCHIVED_MEMBER,
+          family_id: FAMILY_A,
+          name: "Archived subject",
+          role: "child",
+          archived_at: new Date("2026-10-01T00:00:00.000Z"),
+        },
+        {
+          id: CANDIDATE_ERASED_MEMBER,
+          family_id: FAMILY_A,
+          name: "Erased subject",
+          role: "child",
+          archived_at: new Date("2026-10-02T00:00:00.000Z"),
+          erasure_user_id: PARENT_A,
+        },
+        {
+          id: CANDIDATE_DORMANT_MEMBER,
+          family_id: FAMILY_A,
+          name: "Dormant subject",
+          role: "child",
+        },
+      ],
+    });
+    await db.householdMemberLegacyMapping.createMany({
+      data: [
+        {
+          member_id: CANDIDATE_ARCHIVED_MEMBER,
+          user_id: CANDIDATE_ARCHIVED_USER,
+          family_id: FAMILY_A,
+        },
+        {
+          member_id: CANDIDATE_ERASED_MEMBER,
+          user_id: CANDIDATE_ERASED_USER,
+          family_id: FAMILY_A,
+        },
+      ],
+    });
+    await db.chore.createMany({
+      data: [
+        {
+          id: CANDIDATE_CANONICAL,
+          family_id: FAMILY_A,
+          title: "Canonical candidate",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_LEGACY,
+          family_id: FAMILY_A,
+          title: "Legacy candidate",
+          assigned_to: CANDIDATE_LEGACY_USER,
+          assigned_member_id: null,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_ARCHIVED,
+          family_id: FAMILY_A,
+          title: "Archived candidate",
+          assigned_to: CANDIDATE_ARCHIVED_USER,
+          assigned_member_id: CANDIDATE_ARCHIVED_MEMBER,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_ERASED,
+          family_id: FAMILY_A,
+          title: "Erased candidate",
+          assigned_to: CANDIDATE_ERASED_USER,
+          assigned_member_id: CANDIDATE_ERASED_MEMBER,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_DORMANT,
+          family_id: FAMILY_A,
+          title: "Dormant candidate",
+          assigned_to: CHILD_A,
+          assigned_member_id: CANDIDATE_DORMANT_MEMBER,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_FOREIGN_ACCOUNT,
+          family_id: FAMILY_A,
+          title: "Foreign account candidate",
+          assigned_to: PARENT_B,
+          assigned_member_id: null,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_ORPHAN,
+          family_id: FAMILY_A,
+          title: "Orphan candidate",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          recurrence_id: `${PREFIX}-missing-anchor`,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_ERASED_SUBJECT,
+          family_id: FAMILY_A,
+          title: "Erased subject candidate",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          member_subject_erased: true,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CANDIDATE_TEMPLATE,
+          family_id: FAMILY_A,
+          title: "Template candidate",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          recurrence_id: CANDIDATE_TEMPLATE,
+          is_template: true,
+          frequency: "weekly",
+          weekly_days: [1],
+        },
+      ],
+    });
+
+    const result = await readParentRoutineStackCandidates(
+      db,
+      actorA,
+      OCCURRENCE_DATE,
+      { limit: 200 },
+    );
+
+    expect(result).toMatchObject({
+      occurrence_date: OCCURRENCE_DATE,
+      hasMore: false,
+      nextCursor: null,
+    });
+    expect(result?.candidates.map((candidate) => candidate.id)).toEqual([
+      CANDIDATE_CANONICAL,
+      CANDIDATE_LEGACY,
+    ]);
+    expect(result?.assignmentOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ accountId: CHILD_A, role: "child" }),
+        expect.objectContaining({
+          accountId: CANDIDATE_LEGACY_USER,
+          name: "Legacy account",
+          role: "child",
+        }),
+      ]),
+    );
+    expect(result?.assignmentOptions).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ accountId: CANDIDATE_ARCHIVED_USER }),
+        expect.objectContaining({ accountId: CANDIDATE_ERASED_USER }),
+      ]),
+    );
+    expect(JSON.stringify(result)).not.toContain("@example.test");
+    expect(JSON.stringify(result)).not.toContain("archived_at");
+  });
+
+  it("walks the raw candidate page without duplicates or a false complete catalog", async () => {
+    const ids = Array.from(
+      { length: 201 },
+      (_, index) =>
+        `${PREFIX}-candidate-page-${String(index).padStart(3, "0")}`,
+    );
+    await db.chore.createMany({
+      data: ids.map((id) => ({
+        id,
+        family_id: FAMILY_A,
+        title: `Paged candidate ${id.slice(-3)}`,
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: OCCURRENCE,
+        created_by: PARENT_A,
+        frequency: "once",
+        weekly_days: [],
+      })),
+    });
+
+    const first = await readParentRoutineStackCandidates(
+      db,
+      actorA,
+      OCCURRENCE_DATE,
+      { limit: 200 },
+    );
+    expect(first?.candidates).toHaveLength(200);
+    expect(first?.hasMore).toBe(true);
+    expect(first?.nextCursor).toEqual(expect.any(String));
+
+    const cursor = decodeChoreCursor(first?.nextCursor ?? "");
+    expect(cursor).toEqual({
+      dueDate: OCCURRENCE,
+      id: ids[199],
+    });
+    const second = await readParentRoutineStackCandidates(
+      db,
+      actorA,
+      OCCURRENCE_DATE,
+      { limit: 200, cursor },
+    );
+    expect(second).toMatchObject({ hasMore: false, nextCursor: null });
+    expect(second?.candidates).toHaveLength(1);
+    expect(second?.candidates[0]?.id).toBe(ids[200]);
+    expect(
+      new Set([
+        ...(first?.candidates.map((candidate) => candidate.id) ?? []),
+        ...(second?.candidates.map((candidate) => candidate.id) ?? []),
+      ]),
+    ).toEqual(new Set(ids));
+  });
+
+  it("creates a first stack from a candidate and round-trips assignment and series identity", async () => {
+    await db.chore.createMany({
+      data: [
+        {
+          id: RECURRING_TEMPLATE,
+          family_id: FAMILY_A,
+          title: "Pack lunch",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: new Date("2026-10-05T00:00:00.000Z"),
+          created_by: PARENT_A,
+          recurrence_id: RECURRING_TEMPLATE,
+          is_template: true,
+          frequency: "weekly",
+          weekly_days: [1],
+        },
+        {
+          id: CHORE_RECURRING,
+          family_id: FAMILY_A,
+          title: "Pack lunch",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          recurrence_id: RECURRING_TEMPLATE,
+          is_template: false,
+          frequency: "once",
+          weekly_days: [],
+        },
+      ],
+    });
+    const catalog = await readParentRoutineStackCandidates(
+      db,
+      actorA,
+      OCCURRENCE_DATE,
+    );
+    const candidate = catalog?.candidates.find(
+      (row) => row.id === CHORE_RECURRING,
+    );
+    expect(candidate).toMatchObject({
+      assigned_to: CHILD_A,
+      assigned_member_id: MEMBER_CHILD_A,
+      recurrence_id: RECURRING_TEMPLATE,
+      is_template: false,
+    });
+
+    const saved = await saveParentRoutineStack(
+      db,
+      {
+        scope: "occurrence",
+        family_id: FAMILY_A,
+        stack_id: null,
+        occurrence_date: OCCURRENCE_DATE,
+        label: "School morning",
+        steps: [
+          {
+            chore_id: CHORE_RECURRING,
+            assigned_to: candidate!.assigned_to,
+            assigned_member_id: candidate!.assigned_member_id,
+            due_date: OCCURRENCE_DATE,
+            frequency: candidate!.frequency as "once",
+            difficulty: candidate!.difficulty ?? "medium",
+            recurrence_id: candidate!.recurrence_id ?? undefined,
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [],
+        expected_fingerprint: "",
+      },
+      actorA,
+      `${PREFIX}-api-candidate-first-stack`,
+    );
+    expect(saved.status).toBe(200);
+    const stackId = (saved.body as { stack_id?: string }).stack_id;
+    expect(stackId).toEqual(expect.any(String));
+
+    const fresh = await readParentRoutineStack(
+      db,
+      actorA,
+      stackId!,
+      OCCURRENCE_DATE,
+    );
+    expect(fresh).toMatchObject({
+      occurrence_date: OCCURRENCE_DATE,
+      fingerprint: expect.any(String),
+      compact: { fingerprint: expect.any(String) },
+      steps: [
+        expect.objectContaining({
+          id: CHORE_RECURRING,
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          recurrence_id: RECURRING_TEMPLATE,
+          is_template: false,
+        }),
+      ],
+    });
+    expect(fresh?.compact.fingerprint).toBe(fresh?.fingerprint);
+    expect(
+      await db.chore.findUniqueOrThrow({ where: { id: CHORE_RECURRING } }),
+    ).toMatchObject({
+      routine_stack_id: stackId,
+      assigned_to: CHILD_A,
+      assigned_member_id: MEMBER_CHILD_A,
+      recurrence_id: RECURRING_TEMPLATE,
+    });
   });
 
   it("accepts stopped anchors and legacy null-series rows, but rejects orphaned and foreign series ids", async () => {
