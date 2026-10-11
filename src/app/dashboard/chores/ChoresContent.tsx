@@ -54,6 +54,8 @@ interface ChoresContentProps {
   chores: (Chore & {
     assignee: { name: string } | null;
     creator: { name: string } | null;
+    /** Safe profile subject returned by the chores API for email-free members. */
+    subject?: { name: string };
     streak?: number;
   })[];
   familyMembers: { id: string; name: string; role: string; age?: number }[];
@@ -61,6 +63,12 @@ interface ChoresContentProps {
   userRole: string;
   /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
   historyCursor?: string | null;
+}
+
+type BoardChore = ChoresContentProps["chores"][number];
+
+function subjectName(chore: Pick<BoardChore, "assignee" | "subject">) {
+  return chore.subject?.name ?? chore.assignee?.name ?? null;
 }
 
 /** "Morning, step 2" for a chore in a picture routine (#272), else null. */
@@ -689,7 +697,7 @@ export default function ChoresContent({
           onChange={() => handleCompleteChore(chore.id)}
           title={chore.title}
           subtitle={[
-            chore.assignee?.name,
+            subjectName(chore),
             formatRelativeDueDate(chore.due_date, now, displayLocale),
             routineLabel(chore),
             chore.rotation_next_name
@@ -846,8 +854,8 @@ export default function ChoresContent({
                         </p>
                         <p className="text-footnote text-label-secondary">
                           {[
-                            chore.assignee?.name
-                              ? `Assigned to ${chore.assignee.name}`
+                            subjectName(chore)
+                              ? `Assigned to ${subjectName(chore)}`
                               : null,
                             routineLabel(chore),
                             verificationText("waitingForCheck", undefined),
