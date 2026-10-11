@@ -19,6 +19,10 @@ import {
 } from "@/lib/routine-stack";
 import { hashIdempotentRequest } from "@/lib/idempotency";
 import {
+  readParentRoutineStack,
+  saveParentRoutineStack,
+} from "@/lib/routine-stack-api";
+import {
   mutateRoutineStack,
   mutateRoutineStackInTx,
   type RoutineStackActor,
@@ -62,6 +66,10 @@ const PARENT_B = `${PREFIX}-parent-b`;
 const MEMBER_PARENT_A = `${PREFIX}-member-parent-a`;
 const MEMBER_OTHER_PARENT_A = `${PREFIX}-member-parent-2`;
 const MEMBER_CHILD_A = `${PREFIX}-member-child-a`;
+const MEMBER_PARENT_B = `${PREFIX}-member-parent-b`;
+const MEMBER_DORMANT_A = `${PREFIX}-member-dormant-a`;
+const MEMBER_ARCHIVED_A = `${PREFIX}-member-archived-a`;
+const MEMBER_ERASED_A = `${PREFIX}-member-erased-a`;
 const STACK_A = `${PREFIX}-stack-a`;
 const STACK_FOREIGN = `${PREFIX}-stack-foreign`;
 const STACK_B = `${PREFIX}-stack-b`;
@@ -144,6 +152,11 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
   const actorA: RoutineStackActor = {
     familyId: FAMILY_A,
     userId: PARENT_A,
+    role: "parent",
+  };
+  const actorB: RoutineStackActor = {
+    familyId: FAMILY_B,
+    userId: PARENT_B,
     role: "parent",
   };
 
@@ -232,6 +245,12 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           name: "Child A profile",
           role: "child",
         },
+        {
+          id: MEMBER_PARENT_B,
+          family_id: FAMILY_B,
+          name: "Parent B profile",
+          role: "parent",
+        },
       ],
     });
     await db.householdMemberLegacyMapping.createMany({
@@ -250,6 +269,11 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           member_id: MEMBER_CHILD_A,
           user_id: CHILD_A,
           family_id: FAMILY_A,
+        },
+        {
+          member_id: MEMBER_PARENT_B,
+          user_id: PARENT_B,
+          family_id: FAMILY_B,
         },
       ],
     });
@@ -350,10 +374,14 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     };
   }
 
-  function newDraft(label = "New routine"): RoutineStackDraft {
+  function newDraft(
+    label = "New routine",
+    familyId = FAMILY_A,
+    assignedTo = CHILD_A,
+  ): RoutineStackDraft {
     return {
       scope: "occurrence",
-      family_id: FAMILY_A,
+      family_id: familyId,
       stack_id: null,
       occurrence_date: OCCURRENCE_DATE,
       label,
@@ -361,7 +389,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         {
           title: "Pack bag",
           description: null,
-          assigned_to: CHILD_A,
+          assigned_to: assignedTo,
           assigned_member_id: null,
           due_date: OCCURRENCE_DATE,
           frequency: "once",
@@ -694,5 +722,182 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       points: 37,
       routine_stack_id: STACK_A,
     });
+  });
+
+  it("reads a parent routine with eligible, archived, erased, and dormant members only from its household", async () => {
+    await db.householdMember.createMany({
+      data: [
+        {
+          id: MEMBER_DORMANT_A,
+          family_id: FAMILY_A,
+          name: "Dormant profile",
+          role: "child",
+        },
+        {
+          id: MEMBER_ARCHIVED_A,
+          family_id: FAMILY_A,
+          name: "Archived profile",
+          role: "child",
+          archived_at: new Date("2026-10-01T00:00:00.000Z"),
+        },
+        {
+          id: MEMBER_ERASED_A,
+          family_id: FAMILY_A,
+          name: "Erased profile",
+          role: "child",
+          archived_at: new Date("2026-10-02T00:00:00.000Z"),
+          erasure_user_id: PARENT_A,
+        },
+      ],
+    });
+
+    const parent = await readParentRoutineStack(
+      db,
+      { ...actorA, role: "parent" },
+      STACK_A,
+      OCCURRENCE_DATE,
+    );
+
+    expect(parent).toMatchObject({
+      stack: { id: STACK_A, family_id: FAMILY_A, label: "Morning" },
+      occurrence_date: OCCURRENCE_DATE,
+      steps: [expect.objectContaining({ id: CHORE_A })],
+    });
+    expect(parent?.members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: MEMBER_CHILD_A,
+          subjectState: "eligible",
+        }),
+        expect.objectContaining({
+          id: MEMBER_ARCHIVED_A,
+          subjectState: "archived",
+        }),
+        expect.objectContaining({
+          id: MEMBER_ERASED_A,
+          subjectState: "erased",
+        }),
+        expect.objectContaining({
+          id: MEMBER_DORMANT_A,
+          subjectState: "dormant",
+        }),
+      ]),
+    );
+    expect(parent?.members.every((member) => member.id.startsWith(PREFIX))).toBe(
+      true,
+    );
+    expect(parent?.members.some((member) => member.id === MEMBER_PARENT_B)).toBe(
+      false,
+    );
+    expect(JSON.stringify(parent)).not.toContain("erasure_user_id");
+    expect(JSON.stringify(parent)).not.toContain("@example.test");
+
+    await expect(
+      readParentRoutineStack(db, actorA, STACK_B, OCCURRENCE_DATE),
+    ).resolves.toBeNull();
+    await expect(
+      readParentRoutineStack(db, actorB, STACK_B, OCCURRENCE_DATE),
+    ).resolves.toMatchObject({
+      stack: { id: STACK_B, family_id: FAMILY_B },
+      steps: [expect.objectContaining({ id: CHORE_B })],
+    });
+  });
+
+  it("atomically saves, replays, and rejects changed receipt payloads per household", async () => {
+    const draft = newDraft("API morning routine");
+    const key = `${PREFIX}-api-save-a`;
+    const first = await saveParentRoutineStack(db, draft, actorA, key);
+
+    expect(first.status).toBe(200);
+    expect(first.replayed).toBeUndefined();
+    const firstBody = first.body as { stack_id: string };
+    expect(firstBody.stack_id).toBeTruthy();
+
+    const receipt = await db.idempotencyRecord.findFirstOrThrow({
+      where: { scope: `user:${PARENT_A}`, key },
+    });
+    expect(receipt).toMatchObject({
+      family_id: FAMILY_A,
+      user_id: PARENT_A,
+      action: "routine-stack.mutate",
+      response_status: 200,
+      response_body: first.body,
+    });
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(3);
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(3);
+
+    const replay = await saveParentRoutineStack(db, draft, actorA, key);
+    expect(replay).toEqual({ status: 200, body: first.body, replayed: true });
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(3);
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(3);
+
+    const changed = await saveParentRoutineStack(
+      db,
+      { ...draft, label: "Changed payload" },
+      actorA,
+      key,
+    );
+    expect(changed).toMatchObject({
+      status: 422,
+      body: { error: { code: "IDEMPOTENCY_KEY_REUSED" } },
+    });
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(3);
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(3);
+
+    const familyB = await saveParentRoutineStack(
+      db,
+      newDraft("Other household routine", FAMILY_B, PARENT_B),
+      actorB,
+      `${PREFIX}-api-save-b`,
+    );
+    expect(familyB.status).toBe(200);
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_B } }),
+    ).toBe(2);
+    expect(await db.chore.count({ where: { family_id: FAMILY_B } })).toBe(2);
+    await expect(
+      readParentRoutineStack(
+        db,
+        actorA,
+        (familyB.body as { stack_id: string }).stack_id,
+        OCCURRENCE_DATE,
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it("rereads the current role before creating a receipt", async () => {
+    const receiptsBefore = await db.idempotencyRecord.count({
+      where: { family_id: FAMILY_A },
+    });
+    const staleParent = {
+      ...actorA,
+      role: "parent",
+      userId: CHILD_A,
+    };
+
+    const result = await saveParentRoutineStack(
+      db,
+      newDraft("Stale role routine"),
+      staleParent,
+      `${PREFIX}-api-stale-role`,
+    );
+
+    expect(result).toMatchObject({
+      status: 403,
+      body: { error: { code: "FORBIDDEN" } },
+    });
+    expect(
+      await db.idempotencyRecord.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(receiptsBefore);
+    expect(await db.routineStack.count({ where: { family_id: FAMILY_A } })).toBe(
+      2,
+    );
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(2);
   });
 });
