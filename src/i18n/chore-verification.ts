@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslation } from "@/i18n";
+
 /** Parent-only chore verification controls and dialog copy. Chore titles and
  * server-provided failure details remain parameters/raw data and are never
  * translated. */
@@ -65,6 +69,3 @@ export function useChoreVerificationText() {
     params?: Record<string, string | number>,
   ) => t(key, params, choreVerificationMessages);
 }
-("use client");
-
-import { useTranslation } from "@/i18n";
