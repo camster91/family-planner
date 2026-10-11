@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { createEventSchema, updateEventSchema, deleteEventSchema } from '@/lib/validations'
 import { attachEventSources, EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-import/source'
-import { recordBetaMetric } from '@/lib/beta-metrics'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { createPersonEvent } from '@/lib/person-event-create'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { CalendarRangeError, encodeCalendarCursor, parseCalendarRange } from '@/lib/calendar-planning/range'
@@ -119,6 +120,9 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
+
     let body: any
     try {
       body = await request.json()
@@ -130,7 +134,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { title, description, start_time, end_time, location, event_type, recurrence } = parsed.data
+    const { start_time, end_time } = parsed.data
 
     const startDate = new Date(start_time)
     const endDate = end_time ? new Date(end_time) : startDate
@@ -143,40 +147,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
     }
 
-    // Create the event and its activity record atomically
-    const event = await prisma!.$transaction(async (tx) => {
-      const created = await tx.event.create({
-        data: {
-          family_id: auth.user.family_id,
-          title,
-          description: description || null,
-          start_time: startDate,
-          end_time: endDate,
-          location: location || null,
-          event_type,
-          recurrence: recurrence || null,
-          created_by: auth.user.id,
-        },
-      })
-
-      // Record activity
-      await tx.activity.create({
-        data: {
-          family_id: auth.user.family_id,
-          user_id: auth.user.id,
-          type: 'event_created',
-          title: `${auth.user.name} added "${title}" to the calendar`,
-          metadata: JSON.stringify({ eventId: created.id }),
-        },
-      })
-
-      return created
-    })
-
-    // Beta usage counts (#287): after the commit; never fails the request.
-    await recordBetaMetric(prisma!, auth.user.family_id, 'event_created')
-
-    return NextResponse.json({ event })
+    const response = await withIdempotency(
+      prisma!, key,
+      { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'event.create' },
+      parsed.data,
+      ({ recordId }) => createPersonEvent(prisma!, parsed.data, { familyId: auth.user.family_id, userId: auth.user.id, name: auth.user.name }, recordId),
+    )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (error) {
     logRouteError('POST /api/events', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
