@@ -65,6 +65,7 @@ export const assistantActionSchema = z.discriminatedUnion("kind", [
         "projects",
         "budget",
         "rewards",
+        "analytics",
         "routines",
         "recipes",
       ]),
@@ -97,6 +98,7 @@ const destinations: Record<
   projects: { path: "/dashboard/projects", feature: "projects" },
   budget: { path: "/dashboard/budget", feature: "budget" },
   rewards: { path: "/dashboard/rewards", feature: "rewards" },
+  analytics: { path: "/dashboard/analytics", feature: "analytics" },
   routines: { path: "/dashboard/chores", feature: "chores" },
   recipes: { path: "/dashboard/meals/explore", feature: "meals" },
 };
