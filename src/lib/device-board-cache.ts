@@ -236,6 +236,16 @@ export function writeDeviceBoardCache(
 ): boolean {
   const key = keyFor(deviceId);
   if (!storage || !key || !Number.isFinite(now)) return false;
+  // Protocol 2 boards may contain name-only profile subjects. They are an
+  // online-only first slice until the cache contract can safely carry them;
+  // never persist them or turn that intentional refusal into a quota error.
+  if (
+    typeof board === "object" &&
+    board !== null &&
+    "memberProtocol" in board &&
+    (board as { memberProtocol?: unknown }).memberProtocol === 2
+  )
+    return false;
   const parsed = boardSchema.safeParse(board);
   if (!parsed.success) return false;
   try {

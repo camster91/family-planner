@@ -309,6 +309,43 @@ describe("person board (#274)", () => {
     ).toHaveLength(2);
   });
 
+  it("keeps profile-only chores read-only on the signed-in board", async () => {
+    const profile = {
+      id: "profile:casey",
+      name: "Casey Child",
+      color: "green" as const,
+      subject: {
+        kind: "profile" as const,
+        memberId: "profile-casey",
+        name: "Casey Child",
+        color: "green" as const,
+      },
+    };
+    await renderBoard({
+      viewer: { id: "p", role: "parent" },
+      data: data({
+        memberProtocol: 2,
+        members: [profile],
+        chores: [
+          {
+            id: "profile-chore",
+            title: "Put away blocks",
+            dueDay: TODAY,
+            status: "pending",
+            subject: profile.subject,
+          },
+        ],
+      }),
+    });
+    expect(within(chores()).getByText("Put away blocks")).toBeInTheDocument();
+    expect(
+      within(chores()).queryByRole("button", {
+        name: /Mark Put away blocks done/,
+      }),
+    ).toBeNull();
+    expect(setChoreDone).not.toHaveBeenCalled();
+  });
+
   it("without a viewer the board stays read-only", async () => {
     await renderBoard();
     expect(within(chores()).queryAllByRole("button")).toHaveLength(0);

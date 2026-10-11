@@ -112,10 +112,11 @@ const FRIDGE_CHROME_CSS = `
 `
 
 /** Person boards ask the signed-in version route (#271). */
-async function fetchPersonBoardVersion(): Promise<string> {
+async function fetchPersonBoardVersion(memberProtocol?: TodayBoardData['memberProtocol']): Promise<string> {
   const res = await fetch('/api/family/board-version', {
     cache: 'no-store',
     credentials: 'same-origin',
+    headers: memberProtocol === 2 ? { 'X-Member-Protocol': '2' } : undefined,
   })
   if (!res.ok) throw new Error(`board version ${res.status}`)
   const body = (await res.json()) as { version?: unknown }
@@ -422,7 +423,7 @@ export default function TodayBoard({
   const { lastSyncAt, online, failing, announcement } = useBoardSync({
     version: data.version,
     generatedAt: data.generatedAt,
-    checkVersion: checkVersion ?? fetchPersonBoardVersion,
+    checkVersion: checkVersion ?? (() => fetchPersonBoardVersion(data.memberProtocol)),
     refresh,
   })
   const snapshotTime = Date.parse(data.generatedAt)

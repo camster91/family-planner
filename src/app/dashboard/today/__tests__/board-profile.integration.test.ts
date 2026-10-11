@@ -11,6 +11,7 @@ import type { PrismaClient } from "@prisma/client";
 import pg from "pg";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
 import { choresDueTodayByPerson } from "@/components/fridge/board-model";
+import { loadHomeSummary } from "../home-summary-data";
 
 const dbDescribe =
   process.env.RUN_DB_INTEGRATION === "1" && process.env.FIXTURES_ALLOW === "1"
@@ -465,6 +466,133 @@ dbDescribe("Today profile subjects against disposable PostgreSQL", () => {
     expect(
       unavailable.chores.some((chore) => chore.id === PROFILE_CHILD_CHORE),
     ).toBe(false);
+  });
+
+  it("detects a profile chore after the bounded board and home-summary caps", async () => {
+    await sql.query('DELETE FROM "Chore" WHERE id = $1', [FOREIGN_CHORE]);
+    const accountIds = Array.from(
+      { length: 120 },
+      (_, index) =>
+        `fx_today_profile_cap_account_${String(index).padStart(2, "0")}`,
+    );
+    const values = accountIds.flatMap((id) => [
+      id,
+      FAMILY_B,
+      "Capped account chore",
+      PARENT_B,
+      DUE.toISOString(),
+      PARENT_B,
+    ]);
+    const tuples = accountIds
+      .map((_, index) => {
+        const offset = index * 6;
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, NULL, FALSE, $${offset + 5}, $${offset + 6})`;
+      })
+      .join(", ");
+    await sql.query(
+      `INSERT INTO "Chore" (id, family_id, title, assigned_to, assigned_member_id, member_subject_erased, due_date, created_by) VALUES ${tuples}`,
+      values,
+    );
+    await sql.query(
+      'INSERT INTO "Chore" (id, family_id, title, assigned_to, assigned_member_id, member_subject_erased, due_date, created_by) VALUES ($1, $2, $3, NULL, $4, FALSE, $5, $6)',
+      [
+        "fx_today_profile_cap_profile",
+        FAMILY_B,
+        "Capped profile chore",
+        CHILD_B,
+        DUE.toISOString(),
+        PARENT_B,
+      ],
+    );
+
+    const board = await withProfileGate(true, () =>
+      lib.loadTodayBoard(db, {
+        familyId: FAMILY_B,
+        role: "parent",
+        memberProtocol: 1,
+        now: NOW,
+      }),
+    );
+    expect(board.protocolError?.code).toBe("MEMBER_PROTOCOL_UNAVAILABLE");
+    expect(
+      board.chores.some((chore) => chore.id === "fx_today_profile_cap_profile"),
+    ).toBe(false);
+    expect(board.chores).toHaveLength(80);
+
+    const home = await loadHomeSummary(db, {
+      familyId: FAMILY_B,
+      role: "parent",
+      memberProtocol: 1,
+      now: NOW,
+    });
+    expect(home.protocolError?.code).toBe("MEMBER_PROTOCOL_UNAVAILABLE");
+    expect(
+      home.chores.some((chore) => chore.id === "fx_today_profile_cap_profile"),
+    ).toBe(false);
+    expect(home.chores).toHaveLength(120);
+
+    const rollback = await withProfileGate(false, () =>
+      lib.loadTodayBoard(db, {
+        familyId: FAMILY_B,
+        role: "parent",
+        memberProtocol: 1,
+        now: NOW,
+      }),
+    );
+    expect(rollback.protocolError?.code).toBe("MEMBER_PROTOCOL_UNAVAILABLE");
+
+    await sql.query(
+      'DELETE FROM "Chore" WHERE id = ANY($1::text[])',
+      [[...accountIds, "fx_today_profile_cap_profile"]],
+    );
+    const inactiveMember = "fx_today_profile_cap_inactive_member";
+    await sql.query(
+      'INSERT INTO "HouseholdMember" (id, family_id, name, role, age, board_color) VALUES ($1, $2, $3, $4, $5, $6)',
+      [inactiveMember, FAMILY_B, "Archived cap profile", "child", 8, "red"],
+    );
+    await sql.query(
+      'INSERT INTO "Chore" (id, family_id, title, assigned_to, assigned_member_id, member_subject_erased, due_date, created_by) VALUES ($1, $2, $3, NULL, $4, FALSE, $5, $6), ($7, $8, $9, NULL, $10, FALSE, $11, $12), ($13, $14, $15, NULL, $16, FALSE, $17, $18)',
+      [
+        "fx_today_profile_cap_inactive_chore",
+        FAMILY_B,
+        "Archived cap chore",
+        inactiveMember,
+        DUE.toISOString(),
+        PARENT_B,
+        "fx_today_profile_cap_out_of_window",
+        FAMILY_B,
+        "Out of window cap chore",
+        CHILD_B,
+        new Date("2026-12-01T00:00:00.000Z").toISOString(),
+        PARENT_B,
+        "fx_today_profile_cap_foreign",
+        FAMILY_A,
+        "Foreign cap chore",
+        CHILD_A,
+        DUE.toISOString(),
+        PARENT_A,
+      ],
+    );
+    await sql.query(
+      'UPDATE "HouseholdMember" SET archived_at = $1 WHERE id = $2',
+      [NOW, inactiveMember],
+    );
+    const noFalseRefusal = await withProfileGate(true, () =>
+      lib.loadTodayBoard(db, {
+        familyId: FAMILY_B,
+        role: "parent",
+        memberProtocol: 1,
+        now: NOW,
+      }),
+    );
+    expect(noFalseRefusal.protocolError).toBeUndefined();
+    const noFalseHomeRefusal = await loadHomeSummary(db, {
+      familyId: FAMILY_B,
+      role: "parent",
+      memberProtocol: 1,
+      now: NOW,
+    });
+    expect(noFalseHomeRefusal.protocolError).toBeUndefined();
   });
 
   it("changes version only for owned profile-board changes", async () => {

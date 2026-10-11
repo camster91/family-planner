@@ -279,6 +279,39 @@ const profileChoreSubjectSelect = {
   account_link: { select: { user_id: true } },
 } as const
 
+/**
+ * A capped board read cannot use the returned rows as an existence check for
+ * the legacy protocol. Keep this probe deliberately narrow: it only looks for
+ * a live, non-erased canonical member subject in this household and date
+ * window, and returns no subject data. The regular capped query still owns the
+ * payload shown on the board.
+ */
+function profileCompatibilityProbeWhere(familyId: string, from: Date, to: Date) {
+  return {
+    family_id: familyId,
+    due_date: { gte: from, lt: to },
+    assigned_to: null,
+    assigned_member_id: { not: null },
+    member_subject_erased: false,
+    assigneeMember: {
+      is: {
+        family_id: familyId,
+        archived_at: null,
+        erasure_user_id: null,
+        legacy_mapping: { is: null },
+        account_link: { is: null },
+        role: { in: ['child', 'teen', 'parent'] },
+        OR: [
+          { age: null },
+          { role: 'child', age: { gte: 0, lte: 17 } },
+          { role: 'teen', age: { gte: 13, lte: 17 } },
+          { role: 'parent', age: { gte: 18, lte: 120 } },
+        ],
+      },
+    },
+  }
+}
+
 function activeUnlinkedProfile(row: ProfileBoardRow, familyId: string): boolean {
   const role = profileRoleSchema.safeParse(row.role)
   return (
@@ -417,7 +450,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         icon: true,
       }
 
-  const [members, profileMembers, events, chores, dinners, shopping, useSoon] = await Promise.all([
+  const needsProfileCompatibilityProbe = memberProtocol === 1 || !profileGate
+  const [members, profileMembers, events, chores, profileCompatibilityProbe, dinners, shopping, useSoon] = await Promise.all([
     db.user.findMany({
       where: { family_id: familyId },
       select: { id: true, name: true, board_color: true },
@@ -464,6 +498,13 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: MAX_CHORES,
     }),
+    needsProfileCompatibilityProbe
+      ? db.chore.findFirst({
+          where: profileCompatibilityProbeWhere(familyId, windowStart, windowEnd),
+          select: { id: true },
+          orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
+        })
+      : Promise.resolve(null),
     features.meals
       ? (db.familyMeal.findMany({
           where: {
@@ -594,7 +635,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     } | null
   }
   const choreRows = chores as BoardChoreRow[]
-  const hasProfileRows = choreRows.some((chore) => chore.assigned_to === null && chore.assigned_member_id != null)
+  const hasProfileRows =
+    Boolean(profileCompatibilityProbe) || choreRows.some((chore) => readChoreSubject(chore, familyId)?.kind === 'profile')
   const boardChores: BoardChore[] = choreRows.flatMap((chore): BoardChore[] => {
     const base = {
       id: chore.id,

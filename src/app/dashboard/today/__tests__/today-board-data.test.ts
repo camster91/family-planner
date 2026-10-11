@@ -67,6 +67,7 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
           assigned_to: 'u_gone',
         },
       ]),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     familyMeal: {
       findMany: jest.fn().mockResolvedValue([
@@ -191,6 +192,18 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
             status: 'pending',
             assigned_to: null,
             assigned_member_id: 'member_only',
+            member_subject_erased: false,
+            assigneeMember: {
+              id: 'member_only',
+              family_id: FAMILY,
+              name: 'Little One',
+              role: 'child',
+              age: 3,
+              archived_at: null,
+              erasure_user_id: null,
+              legacy_mapping: null,
+              account_link: null,
+            },
           },
           {
             id: 'account',
@@ -201,6 +214,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
             icon: null,
           },
         ]),
+        findFirst: jest.fn().mockResolvedValue(null),
       },
     })
     const data = await buildTodayBoard(db as any, {
@@ -221,6 +235,101 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       requiredProtocol: 2,
       receivedProtocol: 1,
     })
+  })
+
+  it('probes past the capped board rows before returning a protocol-1 refusal', async () => {
+    const db = mockDb({
+      chore: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'account-only-capped-row',
+            title: 'Account task',
+            due_date: NOW,
+            status: 'pending',
+            assigned_to: 'u_child',
+            assigned_member_id: null,
+            member_subject_erased: false,
+            icon: null,
+          },
+        ]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'profile-after-cap' }),
+      },
+    })
+    const data = await buildTodayBoard(db as any, {
+      familyId: FAMILY,
+      role: 'parent',
+      memberProtocol: 1,
+      features: defaultFeatures(),
+      now: NOW,
+    })
+
+    expect(data.chores.map((chore) => chore.id)).toEqual(['account-only-capped-row'])
+    expect(data.protocolError?.code).toBe('MEMBER_PROTOCOL_UNAVAILABLE')
+    expect(db.chore.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          family_id: FAMILY,
+          due_date: {
+            gte: new Date('2026-01-04T00:00:00.000Z'),
+            lt: new Date('2026-01-10T00:00:00.000Z'),
+          },
+          assigned_to: null,
+          assigned_member_id: { not: null },
+          member_subject_erased: false,
+          assigneeMember: {
+            is: expect.objectContaining({
+              family_id: FAMILY,
+              archived_at: null,
+              erasure_user_id: null,
+              legacy_mapping: { is: null },
+              account_link: { is: null },
+            }),
+          },
+        }),
+        select: { id: true },
+      }),
+    )
+  })
+
+  it('does not refuse for an inactive profile row that the protocol-2 reader would omit', async () => {
+    const db = mockDb({
+      chore: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'archived-profile',
+            title: 'Archived task',
+            due_date: NOW,
+            status: 'pending',
+            assigned_to: null,
+            assigned_member_id: 'member_archived',
+            member_subject_erased: false,
+            icon: null,
+            assigneeMember: {
+              id: 'member_archived',
+              family_id: FAMILY,
+              name: 'Archived',
+              role: 'child',
+              age: 8,
+              archived_at: new Date('2025-01-01T00:00:00Z'),
+              erasure_user_id: null,
+              legacy_mapping: null,
+              account_link: null,
+            },
+          },
+        ]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    })
+    const data = await buildTodayBoard(db as any, {
+      familyId: FAMILY,
+      role: 'parent',
+      memberProtocol: 1,
+      features: defaultFeatures(),
+      now: NOW,
+    })
+
+    expect(data.chores).toEqual([])
+    expect(data.protocolError).toBeUndefined()
   })
 
   it('returns a typed protocol-2 account/profile subject and only active unlinked profile display data', async () => {
@@ -323,6 +432,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
               },
             },
           ]),
+          findFirst: jest.fn().mockResolvedValue(null),
         },
       })
       const data = await buildTodayBoard(db as any, {

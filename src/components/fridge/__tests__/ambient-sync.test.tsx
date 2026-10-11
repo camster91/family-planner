@@ -111,6 +111,26 @@ describe('visible sync', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('negotiates protocol 2 when polling a profile-enabled person board', async () => {
+    const originalFetch = globalThis.fetch
+    const fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ version: 'v1' }),
+    } as Response)
+    globalThis.fetch = fetch
+    try {
+      await renderBoard({ data: data({ memberProtocol: 2 }), checkVersion: undefined, fridgeMode: false })
+      await flush(25 * 1000)
+      expect(fetch).toHaveBeenCalledWith('/api/family/board-version', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'X-Member-Protocol': '2' },
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it('says in words when the server cannot be reached', async () => {
     await renderBoard({ checkVersion: async () => Promise.reject(new Error('down')), fridgeMode: false })
     await flush(3 * MIN)

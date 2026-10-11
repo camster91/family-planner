@@ -478,6 +478,26 @@ async function cleanupOwned(x: OwnedNames): Promise<void> {
       ),
     ];
     if (!familyIds.length && !users.rows.length) return;
+    const deviceRows = await db.query<{ id: string }>(
+      `SELECT id FROM "HouseholdDevice" WHERE family_id=ANY($1)`,
+      [familyIds],
+    );
+    const pairingRows = await db.query<{ id: string }>(
+      `SELECT id FROM "DevicePairing" WHERE family_id=ANY($1)`,
+      [familyIds],
+    );
+    const rateLimitKeys = [
+      ...deviceRows.rows.flatMap(({ id }) => [
+        `device-write:${id}`,
+        `device-board-version:${id}`,
+      ]),
+      ...pairingRows.rows.map(({ id }) => `device-pair-status:${id}`),
+      ...users.rows.flatMap(({ id }) => [
+        `device-pair-create:${id}`,
+        `device-pair-poll:${id}`,
+      ]),
+      ...familyIds.map((id) => `device-pair-create-fam:${id}`),
+    ];
     await db.query(`DELETE FROM "HouseholdDevice" WHERE family_id=ANY($1)`, [
       familyIds,
     ]);
@@ -493,8 +513,8 @@ async function cleanupOwned(x: OwnedNames): Promise<void> {
       users.rows.map((row) => row.id),
     ]);
     await db.query(
-      `DELETE FROM "RateLimitEntry" WHERE key LIKE $1 OR key LIKE 'device-%'`,
-      [`%${x.prefix}%`],
+      `DELETE FROM "RateLimitEntry" WHERE key LIKE $1 OR key=ANY($2)`,
+      [`%${x.prefix}%`, rateLimitKeys],
     );
   });
 }
