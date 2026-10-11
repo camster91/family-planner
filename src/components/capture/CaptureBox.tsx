@@ -7,6 +7,7 @@ import { newIdempotencyKey } from '@/lib/idempotency-key'
 import { localDateTimeToISO } from '@/lib/dates'
 import { useTranslation } from '@/i18n'
 import { captureMessages, type CaptureMessage } from '@/i18n/capture'
+import { Dialog } from '@/components/ui/dialog'
 import {
   activateCaptureRecoveryStorage,
   CAPTURE_RECOVERY_RETENTION_MS,
@@ -132,9 +133,21 @@ function recoveryTitle(row: CaptureRecoveryEnvelope): string {
 
 export function CaptureBox({
   onSaved,
+  presentation = 'inline',
+  open = true,
+  onClose,
+  onAvailabilityChange,
 }: {
   /** Called after anything is saved, so the host page can re-request its data. */
   onSaved?: () => void
+  /** Keep the existing inline card available while allowing calendar to host it in a sheet. */
+  presentation?: 'inline' | 'sheet'
+  /** Sheet visibility is controlled by the host so drafts survive dismissal. */
+  open?: boolean
+  /** Called by the shared Dialog when the sheet can be dismissed. */
+  onClose?: () => void
+  /** Reports the server-side setup/role gate to a launcher host. */
+  onAvailabilityChange?: (available: boolean) => void
 } = {}) {
   const { t } = useTranslation()
   const msg = (key: CaptureMessage, params?: Record<string, string | number>) =>
@@ -155,7 +168,9 @@ export function CaptureBox({
   const [recoveryMessage, setRecoveryMessage] = React.useState<string | null>(null)
   const recoveryIdentity = React.useRef<RecoveryIdentity | null>(null)
   const recoveryRows = React.useRef(new Map<string, CaptureRecoveryEnvelope>())
+  const textInputRef = React.useRef<HTMLInputElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const inSheet = presentation === 'sheet'
   // Proposal identity survives retries and partial batch filtering. Do not make
   // a fresh key after an uncertain response, or a repeated effect could result.
   const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string }>())
@@ -232,8 +247,15 @@ export function CaptureBox({
     fetch('/api/capture')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d && d.allowed === false) setChildBlocked(true)
-        else if (d && d.configured === false) setUnavailable(true)
+        if (d && d.allowed === false) {
+          setChildBlocked(true)
+          onAvailabilityChange?.(false)
+        } else if (d && d.configured === false) {
+          setUnavailable(true)
+          onAvailabilityChange?.(false)
+        } else if (d) {
+          onAvailabilityChange?.(true)
+        }
         if (d?.userId && d?.familyId) {
           const identity = { userId: String(d.userId), familyId: String(d.familyId) }
           const previousIdentity = recoveryIdentity.current
@@ -246,7 +268,7 @@ export function CaptureBox({
         }
       })
       .catch(() => {})
-  }, [])
+  }, [onAvailabilityChange])
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
     if (!row.requestHash) {
@@ -465,11 +487,30 @@ export function CaptureBox({
     setPhotoBusy(false)
   }
 
-  if (childBlocked) {
+  const present = (children: React.ReactNode) => {
+    if (!inSheet) return children
+    const canDismiss = !busy && !photoBusy && recoveryBusyKey === null
     return (
+      <Dialog
+        open={open}
+        title={msg('quickAdd')}
+        description={msg('quickAddDescription')}
+        onClose={canDismiss ? onClose : undefined}
+        closeLabel={msg('closeQuickAdd')}
+        initialFocusRef={textInputRef}
+        variant="form"
+        testId="capture-sheet"
+      >
+        {children}
+      </Dialog>
+    )
+  }
+
+  if (childBlocked) {
+    return present(
       <div className="card-apple p-4 text-subhead text-label-secondary" role="note" data-testid="capture-child-blocked">
         {CAPTURE_CHILD_MESSAGE}
-      </div>
+      </div>,
     )
   }
 
@@ -479,15 +520,16 @@ export function CaptureBox({
   if (unavailable) return null
 
   const KindIcon = draft ? KIND_ICON[draft.kind] : Sparkles
-  return (
-    <div className="card-apple p-4" data-testid="capture-box">
-      <div className="flex items-center gap-2 mb-3">
+  return present(
+    <div className={inSheet ? 'p-1' : 'card-apple p-4'} data-testid="capture-box">
+      {!inSheet && <div className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4 text-[var(--accent)]" />
         <h2 className="text-headline">Quick add</h2>
-      </div>
+      </div>}
 
       <div className="flex gap-2">
         <input
+          ref={textInputRef}
           className="input-apple flex-1"
           placeholder="dentist Tuesday 3pm, or milk"
           value={text}

@@ -188,6 +188,18 @@ async function captureState(
   expect(violations).toEqual([]);
 }
 
+async function openCaptureSheet(page: Page): Promise<void> {
+  const launcher = page.getByRole("button", {
+    name: "Open quick add",
+    exact: true,
+  });
+  await expect(launcher).toBeVisible();
+  await launcher.click();
+  await expect(
+    page.getByRole("dialog", { name: "Quick add", exact: true }),
+  ).toBeVisible();
+}
+
 async function installLoopbackNetworkGuard(
   context: BrowserContext,
 ): Promise<void> {
@@ -496,9 +508,7 @@ test.describe("capture receipt recovery", () => {
     );
     await page.goto("/dashboard/calendar");
     await captureReady;
-    await expect(
-      page.getByRole("heading", { name: "Quick add", exact: true }),
-    ).toBeVisible();
+    await openCaptureSheet(page);
     const identity = await runtimeIdentity(page, info);
     const storageKey = captureRecoveryStorageKey(userId, familyId);
 
@@ -623,6 +633,7 @@ test.describe("capture receipt recovery", () => {
       // harness restoration, not another write or a second operation.
       await restoreEnvelope(page, storageKey, envelope);
       await page.reload();
+      await openCaptureSheet(page);
       await expect(page.getByTestId("capture-recovery")).toContainText(
         eventTitle,
       );
@@ -664,6 +675,7 @@ test.describe("capture receipt recovery", () => {
 
       await restoreEnvelope(page, storageKey, envelope);
       await page.reload();
+      await openCaptureSheet(page);
       await expect(page.getByTestId("capture-recovery")).toContainText(
         eventTitle,
       );
@@ -681,6 +693,7 @@ test.describe("capture receipt recovery", () => {
       receiptMode = "unknown";
       await restoreEnvelope(page, storageKey, envelope);
       await page.reload();
+      await openCaptureSheet(page);
       await expect(page.getByTestId("capture-recovery")).toContainText(
         eventTitle,
       );
@@ -698,6 +711,7 @@ test.describe("capture receipt recovery", () => {
       receiptMode = "absent";
       await restoreEnvelope(page, storageKey, envelope);
       await page.reload();
+      await openCaptureSheet(page);
       await expect(page.getByTestId("capture-recovery")).toContainText(
         eventTitle,
       );
@@ -783,9 +797,7 @@ test.describe("capture receipt recovery", () => {
     );
     await page.goto("/dashboard/calendar");
     await captureReady;
-    await expect(
-      page.getByRole("heading", { name: "Quick add", exact: true }),
-    ).toBeVisible();
+    await openCaptureSheet(page);
     const identity = await runtimeIdentity(page, info);
     const storageKey = captureRecoveryStorageKey(userId, familyId);
 
@@ -856,6 +868,7 @@ test.describe("capture receipt recovery", () => {
       await captureState(page, info, identity, "photo-partial");
 
       await page.reload();
+      await openCaptureSheet(page);
       await expect(page.getByTestId("capture-recovery")).toContainText(
         "Synthetic photo failure",
       );
