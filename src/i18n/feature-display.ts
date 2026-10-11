@@ -7,6 +7,13 @@ export interface FeatureDisplayCopy {
   description: string;
 }
 
+export interface FeatureOffDisplayCopy {
+  title: string;
+  description: string;
+  askParent: string;
+  openFeatures: string;
+}
+
 export type FeatureDisplayCopyMap = Record<FeatureKey, FeatureDisplayCopy>;
 export type FeatureDisplayResolver = (key: FeatureKey) => FeatureDisplayCopy;
 
@@ -136,6 +143,22 @@ export const featureDisplayMessages: Record<Locale, FeatureDisplayCopyMap> = {
   es: featureDisplaySpanish,
 };
 
+const featureOffMessages: Record<Locale, Omit<FeatureOffDisplayCopy, "title">> = {
+  en: {
+    description:
+      "{title} is turned off for your family. You can turn it on in Features settings.",
+    askParent: "{title} is turned off for your family. Ask a parent to turn it on.",
+    openFeatures: "Open Features",
+  },
+  es: {
+    description:
+      "La función «{title}» está desactivada para tu familia. Puedes activarla en la configuración de funciones.",
+    askParent:
+      "La función «{title}» está desactivada para tu familia. Pide a un padre que la active.",
+    openFeatures: "Abrir funciones",
+  },
+};
+
 export function getFeatureDisplayCopy(
   locale: Locale,
   key: FeatureKey,
@@ -145,6 +168,19 @@ export function getFeatureDisplayCopy(
 
 export function getFeatureDisplayMap(locale: Locale): FeatureDisplayCopyMap {
   return featureDisplayMessages[locale];
+}
+
+export function getFeatureOffCopy(
+  locale: Locale,
+  title: string,
+): FeatureOffDisplayCopy {
+  const copy = featureOffMessages[locale];
+  return {
+    title: locale === "es" ? `Función desactivada: ${title}` : `${title} is off`,
+    description: copy.description.replace("{title}", title),
+    askParent: copy.askParent.replace("{title}", title),
+    openFeatures: copy.openFeatures,
+  };
 }
 
 export function useFeatureDisplayCopy(): FeatureDisplayResolver {

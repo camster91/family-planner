@@ -5,7 +5,9 @@ import { Lock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
 import type { FeatureKey } from '@/lib/features'
-import { FEATURES } from '@/lib/features'
+import { useTranslation } from '@/i18n'
+import { getFeatureDisplayCopy, getFeatureOffCopy } from '@/i18n/feature-display'
+import type { Locale } from '@/i18n/types'
 
 /**
  * FeatureGate — wraps a feature page. If the feature is disabled, shows
@@ -28,7 +30,8 @@ export function FeatureGate({
 /** The off state with the viewer's role from the features provider. */
 function ClientFeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
   const { canManage } = useFeatures()
-  return <FeatureOffState featureKey={featureKey} canManage={canManage} />
+  const { locale } = useTranslation()
+  return <FeatureOffState featureKey={featureKey} canManage={canManage} locale={locale} />
 }
 
 /**
@@ -39,6 +42,7 @@ export function FeatureOffState({
   featureKey,
   canManage = true,
   copy,
+  locale = 'en',
   headingLevel = 2,
   testId,
 }: {
@@ -47,10 +51,13 @@ export function FeatureOffState({
   canManage?: boolean
   /** Optional route-owned localized copy while retaining the shared interaction. */
   copy?: FeatureOffStateCopy
+  /** Locale used for the shared default copy. Route-owned copy stays authoritative. */
+  locale?: Locale
   headingLevel?: 1 | 2
   testId?: string
 }) {
-  const meta = FEATURES.find((f) => f.key === featureKey)
+  const display = getFeatureDisplayCopy(locale, featureKey)
+  const defaultCopy = getFeatureOffCopy(locale, display.title)
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
 
   return (
@@ -58,27 +65,20 @@ export function FeatureOffState({
       <div className="empty-state-icon mx-auto">
         <Lock className="w-9 h-9 text-white" />
       </div>
-      {copy ? (
-        <Heading className="text-title-2 mb-2">{copy.title}</Heading>
-      ) : (
-        <h2 className="text-title-2 mb-2">{meta?.title ?? 'Feature'} is off</h2>
-      )}
+      <Heading className="text-title-2 mb-2">
+        {copy?.title ?? defaultCopy.title}
+      </Heading>
       <p className="text-body text-label-secondary mb-6">
-        {copy ? (
-          canManage ? copy.description : copy.askParent
-        ) : (
-          <>
-            {meta?.title ?? 'This feature'} is turned off for your family.{' '}
-            {canManage ? 'You can turn it on in Features settings.' : 'Ask a parent to turn it on.'}
-          </>
-        )}
+        {canManage
+          ? (copy?.description ?? defaultCopy.description)
+          : (copy?.askParent ?? defaultCopy.askParent)}
       </p>
       {canManage && (
         <Link
           href="/dashboard/features"
           className="btn-filled"
         >
-          {copy ? copy.openFeatures : <>Open Features</>}
+          {copy?.openFeatures ?? defaultCopy.openFeatures}
           <ChevronRight className="w-4 h-4" />
         </Link>
       )}
