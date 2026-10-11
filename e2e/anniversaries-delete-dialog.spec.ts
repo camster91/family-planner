@@ -425,12 +425,9 @@ for (const locale of ["en", "es"] as const) {
               : "Could not load dates",
           ),
         ).toBeVisible();
-        // The page currently exposes this route-state action in English in
-        // both locales; keep the rendered check honest until that copy moves
-        // into the dates dictionary.
         await expect(
           page.getByRole("button", {
-            name: "Retry",
+            name: locale === "es" ? "Intentar de nuevo" : "Try again",
             exact: true,
           }),
         ).toBeFocused();
