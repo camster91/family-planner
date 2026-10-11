@@ -610,7 +610,6 @@ CREATE TABLE IF NOT EXISTS "DeviceAuditEvent" (
 );
 CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_family_id_created_at_idx" ON "DeviceAuditEvent"("family_id", "created_at");
 CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_device_id_created_at_idx" ON "DeviceAuditEvent"("device_id", "created_at");
-CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_family_id_subject_member_id_idx" ON "DeviceAuditEvent"("family_id", "subject_member_id");
 
 -- ============ Idempotency records (#162 offline sync; additive) ============
 -- docs/architecture/OFFLINE_SYNC.md. Expand only: new table, no backfill.
@@ -695,12 +694,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_subject_member_fkey" FOREIGN KEY ("subject_member_id", "family_id") REFERENCES "HouseholdMember"("id", "family_id") ON DELETE NO ACTION ON UPDATE NO ACTION;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "DeviceAuditEvent" ADD CONSTRAINT "DeviceAuditEvent_subject_member_erased_check" CHECK (NOT "subject_member_erased" OR "subject_member_id" IS NULL);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Today board weather cache (#262)
 DO $$ BEGIN
@@ -826,12 +819,6 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "Activity" ADD CONSTRAINT "Activity_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "Activity" ADD CONSTRAINT "Activity_subject_member_fkey" FOREIGN KEY ("subject_member_id", "family_id") REFERENCES "HouseholdMember"("id", "family_id") ON DELETE NO ACTION ON UPDATE NO ACTION;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "Activity" ADD CONSTRAINT "Activity_subject_member_erased_check" CHECK (NOT "subject_member_erased" OR "subject_member_id" IS NULL);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -910,7 +897,6 @@ CREATE INDEX IF NOT EXISTS "ListItem_list_id_checked_idx" ON "ListItem"("list_id
 CREATE INDEX IF NOT EXISTS "Activity_family_id_idx" ON "Activity"("family_id");
 CREATE INDEX IF NOT EXISTS "Activity_family_id_created_at_idx" ON "Activity"("family_id", "created_at");
 CREATE INDEX IF NOT EXISTS "Activity_user_id_idx" ON "Activity"("user_id");
-CREATE INDEX IF NOT EXISTS "Activity_family_id_subject_member_id_idx" ON "Activity"("family_id", "subject_member_id");
 
 CREATE INDEX IF NOT EXISTS "Transaction_family_id_idx" ON "Transaction"("family_id");
 CREATE INDEX IF NOT EXISTS "Transaction_family_id_date_idx" ON "Transaction"("family_id", "date");

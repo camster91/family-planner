@@ -46,19 +46,53 @@ describe("member audit-subject expand contract", () => {
       path.join(ROOT, "scripts/migrate.js"),
       "utf8",
     );
-    for (const source of [migration, fresh]) {
-      expect(source).toContain('"subject_member_id"');
-      expect(source).toContain('"subject_member_erased"');
-      expect(source).toContain("ON DELETE NO ACTION ON UPDATE NO ACTION");
-      expect(source).toContain('"family_id", "subject_member_id"');
+    expect(fresh).toContain('"subject_member_id" TEXT');
+    expect(fresh).toContain(
+      '"subject_member_erased" BOOLEAN NOT NULL DEFAULT false',
+    );
+    expect(fresh).not.toContain("subject_member_fkey");
+    expect(fresh).not.toContain("subject_member_erased_check");
+    expect(fresh).not.toContain("family_id_subject_member_id_idx");
+    expect(migration).toContain("FROM pg_attribute");
+    expect(migration).toContain("FROM pg_constraint");
+    expect(migration).toContain("FROM pg_class c");
+    expect(migration).toContain("JOIN pg_index i");
+    expect(migration).toContain("actual_default IS DISTINCT FROM 'false'");
+    expect(migration).toContain("actual_default IS NOT NULL");
+    expect(migration).toContain("ON DELETE NO ACTION ON UPDATE NO ACTION");
+    expect(migration).toContain(
+      "ARRAY[member_attnum, family_attnum]::SMALLINT[]",
+    );
+    expect(migration).toContain(
+      "ARRAY[family_attnum, subject_attnum]::int2vector",
+    );
+    expect(migration).not.toMatch(
+      /ALTER TABLE[\s\S]*?ADD COLUMN IF NOT EXISTS/,
+    );
+    expect(migration).toContain(
+      "CREATE INDEX %I ON %I (family_id, subject_member_id)",
+    );
+    expect(migration).toContain(
+      "CREATE OR REPLACE FUNCTION guard_audit_member_subject()",
+    );
+    expect(migration).toContain(
+      "DROP TRIGGER IF EXISTS activity_member_subject_guard",
+    );
+    expect(migration).toContain(
+      "DROP TRIGGER IF EXISTS device_audit_event_member_subject_guard",
+    );
+    for (const failure of [
+      "must be nullable text without a default",
+      "has an incompatible subject foreign key",
+      "has an incompatible erased-subject check",
+      "has an incompatible subject index",
+    ]) {
+      expect(migration).toContain(failure);
     }
-    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "subject_member_id"');
     expect(migration).toContain(
-      'CREATE INDEX IF NOT EXISTS "Activity_family_id_subject_member_id_idx"',
+      "OLD.subject_member_erased AND NOT NEW.subject_member_erased",
     );
-    expect(migration).toContain(
-      'CREATE INDEX IF NOT EXISTS "DeviceAuditEvent_family_id_subject_member_id_idx"',
-    );
+    expect(migration).toContain("OLD.subject_member_id IS NOT NULL");
     expect(migration).toMatch(/BEGIN;[\s\S]*COMMIT;/);
 
     const accountDeletion = fs.readFileSync(
