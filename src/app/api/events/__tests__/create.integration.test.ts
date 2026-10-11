@@ -54,7 +54,8 @@ describeWithDatabase("events POST capture against Postgres", () => {
   const PARENT = "evt-route-int-parent";
   const OTHER_PARENT = "evt-route-int-other-parent";
   const priorSharedDeviceEnabled = process.env.SHARED_DEVICE_ENABLED;
-  let priorIdempotencyRandom: () => number;
+  let priorIdempotencyRandom: (() => number) | undefined;
+  let setupSucceeded = false;
   let sequence = 0;
 
   const key = (label: string) =>
@@ -154,6 +155,7 @@ describeWithDatabase("events POST capture against Postgres", () => {
     // Avoid nondeterministic housekeeping deleting a concurrent receipt while
     // this suite is proving the route's own idempotency behavior.
     idem.idempotencyRuntime.random = () => 0.99;
+    setupSucceeded = true;
   });
 
   beforeEach(async () => {
@@ -181,21 +183,28 @@ describeWithDatabase("events POST capture against Postgres", () => {
   });
 
   afterAll(async () => {
-    if (!db) return;
-    idem.idempotencyRuntime.random = priorIdempotencyRandom;
+    const database = db;
+    const idempotency = idem;
     try {
-      await db.user.updateMany({
-        where: { id: PARENT },
-        data: { family_id: FAMILY },
-      });
-      await cleanup();
+      // If beforeAll failed, leave its original error visible rather than
+      // allowing partial cleanup to replace it. The connection still closes.
+      if (setupSucceeded && database) {
+        await database.user.updateMany({
+          where: { id: PARENT },
+          data: { family_id: FAMILY },
+        });
+        await cleanup();
+      }
     } finally {
+      if (idempotency && priorIdempotencyRandom) {
+        idempotency.idempotencyRuntime.random = priorIdempotencyRandom;
+      }
       if (priorSharedDeviceEnabled === undefined) {
         delete process.env.SHARED_DEVICE_ENABLED;
       } else {
         process.env.SHARED_DEVICE_ENABLED = priorSharedDeviceEnabled;
       }
-      await db.$disconnect();
+      await database?.$disconnect();
     }
   });
 

@@ -207,6 +207,7 @@ jobs:
           src/lib/weather/__tests__/board-weather.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
+          FIXTURES_ALLOW: "1"
           RUN_DB_INTEGRATION: "1"
 
       # Backup -> restore -> compare -> migrate twice -> Prisma smoke on throwaway
