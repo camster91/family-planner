@@ -35,6 +35,12 @@ const PROJECT_NAMES = new Set([
   "desktop-1366x768",
 ]);
 
+// The events API defaults to a rolling last-30-days window. The capture
+// fixture event is Jan 6, 2026, so cleanup and marker assertions use the
+// documented bounded range endpoint around the fixed E2E anchor.
+const CAPTURE_EVENT_RANGE =
+  "/api/events?start=2026-01-05T00%3A00%3A00.000Z&end=2026-01-12T00%3A00%3A00.000Z&limit=200";
+
 interface RuntimeIdentity {
   runtime: { version: string; commit: string; builtAt: string };
   buildId: string;
@@ -318,6 +324,32 @@ async function restoreEnvelope(
   );
 }
 
+async function discoverOwnedCaptureEvents(
+  page: Page,
+  fixture: FixtureEventIdentity,
+  title: string,
+): Promise<string[]> {
+  const list = await browserFetch(page, CAPTURE_EVENT_RANGE);
+  expect(list.status, list.body).toBe(200);
+  const data = JSON.parse(list.body) as { events?: unknown };
+  if (!Array.isArray(data.events)) {
+    throw new Error("Capture event query did not return an events array");
+  }
+  return data.events.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const event = value as {
+      id?: unknown;
+      title?: unknown;
+      creator?: { id?: unknown } | null;
+    };
+    return event.title === title &&
+      event.creator?.id === fixture.userId &&
+      typeof event.id === "string"
+      ? [event.id]
+      : [];
+  });
+}
+
 interface FixtureEventIdentity {
   userId: string;
   familyId: string;
@@ -340,29 +372,10 @@ async function cleanupOwnedCaptureEvents(
   assertFixtureTargetAllowed(process.env);
   expect(fixture.userId).toBe(FIXTURE_IDS.familyA.parent);
   expect(fixture.familyId).toBe(FIXTURE_IDS.familyA.family);
-  const list = await browserFetch(page, "/api/events");
-  expect(list.status, list.body).toBe(200);
-  const data = JSON.parse(list.body) as { events?: unknown };
-  if (!Array.isArray(data.events)) {
-    throw new Error("Capture cleanup refused: event listing was not an array");
-  }
-  const candidateIds = new Set<string>();
+  const candidateIds = new Set(
+    await discoverOwnedCaptureEvents(page, fixture, title),
+  );
   if (knownEventId) candidateIds.add(knownEventId);
-  for (const value of data.events) {
-    if (!value || typeof value !== "object") continue;
-    const event = value as {
-      id?: unknown;
-      title?: unknown;
-      creator?: { id?: unknown } | null;
-    };
-    if (
-      event.title === title &&
-      event.creator?.id === fixture.userId &&
-      typeof event.id === "string"
-    ) {
-      candidateIds.add(event.id);
-    }
-  }
 
   const deleted: string[] = [];
   for (const candidateId of candidateIds) {
@@ -454,6 +467,7 @@ test.describe("capture receipt recovery", () => {
 
     let eventPostCount = 0;
     let createdEventId: string | null = null;
+    const serverEventIds: string[] = [];
     const eventRequests: Array<{ key?: string; body?: string }> = [];
     let receiptMode: "actual" | "unknown" | "absent" = "actual";
     await page.route("**/api/events", async (route) => {
@@ -468,17 +482,25 @@ test.describe("capture receipt recovery", () => {
         body: request.postData() ?? undefined,
       });
       const response = await route.fetch();
+      const responseBody = await response.body();
+      const body = JSON.parse(responseBody.toString("utf8")) as {
+        event?: { id?: unknown };
+      };
+      expect([200, 201]).toContain(response.status());
+      expect(typeof body.event?.id).toBe("string");
+      serverEventIds.push(String(body.event?.id));
       if (eventPostCount === 1) {
-        const body = (await response.json()) as { event?: { id?: unknown } };
-        expect([200, 201]).toContain(response.status());
-        expect(typeof body.event?.id).toBe("string");
         createdEventId = String(body.event?.id);
         // The server has committed the event and receipt; only the client
         // response is lost, exactly like a dropped connection after commit.
         await route.abort("connectionreset");
         return;
       }
-      await route.fulfill({ response });
+      await route.fulfill({
+        status: response.status(),
+        headers: response.headers(),
+        body: responseBody,
+      });
     });
     await page.route("**/api/capture/receipt", async (route) => {
       if (receiptMode === "actual") {
@@ -550,6 +572,10 @@ test.describe("capture receipt recovery", () => {
       expect(eventRequests).toHaveLength(2);
       expect(eventRequests[1]!.key).toBe(eventRequests[0]!.key);
       expect(eventRequests[1]!.body).toBe(eventRequests[0]!.body);
+      expect(serverEventIds).toEqual([createdEventId, createdEventId]);
+      expect(
+        await discoverOwnedCaptureEvents(page, fixture, eventTitle),
+      ).toHaveLength(1);
 
       // Recreate only the local envelope for the reload proof. This is a test
       // harness restoration, not another write or a second operation.
@@ -559,6 +585,9 @@ test.describe("capture receipt recovery", () => {
         eventTitle,
       );
       expect(eventPostCount).toBe(2);
+      expect(
+        await discoverOwnedCaptureEvents(page, fixture, eventTitle),
+      ).toHaveLength(1);
       await captureState(page, info, identity, "reload-pending");
 
       await page
@@ -584,6 +613,9 @@ test.describe("capture receipt recovery", () => {
         `/api/events?id=${encodeURIComponent(createdEventId!)}`,
       );
       expect(absentEvent.status).toBe(404);
+      expect(
+        await discoverOwnedCaptureEvents(page, fixture, eventTitle),
+      ).toHaveLength(0);
 
       await restoreEnvelope(page, storageKey, envelope);
       await page.reload();
