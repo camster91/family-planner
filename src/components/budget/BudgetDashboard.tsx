@@ -35,6 +35,112 @@ function formatCurrency(amount: number, locale: string): string {
   }).format(Math.abs(amount))
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isCategoryBreakdown(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  return (
+    (typeof value.category_id === 'string' || value.category_id === null) &&
+    typeof value.name === 'string' &&
+    typeof value.icon === 'string' &&
+    typeof value.color === 'string' &&
+    (value.budget_limit === null || isFiniteNumber(value.budget_limit)) &&
+    isFiniteNumber(value.total) &&
+    isFiniteNumber(value.percentage)
+  )
+}
+
+function isRecentTransaction(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  const category = value.category
+  const user = value.user
+  const validCategory =
+    category === null ||
+    (isRecord(category) &&
+      typeof category.id === 'string' &&
+      typeof category.name === 'string' &&
+      typeof category.icon === 'string' &&
+      typeof category.color === 'string')
+  const validUser =
+    isRecord(user) &&
+    typeof user.id === 'string' &&
+    typeof user.name === 'string' &&
+    isNullableString(user.avatar_url)
+  return (
+    typeof value.id === 'string' &&
+    isFiniteNumber(value.amount) &&
+    typeof value.type === 'string' &&
+    isNullableString(value.description) &&
+    typeof value.date === 'string' &&
+    typeof value.is_recurring === 'boolean' &&
+    isNullableString(value.recurring_interval) &&
+    validCategory &&
+    validUser
+  )
+}
+
+interface NormalizedBudgetData extends BudgetPageData {
+  monthly_trend: BudgetPageData['monthly_trend']
+}
+
+/**
+ * Validate the response before replacing the last known good dashboard.
+ * The route intentionally omits `balance` on trend rows, so fill that
+ * derived field while accepting the route's actual wire shape.
+ */
+function normalizeBudgetData(value: unknown): NormalizedBudgetData | null {
+  if (!isRecord(value)) return null
+  if (
+    typeof value.month !== 'string' ||
+    !isFiniteNumber(value.total_income) ||
+    !isFiniteNumber(value.total_expenses) ||
+    !isFiniteNumber(value.balance) ||
+    (value.budget_limit !== null && !isFiniteNumber(value.budget_limit)) ||
+    !Array.isArray(value.category_breakdown) ||
+    !value.category_breakdown.every(isCategoryBreakdown) ||
+    !Array.isArray(value.recent_transactions) ||
+    !value.recent_transactions.every(isRecentTransaction) ||
+    !Array.isArray(value.monthly_trend)
+  ) {
+    return null
+  }
+
+  const monthlyTrend = value.monthly_trend.map((entry) => {
+    if (!isRecord(entry) || typeof entry.month !== 'string' || !isFiniteNumber(entry.income) || !isFiniteNumber(entry.expenses)) {
+      return null
+    }
+    if ('balance' in entry && !isFiniteNumber(entry.balance)) return null
+    return {
+      month: entry.month,
+      income: entry.income,
+      expenses: entry.expenses,
+      balance: 'balance' in entry ? entry.balance as number : entry.income - entry.expenses,
+    }
+  })
+
+  if (monthlyTrend.some((entry) => entry === null)) return null
+  return {
+    month: value.month,
+    total_income: value.total_income,
+    total_expenses: value.total_expenses,
+    balance: value.balance,
+    budget_limit: value.budget_limit,
+    category_breakdown: value.category_breakdown as BudgetPageData['category_breakdown'],
+    recent_transactions: value.recent_transactions as BudgetPageData['recent_transactions'],
+    monthly_trend: monthlyTrend as BudgetPageData['monthly_trend'],
+  }
+}
+
 // Transaction dates are date-only values stored as UTC midnight. Group and
 // label them by that UTC calendar day (`YYYY-MM-DD` keys): local getters would
 // file them under the previous day west of UTC.
@@ -105,6 +211,8 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const [isLoading, setIsLoading] = React.useState(false)
   const [refreshError, setRefreshError] = React.useState<'server' | 'network' | null>(null)
   const refreshInFlight = React.useRef(false)
+  const refreshQueued = React.useRef(false)
+  const refreshDataRef = React.useRef<() => Promise<void>>(async () => {})
 
   // All transactions from the data
   const allTransactions = data.recent_transactions as Transaction[]
@@ -127,7 +235,13 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const ring = budgetProgress(spent, budgetLimit)
 
   const refreshData = React.useCallback(async () => {
-    if (refreshInFlight.current) return
+    if (refreshInFlight.current) {
+      // A save/delete can finish while an older refresh is still resolving.
+      // Keep that invalidation so the eventual response cannot win with stale
+      // rows from before the mutation.
+      refreshQueued.current = true
+      return
+    }
     refreshInFlight.current = true
     setIsLoading(true)
     setRefreshError(null)
@@ -139,20 +253,28 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
         setRefreshError('server')
         return
       }
-      const json = await res.json()
-      setData({
-        ...json,
-        monthly_trend: json.monthly_trend,
-        recent_transactions: json.recent_transactions,
-        category_breakdown: json.category_breakdown,
-      } as BudgetPageData)
+      const json = await res.json().catch(() => undefined)
+      const nextData = normalizeBudgetData(json)
+      if (!nextData) {
+        setRefreshError('server')
+        return
+      }
+      setData(nextData)
     } catch {
       setRefreshError('network')
     } finally {
+      const shouldRefreshAgain = refreshQueued.current
+      refreshQueued.current = false
       refreshInFlight.current = false
-      setIsLoading(false)
+      if (shouldRefreshAgain) {
+        void refreshDataRef.current()
+      } else {
+        setIsLoading(false)
+      }
     }
   }, [])
+
+  refreshDataRef.current = refreshData
 
   // The server renders the UTC month. If the viewer's local month differs
   // (e.g. the evening of the 31st west of UTC), load their month instead.

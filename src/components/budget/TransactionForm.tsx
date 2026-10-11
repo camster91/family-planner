@@ -40,6 +40,76 @@ const FIELD_CLASS =
   'w-full min-h-[44px] px-4 py-2.5 bg-[var(--surface-secondary)] border border-[var(--surface-separator)] rounded-xl text-body text-label-primary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors placeholder:text-label-tertiary'
 const LABEL_CLASS = 'block text-subhead font-medium text-label-secondary mb-2'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isCategory(value: unknown): value is Category {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.icon === 'string' &&
+    typeof value.color === 'string' &&
+    typeof value.type === 'string' &&
+    (value.budget_limit === null || (typeof value.budget_limit === 'number' && Number.isFinite(value.budget_limit)))
+  )
+}
+
+function parseCategoriesResponse(value: unknown): Category[] | null {
+  if (!isRecord(value) || !Array.isArray(value.categories) || !value.categories.every(isCategory)) return null
+  return value.categories
+}
+
+const PERMISSION_ERROR_CODES = new Set([
+  'UNAUTHORIZED',
+  'FORBIDDEN',
+  'PARENT_REQUIRED',
+  'FAMILY_REQUIRED',
+  'DEVICE_WRITE_NOT_ALLOWED',
+  'DEVICE_WRITES_OFF',
+  'FEATURE_DISABLED',
+  'PERSON_SESSION_REQUIRED',
+])
+
+const CONFLICT_ERROR_CODES = new Set([
+  'CONFLICT',
+  'IDENTITY_CONFLICT',
+  'DUPLICATE_OPEN_ITEM',
+  'ALREADY_EXISTS',
+])
+
+function errorCode(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const code = value.trim().toUpperCase()
+    return /^[A-Z][A-Z0-9_]*$/.test(code) ? code : null
+  }
+  if (!isRecord(value)) return null
+  for (const candidate of [value.code, value.errorCode, value.error]) {
+    const code = errorCode(candidate)
+    if (code) return code
+  }
+  return null
+}
+
+function mutationErrorMessage(
+  payload: unknown,
+  status: number,
+  action: 'save' | 'delete',
+  text: ReturnType<typeof useBudgetText>
+): string {
+  const code = errorCode(payload)
+  if (status === 401 || status === 403 || (code !== null && PERMISSION_ERROR_CODES.has(code))) {
+    return text(action === 'save' ? 'saveFailed' : 'deleteFailed')
+  }
+  if (status === 409 || (code !== null && CONFLICT_ERROR_CODES.has(code))) {
+    return text(action === 'save' ? 'saveFailed' : 'deleteFailed')
+  }
+  // Never render server-controlled messages. They can be objects, English
+  // implementation details, or contain private data from another boundary.
+  return text(action === 'save' ? 'saveFailed' : 'deleteFailed')
+}
+
 export default function TransactionForm({ onClose, onSuccess, onDeleted, initialData }: TransactionFormProps) {
   const isEditing = !!initialData
   const text = useBudgetText()
@@ -91,9 +161,14 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
         setCategoryError('server')
         return
       }
-      const json = await res.json()
+      const json = await res.json().catch(() => undefined)
       if (categoryRequest.current.token !== token) return
-      setCategories(json.categories ?? [])
+      const nextCategories = parseCategoriesResponse(json)
+      if (!nextCategories) {
+        setCategoryError('server')
+        return
+      }
+      setCategories(nextCategories)
     } catch {
       if (categoryRequest.current.token !== token) return
       setCategoryError('network')
@@ -171,8 +246,8 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
       })
 
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error || text('saveFailed'))
+        const json = await res.json().catch(() => undefined)
+        setError(mutationErrorMessage(json, res.status, 'save', text))
         submitInFlight.current = false
         setIsSubmitting(false)
         return
@@ -197,8 +272,8 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
     try {
       const res = await fetch(`/api/budget/transactions/${initialData.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error || text('deleteFailed'))
+        const json = await res.json().catch(() => undefined)
+        setError(mutationErrorMessage(json, res.status, 'delete', text))
         deleteInFlight.current = false
         setIsDeleting(false)
         setConfirmingDelete(false)
