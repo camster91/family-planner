@@ -1060,21 +1060,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/features/page.tsx",
-    "text": ". Turn that on first.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/features/page.tsx",
-    "text": "Features",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/features/page.tsx",
-    "text": "Needs",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": ". It opens the handoff without signing in.",
     "count": 1
