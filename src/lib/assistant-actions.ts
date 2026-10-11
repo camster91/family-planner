@@ -70,6 +70,17 @@ export const assistantActionSchema = z.discriminatedUnion("kind", [
         "budget",
         "rewards",
         "analytics",
+        "anniversaries",
+        "gamification",
+        "messages",
+        "wishlist",
+        "emergency",
+        "locations",
+        "pickups",
+        "allowance",
+        "travel",
+        "handoff",
+        "sick-days",
         "routines",
         "recipes",
       ]),
@@ -84,7 +95,7 @@ export const assistantReplySchema = z
   })
   .strict();
 export type AssistantReply = z.infer<typeof assistantReplySchema>;
-type AssistantDestination = Extract<
+export type AssistantDestination = Extract<
   AssistantAction,
   { kind: "open" }
 >["destination"];
@@ -98,7 +109,7 @@ const destinations: Record<
   chores: { path: "/dashboard/chores", feature: "chores" },
   lists: { path: "/dashboard/lists", feature: "lists" },
   meals: { path: "/dashboard/meals", feature: "meals" },
-  family: { path: "/dashboard/family" },
+  family: { path: "/dashboard/family", feature: "family" },
   features: { path: "/dashboard/features" },
   settings: { path: "/dashboard/settings" },
   notes: { path: "/dashboard/notes", feature: "notes" },
@@ -107,6 +118,20 @@ const destinations: Record<
   budget: { path: "/dashboard/budget", feature: "budget" },
   rewards: { path: "/dashboard/rewards", feature: "rewards" },
   analytics: { path: "/dashboard/analytics", feature: "analytics" },
+  anniversaries: {
+    path: "/dashboard/anniversaries",
+    feature: "anniversaries",
+  },
+  gamification: { path: "/dashboard/analytics", feature: "gamification" },
+  messages: { path: "/dashboard/messages", feature: "messages" },
+  wishlist: { path: "/dashboard/wishlist", feature: "wishlist" },
+  emergency: { path: "/dashboard/emergency", feature: "emergency" },
+  locations: { path: "/dashboard/locations", feature: "locations" },
+  pickups: { path: "/dashboard/pickups", feature: "pickups" },
+  allowance: { path: "/dashboard/allowance", feature: "allowance" },
+  travel: { path: "/dashboard/travel", feature: "travel" },
+  handoff: { path: "/dashboard/handoff", feature: "handoff" },
+  "sick-days": { path: "/dashboard/sick-days", feature: "sick-days" },
   routines: { path: "/dashboard/chores", feature: "chores" },
   recipes: { path: "/dashboard/meals/explore", feature: "meals" },
 };

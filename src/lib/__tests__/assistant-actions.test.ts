@@ -3,9 +3,20 @@ import {
   canUseAssistantAction,
   assistantDestination,
   assistantPrompt,
+  type AssistantDestination,
 } from "../assistant-actions";
-import { defaultFeatures } from "../features";
-import { assistantEnglish, assistantSpanish } from "@/i18n/assistant";
+import { defaultFeatures, FEATURES, type FamilyFeatures } from "../features";
+import {
+  assistantDestinationLabels,
+  assistantEnglish,
+  assistantSpanish,
+} from "@/i18n/assistant";
+
+function allFeaturesOn(): FamilyFeatures {
+  return Object.fromEntries(
+    FEATURES.map(({ key }) => [key, true]),
+  ) as FamilyFeatures;
+}
 it("rejects arbitrary URLs, code tools and record ids from AI", () => {
   expect(
     assistantReplySchema.safeParse({
@@ -55,6 +66,65 @@ it("gates disabled domains and parent destinations", () => {
     canUseAssistantAction({ kind: "open", destination: "features" }, "teen", f),
   ).toBe(false);
   expect(assistantDestination("recipes")).toBe("/dashboard/meals/explore");
+});
+it("maps every canonical feature to a fixed safe destination and gates it", () => {
+  const allOn = allFeaturesOn();
+
+  for (const feature of FEATURES) {
+    const action = {
+      kind: "open",
+      destination: feature.key as AssistantDestination,
+    } as const;
+
+    expect(
+      assistantReplySchema.safeParse({ reply: "Open it", action }).success,
+    ).toBe(true);
+    expect(assistantDestination(feature.key)).toBe(feature.href);
+    expect(canUseAssistantAction(action, "parent", allOn)).toBe(true);
+    expect(
+      canUseAssistantAction(action, "parent", {
+        ...allOn,
+        [feature.key]: false,
+      }),
+    ).toBe(false);
+  }
+
+  const teenAllowed = new Set([
+    "calendar",
+    "lists",
+    "meals",
+    "notes",
+    "inventory",
+    "wishlist",
+    "emergency",
+    "allowance",
+    "handoff",
+    "sick-days",
+  ]);
+  for (const feature of FEATURES) {
+    const action = {
+      kind: "open",
+      destination: feature.key as AssistantDestination,
+    } as const;
+    expect(canUseAssistantAction(action, "teen", allOn)).toBe(
+      teenAllowed.has(feature.key),
+    );
+    expect(canUseAssistantAction(action, "child", allOn)).toBe(false);
+  }
+
+  expect(Object.keys(assistantDestinationLabels.es).sort()).toEqual(
+    Object.keys(assistantDestinationLabels.en).sort(),
+  );
+  for (const destination of Object.keys(
+    assistantDestinationLabels.en,
+  ) as AssistantDestination[]) {
+    expect(assistantDestinationLabels.en[destination]).not.toBe("");
+    expect(assistantDestinationLabels.es[destination]).not.toBe("");
+  }
+  expect(assistantDestinationLabels.en["sick-days"]).toBe("Sick days & meds");
+  expect(assistantDestinationLabels.es["sick-days"]).toBe(
+    "Días de enfermedad y medicinas",
+  );
 });
 it("parses and localizes analytics navigation while enforcing role and dependency gates", () => {
   const allOn = {
@@ -111,7 +181,7 @@ it("keeps the model's feature map and open catalog truthful for role and depende
 
   const teenCatalog = assistantPrompt("teen", allOn);
   expect(teenCatalog).toContain(
-    '"destination":"today|calendar|lists|meals|settings|notes|inventory|recipes"',
+    '"destination":"today|calendar|lists|meals|settings|notes|inventory|emergency|recipes"',
   );
   expect(teenCatalog).not.toContain('"analytics|');
   expect(teenCatalog).not.toContain('|analytics"');

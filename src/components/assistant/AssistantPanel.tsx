@@ -23,6 +23,7 @@ import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 import { useTranslation } from "@/i18n";
 import {
   assistantMessages,
+  assistantDestinationLabels,
   type AssistantMessage,
   type VoiceErrorCode,
 } from "@/i18n/assistant";
@@ -140,7 +141,7 @@ export default function AssistantPanel({
 }: AssistantPanelProps) {
   const router = useRouter(),
     { features } = useFeatures();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const msg = (
     key: AssistantMessage,
     params?: Record<string, string | number>,
@@ -819,9 +820,7 @@ export default function AssistantPanel({
                   <p>
                     {msg("open", {
                       destination:
-                        action.destination === "analytics"
-                          ? msg("analytics")
-                          : action.destination,
+                        assistantDestinationLabels[locale][action.destination],
                     })}
                   </p>
                 )}
