@@ -165,9 +165,9 @@ export default function FeaturesPage() {
             clearLabel={copy('clearSearch')}
           />
         </label>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <nav
-            className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1"
+            className="flex min-w-0 basis-full flex-wrap gap-1 pb-1 sm:basis-auto sm:flex-1"
             aria-label={copy('groupNavigation')}
           >
             {groupRows.map((group) => {

@@ -189,6 +189,24 @@ for (const locale of ["en", "es"] as const) {
         name: copy.navigation,
         exact: true,
       });
+      const groupButtons = groups.getByRole("button");
+      await expect(groupButtons).toHaveCount(3);
+      for (let index = 0; index < 3; index += 1) {
+        const groupButton = groupButtons.nth(index);
+        const box = await groupButton.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(
+          page.viewportSize()!.width,
+        );
+      }
+      const groupWidth = await groups.evaluate((element) => ({
+        client: element.clientWidth,
+        scroll: element.scrollWidth,
+      }));
+      expect(groupWidth.scroll).toBeLessThanOrEqual(groupWidth.client + 1);
       const planning = page.locator("#feature-group-planning");
       const core = page.locator("#feature-group-core");
       const family = page.locator("#feature-group-family");
