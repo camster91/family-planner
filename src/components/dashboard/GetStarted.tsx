@@ -8,63 +8,14 @@ import { BrandIllustration } from '@/components/ui/brand-illustration'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { cn } from '@/lib/utils'
 import { allStepsDone, type GetStartedSteps } from '@/app/dashboard/today/get-started-data'
+import { getStartedStorageKey, useGetStartedHidden, writeVisibilityHidden } from './get-started-visibility'
+
+export { getStartedStorageKey, useGetStartedHidden } from './get-started-visibility'
 
 export interface GetStartedProps {
   viewer: { role: string }
   familyId: string
   steps: GetStartedSteps
-}
-
-const STORAGE_PREFIX = 'fp:get-started-hidden:'
-
-export function getStartedStorageKey(familyId: string): string {
-  return `${STORAGE_PREFIX}${familyId}`
-}
-
-// Hide is remembered per household in this browser. Storage can be missing or
-// throw (private mode, blocked site data), so every access is guarded and the
-// card simply shows again.
-const listeners = new Set<() => void>()
-
-function readHidden(familyId: string): boolean {
-  try {
-    return window.localStorage.getItem(getStartedStorageKey(familyId)) === '1'
-  } catch {
-    return false
-  }
-}
-
-function writeHidden(familyId: string, hidden: boolean): void {
-  try {
-    const key = getStartedStorageKey(familyId)
-    if (hidden) window.localStorage.setItem(key, '1')
-    else window.localStorage.removeItem(key)
-  } catch {
-    // Not remembered; it still hides for this visit (see `hiddenNow`).
-  }
-  listeners.forEach((l) => l())
-}
-
-function subscribe(onChange: () => void): () => void {
-  listeners.add(onChange)
-  window.addEventListener('storage', onChange)
-  return () => {
-    listeners.delete(onChange)
-    window.removeEventListener('storage', onChange)
-  }
-}
-
-/**
- * Whether a parent hid the Get started card for this household in this
- * browser. The "Turn on more" card (./FeatureSuggestions.tsx) waits for it.
- * False on the server and during hydration.
- */
-export function useGetStartedHidden(familyId: string): boolean {
-  return React.useSyncExternalStore(
-    subscribe,
-    () => readHidden(familyId),
-    () => false
-  )
 }
 
 /**
@@ -113,11 +64,11 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
 
   const hide = () => {
     setHiddenNow(true)
-    writeHidden(familyId, true)
+    writeVisibilityHidden(getStartedStorageKey(familyId), true)
     showUndo({
       title: 'Get started hidden',
       onUndo: () => {
-        writeHidden(familyId, false)
+        writeVisibilityHidden(getStartedStorageKey(familyId), false)
         setHiddenNow(false)
       },
     })

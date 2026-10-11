@@ -29,7 +29,12 @@ import { TabBar } from "@/components/ui/tab-bar";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 import DeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
 import { useFeatures } from "@/components/providers/features-provider";
-import { homeHrefFor, isTabActive, navItems, tabsFor } from "@/lib/nav-items";
+import {
+  homeHrefFor,
+  isTabActive,
+  kidFeatureNavItems,
+  tabsFor,
+} from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
 import { useTranslation } from "@/i18n";
 import {
@@ -42,12 +47,13 @@ interface DashboardNavProps {
   user: NavUser | null;
 }
 
-const KID_FEATURE_MENU_LABEL_KEYS: Readonly<Record<string, NavigationMessage>> = {
-  "/dashboard/wishlist": "wishlist",
-  "/dashboard/allowance": "allowance",
-  "/dashboard/handoff": "handoff",
-  "/dashboard/sick-days": "sickDays",
-};
+const KID_FEATURE_MENU_LABEL_KEYS: Readonly<Record<string, NavigationMessage>> =
+  {
+    "/dashboard/wishlist": "wishlist",
+    "/dashboard/allowance": "allowance",
+    "/dashboard/handoff": "handoff",
+    "/dashboard/sick-days": "sickDays",
+  };
 
 export default function DashboardNav({ user }: DashboardNavProps) {
   const { t } = useTranslation();
@@ -86,7 +92,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   // Family → More page. Reuse the command-palette source entries so labels and
   // icons stay aligned, then apply the same role and effective-feature gates.
   const kidFeatureItems = isKid
-    ? navItems
+    ? kidFeatureNavItems
         .filter(
           (item) =>
             item.href in KID_FEATURE_MENU_LABEL_KEYS &&
@@ -280,7 +286,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
-                        <Compass className="w-4 h-4 text-label-secondary" aria-hidden="true" />
+                        <Compass
+                          className="w-4 h-4 text-label-secondary"
+                          aria-hidden="true"
+                        />
                         {msg("explore")}
                       </Link>
                     )}

@@ -7,7 +7,15 @@ import { useFeatures } from '@/components/providers/features-provider'
 import { useMaybeToast, useUndoToast } from '@/components/ui/toast'
 import { isFeatureEnabled, type FamilyFeatures, type FeatureKey } from '@/lib/features'
 import { cn } from '@/lib/utils'
-import { useGetStartedHidden } from './GetStarted'
+import { pickFeatureSuggestionKeys } from './feature-suggestion-keys'
+import {
+  featureSuggestionsStorageKey,
+  useFeatureSuggestionsHidden,
+  useGetStartedHidden,
+  writeVisibilityHidden,
+} from './get-started-visibility'
+
+export { featureSuggestionsStorageKey } from './get-started-visibility'
 
 /**
  * "Turn on more" (O-38): new households start with six sections on. Once a
@@ -75,45 +83,8 @@ export const MAX_SUGGESTIONS = 3
 
 /** The suggestions to offer for these flags: popular sections that are off, at most three. */
 export function pickSuggestions(features: FamilyFeatures): FeatureSuggestion[] {
-  return FEATURE_SUGGESTIONS.filter((s) => !isFeatureEnabled(features, s.key)).slice(0, MAX_SUGGESTIONS)
-}
-
-const STORAGE_PREFIX = 'fp:feature-suggestions-hidden:'
-
-export function featureSuggestionsStorageKey(familyId: string): string {
-  return `${STORAGE_PREFIX}${familyId}`
-}
-
-// Same pattern as GetStarted: per household, in this browser, every storage
-// access guarded (private mode or blocked site data just shows it again).
-const listeners = new Set<() => void>()
-
-function readHidden(familyId: string): boolean {
-  try {
-    return window.localStorage.getItem(featureSuggestionsStorageKey(familyId)) === '1'
-  } catch {
-    return false
-  }
-}
-
-function writeHidden(familyId: string, hidden: boolean): void {
-  try {
-    const key = featureSuggestionsStorageKey(familyId)
-    if (hidden) window.localStorage.setItem(key, '1')
-    else window.localStorage.removeItem(key)
-  } catch {
-    // Not remembered; it still hides for this visit (see `hiddenNow`).
-  }
-  listeners.forEach((l) => l())
-}
-
-function subscribe(onChange: () => void): () => void {
-  listeners.add(onChange)
-  window.addEventListener('storage', onChange)
-  return () => {
-    listeners.delete(onChange)
-    window.removeEventListener('storage', onChange)
-  }
+  const keys = pickFeatureSuggestionKeys(features, MAX_SUGGESTIONS)
+  return FEATURE_SUGGESTIONS.filter((s) => keys.includes(s.key))
 }
 
 export interface FeatureSuggestionsProps {
@@ -121,22 +92,20 @@ export interface FeatureSuggestionsProps {
   familyId: string
   /** All Get started steps are done (from the server). */
   setupDone: boolean
+  /** Captured by the Today wrapper before this optional card is loaded. */
+  initialPicked?: readonly FeatureKey[]
 }
 
-export default function FeatureSuggestions({ viewer, familyId, setupDone }: FeatureSuggestionsProps) {
+export default function FeatureSuggestions({ viewer, familyId, setupDone, initialPicked }: FeatureSuggestionsProps) {
   const { features, updateFeatures, canManage } = useFeatures()
   const showUndo = useUndoToast()
   const { addToast } = useMaybeToast()
   const getStartedHidden = useGetStartedHidden(familyId)
-  const stored = React.useSyncExternalStore(
-    subscribe,
-    () => readHidden(familyId),
-    () => false
-  )
+  const stored = useFeatureSuggestionsHidden(familyId)
   const [hiddenNow, setHiddenNow] = React.useState(false)
   // Chosen once per visit, so a row turned on stays put (as "On" with a link)
   // instead of the list reshuffling under the parent's finger.
-  const [picked] = React.useState(() => pickSuggestions(features).map((s) => s.key))
+  const [picked] = React.useState(() => initialPicked?.slice() ?? pickSuggestions(features).map((s) => s.key))
   const [busy, setBusy] = React.useState<FeatureKey | null>(null)
   const headingId = React.useId()
 
@@ -171,12 +140,12 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone }: Feat
 
   const notNow = () => {
     setHiddenNow(true)
-    writeHidden(familyId, true)
+    writeVisibilityHidden(featureSuggestionsStorageKey(familyId), true)
     showUndo({
       title: 'Suggestions hidden',
       message: 'You can turn sections on any time in Features.',
       onUndo: () => {
-        writeHidden(familyId, false)
+        writeVisibilityHidden(featureSuggestionsStorageKey(familyId), false)
         setHiddenNow(false)
       },
     })
