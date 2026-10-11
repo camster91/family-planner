@@ -102,4 +102,24 @@ describe('lazy Today board surfaces', () => {
       consoleError.mockRestore()
     }
   })
+
+  it('catches an actual rejected React.lazy import', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const RejectedChunk = React.lazy(async () => {
+      throw new Error('synthetic import rejection')
+    })
+
+    try {
+      render(
+        <LazyChunkBoundary fallback={<p role="alert">Try again</p>}>
+          <React.Suspense fallback={<p role="status">Loading...</p>}>
+            <RejectedChunk />
+          </React.Suspense>
+        </LazyChunkBoundary>,
+      )
+      expect(await screen.findByRole('alert')).toHaveTextContent('Try again')
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
 })
