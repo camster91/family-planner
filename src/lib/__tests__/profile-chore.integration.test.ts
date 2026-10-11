@@ -700,6 +700,63 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
     ).toBe("profile_unavailable");
   });
 
+  it("keeps erased profile chore identity sticky while allowing history status edits", async () => {
+    const row = await createChore(CHILD_A, "Sticky erased profile chore");
+
+    // Mirror the lifecycle erasure state: the identifying profile subject is
+    // cleared, while the non-identifying tombstone preserves the history row.
+    await sql.query(
+      'UPDATE "Chore" SET assigned_member_id = NULL, member_subject_erased = TRUE WHERE id = $1',
+      [row.id],
+    );
+
+    // Ordinary history changes remain valid after subject erasure. The trigger
+    // must guard only the identifying assignment fields, not status history.
+    const statusUpdate = await sql.query<{
+      status: string;
+      assigned_to: string | null;
+      assigned_member_id: string | null;
+      member_subject_erased: boolean;
+    }>(
+      'UPDATE "Chore" SET status = $1 WHERE id = $2 RETURNING status, assigned_to, assigned_member_id, member_subject_erased',
+      ["completed", row.id],
+    );
+    expect(statusUpdate.rows).toEqual([
+      {
+        status: "completed",
+        assigned_to: null,
+        assigned_member_id: null,
+        member_subject_erased: true,
+      },
+    ]);
+
+    // A parent may not relink retained profile history to an account after
+    // erasure, even when the account is in the same household.
+    await expectSqlFailure(
+      'UPDATE "Chore" SET assigned_to = $1 WHERE id = $2',
+      [PARENT_A, row.id],
+      "23514",
+    );
+
+    const retained = await sql.query<{
+      status: string;
+      assigned_to: string | null;
+      assigned_member_id: string | null;
+      member_subject_erased: boolean;
+    }>(
+      'SELECT status, assigned_to, assigned_member_id, member_subject_erased FROM "Chore" WHERE id = $1',
+      [row.id],
+    );
+    expect(retained.rows).toEqual([
+      {
+        status: "completed",
+        assigned_to: null,
+        assigned_member_id: null,
+        member_subject_erased: true,
+      },
+    ]);
+  });
+
   it("keeps same-name catalog objects semantically attached to their profile tables", async () => {
     const constraints = await sql.query<{
       name: string;
