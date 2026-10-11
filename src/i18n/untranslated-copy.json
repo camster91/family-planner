@@ -2770,36 +2770,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/travel/page.tsx",
-    "text": "e.g. Costa Rica",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/travel/page.tsx",
-    "text": "OFF",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/travel/page.tsx",
-    "text": "ON",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/travel/page.tsx",
-    "text": "Turn off travel mode",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/travel/page.tsx",
-    "text": "Turn on travel mode",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/travel/page.tsx",
-    "text": "Unassigned",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/wishlist/page.tsx",
     "text": "&apos;s wishes",
     "count": 1
