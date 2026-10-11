@@ -5,6 +5,8 @@ import { Sparkles, Loader2, Check, X, ListPlus, CalendarDays, ClipboardList, Cam
 import { CAPTURE_CHILD_MESSAGE } from '@/lib/role-capabilities'
 import { newIdempotencyKey } from '@/lib/idempotency-key'
 import { localDateTimeToISO } from '@/lib/dates'
+import { useTranslation } from '@/i18n'
+import { captureMessages, type CaptureMessage } from '@/i18n/capture'
 import {
   activateCaptureRecoveryStorage,
   CAPTURE_RECOVERY_RETENTION_MS,
@@ -134,6 +136,9 @@ export function CaptureBox({
   /** Called after anything is saved, so the host page can re-request its data. */
   onSaved?: () => void
 } = {}) {
+  const { t } = useTranslation()
+  const msg = (key: CaptureMessage, params?: Record<string, string | number>) =>
+    t(key, params, captureMessages)
   const [text, setText] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [draft, setDraft] = React.useState<Draft | null>(null)
@@ -475,7 +480,7 @@ export function CaptureBox({
 
   const KindIcon = draft ? KIND_ICON[draft.kind] : Sparkles
   return (
-    <div className="card-apple p-4">
+    <div className="card-apple p-4" data-testid="capture-box">
       <div className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4 text-[var(--accent)]" />
         <h2 className="text-headline">Quick add</h2>
@@ -553,8 +558,8 @@ export function CaptureBox({
         >
           {recoveryOperations.length > 0 && (
             <>
-              <h3 id="capture-recovery-title" className="text-body font-medium">Needs attention</h3>
-              <p className="text-footnote text-label-secondary mt-1">A previous add may have completed. Check its status before making a new preview.</p>
+              <h3 id="capture-recovery-title" className="text-body font-medium">{msg('needsAttention')}</h3>
+              <p className="text-footnote text-label-secondary mt-1">{msg('previousAddHint')}</p>
               <ul className="mt-2 space-y-2">
                 {recoveryOperations.map((row) => {
                   const busyRecovery = recoveryBusyKey === row.key
@@ -566,17 +571,17 @@ export function CaptureBox({
                           className="btn-plain min-h-[44px] px-3"
                           onClick={() => checkRecovery(row)}
                           disabled={recoveryBusyKey !== null}
-                          aria-label={`Check status for ${recoveryTitle(row)}`}
+                          aria-label={msg('checkStatusFor', { title: recoveryTitle(row) })}
                         >
-                          {busyRecovery ? 'Checking…' : 'Check status'}
+                          {busyRecovery ? msg('checking') : msg('checkStatus')}
                         </button>
                         <button
                           className="btn-filled min-h-[44px] px-3"
                           onClick={() => retryRecovery(row)}
                           disabled={recoveryBusyKey !== null || !row.requestHash}
-                          aria-label={`Retry ${recoveryTitle(row)}`}
+                          aria-label={msg('retryFor', { title: recoveryTitle(row) })}
                         >
-                          Retry
+                          {msg('retry')}
                         </button>
                       </span>
                     </li>

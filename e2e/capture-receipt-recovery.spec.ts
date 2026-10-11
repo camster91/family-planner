@@ -571,6 +571,8 @@ test.describe("capture receipt recovery", () => {
     page.on("request", requestListener);
 
     try {
+      const captureBox = page.getByTestId("capture-box");
+      const recovery = page.getByTestId("capture-recovery");
       const input = page.getByRole("textbox", {
         name: "What would you like to add?",
       });
@@ -580,9 +582,11 @@ test.describe("capture receipt recovery", () => {
         page.getByRole("button", { name: "Add it", exact: true }),
       ).toBeVisible();
       await page.getByRole("button", { name: "Add it", exact: true }).click();
-      await expect(page.getByRole("alert")).toContainText(
-        "Could not confirm whether this was saved",
-      );
+      await expect(
+        captureBox
+          .getByRole("alert")
+          .filter({ hasText: "Could not confirm whether this was saved" }),
+      ).toContainText("Could not confirm whether this was saved");
       expect(eventPostCount).toBe(1);
       expect(createdEventId).toBeTruthy();
       const envelope = await readEnvelope(page, storageKey);
@@ -597,7 +601,7 @@ test.describe("capture receipt recovery", () => {
       // server answers this keyed replay from its committed receipt, so no
       // duplicate event is created.
       await page.getByRole("button", { name: `Retry ${eventTitle}` }).click();
-      await expect(page.getByRole("status")).toContainText(
+      await expect(captureBox.getByRole("status")).toContainText(
         `Already added “${eventTitle}”`,
       );
       expect(eventPostCount).toBe(2);
@@ -625,7 +629,7 @@ test.describe("capture receipt recovery", () => {
       await page
         .getByRole("button", { name: `Check status for ${eventTitle}` })
         .click();
-      await expect(page.getByRole("status")).toContainText(
+      await expect(captureBox.getByRole("status")).toContainText(
         `Already added “${eventTitle}”`,
       );
       expect(eventPostCount).toBe(2);
@@ -657,7 +661,7 @@ test.describe("capture receipt recovery", () => {
       await page
         .getByRole("button", { name: `Check status for ${eventTitle}` })
         .click();
-      await expect(page.getByRole("alert")).toContainText(
+      await expect(recovery.getByRole("alert")).toContainText(
         "no longer present. It was not recreated",
       );
       expect(eventPostCount).toBe(2);
@@ -674,7 +678,7 @@ test.describe("capture receipt recovery", () => {
       await page
         .getByRole("button", { name: `Check status for ${eventTitle}` })
         .click();
-      await expect(page.getByRole("alert")).toContainText(
+      await expect(recovery.getByRole("alert")).toContainText(
         "saved earlier. Refresh the app before making a new preview",
       );
       expect(eventPostCount).toBe(2);
@@ -691,7 +695,6 @@ test.describe("capture receipt recovery", () => {
       await page
         .getByRole("button", { name: `Check status for ${eventTitle}` })
         .click();
-      const recovery = page.getByTestId("capture-recovery");
       await expect(recovery).toContainText(
         "No saved result was found. Start a new preview.",
       );
@@ -806,6 +809,8 @@ test.describe("capture receipt recovery", () => {
     });
 
     try {
+      const captureBox = page.getByTestId("capture-box");
+      const recovery = page.getByTestId("capture-recovery");
       const input = page.getByLabel("Choose a photo of a flyer or timetable");
       const onePixelPng = Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -820,12 +825,14 @@ test.describe("capture receipt recovery", () => {
         page.getByText("Found 2 events", { exact: true }),
       ).toBeVisible();
       await page.getByRole("button", { name: "Add 2", exact: true }).click();
-      await expect(page.getByRole("status")).toContainText(
+      await expect(captureBox.getByRole("status")).toContainText(
         "Added 1 of 2 events",
       );
-      await expect(page.getByRole("alert")).toContainText(
-        "1 event could not be saved",
-      );
+      await expect(
+        captureBox
+          .getByRole("alert")
+          .filter({ hasText: "1 event could not be saved" }),
+      ).toContainText("1 event could not be saved");
       await expect(
         page.getByText("Synthetic photo failure", { exact: true }),
       ).toBeVisible();
@@ -848,11 +855,11 @@ test.describe("capture receipt recovery", () => {
           name: "Check status for Synthetic photo failure",
         })
         .click();
-      await expect(page.getByTestId("capture-recovery")).toContainText(
+      await expect(recovery).toContainText(
         "No saved result was found. Start a new preview.",
       );
       await expect(
-        page.getByRole("button", {
+        recovery.getByRole("button", {
           name: "Retry Synthetic photo failure",
         }),
       ).toHaveCount(0);

@@ -7,10 +7,12 @@
 import * as React from 'react'
 import { webcrypto } from 'node:crypto'
 import { TextDecoder, TextEncoder } from 'node:util'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CaptureBox } from '../CaptureBox'
-import { CAPTURE_RECOVERY_RETENTION_MS } from '@/lib/capture-recovery'
+import { I18nProvider } from '@/i18n'
+import { CAPTURE_RECOVERY_RETENTION_MS, captureRecoveryStorageKey } from '@/lib/capture-recovery'
+import { captureEnglish, captureSpanish } from '@/i18n/capture'
 
 if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto })
 if (!globalThis.TextEncoder) Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: TextEncoder })
@@ -381,4 +383,45 @@ it('discards an absent receipt as terminal without replaying the local request',
   expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
   expect(postCount).toBe(0)
   expect(window.localStorage.getItem('family-planner:capture-recovery:v1:user-a:family-a')).toBe('[]')
+})
+
+it('localizes the saved-recovery controls without translating the saved title', async () => {
+  window.localStorage.clear()
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(
+    storageKey,
+    JSON.stringify([
+      {
+        version: 1,
+        key: 'capture-spanish-12345678',
+        action: 'event.create',
+        requestHash: 'a'.repeat(64),
+        body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+        title: 'Dentist',
+        kind: 'event',
+        createdAt: Date.now(),
+        photo: false,
+      },
+    ]),
+  )
+  global.fetch = jest.fn(async (url) => {
+    if (String(url) === '/api/capture') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  render(
+    <I18nProvider locale="es">
+      <CaptureBox />
+    </I18nProvider>,
+  )
+
+  const recovery = await screen.findByTestId('capture-recovery')
+  expect(recovery.textContent).toContain(captureSpanish.needsAttention)
+  expect(recovery.textContent).toContain(captureSpanish.previousAddHint)
+  expect(recovery.textContent).toContain('Dentist')
+  expect(within(recovery).getByRole('button', { name: 'Consultar estado de Dentist' })).toBeTruthy()
+  expect(within(recovery).getByRole('button', { name: 'Reintentar Dentist' })).toBeTruthy()
+  expect(Object.keys(captureSpanish).sort()).toEqual(Object.keys(captureEnglish).sort())
 })
