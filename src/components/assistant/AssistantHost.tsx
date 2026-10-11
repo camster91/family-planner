@@ -4,16 +4,24 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
+import { useTranslation } from "@/i18n";
+import { assistantMessages, type AssistantMessage } from "@/i18n/assistant";
 
 type AssistantPanelTab = "chat" | "report" | "reports";
 
+function AssistantLoading() {
+  const { t } = useTranslation();
+  const msg = (key: AssistantMessage) => t(key, undefined, assistantMessages);
+  return (
+    <span role="status" aria-live="polite" className="sr-only">
+      {msg("loading")}
+    </span>
+  );
+}
+
 const AssistantPanel = dynamic(() => import("./AssistantPanel"), {
   ssr: false,
-  loading: () => (
-    <span role="status" aria-live="polite" className="sr-only">
-      Opening assistant…
-    </span>
-  ),
+  loading: () => <AssistantLoading />,
 });
 
 const target =
@@ -27,6 +35,8 @@ const target =
 export default function AssistantHost({ role }: { role: string }) {
   const pathname = usePathname();
   const params = useSearchParams();
+  const { t } = useTranslation();
+  const msg = (key: AssistantMessage) => t(key, undefined, assistantMessages);
   const [tab, setTab] = React.useState<AssistantPanelTab | null>(null);
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);
@@ -124,7 +134,7 @@ export default function AssistantHost({ role }: { role: string }) {
           className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
         >
           <MessageSquareWarning size={20} aria-hidden="true" />
-          <span className="max-[320px]:sr-only">Report / Suggest</span>
+          <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>
         </button>
         {canChat && (
           <button
@@ -135,7 +145,9 @@ export default function AssistantHost({ role }: { role: string }) {
             className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 bg-[var(--accent-fill)] text-white shadow-lg inline-flex items-center gap-2`}
           >
             <Sparkles size={20} aria-hidden="true" />
-            <span className="max-[320px]:sr-only">AI assistant</span>
+            <span className="max-[320px]:sr-only">
+              {msg("launcherAssistant")}
+            </span>
           </button>
         )}
       </div>

@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import type { VoiceErrorCode } from "@/i18n/assistant";
 type Recognition = {
   lang: string;
   continuous: boolean;
@@ -20,7 +21,7 @@ type VoiceWindow = Window & {
 export function useVoiceDraft(
   enabled: boolean,
   onText: (text: string) => void,
-  onError: (message: string) => void,
+  onError: (code: VoiceErrorCode) => void,
 ) {
   const [supported, setSupported] = React.useState(false),
     [listening, setListening] = React.useState(false);
@@ -55,9 +56,7 @@ export function useVoiceDraft(
     const w = window as VoiceWindow,
       Constructor = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!Constructor) {
-      errorRef.current(
-        "Voice is unavailable in this browser. Type your message instead.",
-      );
+      errorRef.current("voiceUnavailableError");
       return;
     }
     const r = new Constructor();
@@ -74,9 +73,7 @@ export function useVoiceDraft(
     };
     r.onerror = (e) =>
       errorRef.current(
-        e.error === "not-allowed"
-          ? "Microphone access was denied. You can still type."
-          : "Voice could not hear you. Try again or type.",
+        e.error === "not-allowed" ? "voiceDenied" : "voiceNoInput",
       );
     r.onend = () => {
       recognition.current = null;
@@ -87,7 +84,7 @@ export function useVoiceDraft(
       setListening(true);
     } catch {
       stop();
-      errorRef.current("Voice could not start. Type your message instead.");
+      errorRef.current("voiceStartFailed");
     }
   };
   return { supported, listening, start, stop };

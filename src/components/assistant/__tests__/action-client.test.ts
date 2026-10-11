@@ -1,4 +1,9 @@
-import { executeAssistantAction, removalTargets } from "../action-client";
+import {
+  defaultEnglishError,
+  executeAssistantAction,
+  removalTargets,
+  AssistantActionError,
+} from "../action-client";
 const fetchMock = jest.fn();
 beforeEach(() => {
   global.fetch = fetchMock;
@@ -131,13 +136,55 @@ it("refuses indistinguishable list choices before any destructive write", async 
 });
 it("network loss on mutation reports uncertainty instead of success or auto-retry", async () => {
   fetchMock.mockRejectedValue(new Error("Offline"));
+  const result = executeAssistantAction(
+    { kind: "list_create", title: "Travel", type: "custom" },
+    "key",
+  );
+  await expect(result).rejects.toThrow("Check the app");
+  await expect(result).rejects.toBeInstanceOf(AssistantActionError);
+  await expect(result).rejects.toMatchObject({
+    code: "connectionInterrupted",
+    message: defaultEnglishError.connectionInterrupted.message,
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("exposes a semantic code for local validation while retaining its English message", async () => {
   await expect(
     executeAssistantAction(
-      { kind: "list_create", title: "Travel", type: "custom" },
+      {
+        kind: "event_create",
+        title: "Bad",
+        start: "2026-10-10T15:00",
+        end: "2026-10-10T14:00",
+      },
       "key",
     ),
-  ).rejects.toThrow("Check the app");
-  expect(fetchMock).toHaveBeenCalledTimes(1);
+  ).rejects.toMatchObject({
+    code: "invalidEventTime",
+    message: defaultEnglishError.invalidEventTime.message,
+  });
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("localizes a missing server error through its semantic fallback and preserves server copy", async () => {
+  const action = {
+    kind: "list_create",
+    title: "Travel",
+    type: "custom",
+  } as const;
+  fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({}) });
+  await expect(executeAssistantAction(action, "key")).rejects.toMatchObject({
+    code: "actionFailed",
+    message: defaultEnglishError.actionFailed.message,
+  });
+  fetchMock.mockResolvedValueOnce({
+    ok: false,
+    json: async () => ({ error: "Server supplied detail" }),
+  });
+  await expect(executeAssistantAction(action, "key")).rejects.toMatchObject({
+    message: "Server supplied detail",
+  });
 });
 
 it("creates weekly chores through the canonical weekday rule and user-chosen assignee", async () => {

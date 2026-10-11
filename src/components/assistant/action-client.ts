@@ -12,14 +12,60 @@ import {
   createListSchema,
   createNoteSchema,
 } from "@/lib/validations";
+
+export const defaultEnglishError = {
+  checkProposedDetails: { message: "Check the proposed details." },
+  loadChoicesFailed: { message: "Could not load choices." },
+  connectionInterrupted: {
+    message:
+      "The connection ended before confirmation. Check the app before trying this action again.",
+  },
+  unreadableResponse: {
+    message:
+      "The server response was unreadable. Check the app before trying again.",
+  },
+  duplicateListTargets: {
+    message:
+      "Some lists have identical names and details. Open Lists to review or rename them before removing a list in chat.",
+  },
+  chooseChoreAssignee: { message: "Choose who does this chore." },
+  invalidChoreSchedule: {
+    message: "Choose a valid date or at least one weekly day.",
+  },
+  chooseRemovalTarget: { message: "Choose the exact item to remove." },
+  invalidEventTime: {
+    message:
+      "Choose a valid start and later end time. Daylight-saving gaps need another time.",
+  },
+  chooseGroceryList: {
+    message:
+      "Choose a grocery list in Lists first. Chat adds only when there is exactly one grocery list.",
+  },
+  actionOpenSectionError: { message: "Open this section to continue." },
+  actionFailed: { message: "Action failed. Check the app before retrying." },
+} as const;
+
+export type AssistantActionErrorCode = keyof typeof defaultEnglishError;
+
+export class AssistantActionError extends Error {
+  readonly code: AssistantActionErrorCode;
+
+  constructor(code: AssistantActionErrorCode, message?: string) {
+    super(message ?? defaultEnglishError[code].message);
+    this.name = "AssistantActionError";
+    this.code = code;
+  }
+}
+
 function validated<T extends ZodTypeAny>(
   schema: T,
   input: unknown,
 ): ZodInfer<T> {
   const result = schema.safeParse(input);
   if (!result.success)
-    throw new Error(
-      result.error.issues[0]?.message ?? "Check the proposed details.",
+    throw new AssistantActionError(
+      "checkProposedDetails",
+      result.error.issues[0]?.message ?? undefined,
     );
   return result.data;
 }
@@ -29,7 +75,7 @@ export type RemovalTarget = {
   detail?: string;
   context?: string;
 };
-export class ActionOutcomeUnknown extends Error {}
+export class ActionOutcomeUnknown extends AssistantActionError {}
 async function request(
   path: string,
   method = "GET",
@@ -49,20 +95,15 @@ async function request(
     });
   } catch {
     throw new ActionOutcomeUnknown(
-      method === "GET"
-        ? "Could not load choices."
-        : "The connection ended before confirmation. Check the app before trying this action again.",
+      method === "GET" ? "loadChoicesFailed" : "connectionInterrupted",
     );
   }
   const data = await response.json().catch(() => null);
-  if (!response.ok)
-    throw new Error(
-      data?.error || "Action failed. Check the app before retrying.",
-    );
-  if (!data)
-    throw new ActionOutcomeUnknown(
-      "The server response was unreadable. Check the app before trying again.",
-    );
+  if (!response.ok) {
+    if (data?.error) throw new Error(data.error);
+    throw new AssistantActionError("actionFailed");
+  }
+  if (!data) throw new ActionOutcomeUnknown("unreadableResponse");
   return data;
 }
 export async function removalTargets(
@@ -117,9 +158,7 @@ export async function removalTargets(
   if (domain === "lists") {
     const labels = targets.map((t) => `${t.title} · ${t.context ?? ""}`);
     if (new Set(labels).size !== labels.length) {
-      throw new Error(
-        "Some lists have identical names and details. Open Lists to review or rename them before removing a list in chat.",
-      );
+      throw new AssistantActionError("duplicateListTargets");
     }
   }
   return targets;
@@ -138,7 +177,7 @@ export async function executeAssistantAction(
   target?: RemovalTarget,
 ) {
   if (action.kind === "chore_create") {
-    if (!target) throw new Error("Choose who does this chore.");
+    if (!target) throw new AssistantActionError("chooseChoreAssignee");
     const anchor =
       action.frequency === "weekly"
         ? nextSelectedWeekday(
@@ -150,7 +189,7 @@ export async function executeAssistantAction(
             .slice(0, 10)
         : action.date;
     if (!anchor || !parseDateOnly(anchor))
-      throw new Error("Choose a valid date or at least one weekly day.");
+      throw new AssistantActionError("invalidChoreSchedule");
     return request(
       "/api/chores/create",
       "POST",
@@ -168,7 +207,7 @@ export async function executeAssistantAction(
     );
   }
   if (action.kind.endsWith("_delete")) {
-    if (!target) throw new Error("Choose the exact item to remove.");
+    if (!target) throw new AssistantActionError("chooseRemovalTarget");
     const config =
       action.kind === "event_delete"
         ? { path: "/api/events", field: "eventId" }
@@ -181,9 +220,7 @@ export async function executeAssistantAction(
     const start = localDateTimeToISO(action.start),
       end = localDateTimeToISO(action.end);
     if (!start || !end || Date.parse(end) <= Date.parse(start))
-      throw new Error(
-        "Choose a valid start and later end time. Daylight-saving gaps need another time.",
-      );
+      throw new AssistantActionError("invalidEventTime");
     const body = validated(createEventSchema, {
       title: action.title,
       start_time: start,
@@ -215,9 +252,7 @@ export async function executeAssistantAction(
       (l) => l.type === "grocery",
     );
     if (groceries.length !== 1)
-      throw new Error(
-        "Choose a grocery list in Lists first. Chat adds only when there is exactly one grocery list.",
-      );
+      throw new AssistantActionError("chooseGroceryList");
     return request(
       "/api/lists/items/create",
       "POST",
@@ -225,5 +260,5 @@ export async function executeAssistantAction(
       key,
     );
   }
-  throw new Error("Open this section to continue.");
+  throw new AssistantActionError("actionOpenSectionError");
 }
