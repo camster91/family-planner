@@ -143,6 +143,7 @@ async function installSyntheticGuards(page: Page, writes: string[]) {
       await route.fulfill({ status: 200, json: { members } });
       return;
     }
+    writes.push(`${route.request().method()} ${route.request().url()}`);
     await route.fulfill({
       status: 409,
       contentType: "application/json",
@@ -154,6 +155,7 @@ async function installSyntheticGuards(page: Page, writes: string[]) {
     const request = route.request();
     const url = new URL(request.url());
     if (!["GET", "HEAD"].includes(request.method())) {
+      writes.push(`${request.method()} ${request.url()}`);
       await route.fulfill({
         status: 409,
         contentType: "application/json",
