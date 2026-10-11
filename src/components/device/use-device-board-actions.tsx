@@ -6,6 +6,7 @@ import type { BoardMember } from '@/app/dashboard/today/today-board-data'
 import type { BoardActions, ActionResult } from '@/components/fridge/board-actions'
 import { DeviceApiError, type DeviceClient } from '@/lib/device-client'
 import { newIdempotencyKey } from '@/lib/idempotency-key'
+import { useTranslation } from '@/i18n'
 import { getDeviceQueue } from '@/lib/offline-queue-browser'
 import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
@@ -63,6 +64,7 @@ export function useDeviceBoardActions({
   forgetActor: () => void
   picker: React.ReactNode
 } {
+  const { t } = useTranslation()
   const [actor, setActor] = React.useState<DeviceActorChoice | null>(null)
   const actorRef = React.useRef<DeviceActorChoice | null>(null)
   const lastTapRef = React.useRef(0)
@@ -144,6 +146,7 @@ export function useDeviceBoardActions({
           mine.add(op.id)
           return { ok: true }
         } catch (error) {
+          if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') return { ok: false, message: t('groceries.compatibleClient') }
           if (error instanceof QueueError && error.code === 'QUEUE_FULL') {
             return { ok: false, message: 'Too many changes are waiting for the Wi-Fi. Try again when it is back.' }
           }
@@ -166,7 +169,7 @@ export function useDeviceBoardActions({
       },
       afterChange: () => afterRef.current(),
     }
-  }, [client, choresOn, listsOn])
+  }, [client, choresOn, listsOn, t])
 
   const picker = (
     <WhoIsThisDialog

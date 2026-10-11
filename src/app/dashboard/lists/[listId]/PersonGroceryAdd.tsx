@@ -17,10 +17,12 @@ export function PersonGroceryAdd({
   userId,
   listId,
   allowNew = true,
+  showCompatibilityNotice = true,
 }: {
   userId: string;
   listId: string;
   allowNew?: boolean;
+  showCompatibilityNotice?: boolean;
 }) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -52,6 +54,8 @@ export function PersonGroceryAdd({
     queueRef.current = queue;
     let active = true;
     const update = () => {
+      if (active && showCompatibilityNotice && queue.requiresCompatibleClient())
+        setNotice("compatibleClient");
       if (active)
         setOps(
           queue
@@ -100,7 +104,7 @@ export function PersonGroceryAdd({
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
     };
-  }, [userId, listId]);
+  }, [userId, listId, showCompatibilityNotice]);
 
   const submit = async () => {
     const content = text.trim();
@@ -135,7 +139,10 @@ export function PersonGroceryAdd({
         setError(
           caught instanceof QueueError && caught.code === "QUEUE_FULL"
             ? "full"
-            : "queueFailed",
+            : caught instanceof QueueError &&
+                caught.code === "COMPATIBLE_CLIENT_REQUIRED"
+              ? "compatibleClient"
+              : "queueFailed",
         );
     } finally {
       if (generation.current === submittingGeneration) {

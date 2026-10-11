@@ -13,6 +13,8 @@ import type { BoardActions } from '../board-actions'
 import type { TodayBoardData } from '@/app/dashboard/today/today-board-data'
 import { useDeviceBoardActions } from '@/components/device/use-device-board-actions'
 import type { DeviceClient } from '@/lib/device-client'
+import { QueueError } from '@/lib/offline-queue'
+import { I18nProvider } from '@/i18n'
 
 const refresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
@@ -99,9 +101,9 @@ async function settle() {
 
 async function renderBoard(props: Partial<React.ComponentProps<typeof TodayBoard>> = {}) {
   const utils = render(
-    <ToastProvider>
+    <I18nProvider locale="en"><ToastProvider>
       <TodayBoard data={data()} fridgeMode={false} checkVersion={async () => 'v1'} {...props} />
-    </ToastProvider>
+    </ToastProvider></I18nProvider>
   )
   await settle()
   return utils
@@ -148,6 +150,15 @@ describe('tile headings open their section (no "Open …" buttons)', () => {
 })
 
 describe('person board (#274)', () => {
+  it('explains retained-work recovery when a grocery tick needs a compatible client', async () => {
+    personQueue.enqueue.mockRejectedValue(new QueueError('COMPATIBLE_CLIENT_REQUIRED'))
+    await renderBoard({ viewer: { id: 'p', role: 'parent' } })
+    fireEvent.click(within(groceries()).getByRole('button', { name: /Tick off Milk/ }))
+    await settle()
+    expect(screen.getByText(/Pending changes need a compatible app version/)).toBeInTheDocument()
+    expect(within(groceries()).getByText('Milk')).toBeInTheDocument()
+    expect(personQueue.list()).toEqual([])
+  })
   it('a child can tick only their own chore; a parent any chore', async () => {
     const { unmount } = await renderBoard({ viewer: { id: 'c', role: 'child' } })
     expect(within(chores()).getByRole('button', { name: 'Mark Feed the cat done, Casey' })).toBeTruthy()

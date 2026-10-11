@@ -443,3 +443,29 @@ it("updates queued and confirmed notices on locale change without losing drafts 
   await user.click(screen.getByRole("button", { name: "Refresh list" }));
   expect(mockRefresh).toHaveBeenCalledTimes(2);
 });
+
+it("retains unfamiliar stored work and the unsent draft with an actionable recovery notice", async () => {
+  mockQueue.dispose();
+  raw = JSON.stringify({
+    v: 2,
+    ops: [
+      {
+        id: "original-key-123456",
+        action: "future-grocery-add",
+        payload: { content: "PRIVATE STORED TEXT" },
+      },
+    ],
+  });
+  const original = raw;
+  mockQueue = buildQueue();
+  await mockQueue.ready;
+  render(<PersonGroceryAdd {...props} />);
+  await screen.findByText(/Pending changes need a compatible app version/);
+  expect(screen.queryByText("PRIVATE STORED TEXT")).not.toBeInTheDocument();
+  await typeAndSubmit("Keep this draft");
+  expect(screen.getByRole("textbox", { name: "Add an item" })).toHaveValue(
+    "Keep this draft",
+  );
+  expect(raw).toBe(original);
+  expect(send).not.toHaveBeenCalled();
+});

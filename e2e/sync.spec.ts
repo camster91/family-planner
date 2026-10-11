@@ -112,6 +112,112 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }
   });
 
+  test("unfamiliar stored queue survives reload without replay or replacement", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, ["Existing grocery"]);
+    const listId = fixture.listId;
+    const itemId = fixture.items["Existing grocery"];
+    const raw = JSON.stringify(
+      {
+        v: 1,
+        ops: [
+          {
+            id: "original-known-key-123456",
+            action: "list-item.set-checked",
+            v: 1,
+            payload: { itemId, checked: true },
+            createdAt: Date.now(),
+            state: "pending",
+            attempts: 0,
+            nextAttemptAt: 0,
+          },
+          {
+            id: "original-future-key-123456",
+            action: "future-grocery-action",
+            v: 2,
+            payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
+          },
+        ],
+      },
+      null,
+      2,
+    );
+    const storedQueue = async (mode: "write" | "read" | "remove") =>
+      page.evaluate(
+        async ({ mode, raw, userId }) => {
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open("fp-sync", 1);
+            request.onupgradeneeded = () =>
+              request.result.createObjectStore("kv");
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          try {
+            return await new Promise<string | null>((resolve, reject) => {
+              const tx = db.transaction(
+                "kv",
+                mode === "read" ? "readonly" : "readwrite",
+              );
+              const store = tx.objectStore("kv");
+              const key = `fp-sync:v1:${userId}:queue`;
+              const request =
+                mode === "write"
+                  ? store.put(raw, key)
+                  : mode === "remove"
+                    ? store.delete(key)
+                    : store.get(key);
+              tx.oncomplete = () =>
+                resolve(mode === "read" ? (request.result ?? null) : null);
+              tx.onerror = () => reject(tx.error);
+              tx.onabort = () => reject(tx.error);
+            });
+          } finally {
+            db.close();
+          }
+        },
+        { mode, raw, userId: FIXTURE_IDS.familyA.parent },
+      );
+    const updates = trackUpdates(page);
+    try {
+      await storedQueue("write");
+      await page.goto(`/dashboard/lists/${listId}`);
+      await expect(
+        page.getByText(/Pending changes need a compatible app version/).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByText("PRIVATE UNFAMILIAR CONTENT", { exact: true }),
+      ).toHaveCount(0);
+      const input = page.getByRole("textbox", {
+        name: "Add an item",
+        exact: true,
+      });
+      await input.fill("Keep this unsent draft");
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await expect(input).toHaveValue("Keep this unsent draft");
+      expect(await storedQueue("read")).toBe(raw);
+      await page.reload();
+      await expect(
+        page.getByText(/Pending changes need a compatible app version/).first(),
+      ).toBeVisible();
+      expect(await storedQueue("read")).toBe(raw);
+      expect(updates).toHaveLength(0);
+      expect((await serverItem(page, listId, itemId)).checked).toBe(false);
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath("queue-compatible-client-recovery.png"),
+        fullPage: true,
+      });
+    } finally {
+      await storedQueue("remove");
+    }
+  });
+
   test("personal grocery add survives offline reload, flapping and a lost committed response", async ({
     page,
   }, testInfo) => {
