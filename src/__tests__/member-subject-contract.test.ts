@@ -16,7 +16,7 @@ it("classifies all canonical member owners without replacing account-owner decis
   expect(subjectDifferences(collectMemberSubjects(schema), inventory)).toEqual(
     [],
   );
-  expect(collectMemberSubjects(schema)).toHaveLength(4);
+  expect(collectMemberSubjects(schema)).toHaveLength(6);
 });
 it("fails when a new member subject has no migration and erasure decision", () => {
   const extra = `\nmodel Extra {\n person HouseholdMember? @relation(fields: [person_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction)\n}\n`;
@@ -37,7 +37,12 @@ it.each(["fields", "references", "onDelete", "onUpdate"])(
 );
 it("rejects stale and missing decisions", () => {
   expect(
-    subjectDifferences(collectMemberSubjects(schema).slice(1), inventory),
+    subjectDifferences(
+      collectMemberSubjects(schema).filter(
+        (row: { relation: string }) => row.relation !== "Chore.assigneeMember",
+      ),
+      inventory,
+    ),
   ).toContain("Chore.assigneeMember: stale canonical subject decision");
   expect(
     subjectDifferences(

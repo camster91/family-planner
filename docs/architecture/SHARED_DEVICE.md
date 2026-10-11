@@ -159,20 +159,24 @@ model ParentElevationPin {
 }
 
 model DeviceAuditEvent {
-  id            String   @id @default(cuid())
-  family_id     String
-  device_id     String?
-  actor_user_id String?  // parent (management, elevation) or member (attributed action); null = device/system
-  type          String   // fixed vocabulary, §10
-  metadata      Json?    // fixed keys only, §10; never content, credentials or IPs
-  created_at    DateTime @default(now())
+  id                   String   @id @default(cuid())
+  family_id            String
+  device_id            String?
+  actor_user_id        String?  // parent (management, elevation) or member (attributed action); null = device/system
+  subject_member_id    String?  // separate household-person attribution; never an actor or login
+  subject_member_erased Boolean @default(false)
+  type                 String   // fixed vocabulary, §10
+  metadata             Json?    // fixed keys only, §10; never content, credentials or IPs
+  created_at           DateTime @default(now())
 
   family Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
   device HouseholdDevice? @relation(fields: [device_id], references: [id], onDelete: SetNull)
   actor  User?            @relation("DeviceAuditActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
+  subject_member HouseholdMember? @relation("DeviceAuditSubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([family_id, created_at])
   @@index([device_id, created_at])
+  @@index([family_id, subject_member_id])
 }
 ```
 
@@ -232,7 +236,8 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 ```
 
 Repeat for `DevicePairing`, `DeviceSession` (FK `device_id` cascade), `ParentElevationPin` (FKs `user_id`,
-`family_id` cascade) and `DeviceAuditEvent` (`family_id` cascade, `device_id` and `actor_user_id` set null), with
+`family_id` cascade) and `DeviceAuditEvent` (`family_id` cascade, `device_id` and `actor_user_id` set null;
+`subject_member_id` is a same-household NO ACTION attribution cleared only by explicit account erasure), with
 every `@unique`/`@@index` above as `CREATE [UNIQUE] INDEX IF NOT EXISTS` using Prisma's default names
 (`<Model>_<cols>_key` / `_idx`). Expand only: no backfill, no contract step, nothing to roll back beyond leaving
 the empty tables. The implementing PR must run `npx prisma generate`, a fresh-database `node scripts/migrate.js`
@@ -645,7 +650,7 @@ when a rate limit trips. Privacy-safe analytics (FRIDGE_TABLET_PROGRAM.md §20
 name.
 
 **Household audit history (#285, ADR-0008) is a separate table.** `DeviceAuditEvent` stays the best-effort security
-trail above. Parent-visible household changes (pairing, rename and removal of a tablet, board settings changed on the
+trail above; the additive member subject fields do not change its actor or security-event vocabulary. Parent-visible household changes (pairing, rename and removal of a tablet, board settings changed on the
 tablet) are also written to `AuditLog` in the same transaction as the change, with `actor_kind: 'device'` when made
 on the tablet under elevation and a names-only summary. Token-reuse revocation, elevation and pairing attempts are not
 household history and are recorded here only.

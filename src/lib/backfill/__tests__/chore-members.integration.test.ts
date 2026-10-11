@@ -39,6 +39,10 @@ const migration = fs.readFileSync(
   path.join(ROOT, "database/migration-z-household-member-chore-subjects.sql"),
   "utf8",
 );
+const auditSubjectMigration = fs.readFileSync(
+  path.join(ROOT, "database/migration-zz-household-member-audit-subjects.sql"),
+  "utf8",
+);
 
 dbDescribe("chore canonical subject rehearsal", () => {
   let db: pg.Client;
@@ -85,6 +89,7 @@ dbDescribe("chore canonical subject rehearsal", () => {
       ),
     );
     await db.query(migration);
+    await db.query(auditSubjectMigration);
   });
   beforeEach(async () => {
     await cleanup();

@@ -21,6 +21,8 @@ interface Note {
   can_delete?: boolean
 }
 
+type NotesLoadError = 'load' | null
+
 const noteColors = {
   yellow: {
     bg: 'bg-[var(--tint-meals)]/20',
@@ -79,7 +81,9 @@ function NotesPageInner() {
   ]
   const [notes, setNotes] = React.useState<Note[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  // Keep the failure semantic so a locale change can translate the existing
+  // recovery surface without starting the request over.
+  const [error, setError] = React.useState<NotesLoadError>(null)
 
   // Modal state: 'add' | 'edit' | null
   const [modalState, setModalState] = React.useState<'add' | 'edit' | null>(null)
@@ -93,27 +97,36 @@ function NotesPageInner() {
   // Why the last save/delete failed; shown in the modal, which stays open.
   const [modalError, setModalError] = React.useState<string | null>(null)
 
-  const fetchNotes = React.useCallback(async () => {
+  const fetchNotes = React.useCallback(async (preserveError = false) => {
     try {
       setLoading(true)
-      setError(null)
+      // Keep the recovery surface mounted while a retry is in flight. This
+      // keeps the action discoverable and lets the button expose its pending
+      // state instead of replacing it with an unrelated loading screen.
+      if (!preserveError) setError(null)
       const res = await fetch('/api/notes')
       if (!res.ok) {
         throw new Error('Failed to fetch notes')
       }
       const data = await res.json()
+      // A successful retry must leave recovery mode. Keep the prior error
+      // while the request is pending so the retry remains discoverable, then
+      // clear it only after the response body has been accepted.
+      setError(null)
       setNotes(data.notes || [])
     } catch (err) {
       console.error('Error fetching notes:', err)
-      setError(t('notes.errorLoad'))
+      setError('load')
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   React.useEffect(() => {
     fetchNotes()
   }, [fetchNotes])
+
+  const loadErrorMessage = error === 'load' ? t('notes.errorLoad') : null
 
   const openAddModal = () => {
     setFormTitle('')
@@ -224,24 +237,31 @@ function NotesPageInner() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {error ? (
+        <EmptyState
+          icon={NoteIcon}
+          glyphColor="gray"
+          title={loadErrorMessage ?? t('notes.errorLoad')}
+          description={loadErrorMessage ?? t('notes.errorLoad')}
+          action={
+            <button
+              type="button"
+              className="btn-secondary min-h-11 min-w-11"
+              onClick={() => void fetchNotes(true)}
+              disabled={loading}
+              aria-busy={loading}
+              data-testid="notes-retry"
+            >
+              {loading ? t('notes.loading') : t('notes.retry')}
+            </button>
+          }
+        />
+      ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Skeleton className="h-[160px]" />
           <Skeleton className="h-[160px]" />
           <Skeleton className="h-[160px]" />
         </div>
-      ) : error ? (
-        <EmptyState
-          icon={NoteIcon}
-          glyphColor="gray"
-          title={t('notes.errorLoad')}
-          description={error}
-          action={
-            <button className="btn-secondary" onClick={fetchNotes}>
-              {t('common.loading')}
-            </button>
-          }
-        />
       ) : notes.length === 0 ? (
         <EmptyState
           icon={NoteIcon}
@@ -370,15 +390,20 @@ function NotesPageInner() {
                       type="button"
                       onClick={() => setFormColor(opt.key)}
                       className={cn(
-                        'w-10 h-10 rounded-full transition-transform',
+                        'inline-flex h-11 w-11 items-center justify-center rounded-full transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]',
                         formColor === opt.key ? 'scale-110 ring-2 ring-offset-2 ring-[var(--accent)]' : ''
                       )}
-                      style={{
-                        backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : 'var(--tint-budget)',
-                      }}
                       aria-label={opt.label}
                       aria-pressed={formColor === opt.key}
-                    />
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{
+                          backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : 'var(--tint-budget)',
+                        }}
+                      />
+                    </button>
                   ))}
                 </div>
               </div>

@@ -33,10 +33,12 @@ import {
   homeHrefFor,
   isTabActive,
   kidFeatureNavItems,
+  navItemDisplayName,
   tabsFor,
 } from "@/lib/nav-items";
-import { isFeatureEnabled } from "@/lib/features";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useTranslation } from "@/i18n";
+import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import {
   navigationMessages,
@@ -48,17 +50,9 @@ interface DashboardNavProps {
   user: NavUser | null;
 }
 
-const KID_FEATURE_MENU_LABEL_KEYS: Readonly<Record<string, NavigationMessage>> =
-  {
-    "/dashboard/wishlist": "wishlist",
-    "/dashboard/allowance": "allowance",
-    "/dashboard/handoff": "handoff",
-    "/dashboard/sick-days": "sickDays",
-    "/dashboard/notes": "notes",
-  };
-
 export default function DashboardNav({ user }: DashboardNavProps) {
   const { t } = useTranslation();
+  const featureNavTitle = useFeatureNavTitle();
   const msg = (
     key: NavigationMessage,
     params?: Record<string, string | number>,
@@ -97,14 +91,16 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     ? kidFeatureNavItems
         .filter(
           (item) =>
-            item.href in KID_FEATURE_MENU_LABEL_KEYS &&
+            item.featureDisplay === true &&
             item.featureKey !== undefined &&
             isFeatureEnabled(features, item.featureKey) &&
             canSee(item.href),
         )
         .map((item) => ({
           ...item,
-          labelKey: KID_FEATURE_MENU_LABEL_KEYS[item.href],
+          label: navItemDisplayName(item, {
+            [item.featureKey!]: featureNavTitle(item.featureKey!),
+          }),
         }))
     : [];
 
@@ -352,7 +348,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                                 className="w-4 h-4 text-label-secondary"
                                 aria-hidden="true"
                               />
-                              {msg(item.labelKey)}
+                              {item.label}
                             </Link>
                           );
                         })}

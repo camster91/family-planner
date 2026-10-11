@@ -53,7 +53,10 @@ type Role = "parent" | "teen" | "child";
 type Who = "parentA" | "teenA" | "childA" | "parentB";
 type NoteCopy = {
   title: string;
+  titleLabel: string;
   add: string;
+  retry: string;
+  loading: string;
   save: string;
   cancel: string;
   delete: string;
@@ -63,7 +66,10 @@ type NoteCopy = {
 const COPY: Record<Locale, NoteCopy> = {
   en: {
     title: "Notes",
+    titleLabel: "Title",
     add: "Add Note",
+    retry: "Retry",
+    loading: "Loading notes...",
     save: "Save",
     cancel: "Cancel",
     delete: "Delete",
@@ -71,7 +77,10 @@ const COPY: Record<Locale, NoteCopy> = {
   },
   es: {
     title: "Notas",
+    titleLabel: "Titulo",
     add: "Agregar nota",
+    retry: "Reintentar",
+    loading: "Cargando notas...",
     save: "Guardar",
     cancel: "Cancelar",
     delete: "Eliminar",
@@ -457,6 +466,80 @@ for (const locale of ["en", "es"] as const) {
       } finally {
         await context.close();
       }
+    }
+  });
+
+  test(`${locale}: failed Notes load has a keyboard retry and touch-sized color controls`, async ({
+    browser,
+  }, info) => {
+    const { context, page } = await openAs(browser, info, "parentA", locale);
+    const copy = COPY[locale];
+    let releaseRetry: (() => void) | undefined;
+    const retryGate = new Promise<void>((resolve) => {
+      releaseRetry = resolve;
+    });
+    let getAttempts = 0;
+    try {
+      await page.route("**/api/notes", async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.continue();
+          return;
+        }
+        getAttempts += 1;
+        if (getAttempts === 1) {
+          await route.fulfill({
+            status: 503,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "synthetic temporary failure" }),
+          });
+          return;
+        }
+        if (getAttempts === 2) await retryGate;
+        await route.continue();
+      });
+
+      await visitNotes(page, locale);
+      await expect(
+        page.getByRole("button", { name: copy.retry, exact: true }),
+      ).toBeVisible();
+      const retry = page.getByTestId("notes-retry");
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(retry).toBeDisabled();
+      await expect(retry).toHaveAttribute("aria-busy", "true");
+      await expect(retry).toHaveAccessibleName(copy.loading);
+      expect(getAttempts).toBe(2);
+      releaseRetry?.();
+      releaseRetry = undefined;
+      await expect(
+        page.locator(`[role="button"][aria-label="${NOTE_TITLES.parent}"]`),
+      ).toBeVisible();
+      await expect(page.getByTestId("notes-retry")).toHaveCount(0);
+
+      const parentCard = page.locator(
+        `[role="button"][aria-label="${NOTE_TITLES.parent}"]`,
+      );
+      await parentCard.click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.getByLabel(copy.titleLabel, { exact: true }),
+      ).toHaveValue(NOTE_TITLES.parent);
+
+      const pink = dialog.getByRole("button", {
+        name: copy.colors[1],
+        exact: true,
+      });
+      await expect(pink).toHaveAttribute("aria-pressed", "false");
+      await pink.focus();
+      await page.keyboard.press("Space");
+      await expect(pink).toHaveAttribute("aria-pressed", "true");
+      const box = await pink.boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    } finally {
+      releaseRetry?.();
+      await context.close();
     }
   });
 }
