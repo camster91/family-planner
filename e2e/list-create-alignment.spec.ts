@@ -15,6 +15,10 @@ import {
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { listCreateMessages } from "../src/i18n/list-create";
+import {
+  listOverviewEnglish,
+  listOverviewSpanish,
+} from "../src/i18n/list-overview";
 import { authFile } from "./support/env";
 import { browserFetch, expect, test } from "./support/test";
 
@@ -311,15 +315,21 @@ for (const locale of ["en", "es"] as const) {
           controls,
         );
         const imageInput = page.getByLabel(copy.chooseImage);
+        const imagePicker = page.locator("details");
+        const form = page.locator("form");
         await imageInput.setInputFiles(fileFixture());
-        await expect(page.getByRole("alert")).toHaveText(copy.imageUploadError);
-        await expect(page.getByRole("alert")).not.toContainText(
+        await expect(imagePicker.getByRole("alert")).toHaveText(
+          copy.imageUploadError,
+        );
+        await expect(imagePicker.getByRole("alert")).not.toContainText(
           "synthetic private provider detail",
         );
 
         modes.upload = "malformed";
         await imageInput.setInputFiles(fileFixture());
-        await expect(page.getByRole("alert")).toHaveText(copy.imageUploadError);
+        await expect(imagePicker.getByRole("alert")).toHaveText(
+          copy.imageUploadError,
+        );
 
         modes.upload = "hold";
         const heldUpload = imageInput.setInputFiles(fileFixture());
@@ -336,8 +346,8 @@ for (const locale of ["en", "es"] as const) {
 
         modes.create = "failure";
         await page.getByRole("button", { name: copy.create }).click();
-        await expect(page.getByRole("alert")).toHaveText(copy.createError);
-        await expect(page.getByRole("alert")).not.toContainText(
+        await expect(form.getByRole("alert")).toHaveText(copy.createError);
+        await expect(form.getByRole("alert")).not.toContainText(
           "synthetic private create detail",
         );
 
@@ -430,7 +440,9 @@ for (const locale of ["en", "es"] as const) {
       try {
         await page.goto("/dashboard/lists");
         const copy = copyFor(locale);
-        const add = page.getByRole("link", { name: /add list|agregar lista/i });
+        const overviewAdd =
+          locale === "en" ? listOverviewEnglish.add : listOverviewSpanish.add;
+        const add = page.getByRole("link", { name: overviewAdd });
         await expect(add).toBeVisible();
         await add.click();
         const dialog = page.getByRole("dialog");
@@ -505,7 +517,12 @@ for (const locale of ["en", "es"] as const) {
         const copy = copyFor(locale);
         await page.goto("/dashboard/lists");
         await expect(
-          page.getByRole("link", { name: /add list|agregar lista/i }),
+          page.getByRole("link", {
+            name:
+              locale === "en"
+                ? listOverviewEnglish.add
+                : listOverviewSpanish.add,
+          }),
         ).toHaveCount(0);
         await page.goto("/dashboard/lists/create");
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
