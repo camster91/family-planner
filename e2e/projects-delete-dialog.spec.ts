@@ -191,7 +191,6 @@ for (const locale of ["en", "es"] as const) {
         originalFeaturesResponse.body,
       ).features;
       const cleanAudit = await ownFeatureAudit(["projects"]);
-      let featuresRestored = false;
       let projectId: string | undefined;
       let pairedContext: BrowserContext | undefined;
       let releasePending: (() => void) | undefined;
@@ -221,7 +220,14 @@ for (const locale of ["en", "es"] as const) {
           status: "active",
         });
         expect(created.status, created.body).toBe(201);
-        projectId = JSON.parse(created.body).project?.id;
+        const createdProject = JSON.parse(created.body).project as {
+          family_id?: unknown;
+          id?: unknown;
+          name?: unknown;
+        };
+        expect(createdProject.family_id).toBe(FIXTURE_IDS.familyA.family);
+        expect(createdProject.name).toBe(projectName);
+        projectId = createdProject.id as string | undefined;
         expect(projectId).toMatch(/^\w/);
 
         const pairedPage = await (async () => {
@@ -232,6 +238,16 @@ for (const locale of ["en", "es"] as const) {
           await installGuard(pairedContext, locale);
           const pairedPage = await pairedContext.newPage();
           await pairedPage.goto("/dashboard");
+          const pairedProfile = await browserFetch(pairedPage, "/api/users");
+          expect(pairedProfile.status, pairedProfile.body).toBe(200);
+          const pairedUser = JSON.parse(pairedProfile.body).user as {
+            family_id?: string;
+            id?: string;
+            role?: string;
+          };
+          expect(pairedUser.id).toBe(FIXTURE_IDS.familyB.parent);
+          expect(pairedUser.family_id).toBe(FIXTURE_IDS.familyB.family);
+          expect(pairedUser.role).toBe("parent");
           return pairedPage;
         })();
         const pairedProjects = await browserFetch(pairedPage, "/api/projects");
@@ -244,6 +260,18 @@ for (const locale of ["en", "es"] as const) {
             false,
           );
         }
+        await info.attach("family-b-project-visibility", {
+          body: JSON.stringify({
+            status: pairedProjects.status,
+            evidence:
+              pairedProjects.status === 403
+                ? "feature-gate refusal; no cross-household list assertion"
+                : "enabled list response excludes the Family A project",
+            projectName,
+            fixtureFamily: FIXTURE_IDS.familyB.family,
+          }),
+          contentType: "application/json",
+        });
         await pairedPage.close();
 
         await page.goto(`/dashboard/projects/${projectId}`);
@@ -274,12 +302,17 @@ for (const locale of ["en", "es"] as const) {
           if (attempt === 1) {
             pendingStarted = true;
             await gate;
-            await route.fulfill({
-              status: 500,
-              contentType: "application/json",
-              body: JSON.stringify({ error: "Synthetic project refusal only" }),
-            });
-            releasePendingFinished?.();
+            try {
+              await route.fulfill({
+                status: 500,
+                contentType: "application/json",
+                body: JSON.stringify({
+                  error: "Synthetic project refusal only",
+                }),
+              });
+            } finally {
+              releasePendingFinished?.();
+            }
           } else if (attempt === 2) {
             await route.abort("failed");
           } else if (attempt === 3) {
@@ -411,7 +444,12 @@ for (const locale of ["en", "es"] as const) {
                 "DELETE",
                 `/api/projects/${projectId}`,
               );
-              expect([200, 404], cleanup.body).toContain(cleanup.status);
+              expect(cleanup.status, cleanup.body).toBe(200);
+              const removed = await browserFetch(
+                page,
+                `/api/projects/${projectId}`,
+              );
+              expect(removed.status, removed.body).toBe(404);
             }
           } finally {
             let restored = false;
@@ -423,8 +461,12 @@ for (const locale of ["en", "es"] as const) {
                 { features: originalFeatures },
               );
               expect(response.status, response.body).toBe(200);
+              const readBack = await browserFetch(page, "/api/family/features");
+              expect(readBack.status, readBack.body).toBe(200);
+              expect(JSON.parse(readBack.body).features).toEqual(
+                originalFeatures,
+              );
               restored = true;
-              featuresRestored = true;
             } finally {
               await cleanAudit(restored);
             }
