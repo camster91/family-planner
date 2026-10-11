@@ -36,6 +36,7 @@ import {
   db,
   req,
   params,
+  fakePrisma,
   type UserKey,
 } from "@/__tests__/helpers/two-household";
 import {
@@ -90,7 +91,12 @@ describe("GET /api/family/profiles", () => {
         ...profile("profile-a-archived", FAMILY_A, "Old child"),
         archived_at: new Date("2026-09-02T00:00:00Z"),
         revision: 2,
-        erasure_user_id: "secret-a",
+      },
+      profile("profile-a-linked", FAMILY_A, "Linked account"),
+      profile("profile-a-mapped", FAMILY_A, "Legacy account"),
+      {
+        ...profile("profile-a-erased", FAMILY_A, "Erased account"),
+        erasure_user_id: "child-a",
       },
       {
         ...profile("profile-b", FAMILY_B, `Child ${"FOREIGN"}`),
@@ -98,6 +104,18 @@ describe("GET /api/family/profiles", () => {
         account_link: { user_id: "secret-b" },
       },
     );
+    db.rows("householdMemberAccountLink").push({
+      member_id: "profile-a-linked",
+      user_id: "child-a",
+      family_id: FAMILY_A,
+      verified_at: new Date("2026-09-02T00:00:00Z"),
+    });
+    db.rows("householdMemberLegacyMapping").push({
+      member_id: "profile-a-mapped",
+      user_id: "teen-a",
+      family_id: FAMILY_A,
+    });
+    const findMany = jest.spyOn(fakePrisma.householdMember, "findMany");
 
     const response = await GET(
       req({ as: "parentA", path: "/api/family/profiles" }),
@@ -124,6 +142,30 @@ describe("GET /api/family/profiles", () => {
     expect(JSON.stringify(body)).not.toContain("secret");
     expect(body.profiles[0]).toEqual(profile("profile-a", FAMILY_A));
     expect(body.profiles[1].archived_at).toBe("2026-09-02T00:00:00.000Z");
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          family_id: FAMILY_A,
+          legacy_mapping: { is: null },
+          account_link: { is: null },
+          erasure_user_id: null,
+        },
+      }),
+    );
+  });
+
+  it("fails closed when a stored profile role is outside the presentation enum", async () => {
+    db.rows("householdMember").push({
+      ...profile("profile-invalid", FAMILY_A, "Unknown role"),
+      role: "owner",
+    });
+    const response = await GET(
+      req({ as: "parentA", path: "/api/family/profiles" }),
+    );
+    expect(response.status).toBe(500);
+    const body = await bodyOf(response);
+    expect(body.error.code).toBe("PROFILE_STORAGE_INVALID");
+    expect(JSON.stringify(body)).not.toContain("owner");
   });
 
   it.each(["teenA", "childA", "childB"] as UserKey[])(

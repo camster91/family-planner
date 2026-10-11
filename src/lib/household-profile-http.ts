@@ -19,6 +19,7 @@ const CREATE_KEYS = new Set(["name", "role", "age"]);
 const EDIT_KEYS = new Set(["name", "role", "age", "revision"]);
 const ARCHIVE_KEYS = new Set(["revision"]);
 const profileId = z.string().min(1).max(128);
+const publicProfileRole = z.enum(["child", "teen", "parent"]);
 
 export type ProfileAuth = {
   payload: { userId: string; tv?: number };
@@ -205,8 +206,21 @@ export async function runProfileCommand(
     const headers: Record<string, string> = { ...NO_STORE };
     if (result.replayed) headers["Idempotency-Replayed"] = "true";
     const status = isRecord(input) && input.action === "create" ? 201 : 200;
+    const dto = toProfileDto(result.profile);
+    if (!dto) {
+      return apiError(
+        500,
+        "PROFILE_STORAGE_INVALID",
+        "Household profiles are temporarily unavailable.",
+        {
+          requestId: getRequestId(request),
+          shape: "nested",
+          headers: NO_STORE,
+        },
+      );
+    }
     return NextResponse.json(
-      { profile: toProfileDto(result.profile) },
+      { profile: dto },
       { status: result.replayed ? 200 : status, headers },
     );
   } catch (error) {
@@ -228,13 +242,15 @@ export async function runProfileCommand(
 
 export function toProfileDto(
   profile: PublicHouseholdProfile | Record<string, unknown>,
-) {
+): PublicHouseholdProfile | null {
+  const role = publicProfileRole.safeParse(profile.role);
+  if (!role.success) return null;
   const archivedAt = profile.archived_at;
   return {
     id: String(profile.id),
     family_id: String(profile.family_id),
     name: String(profile.name),
-    role: profile.role,
+    role: role.data,
     age:
       profile.age === null || profile.age === undefined
         ? null
@@ -255,7 +271,12 @@ export async function listProfiles(
 ): Promise<NextResponse> {
   try {
     const profiles = await prisma!.householdMember.findMany({
-      where: { family_id: auth.user.family_id },
+      where: {
+        family_id: auth.user.family_id,
+        legacy_mapping: { is: null },
+        account_link: { is: null },
+        erasure_user_id: null,
+      },
       select: {
         id: true,
         family_id: true,
@@ -267,10 +288,20 @@ export async function listProfiles(
       },
       orderBy: [{ archived_at: "asc" }, { name: "asc" }, { id: "asc" }],
     });
-    return NextResponse.json(
-      { profiles: profiles.map(toProfileDto) },
-      { headers: NO_STORE },
-    );
+    const dtos = profiles.map(toProfileDto);
+    if (dtos.some((profile): profile is null => profile === null)) {
+      return apiError(
+        500,
+        "PROFILE_STORAGE_INVALID",
+        "Household profiles are temporarily unavailable.",
+        {
+          requestId: getRequestId(request),
+          shape: "nested",
+          headers: NO_STORE,
+        },
+      );
+    }
+    return NextResponse.json({ profiles: dtos }, { headers: NO_STORE });
   } catch (error) {
     logRouteError("GET /api/family/profiles", error, getRequestId(request));
     return apiError(

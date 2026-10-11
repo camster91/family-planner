@@ -268,6 +268,10 @@ type Rel = { model: string; fk: string; many?: boolean; ref?: string }
 const RELATIONS: Record<string, Record<string, Rel>> = {
   user: { family: { model: 'family', fk: 'family_id' } },
   family: { members: { model: 'user', fk: 'family_id', many: true, ref: 'id' } },
+  householdMember: {
+    legacy_mapping: { model: 'householdMemberLegacyMapping', fk: 'member_id', ref: 'id' },
+    account_link: { model: 'householdMemberAccountLink', fk: 'member_id', ref: 'id' },
+  },
   anniversary: { creator: { model: 'user', fk: 'created_by' }, person: { model: 'user', fk: 'person_id' } },
   upload: { family: { model: 'family', fk: 'family_id' }, uploader: { model: 'user', fk: 'uploaded_by' } },
   chore: {
@@ -439,6 +443,13 @@ class FakeDb {
       const key = rel.ref ?? 'id'
       return { rel, value: this.rows(rel.model).filter((r) => r[rel.fk] === row[key]) }
     }
+    if (rel.ref) {
+      const sourceValue = row[rel.ref]
+      return {
+        rel,
+        value: sourceValue == null ? null : this.rows(rel.model).find((related) => related[rel.fk] === sourceValue) ?? null,
+      }
+    }
     const fkValue = row[rel.fk]
     return { rel, value: fkValue == null ? null : this.find(rel.model, fkValue) ?? null }
   }
@@ -560,7 +571,17 @@ export function matches(model: string, row: Row, where: any): boolean {
         if (c.every && !list.every((r) => matches(rel.model, r, c.every))) return false
         if (c.none && list.some((r) => matches(rel.model, r, c.none))) return false
       } else {
-        if (!value || !matches(rel.model, value as Row, cond)) return false
+        const relationFilter = cond as Record<string, unknown>
+        if ('is' in relationFilter || 'isNot' in relationFilter) {
+          if ('is' in relationFilter) {
+            const expected = relationFilter.is
+            if (expected === null ? value !== null : !value || !matches(rel.model, value as Row, expected)) return false
+          }
+          if ('isNot' in relationFilter) {
+            const expected = relationFilter.isNot
+            if (expected === null ? value === null : value !== null && matches(rel.model, value as Row, expected)) return false
+          }
+        } else if (!value || !matches(rel.model, value as Row, cond)) return false
       }
       continue
     }
