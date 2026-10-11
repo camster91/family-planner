@@ -1,25 +1,90 @@
 'use client'
 
 import * as React from 'react'
-import { Lock, UtensilsCrossed, StickyNote, Cake, MapPin, Car, Wallet, Gift, TrendingUp, MessageSquare, FolderKanban, CheckSquare, Calendar, ListChecks, Users } from 'lucide-react'
+import { ChevronDown, Lock } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
+import { SearchField } from '@/components/ui/search-field'
 import { useFeatures } from '@/components/providers/features-provider'
-import { FEATURES, groupFeatures, isFeatureEnabled, type FeatureKey, type FeatureMeta } from '@/lib/features'
+import {
+  FEATURES,
+  groupFeatures,
+  isFeatureEnabled,
+  type FeatureKey,
+  type FeatureMeta,
+} from '@/lib/features'
+import { useFeaturesText, type FeaturesMessage } from '@/i18n/features'
 
-const GROUP_LABELS: Record<FeatureMeta['group'], { title: string; sub: string }> = {
-  core: { title: 'Core', sub: 'Always on. These keep the app working.' },
-  planning: { title: 'Planning', sub: 'Turn on what helps your family. Turn off what you do not use.' },
-  family: { title: 'Family life', sub: 'Off by default. Turn on to add to your dashboard.' },
+const GROUP_ORDER = ['core', 'planning', 'family'] as const
+type GroupKey = (typeof GROUP_ORDER)[number]
+
+const GROUP_COPY: Record<
+  GroupKey,
+  { title: FeaturesMessage; subtitle: FeaturesMessage }
+> = {
+  core: { title: 'coreTitle', subtitle: 'coreSubtitle' },
+  planning: { title: 'planningTitle', subtitle: 'planningSubtitle' },
+  family: { title: 'familyTitle', subtitle: 'familySubtitle' },
+}
+
+const INITIAL_EXPANDED: Record<GroupKey, boolean> = {
+  core: true,
+  planning: true,
+  family: true,
 }
 
 export default function FeaturesPage() {
   const { features, setFeature } = useFeatures()
+  const copy = useFeaturesText()
   const [pending, setPending] = React.useState<FeatureKey | null>(null)
   const [toast, setToast] = React.useState<string | null>(null)
-
-  const groups = groupFeatures(FEATURES)
-  // Local alias to avoid shadowing the FEATURES import in scope.
+  const [query, setQuery] = React.useState('')
+  const [expanded, setExpanded] =
+    React.useState<Record<GroupKey, boolean>>(INITIAL_EXPANDED)
+  const [activeGroup, setActiveGroup] = React.useState<GroupKey>('planning')
   const flags = features
+  const groups = groupFeatures(FEATURES)
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+
+  const groupRows = GROUP_ORDER.map((key) => {
+    const title = copy(GROUP_COPY[key].title)
+    const subtitle = copy(GROUP_COPY[key].subtitle)
+    const source = groups[key]
+    const matching = normalizedQuery
+      ? source.filter((feature) => {
+          const needsTitle = feature.requires
+            ? FEATURES.find((candidate) => candidate.key === feature.requires)
+                ?.title
+            : undefined
+          return [
+            feature.title,
+            feature.description,
+            title,
+            subtitle,
+            needsTitle,
+          ]
+            .filter(Boolean)
+            .some((value) =>
+              value!.toLocaleLowerCase().includes(normalizedQuery),
+            )
+        })
+      : source
+    return { key, title, subtitle, source, features: matching }
+  })
+  const visibleGroups = normalizedQuery
+    ? groupRows.filter((group) => group.features.length > 0)
+    : groupRows
+  const enabledCount = FEATURES.filter((feature) =>
+    isFeatureEnabled(flags, feature.key),
+  ).length
+  const blockedCount = FEATURES.filter(
+    (feature) => feature.requires && !isFeatureEnabled(flags, feature.requires),
+  ).length
+  const availableCount = FEATURES.filter(
+    (feature) =>
+      feature.group !== 'core' &&
+      (!feature.requires || isFeatureEnabled(flags, feature.requires)),
+  ).length
+  const hasMatches = visibleGroups.length > 0
 
   async function toggle(feature: FeatureMeta) {
     if (feature.group === 'core') return
@@ -30,58 +95,135 @@ export default function FeaturesPage() {
     setPending(feature.key)
     try {
       await setFeature(feature.key, next)
-      setToast(`${feature.title} ${next ? 'enabled' : 'disabled'}`)
+      setToast(
+        copy(next ? 'enabledToast' : 'disabledToast', { title: feature.title }),
+      )
       setTimeout(() => setToast(null), 2200)
     } catch {
-      setToast(`Could not update ${feature.title}`)
+      setToast(copy('updateFailed', { title: feature.title }))
       setTimeout(() => setToast(null), 2200)
     } finally {
       setPending(null)
     }
   }
 
+  function toggleGroup(key: GroupKey) {
+    setExpanded((current) => ({ ...current, [key]: !current[key] }))
+    setActiveGroup(key)
+  }
+
+  function jumpToGroup(key: GroupKey) {
+    setActiveGroup(key)
+    setExpanded((current) => ({ ...current, [key]: true }))
+    const section = document.getElementById(`feature-group-${key}`)
+    section?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }
+
+  function setAllGroups(open: boolean) {
+    setExpanded({ core: open, planning: open, family: open })
+  }
+
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-3xl mx-auto">
       <LargeHeader
-        greeting="Family settings"
-        title="Features"
-        subtitle="Turn features on or off. Disabled features are hidden from the dashboard for everyone."
+        greeting={copy('greeting')}
+        title={copy('title')}
+        subtitle={copy('subtitle')}
         className="px-1"
       />
 
-      <FeatureGroup
-        title={GROUP_LABELS.core.title}
-        subtitle={GROUP_LABELS.core.sub}
-        features={groups.core}
-        flags={flags}
-        onToggle={toggle}
-        pending={pending}
-      />
+      <div className="space-y-3" aria-label={copy('searchLabel')}>
+        <div className="rounded-[var(--radius-lg)] bg-surface-fill-secondary px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-footnote text-label-secondary">
+            <span>
+              {copy('enabledSummary', {
+                enabled: enabledCount,
+                total: FEATURES.length,
+              })}
+            </span>
+            <span>
+              {copy('availableSummary', { count: availableCount })} ·{' '}
+              {copy('blockedSummary', { count: blockedCount })}
+            </span>
+          </div>
+        </div>
+        <label className="block">
+          <span className="sr-only">{copy('searchLabel')}</span>
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder={copy('searchPlaceholder')}
+          />
+        </label>
+        <div className="flex items-center justify-between gap-2">
+          <nav
+            className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1"
+            aria-label={copy('groupNavigation')}
+          >
+            {groupRows.map((group) => {
+              const matchCount = group.features.length
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  className="min-h-11 shrink-0 rounded-full px-3 text-subhead text-label-primary bg-surface-fill hover:bg-surface-fill-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)] disabled:cursor-not-allowed disabled:opacity-45"
+                  aria-current={activeGroup === group.key ? 'true' : undefined}
+                  aria-label={`${group.title} · ${copy('featuresCount', { count: matchCount })}`}
+                  disabled={normalizedQuery.length > 0 && matchCount === 0}
+                  onClick={() => jumpToGroup(group.key)}
+                >
+                  {group.title}
+                </button>
+              )
+            })}
+          </nav>
+          <button
+            type="button"
+            className="min-h-11 shrink-0 rounded-full px-3 text-subhead text-label-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
+            onClick={() =>
+              setAllGroups(!Object.values(expanded).every(Boolean))
+            }
+          >
+            {Object.values(expanded).every(Boolean)
+              ? copy('closeAll')
+              : copy('openAll')}
+          </button>
+        </div>
+      </div>
 
-      <FeatureGroup
-        title={GROUP_LABELS.planning.title}
-        subtitle={GROUP_LABELS.planning.sub}
-        features={groups.planning}
-        flags={flags}
-        onToggle={toggle}
-        pending={pending}
-      />
+      {hasMatches ? (
+        visibleGroups.map((group) => (
+          <FeatureGroup
+            key={group.key}
+            groupKey={group.key}
+            title={group.title}
+            subtitle={group.subtitle}
+            features={group.features}
+            totalCount={group.source.length}
+            flags={flags}
+            onToggle={toggle}
+            pending={pending}
+            expanded={normalizedQuery.length > 0 || expanded[group.key]}
+            onToggleExpanded={() => toggleGroup(group.key)}
+            copy={copy}
+          />
+        ))
+      ) : (
+        <div className="rounded-[var(--radius-lg)] bg-surface-fill px-4 py-6 text-center">
+          <p className="text-body text-label-primary">{copy('noMatches')}</p>
+          <button
+            type="button"
+            className="mt-3 min-h-11 rounded-full px-4 text-subhead text-label-primary bg-surface-fill-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
+            onClick={() => setQuery('')}
+          >
+            {copy('clearFilters')}
+          </button>
+        </div>
+      )}
 
-      <FeatureGroup
-        title={GROUP_LABELS.family.title}
-        subtitle={GROUP_LABELS.family.sub}
-        features={groups.family}
-        flags={flags}
-        onToggle={toggle}
-        pending={pending}
-      />
-
-      {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-50
-                     px-4 py-2.5 rounded-full bg-label-primary text-white text-subhead
-                     shadow-[var(--shadow-lg)] animate-spring-in"
+          className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-label-primary text-white text-subhead shadow-[var(--shadow-lg)] animate-spring-in"
           role="status"
         >
           {toast}
@@ -92,45 +234,93 @@ export default function FeaturesPage() {
 }
 
 function FeatureGroup({
+  groupKey,
   title,
   subtitle,
   features,
+  totalCount,
   flags,
   onToggle,
   pending,
+  expanded,
+  onToggleExpanded,
+  copy,
 }: {
+  groupKey: GroupKey
   title: string
   subtitle: string
   features: FeatureMeta[]
+  totalCount: number
   flags: Record<FeatureKey, boolean>
-  onToggle: (f: FeatureMeta) => void
+  onToggle: (feature: FeatureMeta) => void
   pending: FeatureKey | null
+  expanded: boolean
+  onToggleExpanded: () => void
+  copy: ReturnType<typeof useFeaturesText>
 }) {
+  const headingId = `feature-group-heading-${groupKey}`
+  const panelId = `feature-group-panel-${groupKey}`
+
   return (
-    <section>
-      <div className="px-1 pb-2">
-        <h2 className="text-title-3">{title}</h2>
-        <p className="text-footnote text-label-secondary mt-0.5">{subtitle}</p>
+    <section id={`feature-group-${groupKey}`} aria-labelledby={headingId}>
+      <div className="flex min-h-11 w-full items-center justify-between gap-3 px-1 pb-2">
+        <span className="min-w-0">
+          <h2 id={headingId} className="text-title-3">
+            {title}
+          </h2>
+          <p className="mt-0.5 text-footnote text-label-secondary">
+            {subtitle}
+          </p>
+        </span>
+        <button
+          type="button"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full px-2 text-footnote text-label-tertiary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          aria-label={
+            expanded
+              ? copy('hideGroup', { group: title })
+              : copy('showGroup', { group: title })
+          }
+          onClick={onToggleExpanded}
+        >
+          <span>{copy('featuresCount', { count: totalCount })}</span>
+          <ChevronDown
+            className={`h-5 w-5 transition-transform ${expanded ? '' : '-rotate-90'}`}
+            aria-hidden="true"
+          />
+        </button>
       </div>
-      <div className="list-inset">
-        {features.map((f, i) => {
-          const needs = f.requires && !isFeatureEnabled(flags, f.requires)
-            ? FEATURES.find((m) => m.key === f.requires)
-            : undefined
-          return (
-            <FeatureRow
-              key={f.key}
-              feature={f}
-              enabled={isFeatureEnabled(flags, f.key)}
-              onToggle={() => onToggle(f)}
-              disabled={f.group === 'core' || needs !== undefined}
-              needsTitle={needs?.title}
-              pending={pending === f.key}
-              last={i === features.length - 1}
-            />
-          )
-        })}
-      </div>
+      {expanded && (
+        <div
+          id={panelId}
+          role="region"
+          aria-labelledby={headingId}
+          className="list-inset"
+        >
+          {features.map((feature, index) => {
+            const needs =
+              feature.requires && !isFeatureEnabled(flags, feature.requires)
+                ? FEATURES.find(
+                    (candidate) => candidate.key === feature.requires,
+                  )
+                : undefined
+            return (
+              <FeatureRow
+                key={feature.key}
+                feature={feature}
+                enabled={isFeatureEnabled(flags, feature.key)}
+                onToggle={() => onToggle(feature)}
+                disabled={feature.group === 'core' || needs !== undefined}
+                needsTitle={needs?.title}
+                pending={pending === feature.key}
+                last={index === features.length - 1}
+                copy={copy}
+              />
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }
@@ -143,17 +333,20 @@ function FeatureRow({
   needsTitle,
   pending,
   last,
+  copy,
 }: {
   feature: FeatureMeta
   enabled: boolean
   onToggle: () => void
   disabled: boolean
-  /** Title of the feature this one needs, when that one is off. */
   needsTitle?: string
   pending: boolean
   last: boolean
+  copy: ReturnType<typeof useFeaturesText>
 }) {
   const Icon = feature.icon
+  const descriptionId = React.useId()
+  const reasonId = React.useId()
   const bgClass = {
     meals: 'bg-tint-meals',
     lists: 'bg-tint-lists',
@@ -165,22 +358,45 @@ function FeatureRow({
     calendar: 'bg-tint-calendar',
     chore: 'bg-chore',
   }[feature.glyphColor]
-
+  const state = pending
+    ? copy('updating')
+    : feature.group === 'core'
+      ? copy('locked')
+      : needsTitle
+        ? copy('blocked')
+        : enabled
+          ? copy('on')
+          : copy('off')
   return (
     <div
       className={`row-apple ${last ? '' : 'border-b border-[var(--surface-separator)]'}`}
     >
       <div className={`glyph ${bgClass}`}>
-        <Icon className="w-5 h-5 text-white" />
+        <Icon className="w-5 h-5 text-white" aria-hidden="true" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-body text-label-primary flex items-center gap-1.5">
-          {feature.title}
-          {disabled && <Lock className="w-3.5 h-3.5 text-label-tertiary" />}
+        <div className="flex items-center gap-1.5 text-body text-label-primary">
+          <span className="min-w-0 truncate">{feature.title}</span>
+          {disabled && (
+            <Lock
+              className="h-3.5 w-3.5 shrink-0 text-label-tertiary"
+              aria-hidden="true"
+            />
+          )}
+          <span className="shrink-0 rounded-full bg-surface-fill-secondary px-2 py-0.5 text-caption-1 text-label-secondary">
+            {state}
+          </span>
         </div>
-        <div className="text-footnote text-label-secondary truncate">{feature.description}</div>
+        <div
+          id={descriptionId}
+          className="text-footnote text-label-secondary truncate"
+        >
+          {feature.description}
+        </div>
         {needsTitle && (
-          <div className="text-footnote text-label-tertiary">Needs {needsTitle}. Turn that on first.</div>
+          <div id={reasonId} className="text-footnote text-label-tertiary">
+            {copy('needs', { dependency: needsTitle })}
+          </div>
         )}
       </div>
       <ToggleSwitch
@@ -189,6 +405,10 @@ function FeatureRow({
         disabled={disabled}
         pending={pending}
         featureTitle={feature.title}
+        descriptionId={
+          needsTitle ? `${descriptionId} ${reasonId}` : descriptionId
+        }
+        copy={copy}
       />
     </div>
   )
@@ -200,46 +420,38 @@ function ToggleSwitch({
   disabled,
   pending,
   featureTitle,
+  descriptionId,
+  copy,
 }: {
   checked: boolean
   onChange: () => void
   disabled: boolean
   pending: boolean
-  /** Used to build an aria-label like "Enable Chores" so screen readers announce the toggle. */
   featureTitle?: string
+  descriptionId: string
+  copy: ReturnType<typeof useFeaturesText>
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-label={featureTitle ? `${checked ? 'Disable' : 'Enable'} ${featureTitle}` : undefined}
+      aria-describedby={descriptionId}
+      aria-label={
+        featureTitle
+          ? copy(checked ? 'disable' : 'enable', { title: featureTitle })
+          : undefined
+      }
       onClick={disabled ? undefined : onChange}
       disabled={disabled || pending}
-      // The button is the 44px-tall tap target (with a 51px-wide track, >= 44
-      // both ways); the 51x31 track inside is only the picture of the switch.
-      className={`
-        group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center
-        ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
-        focus-visible:outline-none
-      `}
+      className={`group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
     >
       <span
         aria-hidden="true"
-        className={`
-          relative block h-[31px] w-[51px] rounded-full
-          transition-colors duration-[var(--duration-fast)] ease-[var(--spring-default)]
-          ${checked ? 'bg-[var(--success)]' : 'bg-[var(--surface-fill-secondary)]'}
-          ${disabled ? 'opacity-50' : 'group-active:opacity-80'}
-          group-focus-visible:shadow-[var(--shadow-focus)]
-        `}
+        className={`relative block h-[31px] w-[51px] rounded-full transition-colors duration-[var(--duration-fast)] ease-[var(--spring-default)] ${checked ? 'bg-[var(--success)]' : 'bg-[var(--surface-fill-secondary)]'} ${disabled ? 'opacity-50' : 'group-active:opacity-80'} group-focus-visible:shadow-[var(--shadow-focus)]`}
       >
         <span
-          className={`
-            absolute left-0 top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)]
-            transition-transform duration-[var(--duration-fast)] ease-[var(--spring-default)]
-            ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}
-          `}
+          className={`absolute left-0 top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)] transition-transform duration-[var(--duration-fast)] ease-[var(--spring-default)] ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}
         >
           {pending && (
             <span className="absolute inset-0 flex items-center justify-center">
