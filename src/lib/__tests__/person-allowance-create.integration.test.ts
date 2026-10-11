@@ -142,10 +142,6 @@ describeWithDatabase("person allowance create replay integrity", () => {
           context,
           body,
           async ({ recordId }) => {
-            // Keep the single owner in-flight while the other callers collide
-            // with its receipt. This makes the concurrent branch deterministic;
-            // the post-settlement replay below proves the stored 201 path.
-            await new Promise((resolve) => setTimeout(resolve, 200));
             return create(db, body, actor, recordId);
           },
         ),
@@ -158,14 +154,29 @@ describeWithDatabase("person allowance create replay integrity", () => {
         response.headers.get("Idempotency-Replayed") === null,
     );
     expect(original).toHaveLength(1);
+    const owner = original[0];
+    for (const response of responses) {
+      if (response === owner) continue;
+
+      if (response.status === 409) {
+        expect((await response.json()).error.code).toBe(
+          "IDEMPOTENCY_IN_PROGRESS",
+        );
+        continue;
+      }
+
+      expect(response.status).toBe(201);
+      expect(response.headers.get("Idempotency-Replayed")).toBe("true");
+    }
+
+    const successfulBodies = await Promise.all(
+      responses
+        .filter((response) => response.status === 201)
+        .map((response) => response.json()),
+    );
     expect(
-      responses.every(
-        (response) =>
-          response.status === 409 ||
-          (response.status === 201 &&
-            response.headers.get("Idempotency-Replayed") === "true"),
-      ),
-    ).toBe(true);
+      new Set(successfulBodies.map((body) => body.allowance?.id)).size,
+    ).toBe(1);
     expect(await db.allowance.count({ where: { family_id: FAMILY } })).toBe(1);
     expect(
       await db.idempotencyRecord.count({
