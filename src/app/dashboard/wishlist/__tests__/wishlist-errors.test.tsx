@@ -137,6 +137,54 @@ it('denying: uses a draft-preserving dialog instead of window.prompt', async () 
   expect(window.prompt).not.toHaveBeenCalled()
 })
 
+it('denying: restores focus to the triggering status select after a retry succeeds', async () => {
+  let statusAttempts = 0
+  let current = { ...ITEM, denied_reason: null as string | null }
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return { ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      return { ok: true, status: 200, json: async () => ({ items: [current] }) } as Response
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      statusAttempts += 1
+      if (statusAttempts === 1) {
+        return { ok: false, status: 503, json: async () => ({ error: 'Unavailable' }) } as Response
+      }
+      current = { ...ITEM, status: 'denied', denied_reason: 'It is no longer needed' }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ item: current }),
+      } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'denied')
+
+  const dialog = screen.getByRole('dialog', { name: 'wishlist.denyWish' })
+  const reason = within(dialog).getByLabelText('wishlist.deniedReason')
+  await user.type(reason, 'It is no longer needed')
+  await user.click(within(dialog).getByRole('button', { name: 'wishlist.confirmDenial' }))
+
+  expect((await within(dialog).findByRole('alert')).textContent).toBe('wishlist.statusUncertain')
+  expect((reason as HTMLTextAreaElement).value).toBe('It is no longer needed')
+
+  await user.click(within(dialog).getByRole('button', { name: 'wishlist.confirmDenial' }))
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'wishlist.denyWish' })).toBeNull())
+  await waitFor(() => expect(document.activeElement).toBe(select))
+  expect(select.value).toBe('denied')
+  expect(statusAttempts).toBe(2)
+})
+
 it('status changes lock one item while pending and ignore a second selection', async () => {
   let resolveStatus: (value: Response) => void = () => {}
   let statusCalls = 0

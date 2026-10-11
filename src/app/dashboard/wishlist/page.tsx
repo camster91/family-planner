@@ -94,6 +94,11 @@ function WishlistContent() {
   const pendingStatusIdsRef = useRef<Set<string>>(new Set())
   const itemsRequestRef = useRef(0)
   const denialReasonRef = useRef<HTMLTextAreaElement>(null)
+  // Native selects do not always remain the active element while their
+  // change event opens a modal. Keep a stable item-owned target so the
+  // completed denial flow can return focus after the row has re-rendered.
+  const statusSelectRefs = useRef(new Map<string, HTMLSelectElement>())
+  const statusFocusIdRef = useRef<string | null>(null)
   const { addToast } = useMaybeToast()
 
   const [formTitle, setFormTitle] = useState('')
@@ -277,6 +282,15 @@ function WishlistContent() {
     }
   }
 
+  useEffect(() => {
+    const itemId = statusFocusIdRef.current
+    if (!itemId || denialDraft || pendingStatusIds.has(itemId)) return
+
+    statusFocusIdRef.current = null
+    const select = statusSelectRefs.current.get(itemId)
+    if (select && !select.disabled) select.focus()
+  }, [denialDraft, items, pendingStatusIds])
+
   const openDenialModal = (item: WishlistItem) => {
     setStatusModalError(null)
     setDenialDraft({ itemId: item.id, title: item.title, reason: '' })
@@ -284,6 +298,7 @@ function WishlistContent() {
 
   const closeDenialModal = () => {
     if (denialDraft && pendingStatusIdsRef.current.has(denialDraft.itemId)) return
+    if (denialDraft) statusFocusIdRef.current = denialDraft.itemId
     setStatusModalError(null)
     setDenialDraft(null)
   }
@@ -302,6 +317,7 @@ function WishlistContent() {
       'modal',
     )
     if (saved) {
+      statusFocusIdRef.current = denialDraft.itemId
       setStatusModalError(null)
       setDenialDraft(null)
     }
@@ -486,11 +502,16 @@ function WishlistContent() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {isParent && (
                         <select
+                          ref={(node) => {
+                            if (node) statusSelectRefs.current.set(item.id, node)
+                            else statusSelectRefs.current.delete(item.id)
+                          }}
                           value={item.status}
                           disabled={pendingStatusIds.has(item.id)}
                           aria-busy={pendingStatusIds.has(item.id) || undefined}
                           onChange={(e) => {
                             if (e.target.value === 'denied') {
+                              statusSelectRefs.current.set(item.id, e.currentTarget)
                               openDenialModal(item)
                             } else {
                               void handleStatusChange(item.id, e.target.value)
