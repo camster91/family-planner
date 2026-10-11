@@ -37,6 +37,7 @@ import { NO_STORE, deviceError, rateLimited, readJson } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
 import type { DeviceActor } from '@/lib/device-session'
 import { isProfileChoreEnabled } from '@/lib/chore-profile'
+import { memberIdentityIdSchema } from '@/lib/member-subject-contract'
 
 /** Tablet writes per device per hour: a busy kitchen, not a script. */
 export const DEVICE_WRITE_LIMIT = 300
@@ -107,7 +108,7 @@ export async function openDeviceWrite(
       Object.keys(body).length !== 2 ||
       Object.keys(selection).length !== 1 ||
       typeof memberId !== 'string' ||
-      !ID_PATTERN.test(memberId)
+      !memberIdentityIdSchema.safeParse(memberId).success
     ) return { ok: false, response: deviceError(400, 'VALIDATION_ERROR') }
     return { ok: true, ctx: { actor, key, body, profileMemberId: memberId } }
   }
