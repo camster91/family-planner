@@ -5,9 +5,19 @@ import * as React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { I18nProvider } from '@/i18n'
+import { useIdleCover } from '../ambient'
 import { AmbientCoverFallback, LazyChunkBoundary } from '../TodayBoard'
 
 const state = { ambient: true, dim: false }
+
+function CoveredRetrySurface({ onWake, onRetry }: { onWake: () => void; onRetry: () => void }) {
+  const { covered } = useIdleCover({
+    enabled: true,
+    now: Date.now() + 60_000,
+    display: { idleMinutes: 1, night: null },
+  })
+  return covered ? <AmbientCoverFallback state={state} status="error" onWake={onWake} onRetry={onRetry} /> : null
+}
 
 describe('lazy Today board surfaces', () => {
   it('keeps the board wake control accessible while the ambient chunk loads', () => {
@@ -59,6 +69,18 @@ describe('lazy Today board surfaces', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudo cargar la pantalla tranquila.')
     expect(screen.getByRole('button', { name: 'Intentar de nuevo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mostrar el panel' })).toBeInTheDocument()
+  })
+
+  it('lets keyboard activate the explicit retry without waking the covered board', () => {
+    const onWake = jest.fn()
+    const onRetry = jest.fn()
+    render(<CoveredRetrySurface onWake={onWake} onRetry={onRetry} />)
+
+    const retry = screen.getByRole('button', { name: 'Try again' })
+    fireEvent.keyDown(retry, { key: 'Enter', code: 'Enter' })
+    expect(onWake).not.toHaveBeenCalled()
+    fireEvent.click(retry)
+    expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
   it('turns a rejected optional chunk into a recoverable fallback', () => {

@@ -27,7 +27,7 @@ import {
   type NextEventView,
   type WeatherView,
 } from './board-model'
-import { useIdleCover } from './ambient'
+import { useIdleCover } from './use-idle-cover'
 import { SyncAnnouncer, SyncNotice, UpdatedLine } from './sync-status'
 import { useBoardSync } from './use-board-sync'
 import {
@@ -203,10 +203,12 @@ type AmbientCoverFallbackProps = {
 /** The cover remains an accessible, inert-board surface while its optional chunk loads. */
 export function AmbientCoverFallback({ state, status, onWake, onRetry }: AmbientCoverFallbackProps) {
   const buttonRef = React.useRef<HTMLButtonElement>(null)
+  const retryButtonRef = React.useRef<HTMLButtonElement>(null)
   const text = useTodayBoardText()
 
   React.useEffect(() => {
-    buttonRef.current?.focus({ preventScroll: true })
+    const focusTarget = status === 'error' ? retryButtonRef.current : buttonRef.current
+    focusTarget?.focus({ preventScroll: true })
   }, [status])
 
   return (
@@ -225,12 +227,16 @@ export function AmbientCoverFallback({ state, status, onWake, onRetry }: Ambient
       }}
       className="fixed inset-0 z-[80] flex cursor-pointer select-none items-end justify-end bg-[#0d1117]/95 p-8 text-white"
     >
-      <div className="relative z-10 flex flex-col items-end gap-3 text-right">
+      <div
+        data-ambient-cover-controls="true"
+        className="relative z-10 flex flex-col items-end gap-3 text-right"
+      >
         <p role={status === 'error' ? 'alert' : 'status'}>
           {status === 'loading' ? text('lazyAmbientLoading') : text('lazyAmbientError')}
         </p>
         {status === 'error' && onRetry && (
           <button
+            ref={retryButtonRef}
             type="button"
             className="btn-secondary min-h-11 min-w-[44px]"
             onClick={(event) => {
