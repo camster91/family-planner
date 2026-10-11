@@ -664,6 +664,11 @@ function HandoffPageInner() {
     fetchHandoffs()
   }, [fetchHandoffs])
 
+  const retryHandoffs = () => {
+    setLoading(true)
+    void fetchHandoffs()
+  }
+
   const handleSave = async (form: HandoffFormData) => {
     setSaving(true)
     setError(null)
@@ -820,8 +825,12 @@ function HandoffPageInner() {
         </div>
 
         {loadError && (
-          <div className="card-apple p-4 text-center text-label-secondary">
-            {t('handoff.errorLoad')}
+          <div className="card-apple p-4 text-center text-label-secondary" role="alert">
+            <p>{t('handoff.errorLoad')}</p>
+            <button type="button" onClick={retryHandoffs} className="btn-tinted mt-3 min-h-[44px]">
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+              {t('routeState.tryAgain')}
+            </button>
           </div>
         )}
 
