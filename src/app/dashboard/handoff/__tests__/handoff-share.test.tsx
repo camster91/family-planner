@@ -6,12 +6,28 @@
 // Share now shows the current link with a Copy button that copies inside the
 // tap; a new link is made only from an explicit, warned step.
 import * as React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 
-const mockT = (key: string) => key
-jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: mockT }) }))
+let mockLocale = 'en'
+let mockLocaleRerender: (() => void) | null = null
+const mockT = (key: string) => {
+  if (mockLocale === 'es' && key === 'handoff.errorLoad') return 'No se pudo cargar'
+  return key
+}
+jest.mock('@/i18n', () => ({
+  useTranslation: () => {
+    const [, setRender] = React.useState(0)
+    React.useEffect(() => {
+      mockLocaleRerender = () => setRender((value) => value + 1)
+      return () => {
+        mockLocaleRerender = null
+      }
+    }, [])
+    return { t: (key: string) => mockT(key) }
+  },
+}))
 jest.mock('@/components/ui/feature-gate', () => ({
   FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
@@ -24,12 +40,16 @@ const PAST = '2020-01-01T00:00:00.000Z'
 let handoff: Record<string, unknown>
 let calls: { url: string; method: string }[]
 let role: string
+let failNextHandoffLoad: boolean
 
 const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
 
 beforeEach(() => {
   calls = []
   role = 'parent'
+  failNextHandoffLoad = false
+  mockLocale = 'en'
+  mockLocaleRerender = null
   handoff = {
     id: 'h1',
     sitter_name: 'Sarah',
@@ -43,7 +63,13 @@ beforeEach(() => {
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push({ url, method })
     if (url === '/api/auth/me') return reply({ user: { id: 'p1', role } })
-    if (url === '/api/handoff') return reply({ handoffs: [handoff] })
+    if (url === '/api/handoff') {
+      if (failNextHandoffLoad) {
+        failNextHandoffLoad = false
+        return reply({ error: 'temporary failure' }, 503)
+      }
+      return reply({ handoffs: [handoff] })
+    }
     if (url === '/api/handoff/h1/regenerate-token' && method === 'POST') {
       handoff = { ...handoff, share_token: 'newtoken', share_expires_at: FUTURE }
       return reply({ handoff })
@@ -62,6 +88,36 @@ const renderPage = () =>
 const regenerateCalls = () => calls.filter((c) => c.url.endsWith('/regenerate-token'))
 
 describe('handoff share', () => {
+  it('updates a failed-load message when locale changes without refetching', async () => {
+    failNextHandoffLoad = true
+    renderPage()
+
+    expect((await screen.findByRole('alert')).textContent).toContain('handoff.errorLoad')
+    expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(1)
+
+    mockLocale = 'es'
+    act(() => mockLocaleRerender?.())
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('No se pudo cargar'))
+    expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(1)
+  })
+
+  it('recovers from an initial load failure with Retry', async () => {
+    failNextHandoffLoad = true
+    const user = userEvent.setup()
+    renderPage()
+
+    expect((await screen.findByRole('alert')).textContent).toContain('handoff.errorLoad')
+    const retry = screen.getByRole('button', { name: 'routeState.tryAgain' })
+    expect(retry.className).toMatch(/min-h-\[44px\]/)
+
+    await user.click(retry)
+
+    expect(await screen.findByText('Sarah')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(2)
+  })
+
   it('shows the existing link without making a new one, and Copy copies it within the tap', async () => {
     const user = userEvent.setup()
     const writeText = jest.spyOn(navigator.clipboard, 'writeText')

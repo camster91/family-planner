@@ -15,9 +15,17 @@ import {
   executeAssistantAction,
   removalTargets,
   choreAssignees,
+  AssistantActionError,
+  type AssistantActionErrorCode,
   type RemovalTarget,
 } from "./action-client";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
+import { useTranslation } from "@/i18n";
+import {
+  assistantMessages,
+  type AssistantMessage,
+  type VoiceErrorCode,
+} from "@/i18n/assistant";
 import { useVoiceDraft } from "./use-voice-draft";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -42,6 +50,34 @@ export type AssistantPanelProps = {
   onBusyChange: (busy: boolean) => void;
 };
 
+type AssistantError =
+  | { kind: "copy"; key: AssistantMessage }
+  | { kind: "action"; key: AssistantActionErrorCode }
+  | { kind: "voice"; key: VoiceErrorCode }
+  | { kind: "raw"; message: string };
+
+class AssistantCopyError extends Error {
+  readonly key: AssistantMessage;
+
+  constructor(key: AssistantMessage) {
+    super(key);
+    this.name = "AssistantCopyError";
+    this.key = key;
+  }
+}
+
+function toAssistantError(
+  error: unknown,
+  fallback: AssistantMessage,
+): AssistantError {
+  if (error instanceof AssistantActionError)
+    return { kind: "action", key: error.code };
+  if (error instanceof AssistantCopyError)
+    return { kind: "copy", key: error.key };
+  if (error instanceof Error) return { kind: "raw", message: error.message };
+  return { kind: "copy", key: fallback };
+}
+
 export default function AssistantPanel({
   role,
   pathname,
@@ -53,10 +89,15 @@ export default function AssistantPanel({
 }: AssistantPanelProps) {
   const router = useRouter(),
     { features } = useFeatures();
+  const { t } = useTranslation();
+  const msg = (
+    key: AssistantMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, assistantMessages);
   const [messages, setMessages] = React.useState<Message[]>([]),
     [text, setText] = React.useState(""),
     [busy, setBusy] = React.useState(false),
-    [error, setError] = React.useState("");
+    [error, setError] = React.useState<AssistantError | null>(null);
   const [action, setAction] = React.useState<AssistantAction | null>(null),
     [targets, setTargets] = React.useState<RemovalTarget[]>([]),
     [selected, setSelected] = React.useState(""),
@@ -75,7 +116,7 @@ export default function AssistantPanel({
   const voice = useVoiceDraft(
     panelOpen && tab === "chat" && !busy,
     (t) => setText(t),
-    setError,
+    (code) => setError({ kind: "voice", key: code }),
   );
   React.useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
   React.useEffect(() => {
@@ -96,7 +137,7 @@ export default function AssistantPanel({
   const open = (next: AssistantPanelTab) => {
     if (busy) return;
     voice.stop();
-    setError("");
+    setError(null);
     setDeleteConfirm(false);
     onTabChange(next);
   };
@@ -108,7 +149,7 @@ export default function AssistantPanel({
       if (!r.ok) throw new Error(b.error);
       setReports(b.reports ?? []);
     } catch {
-      setError("Could not load your reports. Try again.");
+      setError({ kind: "copy", key: "reportsLoadFailed" });
     } finally {
       setReportsLoading(false);
     }
@@ -123,7 +164,7 @@ export default function AssistantPanel({
     if (lock.current || !text.trim() || !canChat) return;
     lock.current = true;
     setBusy(true);
-    setError("");
+    setError(null);
     setAction(null);
     setTargets([]);
     setDeleteConfirm(false);
@@ -145,12 +186,14 @@ export default function AssistantPanel({
           }),
         }),
         body = await r.json();
-      if (!r.ok) throw new Error(body.error || "Chat failed.");
+      if (!r.ok) {
+        if (typeof body.error === "string" && body.error) {
+          throw new Error(body.error);
+        }
+        throw new AssistantCopyError("chatFailed");
+      }
       const parsedReply = assistantReplySchema.safeParse(body);
-      if (!parsedReply.success)
-        throw new Error(
-          "The AI reply was unreadable. Try rephrasing your message.",
-        );
+      if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
       const proposal = parsedReply.data;
       setMessages((prev) =>
         [
@@ -175,7 +218,7 @@ export default function AssistantPanel({
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chat failed.");
+      setError(toAssistantError(e, "chatFailed"));
       setAction(null);
     } finally {
       lock.current = false;
@@ -202,7 +245,7 @@ export default function AssistantPanel({
     lock.current = true;
     consumed.current = true;
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await executeAssistantAction(action, actionKey.current, chosen);
       setMessages((prev) => [
@@ -210,19 +253,17 @@ export default function AssistantPanel({
         {
           role: "assistant",
           content: removing
-            ? `Removed “${chosen!.title}”.`
-            : `Saved “${"title" in action ? action.title : "your change"}”.`,
+            ? msg("removed", { title: chosen!.title })
+            : msg("saved", {
+                title: "title" in action ? action.title : "your change",
+              }),
         },
       ]);
       setAction(null);
       setDeleteConfirm(false);
       router.refresh();
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Action failed. Check the app before retrying.",
-      );
+      setError(toAssistantError(e, "actionFailed"));
       setAction(null);
     } finally {
       lock.current = false;
@@ -234,7 +275,7 @@ export default function AssistantPanel({
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
-    setError("");
+    setError(null);
     if (!requestId.current) requestId.current = crypto.randomUUID();
     try {
       const r = await fetch("/api/feedback", {
@@ -249,15 +290,16 @@ export default function AssistantPanel({
           }),
         }),
         b = await r.json();
-      if (!r.ok) throw new Error(b.error);
+      if (!r.ok) {
+        if (typeof b.error === "string" && b.error) throw new Error(b.error);
+        throw new AssistantCopyError("reportSaveFailed");
+      }
       setReceipt(b.report.id);
       setTitle("");
       setDetails("");
       requestId.current = "";
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not save. Retry this draft.",
-      );
+      setError(toAssistantError(e, "reportSaveFailed"));
     } finally {
       lock.current = false;
       setBusy(false);
@@ -268,12 +310,13 @@ export default function AssistantPanel({
       <Dialog
         open={panelOpen}
         onClose={busy ? undefined : close}
+        closeLabel={msg("close")}
         title={
           tab === "chat"
-            ? "AI assistant"
+            ? msg("titleChat")
             : tab === "report"
-              ? "Report a bug or suggest a feature"
-              : "My reports"
+              ? msg("titleReport")
+              : msg("titleReports")
         }
         variant="form"
         className="sm:!max-w-2xl"
@@ -287,7 +330,7 @@ export default function AssistantPanel({
               onClick={() => open("chat")}
               aria-pressed={tab === "chat"}
             >
-              Assistant
+              {msg("tabAssistant")}
             </button>
           )}
           <button
@@ -297,7 +340,7 @@ export default function AssistantPanel({
             onClick={() => open("report")}
             aria-pressed={tab === "report"}
           >
-            Report / Suggest
+            {msg("tabReport")}
           </button>
           <button
             disabled={busy}
@@ -306,7 +349,7 @@ export default function AssistantPanel({
             onClick={() => open("reports")}
             aria-pressed={tab === "reports"}
           >
-            My reports
+            {msg("tabReports")}
           </button>
         </div>
         {error && (
@@ -314,20 +357,21 @@ export default function AssistantPanel({
             role="alert"
             className="mb-3 rounded-xl bg-surface-fill p-3 text-[var(--danger-text)] break-words"
           >
-            {error}
+            {error.kind === "copy"
+              ? msg(error.key)
+              : error.kind === "action"
+                ? msg(error.key)
+                : error.kind === "voice"
+                  ? msg(error.key)
+                  : error.message}
           </p>
         )}
         {tab === "chat" && (
           <div className="space-y-4">
-            <p className="text-sm text-label-secondary">
-              Ask to add an event, chore, list, grocery item or note; remove an
-              event, chore or list; or open another section. Changes need your
-              review. Chat text goes to your household’s configured AI provider.
-              Household records are not attached.
-            </p>
+            <p className="text-sm text-label-secondary">{msg("chatIntro")}</p>
             <div
               role="log"
-              aria-label="Assistant conversation"
+              aria-label={msg("conversation")}
               aria-live="polite"
               className="space-y-3 max-h-64 overflow-y-auto"
             >
@@ -337,7 +381,7 @@ export default function AssistantPanel({
                   className={`rounded-2xl p-3 whitespace-pre-wrap break-words ${m.role === "user" ? "bg-accent-tint" : "bg-surface-fill"}`}
                 >
                   <span className="font-semibold">
-                    {m.role === "user" ? "You" : "Assistant"}:{" "}
+                    {m.role === "user" ? msg("you") : msg("assistant")}:{" "}
                   </span>
                   {m.content}
                 </p>
@@ -345,19 +389,22 @@ export default function AssistantPanel({
             </div>
             {action && (
               <section
-                aria-label="Review proposed action"
+                aria-label={msg("reviewProposed")}
                 className="rounded-2xl border border-[var(--surface-separator)] bg-surface-fill p-4 space-y-3"
               >
                 <h3 className="font-semibold">
-                  Review before{" "}
-                  {action.kind.endsWith("_delete") ? "removing" : "continuing"}
+                  {msg("reviewBefore", {
+                    verb: action.kind.endsWith("_delete")
+                      ? msg("removing")
+                      : msg("continuing"),
+                  })}
                 </h3>
                 {"title" in action && !action.kind.endsWith("_delete") && (
                   <label className="block">
-                    Title / item
+                    {msg("titleItem")}
                     <input
                       disabled={busy}
-                      aria-label="Proposed title"
+                      aria-label={msg("proposedTitle")}
                       value={action.title}
                       maxLength={200}
                       onChange={(e) =>
@@ -370,14 +417,14 @@ export default function AssistantPanel({
                 {action.kind === "chore_create" && (
                   <fieldset disabled={busy} className="space-y-3">
                     <label className="block">
-                      Who does it?
+                      {msg("whoDoesIt")}
                       <select
-                        aria-label="Chore assignee"
+                        aria-label={msg("choreAssignee")}
                         value={selected}
                         onChange={(e) => setSelected(e.target.value)}
                         className="input-apple w-full min-h-[44px]"
                       >
-                        <option value="">Choose a family member…</option>
+                        <option value="">{msg("chooseMember")}</option>
                         {targets.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.title}
@@ -386,9 +433,9 @@ export default function AssistantPanel({
                       </select>
                     </label>
                     <label className="block">
-                      Repeats
+                      {msg("repeats")}
                       <select
-                        aria-label="Chore frequency"
+                        aria-label={msg("choreFrequency")}
                         value={action.frequency}
                         onChange={(e) =>
                           setAction({
@@ -399,25 +446,38 @@ export default function AssistantPanel({
                         }
                         className="input-apple min-h-[44px] w-full"
                       >
-                        <option value="once">Once</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
+                        <option value="once">{msg("once")}</option>
+                        <option value="daily">{msg("daily")}</option>
+                        <option value="weekly">{msg("weekly")}</option>
+                        <option value="monthly">{msg("monthly")}</option>
                       </select>
                     </label>
                     {action.frequency === "weekly" ? (
                       <WeeklyDaysPicker
                         days={action.weekdays}
+                        copy={{
+                          legend: msg("repeatOn"),
+                          hint: msg("weeklyHint"),
+                          weekdays: {
+                            0: msg("sunday"),
+                            1: msg("monday"),
+                            2: msg("tuesday"),
+                            3: msg("wednesday"),
+                            4: msg("thursday"),
+                            5: msg("friday"),
+                            6: msg("saturday"),
+                          },
+                        }}
                         onChange={(weekdays) =>
                           setAction({ ...action, weekdays })
                         }
                       />
                     ) : (
                       <label className="block">
-                        Date
+                        {msg("date")}
                         <input
                           type="date"
-                          aria-label="Chore date"
+                          aria-label={msg("choreDate")}
                           value={action.date ?? ""}
                           onChange={(e) =>
                             setAction({ ...action, date: e.target.value })
@@ -427,20 +487,23 @@ export default function AssistantPanel({
                       </label>
                     )}
                     <p className="text-sm text-label-secondary">
-                      {action.points} points · {action.difficulty}. Use Chores
-                      for pictures, rotations and routine stacks.
+                      {msg("pointsDetails", {
+                        points: action.points,
+                        difficulty: action.difficulty,
+                        guidance: msg("choreGuidance"),
+                      })}
                     </p>
                   </fieldset>
                 )}
                 {action.kind === "list_create" && (
-                  <p>List type: {action.type}</p>
+                  <p>{msg("listType", { type: action.type })}</p>
                 )}
                 {action.kind === "note_create" && (
                   <label className="block">
-                    Note
+                    {msg("note")}
                     <textarea
                       disabled={busy}
-                      aria-label="Proposed note"
+                      aria-label={msg("proposedNote")}
                       value={action.body}
                       onChange={(e) =>
                         setAction({ ...action, body: e.target.value })
@@ -452,11 +515,11 @@ export default function AssistantPanel({
                 {action.kind === "event_create" && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label>
-                      Start
+                      {msg("start")}
                       <input
                         disabled={busy}
                         type="datetime-local"
-                        aria-label="Proposed start"
+                        aria-label={msg("proposedStart")}
                         value={action.start}
                         onChange={(e) =>
                           setAction({ ...action, start: e.target.value })
@@ -465,11 +528,11 @@ export default function AssistantPanel({
                       />
                     </label>
                     <label>
-                      End
+                      {msg("end")}
                       <input
                         disabled={busy}
                         type="datetime-local"
-                        aria-label="Proposed end"
+                        aria-label={msg("proposedEnd")}
                         value={action.end}
                         onChange={(e) =>
                           setAction({ ...action, end: e.target.value })
@@ -478,24 +541,22 @@ export default function AssistantPanel({
                       />
                     </label>
                     <p className="text-sm text-label-secondary sm:col-span-2">
-                      Times without an offset use your device’s time zone.
-                      Location: {action.location || "None"}
+                      {msg("eventTimeZoneLocation", {
+                        location: action.location || msg("none"),
+                      })}
                     </p>
                   </div>
                 )}
                 {action.kind === "grocery_add" && (
-                  <p className="text-sm">
-                    Adds to your household’s grocery list when there is exactly
-                    one. Choose a list in Lists when you have several.
-                  </p>
+                  <p className="text-sm">{msg("groceryInfo")}</p>
                 )}
                 {action.kind.endsWith("_delete") && (
                   <>
                     <label className="block">
-                      Choose the exact item
+                      {msg("chooseExactItem")}
                       <select
                         disabled={busy}
-                        aria-label="Item to remove"
+                        aria-label={msg("itemToRemove")}
                         value={selected}
                         onChange={(e) => {
                           setSelected(e.target.value);
@@ -503,7 +564,7 @@ export default function AssistantPanel({
                         }}
                         className="input-apple min-h-[44px] w-full"
                       >
-                        <option value="">Choose an item…</option>
+                        <option value="">{msg("chooseItem")}</option>
                         {targets.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.title}
@@ -516,9 +577,7 @@ export default function AssistantPanel({
                       </select>
                     </label>
                     <p className="text-sm text-label-secondary">
-                      Deletion is permanent. Deleting a list also removes its
-                      items. Repeating chores: only the selected occurrence is
-                      removed.
+                      {msg("deletionInfo")}
                     </p>
                     {selected && (
                       <label className="flex min-h-[44px] items-center gap-3">
@@ -528,13 +587,17 @@ export default function AssistantPanel({
                           checked={deleteConfirm}
                           onChange={(e) => setDeleteConfirm(e.target.checked)}
                         />
-                        I confirm removing “
-                        {targets.find((t) => t.id === selected)?.title}”
+                        {msg("confirmRemoving", {
+                          title:
+                            targets.find((t) => t.id === selected)?.title ?? "",
+                        })}
                       </label>
                     )}
                   </>
                 )}
-                {action.kind === "open" && <p>Open {action.destination}</p>}
+                {action.kind === "open" && (
+                  <p>{msg("open", { destination: action.destination })}</p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -552,10 +615,10 @@ export default function AssistantPanel({
                     className={`${target} bg-[var(--accent-fill)] text-white`}
                   >
                     {action.kind.endsWith("_delete")
-                      ? "Remove selected item"
+                      ? msg("removeSelected")
                       : action.kind === "open"
-                        ? "Open section"
-                        : "Confirm and save"}
+                        ? msg("openSection")
+                        : msg("confirmSave")}
                   </button>
                   <button
                     type="button"
@@ -566,14 +629,14 @@ export default function AssistantPanel({
                     }}
                     className={`${target} bg-surface-fill`}
                   >
-                    Cancel proposal
+                    {msg("cancelProposal")}
                   </button>
                 </div>
               </section>
             )}
             <form onSubmit={send} className="space-y-2">
               <label htmlFor="assistant-message" className="font-semibold">
-                Your message
+                {msg("yourMessage")}
               </label>
               <textarea
                 id="assistant-message"
@@ -582,7 +645,7 @@ export default function AssistantPanel({
                 maxLength={2000}
                 disabled={busy}
                 className="input-apple w-full min-h-24"
-                placeholder="Add school pickup tomorrow at 3 for 30 minutes"
+                placeholder={msg("messagePlaceholder")}
               />
               <div className="flex flex-wrap gap-2">
                 <button
@@ -590,7 +653,7 @@ export default function AssistantPanel({
                   className={`${target} bg-[var(--accent-fill)] text-white`}
                   type="submit"
                 >
-                  {busy ? "Working…" : "Send"}
+                  {busy ? msg("working") : msg("send")}
                 </button>
                 <button
                   disabled={busy || !voice.supported}
@@ -600,7 +663,7 @@ export default function AssistantPanel({
                   className={`${target} bg-surface-fill inline-flex items-center gap-2`}
                 >
                   {voice.listening ? <MicOff size={18} /> : <Mic size={18} />}{" "}
-                  {voice.listening ? "Stop voice" : "Voice input"}
+                  {voice.listening ? msg("stopVoice") : msg("voiceInput")}
                 </button>
                 <button
                   disabled={busy}
@@ -610,18 +673,18 @@ export default function AssistantPanel({
                     setMessages([]);
                     setAction(null);
                     setText("");
-                    setError("");
+                    setError(null);
                   }}
                   className={`${target} bg-surface-fill`}
                 >
-                  Clear chat
+                  {msg("clearChat")}
                 </button>
               </div>
               <p className="text-xs text-label-secondary">
                 {voice.supported
-                  ? "Voice uses your browser’s speech service. Review the transcript, then Send."
-                  : "Voice is unavailable in this browser; typing works."}{" "}
-                Chat stays only in this open app session.
+                  ? msg("voiceGuidance")
+                  : msg("voiceUnavailable")}{" "}
+                {msg("sessionOnly")}
               </p>
             </form>
             {role === "parent" && (
@@ -630,29 +693,24 @@ export default function AssistantPanel({
                 onClick={close}
                 className="inline-flex min-h-[44px] items-center text-accent"
               >
-                Household AI setup in Settings
+                {msg("aiSetup")}
               </Link>
             )}
           </div>
         )}
         {tab === "report" && (
           <form onSubmit={saveReport} className="space-y-4">
-            <p className="text-sm text-label-secondary">
-              Save a private bug report or feature suggestion. Avoid passwords
-              and private family details. No screenshot is attached
-              automatically.
-            </p>
+            <p className="text-sm text-label-secondary">{msg("reportIntro")}</p>
             {receipt && (
               <p
                 role="status"
                 className="rounded-xl bg-accent-tint p-3 break-words"
               >
-                Report saved privately. Receipt: {receipt}. Status: received,
-                awaiting review.
+                {msg("reportSaved", { receipt })}
               </p>
             )}
             <label className="block">
-              Type
+              {msg("type")}
               <select
                 disabled={busy}
                 value={kind}
@@ -662,12 +720,12 @@ export default function AssistantPanel({
                 }}
                 className="input-apple min-h-[44px] w-full"
               >
-                <option value="bug">Bug / fix</option>
-                <option value="feature">Feature suggestion</option>
+                <option value="bug">{msg("bug")}</option>
+                <option value="feature">{msg("feature")}</option>
               </select>
             </label>
             <label className="block">
-              Title
+              {msg("title")}
               <input
                 disabled={busy}
                 required
@@ -683,7 +741,7 @@ export default function AssistantPanel({
             </label>
             <div>
               <label htmlFor="feedback-details" className="block">
-                What happened or what would help?
+                {msg("details")}
               </label>
               <textarea
                 id="feedback-details"
@@ -700,15 +758,14 @@ export default function AssistantPanel({
               />
             </div>
             <p className="text-xs text-label-secondary">
-              Page: {pathname}. Reports stay private in the app; nothing is
-              posted publicly.
+              {msg("reportPage", { pathname })}
             </p>
             <button
               disabled={busy}
               type="submit"
               className={`${target} bg-[var(--accent-fill)] text-white`}
             >
-              {busy ? "Saving…" : "Save report"}
+              {busy ? msg("saving") : msg("saveReport")}
             </button>
           </form>
         )}
@@ -719,12 +776,12 @@ export default function AssistantPanel({
               onClick={() => void loadReports()}
               className={`${target} bg-surface-fill`}
             >
-              Refresh reports
+              {msg("refreshReports")}
             </button>
             {reportsLoading ? (
-              <p role="status">Loading reports…</p>
+              <p role="status">{msg("loadingReports")}</p>
             ) : reports.length === 0 ? (
-              <p className="text-label-secondary">No saved reports to show.</p>
+              <p className="text-label-secondary">{msg("noSavedReports")}</p>
             ) : (
               reports.map((r) => (
                 <article key={r.id} className="rounded-xl bg-surface-fill p-3">
@@ -733,7 +790,9 @@ export default function AssistantPanel({
                     {r.kind} · {r.status} ·{" "}
                     {new Date(r.created_at).toLocaleDateString()}
                   </p>
-                  <p className="text-xs break-words">Receipt: {r.id}</p>
+                  <p className="text-xs break-words">
+                    {msg("receipt", { id: r.id })}
+                  </p>
                 </article>
               ))
             )}

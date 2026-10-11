@@ -624,7 +624,9 @@ function HandoffPageInner() {
   const [handoffs, setHandoffs] = React.useState<Handoff[]>([])
   const [loading, setLoading] = React.useState(true)
   // loadError: the list failed to load. error: the open modal's save/delete failed.
-  const [loadError, setLoadError] = React.useState<string | null>(null)
+  // Keep this semantic so a locale change can update the visible copy without
+  // making the canonical list request run again.
+  const [loadError, setLoadError] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
   const [editHandoff, setEditHandoff] = React.useState<Handoff | null>(null)
@@ -642,13 +644,13 @@ function HandoffPageInner() {
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
       setHandoffs(data.handoffs || [])
-      setLoadError(null)
+      setLoadError(false)
     } catch {
-      setLoadError(t('common.error'))
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   // Get user role
   React.useEffect(() => {
@@ -663,6 +665,11 @@ function HandoffPageInner() {
   React.useEffect(() => {
     fetchHandoffs()
   }, [fetchHandoffs])
+
+  const retryHandoffs = () => {
+    setLoading(true)
+    void fetchHandoffs()
+  }
 
   const handleSave = async (form: HandoffFormData) => {
     setSaving(true)
@@ -820,8 +827,12 @@ function HandoffPageInner() {
         </div>
 
         {loadError && (
-          <div className="card-apple p-4 text-center text-label-secondary">
-            {t('handoff.errorLoad')}
+          <div className="card-apple p-4 text-center text-label-secondary" role="alert">
+            <p>{t('handoff.errorLoad')}</p>
+            <button type="button" onClick={retryHandoffs} className="btn-tinted mt-3 min-h-[44px]">
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+              {t('routeState.tryAgain')}
+            </button>
           </div>
         )}
 
