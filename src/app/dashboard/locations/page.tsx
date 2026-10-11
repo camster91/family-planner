@@ -10,6 +10,9 @@ import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { MapPin as MapPinIcon } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
+import { Dialog } from '@/components/ui/dialog'
+import { useTranslation } from '@/i18n'
+import { useLocationsText } from '@/i18n/locations'
 
 interface Location {
   id: string
@@ -42,6 +45,15 @@ function LocationsPageInner() {
   const [newLabel, setNewLabel] = React.useState('Home')
   const [newAddress, setNewAddress] = React.useState('')
   const [saving, setSaving] = React.useState(false)
+  const [removeTarget, setRemoveTarget] = React.useState<Location | null>(null)
+  const [removing, setRemoving] = React.useState(false)
+  const [removeError, setRemoveError] = React.useState<'failed' | 'network' | null>(null)
+  const addButtonRef = React.useRef<HTMLButtonElement>(null)
+  const addLabelRef = React.useRef<HTMLInputElement>(null)
+  const cancelRemoveRef = React.useRef<HTMLButtonElement>(null)
+  const removingRef = React.useRef(false)
+  const { t } = useTranslation()
+  const locationText = useLocationsText()
 
   // KidHome pattern: a refused or failed request says so in a toast instead
   // of doing nothing (or leaving an unhandled rejection when offline).
@@ -99,16 +111,40 @@ function LocationsPageInner() {
     }
   }
 
-  async function remove(id: string) {
-    if (!confirm('Remove this location?')) return
-    try {
-      const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' })
-      if (res.ok) load()
-      else await failed("Couldn't remove the location", res)
-    } catch {
-      await failed("Couldn't remove the location")
-    }
+  const openRemoveConfirmation = (location: Location) => {
+    if (removingRef.current) return
+    setRemoveError(null)
+    setRemoveTarget(location)
   }
+
+  const closeRemoveConfirmation = () => {
+    if (removingRef.current) return
+    setRemoveError(null)
+    setRemoveTarget(null)
+  }
+
+  const remove = React.useCallback(async () => {
+    const location = removeTarget
+    if (!location || removingRef.current) return
+    removingRef.current = true
+    setRemoving(true)
+    setRemoveError(null)
+    try {
+      const res = await fetch(`/api/locations/${encodeURIComponent(location.id)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setRemoveError('failed')
+        return
+      }
+      setRemoveTarget(null)
+      window.requestAnimationFrame(() => (addButtonRef.current ?? addLabelRef.current)?.focus())
+      void load()
+    } catch {
+      setRemoveError('network')
+    } finally {
+      removingRef.current = false
+      setRemoving(false)
+    }
+  }, [load, removeTarget])
 
   const primary = locations.filter((l) => l.is_primary)
   const others = locations.filter((l) => !l.is_primary)
@@ -125,6 +161,7 @@ function LocationsPageInner() {
               type="button"
               onClick={() => setAdding(true)}
               className="btn-tinted min-h-[44px]"
+              ref={addButtonRef}
             >
               <Plus className="w-4 h-4" />
               <span>Add</span>
@@ -150,6 +187,7 @@ function LocationsPageInner() {
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="Home, School, Work…"
               className="input-apple"
+              ref={addLabelRef}
               autoFocus
             />
           </div>
@@ -205,7 +243,7 @@ function LocationsPageInner() {
               <SectionHeader>Home</SectionHeader>
               <InsetList>
                 {primary.map((l, i) => (
-                  <LocationRow key={l.id} location={l} onRemove={remove} last={i === primary.length - 1} />
+                  <LocationRow key={l.id} location={l} onRemove={openRemoveConfirmation} last={i === primary.length - 1} />
                 ))}
               </InsetList>
             </section>
@@ -215,19 +253,66 @@ function LocationsPageInner() {
               <SectionHeader>Other places</SectionHeader>
               <InsetList>
                 {others.map((l, i) => (
-                  <LocationRow key={l.id} location={l} onRemove={remove} last={i === others.length - 1} />
+                  <LocationRow key={l.id} location={l} onRemove={openRemoveConfirmation} last={i === others.length - 1} />
                 ))}
               </InsetList>
             </section>
           )}
         </>
       )}
+
+      {removeTarget && (
+        <Dialog
+          open
+          role="alertdialog"
+          testId="remove-location-dialog"
+          title={locationText('removeTitle', { label: removeTarget.label })}
+          description={locationText('removeDescription', { label: removeTarget.label })}
+          initialFocusRef={cancelRemoveRef}
+          onClose={removing ? undefined : closeRemoveConfirmation}
+          closeLabel={locationText('removeClose')}
+        >
+          <div aria-busy={removing}>
+            {removeError && (
+              <p role="alert" className="mb-4 text-sm text-danger-text">
+                {removeError === 'network'
+                  ? locationText('removeNetworkError')
+                  : locationText('removeFailed')}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                ref={cancelRemoveRef}
+                type="button"
+                disabled={removing}
+                onClick={closeRemoveConfirmation}
+                className="min-h-[44px] min-w-[44px] rounded-lg border border-input px-4 text-foreground disabled:opacity-60"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={removing}
+                onClick={remove}
+                className="btn-destructive min-h-[44px] min-w-[44px] px-4 disabled:opacity-60"
+              >
+                {removing
+                  ? locationText('removing')
+                  : removeError
+                    ? t('routeState.tryAgain')
+                    : t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }
 
-function LocationRow({ location, onRemove, last }: { location: Location; onRemove: (id: string) => void; last: boolean }) {
+function LocationRow({ location, onRemove, last }: { location: Location; onRemove: (location: Location) => void; last: boolean }) {
   const Icon = ICON_FOR_LABEL[location.label] || MapPin
+  const locationText = useLocationsText()
   return (
     <div className={`row-apple ${last ? '' : 'border-b border-[var(--surface-separator)]'}`}>
       <div className="glyph bg-tint-calendar">
@@ -241,9 +326,9 @@ function LocationRow({ location, onRemove, last }: { location: Location; onRemov
       </div>
       <button
         type="button"
-        onClick={() => onRemove(location.id)}
+        onClick={() => onRemove(location)}
         className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-label-tertiary active:text-[var(--danger-text)] transition-colors"
-        aria-label={`Remove ${location.label}`}
+        aria-label={locationText('removeButton', { label: location.label })}
       >
         <Trash2 className="w-4 h-4" />
       </button>
