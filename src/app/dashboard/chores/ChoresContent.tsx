@@ -177,7 +177,10 @@ export default function ChoresContent({
   const verificationDialogRef = React.useRef<string | null>(null);
   const verificationCancelRef = React.useRef<HTMLButtonElement>(null);
   const verificationReasonRef = React.useRef<HTMLTextAreaElement>(null);
+  const verificationRetryRef = React.useRef<HTMLButtonElement>(null);
   const verificationFallbackRef = React.useRef<HTMLButtonElement>(null);
+  const [verificationFallbackRequest, requestVerificationFallback] =
+    React.useState(0);
   const [verificationBusyIds, setVerificationBusyIds] = React.useState(
     new Set<string>(),
   );
@@ -187,17 +190,49 @@ export default function ChoresContent({
     error: string | null;
   } | null>(null);
 
-  const scheduleVerificationFallback = React.useCallback((force = false) => {
+  const scheduleVerificationFallback = React.useCallback(() => {
     window.setTimeout(() => {
       const active = document.activeElement;
       if (
-        (force || active === document.body || !active?.isConnected) &&
+        (active === document.body || !active?.isConnected) &&
         verificationFallbackRef.current?.isConnected
       ) {
         verificationFallbackRef.current.focus();
       }
     }, 0);
   }, []);
+
+  // A successful send-back removes the opener row at the same time as the
+  // dialog. Dialog's passive cleanup can only restore a connected opener, so
+  // wait until that cleanup has run before focusing the stable page control.
+  React.useEffect(() => {
+    if (!verificationFallbackRequest || verificationDialog) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || verificationDialog) return;
+      const fallback = verificationFallbackRef.current;
+      if (!fallback) return;
+      fallback.focus();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [verificationDialog, verificationFallbackRequest]);
+
+  // Keep keyboard focus on the recovery action after a failed decision. The
+  // request clears its busy latch in a later render, so waiting for that
+  // transition also avoids focusing the disabled button while the request is
+  // still in flight.
+  React.useEffect(() => {
+    if (!verificationDialog?.error || verificationBusyIds.size > 0) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) verificationRetryRef.current?.focus();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [verificationBusyIds.size, verificationDialog?.error]);
 
   React.useEffect(() => {
     setLocalChores(chores);
@@ -392,7 +427,7 @@ export default function ChoresContent({
           // A successful send-back removes the row that opened the dialog.
           // Return focus to a stable, 44px page control after Dialog's cleanup
           // has finished instead of leaving keyboard users on document.body.
-          scheduleVerificationFallback(true);
+          requestVerificationFallback((request) => request + 1);
         }
         addToast(
           decision === "approve"
@@ -420,7 +455,7 @@ export default function ChoresContent({
         });
       }
     },
-    [addToast, localChores, scheduleVerificationFallback, verificationText],
+    [addToast, localChores, verificationText],
   );
 
   const closeVerificationDialog = React.useCallback(() => {
@@ -1056,6 +1091,7 @@ export default function ChoresContent({
                 {verificationText("cancel", undefined)}
               </button>
               <button
+                ref={verificationRetryRef}
                 type="submit"
                 disabled={verificationBusyIds.has(verificationDialog.choreId)}
                 className="btn-destructive flex-1 min-h-[44px] px-3 py-2.5 text-body font-medium disabled:opacity-40"

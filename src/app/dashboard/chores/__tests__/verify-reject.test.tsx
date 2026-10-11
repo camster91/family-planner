@@ -298,9 +298,9 @@ describe("ChoresContent parent check", () => {
     );
     expect(calls[0].body).toEqual({ choreId: "c1", decision: "reject" });
     await screen.findByRole("alert");
-    expect(
+    expect(document.activeElement).toBe(
       within(dialog).getByRole("button", { name: "Try again" }),
-    ).toBeTruthy();
+    );
     expect(
       (within(dialog).getByRole("textbox") as HTMLTextAreaElement).value,
     ).toBe("");
