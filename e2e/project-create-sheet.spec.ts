@@ -27,6 +27,7 @@ type CreateMode = "failure" | "pending";
 async function installLoopbackGuard(
   context: BrowserContext,
   blockedWrites: string[],
+  ownedProjectIds: Set<string>,
 ) {
   await context.route("**/*", async (route) => {
     const request = route.request();
@@ -42,7 +43,9 @@ async function installLoopbackGuard(
     const allowedMutation =
       (request.method() === "PATCH" &&
         url.pathname === "/api/family/features") ||
-      (request.method() === "POST" && url.pathname === "/api/projects");
+      (request.method() === "POST" && url.pathname === "/api/projects") ||
+      (request.method() === "DELETE" &&
+        ownedProjectIds.has(url.pathname.slice("/api/projects/".length)));
     if (MUTATING_METHODS.has(request.method()) && !allowedMutation) {
       blockedWrites.push(`${request.method()} ${url.pathname}`);
       await route.abort();
@@ -136,13 +139,14 @@ for (const locale of ["en", "es"] as const) {
       assertFixtureTargetAllowed(process.env);
       const blockedWrites: string[] = [];
       const postBodies: unknown[] = [];
+      const ownedProjectIds = new Set<string>();
       const cleanAudit = await ownFeatureAudit(["projects"]);
       let originalFeatures: Record<string, unknown> | undefined;
       let featureChanged = false;
       let mode: CreateMode = "failure";
       let releasePending: (() => void) | undefined;
 
-      await installLoopbackGuard(context, blockedWrites);
+      await installLoopbackGuard(context, blockedWrites, ownedProjectIds);
       await page.addInitScript(
         ({ key, value }) => localStorage.setItem(key, value),
         { key: LOCALE_STORAGE_KEY, value: locale },
@@ -164,13 +168,7 @@ for (const locale of ["en", "es"] as const) {
         await new Promise<void>((resolve) => {
           releasePending = resolve;
         });
-        await route.fulfill({
-          status: 201,
-          contentType: "application/json",
-          body: JSON.stringify({
-            project: { id: `synthetic-project-${locale}-${postBodies.length}` },
-          }),
-        });
+        await route.continue();
       });
 
       try {
@@ -247,10 +245,52 @@ for (const locale of ["en", "es"] as const) {
               form.getByRole("button", { name: copy.creating }),
             ).toBeVisible();
           }
+          const projectResponsePromise = page.waitForResponse(
+            (response) =>
+              response.url().endsWith("/api/projects") &&
+              response.request().method() === "POST",
+          );
           releasePending?.();
-          await pendingClick;
+          const [projectResponse] = await Promise.all([
+            projectResponsePromise,
+            pendingClick,
+          ]);
+          expect(projectResponse.status()).toBe(201);
+          const created = (await projectResponse.json()) as {
+            project?: {
+              id?: unknown;
+              family_id?: unknown;
+              name?: unknown;
+              description?: unknown;
+            };
+          };
+          const projectId = created.project?.id;
+          expect(typeof projectId).toBe("string");
+          expect(created.project?.family_id).toBe(FIXTURE_IDS.familyA.family);
+          expect(created.project?.name).toBe(`${surface} ${locale} draft`);
+          expect(created.project?.description).toBe(
+            "Keep this draft while retrying.",
+          );
+          ownedProjectIds.add(projectId as string);
           await expect(page).toHaveURL(
-            new RegExp(`/dashboard/projects/synthetic-project-${locale}-`),
+            new RegExp(`/dashboard/projects/${projectId}$`),
+          );
+          const persisted = await browserFetch(
+            page,
+            `/api/projects/${projectId}`,
+          );
+          expect(persisted.status, persisted.body).toBe(200);
+          const persistedProject = JSON.parse(persisted.body).project as {
+            family_id?: unknown;
+            id?: unknown;
+            name?: unknown;
+            description?: unknown;
+          };
+          expect(persistedProject.family_id).toBe(FIXTURE_IDS.familyA.family);
+          expect(persistedProject.id).toBe(projectId);
+          expect(persistedProject.name).toBe(`${surface} ${locale} draft`);
+          expect(persistedProject.description).toBe(
+            "Keep this draft while retrying.",
           );
           expect(postBodies.at(-1)).toMatchObject({
             name: `${surface} ${locale} draft`,
@@ -265,24 +305,46 @@ for (const locale of ["en", "es"] as const) {
             surfaces: ["sheet", "direct"],
             postCount: postBodies.length,
             transport:
-              "POST /api/projects was intercepted for refusal, pending and successful navigation; no Project row was created",
+              "refusal POST was intercepted; the pending retry continued to the real loopback POST, read back the exact created fixture project, and deletes it during cleanup",
           }),
           contentType: "application/json",
         });
       } finally {
         releasePending?.();
         await page.unrouteAll({ behavior: "ignoreErrors" });
-        await context.unrouteAll({ behavior: "ignoreErrors" });
-        if (featureChanged && originalFeatures) {
-          const restored = await browserSend(
-            page,
-            "PATCH",
-            "/api/family/features",
-            { features: originalFeatures },
-          );
-          expect(restored.status, restored.body).toBe(200);
+        const cleanupErrors: unknown[] = [];
+        for (const projectId of ownedProjectIds) {
+          try {
+            const deleted = await browserSend(
+              page,
+              "DELETE",
+              `/api/projects/${projectId}`,
+            );
+            expect(deleted.status, deleted.body).toBe(200);
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
         }
-        await cleanAudit(true);
+        if (featureChanged && originalFeatures) {
+          try {
+            const restored = await browserSend(
+              page,
+              "PATCH",
+              "/api/family/features",
+              { features: originalFeatures },
+            );
+            expect(restored.status, restored.body).toBe(200);
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        }
+        try {
+          await cleanAudit(true);
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+        await context.unrouteAll({ behavior: "ignoreErrors" });
+        if (cleanupErrors.length) throw cleanupErrors[0];
       }
       expect(blockedWrites).toEqual([]);
     });
