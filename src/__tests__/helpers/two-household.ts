@@ -267,13 +267,22 @@ function seed(): Tables {
 type Rel = { model: string; fk: string; many?: boolean; ref?: string }
 const RELATIONS: Record<string, Record<string, Rel>> = {
   user: { family: { model: 'family', fk: 'family_id' } },
-  family: { members: { model: 'user', fk: 'family_id', many: true, ref: 'id' } },
+  family: {
+    members: { model: 'user', fk: 'family_id', many: true, ref: 'id' },
+    routine_stacks: { model: 'routineStack', fk: 'family_id', many: true, ref: 'id' },
+  },
   anniversary: { creator: { model: 'user', fk: 'created_by' }, person: { model: 'user', fk: 'person_id' } },
   upload: { family: { model: 'family', fk: 'family_id' }, uploader: { model: 'user', fk: 'uploaded_by' } },
   chore: {
     assignee: { model: 'user', fk: 'assigned_to' },
     creator: { model: 'user', fk: 'created_by' },
+    routineStack: { model: 'routineStack', fk: 'routine_stack_id' },
     family: { model: 'family', fk: 'family_id' },
+  },
+  routineStack: {
+    family: { model: 'family', fk: 'family_id' },
+    creator: { model: 'user', fk: 'created_by' },
+    chores: { model: 'chore', fk: 'routine_stack_id', many: true, ref: 'id' },
   },
   event: {
     creator: { model: 'user', fk: 'created_by' },

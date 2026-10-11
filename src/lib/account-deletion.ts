@@ -411,6 +411,9 @@ export const HOUSEHOLD_HANDOVER_COLUMNS: ReadonlyArray<readonly [string, string]
   ['shoppingList', 'created_by'],
   ['habit', 'created_by'],
   ['familyGoal', 'created_by'],
+  // Routine stacks are household content. Preserve the cross-member stack
+  // identity by handing its optional creator reference to the successor.
+  ['routineStack', 'created_by'],
 ]
 
 /** Nullable references to a leaving member: cleared. Shared with member removal. */
@@ -635,6 +638,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'choreAssignment', scope: { kind: 'family' }, why: 'chore assignments' },
   // Member subjects use non-cascading history FKs; delete profiles after chores.
   { model: 'chore', scope: { kind: 'family' }, why: 'chores' },
+  { model: 'routineStack', scope: { kind: 'family' }, why: 'routine stack identities after their chore steps' },
   { model: 'householdMember', scope: { kind: 'family' }, why: 'household person profiles after their subject history (#480)' },
   { model: 'habitLog', scope: { kind: 'family' }, why: 'habit logs' },
   { model: 'habit', scope: { kind: 'family' }, why: 'habits' },
