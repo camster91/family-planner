@@ -239,6 +239,10 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }, testInfo) => {
       const ownedAccount = await seedAccount(testInfo, compatibilityCase);
       account = ownedAccount;
+      // The describe-level storage state is parentA for the other journeys.
+      // Drop only this context's inherited cookie before the dedicated account
+      // login; calling logout here would revoke parentA's shared token.
+      await page.context().clearCookies();
       await loginViaUi(page, ownedAccount.email, FIXTURE_PASSWORD);
       await expect(page).toHaveURL(/\/dashboard/);
       fixture = await createList(page, testInfo, ["Existing grocery"]);
