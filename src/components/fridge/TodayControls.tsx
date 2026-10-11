@@ -38,6 +38,7 @@ export default function TodayControls({
   const copy = (en: string, spanish: string) => (es ? spanish : en);
   const details = React.useRef<HTMLDetailsElement>(null);
   const parent = role === "parent";
+  const canCreateEvent = (parent || role === "teen") && Boolean(links.calendar);
   React.useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       if (details.current && !details.current.contains(event.target as Node))
@@ -52,7 +53,7 @@ export default function TodayControls({
       aria-label={copy("Today quick actions", "Acciones rápidas de hoy")}
       className="relative mb-4 flex flex-wrap items-center gap-2 md:mb-5"
     >
-      {parent && links.calendar && (
+      {canCreateEvent && (
         <Link
           prefetch={false}
           href="/dashboard/calendar/create"
