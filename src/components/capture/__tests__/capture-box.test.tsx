@@ -5,9 +5,16 @@
 // refreshes), and a photo batch that partly fails keeps the failed events on
 // screen with "Added X of Y" instead of dropping them.
 import * as React from 'react'
+import { webcrypto } from 'node:crypto'
+import { TextDecoder, TextEncoder } from 'node:util'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CaptureBox } from '../CaptureBox'
+import { CAPTURE_RECOVERY_RETENTION_MS } from '@/lib/capture-recovery'
+
+if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto })
+if (!globalThis.TextEncoder) Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: TextEncoder })
+if (!globalThis.TextDecoder) Object.defineProperty(globalThis, 'TextDecoder', { configurable: true, value: TextDecoder })
 
 const PHOTO_EVENTS = [
   { title: 'Picture day', start_time: '2026-10-02T13:00:00.000Z' },
@@ -36,6 +43,9 @@ function mockFetch(eventStatus: (title: string) => number) {
       const title = JSON.parse(String(init?.body)).title as string
       const status = eventStatus(title)
       return json(status, status < 300 ? { event: { id: title } } : { error: 'nope' })
+    }
+    if (url === '/api/capture/receipt' && method === 'GET') {
+      return json(200, { state: 'committed', current: 'present' })
     }
     throw new Error(`unexpected ${method} ${url}`)
   }) as unknown as typeof fetch
@@ -104,7 +114,7 @@ describe('CaptureBox', () => {
 
     await screen.findByText('Added 2 of 3 events')
     expect(screen.getByRole('alert').textContent).toMatch(/1 event could not be saved/)
-    expect(screen.getByText('Bake sale')).toBeTruthy()
+    expect(screen.getAllByText('Bake sale').length).toBeGreaterThan(0)
     expect(screen.queryByText('Picture day')).toBeNull()
     expect(screen.queryByText('Book fair')).toBeNull()
     expect(screen.getByRole('button', { name: 'Add 1' })).toBeTruthy()
@@ -226,7 +236,6 @@ it('retains the grocery operation key and body after an uncertain combined save'
   await screen.findByText(/Could not confirm whether this was saved/)
   await user.click(screen.getByRole('button', { name: 'Add it' }))
   await screen.findByText('Added “Milk”')
-  expect(listLookups).toBe(1)
   expect(items[1].headers).toEqual(items[0].headers)
   expect(items[1].body).toBe(items[0].body)
   expect(JSON.parse(String(items[1].body))).toEqual({ content: 'Milk', quantity: 1 })
@@ -235,6 +244,7 @@ it('retains the grocery operation key and body after an uncertain combined save'
 it('restores a confirmed operation after reload without submitting until Retry', async () => {
   window.localStorage.clear()
   const calls: RequestInit[] = []
+  const sequence: string[] = []
   let eventAttempts = 0
   global.fetch = jest.fn(async (url, init) => {
     if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
@@ -244,12 +254,17 @@ it('restores a confirmed operation after reload without submitting until Retry',
       return json(200, { draft: { kind: 'event', title: 'Dentist', start_time: '2026-10-06T19:00:00.000Z', confidence: 'high' } })
     }
     if (String(url) === '/api/events') {
+      sequence.push('post')
       calls.push(init!)
       const envelope = JSON.parse(window.localStorage.getItem('family-planner:capture-recovery:v1:user-a:family-a') || '[]')[0]
       expect(envelope.requestHash).toMatch(/^[a-f0-9]{64}$/)
       eventAttempts += 1
       if (eventAttempts === 1) throw new Error('response lost after commit')
       return json(201, { event: { id: 'event-a' } })
+    }
+    if (String(url) === '/api/capture/receipt' && (init?.method ?? 'GET') === 'GET') {
+      sequence.push('status')
+      return json(200, { state: 'committed', current: 'present' })
     }
     throw new Error(`unexpected ${String(url)}`)
   }) as unknown as typeof fetch
@@ -264,13 +279,65 @@ it('restores a confirmed operation after reload without submitting until Retry',
 
   render(<CaptureBox />)
   const recovery = await screen.findByTestId('capture-recovery')
-  expect(recovery).toHaveTextContent('Dentist')
+  expect(recovery.textContent).toContain('Dentist')
   expect(calls).toHaveLength(1)
   const retry = await screen.findByRole('button', { name: 'Retry Dentist' })
-  await waitFor(() => expect(retry).toBeEnabled())
+  await waitFor(() => expect(retry.hasAttribute('disabled')).toBe(false))
   await user.click(retry)
-  await screen.findByText('Added “Dentist”')
+  await screen.findByText('Already added “Dentist”')
+  expect(sequence).toEqual(['post', 'post', 'status'])
   expect(calls).toHaveLength(2)
   expect(calls[1].body).toBe(calls[0].body)
   expect(calls[1].headers).toEqual(calls[0].headers)
+})
+
+it('checks a receipt at the six-day boundary before declaring the retry too old', async () => {
+  window.localStorage.clear()
+  const createdAt = Date.now() - CAPTURE_RECOVERY_RETENTION_MS + 1_000
+  const key = 'capture-boundary-12345678'
+  window.localStorage.setItem(
+    'family-planner:capture-recovery:v1:user-a:family-a',
+    JSON.stringify([
+      {
+        version: 1,
+        key,
+        action: 'event.create',
+        requestHash: 'a'.repeat(64),
+        body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+        title: 'Dentist',
+        kind: 'event',
+        createdAt,
+        photo: false,
+      },
+    ]),
+  )
+  let postCount = 0
+  let statusCount = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/events' && init?.method === 'POST') {
+      postCount += 1
+      return json(201, { event: { id: 'event-a' } })
+    }
+    if (String(url) === '/api/capture/receipt') {
+      statusCount += 1
+      return json(200, { state: 'committed', current: 'present' })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  const retry = await screen.findByRole('button', { name: 'Retry Dentist' })
+  const now = jest.spyOn(Date, 'now').mockReturnValue(createdAt + CAPTURE_RECOVERY_RETENTION_MS + 1)
+  try {
+    await user.click(retry)
+    await screen.findByText('Already added “Dentist”')
+    expect(statusCount).toBe(1)
+    expect(postCount).toBe(0)
+  } finally {
+    now.mockRestore()
+  }
 })

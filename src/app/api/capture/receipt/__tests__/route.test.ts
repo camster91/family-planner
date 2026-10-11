@@ -9,6 +9,7 @@ jest.mock('next/server', () => ({
 }))
 
 jest.mock('@/lib/api-auth', () => ({ authenticateWithFamily: jest.fn() }))
+jest.mock('@/lib/feature-gate-server', () => ({ featureGate: jest.fn() }))
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     idempotencyRecord: { findFirst: jest.fn() },
@@ -19,6 +20,7 @@ jest.mock('@/lib/prisma', () => ({
 
 import { GET } from '../route'
 import { authenticateWithFamily } from '@/lib/api-auth'
+import { featureGate } from '@/lib/feature-gate-server'
 import { prisma } from '@/lib/prisma'
 
 const auth = { user: { id: 'user-a', family_id: 'family-a', role: 'parent', name: 'Parent A' } }
@@ -57,6 +59,7 @@ describe('GET /api/capture/receipt', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     jest.mocked(authenticateWithFamily).mockResolvedValue([auth, null] as never)
+    jest.mocked(featureGate).mockResolvedValue(null)
     db.idempotencyRecord.findFirst.mockResolvedValue(record())
     db.event.findUnique.mockResolvedValue({ id: 'event-a', family_id: 'family-a' })
   })
@@ -106,6 +109,17 @@ describe('GET /api/capture/receipt', () => {
     const response = await GET(request({ action: 'capture.grocery.add' }))
     expect(await response.json()).toEqual({ state: 'committed', current: 'present' })
     expect(db.listItem.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'item-a' } }))
+    expect(featureGate).toHaveBeenCalledWith('family-a', 'lists')
+  })
+
+  it('enforces the lists feature before reading a grocery receipt', async () => {
+    const denied = { status: 403, json: async () => ({ error: 'This feature is turned off for your family' }) } as never
+    jest.mocked(featureGate).mockResolvedValue(denied)
+
+    const response = await GET(request({ action: 'capture.grocery.add' }))
+
+    expect(response.status).toBe(403)
+    expect(db.idempotencyRecord.findFirst).not.toHaveBeenCalled()
   })
 
   it('rejects changed action or hash without reading the resource', async () => {

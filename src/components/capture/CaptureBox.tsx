@@ -244,11 +244,6 @@ export function CaptureBox({
   }, [])
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
-    if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
-      forgetRecovery(row.key)
-      setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
-      return
-    }
     if (!row.requestHash) {
       forgetRecovery(row.key)
       setRecoveryMessage('Status is unavailable for this saved request. Start a new preview after checking the app.')
@@ -297,8 +292,11 @@ export function CaptureBox({
 
   async function retryRecovery(row: CaptureRecoveryEnvelope) {
     if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
-      forgetRecovery(row.key)
-      setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
+      // A request may have started just before the client-side retry window
+      // closed. Reconcile the authoritative receipt first so a committed
+      // present/removed resource is reported truthfully instead of being
+      // discarded merely because the local clock crossed the boundary.
+      await checkRecovery(row)
       return
     }
     setRecoveryBusyKey(row.key)

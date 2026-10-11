@@ -1,6 +1,7 @@
 import {
   activateCaptureRecoveryStorage,
   captureRecoveryStorageKey,
+  clearCaptureRecoveryStorage,
   hashCaptureRequest,
   loadCaptureRecovery,
   saveCaptureRecovery,
@@ -60,5 +61,27 @@ describe('capture recovery envelopes', () => {
     await expect(hashCaptureRequest('event.create', { event_type: 'other', title: 'Dentist' })).resolves.toBe(
       await hashCaptureRequest('event.create', { title: 'Dentist', event_type: 'other' }),
     )
+  })
+
+  it('purges the active namespace and marker at logout', () => {
+    const store = storage()
+    const key = captureRecoveryStorageKey('user-a', 'family-a')
+    saveCaptureRecovery(store, 'user-a', 'family-a', [row()])
+    activateCaptureRecoveryStorage(store, 'user-a', 'family-a')
+
+    clearCaptureRecoveryStorage(store)
+
+    expect(store.values.has(key)).toBe(false)
+    expect(store.values.has('family-planner:capture-recovery:v1:active')).toBe(false)
+  })
+
+  it('purges an explicit namespace even when no active marker exists', () => {
+    const store = storage()
+    const key = captureRecoveryStorageKey('user-a', 'family-a')
+    saveCaptureRecovery(store, 'user-a', 'family-a', [row()])
+
+    clearCaptureRecoveryStorage(store, 'user-a', 'family-a')
+
+    expect(store.values.has(key)).toBe(false)
   })
 })

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { isValidIdempotencyKey } from '@/lib/idempotency-key'
-import { CAPTURE_CHILD_MESSAGE, canUseCapture } from '@/lib/role-capabilities'
+import { CAPTURE_CHILD_MESSAGE, canCreateList, canUseCapture } from '@/lib/role-capabilities'
+import { featureGate } from '@/lib/feature-gate-server'
 import type { CaptureRecoveryAction } from '@/lib/capture-recovery'
 
 export const dynamic = 'force-dynamic'
@@ -45,6 +46,13 @@ export async function GET(request: NextRequest) {
   }
 
   const typedAction = action as CaptureRecoveryAction
+  // Receipt reads must enforce the same capability and family feature gate as
+  // the corresponding fresh write before revealing whether a key exists.
+  if (typedAction === 'capture.grocery.add') {
+    const listsGate = await featureGate(auth.user.family_id, 'lists')
+    if (listsGate) return listsGate
+    if (!canCreateList(auth.user.role)) return privateResponse({ error: 'Ask a parent to add this.' }, { status: 403 })
+  }
   const record = await prisma!.idempotencyRecord.findFirst({
     where: { scope: `user:${auth.user.id}`, key },
     select: {
