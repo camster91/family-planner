@@ -196,7 +196,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                   )}
                   <button
                     type="button"
-                    className="btn-secondary min-h-11"
+                    className="btn-secondary min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-[var(--accent-tint)] aria-disabled:active:transform-none"
                     aria-disabled={busy || op.state === "syncing"}
                     onClick={() => {
                       if (canOpenDiscard(op.id)) setConfirm(op.id);
