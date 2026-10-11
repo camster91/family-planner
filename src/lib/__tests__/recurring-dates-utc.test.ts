@@ -71,6 +71,45 @@ describe('nextDueDate (UTC)', () => {
 })
 
 describe('expandSeriesInTx (UTC)', () => {
+  it('refuses profile-only templates instead of creating account ledger rows', async () => {
+    const template = {
+      id: 'profile-template',
+      title: 'Profile-only chore',
+      description: null,
+      points: 5,
+      difficulty: 'easy',
+      frequency: 'daily',
+      family_id: 'fam',
+      assigned_to: null,
+      assigned_member_id: 'profile-child',
+      created_by: 'parent',
+      due_date: utc(2026, 9, 1),
+      icon: null,
+      routine: null,
+      routine_order: null,
+    }
+    let occurrenceReads = 0
+    let writes = 0
+    const tx = {
+      $queryRaw: async () => [{ locked: 1 }],
+      chore: {
+        findUnique: async () => template,
+        findMany: async () => {
+          occurrenceReads++
+          return []
+        },
+        createMany: async () => {
+          writes++
+          return { count: 1 }
+        },
+      },
+    }
+
+    expect(await expandSeriesInTx(tx as never, template.id, 'fam', utc(2026, 9, 1))).toBe(0)
+    expect(occurrenceReads).toBe(0)
+    expect(writes).toBe(0)
+  })
+
   it('creates occurrences at consecutive UTC midnights', async () => {
     const template = {
       id: 't1',
