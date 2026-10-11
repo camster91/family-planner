@@ -224,8 +224,13 @@ type BudgetHarness = {
   categoryCalls: number;
   transactionPosts: number;
   unexpectedWrites: string[];
-  releasePendingStats: (() => void) | null;
-  releasePendingPost: (() => void) | null;
+  pendingStats: HeldRequest | null;
+  pendingPost: HeldRequest | null;
+};
+
+type HeldRequest = {
+  release: () => void;
+  complete: Promise<void>;
 };
 
 async function installSyntheticTransport(
@@ -237,8 +242,8 @@ async function installSyntheticTransport(
     categoryCalls: 0,
     transactionPosts: 0,
     unexpectedWrites: [],
-    releasePendingStats: null,
-    releasePendingPost: null,
+    pendingStats: null,
+    pendingPost: null,
   };
 
   await context.route("**/*", async (route) => {
@@ -289,14 +294,27 @@ async function installSyntheticTransport(
         });
         return;
       case 5:
-        await new Promise<void>((resolve) => {
-          state.releasePendingStats = resolve;
-        });
-        state.releasePendingStats = null;
-        await route.fulfill({
-          status: 200,
-          json: statsWith(RECOVERED_TRANSACTION),
-        });
+        {
+          let release!: () => void;
+          let complete!: () => void;
+          const released = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          const completed = new Promise<void>((resolve) => {
+            complete = resolve;
+          });
+          state.pendingStats = { release, complete: completed };
+          try {
+            await released;
+            await route.fulfill({
+              status: 200,
+              json: statsWith(RECOVERED_TRANSACTION),
+            });
+          } finally {
+            state.pendingStats = null;
+            complete();
+          }
+        }
         return;
       case 6:
         await route.fulfill({
@@ -351,10 +369,21 @@ async function installSyntheticTransport(
       return;
     }
     if (state.transactionPosts === 3) {
-      await new Promise<void>((resolve) => {
-        state.releasePendingPost = resolve;
+      let release!: () => void;
+      let complete!: () => void;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
       });
-      state.releasePendingPost = null;
+      const completed = new Promise<void>((resolve) => {
+        complete = resolve;
+      });
+      state.pendingPost = { release, complete: completed };
+      try {
+        await released;
+      } finally {
+        state.pendingPost = null;
+        complete();
+      }
     }
     await route.fulfill({
       status: 409,
@@ -368,6 +397,24 @@ async function installSyntheticTransport(
   });
 
   return state;
+}
+
+async function disposeSyntheticTransport(
+  page: Page,
+  context: BrowserContext,
+  state: BudgetHarness,
+) {
+  const held = [state.pendingStats, state.pendingPost].filter(
+    (request): request is HeldRequest => request !== null,
+  );
+  for (const request of held) request.release();
+  await Promise.all(held.map((request) => request.complete));
+  await Promise.allSettled([
+    page.unroute("**/api/budget/stats*"),
+    page.unroute("**/api/budget/categories*"),
+    page.unroute("**/api/budget/transactions"),
+    context.unroute("**/*"),
+  ]);
 }
 
 test.use({ storageState: authFile("parentA"), timezoneId: "America/Toronto" });
@@ -396,150 +443,163 @@ for (const locale of ["en", "es"] as const) {
       );
       const harness = await installSyntheticTransport(page, context);
 
-      await page.goto("/dashboard/budget");
-      await expect(page.locator("html")).toHaveAttribute("lang", locale);
-      await expect(
-        page.locator("#main-content").getByRole("heading", { name: "Budget" }),
-      ).toBeVisible();
-      await runtimeIdentity(page, info, locale);
+      try {
+        await page.goto("/dashboard/budget");
+        await expect(page.locator("html")).toHaveAttribute("lang", locale);
+        await expect(
+          page
+            .locator("#main-content")
+            .getByRole("heading", { name: "Budget" }),
+        ).toBeVisible();
+        await runtimeIdentity(page, info, locale);
 
-      const copy = budgetMessages[locale];
-      const refresh = page.locator('button[aria-label="Refresh budget"]');
-      await refresh.click();
-      await expect(
-        page.getByText(SYNTHETIC_TRANSACTION.description),
-      ).toBeVisible();
-      await expect.poll(() => harness.statsCalls).toBe(1);
+        const copy = budgetMessages[locale];
+        const refresh = page.locator('button[aria-label="Refresh budget"]');
+        const refreshRecovery = page
+          .locator("#main-content")
+          .getByRole("alert")
+          .filter({ hasText: copy.refreshFailed });
+        await refresh.click();
+        await expect(
+          page.getByText(SYNTHETIC_TRANSACTION.description),
+        ).toBeVisible();
+        await expect.poll(() => harness.statsCalls).toBe(1);
 
-      // A malformed successful response and an ordinary failed refresh both
-      // preserve the last known good financial row and expose retry UI.
-      await refresh.click();
-      await expect(page.getByRole("alert")).toContainText(copy.refreshFailed);
-      await expect(
-        page.getByText(SYNTHETIC_TRANSACTION.description),
-      ).toBeVisible();
-      await expect.poll(() => harness.statsCalls).toBe(2);
+        // A malformed successful response and an ordinary failed refresh both
+        // preserve the last known good financial row and expose retry UI.
+        await refresh.click();
+        await expect(refreshRecovery).toContainText(copy.refreshFailed);
+        await expect(
+          page.getByText(SYNTHETIC_TRANSACTION.description),
+        ).toBeVisible();
+        await expect.poll(() => harness.statsCalls).toBe(2);
 
-      await refresh.click();
-      await expect(page.getByRole("alert")).toContainText(copy.refreshFailed);
-      await expect(
-        page.getByText(SYNTHETIC_TRANSACTION.description),
-      ).toBeVisible();
-      await expect.poll(() => harness.statsCalls).toBe(3);
+        await refresh.click();
+        await expect(refreshRecovery).toContainText(copy.refreshFailed);
+        await expect(
+          page.getByText(SYNTHETIC_TRANSACTION.description),
+        ).toBeVisible();
+        await expect.poll(() => harness.statsCalls).toBe(3);
 
-      await page.getByRole("button", { name: copy.retryRefresh }).click();
-      await expect(
-        page.getByText(RECOVERED_TRANSACTION.description),
-      ).toBeVisible();
-      await expect(
-        page.getByText(SYNTHETIC_TRANSACTION.description),
-      ).toHaveCount(0);
-      await expect.poll(() => harness.statsCalls).toBe(4);
+        await page.getByRole("button", { name: copy.retryRefresh }).click();
+        await expect(
+          page.getByText(RECOVERED_TRANSACTION.description),
+        ).toBeVisible();
+        await expect(
+          page.getByText(SYNTHETIC_TRANSACTION.description),
+        ).toHaveCount(0);
+        await expect.poll(() => harness.statsCalls).toBe(4);
 
-      // Keep an older stats response open, then complete a synthetic save. The
-      // dashboard must queue a second refresh instead of accepting the stale
-      // response that was already in flight.
-      await refresh.click();
-      await expect.poll(() => harness.statsCalls).toBe(5);
-      await expect(
-        page.locator('button[aria-label="Refreshing budget"]'),
-      ).toBeDisabled();
+        // Keep an older stats response open, then complete a synthetic save. The
+        // dashboard must queue a second refresh instead of accepting the stale
+        // response that was already in flight.
+        await refresh.click();
+        await expect.poll(() => harness.statsCalls).toBe(5);
+        await expect(
+          page.locator('button[aria-label="Refreshing budget"]'),
+        ).toBeDisabled();
 
-      await page.locator('button[aria-label="Add transaction"]').click();
-      const dialog = page.getByRole("dialog", { name: "Add Transaction" });
-      await expect(dialog).toBeVisible();
-      await expect.poll(() => harness.categoryCalls).toBe(1);
-      await expect(dialog.getByRole("alert")).toContainText(
-        copy.categoriesUnavailable,
-      );
-      const retryCategories = dialog.getByRole("button", {
-        name: copy.retryCategories,
-      });
-      await assertTouchTarget(page, retryCategories);
-      await retryCategories.click();
-      await expect(
-        dialog.getByRole("option", { name: /Synthetic Food/ }),
-      ).toBeVisible();
-      await dialog
-        .getByRole("combobox", { name: "Category" })
-        .selectOption(SYNTHETIC_CATEGORY.id);
-      await dialog.getByLabel("Amount").fill("25");
-      await dialog.getByLabel("Description").fill("Synthetic queued save");
+        await page.locator('button[aria-label="Add transaction"]').click();
+        const dialog = page.getByRole("dialog", { name: "Add Transaction" });
+        await expect(dialog).toBeVisible();
+        await expect.poll(() => harness.categoryCalls).toBe(1);
+        await expect(dialog.getByRole("alert")).toContainText(
+          copy.categoriesUnavailable,
+        );
+        const retryCategories = dialog.getByRole("button", {
+          name: copy.retryCategories,
+        });
+        await assertTouchTarget(page, retryCategories);
+        await retryCategories.click();
+        await expect(
+          dialog.getByRole("option", { name: /Synthetic Food/ }),
+        ).toBeVisible();
+        await dialog
+          .getByRole("combobox", { name: "Category" })
+          .selectOption(SYNTHETIC_CATEGORY.id);
+        await dialog.getByLabel("Amount").fill("25");
+        await dialog.getByLabel("Description").fill("Synthetic queued save");
 
-      const submit = dialog.getByRole("button", { name: "Add Transaction" });
-      const cancel = dialog.getByRole("button", { name: "Cancel" });
-      await assertTouchTarget(page, submit);
-      await assertTouchTarget(page, cancel);
-      await assertAccessibleAndContained(
-        page,
-        info,
-        `${locale}-${info.project.name}-form`,
-      );
-      await submit.click();
-      await expect.poll(() => harness.transactionPosts).toBe(1);
-      await expect(dialog).toHaveCount(0);
-      expect(harness.releasePendingStats).toBeTruthy();
-      harness.releasePendingStats!();
-      await expect.poll(() => harness.statsCalls).toBe(6);
-      await expect(page.getByText(FRESH_TRANSACTION.description)).toBeVisible();
+        const submit = dialog.getByRole("button", { name: "Add Transaction" });
+        const cancel = dialog.getByRole("button", { name: "Cancel" });
+        await assertTouchTarget(page, submit);
+        await assertTouchTarget(page, cancel);
+        await assertAccessibleAndContained(
+          page,
+          info,
+          `${locale}-${info.project.name}-form`,
+        );
+        await submit.click();
+        await expect.poll(() => harness.transactionPosts).toBe(1);
+        await expect(dialog).toHaveCount(0);
+        expect(harness.pendingStats).toBeTruthy();
+        harness.pendingStats!.release();
+        await expect.poll(() => harness.statsCalls).toBe(6);
+        await expect(
+          page.getByText(FRESH_TRANSACTION.description),
+        ).toBeVisible();
 
-      // A structured error envelope cannot leak its code/message, and the
-      // failed save keeps the user's draft available for correction/retry.
-      await page.locator('button[aria-label="Add transaction"]').click();
-      const recoveryDialog = page.getByRole("dialog", {
-        name: "Add Transaction",
-      });
-      await expect(
-        recoveryDialog.getByRole("option", { name: /Synthetic Food/ }),
-      ).toBeVisible();
-      await recoveryDialog.getByLabel("Amount").fill("50");
-      await recoveryDialog
-        .getByLabel("Description")
-        .fill("Synthetic draft to preserve");
-      await recoveryDialog
-        .getByRole("button", { name: "Add Transaction" })
-        .click();
-      const saveError = recoveryDialog.getByRole("alert");
-      await expect(saveError).toContainText(copy.saveFailed);
-      await expect(saveError).not.toContainText("IDENTITY_CONFLICT");
-      await expect(saveError).not.toContainText(
-        "synthetic private financial implementation detail",
-      );
-      await expect(recoveryDialog.getByLabel("Amount")).toHaveValue("50");
-      await expect(recoveryDialog.getByLabel("Description")).toHaveValue(
-        "Synthetic draft to preserve",
-      );
+        // A structured error envelope cannot leak its code/message, and the
+        // failed save keeps the user's draft available for correction/retry.
+        await page.locator('button[aria-label="Add transaction"]').click();
+        const recoveryDialog = page.getByRole("dialog", {
+          name: "Add Transaction",
+        });
+        await expect(
+          recoveryDialog.getByRole("option", { name: /Synthetic Food/ }),
+        ).toBeVisible();
+        await recoveryDialog.getByLabel("Amount").fill("50");
+        await recoveryDialog
+          .getByLabel("Description")
+          .fill("Synthetic draft to preserve");
+        await recoveryDialog
+          .getByRole("button", { name: "Add Transaction" })
+          .click();
+        const saveError = recoveryDialog.getByRole("alert");
+        await expect(saveError).toContainText(copy.saveFailed);
+        await expect(saveError).not.toContainText("IDENTITY_CONFLICT");
+        await expect(saveError).not.toContainText(
+          "synthetic private financial implementation detail",
+        );
+        await expect(recoveryDialog.getByLabel("Amount")).toHaveValue("50");
+        await expect(recoveryDialog.getByLabel("Description")).toHaveValue(
+          "Synthetic draft to preserve",
+        );
 
-      // The next synthetic request stays pending. Escape and Cancel must not
-      // dismiss the sheet or lose its draft while the mutation is unresolved.
-      await recoveryDialog.getByLabel("Amount").fill("60");
-      await recoveryDialog
-        .getByRole("button", { name: "Add Transaction" })
-        .click();
-      await expect.poll(() => harness.transactionPosts).toBe(3);
-      await expect(
-        recoveryDialog.getByRole("button", { name: "Cancel" }),
-      ).toBeDisabled();
-      await expect(
-        recoveryDialog.getByRole("button", { name: "Add Transaction" }),
-      ).toBeDisabled();
-      await expect(recoveryDialog.getByLabel("Close")).toHaveCount(0);
-      await page.keyboard.press("Escape");
-      await expect(recoveryDialog).toBeVisible();
-      await expect(recoveryDialog.getByLabel("Amount")).toHaveValue("60");
-      harness.releasePendingPost!();
-      await expect(recoveryDialog.getByRole("alert")).toContainText(
-        copy.saveFailed,
-      );
-      await expect(recoveryDialog.getByLabel("Description")).toHaveValue(
-        "Synthetic draft to preserve",
-      );
-      await assertAccessibleAndContained(
-        page,
-        info,
-        `${locale}-${info.project.name}-recovered`,
-      );
-      await expect(harness.unexpectedWrites).toEqual([]);
+        // The next synthetic request stays pending. Escape and Cancel must not
+        // dismiss the sheet or lose its draft while the mutation is unresolved.
+        await recoveryDialog.getByLabel("Amount").fill("60");
+        await recoveryDialog
+          .getByRole("button", { name: "Add Transaction" })
+          .click();
+        await expect.poll(() => harness.transactionPosts).toBe(3);
+        await expect(
+          recoveryDialog.getByRole("button", { name: "Cancel" }),
+        ).toBeDisabled();
+        await expect(
+          recoveryDialog.getByRole("button", { name: "Add Transaction" }),
+        ).toBeDisabled();
+        await expect(recoveryDialog.getByLabel("Close")).toHaveCount(0);
+        await page.keyboard.press("Escape");
+        await expect(recoveryDialog).toBeVisible();
+        await expect(recoveryDialog.getByLabel("Amount")).toHaveValue("60");
+        expect(harness.pendingPost).toBeTruthy();
+        harness.pendingPost!.release();
+        await expect(recoveryDialog.getByRole("alert")).toContainText(
+          copy.saveFailed,
+        );
+        await expect(recoveryDialog.getByLabel("Description")).toHaveValue(
+          "Synthetic draft to preserve",
+        );
+        await assertAccessibleAndContained(
+          page,
+          info,
+          `${locale}-${info.project.name}-recovered`,
+        );
+        await expect(harness.unexpectedWrites).toEqual([]);
+      } finally {
+        await disposeSyntheticTransport(page, context, harness);
+      }
     });
   });
 }
