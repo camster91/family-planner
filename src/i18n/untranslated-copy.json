@@ -41,6 +41,11 @@
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
+    "text": "Loading family members…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Mark paid",
     "count": 1
   },
@@ -52,6 +57,11 @@
   {
     "file": "src/app/dashboard/allowance/page.tsx",
     "text": "No allowance yet",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/allowance/page.tsx",
+    "text": "No household members are available.",
     "count": 1
   },
   {
@@ -101,6 +111,11 @@
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
+    "text": "Try again",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Weekly allowance",
     "count": 1
   },
@@ -116,11 +131,6 @@
   },
   {
     "file": "src/app/dashboard/analytics/page.tsx",
-    "text": "chores done",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/analytics/page.tsx",
     "text": "Chores done in the last 90 days",
     "count": 1
   },
@@ -128,11 +138,6 @@
     "file": "src/app/dashboard/analytics/page.tsx",
     "text": "Could not load analytics.",
     "count": 1
-  },
-  {
-    "file": "src/app/dashboard/analytics/page.tsx",
-    "text": "d",
-    "count": 2
   },
   {
     "file": "src/app/dashboard/analytics/page.tsx",
@@ -166,16 +171,6 @@
   },
   {
     "file": "src/app/dashboard/analytics/page.tsx",
-    "text": "of",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/analytics/page.tsx",
-    "text": "points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/analytics/page.tsx",
     "text": "Top level",
     "count": 1
   },
@@ -192,6 +187,26 @@
   {
     "file": "src/app/dashboard/analytics/page.tsx",
     "text": "Who did what",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/analytics/page.tsx",
+    "text": "chores done",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/analytics/page.tsx",
+    "text": "d",
+    "count": 2
+  },
+  {
+    "file": "src/app/dashboard/analytics/page.tsx",
+    "text": "of",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/analytics/page.tsx",
+    "text": "points",
     "count": 1
   },
   {
@@ -256,11 +271,6 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "day streak",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Done",
     "count": 1
   },
@@ -305,18 +315,23 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/chores/ChoresContent.tsx",
+    "text": "day streak",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Add photo",
     "count": 1
   },
   {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Assign a task to a family member.",
+    "text": "Assign To",
     "count": 1
   },
   {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Assign To",
+    "text": "Assign a task to a family member.",
     "count": 1
   },
   {
@@ -361,21 +376,6 @@
   },
   {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "e.g., Take out the trash",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "every day",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "every month",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Frequency",
     "count": 1
   },
@@ -387,11 +387,6 @@
   {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "New Chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "on the selected weekdays",
     "count": 1
   },
   {
@@ -440,6 +435,26 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "e.g., Take out the trash",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "every day",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "every month",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "on the selected weekdays",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Add photo",
     "count": 1
@@ -482,11 +497,6 @@
   {
     "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Due Date",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "e.g., Take out the trash",
     "count": 1
   },
   {
@@ -585,6 +595,11 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
+    "text": "e.g., Take out the trash",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/emergency/page.tsx",
     "text": "@media print { @page { margin: 0.5in; size: letter; } body * { visibility: hidden; } .print-card, .print-card * { visibility: visible; } .print-card { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }",
     "count": 1
@@ -597,6 +612,11 @@
   {
     "file": "src/app/dashboard/emergency/page.tsx",
     "text": "Close preview",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/emergency/page.tsx",
+    "text": "Select a card to preview",
     "count": 1
   },
   {
@@ -670,26 +690,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "Select a card to preview",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ Next, add everyone in your household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ Start creating chores and events right away",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ You become the family admin (parent role)",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/family/create/page.tsx",
     "text": "Already have a family?",
     "count": 1
@@ -740,13 +740,18 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "· expires",
+    "file": "src/app/dashboard/family/create/page.tsx",
+    "text": "✓ Next, add everyone in your household",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "alex@example.com",
+    "file": "src/app/dashboard/family/create/page.tsx",
+    "text": "✓ Start creating chores and events right away",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/family/create/page.tsx",
+    "text": "✓ You become the family admin (parent role)",
     "count": 1
   },
   {
@@ -875,6 +880,16 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/family/invite/page.tsx",
+    "text": "alex@example.com",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/family/invite/page.tsx",
+    "text": "· expires",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/family/page.tsx",
     "text": "Add Member",
     "count": 1
@@ -901,22 +916,17 @@
   },
   {
     "file": "src/app/dashboard/family/page.tsx",
-    "text": "from household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/page.tsx",
     "text": "Household",
     "count": 1
   },
   {
     "file": "src/app/dashboard/family/page.tsx",
-    "text": "Invite family members to join your family and start organizing together.",
+    "text": "Invite Members",
     "count": 1
   },
   {
     "file": "src/app/dashboard/family/page.tsx",
-    "text": "Invite Members",
+    "text": "Invite family members to join your family and start organizing together.",
     "count": 1
   },
   {
@@ -972,6 +982,11 @@
   {
     "file": "src/app/dashboard/family/page.tsx",
     "text": "Your Family",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/family/page.tsx",
+    "text": "from household",
     "count": 1
   },
   {
@@ -1046,12 +1061,12 @@
   },
   {
     "file": "src/app/dashboard/handoff/page.tsx",
-    "text": ". It opens the handoff without signing in.",
+    "text": "(555) 123-4567",
     "count": 1
   },
   {
     "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "(555) 123-4567",
+    "text": ". It opens the handoff without signing in.",
     "count": 1
   },
   {
@@ -1072,41 +1087,6 @@
   {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": "Copy link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Code word for emergencies: PINEAPPLE",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Dog: walk at 7pm, cat: no special care",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Emma: 8pm, Max: 8:30pm",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Grandma Jane, Uncle Bob",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Sarah",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Snacks in the pantry, fruit in the fridge",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Thermostat, TV codes, alarm code...",
     "count": 1
   },
   {
@@ -1175,6 +1155,41 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Code word for emergencies: PINEAPPLE",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Dog: walk at 7pm, cat: no special care",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Emma: 8pm, Max: 8:30pm",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Grandma Jane, Uncle Bob",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Sarah",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Snacks in the pantry, fruit in the fridge",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/handoff/page.tsx",
+    "text": "e.g. Thermostat, TV codes, alarm code...",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/help/HelpContent.tsx",
     "text": ". Each one costs some points. Kids save up their points and claim them.",
     "count": 1
@@ -1201,11 +1216,6 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "→ Privacy &amp; data → Data Export. Each family member downloads their own copy.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
     "text": "Add a chore on",
     "count": 1
   },
@@ -1222,16 +1232,6 @@
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
     "text": "After you sign up and confirm your email, create your household on",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "and choose who does it. When it is ticked off, it waits for a parent to check. Verify gives the points. Reject sends it back with a short reason, so they can try again.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "and types the code. A code always joins them as a child or teen.",
     "count": 1
   },
   {
@@ -1401,11 +1401,6 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings → Your account → Change Password.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
     "text": "Trouble signing in",
     "count": 1
   },
@@ -1425,6 +1420,26 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/help/HelpContent.tsx",
+    "text": "and choose who does it. When it is ticked off, it waits for a parent to check. Verify gives the points. Reject sends it back with a short reason, so they can try again.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/help/HelpContent.tsx",
+    "text": "and types the code. A code always joins them as a child or teen.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/help/HelpContent.tsx",
+    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings → Your account → Change Password.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/help/HelpContent.tsx",
+    "text": "→ Privacy &amp; data → Data Export. Each family member downloads their own copy.",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
     "text": "Changes are only in memory. Keep this page open until they sync.",
     "count": 1
@@ -1441,11 +1456,6 @@
   },
   {
     "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "queued changes.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
     "text": "Refresh sync details",
     "count": 1
   },
@@ -1456,17 +1466,7 @@
   },
   {
     "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "successful sends,",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
     "text": "Trouble syncing?",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "unsuccessful sends. Conflicts:",
     "count": 1
   },
   {
@@ -1480,8 +1480,18 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/layout.tsx",
-    "text": "dashboard",
+    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
+    "text": "queued changes.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
+    "text": "successful sends,",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
+    "text": "unsuccessful sends. Conflicts:",
     "count": 1
   },
   {
@@ -1497,6 +1507,11 @@
   {
     "file": "src/app/dashboard/layout.tsx",
     "text": "Skip to main content",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/layout.tsx",
+    "text": "dashboard",
     "count": 1
   },
   {
@@ -1541,17 +1556,7 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "done",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
     "text": "Edit",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "entries",
     "count": 2
   },
   {
@@ -1563,11 +1568,6 @@
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
     "text": "No items yet",
     "count": 2
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "of",
-    "count": 1
   },
   {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
@@ -1585,13 +1585,23 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "Back",
+    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
+    "text": "done",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
+    "text": "entries",
+    "count": 2
+  },
+  {
+    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
+    "text": "of",
     "count": 1
   },
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "list image",
+    "text": "Back",
     "count": 1
   },
   {
@@ -1602,6 +1612,11 @@
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "Lists",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/lists/[listId]/page.tsx",
+    "text": "list image",
     "count": 1
   },
   {
@@ -1846,11 +1861,6 @@
   },
   {
     "file": "src/app/dashboard/messages/page.tsx",
-    "text": "family members",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
     "text": "Load earlier messages",
     "count": 1
   },
@@ -1907,6 +1917,11 @@
   {
     "file": "src/app/dashboard/messages/page.tsx",
     "text": "You",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/messages/page.tsx",
+    "text": "family members",
     "count": 1
   },
   {
@@ -2041,11 +2056,6 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "unread",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
     "text": "Unread (",
     "count": 1
   },
@@ -2062,6 +2072,31 @@
   {
     "file": "src/app/dashboard/notifications/page.tsx",
     "text": "You're all caught up!",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/notifications/page.tsx",
+    "text": "unread",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/projects/[id]/ProjectDetailActions.tsx",
+    "text": "Actions",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/projects/[id]/ProjectDetailActions.tsx",
+    "text": "Project actions",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/projects/[id]/SendToCalendarButton.tsx",
+    "text": "Send to Calendar",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/projects/[id]/SendToCalendarButton.tsx",
+    "text": "Sending…",
     "count": 1
   },
   {
@@ -2086,17 +2121,7 @@
   },
   {
     "file": "src/app/dashboard/projects/[id]/page.tsx",
-    "text": "of",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/[id]/page.tsx",
     "text": "Projects",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/[id]/page.tsx",
-    "text": "remaining",
     "count": 1
   },
   {
@@ -2111,32 +2136,22 @@
   },
   {
     "file": "src/app/dashboard/projects/[id]/page.tsx",
-    "text": "tasks done",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/[id]/page.tsx",
     "text": "This project has no tasks.",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/projects/[id]/ProjectDetailActions.tsx",
-    "text": "Actions",
+    "file": "src/app/dashboard/projects/[id]/page.tsx",
+    "text": "of",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/projects/[id]/ProjectDetailActions.tsx",
-    "text": "Project actions",
+    "file": "src/app/dashboard/projects/[id]/page.tsx",
+    "text": "remaining",
     "count": 1
   },
   {
-    "file": "src/app/dashboard/projects/[id]/SendToCalendarButton.tsx",
-    "text": "Send to Calendar",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/[id]/SendToCalendarButton.tsx",
-    "text": "Sending…",
+    "file": "src/app/dashboard/projects/[id]/page.tsx",
+    "text": "tasks done",
     "count": 1
   },
   {
@@ -2186,11 +2201,6 @@
   },
   {
     "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "e.g., Backyard Garden, Spring Cleaning",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
     "text": "New Project",
     "count": 1
   },
@@ -2210,6 +2220,11 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/projects/create/page.tsx",
+    "text": "e.g., Backyard Garden, Spring Cleaning",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/projects/page.tsx",
     "text": "Active",
     "count": 1
@@ -2226,12 +2241,12 @@
   },
   {
     "file": "src/app/dashboard/projects/page.tsx",
-    "text": "Create or join a family to start managing projects together.",
+    "text": "Create Project",
     "count": 1
   },
   {
     "file": "src/app/dashboard/projects/page.tsx",
-    "text": "Create Project",
+    "text": "Create or join a family to start managing projects together.",
     "count": 1
   },
   {
@@ -2260,111 +2275,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "(optional)",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Back to Rewards",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Cost in points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Create a reward for your family.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Create Reward",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Creating...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Description",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "e.g., 30 minutes of extra gaming on the weekend",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "e.g., Extra Video Game Time",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Icon",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "Name",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "New Reward",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/create/page.tsx",
-    "text": "points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Create or join a family to start earning and claiming rewards.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Leaderboard →",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "No family set up",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Rewards",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Your points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "· Claimed by",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "· Waiting for a parent",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
     "text": "Add reward",
     "count": 1
@@ -2372,11 +2282,6 @@
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
     "text": "All Family Rewards",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "as given",
     "count": 1
   },
   {
@@ -2396,12 +2301,12 @@
   },
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claim reward",
+    "text": "Claim Reward",
     "count": 1
   },
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claim Reward",
+    "text": "Claim reward",
     "count": 1
   },
   {
@@ -2436,17 +2341,32 @@
   },
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "more points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
     "text": "Need",
     "count": 1
   },
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
     "text": "No rewards yet",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
+    "text": "Saving…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
+    "text": "This uses",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
+    "text": "as given",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
+    "text": "more points",
     "count": 1
   },
   {
@@ -2466,12 +2386,107 @@
   },
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Saving…",
+    "text": "· Claimed by",
     "count": 1
   },
   {
     "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "This uses",
+    "text": "· Waiting for a parent",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "(optional)",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Back to Rewards",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Cost in points",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Create Reward",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Create a reward for your family.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Creating...",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Description",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Icon",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "Name",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "New Reward",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "e.g., 30 minutes of extra gaming on the weekend",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "e.g., Extra Video Game Time",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/create/page.tsx",
+    "text": "points",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/page.tsx",
+    "text": "Create or join a family to start earning and claiming rewards.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/page.tsx",
+    "text": "Leaderboard →",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/page.tsx",
+    "text": "No family set up",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/page.tsx",
+    "text": "Rewards",
+    "count": 2
+  },
+  {
+    "file": "src/app/dashboard/rewards/page.tsx",
+    "text": "Your points",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/rewards/page.tsx",
+    "text": "points",
     "count": 1
   },
   {
@@ -2492,11 +2507,6 @@
   {
     "file": "src/app/dashboard/search/SearchClient.tsx",
     "text": "Keep typing. Search starts at",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "letters.",
     "count": 1
   },
   {
@@ -2542,6 +2552,11 @@
   {
     "file": "src/app/dashboard/search/SearchClient.tsx",
     "text": "You&apos;re offline. Search needs a connection.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/search/SearchClient.tsx",
+    "text": "letters.",
     "count": 1
   },
   {
@@ -2621,11 +2636,6 @@
   },
   {
     "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "{\"source-id\":\"family-user-id\"}",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
     "text": "Back to settings",
     "count": 1
   },
@@ -2700,13 +2710,8 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "°C",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "°F",
+    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
+    "text": "{\"source-id\":\"family-user-id\"}",
     "count": 1
   },
   {
@@ -2732,6 +2737,16 @@
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
     "text": "Twice daily",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/sick-days/page.tsx",
+    "text": "°C",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/sick-days/page.tsx",
+    "text": "°F",
     "count": 1
   },
   {
@@ -2766,11 +2781,6 @@
   },
   {
     "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "https://...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
     "text": "Nintendo Switch",
     "count": 1
   },
@@ -2785,8 +2795,8 @@
     "count": 1
   },
   {
-    "file": "src/app/join/page.tsx",
-    "text": "as a",
+    "file": "src/app/dashboard/wishlist/page.tsx",
+    "text": "https://...",
     "count": 1
   },
   {
@@ -2806,11 +2816,6 @@
   },
   {
     "file": "src/app/join/page.tsx",
-    "text": "e.g. K7QM-4XPD-2HNA",
-    "count": 1
-  },
-  {
-    "file": "src/app/join/page.tsx",
     "text": "Family Code",
     "count": 1
   },
@@ -2826,17 +2831,17 @@
   },
   {
     "file": "src/app/join/page.tsx",
+    "text": "Join Family",
+    "count": 1
+  },
+  {
+    "file": "src/app/join/page.tsx",
     "text": "Join a Family",
     "count": 1
   },
   {
     "file": "src/app/join/page.tsx",
     "text": "Join family",
-    "count": 1
-  },
-  {
-    "file": "src/app/join/page.tsx",
-    "text": "Join Family",
     "count": 1
   },
   {
@@ -2865,6 +2870,16 @@
     "count": 1
   },
   {
+    "file": "src/app/join/page.tsx",
+    "text": "as a",
+    "count": 1
+  },
+  {
+    "file": "src/app/join/page.tsx",
+    "text": "e.g. K7QM-4XPD-2HNA",
+    "count": 1
+  },
+  {
     "file": "src/app/page.tsx",
     "text": "3:30",
     "count": 1
@@ -2872,6 +2887,21 @@
   {
     "file": "src/app/page.tsx",
     "text": "5:00",
+    "count": 1
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
+    "text": ") downloads one file with all your data, which you can open or keep (JSON format).",
+    "count": 1
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
+    "text": "/api/users",
+    "count": 2
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
+    "text": "/api/users/export",
     "count": 1
   },
   {
@@ -2897,26 +2927,6 @@
   {
     "file": "src/app/privacy/page.tsx",
     "text": ": the only parent can delete the whole household from the same place. Every member account, all household data, uploaded photos, paired tablets, invitations and calendar connections are deleted, and old links (calendar feed, sitter share link) stop working. Short-lived security counters (rate limits) expire on their own. Database backups, where kept, still hold deleted data until they are rotated out (up to about five weeks).",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
-    "text": ") downloads one file with all your data, which you can open or keep (JSON format).",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
-    "text": "/api/users",
-    "count": 2
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
-    "text": "/api/users/export",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
-    "text": "← Back to home",
     "count": 1
   },
   {
@@ -2986,17 +2996,17 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "Family photos on the fridge board (optional)",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
     "text": "Family Planner is a self-hosted family organizer. We store the data you enter: your name, email, family member names, the chores/events/lists/ messages/rewards you create, and your progress (points, streaks, completed chores). That&apos;s it. No analytics sold to third parties, no advertising, no tracking pixels.",
     "count": 1
   },
   {
     "file": "src/app/privacy/page.tsx",
     "text": "Family Planner is designed for use by families with children. Child accounts (under 13) must be created by a parent. We do not knowingly collect data from children directly. If you believe a child account was created without parental consent, contact us to remove it.",
+    "count": 1
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
+    "text": "Family photos on the fridge board (optional)",
     "count": 1
   },
   {
@@ -3056,17 +3066,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "privacy@ashbi.ca",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
     "text": "Rectify",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
-    "text": "returns your profile.",
     "count": 1
   },
   {
@@ -3077,11 +3077,6 @@
   {
     "file": "src/app/privacy/page.tsx",
     "text": "These emails are sent through Mailgun, our email provider. To deliver a message, Mailgun receives the recipient&apos;s address and name and the message itself. We have turned off Mailgun&apos;s open and click tracking, so it does not track whether you open an email or rewrite the links in it.",
-    "count": 1
-  },
-  {
-    "file": "src/app/privacy/page.tsx",
-    "text": "to update your name/age.",
     "count": 1
   },
   {
@@ -3135,7 +3130,22 @@
     "count": 1
   },
   {
-    "file": "src/app/terms/page.tsx",
+    "file": "src/app/privacy/page.tsx",
+    "text": "privacy@ashbi.ca",
+    "count": 1
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
+    "text": "returns your profile.",
+    "count": 1
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
+    "text": "to update your name/age.",
+    "count": 1
+  },
+  {
+    "file": "src/app/privacy/page.tsx",
     "text": "← Back to home",
     "count": 1
   },
@@ -3201,11 +3211,6 @@
   },
   {
     "file": "src/app/terms/page.tsx",
-    "text": "support@ashbi.ca",
-    "count": 1
-  },
-  {
-    "file": "src/app/terms/page.tsx",
     "text": "Termination",
     "count": 1
   },
@@ -3250,13 +3255,23 @@
     "count": 1
   },
   {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Add transaction",
+    "file": "src/app/terms/page.tsx",
+    "text": "support@ashbi.ca",
+    "count": 1
+  },
+  {
+    "file": "src/app/terms/page.tsx",
+    "text": "← Back to home",
     "count": 1
   },
   {
     "file": "src/components/budget/BudgetDashboard.tsx",
     "text": "Add Transaction",
+    "count": 1
+  },
+  {
+    "file": "src/components/budget/BudgetDashboard.tsx",
+    "text": "Add transaction",
     "count": 1
   },
   {
@@ -3286,22 +3301,22 @@
   },
   {
     "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "limit",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
     "text": "No transactions",
     "count": 1
   },
   {
     "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "of",
+    "text": "Over budget by",
     "count": 1
   },
   {
     "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Over budget by",
+    "text": "limit",
+    "count": 1
+  },
+  {
+    "file": "src/components/budget/BudgetDashboard.tsx",
+    "text": "of",
     "count": 1
   },
   {
@@ -3381,11 +3396,6 @@
   },
   {
     "file": "src/components/budget/TransactionForm.tsx",
-    "text": "e.g., Groceries, Salary...",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
     "text": "Edit Transaction",
     "count": 1
   },
@@ -3445,13 +3455,13 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RecurringChoreRows.tsx",
-    "text": "Next:",
+    "file": "src/components/budget/TransactionForm.tsx",
+    "text": "e.g., Groceries, Salary...",
     "count": 1
   },
   {
     "file": "src/components/chores/RecurringChoreRows.tsx",
-    "text": "open dates · Expand to see dates",
+    "text": "Next:",
     "count": 1
   },
   {
@@ -3465,13 +3475,13 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "1",
+    "file": "src/components/chores/RecurringChoreRows.tsx",
+    "text": "open dates · Expand to see dates",
     "count": 1
   },
   {
     "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "e.g. Morning",
+    "text": "1",
     "count": 1
   },
   {
@@ -3525,8 +3535,8 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "· some awaiting check",
+    "file": "src/components/chores/RoutineIconPicker.tsx",
+    "text": "e.g. Morning",
     "count": 1
   },
   {
@@ -3537,16 +3547,6 @@
   {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "All steps done",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "and checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "checked",
     "count": 1
   },
   {
@@ -3562,11 +3562,6 @@
   {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "Done",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "done ·",
     "count": 1
   },
   {
@@ -3587,11 +3582,6 @@
   {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "No routines in this range. Give related chores the same routine name and step numbers to stack them.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "of",
     "count": 1
   },
   {
@@ -3617,6 +3607,31 @@
   {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "Up next",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "and checked",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "checked",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "done ·",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "of",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineStacks.tsx",
+    "text": "· some awaiting check",
     "count": 1
   },
   {
@@ -3646,11 +3661,6 @@
   },
   {
     "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "people.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
     "text": "Pick at least",
     "count": 1
   },
@@ -3662,6 +3672,11 @@
   {
     "file": "src/components/chores/TakeTurnsPicker.tsx",
     "text": "Tap people in the order they take turns. Tap again to take someone out.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/TakeTurnsPicker.tsx",
+    "text": "people.",
     "count": 1
   },
   {
@@ -3686,17 +3701,17 @@
   },
   {
     "file": "src/components/dashboard/GetStarted.tsx",
-    "text": "of 3 done. A few steps to set up your household.",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/GetStarted.tsx",
     "text": "Setup steps",
     "count": 1
   },
   {
     "file": "src/components/dashboard/GetStarted.tsx",
     "text": "To do:",
+    "count": 1
+  },
+  {
+    "file": "src/components/dashboard/GetStarted.tsx",
+    "text": "of 3 done. A few steps to set up your household.",
     "count": 1
   },
   {
@@ -3711,17 +3726,12 @@
   },
   {
     "file": "src/components/dashboard/HomeSummary.tsx",
-    "text": "chores to check",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/HomeSummary.tsx",
     "text": "Your chores",
     "count": 2
   },
   {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "🎉 Claimed!",
+    "file": "src/components/dashboard/HomeSummary.tsx",
+    "text": "chores to check",
     "count": 1
   },
   {
@@ -3781,32 +3791,12 @@
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "more",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "more points",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
     "text": "Need",
     "count": 1
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
     "text": "Nothing new today!",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "points",
-    "count": 2
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "points to go!",
     "count": 1
   },
   {
@@ -3841,12 +3831,12 @@
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "Today's chores",
+    "text": "Today&apos;s Missions",
     "count": 1
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "Today&apos;s Missions",
+    "text": "Today's chores",
     "count": 1
   },
   {
@@ -3865,6 +3855,31 @@
     "count": 1
   },
   {
+    "file": "src/components/dashboard/KidHome.tsx",
+    "text": "more",
+    "count": 1
+  },
+  {
+    "file": "src/components/dashboard/KidHome.tsx",
+    "text": "more points",
+    "count": 1
+  },
+  {
+    "file": "src/components/dashboard/KidHome.tsx",
+    "text": "points",
+    "count": 2
+  },
+  {
+    "file": "src/components/dashboard/KidHome.tsx",
+    "text": "points to go!",
+    "count": 1
+  },
+  {
+    "file": "src/components/dashboard/KidHome.tsx",
+    "text": "🎉 Claimed!",
+    "count": 1
+  },
+  {
     "file": "src/components/dashboard/KidRoutines.tsx",
     "text": "All done",
     "count": 1
@@ -3872,11 +3887,6 @@
   {
     "file": "src/components/dashboard/KidRoutines.tsx",
     "text": "Checked by a parent",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidRoutines.tsx",
-    "text": "done",
     "count": 1
   },
   {
@@ -3896,6 +3906,16 @@
   },
   {
     "file": "src/components/dashboard/KidRoutines.tsx",
+    "text": "Waiting for a parent",
+    "count": 1
+  },
+  {
+    "file": "src/components/dashboard/KidRoutines.tsx",
+    "text": "done",
+    "count": 1
+  },
+  {
+    "file": "src/components/dashboard/KidRoutines.tsx",
     "text": "of",
     "count": 1
   },
@@ -3905,18 +3925,88 @@
     "count": 1
   },
   {
-    "file": "src/components/dashboard/KidRoutines.tsx",
-    "text": "Waiting for a parent",
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Board settings",
     "count": 1
   },
   {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "· Paired",
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Cancel",
+    "count": 2
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "It stops showing your family's information right away. A parent can pair it again later.",
     "count": 1
   },
   {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "· Version",
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Loading today&apos;s board",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Not",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Parent",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Remove",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Remove tablet",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Rename this tablet",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Save name",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Showing a saved plan. Connect to update it. Parent controls and changes need a fresh connection.",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Tablet name",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "This plan could not be saved on this device. Keep the app open during an outage.",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Ticking off as",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Today&apos;s board could not load",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "Try again",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/DeviceTodayScreen.tsx",
+    "text": "this tablet",
     "count": 1
   },
   {
@@ -4075,88 +4165,13 @@
     "count": 1
   },
   {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Board settings",
+    "file": "src/components/device/DevicesManager.tsx",
+    "text": "· Paired",
     "count": 1
   },
   {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Cancel",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "It stops showing your family's information right away. A parent can pair it again later.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Loading today&apos;s board",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Not",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Parent",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Remove",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Remove tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Rename this tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Save name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Showing a saved plan. Connect to update it. Parent controls and changes need a fresh connection.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Tablet name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "This plan could not be saved on this device. Keep the app open during an outage.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "this tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Ticking off as",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Today&apos;s board could not load",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Try again",
+    "file": "src/components/device/DevicesManager.tsx",
+    "text": "· Version",
     "count": 1
   },
   {
@@ -4226,17 +4241,7 @@
   },
   {
     "file": "src/components/device/ElevationSheet.tsx",
-    "text": "digits entered",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/ElevationSheet.tsx",
     "text": "No parent in this household can unlock the tablet yet.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/ElevationSheet.tsx",
-    "text": "of",
     "count": 1
   },
   {
@@ -4261,12 +4266,22 @@
   },
   {
     "file": "src/components/device/ElevationSheet.tsx",
+    "text": "Use PIN",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/ElevationSheet.tsx",
     "text": "Use password instead",
     "count": 1
   },
   {
     "file": "src/components/device/ElevationSheet.tsx",
-    "text": "Use PIN",
+    "text": "digits entered",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/ElevationSheet.tsx",
+    "text": "of",
     "count": 1
   },
   {
@@ -4306,11 +4321,6 @@
   },
   {
     "file": "src/components/device/PairScreen.tsx",
-    "text": "is ready. Opening today&apos;s board.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairScreen.tsx",
     "text": "On a parent&apos;s phone, open Settings, then Devices, and choose &ldquo;Pair a tablet&rdquo;. Type the code shown there.",
     "count": 1
   },
@@ -4340,6 +4350,11 @@
     "count": 1
   },
   {
+    "file": "src/components/device/PairScreen.tsx",
+    "text": "is ready. Opening today&apos;s board.",
+    "count": 1
+  },
+  {
     "file": "src/components/device/PairTabletDialog.tsx",
     "text": "/device/pair",
     "count": 1
@@ -4347,11 +4362,6 @@
   {
     "file": "src/components/device/PairTabletDialog.tsx",
     "text": "A tablet entered your code. It now shows a 4-digit number. Type it here to connect it. If you can&apos;t see that tablet, it isn&apos;t yours.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "and type this code.",
     "count": 1
   },
   {
@@ -4396,11 +4406,6 @@
   },
   {
     "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "is connected and showing today&apos;s board.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
     "text": "Number on the tablet",
     "count": 1
   },
@@ -4413,11 +4418,6 @@
     "file": "src/components/device/PairTabletDialog.tsx",
     "text": "Remove",
     "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "still could not be removed. Try again, or remove it from the list.",
-    "count": 1
   },
   {
     "file": "src/components/device/PairTabletDialog.tsx",
@@ -4437,6 +4437,21 @@
   {
     "file": "src/components/device/PairTabletDialog.tsx",
     "text": "Waiting for the tablet",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/PairTabletDialog.tsx",
+    "text": "and type this code.",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/PairTabletDialog.tsx",
+    "text": "is connected and showing today&apos;s board.",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/PairTabletDialog.tsx",
+    "text": "still could not be removed. Try again, or remove it from the list.",
     "count": 1
   },
   {
@@ -4481,12 +4496,12 @@
   },
   {
     "file": "src/components/device/StatusScreens.tsx",
-    "text": "with your own account.",
+    "text": "You can still sign in to",
     "count": 1
   },
   {
     "file": "src/components/device/StatusScreens.tsx",
-    "text": "You can still sign in to",
+    "text": "with your own account.",
     "count": 1
   },
   {
@@ -4502,26 +4517,6 @@
   {
     "file": "src/components/device/use-device-board-actions.tsx",
     "text": "Who's this?",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Next ·",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Tap anywhere to show the board",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Time:",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Tonight",
     "count": 1
   },
   {
@@ -4641,16 +4636,6 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "none chosen",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "of up to 20 photos chosen.",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/BoardSettings.tsx",
     "text": "Off unless you turn it on. When it is on, a paired family tablet can tick off groceries, add to the grocery list and mark today&apos;s chores done. It asks &ldquo;Who&apos;s this?&rdquo; and records the name picked, but anyone at the tablet can pick any name. Chores ticked there still wait for a parent&apos;s check, and the tablet never shows points.",
     "count": 1
   },
@@ -4735,6 +4720,16 @@
     "count": 1
   },
   {
+    "file": "src/components/fridge/BoardSettings.tsx",
+    "text": "none chosen",
+    "count": 1
+  },
+  {
+    "file": "src/components/fridge/BoardSettings.tsx",
+    "text": "of up to 20 photos chosen.",
+    "count": 1
+  },
+  {
     "file": "src/components/fridge/TodayBoard.tsx",
     "text": "Exit fridge mode",
     "count": 1
@@ -4760,8 +4755,23 @@
     "count": 2
   },
   {
-    "file": "src/components/fridge/use-soon-region.tsx",
-    "text": "more to use soon",
+    "file": "src/components/fridge/ambient-cover.tsx",
+    "text": "Next ·",
+    "count": 1
+  },
+  {
+    "file": "src/components/fridge/ambient-cover.tsx",
+    "text": "Tap anywhere to show the board",
+    "count": 1
+  },
+  {
+    "file": "src/components/fridge/ambient-cover.tsx",
+    "text": "Time:",
+    "count": 1
+  },
+  {
+    "file": "src/components/fridge/ambient-cover.tsx",
+    "text": "Tonight",
     "count": 1
   },
   {
@@ -4775,6 +4785,11 @@
     "count": 1
   },
   {
+    "file": "src/components/fridge/use-soon-region.tsx",
+    "text": "more to use soon",
+    "count": 1
+  },
+  {
     "file": "src/components/fridge/weather-tile.tsx",
     "text": ", high",
     "count": 1
@@ -4783,11 +4798,6 @@
     "file": "src/components/fridge/weather-tile.tsx",
     "text": ", low",
     "count": 2
-  },
-  {
-    "file": "src/components/fridge/weather-tile.tsx",
-    "text": "· L",
-    "count": 1
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
@@ -4810,14 +4820,14 @@
     "count": 1
   },
   {
-    "file": "src/components/layout/CommandPalette.tsx",
-    "text": "&rdquo;",
-    "count": 2
+    "file": "src/components/fridge/weather-tile.tsx",
+    "text": "· L",
+    "count": 1
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "⌘K",
-    "count": 1
+    "text": "&rdquo;",
+    "count": 2
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
@@ -4831,17 +4841,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "esc",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/CommandPalette.tsx",
     "text": "Go to",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/CommandPalette.tsx",
-    "text": "navigate",
     "count": 1
   },
   {
@@ -4871,12 +4871,27 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
+    "text": "esc",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/CommandPalette.tsx",
+    "text": "navigate",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/CommandPalette.tsx",
     "text": "select",
     "count": 1
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
     "text": "to toggle",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/CommandPalette.tsx",
+    "text": "⌘K",
     "count": 1
   },
   {
@@ -4966,11 +4981,6 @@
   },
   {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "servings",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
     "text": "Showing the first 100 grocery lists.",
     "count": 1
   },
@@ -4992,6 +5002,11 @@
   {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
     "text": "Undo",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/AddToGroceriesButton.tsx",
+    "text": "servings",
     "count": 1
   },
   {
@@ -5076,11 +5091,6 @@
   },
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "e.g., The Smith Family",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
     "text": "Family name",
     "count": 1
   },
@@ -5117,6 +5127,11 @@
   {
     "file": "src/components/onboarding/OnboardingFlow.tsx",
     "text": "Your family is created. Add the other parents, teens, and children who belong to your household. You can invite each person and choose their role.",
+    "count": 1
+  },
+  {
+    "file": "src/components/onboarding/OnboardingFlow.tsx",
+    "text": "e.g., The Smith Family",
     "count": 1
   },
   {
