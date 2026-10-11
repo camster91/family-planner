@@ -21,7 +21,7 @@ describe("routine stack contract", () => {
       family_id: "family-a",
       occurrence_date: "2026-10-12",
       label: "  Morning   routine ",
-      steps: [step({ weekly_days: [3, 1] })],
+      steps: [step({ chore_id: "chore-a", weekly_days: [3, 1] })],
       expected_fingerprint: "",
     });
 
@@ -63,7 +63,9 @@ describe("routine stack contract", () => {
         family_id: "family-a",
         occurrence_date: "2026-10-12",
         label: "Morning",
-        steps: [step({ frequency: "daily", weekly_days: [1] })],
+        steps: [
+          step({ chore_id: "chore-a", frequency: "daily", weekly_days: [1] }),
+        ],
         expected_fingerprint: "",
       }),
     ).toThrow(/require a weekly routine/);
@@ -73,7 +75,14 @@ describe("routine stack contract", () => {
         family_id: "family-a",
         occurrence_date: "2026-10-12",
         label: "Morning",
-        steps: [step({ recurrence_id: "series-a", weekly_days: [] })],
+        steps: [
+          step({
+            is_template: true,
+            recurrence_id: "series-a",
+            frequency: "once",
+            weekly_days: [],
+          }),
+        ],
         expected_fingerprint: "",
       }),
     ).toThrow(/recurring templates/);
@@ -83,8 +92,23 @@ describe("routine stack contract", () => {
         family_id: "family-a",
         occurrence_date: "2026-10-12",
         label: "Morning",
+        steps: [step({ frequency: "weekly", weekly_days: [1] })],
+        expected_fingerprint: "",
+      }),
+    ).toThrow(/one-time occurrences/);
+
+    expect(() =>
+      normalizeRoutineStackDraft({
+        family_id: "family-a",
+        occurrence_date: "2026-10-12",
+        label: "Morning",
         steps: [
-          step({ title: "New step", due_date: "2026-10-13", weekly_days: [] }),
+          step({
+            title: "New step",
+            due_date: "2026-10-13",
+            frequency: "once",
+            weekly_days: [],
+          }),
         ],
         expected_fingerprint: "",
       }),

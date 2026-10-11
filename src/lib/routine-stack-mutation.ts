@@ -42,6 +42,8 @@ type TransactionDatabase = {
   $transaction<T>(callback: (tx: unknown) => Promise<T>): Promise<T>;
 };
 
+const REPEATING_FREQUENCIES = new Set(["daily", "weekly", "monthly"]);
+
 export interface RoutineStackActor {
   familyId: string;
   userId: string;
@@ -352,11 +354,7 @@ export async function mutateRoutineStackInTx<T extends object>(
   ) {
     throw conflict();
   }
-  if (
-    currentStackRows.some(
-      (row) => row.is_template === true || Boolean(row.recurrence_id),
-    )
-  ) {
+  if (currentStackRows.some((row) => row.is_template === true)) {
     throw invalid(
       "Recurring chore templates must be edited outside an occurrence routine.",
     );
@@ -383,20 +381,84 @@ export async function mutateRoutineStackInTx<T extends object>(
     existingRows.map((row) => [String(row.id), row]),
   );
   if (existingRows.length !== selectedIds.length) throw genericNotFound();
-  if (
-    existingRows.some(
-      (row) => row.is_template === true || Boolean(row.recurrence_id),
-    )
-  ) {
+  if (existingRows.some((row) => row.is_template === true)) {
     throw invalid(
       "Recurring chore templates must be edited outside an occurrence routine.",
     );
+  }
+  const recurrenceIds = [
+    ...new Set(
+      existingRows.flatMap((row) =>
+        typeof row.recurrence_id === "string" ? [row.recurrence_id] : [],
+      ),
+    ),
+  ];
+  if (recurrenceIds.length > 0) {
+    // `recurrence_id` is intentionally additive and has no database FK. A
+    // generated row is valid only when its locked series identity resolves to
+    // the same-household anchor, including a stopped anchor that keeps
+    // `is_template=false` and `recurrence_id=id` for history. A missing,
+    // foreign, or malformed anchor is an optimistic conflict, never a new
+    // series inferred from the submitted payload.
+    const anchors = rows(
+      await tx.chore.findMany({
+        where: {
+          family_id: actor.familyId,
+          id: { in: recurrenceIds },
+        },
+        select: {
+          id: true,
+          family_id: true,
+          recurrence_id: true,
+          is_template: true,
+          frequency: true,
+        },
+      }),
+    );
+    const anchorsById = new Map(anchors.map((row) => [String(row.id), row]));
+    for (const row of existingRows) {
+      const recurrenceId =
+        typeof row.recurrence_id === "string" ? row.recurrence_id : null;
+      if (recurrenceId === null) continue;
+      if (recurrenceId.length === 0) {
+        throw conflict("The selected step's series identity is unavailable.");
+      }
+      const anchor = anchorsById.get(recurrenceId);
+      const anchorFrequency =
+        typeof anchor?.frequency === "string" ? anchor.frequency : null;
+      const activeAnchor =
+        anchor?.is_template === true &&
+        anchorFrequency !== null &&
+        REPEATING_FREQUENCIES.has(anchorFrequency);
+      const stoppedAnchor =
+        anchor?.is_template === false && anchorFrequency === "once";
+      if (
+        !anchor ||
+        String(anchor.family_id ?? "") !== actor.familyId ||
+        String(anchor.id ?? "") !== recurrenceId ||
+        String(anchor.recurrence_id ?? "") !== recurrenceId ||
+        (!activeAnchor && !stoppedAnchor)
+      ) {
+        throw conflict("The selected step's series identity is unavailable.");
+      }
+    }
   }
   for (const row of existingRows) {
     if (!sameDate(row.due_date, draft.occurrence_date))
       throw conflict("The selected step is from a different occurrence.");
     const rowId = String(row.id);
     const isRemoval = draft.remove_chore_ids.includes(rowId);
+    // A removal is addressed by the locked stable chore id and the expected
+    // snapshot, so it does not need to repeat the series id in the draft.
+    // Retained rows must echo the locked recurrence identity so a stale or
+    // cross-series payload cannot silently re-home an occurrence.
+    if (!isRemoval) {
+      const submittedRecurrenceId =
+        draft.steps.find((step) => step.chore_id === rowId)?.recurrence_id ??
+        null;
+      if (submittedRecurrenceId !== (row.recurrence_id ?? null))
+        throw conflict("The selected step's series identity changed.");
+    }
     if (stack?.id) {
       if (row.routine_stack_id && row.routine_stack_id !== stack.id)
         throw conflict("A selected step belongs to another routine.");

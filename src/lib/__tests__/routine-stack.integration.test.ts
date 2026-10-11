@@ -76,6 +76,16 @@ const STACK_B = `${PREFIX}-stack-b`;
 const CHORE_A = `${PREFIX}-chore-a`;
 const CHORE_FOREIGN = `${PREFIX}-chore-foreign`;
 const CHORE_B = `${PREFIX}-chore-b`;
+const RECURRING_TEMPLATE = `${PREFIX}-recurring-template`;
+const CHORE_RECURRING = `${PREFIX}-chore-recurring`;
+const STOPPED_ANCHOR = `${PREFIX}-stopped-anchor`;
+const LEGACY_OCCURRENCE = `${PREFIX}-legacy-occurrence`;
+const ORPHAN_OCCURRENCE = `${PREFIX}-orphan-occurrence`;
+const FOREIGN_ANCHOR = `${PREFIX}-foreign-anchor`;
+const FOREIGN_OCCURRENCE = `${PREFIX}-foreign-occurrence`;
+const MALFORMED_ANCHOR = `${PREFIX}-malformed-anchor`;
+const MALFORMED_OCCURRENCE = `${PREFIX}-malformed-occurrence`;
+const EMPTY_OCCURRENCE = `${PREFIX}-empty-occurrence`;
 const OCCURRENCE_DATE = "2026-10-12";
 const OCCURRENCE = new Date(`${OCCURRENCE_DATE}T00:00:00.000Z`);
 
@@ -557,6 +567,479 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     ).toMatchObject({
       routine_stack_id: STACK_A,
     });
+  });
+
+  it("stacks, reorders, and un-stacks a generated occurrence without changing its series history", async () => {
+    const template = await db.chore.create({
+      data: {
+        id: RECURRING_TEMPLATE,
+        family_id: FAMILY_A,
+        title: "Water plants",
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: new Date("2026-10-05T00:00:00.000Z"),
+        created_by: PARENT_A,
+        frequency: "weekly",
+        weekly_days: [1],
+        recurrence_id: RECURRING_TEMPLATE,
+        is_template: true,
+      },
+    });
+    const generated = await db.chore.create({
+      data: {
+        id: CHORE_RECURRING,
+        family_id: FAMILY_A,
+        title: "Water plants",
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: OCCURRENCE,
+        created_by: PARENT_A,
+        points: 17,
+        status: "verified",
+        frequency: "once",
+        weekly_days: [],
+        recurrence_id: RECURRING_TEMPLATE,
+        is_template: false,
+        photo_url: "/uploads/routine-proof.jpg",
+        photo_verified: true,
+        verified_at: new Date("2026-10-12T09:00:00.000Z"),
+        verified_notes: "Checked by parent",
+        completed_at: new Date("2026-10-12T08:00:00.000Z"),
+      },
+    });
+    const initialStackRow = await db.chore.findUniqueOrThrow({
+      where: { id: CHORE_A },
+    });
+
+    await expect(
+      mutateRoutineStack(
+        db,
+        {
+          scope: "occurrence",
+          family_id: FAMILY_A,
+          stack_id: STACK_A,
+          occurrence_date: OCCURRENCE_DATE,
+          label: "Morning",
+          steps: [
+            {
+              chore_id: CHORE_A,
+              assigned_to: CHILD_A,
+              assigned_member_id: initialStackRow.assigned_member_id ?? null,
+              due_date: OCCURRENCE_DATE,
+              frequency: "once",
+              difficulty: "medium",
+              is_template: false,
+            },
+            {
+              chore_id: CHORE_RECURRING,
+              assigned_to: CHILD_A,
+              assigned_member_id: MEMBER_CHILD_A,
+              due_date: OCCURRENCE_DATE,
+              frequency: "once",
+              difficulty: "medium",
+              is_template: false,
+            },
+          ],
+          remove_chore_ids: [],
+          expected_fingerprint: fingerprintRoutineStackSnapshot([
+            initialStackRow,
+          ]),
+        },
+        actorA,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      await db.chore.findUniqueOrThrow({ where: { id: CHORE_RECURRING } }),
+    ).toMatchObject({ routine_stack_id: null });
+
+    const stackDraft = (
+      steps: RoutineStackDraft["steps"],
+    ): RoutineStackDraft => ({
+      scope: "occurrence",
+      family_id: FAMILY_A,
+      stack_id: STACK_A,
+      occurrence_date: OCCURRENCE_DATE,
+      label: "Morning",
+      steps,
+      remove_chore_ids: [],
+      expected_fingerprint: fingerprintRoutineStackSnapshot([initialStackRow]),
+    });
+    const first = await mutateRoutineStack(
+      db,
+      stackDraft([
+        {
+          chore_id: CHORE_A,
+          assigned_to: CHILD_A,
+          assigned_member_id: initialStackRow.assigned_member_id ?? null,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "medium",
+          is_template: false,
+        },
+        {
+          chore_id: CHORE_RECURRING,
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "medium",
+          recurrence_id: RECURRING_TEMPLATE,
+          is_template: false,
+        },
+      ]),
+      actorA,
+    );
+    expect(first.status).toBe(200);
+
+    const stackedRows = await db.chore.findMany({
+      where: { id: { in: [CHORE_A, CHORE_RECURRING] } },
+      orderBy: { routine_order: "asc" },
+    });
+    expect(stackedRows.map((row: Db) => row.id)).toEqual([
+      CHORE_A,
+      CHORE_RECURRING,
+    ]);
+    const stackedGenerated = await db.chore.findUniqueOrThrow({
+      where: { id: CHORE_RECURRING },
+    });
+    expect(stackedGenerated).toMatchObject({
+      recurrence_id: RECURRING_TEMPLATE,
+      is_template: false,
+      status: "verified",
+      points: 17,
+      photo_url: "/uploads/routine-proof.jpg",
+      photo_verified: true,
+      verified_notes: "Checked by parent",
+      routine_stack_id: STACK_A,
+    });
+    expect(template).toMatchObject({
+      id: RECURRING_TEMPLATE,
+      recurrence_id: RECURRING_TEMPLATE,
+      is_template: true,
+      routine_stack_id: null,
+    });
+
+    const stackedFingerprint = fingerprintRoutineStackSnapshot(stackedRows);
+    const reorderedSteps: RoutineStackDraft["steps"] = [
+      {
+        chore_id: CHORE_RECURRING,
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: OCCURRENCE_DATE,
+        frequency: "once",
+        difficulty: "medium",
+        recurrence_id: RECURRING_TEMPLATE,
+        is_template: false,
+      },
+      {
+        chore_id: CHORE_A,
+        assigned_to: CHILD_A,
+        assigned_member_id: initialStackRow.assigned_member_id ?? null,
+        due_date: OCCURRENCE_DATE,
+        frequency: "once",
+        difficulty: "medium",
+        is_template: false,
+      },
+    ];
+    const reordered = await mutateRoutineStack(
+      db,
+      {
+        ...stackDraft(reorderedSteps),
+        expected_fingerprint: stackedFingerprint,
+      },
+      actorA,
+    );
+    expect(reordered.status).toBe(200);
+    const reorderedRows = await db.chore.findMany({
+      where: { id: { in: [CHORE_A, CHORE_RECURRING] } },
+      orderBy: { routine_order: "asc" },
+    });
+    expect(reorderedRows.map((row: Db) => row.id)).toEqual([
+      CHORE_RECURRING,
+      CHORE_A,
+    ]);
+
+    const beforeMismatch = await db.chore.findMany({
+      where: { id: { in: [CHORE_A, CHORE_RECURRING] } },
+      orderBy: { id: "asc" },
+    });
+    await expect(
+      mutateRoutineStack(
+        db,
+        {
+          ...stackDraft(reorderedSteps),
+          expected_fingerprint: fingerprintRoutineStackSnapshot(reorderedRows),
+          steps: reorderedSteps.map((step) =>
+            step.chore_id === CHORE_RECURRING
+              ? { ...step, recurrence_id: `${RECURRING_TEMPLATE}-wrong` }
+              : step,
+          ),
+        },
+        actorA,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    const afterMismatch = await db.chore.findMany({
+      where: { id: { in: [CHORE_A, CHORE_RECURRING] } },
+      orderBy: { id: "asc" },
+    });
+    expect(afterMismatch).toEqual(beforeMismatch);
+
+    const unstacked = await mutateRoutineStack(
+      db,
+      {
+        ...stackDraft([reorderedSteps[1]!]),
+        remove_chore_ids: [CHORE_RECURRING],
+        expected_fingerprint: fingerprintRoutineStackSnapshot(reorderedRows),
+      },
+      actorA,
+    );
+    expect(unstacked.status).toBe(200);
+    const finalGenerated = await db.chore.findUniqueOrThrow({
+      where: { id: CHORE_RECURRING },
+    });
+    expect(finalGenerated).toMatchObject({
+      recurrence_id: RECURRING_TEMPLATE,
+      is_template: false,
+      status: "verified",
+      points: 17,
+      photo_url: "/uploads/routine-proof.jpg",
+      photo_verified: true,
+      verified_notes: "Checked by parent",
+      routine_stack_id: null,
+      routine: null,
+      routine_order: null,
+    });
+    expect(finalGenerated.verified_at).toEqual(
+      new Date("2026-10-12T09:00:00.000Z"),
+    );
+    expect(finalGenerated.completed_at).toEqual(
+      new Date("2026-10-12T08:00:00.000Z"),
+    );
+    const finalTemplate = await db.chore.findUniqueOrThrow({
+      where: { id: RECURRING_TEMPLATE },
+    });
+    expect(finalTemplate).toMatchObject({
+      id: RECURRING_TEMPLATE,
+      recurrence_id: RECURRING_TEMPLATE,
+      is_template: true,
+      frequency: "weekly",
+    });
+  });
+
+  it("accepts stopped anchors and legacy null-series rows, but rejects orphaned and foreign series ids", async () => {
+    await db.chore.createMany({
+      data: [
+        {
+          id: STOPPED_ANCHOR,
+          family_id: FAMILY_A,
+          title: "Stopped series",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: STOPPED_ANCHOR,
+          is_template: false,
+          status: "completed",
+        },
+        {
+          id: LEGACY_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Legacy recurring row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "weekly",
+          weekly_days: [1],
+          recurrence_id: null,
+          is_template: false,
+        },
+        {
+          id: ORPHAN_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Orphaned series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: `${PREFIX}-missing-series`,
+          is_template: false,
+        },
+        {
+          id: FOREIGN_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Foreign series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: FOREIGN_ANCHOR,
+          is_template: false,
+        },
+        {
+          id: FOREIGN_ANCHOR,
+          family_id: FAMILY_B,
+          title: "Other household series",
+          assigned_to: PARENT_B,
+          due_date: new Date("2026-10-05T00:00:00.000Z"),
+          created_by: PARENT_B,
+          frequency: "weekly",
+          weekly_days: [1],
+          recurrence_id: FOREIGN_ANCHOR,
+          is_template: true,
+        },
+        {
+          id: MALFORMED_ANCHOR,
+          family_id: FAMILY_A,
+          title: "Malformed stopped series",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: new Date("2026-10-05T00:00:00.000Z"),
+          created_by: PARENT_A,
+          frequency: "weekly",
+          weekly_days: [1],
+          recurrence_id: MALFORMED_ANCHOR,
+          is_template: false,
+        },
+        {
+          id: MALFORMED_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Malformed series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: MALFORMED_ANCHOR,
+          is_template: false,
+        },
+        {
+          id: EMPTY_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Empty series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: "",
+          is_template: false,
+        },
+      ],
+    });
+
+    const stoppedAndLegacy = await mutateRoutineStack(
+      db,
+      {
+        scope: "occurrence",
+        family_id: FAMILY_A,
+        stack_id: null,
+        occurrence_date: OCCURRENCE_DATE,
+        label: "Compatibility routine",
+        steps: [
+          {
+            chore_id: STOPPED_ANCHOR,
+            assigned_to: CHILD_A,
+            assigned_member_id: MEMBER_CHILD_A,
+            due_date: OCCURRENCE_DATE,
+            frequency: "once",
+            difficulty: "medium",
+            recurrence_id: STOPPED_ANCHOR,
+            is_template: false,
+          },
+          {
+            chore_id: LEGACY_OCCURRENCE,
+            assigned_to: CHILD_A,
+            assigned_member_id: MEMBER_CHILD_A,
+            due_date: OCCURRENCE_DATE,
+            frequency: "weekly",
+            weekly_days: [1],
+            difficulty: "medium",
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [],
+        expected_fingerprint: "",
+      },
+      actorA,
+    );
+    expect(stoppedAndLegacy.status).toBe(200);
+    expect(
+      await db.chore.findMany({
+        where: { id: { in: [STOPPED_ANCHOR, LEGACY_OCCURRENCE] } },
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: STOPPED_ANCHOR,
+          recurrence_id: STOPPED_ANCHOR,
+          is_template: false,
+          routine_stack_id: expect.any(String),
+        }),
+        expect.objectContaining({
+          id: LEGACY_OCCURRENCE,
+          recurrence_id: null,
+          frequency: "weekly",
+          routine_stack_id: expect.any(String),
+        }),
+      ]),
+    );
+
+    for (const { id, submittedRecurrenceId } of [
+      {
+        id: ORPHAN_OCCURRENCE,
+        submittedRecurrenceId: `${PREFIX}-missing-series`,
+      },
+      { id: FOREIGN_OCCURRENCE, submittedRecurrenceId: FOREIGN_ANCHOR },
+      {
+        id: MALFORMED_OCCURRENCE,
+        submittedRecurrenceId: MALFORMED_ANCHOR,
+      },
+      { id: EMPTY_OCCURRENCE, submittedRecurrenceId: undefined },
+    ] as const) {
+      await expect(
+        mutateRoutineStack(
+          db,
+          {
+            scope: "occurrence",
+            family_id: FAMILY_A,
+            stack_id: null,
+            occurrence_date: OCCURRENCE_DATE,
+            label: "Rejected routine",
+            steps: [
+              {
+                chore_id: id,
+                assigned_to: CHILD_A,
+                assigned_member_id: MEMBER_CHILD_A,
+                due_date: OCCURRENCE_DATE,
+                frequency: "once",
+                difficulty: "medium",
+                is_template: false,
+                ...(submittedRecurrenceId === undefined
+                  ? {}
+                  : { recurrence_id: submittedRecurrenceId }),
+              },
+            ],
+            remove_chore_ids: [],
+            expected_fingerprint: "",
+          },
+          actorA,
+        ),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(await db.chore.findUniqueOrThrow({ where: { id } })).toMatchObject(
+        {
+          routine_stack_id: null,
+        },
+      );
+    }
   });
 
   it("accepts the compact 99-step UTF-8 response within the replay cap", () => {
