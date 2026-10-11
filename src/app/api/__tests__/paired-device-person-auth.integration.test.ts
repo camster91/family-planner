@@ -33,7 +33,7 @@ describeWithDatabase(
     const FAMILY = "pdauth-int-family";
     const PARENT = "pdauth-int-parent";
     const DEVICE = "pdauth-int-device";
-    const SESSION = "pdauth-int-device-session";
+    const NO_SESSION_ID = "pdauth-int-no-session";
     const MESSAGE = "pdauth-int-private-message";
     const PRIVATE_CANARY = "PDAUTH-PRIVATE-CANARY";
     const PARENT_EMAIL = "parent@pdauth-int.test";
@@ -43,6 +43,7 @@ describeWithDatabase(
     let accessToken = "";
     let refreshToken = "";
     let sessionToken = "";
+    let sessionId = "";
 
     type RequestOptions = {
       method?: "GET" | "POST" | "PATCH" | "DELETE";
@@ -78,19 +79,48 @@ describeWithDatabase(
 
     async function removeSyntheticRows() {
       if (!prisma) return;
-      // Family deletion cascades the synthetic device, sessions, message and
-      // any route-owned rows. The explicit device delete also makes cleanup safe
-      // if a migration under test temporarily changes a relation action.
-      await prisma.deviceSession.deleteMany({ where: { id: SESSION } });
-      await prisma.householdDevice.deleteMany({ where: { id: DEVICE } });
-      await prisma.message.deleteMany({ where: { id: MESSAGE } });
-      await prisma.event.deleteMany({ where: { family_id: FAMILY } });
-      await prisma.family.deleteMany({ where: { id: FAMILY } });
-      await prisma.user.deleteMany({ where: { id: PARENT } });
+      // Attempt each owned row independently so a partial migration or one
+      // failed delete cannot prevent the remaining cleanup from running.
+      const steps: Array<[string, () => Promise<unknown>]> = [
+        [
+          "device session",
+          () =>
+            prisma.deviceSession.deleteMany({
+              where: { id: sessionId || NO_SESSION_ID },
+            }),
+        ],
+        [
+          "device",
+          () => prisma.householdDevice.deleteMany({ where: { id: DEVICE } }),
+        ],
+        [
+          "private message",
+          () => prisma.message.deleteMany({ where: { id: MESSAGE } }),
+        ],
+        [
+          "events",
+          () => prisma.event.deleteMany({ where: { family_id: FAMILY } }),
+        ],
+        ["family", () => prisma.family.deleteMany({ where: { id: FAMILY } })],
+        ["parent", () => prisma.user.deleteMany({ where: { id: PARENT } })],
+      ];
+      const failures: string[] = [];
+      for (const [label, remove] of steps) {
+        try {
+          await remove();
+        } catch (error) {
+          failures.push(`${label}: ${(error as Error).message}`);
+        }
+      }
+      if (failures.length) {
+        throw new Error(`Synthetic cleanup failed:\n${failures.join("\n")}`);
+      }
     }
 
     async function seedSyntheticRows() {
       await removeSyntheticRows();
+      sessionId = "";
+      process.env.SHARED_DEVICE_ENABLED = "1";
       await prisma.family.create({
         data: {
           id: FAMILY,
@@ -133,6 +163,7 @@ describeWithDatabase(
       );
       // The route only needs the plaintext values in this test process. The
       // database stores only the hashes, as the production pairing flow does.
+      sessionId = issued.sessionId;
       accessToken = issued.accessToken;
       refreshToken = issued.refreshToken;
       sessionToken = signToken({
@@ -155,7 +186,17 @@ describeWithDatabase(
     beforeAll(async () => {
       // Fail closed before importing the Prisma singleton or opening a database
       // connection. RUN_DB_INTEGRATION is never enough to authorize a target.
-      assertFixtureTargetAllowed(process.env);
+      const target = assertFixtureTargetAllowed(process.env);
+      const host = (target.host ?? "").replace(/^\[|\]$/g, "").toLowerCase();
+      const loopback =
+        host === "localhost" ||
+        host === "::1" ||
+        /^127(?:\.\d{1,3}){3}$/.test(host);
+      if (!loopback) {
+        throw new Error(
+          "This integration suite requires a loopback DATABASE_URL target",
+        );
+      }
       process.env.SHARED_DEVICE_ENABLED = "1";
       const mod = await import("@/lib/prisma");
       if (!mod.prisma)
@@ -298,19 +339,19 @@ describeWithDatabase(
 
     it("does not refuse a revoked or fully expired device, but still refuses a live refresh session", async () => {
       await prisma.deviceSession.update({
-        where: { id: SESSION },
+        where: { id: sessionId },
         data: { access_expires_at: new Date(Date.now() - 1_000) },
       });
       await expectDeviceRefusal(await familyEvents.GET(request("/api/events")));
 
       await prisma.deviceSession.update({
-        where: { id: SESSION },
+        where: { id: sessionId },
         data: { refresh_expires_at: new Date(Date.now() - 1_000) },
       });
       expect((await familyEvents.GET(request("/api/events"))).status).toBe(200);
 
       await prisma.deviceSession.update({
-        where: { id: SESSION },
+        where: { id: sessionId },
         data: {
           access_expires_at: new Date(Date.now() + 60 * 60 * 1_000),
           refresh_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1_000),
