@@ -54,6 +54,7 @@ const KID_FEATURE_MENU_LABEL_KEYS: Readonly<Record<string, NavigationMessage>> =
     "/dashboard/allowance": "allowance",
     "/dashboard/handoff": "handoff",
     "/dashboard/sick-days": "sickDays",
+    "/dashboard/notes": "notes",
   };
 
 export default function DashboardNav({ user }: DashboardNavProps) {

@@ -292,6 +292,12 @@ export const kidFeatureNavItems: readonly NavItem[] = [
     featureKey: "sick-days",
   },
   {
+    name: "Notes",
+    href: "/dashboard/notes",
+    icon: StickyNote,
+    featureKey: "notes",
+  },
+  {
     name: "Wishlist",
     href: "/dashboard/wishlist",
     icon: Heart,
