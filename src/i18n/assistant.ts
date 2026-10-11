@@ -117,6 +117,7 @@ export const assistantEnglish = {
   chooseGroceryList:
     "Choose a grocery list in Lists first. Chat adds only when there is exactly one grocery list.",
   actionOpenSectionError: "Open this section to continue.",
+  analytics: "Analytics",
   reportSaveFailed: "Could not save. Retry this draft.",
   voiceUnavailableError:
     "Voice is unavailable in this browser. Type your message instead.",
@@ -250,6 +251,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   chooseGroceryList:
     "Elige primero una lista de compras en Listas. El chat solo añade artículos cuando hay exactamente una lista de compras.",
   actionOpenSectionError: "Abre esta sección para continuar.",
+  analytics: "Análisis",
   reportSaveFailed: "No se pudo guardar. Intenta de nuevo este borrador.",
   voiceUnavailableError:
     "La voz no está disponible en este navegador. Escribe tu mensaje.",

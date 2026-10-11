@@ -1,8 +1,13 @@
 jest.mock('@/lib/prisma', () => ({ prisma: null }))
-import { nextSelectedWeekday } from '@/lib/chore-weekdays'
+import { formatWeeklyDays, nextSelectedWeekday } from '@/lib/chore-weekdays'
 import { nextDueDate, expandSeriesInTx, applyFrequencyEditInTx } from '@/lib/recurringChores'
 import { createChoreSchema, updateChoreSchema } from '@/lib/validations'
 const day = (date: string) => new Date(date + 'T00:00:00Z')
+
+it('formats selected weekdays in picker order for each supported locale', () => {
+  expect(formatWeeklyDays([4, 1], 'en')).toBe('Monday, Thursday')
+  expect(formatWeeklyDays([4, 1], 'es')).toBe('lunes, jueves')
+})
 
 it('supports one or multiple weekdays across week/year boundaries', () => {
   expect(nextDueDate(day('2026-10-12'), 'weekly', [1,4])?.toISOString()).toBe('2026-10-15T00:00:00.000Z')

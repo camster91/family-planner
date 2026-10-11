@@ -8,7 +8,11 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
-import { FEATURES, type FamilyFeatures } from "../src/lib/features";
+import {
+  FEATURES,
+  type FamilyFeatures,
+  type FeatureMeta,
+} from "../src/lib/features";
 import { moreItemsFor } from "../src/lib/nav-items";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -28,6 +32,22 @@ const ALLOWED_MUTATIONS = new Set([
   "PATCH /api/family/features",
   "POST /api/auth/login",
 ]);
+const FEATURES_SURFACE_COPY = {
+  en: {
+    title: "Features",
+    enable: "Enable",
+    disable: "Disable",
+    openAll: "Open all groups",
+    closeAll: "Close all groups",
+  },
+  es: {
+    title: "Funciones",
+    enable: "Activar",
+    disable: "Desactivar",
+    openAll: "Abrir todos los grupos",
+    closeAll: "Cerrar todos los grupos",
+  },
+} as const;
 
 type ApiObservation = {
   method: string;
@@ -328,20 +348,27 @@ async function assertMoreSurface(page: Page, features: FamilyFeatures) {
   await assertMainA11y(page);
 }
 
-async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
+async function assertFeaturesSurface(
+  page: Page,
+  features: FamilyFeatures,
+  copy: (typeof FEATURES_SURFACE_COPY)[keyof typeof FEATURES_SURFACE_COPY],
+) {
   const main = page.locator("#main-content");
   await expect(
-    main.getByRole("heading", { name: "Features", exact: true }),
+    main.getByRole("heading", { name: copy.title, exact: true }),
   ).toBeVisible();
   const switches = main.getByRole("switch");
   expect(await switches.count()).toBe(FEATURES.length);
-  const enabledToggles: Locator[] = [];
+  const enabledToggles: Array<{
+    toggle: Locator;
+    group: FeatureMeta["group"];
+  }> = [];
   for (const feature of FEATURES) {
     const checked =
       features[feature.key] === true &&
       (!feature.requires || features[feature.requires] === true);
     const toggle = main.getByRole("switch", {
-      name: `${checked ? "Disable" : "Enable"} ${feature.title}`,
+      name: `${checked ? copy.disable : copy.enable} ${feature.title}`,
       exact: true,
     });
     await expect(toggle).toHaveCount(1);
@@ -366,7 +393,7 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
       feature.group !== "core" &&
       !(feature.requires && !features[feature.requires])
     ) {
-      enabledToggles.push(toggle);
+      enabledToggles.push({ toggle, group: feature.group });
     }
   }
 
@@ -375,11 +402,21 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
   // core/dependent switch entered the tab sequence, the next expectation
   // would fail at that exact position.
   if (enabledToggles.length > 0) {
-    await enabledToggles[0]!.focus();
-    await expect(enabledToggles[0]!).toBeFocused();
+    await enabledToggles[0]!.toggle.focus();
+    await expect(enabledToggles[0]!.toggle).toBeFocused();
     for (let index = 1; index < enabledToggles.length; index += 1) {
+      const previous = enabledToggles[index - 1]!;
+      const current = enabledToggles[index]!;
+      if (previous.group !== current.group) {
+        const groupDisclosure = main
+          .locator(`#feature-group-${current.group}`)
+          .getByRole("button");
+        await expect(groupDisclosure).toHaveAttribute("aria-expanded", "true");
+        await page.keyboard.press("Tab");
+        await expect(groupDisclosure).toBeFocused();
+      }
       await page.keyboard.press("Tab");
-      await expect(enabledToggles[index]!).toBeFocused();
+      await expect(current.toggle).toBeFocused();
     }
   }
   await assertNoHorizontalOverflow(page);
@@ -465,9 +502,34 @@ for (const locale of ["en", "es"] as const) {
 
       const featuresResponse = await page.goto("/dashboard/features");
       expect(featuresResponse?.status()).toBe(200);
-      await assertFeaturesSurface(page, ALL_ON);
-      const gamification = page.getByRole("switch", {
-        name: /^(?:Disable|Enable) Points & streaks$/,
+      const featuresCopy = FEATURES_SURFACE_COPY[locale];
+      const featuresMain = page.locator("#main-content");
+      const planningGroup = featuresMain.locator("#feature-group-planning");
+      const coreGroup = featuresMain.locator("#feature-group-core");
+      const familyGroup = featuresMain.locator("#feature-group-family");
+      await expect(planningGroup.getByRole("switch")).toHaveCount(
+        FEATURES.filter((feature) => feature.group === "planning").length,
+      );
+      await expect(coreGroup.getByRole("switch")).toHaveCount(0);
+      await expect(familyGroup.getByRole("switch")).toHaveCount(0);
+      const openAll = featuresMain.getByRole("button", {
+        name: featuresCopy.openAll,
+        exact: true,
+      });
+      await expect(openAll).toBeVisible();
+      await openAll.click();
+      const closeAll = featuresMain.getByRole("button", {
+        name: featuresCopy.closeAll,
+        exact: true,
+      });
+      await expect(closeAll).toBeVisible();
+      await expect(featuresMain.getByRole("switch")).toHaveCount(
+        FEATURES.length,
+      );
+      await assertFeaturesSurface(page, ALL_ON, featuresCopy);
+      const gamification = featuresMain.getByRole("switch", {
+        name: `${featuresCopy.disable} Points & streaks`,
+        exact: true,
       });
       await expect(gamification).toHaveAttribute("aria-checked", "true");
       const dependencyOff = { ...ALL_ON, gamification: false };
@@ -494,16 +556,22 @@ for (const locale of ["en", "es"] as const) {
         ),
       ).toEqual(dependencyOff);
       await flushFeatureTransport();
-      const gamificationOff = page.getByRole("switch", {
-        name: "Enable Points & streaks",
+      const gamificationOff = featuresMain.getByRole("switch", {
+        name: `${featuresCopy.enable} Points & streaks`,
         exact: true,
       });
       await expect(gamificationOff).toHaveAttribute("aria-checked", "false");
       await expect(
-        page.getByRole("switch", { name: "Enable Rewards", exact: true }),
+        featuresMain.getByRole("switch", {
+          name: `${featuresCopy.enable} Rewards`,
+          exact: true,
+        }),
       ).toBeDisabled();
       await expect(
-        page.getByRole("switch", { name: "Enable Analytics", exact: true }),
+        featuresMain.getByRole("switch", {
+          name: `${featuresCopy.enable} Analytics`,
+          exact: true,
+        }),
       ).toBeDisabled();
 
       const dependencyResponse = await browserFetch(

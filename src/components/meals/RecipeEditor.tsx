@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import type { RecipeOption } from "./RecipePicker";
 import type { RecipeDetailData } from "./RecipeDetail";
 
@@ -39,7 +40,14 @@ export function RecipeEditor({
 }: {
   onCreated?: (recipe: RecipeOption) => void;
   initialRecipe?: RecipeDetailData;
-  initialDraft?: { servings?: number | null; title: string; description: string; instructions: string; prep_time: number | null; cook_time: number | null };
+  initialDraft?: {
+    servings?: number | null;
+    title: string;
+    description: string;
+    instructions: string;
+    prep_time: number | null;
+    cook_time: number | null;
+  };
   onSaved?: (recipe: RecipeDetailData) => void;
   onCancel: () => void;
   onSavingChange?: (saving: boolean) => void;
@@ -48,10 +56,13 @@ export function RecipeEditor({
   /** Synchronous owner guard for handlers retained before a render. */
   isMutationPending?: () => boolean;
 }) {
+  const text = useRecipeEditorText();
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
   const nextKey = React.useRef(initialRecipe?.ingredients.length ?? 1);
-  const [title, setTitle] = React.useState(initialRecipe?.title ?? initialDraft?.title ?? "");
+  const [title, setTitle] = React.useState(
+    initialRecipe?.title ?? initialDraft?.title ?? "",
+  );
   const [servings, setServings] = React.useState(
     String(initialRecipe?.servings ?? initialDraft?.servings ?? 2),
   );
@@ -62,10 +73,14 @@ export function RecipeEditor({
     initialRecipe?.instructions ?? initialDraft?.instructions ?? "",
   );
   const [prep, setPrep] = React.useState(
-    (initialRecipe?.prep_time ?? initialDraft?.prep_time) == null ? "" : String(initialRecipe?.prep_time ?? initialDraft?.prep_time),
+    (initialRecipe?.prep_time ?? initialDraft?.prep_time) == null
+      ? ""
+      : String(initialRecipe?.prep_time ?? initialDraft?.prep_time),
   );
   const [cook, setCook] = React.useState(
-    (initialRecipe?.cook_time ?? initialDraft?.cook_time) == null ? "" : String(initialRecipe?.cook_time ?? initialDraft?.cook_time),
+    (initialRecipe?.cook_time ?? initialDraft?.cook_time) == null
+      ? ""
+      : String(initialRecipe?.cook_time ?? initialDraft?.cook_time),
   );
   const [lines, setLines] = React.useState<IngredientDraft[]>(() =>
     initialRecipe
@@ -86,8 +101,7 @@ export function RecipeEditor({
   const [error, setError] = React.useState<string | null>(null);
   const [uncertain, setUncertain] = React.useState(false);
   const uncertainRef = React.useRef(false);
-  const uncertainMessage =
-    "The recipe may have been saved, but we couldn’t confirm it. Close this editor and reload recipes to check before creating or saving again.";
+  const uncertainMessage = text("uncertain");
   const markUncertain = () => {
     uncertainRef.current = true;
     setUncertain(true);
@@ -125,7 +139,7 @@ export function RecipeEditor({
       return;
     const cleanTitle = title.trim();
     if (!cleanTitle) {
-      setError("Give the recipe a name.");
+      setError(text("emptyTitle"));
       titleRef.current?.focus();
       return;
     }
@@ -136,13 +150,13 @@ export function RecipeEditor({
       baseServings < 1 ||
       baseServings > 100
     ) {
-      setError("Base servings must be a whole number from 1 to 100.");
+      setError(text("invalidServings"));
       return;
     }
     const prepMinutes = toMinutes(prep);
     const cookMinutes = toMinutes(cook);
     if (prepMinutes === "invalid" || cookMinutes === "invalid") {
-      setError("Times must be whole minutes, up to 1440.");
+      setError(text("invalidTimes"));
       return;
     }
     const ingredients: {
@@ -156,9 +170,7 @@ export function RecipeEditor({
       const name = line.name.trim();
       if (!name) {
         if (line.ingredientId) {
-          setError(
-            "Keep an ingredient name, or use Remove ingredient to remove the line.",
-          );
+          setError(text("existingIngredientName"));
           return;
         }
         continue;
@@ -170,7 +182,7 @@ export function RecipeEditor({
         amount < 0 ||
         amount > 100000
       ) {
-        setError(`Amount for “${name}” must be a number from 0 to 100000.`);
+        setError(text("invalidAmount", { name }));
         return;
       }
       const unit = line.unit.trim();
@@ -200,7 +212,7 @@ export function RecipeEditor({
     }
 
     if (ingredients.length > 100) {
-      setError("A recipe can have at most 100 ingredients.");
+      setError(text("tooManyIngredients"));
       return;
     }
     mutationPending.current = true;
@@ -281,16 +293,10 @@ export function RecipeEditor({
       );
       const data = (await res.json().catch(() => null)) as {
         recipe?: RecipeDetailData;
-        error?: unknown;
       } | null;
       if (!res.ok) {
         if (res.status >= 500) markUncertain();
-        else
-          setError(
-            typeof data?.error === "string"
-              ? data.error
-              : "The recipe was not accepted. Check your entries and permissions.",
-          );
+        else setError(text("rejected"));
         return;
       }
       if (
@@ -355,7 +361,7 @@ export function RecipeEditor({
       disabled={saving || disabled}
     >
       <legend className="px-1 text-subhead font-semibold text-label-primary">
-        {initialRecipe ? "Recipe details" : "New recipe"}
+        {initialRecipe ? text("recipeDetails") : text("newRecipe")}
       </legend>
 
       <div>
@@ -363,7 +369,7 @@ export function RecipeEditor({
           htmlFor={`${baseId}-title`}
           className="text-subhead text-label-secondary mb-1 block"
         >
-          Recipe name
+          {text("recipeName")}
         </label>
         <input
           ref={titleRef}
@@ -382,7 +388,7 @@ export function RecipeEditor({
           htmlFor={`${baseId}-servings`}
           className="text-subhead text-label-secondary mb-1 block"
         >
-          Base servings
+          {text("baseServings")}
         </label>
         <input
           id={`${baseId}-servings`}
@@ -396,8 +402,7 @@ export function RecipeEditor({
           className="w-full input-apple min-h-[44px]"
         />
         <p className="text-footnote text-label-secondary">
-          The ingredient amounts below make this many servings (1–100). Grocery
-          requests have a separate 1–50 limit.
+          {text("servingsHint")}
         </p>
       </div>
       <div>
@@ -405,7 +410,7 @@ export function RecipeEditor({
           htmlFor={`${baseId}-description`}
           className="text-subhead text-label-secondary mb-1 block"
         >
-          Description
+          {text("description")}
         </label>
         <textarea
           id={`${baseId}-description`}
@@ -420,7 +425,7 @@ export function RecipeEditor({
           htmlFor={`${baseId}-instructions`}
           className="text-subhead text-label-secondary mb-1 block"
         >
-          Method
+          {text("method")}
         </label>
         <textarea
           id={`${baseId}-instructions`}
@@ -438,7 +443,7 @@ export function RecipeEditor({
             htmlFor={`${baseId}-prep`}
             className="text-subhead text-label-secondary mb-1 block"
           >
-            Prep (min)
+            {text("prepMinutes")}
           </label>
           <input
             id={`${baseId}-prep`}
@@ -457,7 +462,7 @@ export function RecipeEditor({
             htmlFor={`${baseId}-cook`}
             className="text-subhead text-label-secondary mb-1 block"
           >
-            Cook (min)
+            {text("cookMinutes")}
           </label>
           <input
             id={`${baseId}-cook`}
@@ -475,17 +480,16 @@ export function RecipeEditor({
 
       <div className="space-y-2">
         <p className="text-subhead text-label-secondary">
-          Ingredients (optional)
+          {text("ingredientsOptional")}
         </p>
         <p className="text-footnote text-label-secondary">
-          Saved ingredients are displayed by name. Line entry order is not
-          saved.
+          {text("ingredientsOrderHint")}
         </p>
         {lines.map((line, i) => (
           <div
             key={line.key}
             role="group"
-            aria-label={`Ingredient ${i + 1}`}
+            aria-label={text("ingredientGroup", { number: i + 1 })}
             className="flex flex-wrap items-end gap-2"
           >
             <div className="w-16 shrink-0">
@@ -493,7 +497,7 @@ export function RecipeEditor({
                 htmlFor={`${baseId}-amt-${line.key}`}
                 className="text-caption-1 text-label-secondary block"
               >
-                Amount
+                {text("amount")}
               </label>
               <input
                 id={`${baseId}-amt-${line.key}`}
@@ -512,7 +516,7 @@ export function RecipeEditor({
                 htmlFor={`${baseId}-unit-${line.key}`}
                 className="text-caption-1 text-label-secondary block"
               >
-                Unit
+                {text("unit")}
               </label>
               <input
                 id={`${baseId}-unit-${line.key}`}
@@ -529,7 +533,7 @@ export function RecipeEditor({
                 htmlFor={`${baseId}-name-${line.key}`}
                 className="text-caption-1 text-label-secondary block"
               >
-                Ingredient
+                {text("ingredient")}
               </label>
               <input
                 id={`${baseId}-name-${line.key}`}
@@ -546,7 +550,7 @@ export function RecipeEditor({
                 htmlFor={`${baseId}-note-${line.key}`}
                 className="text-caption-1 text-label-secondary block"
               >
-                Ingredient note
+                {text("ingredientNote")}
               </label>
               <input
                 id={`${baseId}-note-${line.key}`}
@@ -561,7 +565,7 @@ export function RecipeEditor({
             <button
               type="button"
               onClick={() => removeLine(line.key)}
-              aria-label={`Remove ingredient ${i + 1}`}
+              aria-label={text("removeIngredient", { number: i + 1 })}
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-label-secondary active:bg-[var(--surface-fill)]"
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />
@@ -574,7 +578,7 @@ export function RecipeEditor({
           className="inline-flex min-h-[44px] items-center gap-1 px-1 text-subhead text-[var(--accent-text)]"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
-          Add ingredient
+          {text("addIngredient")}
         </button>
       </div>
 
@@ -595,7 +599,7 @@ export function RecipeEditor({
           }}
           className="btn-plain flex-1 min-h-[44px]"
         >
-          Cancel
+          {text("cancel")}
         </button>
         <button
           type="button"
@@ -603,7 +607,7 @@ export function RecipeEditor({
           onClick={() => void submit()}
           className="btn-tinted flex-1 min-h-[44px]"
         >
-          {saving ? "Saving…" : "Save recipe"}
+          {saving ? text("saving") : text("saveRecipe")}
         </button>
       </div>
     </fieldset>
