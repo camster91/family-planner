@@ -38,6 +38,8 @@ import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
 import { COMING_UP_DAYS } from '@/lib/board-constants'
+import { isProfileAgeAllowed, profileRoleSchema, type MemberProtocol } from '@/lib/member-subject-contract'
+import { isProfileChoreEnabled, profileChoreProtocolRefusal, readChoreSubject } from '@/lib/chore-profile'
 
 export { COMING_UP_DAYS } from '@/lib/board-constants'
 
@@ -57,7 +59,13 @@ export interface BoardMember {
    * name, never alone. Optional for clients built before #262.
    */
   color?: MemberColorKey
+  /** Explicit subject identity for protocol 2 readers. */
+  subject?: BoardSubject
 }
+
+/** The only subject identity that may cross the shared Today boundary. */
+export type BoardSubject =
+  { kind: 'account'; accountId: string; name: string } | { kind: 'profile'; memberId: string; name: string; color: MemberColorKey }
 
 export interface BoardEvent {
   id: string
@@ -83,7 +91,10 @@ export interface BoardChore {
   /** `YYYY-MM-DD` (UTC calendar day of the stored date-only value). */
   dueDay: string
   status: string
-  assigneeId: string
+  /** Legacy account id. Never contains a HouseholdMember id. */
+  assigneeId?: string
+  /** Protocol 2's explicit account/profile subject. */
+  subject?: BoardSubject
   /**
    * Picture key from the built-in chore icon set (#272), or null. A fixed
    * catalogue key, never user text, so it is safe for every audience including
@@ -168,6 +179,8 @@ export interface BoardLinks {
 export interface TodayBoardData {
   /** Server time the snapshot was built (ISO). */
   generatedAt: string
+  /** Subject protocol used to build this snapshot; routes must echo this to clients. */
+  memberProtocol?: MemberProtocol
   members: BoardMember[]
   events: BoardEvent[]
   chores: BoardChore[]
@@ -201,11 +214,13 @@ export interface TodayBoardData {
    * re-fetches only when the answer differs. Optional for older servers.
    */
   version?: string
+  /** A protocol-1 reader must not render a profile-only row. */
+  protocolError?: ReturnType<typeof profileChoreProtocolRefusal>
 }
 
 type Db = Pick<
   PrismaClient,
-  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem'
+  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember'
 >
 
 interface BuildTodayBoardBase {
@@ -221,7 +236,61 @@ interface BuildTodayBoardBase {
  * never be passed as `role: null`, which `allowedLink` treats as non-kid.
  */
 export type BuildTodayBoardOptions = BuildTodayBoardBase &
-  ({ audience?: 'person'; role: string | null | undefined } | { audience: 'device'; role?: never })
+  ({ audience?: 'person'; role: string | null | undefined } | { audience: 'device'; role?: never }) & {
+    /** Server-selected member subject protocol. Defaults to legacy account protocol 1. */
+    memberProtocol?: MemberProtocol
+  }
+
+type ProfileBoardRow = {
+  id: string
+  family_id: string
+  name: string
+  role: string
+  age: number | null
+  board_color: string | null
+  archived_at: Date | null
+  erasure_user_id: string | null
+  legacy_mapping: { user_id: string } | null
+  account_link: { user_id: string } | null
+}
+
+const profileBoardSelect = {
+  id: true,
+  family_id: true,
+  name: true,
+  role: true,
+  age: true,
+  board_color: true,
+  archived_at: true,
+  erasure_user_id: true,
+  legacy_mapping: { select: { user_id: true } },
+  account_link: { select: { user_id: true } },
+} as const
+
+const profileChoreSubjectSelect = {
+  id: true,
+  family_id: true,
+  name: true,
+  role: true,
+  age: true,
+  archived_at: true,
+  erasure_user_id: true,
+  legacy_mapping: { select: { user_id: true } },
+  account_link: { select: { user_id: true } },
+} as const
+
+function activeUnlinkedProfile(row: ProfileBoardRow, familyId: string): boolean {
+  const role = profileRoleSchema.safeParse(row.role)
+  return (
+    row.family_id === familyId &&
+    row.archived_at === null &&
+    row.erasure_user_id === null &&
+    row.legacy_mapping === null &&
+    row.account_link === null &&
+    role.success &&
+    isProfileAgeAllowed(role.data, row.age)
+  )
+}
 
 /** A dinner row as read for the board; `ingredients` only when counting what is missing (#122). */
 interface DinnerRow {
@@ -247,7 +316,7 @@ async function missingIngredientCounts(
   db: Pick<PrismaClient, 'inventoryItem'>,
   familyId: string,
   dinners: readonly DinnerRow[],
-  from: Date
+  from: Date,
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>()
   const withIngredients = dinners.filter((d) => (d.recipe?.ingredients?.length ?? 0) > 0)
@@ -263,7 +332,14 @@ async function missingIngredientCounts(
   return counts
 }
 
-const NO_LINKS: BoardLinks ={ calendar: null, chores: null, meals: null, lists: null, features: null, inventory: null }
+const NO_LINKS: BoardLinks = {
+  calendar: null,
+  chores: null,
+  meals: null,
+  lists: null,
+  features: null,
+  inventory: null,
+}
 
 /**
  * Link target if the role may open it and its feature is on, else null. The
@@ -278,6 +354,17 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const { familyId, features } = options
   const isDevice = options.audience === 'device'
   const role = isDevice ? undefined : options.role
+  const memberProtocol = options.memberProtocol ?? 1
+  const profileGate = isProfileChoreEnabled()
+  const profileReaderEnabled = profileGate && memberProtocol === 2
+  // A gated profile row must never disappear silently for an account-only
+  // reader. The route layer turns this marker into the stable 409 refusal;
+  // keeping it on the server DTO also protects direct board/version callers.
+  const protocolError = memberProtocol === 2 && !profileGate ? profileChoreProtocolRefusal() : undefined
+  // Always inspect the canonical profile column. A profile row can survive a
+  // feature rollback, and an account-only client must receive a recoverable
+  // refusal rather than silently losing that work.
+  const inspectProfileRows = true
   const now = options.now ?? new Date()
   const includeShopping = isDevice ? features.lists : canRoleAccessPath(role, '/dashboard/lists')
   // #122: "N ingredients missing" on the dinner card, for signed-in members
@@ -289,22 +376,73 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const windowStart = addUTCDays(startOfTodayUTC(now), -1)
   const windowEnd = addUTCDays(startOfTodayUTC(now), COMING_UP_DAYS + 2)
 
-  const groceryLists = isDevice && includeShopping ? await db.list.findMany({
-    where: { family_id: familyId, type: { in: ['grocery'] } },
-    select: { id: true, name: true },
-    orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-    take: 50,
-  }) : undefined
+  const groceryLists =
+    isDevice && includeShopping
+      ? await db.list.findMany({
+          where: { family_id: familyId, type: { in: ['grocery'] } },
+          select: { id: true, name: true },
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          take: 50,
+        })
+      : undefined
 
-  const [members, events, chores, dinners, shopping, useSoon] = await Promise.all([
+  const choreWhere = {
+    family_id: familyId,
+    due_date: { gte: windowStart, lt: windowEnd },
+    ...(inspectProfileRows
+      ? {
+          OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
+        }
+      : { assigned_to: { not: null } }),
+  }
+  const choreSelect = inspectProfileRows
+    ? {
+        id: true,
+        title: true,
+        due_date: true,
+        status: true,
+        assigned_to: true,
+        assigned_member_id: true,
+        member_subject_erased: true,
+        icon: true,
+        assignee: { select: { id: true, name: true, family_id: true } },
+        assigneeMember: { select: profileChoreSubjectSelect },
+      }
+    : {
+        id: true,
+        title: true,
+        due_date: true,
+        status: true,
+        assigned_to: true,
+        icon: true,
+      }
+
+  const [members, profileMembers, events, chores, dinners, shopping, useSoon] = await Promise.all([
     db.user.findMany({
       where: { family_id: familyId },
       select: { id: true, name: true, board_color: true },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     }),
+    profileReaderEnabled
+      ? db.householdMember.findMany({
+          where: {
+            family_id: familyId,
+            archived_at: null,
+            erasure_user_id: null,
+            legacy_mapping: { is: null },
+            account_link: { is: null },
+          },
+          select: profileBoardSelect,
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        })
+      : Promise.resolve([] as ProfileBoardRow[]),
     db.event.findMany({
       // Not yet finished, and starting before the end of the window.
-      where: { family_id: familyId, end_time: { gt: now }, start_time: { lt: windowEnd } },
+      where: {
+        family_id: familyId,
+        end_time: { gt: now },
+        start_time: { lt: windowEnd },
+      },
       select: {
         id: true,
         title: true,
@@ -319,15 +457,20 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       take: MAX_EVENTS,
     }),
     db.chore.findMany({
-      // Protocol 1 remains account-only until the profile board/device client exists.
-      where: { family_id: familyId, assigned_to: { not: null }, due_date: { gte: windowStart, lt: windowEnd } },
-      select: { id: true, title: true, due_date: true, status: true, assigned_to: true, icon: true },
+      // Protocol 1 remains account-only unless a stored profile row needs to
+      // produce MEMBER_PROTOCOL_UNAVAILABLE instead of being hidden.
+      where: choreWhere,
+      select: choreSelect,
       orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: MAX_CHORES,
     }),
     features.meals
-      ? db.familyMeal.findMany({
-          where: { family_id: familyId, meal_type: 'dinner', date: { gte: windowStart, lt: windowEnd } },
+      ? (db.familyMeal.findMany({
+          where: {
+            family_id: familyId,
+            meal_type: 'dinner',
+            date: { gte: windowStart, lt: windowEnd },
+          },
           select: {
             id: true,
             date: true,
@@ -339,12 +482,20 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
                 prep_time: true,
                 // #122: ingredient ids and names only, to count what is
                 // missing; never sent (only the count leaves the server).
-                ...(withMissing ? { ingredients: { select: { ingredient: { select: { id: true, name: true } } } } } : {}),
+                ...(withMissing
+                  ? {
+                      ingredients: {
+                        select: {
+                          ingredient: { select: { id: true, name: true } },
+                        },
+                      },
+                    }
+                  : {}),
               },
             },
           },
           orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        }) as Promise<DinnerRow[]>
+        }) as Promise<DinnerRow[]>)
       : Promise.resolve(null),
     includeShopping ? getOpenShoppingItems(db, familyId, 5, ['grocery']) : Promise.resolve(null),
     // "Use soon" (#263): only with the inventory feature on. Anchored one UTC
@@ -379,12 +530,119 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const missingByDinner =
     withMissing && dinners ? await missingIngredientCounts(db, familyId, dinners, windowStart) : new Map<string, number>()
 
-  const memberIds = new Set(members.map((m) => m.id))
-  const colors = resolveMemberColors(members)
+  const accountById = new Map(members.map((m) => [m.id, m]))
+  const memberIds = new Set(accountById.keys())
+  const eligibleProfiles = profileMembers.filter((member) => activeUnlinkedProfile(member, familyId))
+  const profileBoardId = (memberId: string) => `profile:${memberId}`
+  const colorRows = [
+    ...members,
+    ...eligibleProfiles.map((member) => ({
+      ...member,
+      id: profileBoardId(member.id),
+    })),
+  ]
+  const colors = resolveMemberColors(colorRows)
+  const profileById = new Map(eligibleProfiles.map((member) => [member.id, member]))
+  const boardMembers = [
+    ...members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      color: colors.get(member.id),
+      ...(memberProtocol === 2 && profileGate
+        ? {
+            subject: {
+              kind: 'account' as const,
+              accountId: member.id,
+              name: member.name,
+            },
+          }
+        : {}),
+    })),
+    ...eligibleProfiles.map((member) => ({
+      id: profileBoardId(member.id),
+      name: member.name,
+      color: colors.get(profileBoardId(member.id)),
+      subject: {
+        kind: 'profile' as const,
+        memberId: member.id,
+        name: member.name,
+        color: colors.get(profileBoardId(member.id))!,
+      },
+    })),
+  ]
+
+  type BoardChoreRow = {
+    id: string
+    title: string
+    due_date: Date
+    status: string
+    assigned_to: string | null
+    assigned_member_id: string | null
+    member_subject_erased: boolean
+    icon: string | null
+    assignee?: { id: string; name: string; family_id: string | null } | null
+    assigneeMember?: {
+      id: string
+      family_id: string
+      name: string
+      role: string
+      age: number | null
+      archived_at: Date | null
+      erasure_user_id: string | null
+      legacy_mapping: { user_id: string } | null
+      account_link: { user_id: string } | null
+    } | null
+  }
+  const choreRows = chores as BoardChoreRow[]
+  const hasProfileRows = choreRows.some((chore) => chore.assigned_to === null && chore.assigned_member_id != null)
+  const boardChores: BoardChore[] = choreRows.flatMap((chore): BoardChore[] => {
+    const base = {
+      id: chore.id,
+      title: chore.title,
+      dueDay: toDateOnlyUTC(chore.due_date),
+      status: chore.status,
+      icon: isRoutineIconKey(chore.icon) ? chore.icon : null,
+    }
+    if (chore.assigned_to !== null) {
+      const account = accountById.get(chore.assigned_to)
+      if (!account) return []
+      return [
+        {
+          ...base,
+          assigneeId: chore.assigned_to,
+          ...(memberProtocol === 2 && profileGate
+            ? {
+                subject: {
+                  kind: 'account' as const,
+                  accountId: account.id,
+                  name: account.name,
+                },
+              }
+            : {}),
+        },
+      ]
+    }
+    if (!profileReaderEnabled || !chore.assigned_member_id) return []
+    const subject = readChoreSubject(chore, familyId)
+    const profile = subject?.kind === 'profile' ? profileById.get(subject.memberId) : undefined
+    if (!profile) return []
+    return [
+      {
+        ...base,
+        subject: {
+          kind: 'profile' as const,
+          memberId: profile.id,
+          name: profile.name,
+          color: colors.get(profileBoardId(profile.id))!,
+        },
+      },
+    ]
+  })
 
   return {
     generatedAt: now.toISOString(),
-    members: members.map((m) => ({ id: m.id, name: m.name, color: colors.get(m.id) })),
+    memberProtocol,
+    members: boardMembers,
     events: events.map((e) => {
       const sub = e.source_subscription_id ? subById.get(e.source_subscription_id) : undefined
       return {
@@ -394,25 +652,17 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         end: e.end_time.toISOString(),
         isTask: e.is_task,
         source: e.source_subscription_id
-          ? { name: sub?.name ?? 'Subscribed calendar', color: sub?.color ?? null }
+          ? {
+              name: sub?.name ?? 'Subscribed calendar',
+              color: sub?.color ?? null,
+            }
           : null,
         // Imported events (subscribed feeds #232, provider sync #264) belong to
         // the feed or account, not to whoever connected it.
-        addedById:
-          !e.source_subscription_id && !e.source_connection_id && memberIds.has(e.created_by) ? e.created_by : null,
+        addedById: !e.source_subscription_id && !e.source_connection_id && memberIds.has(e.created_by) ? e.created_by : null,
       }
     }),
-    chores: chores
-      // An assignee outside the household cannot be shown by name; skip it.
-      .flatMap((c) => c.assigned_to === null || !memberIds.has(c.assigned_to) ? [] : [{
-        id: c.id,
-        title: c.title,
-        dueDay: toDateOnlyUTC(c.due_date),
-        status: c.status,
-        assigneeId: c.assigned_to,
-        // Only a catalogue key leaves the server; anything else reads as no picture.
-        icon: isRoutineIconKey(c.icon) ? c.icon : null,
-      }]),
+    chores: boardChores,
     dinners: dinners
       ? dinners.map((d) => ({
           id: d.id,
@@ -427,7 +677,13 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     shopping,
     ...(groceryLists ? { groceryLists } : {}),
     useSoon: useSoon
-      ? useSoon.map((i) => ({ id: i.id, name: i.name, location: i.location, expiresOn: i.expiresOn, dateKind: i.dateKind }))
+      ? useSoon.map((i) => ({
+          id: i.id,
+          name: i.name,
+          location: i.location,
+          expiresOn: i.expiresOn,
+          dateKind: i.dateKind,
+        }))
       : null,
     links: isDevice
       ? { ...NO_LINKS }
@@ -439,5 +695,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           features: allowedLink(role, '/dashboard/features'),
           inventory: allowedLink(role, '/dashboard/inventory', features.inventory),
         },
+    ...(hasProfileRows && memberProtocol === 1 ? { protocolError: profileChoreProtocolRefusal() } : {}),
+    ...(protocolError ? { protocolError } : {}),
   }
 }

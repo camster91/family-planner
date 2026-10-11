@@ -12,6 +12,8 @@ import type { PrismaClient } from '@prisma/client'
 import { addUTCDays, startOfTodayUTC, toDateOnlyUTC } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
 import type { HomeChore, HomeMember } from '@/lib/home-summary'
+import type { MemberProtocol } from '@/lib/member-subject-contract'
+import { profileChoreProtocolRefusal } from '@/lib/chore-profile'
 
 const MAX_CHORES = 120
 
@@ -20,11 +22,20 @@ export interface HomeSummaryData {
   members: HomeMember[]
   toCheckCount: number
   choresHref: string | null
+  /** The account-personal summary's selected subject protocol. */
+  memberProtocol?: MemberProtocol
+  /** A legacy summary must not silently drop a stored profile-only chore. */
+  protocolError?: ReturnType<typeof profileChoreProtocolRefusal>
 }
 
 export async function loadHomeSummary(
   db: PrismaClient,
-  opts: { familyId: string; role: string; now?: Date }
+  opts: {
+    familyId: string
+    role: string
+    now?: Date
+    memberProtocol?: MemberProtocol
+  },
 ): Promise<HomeSummaryData> {
   const start = startOfTodayUTC(opts.now ?? new Date())
   const isParent = opts.role === 'parent'
@@ -34,11 +45,19 @@ export async function loadHomeSummary(
     db.chore.findMany({
       where: {
         family_id: opts.familyId,
-        // Protocol-1 summaries remain account-only until the profile view exists.
-        assigned_to: { not: null },
+        // Inspect canonical profile ownership even for the account-personal
+        // summary so protocol 1 never silently loses a stored profile row.
+        OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
         due_date: { gte: addUTCDays(start, -1), lte: addUTCDays(start, 1) },
       },
-      select: { id: true, title: true, due_date: true, status: true, assigned_to: true },
+      select: {
+        id: true,
+        title: true,
+        due_date: true,
+        status: true,
+        assigned_to: true,
+        assigned_member_id: true,
+      },
       orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: MAX_CHORES,
     }),
@@ -47,19 +66,33 @@ export async function loadHomeSummary(
       select: { id: true, name: true },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     }),
-    isParent ? db.chore.count({ where: { family_id: opts.familyId, status: 'completed' } }) : Promise.resolve(0),
+    isParent
+      ? db.chore.count({
+          where: { family_id: opts.familyId, status: 'completed' },
+        })
+      : Promise.resolve(0),
   ])
 
   return {
-    chores: chores.flatMap((c) => c.assigned_to === null ? [] : [{
-      id: c.id,
-      title: c.title,
-      dueDay: toDateOnlyUTC(c.due_date),
-      status: c.status,
-      assigneeId: c.assigned_to,
-    }]),
+    chores: chores.flatMap((c) =>
+      c.assigned_to === null
+        ? []
+        : [
+            {
+              id: c.id,
+              title: c.title,
+              dueDay: toDateOnlyUTC(c.due_date),
+              status: c.status,
+              assigneeId: c.assigned_to,
+            },
+          ],
+    ),
     members,
     toCheckCount,
     choresHref: canRoleAccessPath(opts.role, '/dashboard/chores') ? '/dashboard/chores' : null,
+    memberProtocol: opts.memberProtocol ?? 1,
+    ...(opts.memberProtocol !== 2 && chores.some((chore) => chore.assigned_to === null && chore.assigned_member_id != null)
+      ? { protocolError: profileChoreProtocolRefusal() }
+      : {}),
   }
 }
