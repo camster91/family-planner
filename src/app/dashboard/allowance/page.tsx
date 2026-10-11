@@ -25,6 +25,36 @@ interface AllowanceItem {
   created_at: string
 }
 
+interface AllowanceMember {
+  id: string
+  name: string
+  avatar_url?: string | null
+}
+
+type MemberRosterState = {
+  status: 'loading' | 'ready' | 'error'
+  members: AllowanceMember[]
+  error: string | null
+}
+
+function readMemberRoster(value: unknown): AllowanceMember[] | null {
+  if (!value || typeof value !== 'object') return null
+  const members = (value as { members?: unknown }).members
+  if (!Array.isArray(members)) return null
+  const parsed = members.filter((member): member is AllowanceMember => {
+    if (!member || typeof member !== 'object') return false
+    const row = member as Record<string, unknown>
+    return (
+      typeof row.id === 'string' &&
+      row.id.length > 0 &&
+      typeof row.name === 'string' &&
+      row.name.trim().length > 0 &&
+      (row.avatar_url === undefined || row.avatar_url === null || typeof row.avatar_url === 'string')
+    )
+  })
+  return parsed.length === members.length ? parsed : null
+}
+
 export default function AllowancePage() {
   return (
     <FeatureGate featureKey="allowance">
@@ -35,7 +65,11 @@ export default function AllowancePage() {
 
 function AllowancePageInner() {
   const [items, setItems] = React.useState<AllowanceItem[]>([])
-  const [members, setMembers] = React.useState<{ id: string; name: string; avatar_url?: string | null }[]>([])
+  const [memberRoster, setMemberRoster] = React.useState<MemberRosterState>({
+    status: 'loading',
+    members: [],
+    error: null,
+  })
   const [loading, setLoading] = React.useState(true)
   const [adding, setAdding] = React.useState(false)
   const [draft, setDraft] = React.useState({ to_user_id: '', amount: '', reason: '' })
@@ -64,24 +98,41 @@ function AllowancePageInner() {
       .catch(() => {})
   }, [])
 
+  const loadMembers = React.useCallback(async () => {
+    setMemberRoster((current) => ({ ...current, status: 'loading', error: null }))
+    try {
+      const response = await fetch('/api/family/members', { cache: 'no-store' })
+      if (!response.ok) throw new Error('member roster load failed')
+      const payload: unknown = await response.json()
+      const members = readMemberRoster(payload)
+      if (!members) throw new Error('member roster response was invalid')
+      setMemberRoster({ status: 'ready', members, error: null })
+    } catch {
+      setMemberRoster((current) => ({
+        ...current,
+        status: 'error',
+        error: "Couldn't load family members. Try again.",
+      }))
+    }
+  }, [])
+
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
-      const [a, f] = await Promise.all([
-        fetch('/api/allowance', { cache: 'no-store' }).then((r) => {
-          if (!r.ok) throw new Error('allowance load failed')
-          return r.json()
-        }),
-        fetch('/api/family/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ members: [] })),
-      ])
-      setItems(a.items || [])
-      setMembers(f.members || [])
+      const response = await fetch('/api/allowance', { cache: 'no-store' })
+      if (!response.ok) throw new Error('allowance load failed')
+      const payload: unknown = await response.json()
+      if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { items?: unknown }).items)) {
+        throw new Error('allowance response was invalid')
+      }
+      setItems((payload as { items: AllowanceItem[] }).items)
     } catch {
       await failed("Couldn't load allowance")
     } finally {
       setLoading(false)
     }
-  }, [failed])
+    void loadMembers()
+  }, [failed, loadMembers])
 
   React.useEffect(() => { load() }, [load])
 
@@ -170,14 +221,27 @@ function AllowancePageInner() {
           </div>
           <div>
             <label htmlFor={`${formId}-for`} className="label-apple">For</label>
+            {memberRoster.status === 'loading' && (
+              <p role="status" className="text-footnote text-label-secondary">Loading family members…</p>
+            )}
+            {memberRoster.status === 'error' && (
+              <div role="alert" className="space-y-2 rounded-[var(--radius-md)] bg-[var(--danger-tint)] p-3 text-sm text-danger-text">
+                <p>{memberRoster.error}</p>
+                <button type="button" onClick={() => void loadMembers()} className="btn-secondary min-h-[44px]">Try again</button>
+              </div>
+            )}
+            {memberRoster.status === 'ready' && memberRoster.members.length === 0 && (
+              <p role="status" className="text-footnote text-label-secondary">No household members are available.</p>
+            )}
             <select
               id={`${formId}-for`}
               value={draft.to_user_id}
               onChange={(e) => setDraft({ ...draft, to_user_id: e.target.value })}
               className="input-apple"
+              disabled={memberRoster.status !== 'ready' || memberRoster.members.length === 0}
             >
               <option value="">Choose a family member</option>
-              {members.map((m) => (
+              {memberRoster.status === 'ready' && memberRoster.members.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
@@ -214,7 +278,11 @@ function AllowancePageInner() {
             >
               Cancel
             </button>
-            <button type="submit" disabled={saving} className="btn-filled">
+            <button
+              type="submit"
+              disabled={saving || memberRoster.status !== 'ready' || memberRoster.members.length === 0}
+              className="btn-filled"
+            >
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
