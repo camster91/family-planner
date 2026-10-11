@@ -28,6 +28,22 @@ const ALLOWED_MUTATIONS = new Set([
   "PATCH /api/family/features",
   "POST /api/auth/login",
 ]);
+const FEATURES_SURFACE_COPY = {
+  en: {
+    title: "Features",
+    enable: "Enable",
+    disable: "Disable",
+    openAll: "Open all groups",
+    closeAll: "Close all groups",
+  },
+  es: {
+    title: "Funciones",
+    enable: "Activar",
+    disable: "Desactivar",
+    openAll: "Abrir todos los grupos",
+    closeAll: "Cerrar todos los grupos",
+  },
+} as const;
 
 type ApiObservation = {
   method: string;
@@ -328,10 +344,14 @@ async function assertMoreSurface(page: Page, features: FamilyFeatures) {
   await assertMainA11y(page);
 }
 
-async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
+async function assertFeaturesSurface(
+  page: Page,
+  features: FamilyFeatures,
+  copy: (typeof FEATURES_SURFACE_COPY)[keyof typeof FEATURES_SURFACE_COPY],
+) {
   const main = page.locator("#main-content");
   await expect(
-    main.getByRole("heading", { name: "Features", exact: true }),
+    main.getByRole("heading", { name: copy.title, exact: true }),
   ).toBeVisible();
   const switches = main.getByRole("switch");
   expect(await switches.count()).toBe(FEATURES.length);
@@ -341,7 +361,7 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
       features[feature.key] === true &&
       (!feature.requires || features[feature.requires] === true);
     const toggle = main.getByRole("switch", {
-      name: `${checked ? "Disable" : "Enable"} ${feature.title}`,
+      name: `${checked ? copy.disable : copy.enable} ${feature.title}`,
       exact: true,
     });
     await expect(toggle).toHaveCount(1);
@@ -465,9 +485,34 @@ for (const locale of ["en", "es"] as const) {
 
       const featuresResponse = await page.goto("/dashboard/features");
       expect(featuresResponse?.status()).toBe(200);
-      await assertFeaturesSurface(page, ALL_ON);
-      const gamification = page.getByRole("switch", {
-        name: /^(?:Disable|Enable) Points & streaks$/,
+      const featuresCopy = FEATURES_SURFACE_COPY[locale];
+      const featuresMain = page.locator("#main-content");
+      const planningGroup = featuresMain.locator("#feature-group-planning");
+      const coreGroup = featuresMain.locator("#feature-group-core");
+      const familyGroup = featuresMain.locator("#feature-group-family");
+      await expect(planningGroup.getByRole("switch")).toHaveCount(
+        FEATURES.filter((feature) => feature.group === "planning").length,
+      );
+      await expect(coreGroup.getByRole("switch")).toHaveCount(0);
+      await expect(familyGroup.getByRole("switch")).toHaveCount(0);
+      const openAll = featuresMain.getByRole("button", {
+        name: featuresCopy.openAll,
+        exact: true,
+      });
+      await expect(openAll).toBeVisible();
+      await openAll.click();
+      const closeAll = featuresMain.getByRole("button", {
+        name: featuresCopy.closeAll,
+        exact: true,
+      });
+      await expect(closeAll).toBeVisible();
+      await expect(featuresMain.getByRole("switch")).toHaveCount(
+        FEATURES.length,
+      );
+      await assertFeaturesSurface(page, ALL_ON, featuresCopy);
+      const gamification = featuresMain.getByRole("switch", {
+        name: `${featuresCopy.disable} Points & streaks`,
+        exact: true,
       });
       await expect(gamification).toHaveAttribute("aria-checked", "true");
       const dependencyOff = { ...ALL_ON, gamification: false };
@@ -494,16 +539,22 @@ for (const locale of ["en", "es"] as const) {
         ),
       ).toEqual(dependencyOff);
       await flushFeatureTransport();
-      const gamificationOff = page.getByRole("switch", {
-        name: "Enable Points & streaks",
+      const gamificationOff = featuresMain.getByRole("switch", {
+        name: `${featuresCopy.enable} Points & streaks`,
         exact: true,
       });
       await expect(gamificationOff).toHaveAttribute("aria-checked", "false");
       await expect(
-        page.getByRole("switch", { name: "Enable Rewards", exact: true }),
+        featuresMain.getByRole("switch", {
+          name: `${featuresCopy.enable} Rewards`,
+          exact: true,
+        }),
       ).toBeDisabled();
       await expect(
-        page.getByRole("switch", { name: "Enable Analytics", exact: true }),
+        featuresMain.getByRole("switch", {
+          name: `${featuresCopy.enable} Analytics`,
+          exact: true,
+        }),
       ).toBeDisabled();
 
       const dependencyResponse = await browserFetch(
