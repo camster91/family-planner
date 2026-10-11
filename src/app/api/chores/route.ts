@@ -1,6 +1,9 @@
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { lockHousehold } from '@/lib/household-lock'
+import { canonicalChoreAssigneeInTx } from '@/lib/chore-member-subject'
+import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { deleteChoreSchema, updateChoreSchema } from '@/lib/validations'
 import { normalizeDateOnlyInput } from '@/lib/dates'
@@ -167,7 +170,7 @@ export async function PATCH(request: NextRequest) {
 
     const chore = await prisma!.chore.findUnique({
       where: { id: choreId },
-      select: { family_id: true, assigned_to: true, photo_url: true, frequency: true, weekly_days: true, recurrence_id: true },
+      select: { family_id: true, assigned_to: true, assigned_member_id: true, photo_url: true, frequency: true, weekly_days: true, recurrence_id: true },
     })
 
     if (!chore) {
@@ -263,9 +266,14 @@ export async function PATCH(request: NextRequest) {
     let updated
     try {
       updated =
-        frequency === undefined && rotation === undefined
+        frequency === undefined && rotation === undefined && !chore.assigned_member_id
           ? await prisma!.chore.update({ where: { id: choreId }, data, include })
           : await prisma!.$transaction(async (tx) => {
+              await lockHousehold(tx, chore.family_id)
+              const caller = await tx.user.findFirst({ where: { id: auth.user.id, family_id: chore.family_id }, select: { id: true, role: true } })
+              const current = await tx.chore.findFirst({ where: { id: choreId, family_id: chore.family_id }, select: { assigned_to: true, assigned_member_id: true } })
+              if (!caller || !current || caller.role !== auth.user.role || (caller.role !== 'parent' && current.assigned_to !== caller.id)) throw new HouseholdMemberIdentityConflict()
+              if (updates.assigned_to !== undefined && current.assigned_member_id) Object.assign(data, await canonicalChoreAssigneeInTx(tx, chore.family_id, updates.assigned_to))
               if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
               if (frequency !== undefined) {
                 await applyFrequencyEditInTx(
@@ -292,6 +300,7 @@ export async function PATCH(request: NextRequest) {
               return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
             })
     } catch (err) {
+      if (err instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: err.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
       if (err instanceof RotationNeedsSeriesError) {
         return NextResponse.json({ error: err.message }, { status: 400 })
       }

@@ -12,6 +12,14 @@ import { rehearseChoreMembers } from "../chore-members";
 import { prisma } from "@/lib/prisma";
 import { eraseAccountProfilesInTx } from "@/lib/household-member-lifecycle";
 import { deleteHousehold, deleteMemberAccount } from "@/lib/account-deletion";
+import { removeHouseholdMember } from "@/lib/member-removal";
+import {
+  dropMemberFromRotationsInTx,
+  applyRotationEditInTx,
+} from "@/lib/chore-rotation";
+import { reopenCompletedChoreInTx } from "@/lib/chore-reopen";
+import { canonicalChoreAssigneeInTx } from "@/lib/chore-member-subject";
+import { lockHousehold } from "@/lib/household-lock";
 
 const dbDescribe =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -316,6 +324,356 @@ dbDescribe("chore canonical subject rehearsal", () => {
         ])
       ).rows,
     ).toHaveLength(1);
+  });
+  it("removal hands open canonical work to the parent and keeps completion subject/credit under existing actor-clearing policy", async () => {
+    await db.query('UPDATE "Chore" SET status=$1 WHERE id=$2', ["pending", CH]);
+    await rehearseChoreMembers(db, A, true);
+    await removeHouseholdMember(
+      { actorId: P, familyId: A, targetId: C },
+      { revokeCalendarGrant: async () => undefined },
+    );
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,status FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: P,
+      assigned_member_id: memberIdForLegacyUser(A, P),
+      status: "pending",
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,completed_by,approved_by,xp_awarded FROM "ChoreAssignment" WHERE id=$1',
+          [AS],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: C,
+      assigned_member_id: member(),
+      completed_by: null,
+      approved_by: P,
+      xp_awarded: 15,
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT archived_at,erasure_user_id FROM "HouseholdMember" WHERE id=$1',
+          [member()],
+        )
+      ).rows[0],
+    ).toEqual({ archived_at: expect.any(Date), erasure_user_id: C });
+    expect(
+      (
+        await db.query(
+          'SELECT family_id,token_version FROM "User" WHERE id=$1',
+          [C],
+        )
+      ).rows[0],
+    ).toEqual({ family_id: null, token_version: 1 });
+    expect(
+      (await db.query('SELECT family_id FROM "User" WHERE id=$1', [BP])).rows[0]
+        .family_id,
+    ).toBe(B);
+  });
+  it("missing parent reconciliation rolls back removal without losing membership or profiles", async () => {
+    await db.query('UPDATE "Chore" SET status=$1 WHERE id=$2', ["pending", CH]);
+    await rehearseChoreMembers(db, A, true);
+    await db.query(
+      'DELETE FROM "HouseholdMemberLegacyMapping" WHERE user_id=$1',
+      [P],
+    );
+    await expect(
+      removeHouseholdMember(
+        { actorId: P, familyId: A, targetId: C },
+        { revokeCalendarGrant: async () => undefined },
+      ),
+    ).rejects.toMatchObject({ code: "IDENTITY_CONFLICT", status: 409 });
+    expect(
+      (
+        await db.query(
+          'SELECT archived_at,erasure_user_id FROM "HouseholdMember" WHERE id=$1',
+          [member()],
+        )
+      ).rows[0],
+    ).toEqual({ archived_at: null, erasure_user_id: null });
+    expect(
+      (
+        await db.query(
+          'SELECT family_id,token_version FROM "User" WHERE id=$1',
+          [C],
+        )
+      ).rows[0],
+    ).toEqual({ family_id: A, token_version: 0 });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({ assigned_to: C, assigned_member_id: member() });
+  });
+  it("rotation removal reassigns open template atomically but retains completed canonical template history", async () => {
+    await db.query(
+      'UPDATE "Chore" SET rotation_member_ids=$1,status=$2 WHERE id=$3',
+      [[C, P], "pending", CH],
+    );
+    await rehearseChoreMembers(db, A, true);
+    await prisma!.$transaction(async (tx) => {
+      await lockHousehold(tx, A);
+      await dropMemberFromRotationsInTx(tx, A, C);
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,rotation_member_ids FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: P,
+      assigned_member_id: memberIdForLegacyUser(A, P),
+      rotation_member_ids: [P],
+    });
+    await db.query(
+      'UPDATE "Chore" SET assigned_to=$1,assigned_member_id=$2,rotation_member_ids=$3,status=$4 WHERE id=$5',
+      [C, member(), [C, P], "verified", CH],
+    );
+    await removeHouseholdMember(
+      { actorId: P, familyId: A, targetId: C },
+      { revokeCalendarGrant: async () => undefined },
+    );
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,rotation_member_ids,status FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: C,
+      assigned_member_id: member(),
+      rotation_member_ids: [P],
+      status: "verified",
+    });
+  });
+  it.each(["foreign", "archived", "erasure-owned", "conflicting-link"])(
+    "refuses %s canonical assignee without mutating rows",
+    async (kind) => {
+      const userId = kind === "foreign" ? BP : P;
+      if (kind === "archived" || kind === "erasure-owned")
+        await db.query(
+          'UPDATE "HouseholdMember" SET archived_at=CURRENT_TIMESTAMP,erasure_user_id=$1 WHERE id=$2',
+          [kind === "erasure-owned" ? P : null, memberIdForLegacyUser(A, P)],
+        );
+      if (kind === "conflicting-link")
+        await db.query(
+          'INSERT INTO "HouseholdMemberAccountLink" (member_id,user_id,family_id,verified_at) VALUES ($1,$2,$3,CURRENT_TIMESTAMP)',
+          [member(), P, A],
+        );
+      const before = await snapshot();
+      await expect(
+        prisma!.$transaction(async (tx) => {
+          await lockHousehold(tx, A);
+          await canonicalChoreAssigneeInTx(tx, A, userId);
+        }),
+      ).rejects.toThrow("Household member identity needs review");
+      expect(await snapshot()).toEqual(before);
+    },
+  );
+  it("rotation edit updates both assignee IDs on pending future copies while preserving completed history", async () => {
+    await rehearseChoreMembers(db, A, true);
+    const future = "fx_chore_member_future";
+    await prisma!.chore.create({
+      data: {
+        id: future,
+        family_id: A,
+        title: "Future",
+        assigned_to: C,
+        assigned_member_id: member(),
+        created_by: P,
+        recurrence_id: CH,
+        due_date: new Date("2026-01-06T00:00:00Z"),
+      },
+    });
+    await prisma!.$transaction(async (tx) => {
+      await lockHousehold(tx, A);
+      await applyRotationEditInTx(
+        tx,
+        CH,
+        A,
+        [P, C],
+        new Date("2026-01-04T00:00:00Z"),
+      );
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,rotation_index FROM "Chore" WHERE id=$1',
+          [future],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: P,
+      assigned_member_id: memberIdForLegacyUser(A, P),
+      rotation_index: 0,
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,status FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: C,
+      assigned_member_id: member(),
+      status: "verified",
+    });
+  });
+  it("rejecting retained unchecked work after removal hands both IDs to the parent without changing occurrence credit", async () => {
+    await db.query('UPDATE "Chore" SET status=$1 WHERE id=$2', [
+      "completed",
+      CH,
+    ]);
+    await rehearseChoreMembers(db, A, true);
+    await removeHouseholdMember(
+      { actorId: P, familyId: A, targetId: C },
+      { revokeCalendarGrant: async () => undefined },
+    );
+    const reopen = () =>
+      prisma!.$transaction(async (tx) => {
+        await lockHousehold(tx, A);
+        return reopenCompletedChoreInTx(
+          tx,
+          { id: CH, family_id: A },
+          { assigned_to: P },
+        );
+      });
+    expect(await reopen()).toBe("reopened");
+    expect(await reopen()).toBe("open");
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,status FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: P,
+      assigned_member_id: memberIdForLegacyUser(A, P),
+      status: "pending",
+    });
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,xp_awarded FROM "ChoreAssignment" WHERE id=$1',
+          [AS],
+        )
+      ).rows[0],
+    ).toEqual({ assigned_to: C, assigned_member_id: member(), xp_awarded: 15 });
+  });
+  it("Undo cannot reopen canonical work for an archived removed assignee", async () => {
+    await db.query('UPDATE "Chore" SET status=$1 WHERE id=$2', [
+      "completed",
+      CH,
+    ]);
+    await rehearseChoreMembers(db, A, true);
+    await removeHouseholdMember(
+      { actorId: P, familyId: A, targetId: C },
+      { revokeCalendarGrant: async () => undefined },
+    );
+    await expect(
+      prisma!.$transaction((tx) =>
+        reopenCompletedChoreInTx(tx, { id: CH, family_id: A }),
+      ),
+    ).rejects.toThrow("Household member identity needs review");
+    expect(
+      (
+        await db.query(
+          'SELECT assigned_to,assigned_member_id,status FROM "Chore" WHERE id=$1',
+          [CH],
+        )
+      ).rows[0],
+    ).toEqual({
+      assigned_to: C,
+      assigned_member_id: member(),
+      status: "completed",
+    });
+  });
+  it("rotation edit waits for membership lock and refuses a participant removed before it can read", async () => {
+    await rehearseChoreMembers(db, A, true);
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `household-membership:${A}`,
+    ]);
+    let result: Promise<unknown> | undefined;
+    try {
+      result = prisma!
+        .$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(
+            "SET LOCAL application_name = 'fx_chore_member_rotation_wait'",
+          );
+          return applyRotationEditInTx(
+            tx,
+            CH,
+            A,
+            [P, C],
+            new Date("2026-01-04T00:00:00Z"),
+          );
+        })
+        .then(
+          (value) => ({ value }),
+          (error) => ({ error }),
+        );
+      let waiting = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const rows = await db.query(
+          "SELECT pid FROM pg_stat_activity WHERE application_name='fx_chore_member_rotation_wait' AND wait_event='advisory'",
+        );
+        if (rows.rowCount) {
+          waiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(waiting).toBe(true);
+      // A controlled membership detachment under the household lock completes
+      // while the edit is blocked. Its stale pre-lock participant list must not return.
+      await db.query(
+        'UPDATE "HouseholdMember" SET archived_at=CURRENT_TIMESTAMP,erasure_user_id=$1 WHERE id=$2',
+        [C, member()],
+      );
+      await db.query(
+        'DELETE FROM "HouseholdMemberLegacyMapping" WHERE user_id=$1',
+        [C],
+      );
+      await db.query(
+        'UPDATE "User" SET family_id=NULL,token_version=token_version+1 WHERE id=$1',
+        [C],
+      );
+      await db.query("COMMIT");
+      expect(await result).toEqual({
+        error: expect.objectContaining({
+          name: "HouseholdMemberIdentityConflict",
+        }),
+      });
+      expect(
+        (
+          await db.query(
+            'SELECT rotation_member_ids FROM "Chore" WHERE id=$1',
+            [CH],
+          )
+        ).rows[0].rotation_member_ids,
+      ).toEqual([]);
+    } finally {
+      await db.query("ROLLBACK");
+      await result;
+    }
   });
   it("direct family cascade deletes canonical histories and leaves the other household intact", async () => {
     await rehearseChoreMembers(db, A, true);

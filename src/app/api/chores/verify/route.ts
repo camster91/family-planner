@@ -6,6 +6,7 @@ import { verifyChoreSchema } from '@/lib/validations'
 import { awardChoreXP } from '@/lib/gamification-server'
 import { isGamificationOn } from '@/lib/gamification-visibility'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
+import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { recordBetaMetric } from '@/lib/beta-metrics'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
     const assignee = chore.assignee && chore.assignee.family_id === chore.family_id ? chore.assignee : null
 
     if (decision === 'reject') {
-      return rejectChore(auth.user, { ...chore, assignee }, verificationNotes, getRequestId(request))
+      return await rejectChore(auth.user, { ...chore, assignee }, verificationNotes, getRequestId(request))
     }
 
     // 'verified' is accepted so re-verifying is idempotent (the updateMany
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
       chore: await choreState(choreId),
     })
   } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/verify', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

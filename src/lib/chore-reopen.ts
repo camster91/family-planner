@@ -1,4 +1,6 @@
 import type { Prisma } from '@prisma/client'
+import { canonicalChoreAssigneeInTx } from '@/lib/chore-member-subject'
+import { lockHousehold } from '@/lib/household-lock'
 
 /** The chore fields `reopenCompletedChoreInTx` reads. */
 export interface ReopenableChore {
@@ -32,12 +34,18 @@ export type ReopenOutcome = 'reopened' | 'verified' | 'open'
 export async function reopenCompletedChoreInTx(
   tx: Prisma.TransactionClient,
   chore: ReopenableChore,
-  extra: Prisma.ChoreUpdateManyMutationInput = {}
+  extra: Prisma.ChoreUncheckedUpdateManyInput = {}
 ): Promise<ReopenOutcome> {
-  const before = await tx.chore.findUnique({ where: { id: chore.id }, select: { successor_id: true } })
+  await lockHousehold(tx, chore.family_id)
+  const before = await tx.chore.findUnique({ where: { id: chore.id }, select: { family_id: true, successor_id: true, assigned_to: true, assigned_member_id: true, status: true } })
+  if (!before || before.family_id !== chore.family_id) return 'open'
+  const nextAssignee = typeof extra.assigned_to === 'string' ? extra.assigned_to : extra.assigned_to?.set
+  const assignee = before.status === 'completed' && before.assigned_member_id
+    ? await canonicalChoreAssigneeInTx(tx, chore.family_id, nextAssignee ?? before.assigned_to)
+    : {}
   const result = await tx.chore.updateMany({
-    where: { id: chore.id, status: 'completed' },
-    data: { ...extra, status: 'pending', completed_at: null, successor_id: null },
+    where: { id: chore.id, family_id: chore.family_id, status: 'completed' },
+    data: { ...extra, ...assignee, status: 'pending', completed_at: null, successor_id: null },
   })
   if (result.count === 0) {
     const current = await tx.chore.findUnique({ where: { id: chore.id }, select: { status: true } })
