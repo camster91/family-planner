@@ -5,13 +5,17 @@ import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
 import { useTranslation } from "@/i18n";
-import { assistantMessages, type AssistantMessage } from "@/i18n/assistant";
+import {
+  assistantShellMessages,
+  type AssistantShellMessage,
+} from "@/i18n/assistant-shell";
 
 type AssistantPanelTab = "chat" | "report" | "reports";
 
 function AssistantLoading() {
   const { t } = useTranslation();
-  const msg = (key: AssistantMessage) => t(key, undefined, assistantMessages);
+  const msg = (key: AssistantShellMessage) =>
+    t(key, undefined, assistantShellMessages);
   return (
     <span role="status" aria-live="polite" className="sr-only">
       {msg("loading")}
@@ -42,7 +46,8 @@ export default function AssistantHost({
   const pathname = usePathname();
   const params = useSearchParams();
   const { t } = useTranslation();
-  const msg = (key: AssistantMessage) => t(key, undefined, assistantMessages);
+  const msg = (key: AssistantShellMessage) =>
+    t(key, undefined, assistantShellMessages);
   const [tab, setTab] = React.useState<AssistantPanelTab | null>(null);
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);
