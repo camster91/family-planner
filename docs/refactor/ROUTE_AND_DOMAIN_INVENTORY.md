@@ -8,9 +8,80 @@
 
 **Boundary.** This audit deletes no route and runs no migration. Findings that need work are proposed as issues below; none were filed from this change.
 
+## All-feature UX alignment contract — 2026-10-11
+
+Cameron's latest direction: align UI/UX across **all features**, including all-features-on households. This supplements the historical audit below; it does not claim that old route counts, role descriptions, or every screen remain current. Source reviewed for this addition: `9e6ac899` (`src/lib/features.ts`, `src/lib/nav-items.ts`, `src/lib/kid-access.ts`, dashboard page paths, shared UI primitives and form-sheet hosts). Static inspection only; no new rendered, native, production or customer evidence.
+
+Execution owner: Codex; product owner: Cameron. Track vertical migrations in #143, foundation/component work in #152, adaptive journey acceptance in #133 and rendered evidence in #139. Preserve the existing [cross-device sequence](../product/CROSS_DEVICE_ROADMAP.md); this is its coverage contract, not a parallel roadmap. Significant flow changes use the existing [editable design file](../../design/README.md) before implementation.
+
+### One interaction system
+
+- Stable primary destinations, grouped feature discovery, consistent active/back context. Turning on a feature must not add a permanent top-level tab or an automatic Today tile. Favorites and personal layout remain separate from household availability and permissions.
+- Shared semantic typography, surfaces, spacing, radii, focus and control states from `design/FOUNDATIONS.md` and production tokens. Category icons must not replace text or create competing styles. Native select options, date/time controls and disabled states need light/dark contrast checks on actual browsers.
+- Full-width desktop shell with intentional reading/form widths. Data-heavy calendar/list views use space; text forms stay bounded. Phone uses short rounded sheets; expanded views may use side/detail panes. Complex forms have named steps and visible progress rather than a long stack of fields.
+- Same action vocabulary and placement: a clear primary action, adjacent filters/view switch, labeled row actions, predictable Close/Back. Preserve source routes for direct links; inspect intercepted and direct form paths. On closing, restore focus and list position. Explicitly specify draft retention or clearing, including browser/native Back and process death.
+- Reuse `Dialog`, `FormSheet`, `ListRow`, `EmptyState`, route loading, offline feedback and undo primitives where appropriate; a reuse target is not evidence of integration. Do not create a second business model or pretend every existing component already supports every state.
+- Empty, loading, partial, error/retry, offline/stale, pending, conflict and success states must explain what happened and the next action. Show only saved success; retryable actions must not duplicate records. Destructive actions show scope and recovery accurately; undo only where server semantics support it.
+- Parent, teen, child and shared-device presentations use the same visual language with permitted actions and different density. Customization, enabled flags, AI, voice and selecting a display profile never grant authorization. Shared surfaces use an allowlisted DTO; personal API/page access does not establish device access.
+
+### Feature coverage and disposition
+
+Every row below is a **migration/QA target**, not a completed audit. Retain working domains (disposition 1), adapt permitted teen/child surfaces (5), and preserve parent-only boundaries (4) according to current server policy. Optional features remain gated (7). Role/action details must be verified vertically; this table deliberately grants no new access. All rows share the execution/design/QA owners above.
+
+| Feature key | Canonical destination | Alignment and journey acceptance target |
+|---|---|---|
+| `chores` | `/dashboard/chores` | One recurring-series row with schedule and expandable occurrences; same-day scheduling, weekly day selection, all-age routine stack, review/undo/snooze scope. |
+| `calendar` | `/dashboard/calendar` | Consistent day/week/agenda controls, source connections, event detail/edit sheet, duration, return refresh, overlap/all-day/long-title layouts. |
+| `lists` | `/dashboard/lists` | Custom types, consistent item/image controls and check/undo; Today grocery action resolves the actual grocery destination, not an unexplained generic list. |
+| `family` | `/dashboard/family` | Add everyone during onboarding; name-only profile, optional verified account linking, role clarity, safe archive/removal and separate permanent deletion. |
+| `meals` | `/dashboard/meals` | Plan/explore/saved recipe hierarchy; short meal sheet, source attribution, recipe import failures, plan-to-grocery handoff without duplicates. |
+| `inventory` | `/dashboard/inventory` | Pantry/fridge/freezer views and use-soon actions; amount/unit controls, consume/discard/undo, scan unavailable/failure states. |
+| `notes` | `/dashboard/notes` | Quick note sheet, long-text cards, consistent pin/edit/delete affordances; explicit shared visibility. |
+| `anniversaries` | `/dashboard/anniversaries` | Clear upcoming/date views, shared date selector and recurrence wording; sensible empty state. |
+| `gamification` | `/dashboard/analytics` | Points/streaks presented as optional context, not a second Analytics destination; disabled/dependency behavior is clear. |
+| `rewards` | `/dashboard/rewards` | Browse/claim/parent-review states with points requirement; do not show claim success before persistence. |
+| `budget` | `/dashboard/budget` | Parent-only dense overview, transaction/category sheets, period controls; no financial information on shared display. |
+| `projects` | `/dashboard/projects` | Overview/detail/task hierarchy, progress and canonical calendar handoff; scoped destructive confirmation. |
+| `messages` | `/dashboard/messages` | Familiar thread/composer, unread and send/retry states; personal privacy preserved on shared surfaces. |
+| `analytics` | `/dashboard/analytics` | One destination shared with gamification, understandable periods/empty charts; never fabricated example metrics. |
+| `wishlist` | `/dashboard/wishlist` | Consistent image/item cards, add/edit sheet and labeled status controls; actor-specific actions. |
+| `emergency` | `/dashboard/emergency` | Quickly find permitted contacts, readable emergency actions and printable layout; shared medical fields require explicit policy. |
+| `locations` | `/dashboard/locations` | Compact place cards and address form; parent/private address boundaries, safe removal. |
+| `pickups` | `/dashboard/pickups` | Day/person/status hierarchy with assignment sheet; ownership and conflicts visible. |
+| `allowance` | `/dashboard/allowance` | Personal versus parent overview clearly labeled, payment/IOU status and permitted actions; private on shared device. |
+| `travel` | `/dashboard/travel` | Clear date range and preview of schedule effects; resume/undo semantics must match server behavior. |
+| `handoff` | `/dashboard/handoff` | Readable sitter brief, reduced role fields, explicit sharing scope/expiry and revocation; sensitive information not shown by default. |
+| `sick-days` | `/dashboard/sick-days` | Person/day/dose hierarchy, own versus parent actions, privacy, pending/error dose state; prevent repeat effects. |
+
+The registry contains **22 feature keys**, each represented once above. Supporting flows and Today are not additional feature flags. Reconcile this coverage against `src/lib/features.ts` as features change.
+
+### Supporting flows are part of the same system
+
+| Surface | Required alignment and evidence |
+|---|---|
+| Today and fridge board | Consistent region headings/gutters; bounded information density with all features on; customize/preview/reset controls; groceries route correctly; avoid repeated occurrences across regions. |
+| Onboarding, register/login/join | Short steps, add-everyone prompt, optional email, resend/retry and household-switch clarity; shared display does not inherit an account by choosing a person. |
+| Explore, search and command palette | Grouped searchable destinations, no duplicated Analytics route; permission-filtered results, off-feature state, keyboard/Back/focus continuity. |
+| Notifications | Consistent unread/read/snooze controls and time labels; return/resume state, persistence and clear snooze scope. |
+| Settings, preferences, features | Separate personal arrangement, household flags, roles and integrations; dependency explanation, reset/preview and save failure. |
+| Calendar provider setup/imports | Provider enabled/disabled/disconnect/failure states, consistent connection shortcuts; honest read-only/sync status. |
+| Help, report and family AI | Stable launcher and accessible panel; permission-aware answers, reviewed action preview, pending/retry/conflict/undo; voice listening/mute and unsupported wake states. |
+| Pairing, elevation and device recovery | Explicit shared/private mode, safe lock/back/timeout/revoke; offline/reconnect, rotation, resume and process-death checks on physical hardware. |
+| Export, removal, deletion and activity | Consistent scope explanations and confirmation; account versus household versus profile; no private provenance fields in display or AI payloads. |
+
+### Acceptance and evidence record for each vertical migration
+
+Record route, feature, component/token mapping, Figma reference, current role/API gates, direct versus intercepted entry, changed states, viewport/theme evidence, measured bundle/performance impact, test results, PR/SHA and release status in the existing issue. No row is Done based only on a screenshot or build. Preserve previous clients and rollback aliases until replacement evidence supports removal.
+
+Use isolated fabricated households: new/empty; busy; all 22 flags on; dependency flags off; long/localized names; multiple groceries/custom lists; adults/teen/email-free preschool profile; slow/offline/concurrent devices. Verify phone 390×844 and 430×932, portrait 800×1280, fridge 1280×800, large tablet 1920×1200 and desktop 1366×768. Exercise keyboard, screen reader, large text, reduced motion, light/dark/night, keyboard/toast/sheet collisions and native Back. Primary targets are at least 44px; shared primary targets aim for 56px. Physical device, signed/store and household usability evidence remain distinct gates.
+
+### Current-source corrections to historical role rows
+
+`src/lib/kid-access.ts` gives teens extra Meals/Help/Notifications prefixes and exact Calendar, Calendar create and personal Settings paths. Children retain the shared allowlist. The older P-only descriptions below for Calendar, Meals, Help, Notifications and Settings must not drive implementation or tests. Calendar edit and Settings subroutes are not implied by teen exact-path access. API action permissions must still be checked independently. No role expansion is authorized by this document.
+
 ## Legend
 
-- **Roles.** P = parent, T = teen, C = child. "all" = every member of the household. "n/a" = no person session (public, token or device). Page roles come from `src/middleware.ts` and `src/lib/kid-access.ts`: teens and children may open only `/dashboard` (kid home) and the prefixes in `KID_ALLOWED_PREFIXES`; everything else under `/dashboard` redirects them to `/dashboard`.
+- **Roles.** P = parent, T = teen, C = child. "all" = every member of the household. "n/a" = no person session (public, token or device). Page roles come from `src/middleware.ts` and `src/lib/kid-access.ts`: children may open `/dashboard` (kid home) and the prefixes in `KID_ALLOWED_PREFIXES`; teens additionally have `TEEN_EXTRA_PREFIXES` and `TEEN_EXACT_PATHS`. Other dashboard paths redirect them home. Historical route rows below are not a substitute for these current source gates.
 - **Device cookie.** "device only" / "device + elevation" = accepts only the `fp_device` cookie (`src/lib/device-route.ts`). "refused" = `refusePairedDevice` rejects a paired tablet before person auth. "no" = person session only (`authenticateRequest`/`authenticateWithFamily`/`getServerUser` never read device cookies; the route-allowlist test guards this).
 - **Env gate.** Server kill switch or provider key; see [`CURRENT_STATE.md`](../CURRENT_STATE.md) "What is on and what is off by default". `SHARED_DEVICE_ENABLED` routes return 404 while off; calendar sync routes 404 until `isCalendarSyncEnabled()`; the scan and import routes 404 while their Anthropic key is unset.
 - **Meal/list model.** Delegates used by the route file and the `@/lib` modules it imports directly. Canonical and legacy follow ADR-0007. "—" means no meal/recipe/list table is touched at that depth (the board loader and importer are covered by hand in "Meal and list overlap").
@@ -30,6 +101,8 @@
 API route files by domain (first path segment, all 151): family 24, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload, version.
 
 ## Page routes
+
+**Historical snapshot:** route roles and counts in this table have not been fully re-audited. Apply the current-source corrections above and verify current page/API policy before implementation; P-only Calendar/Meals/Settings descriptions are stale for teen access.
 
 Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep but move in IA; **3** merge into another journey; **4** parent/admin only; **5** child/teen simplified; **6** deprecate after migration evidence; **7** later/feature-gated.
 
@@ -119,7 +192,7 @@ New households start simple ([O-38](../decisions/PROVISIONAL_OWNER_DECISIONS.md)
 - Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
 - 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) `GET`/`PATCH /api/users/preferences` (#286) `GET /api/audit` (#285) and `PATCH /api/family/beta-metrics` (#287) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
-- Teens and children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`); every API row below carries its per-method role from the isolation audit.
+- Children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`). Teens also have the extra prefixes and exact paths described in the current-source correction above. API rows are historical per-method observations; verify current API policy separately.
 
 ## Meal and list overlap (for ADR-0007 and #254)
 
