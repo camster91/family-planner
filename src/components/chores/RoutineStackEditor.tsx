@@ -645,21 +645,26 @@ export default function RoutineStackEditor({
       } catch (error) {
         const requestError =
           error instanceof RoutineEditorRequestError ? error : null;
-        if (requestError?.status === 409) {
+        if (requestError?.code === "ROUTINE_STACK_CONFLICT") {
           setSubmissionState({ phase: "conflict", packet });
           setSaveError(localizedRequestError(error, msg, "conflict"));
         } else if (
           !requestError ||
           requestError.status >= 500 ||
-          requestError.code === "INVALID_RESPONSE"
+          requestError.status === 409 ||
+          requestError.code === "INVALID_RESPONSE" ||
+          requestError.code === "IDEMPOTENCY_IN_PROGRESS"
         ) {
-          // A network failure, 5xx, or malformed 2xx may have committed. Keep
-          // the exact packet and key so Retry can safely reconcile it.
+          // A network failure, 5xx, malformed 2xx, or an in-flight idempotency
+          // response may have committed. Keep the exact packet and key so
+          // Retry can safely reconcile it. A generic 409 is treated this way
+          // too: only the explicit snapshot-conflict code is definitive.
           setSubmissionState({ phase: "unknown", packet });
           setSaveError(msg("unknownSave"));
         } else {
-          // A definitive client/authorization rejection leaves the draft
-          // editable, but a new attempt receives a fresh key and bytes.
+          // A definitive client/authorization rejection (including a reused
+          // key whose bytes do not match) leaves the draft editable, but a new
+          // attempt receives a fresh key and bytes.
           setSubmissionState(null);
           idempotencyKeyRef.current = null;
           setSaveError(localizedRequestError(error, msg, "saveError"));

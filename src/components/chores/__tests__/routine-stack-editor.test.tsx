@@ -243,6 +243,40 @@ it("retries malformed success with the same immutable bytes and key", async () =
   expect(back).toHaveBeenCalled();
 });
 
+it("treats an in-flight idempotency 409 as uncertain and retries the same packet", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let postCount = 0;
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(candidates);
+      postCount += 1;
+      return postCount === 1
+        ? response({ error: { code: "IDEMPOTENCY_IN_PROGRESS" } }, 409)
+        : response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+
+  expect(await screen.findByText(/could not confirm whether/i)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Retry save" })).toBeTruthy();
+  expect(screen.getByLabelText("Routine name")).toHaveProperty("disabled", true);
+
+  await user.click(screen.getByRole("button", { name: "Retry save" }));
+  await waitFor(() => expect(postCount).toBe(2));
+  const posts = calls.filter((call) => call.init?.method === "POST");
+  expect(posts[0].init?.headers).toEqual(posts[1].init?.headers);
+  expect(posts[0].init?.body).toBe(posts[1].init?.body);
+  expect(refresh).toHaveBeenCalled();
+  expect(back).toHaveBeenCalled();
+});
+
 it("asks before discarding dirty edits and restores the draft when kept", async () => {
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = String(input);
