@@ -112,6 +112,7 @@ for (const locale of ["en", "es"] as const) {
     assertFixtureTargetAllowed(process.env);
     expect(LOOPBACK_HOSTS.has(new URL(baseURL!).hostname)).toBe(true);
     await setLocale(page, locale);
+    await page.goto("/dashboard/allowance");
 
     const originalResponse = await browserFetch(page, "/api/family/features");
     expect(originalResponse.status, originalResponse.body).toBe(200);
@@ -124,7 +125,7 @@ for (const locale of ["en", "es"] as const) {
       "PATCH /api/family/features",
       "POST /api/allowance",
     ]);
-    let releasePost: (() => void) | undefined;
+    const pendingPosts: Array<() => void> = [];
     let restored = false;
     try {
       const enabled = await browserSend(page, "PATCH", "/api/family/features", {
@@ -161,7 +162,7 @@ for (const locale of ["en", "es"] as const) {
         postHeaders.push(route.request().headers()["idempotency-key"] ?? "");
         postBodies.push(route.request().postDataJSON());
         await new Promise<void>((resolve) => {
-          releasePost = resolve;
+          pendingPosts.push(resolve);
         });
         await route.fulfill({
           status: 201,
@@ -195,16 +196,47 @@ for (const locale of ["en", "es"] as const) {
       ).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(dialog).toBeVisible();
+      await page
+        .goBack({ waitUntil: "commit", timeout: 2_000 })
+        .catch(() => null);
+      await expect(page).toHaveURL(/\/dashboard\/allowance\/create$/);
+      await expect(dialog).toBeVisible();
       expect(postHeaders[0]).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
       expect(postBodies[0]).toEqual({
         to_user_id: "synthetic-child",
         amount: 10,
         reason: "Weekly allowance",
       });
-      const release = releasePost;
+      const release = pendingPosts.shift();
       if (release) release();
       await expect(dialog).toHaveCount(0);
       expect(blockedWrites).toEqual([]);
+
+      // The direct fallback uses the same pending navigation guard and swaps
+      // its header Back link while the real request is still unresolved.
+      await page.goto("/dashboard/allowance/create");
+      const directForm = page.getByTestId("allowance-create-form");
+      await expect(directForm).toBeVisible();
+      await directForm
+        .getByLabel(copy.forLabel)
+        .selectOption("synthetic-child");
+      await directForm.getByLabel(copy.amount).fill("11.25");
+      await directForm.getByLabel(copy.reason).fill("Direct pending");
+      await directForm.getByRole("button", { name: copy.save }).click();
+      await expect(
+        directForm.getByRole("button", { name: copy.saving }),
+      ).toBeDisabled();
+      await expect(
+        directForm.getByTestId("allowance-create-back-busy"),
+      ).toBeVisible();
+      await page
+        .goBack({ waitUntil: "commit", timeout: 2_000 })
+        .catch(() => null);
+      await expect(page).toHaveURL(/\/dashboard\/allowance\/create$/);
+      await expect(directForm).toBeVisible();
+      const releaseDirect = pendingPosts.shift();
+      if (releaseDirect) releaseDirect();
+      await expect(page).toHaveURL(/\/dashboard\/allowance$/);
 
       // The refusal path is a separate child view: no synthetic POST is
       // installed or sent, and the API remains the authority for the role.
@@ -228,8 +260,7 @@ for (const locale of ["en", "es"] as const) {
         await childContext.close();
       }
     } finally {
-      const release = releasePost;
-      if (release) release();
+      for (const release of pendingPosts.splice(0)) release();
       await context.unrouteAll({ behavior: "ignoreErrors" });
       try {
         await recoveryPage.goto("/dashboard");
@@ -267,6 +298,7 @@ for (const locale of ["en", "es"] as const) {
     assertFixtureTargetAllowed(process.env);
     expect(LOOPBACK_HOSTS.has(new URL(baseURL!).hostname)).toBe(true);
     await setLocale(page, locale);
+    await page.goto("/dashboard/allowance");
 
     const originalResponse = await browserFetch(page, "/api/family/features");
     expect(originalResponse.status, originalResponse.body).toBe(200);

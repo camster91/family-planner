@@ -8,6 +8,7 @@ import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
 import EditChoreForm from "@/app/dashboard/chores/edit/EditChoreForm";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages } from "@/i18n/list-create";
+import { usePendingFormNavigationGuard } from "./pending-form-navigation";
 
 export function FormSheet({
   title,
@@ -23,6 +24,7 @@ export function FormSheet({
   closeLabel?: string;
 }) {
   const router = useRouter();
+  usePendingFormNavigationGuard(busy);
   useEffect(() => {
     const background = document.querySelector<HTMLElement>(
       "[data-dashboard-background]",

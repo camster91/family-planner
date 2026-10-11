@@ -165,3 +165,34 @@ it("disables draft controls and blocks Escape while a sheet request is pending",
     release(response({ allowance: { id: "allowance-1" } })),
   );
 });
+
+it("swaps the direct fallback Back link while a request is pending", async () => {
+  const user = userEvent.setup();
+  let release!: (value: Response) => void;
+  global.fetch = jest.fn((url: string) => {
+    if (url === "/api/family/members") return Promise.resolve(roster());
+    return new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+  }) as unknown as typeof fetch;
+
+  renderForm();
+  await screen.findByRole("option", { name: "Sam" });
+  await user.selectOptions(screen.getByLabelText("For"), "child-a");
+  await user.type(screen.getByLabelText("Amount"), "10");
+  expect(
+    screen.getByRole("link", { name: "Back to Allowance" }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(
+    screen.queryByRole("link", { name: "Back to Allowance" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByTestId("allowance-create-back-busy")).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+
+  await act(async () =>
+    release(response({ allowance: { id: "allowance-2" } })),
+  );
+});

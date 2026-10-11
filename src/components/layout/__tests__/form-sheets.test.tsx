@@ -155,6 +155,46 @@ it("does not dismiss during an image upload and unlocks after upload failure", a
   ).toBeInTheDocument();
 });
 
+it("captures browser Back and beforeunload while a shared form is busy", () => {
+  const originalUrl = window.location.href;
+  window.history.replaceState({ route: "form" }, "", "/dashboard/lists/create");
+  const view = render(
+    <FormSheet title="Saving list" busy>
+      <button>Saving</button>
+    </FormSheet>,
+  );
+
+  const unload = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
+
+  window.history.replaceState({ route: "base" }, "", "/dashboard/lists");
+  const back = new PopStateEvent("popstate", {
+    cancelable: true,
+    state: { route: "base" },
+  });
+  window.dispatchEvent(back);
+  expect(back.defaultPrevented).toBe(true);
+  expect(window.location.pathname).toBe("/dashboard/lists/create");
+  expect(window.history.state).toEqual({ route: "form" });
+
+  view.rerender(
+    <FormSheet title="Saving list" busy={false}>
+      <button>Saving</button>
+    </FormSheet>,
+  );
+  window.history.replaceState({ route: "base" }, "", "/dashboard/lists");
+  window.dispatchEvent(
+    new PopStateEvent("popstate", {
+      cancelable: true,
+      state: { route: "base" },
+    }),
+  );
+  expect(window.location.pathname).toBe("/dashboard/lists");
+  view.unmount();
+  window.history.replaceState({}, "", originalUrl);
+});
+
 it("retains a pre-existing inert background and scroll lock on external unmount", () => {
   const background = document.createElement("div");
   background.setAttribute("data-dashboard-background", "");

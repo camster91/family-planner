@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { allowanceCreateMessages } from "@/i18n/allowance-create";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { usePendingFormNavigationGuard } from "@/components/layout/pending-form-navigation";
 
 interface AllowanceMember {
   id: string;
@@ -128,6 +129,7 @@ export default function AllowanceCreateForm({
   useEffect(() => {
     onBusyChange?.(saving);
   }, [onBusyChange, saving]);
+  usePendingFormNavigationGuard(saving);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -247,13 +249,24 @@ export default function AllowanceCreateForm({
       {!inSheet && (
         <>
           <div className="px-4 pt-4">
-            <Link
-              href="/dashboard/allowance"
-              className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              {copy.back}
-            </Link>
+            {saving ? (
+              <span
+                aria-disabled="true"
+                data-testid="allowance-create-back-busy"
+                className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-tertiary"
+              >
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                {copy.back}
+              </span>
+            ) : (
+              <Link
+                href="/dashboard/allowance"
+                className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                {copy.back}
+              </Link>
+            )}
           </div>
           <div className="px-4">
             <div className="flex items-center gap-2">
