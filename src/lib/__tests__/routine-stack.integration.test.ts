@@ -85,7 +85,6 @@ const CANDIDATE_ERASED = `${PREFIX}-candidate-erased`;
 const CANDIDATE_DORMANT = `${PREFIX}-candidate-dormant`;
 const CANDIDATE_FOREIGN_ACCOUNT = `${PREFIX}-candidate-foreign-account`;
 const CANDIDATE_ORPHAN = `${PREFIX}-candidate-orphan`;
-const CANDIDATE_ERASED_SUBJECT = `${PREFIX}-candidate-erased-subject`;
 const CANDIDATE_TEMPLATE = `${PREFIX}-candidate-template`;
 const STACK_A = `${PREFIX}-stack-a`;
 const STACK_FOREIGN = `${PREFIX}-stack-foreign`;
@@ -1059,18 +1058,8 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           family_id: FAMILY_A,
           title: "Erased candidate",
           assigned_to: CANDIDATE_ERASED_USER,
-          assigned_member_id: CANDIDATE_ERASED_MEMBER,
-          due_date: OCCURRENCE,
-          created_by: PARENT_A,
-          frequency: "once",
-          weekly_days: [],
-        },
-        {
-          id: CANDIDATE_DORMANT,
-          family_id: FAMILY_A,
-          title: "Dormant candidate",
-          assigned_to: CHILD_A,
-          assigned_member_id: CANDIDATE_DORMANT_MEMBER,
+          assigned_member_id: null,
+          member_subject_erased: true,
           due_date: OCCURRENCE,
           created_by: PARENT_A,
           frequency: "once",
@@ -1100,18 +1089,6 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           weekly_days: [],
         },
         {
-          id: CANDIDATE_ERASED_SUBJECT,
-          family_id: FAMILY_A,
-          title: "Erased subject candidate",
-          assigned_to: CHILD_A,
-          assigned_member_id: MEMBER_CHILD_A,
-          member_subject_erased: true,
-          due_date: OCCURRENCE,
-          created_by: PARENT_A,
-          frequency: "once",
-          weekly_days: [],
-        },
-        {
           id: CANDIDATE_TEMPLATE,
           family_id: FAMILY_A,
           title: "Template candidate",
@@ -1126,6 +1103,29 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         },
       ],
     });
+    // Profile-only/dormant assignments are rejected by the canonical subject
+    // trigger before they can enter this catalog. Keep that impossible shape
+    // as an explicit no-write assertion instead of disabling the constraint.
+    await expect(
+      db.chore.create({
+        data: {
+          id: CANDIDATE_DORMANT,
+          family_id: FAMILY_A,
+          title: "Dormant candidate",
+          assigned_to: CHILD_A,
+          assigned_member_id: CANDIDATE_DORMANT_MEMBER,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+        },
+      }),
+    ).rejects.toThrow(
+      "chore member subject needs explicit account reconciliation",
+    );
+    expect(
+      await db.chore.findUnique({ where: { id: CANDIDATE_DORMANT } }),
+    ).toBeNull();
 
     const result = await readParentRoutineStackCandidates(
       db,
