@@ -77,12 +77,8 @@ it("loads only the signed-in queue when deliberately opened, hides IDs and devic
     /private-|key-one|device-key/,
   );
   expect(
-    (
-      screen.getByRole("button", {
-        name: "Discard change 2",
-      }) as HTMLButtonElement
-    ).disabled,
-  ).toBe(true);
+    screen.getByRole("button", { name: "Discard change 2" }),
+  ).toHaveAttribute("aria-disabled", "true");
   expect(screen.queryByRole("button", { name: "Retry change 2" })).toBeNull();
 });
 it("keeps the same key when retrying and waits for confirmation before discarding only the chosen tick", async () => {
@@ -99,6 +95,43 @@ it("keeps the same key when retrying and waits for confirmation before discardin
   await waitFor(() => expect(queue.discard).toHaveBeenCalledWith("key-one"));
   expect(ops.some((o) => o.id === "key-two")).toBe(true);
   expect(screen.getAllByTestId("pending-tick-recovery-row")).toHaveLength(1);
+});
+
+it("keeps the focused discard control through syncing and blocks activation until pending again", async () => {
+  render(<PendingTickRecovery userId="viewer" />);
+  await open();
+
+  const discard = screen.getByRole("button", { name: "Discard change 1" });
+  discard.focus();
+  expect(discard).toHaveFocus();
+
+  ops = ops.map((candidate) =>
+    candidate.id === "key-one" ? { ...candidate, state: "syncing" } : candidate,
+  );
+  act(() => listener({ type: "change" }));
+
+  const syncingDiscard = screen.getByRole("button", {
+    name: "Discard change 1",
+  });
+  expect(syncingDiscard).toHaveAttribute("aria-disabled", "true");
+  expect(syncingDiscard).toHaveFocus();
+  fireEvent.keyDown(syncingDiscard, { key: "Enter", code: "Enter" });
+  fireEvent.click(syncingDiscard);
+  expect(queue.discard).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+
+  ops = ops.map((candidate) =>
+    candidate.id === "key-one" ? { ...candidate, state: "pending" } : candidate,
+  );
+  act(() => listener({ type: "change" }));
+
+  const availableDiscard = screen.getByRole("button", {
+    name: "Discard change 1",
+  });
+  expect(availableDiscard).not.toHaveAttribute("aria-disabled", "true");
+  expect(availableDiscard).toHaveFocus();
+  fireEvent.click(availableDiscard);
+  expect(screen.getByRole("alertdialog")).toBeVisible();
 });
 it("clears stale confirmation on terminal auth loss", async () => {
   render(<PendingTickRecovery userId="viewer" />);
