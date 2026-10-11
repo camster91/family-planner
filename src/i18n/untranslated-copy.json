@@ -1620,81 +1620,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "(optional)",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "A checklist for anything your family needs—packing, school supplies, or weekend plans.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Create a shared list for your family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Create List",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Creating list",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Description",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "e.g. Weekly Groceries",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "List created",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Lists",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Name",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "New List",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Selected",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Type",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "Uploading image",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/create/CreateListForm.tsx",
-    "text": "What is this list for?",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/locations/page.tsx",
     "text": "123 Main St",
     "count": 1
@@ -5261,62 +5186,7 @@
   },
   {
     "file": "src/components/layout/DashboardFormSheets.tsx",
-    "text": "New List",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardFormSheets.tsx",
     "text": "Please wait for saving or uploading to finish.",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Add image",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Choose list image",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Image selected",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "JPEG, PNG, WebP or HEIC · up to 5 MB. Shared with your household.",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "List image",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Optional",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Remove image",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Replace image",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Selected list image",
-    "count": 1
-  },
-  {
-    "file": "src/components/lists/ListImagePicker.tsx",
-    "text": "Uploading…",
     "count": 1
   },
   {
