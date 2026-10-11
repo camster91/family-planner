@@ -158,10 +158,11 @@ function useWakeLock(enabled: boolean) {
 }
 
 function BoardSkeleton() {
+  const text = useTodayBoardText()
   return (
     <div aria-busy="true" className="space-y-5">
       <p className="sr-only" role="status">
-        Loading today&apos;s board
+        {text('todayBoardLoading')}
       </p>
       <div className="h-14 w-72 max-w-full rounded-[var(--radius-md)] bg-[var(--surface-fill)]" />
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -414,6 +415,7 @@ export default function TodayBoard({
   const [now, setNow] = React.useState<Date | null>(null)
   // Date and time labels follow the viewer's locale (display only).
   const displayLocale = useDisplayLocale()
+  const text = useTodayBoardText()
   const router = useRouter()
   // Visible sync (#271): version polling, re-fetch on change, words for
   // "Updated …", offline and stale. Times are on the viewer's own clock.
@@ -516,21 +518,21 @@ export default function TodayBoard({
         <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 md:mb-5 2xl:mb-8">
           <div className="min-w-0">
             <p className="mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]">
-              Today
+              {text('today')}
             </p>
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
               <h1
                 data-testid="board-date"
                 className="font-display text-[30px] font-semibold tracking-tight leading-tight text-label-primary md:text-[40px] lg:text-[44px] 2xl:text-[56px]"
               >
-                {now ? formatLongDate(now, displayLocale) : 'Today'}
+                {now ? formatLongDate(now, displayLocale) : text('today')}
               </h1>
               {now && (
                 <p
                   data-testid="board-clock"
                   className="text-[20px] font-medium tabular-nums text-label-secondary md:text-[26px] lg:text-[32px] 2xl:text-[44px]"
                 >
-                  <span className="sr-only">Time: </span>
+                  <span className="sr-only">{text('time')}</span>
                   {formatTime(now, displayLocale)}
                 </p>
               )}
@@ -559,12 +561,12 @@ export default function TodayBoard({
               ) : fridgeMode ? (
                 <Link href="/dashboard/today" className={actionLinkClass}>
                   <Minimize2 className="h-5 w-5" aria-hidden="true" />
-                  Exit fridge mode
+                  {text('exitFridgeMode')}
                 </Link>
               ) : (
                 <Link href="/dashboard/today?mode=fridge" className={actionLinkClass}>
                   <Maximize2 className="h-5 w-5" aria-hidden="true" />
-                  Fridge mode
+                  {text('fridgeMode')}
                 </Link>
               )}
             </div>
