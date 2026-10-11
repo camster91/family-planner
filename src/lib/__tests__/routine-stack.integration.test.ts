@@ -826,6 +826,105 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     });
   });
 
+  it("round-trips a generated recurring occurrence through the parent API helpers", async () => {
+    await db.chore.create({
+      data: {
+        id: RECURRING_TEMPLATE,
+        family_id: FAMILY_A,
+        title: "Water plants",
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: new Date("2026-10-05T00:00:00.000Z"),
+        created_by: PARENT_A,
+        frequency: "weekly",
+        weekly_days: [1],
+        recurrence_id: RECURRING_TEMPLATE,
+        is_template: true,
+      },
+    });
+    await db.chore.create({
+      data: {
+        id: CHORE_RECURRING,
+        family_id: FAMILY_A,
+        title: "Water plants",
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: OCCURRENCE,
+        created_by: PARENT_A,
+        frequency: "once",
+        weekly_days: [],
+        recurrence_id: RECURRING_TEMPLATE,
+        is_template: false,
+      },
+    });
+    const recurring = await db.chore.findUniqueOrThrow({
+      where: { id: CHORE_RECURRING },
+    });
+    const draft: RoutineStackDraft = {
+      scope: "occurrence",
+      family_id: FAMILY_A,
+      stack_id: null,
+      occurrence_date: OCCURRENCE_DATE,
+      label: "Recurring API routine",
+      steps: [
+        {
+          chore_id: CHORE_RECURRING,
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "medium",
+          recurrence_id: RECURRING_TEMPLATE,
+          is_template: false,
+        },
+      ],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    };
+
+    const saved = await saveParentRoutineStack(
+      db,
+      draft,
+      actorA,
+      `${PREFIX}-api-recurring-roundtrip`,
+    );
+    expect(saved.status).toBe(200);
+    const stackId = (saved.body as { stack_id?: string }).stack_id;
+    expect(stackId).toEqual(expect.any(String));
+
+    const read = await readParentRoutineStack(
+      db,
+      actorA,
+      stackId!,
+      OCCURRENCE_DATE,
+    );
+    expect(read).toMatchObject({
+      occurrence_date: OCCURRENCE_DATE,
+      steps: [
+        expect.objectContaining({
+          id: CHORE_RECURRING,
+          recurrence_id: RECURRING_TEMPLATE,
+          is_template: false,
+          frequency: "once",
+        }),
+      ],
+    });
+    const persistedRows = await db.chore.findMany({
+      where: {
+        family_id: FAMILY_A,
+        routine_stack_id: stackId,
+        due_date: {
+          gte: OCCURRENCE,
+          lt: new Date("2026-10-13T00:00:00.000Z"),
+        },
+      },
+    });
+    expect(read?.fingerprint).toBe(
+      fingerprintRoutineStackSnapshot(persistedRows),
+    );
+    expect(read?.compact.fingerprint).toBe(read?.fingerprint);
+  });
+
   it("accepts stopped anchors and legacy null-series rows, but rejects orphaned and foreign series ids", async () => {
     await db.chore.createMany({
       data: [
@@ -1266,12 +1365,12 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         }),
       ]),
     );
-    expect(parent?.members.every((member) => member.id.startsWith(PREFIX))).toBe(
-      true,
-    );
-    expect(parent?.members.some((member) => member.id === MEMBER_PARENT_B)).toBe(
-      false,
-    );
+    expect(
+      parent?.members.every((member) => member.id.startsWith(PREFIX)),
+    ).toBe(true);
+    expect(
+      parent?.members.some((member) => member.id === MEMBER_PARENT_B),
+    ).toBe(false);
     expect(JSON.stringify(parent)).not.toContain("erasure_user_id");
     expect(JSON.stringify(parent)).not.toContain("@example.test");
 
@@ -1378,9 +1477,9 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     expect(
       await db.idempotencyRecord.count({ where: { family_id: FAMILY_A } }),
     ).toBe(receiptsBefore);
-    expect(await db.routineStack.count({ where: { family_id: FAMILY_A } })).toBe(
-      2,
-    );
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(2);
     expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(2);
   });
 });
