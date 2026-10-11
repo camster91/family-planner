@@ -34,12 +34,18 @@ const LOCALES = ["en", "es"] as const;
 type Locale = (typeof LOCALES)[number];
 // This matrix clears cookies and signs in through the real form for each
 // disposable household. Keep its repeated auth traffic out of the shared
-// project-wide 198.51.100.10-.15 buckets, which are consumed by earlier
-// login-heavy journeys on the one-worker CI shard.
+// project-wide 198.51.100.10-.15 buckets, which can be consumed by earlier
+// login-heavy journeys on the one-worker CI shard. The retained failure only
+// showed later logins remaining on /login; it did not preserve a response body,
+// so these isolated buckets remove the probable shared-throttle cause without
+// changing the auth assertions.
 const ROUTINE_CLIENT_IPS = {
-  "fridge-landscape-1280x800": "198.51.100.230",
-  "tablet-large-1920x1200": "198.51.100.231",
-  "desktop-1366x768": "198.51.100.232",
+  "phone-390x844": "198.51.100.230",
+  "phone-430x932": "198.51.100.231",
+  "tablet-portrait-800x1280": "198.51.100.232",
+  "fridge-landscape-1280x800": "198.51.100.233",
+  "tablet-large-1920x1200": "198.51.100.234",
+  "desktop-1366x768": "198.51.100.235",
 } as const;
 
 function routineClientIp(info: TestInfo): string {
