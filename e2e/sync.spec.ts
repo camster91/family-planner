@@ -112,7 +112,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }
   });
 
-  test("unfamiliar stored queue survives reload without replay or replacement", async ({
+  test("future-version malformed stored queue survives reload and explicit purge without replay", async ({
     page,
   }, testInfo) => {
     fixture = await createList(page, testInfo, ["Existing grocery"]);
@@ -120,23 +120,21 @@ test.describe("offline grocery ticks: Family A parent", () => {
     const itemId = fixture.items["Existing grocery"];
     const raw = JSON.stringify(
       {
-        v: 1,
-        ops: [
-          {
-            id: "original-known-key-123456",
-            action: "list-item.set-checked",
-            v: 1,
-            payload: { itemId, checked: true },
-            createdAt: Date.now(),
-            state: "pending",
-            attempts: 0,
-            nextAttemptAt: 0,
-          },
+        v: 2,
+        operations: [
           {
             id: "original-future-key-123456",
             action: "future-grocery-action",
             v: 2,
             payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
+            createdAt: 1,
+            state: "pending",
+            attempts: 0,
+            nextAttemptAt: 0,
+          },
+          {
+            malformed: true,
+            createdAt: 1,
           },
         ],
       },
@@ -179,6 +177,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
         { mode, raw, userId: FIXTURE_IDS.familyA.parent },
       );
     const updates = trackUpdates(page);
+    let purged = false;
     try {
       await storedQueue("write");
       await page.goto(`/dashboard/lists/${listId}`);
@@ -213,8 +212,31 @@ test.describe("offline grocery ticks: Family A parent", () => {
         path: testInfo.outputPath("queue-compatible-client-recovery.png"),
         fullPage: true,
       });
+
+      // Sign-out is the explicit privacy purge. It may remove unfamiliar
+      // bytes, but nothing else may rewrite or replay them while paused.
+      const cleanup = await browserSend(page, "DELETE", "/api/lists", {
+        listId,
+      });
+      expect(cleanup.status, cleanup.body).toBe(200);
+      fixture = null;
+      await page.getByRole("button", { name: "User menu" }).click();
+      await page.getByRole("button", { name: "Sign Out" }).click();
+      await expect(page).toHaveURL(/\/login$/);
+      const leftovers = await page.evaluate(async () => {
+        const keys = Object.keys(window.localStorage).filter((key) =>
+          key.startsWith("fp-sync:"),
+        );
+        const dbs = (await indexedDB.databases?.()) ?? [];
+        const store = dbs.some((db) => db.name === "fp-sync")
+          ? "database-present"
+          : null;
+        return { keys, store };
+      });
+      expect(leftovers).toEqual({ keys: [], store: null });
+      purged = true;
     } finally {
-      await storedQueue("remove");
+      if (!purged) await storedQueue("remove");
     }
   });
 
