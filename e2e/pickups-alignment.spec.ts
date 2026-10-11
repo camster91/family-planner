@@ -466,6 +466,51 @@ for (const locale of ["en", "es"] as const) {
         await checkActionGeometry(page, toggle);
         await checkNoHorizontalOverflow(page);
         await checkNoBlockingA11y(page, "#main-content");
+
+        // Enter Pickups from a real same-origin route so a programmatic close
+        // can be checked against the history entry that came before it. The
+        // close must consume its form marker in place; one real browser Back
+        // then exits to the safe route instead of stopping on Pickups again.
+        await page.goto("/dashboard/calendar");
+        await expect(page).toHaveURL(/\/dashboard\/calendar$/);
+        await page.goto("/dashboard/pickups");
+        await expect(
+          page.getByRole("heading", { level: 1, name: copy.title }),
+        ).toBeVisible();
+        const routeAdd = page.getByRole("button", {
+          name: copy.add,
+          exact: true,
+        });
+        const historyBeforeOpen = await page.evaluate(
+          () => window.history.length,
+        );
+        await routeAdd.click();
+        const routeDialog = page.getByRole("dialog", {
+          name: copy.newPickup,
+        });
+        await expect(routeDialog).toBeVisible();
+        // The effect pushes the marker after the dialog mounts.
+        await expect
+          .poll(() => page.evaluate(() => window.history.length))
+          .toBe(historyBeforeOpen + 1);
+        await routeDialog
+          .getByRole("button", { name: copy.closeForm, exact: true })
+          .click();
+        await expect(routeDialog).toHaveCount(0);
+        expect(
+          await page.evaluate(() => {
+            const state = window.history.state;
+            return Boolean(
+              state && typeof state === "object" && "pickupForm" in state,
+            );
+          }),
+        ).toBe(false);
+        expect(await page.evaluate(() => window.history.length)).toBe(
+          historyBeforeOpen + 1,
+        );
+        await page.goBack();
+        await expect(page).toHaveURL(/\/dashboard\/calendar$/);
+
         expect(unexpectedApiMutations).toEqual([]);
         await info.attach("pickups-mutation-audit", {
           body: JSON.stringify({
