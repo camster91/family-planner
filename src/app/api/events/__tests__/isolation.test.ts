@@ -43,6 +43,7 @@ describe("events — two households", () => {
   it("creates in the caller's family and lets a parent edit it", async () => {
     const res = await events.POST(req({ as: "childA", body: { ...newEvent, family_id: "family-B" } }));
     expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(writesTo("event")[0].args.data).toMatchObject({ family_id: "family-A", created_by: "child-a" });
     expect((await events.PATCH(req({ as: "parentA", body: { eventId: "event-a", title: "Moved" } }))).status).toBe(200);
     expect((await events.DELETE(req({ as: "parentA", body: { eventId: "event-a" } }))).status).toBe(200);
