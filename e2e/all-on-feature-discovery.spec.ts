@@ -8,7 +8,11 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
-import { FEATURES, type FamilyFeatures } from "../src/lib/features";
+import {
+  FEATURES,
+  type FamilyFeatures,
+  type FeatureMeta,
+} from "../src/lib/features";
 import { moreItemsFor } from "../src/lib/nav-items";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -355,7 +359,10 @@ async function assertFeaturesSurface(
   ).toBeVisible();
   const switches = main.getByRole("switch");
   expect(await switches.count()).toBe(FEATURES.length);
-  const enabledToggles: Locator[] = [];
+  const enabledToggles: Array<{
+    toggle: Locator;
+    group: FeatureMeta["group"];
+  }> = [];
   for (const feature of FEATURES) {
     const checked =
       features[feature.key] === true &&
@@ -386,7 +393,7 @@ async function assertFeaturesSurface(
       feature.group !== "core" &&
       !(feature.requires && !features[feature.requires])
     ) {
-      enabledToggles.push(toggle);
+      enabledToggles.push({ toggle, group: feature.group });
     }
   }
 
@@ -395,11 +402,21 @@ async function assertFeaturesSurface(
   // core/dependent switch entered the tab sequence, the next expectation
   // would fail at that exact position.
   if (enabledToggles.length > 0) {
-    await enabledToggles[0]!.focus();
-    await expect(enabledToggles[0]!).toBeFocused();
+    await enabledToggles[0]!.toggle.focus();
+    await expect(enabledToggles[0]!.toggle).toBeFocused();
     for (let index = 1; index < enabledToggles.length; index += 1) {
+      const previous = enabledToggles[index - 1]!;
+      const current = enabledToggles[index]!;
+      if (previous.group !== current.group) {
+        const groupDisclosure = main
+          .locator(`#feature-group-${current.group}`)
+          .getByRole("button");
+        await expect(groupDisclosure).toHaveAttribute("aria-expanded", "true");
+        await page.keyboard.press("Tab");
+        await expect(groupDisclosure).toBeFocused();
+      }
       await page.keyboard.press("Tab");
-      await expect(enabledToggles[index]!).toBeFocused();
+      await expect(current.toggle).toBeFocused();
     }
   }
   await assertNoHorizontalOverflow(page);
