@@ -74,6 +74,11 @@ describeWithDatabase('account deletion against Postgres', () => {
         { id: child, email: `${child}@example.test`, name: 'Child', role: 'child', family_id: f, password },
       ],
     })
+    // Dormant #480 tables participate in explicit whole-household erasure.
+    // Direct fixture insertion is not proof of account-owner verification.
+    await db.householdMember.create({ data: { id: id('member'), family_id: f, name: 'Fixture child', role: 'child' } })
+    await db.householdMemberLegacyMapping.create({ data: { member_id: id('member'), user_id: child, family_id: f } })
+    await db.householdMemberAccountLink.create({ data: { member_id: id('member'), user_id: child, family_id: f, verified_at: t } })
     // Uploads (and the file on disk)
     const filename = h === 'a' ? 'a1a1a1a1a1a1a1a1.jpg' : 'b2b2b2b2b2b2b2b2.jpg'
     fs.writeFileSync(path.join(uploadDir, 'chores', filename), 'x')

@@ -1,6 +1,6 @@
 # ADR-0009: Household members are distinct from login accounts
 
-**Status:** Proposed implementation contract; no runtime/schema migration yet.
+**Status:** Proposed activation contract; dormant schema and disposable rehearsal implemented. App routes remain account-backed.
 **Date:** 2026-10-10
 **Owners:** Codex implementation; Cameron product review.
 **Related:** #480, #128, #446, #450, #136, #473.
@@ -9,7 +9,7 @@
 
 A preschool child can participate without email, credentials or a personal device. Current User is both login identity and household person. Its required unique email and the 64 explicit User FK owners prevent treating a name-only child as a complete household member. Nullable email or a generated address would leave authorization, assignments, points and shared-device attribution conflated.
 
-`member-relation-inventory.json` classifies each current owned User relationship as member subject, real account, authenticated actor, or actor plus separate member attribution. `node scripts/member-contract.cjs` and its test reject missing, stale, changed or duplicate decisions. This checks schema inventory coverage only. It cannot prove runtime migration, non-FK identity coverage or authorization.
+`member-relation-inventory.json` classifies each current owned User relationship as member subject, real account, authenticated actor, or actor plus separate member attribution. The original baseline contains 64 relationships; the dormant legacy mapping and optional account link add two account-owned relationships, for 66 total. `node scripts/member-contract.cjs` and its test reject missing, stale, changed or duplicate decisions. This checks schema inventory coverage only. It cannot prove runtime migration, non-FK identity coverage or authorization.
 
 ## Target identity contract
 
@@ -28,6 +28,8 @@ Account linking requires fresh parent management authority plus proof from the i
 5. Enable supported name-only setup, assignment and shared participation only after schema, read/write and compatibility checks. Add account linking and migrate remaining domains before claiming all-feature support. Private finance, medical/address/chat and account views remain excluded from shared profile selection and AI private access.
 
 No new scheduler is involved. Any production migration/activation is a separate release gate with the exact candidate, backup and recovery evidence. No store signing or provider activation follows from this ADR.
+
+The expand-only migration creates empty member, legacy-mapping and account-link tables at startup; it does not copy users or activate profile writes. The fixture-only rehearsal is documented in [member-foundation-rehearsal.md](../member-foundation-rehearsal.md). A legacy mapping is not an active verified account link. Once mappings exist, composite foreign keys intentionally reject unmanaged User family changes. All join/leave, link/unlink and erasure paths must be adapted before any production backfill. Account deletion currently cascades mapping/link rows but does not erase a member profile; the reviewed erasure ledger is therefore mandatory before activation.
 
 ## Domain coverage and non-FK contracts
 

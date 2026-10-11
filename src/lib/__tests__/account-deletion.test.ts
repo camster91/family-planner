@@ -27,6 +27,9 @@ type Row = Record<string, any>
 function seedExtras() {
   const t = new Date('2026-09-01T00:00:00Z')
   const both = (fn: (f: 'a' | 'b', family: string) => Row) => [fn('a', FAMILY_A), fn('b', FAMILY_B)]
+  db.rows('householdMember').push(...both((f, family_id) => ({ id: `member-${f}`, family_id, name: 'Fixture profile' })))
+  db.rows('householdMemberLegacyMapping').push(...both((f, family_id) => ({ user_id: `child-${f}`, member_id: `member-${f}`, family_id })))
+  db.rows('householdMemberAccountLink').push(...both((f, family_id) => ({ user_id: `child-${f}`, member_id: `member-${f}`, family_id, verified_at: t })))
   db.rows('appFeedback').push(
     ...both((f, family_id) => ({ id: `feedback-${f}`, family_id, user_id: `parent-${f}`, title: 'Private fixture report' }))
   )
