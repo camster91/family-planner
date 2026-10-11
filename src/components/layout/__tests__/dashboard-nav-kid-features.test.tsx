@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-// Wishlist, allowance, handoff, sick days and notes are kid-allowed routes. They
+// Wishlist, allowance, handoff, sick days, notes and pickups are kid-allowed routes. They
 // need an ordinary touch entry even though Family -> More remains parent-only.
 import * as React from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -30,6 +30,7 @@ const kidFeatureRoutes = [
   { key: 'handoff', label: 'Babysitter handoff', href: '/dashboard/handoff' },
   { key: 'sick-days', label: 'Sick days & meds', href: '/dashboard/sick-days' },
   { key: 'notes', label: 'Pinned notes', href: '/dashboard/notes' },
+  { key: 'pickups', label: 'Pickups & dropoffs', href: '/dashboard/pickups' },
 ] as const satisfies ReadonlyArray<{ key: FeatureKey; label: string; href: string }>
 
 async function openMenu(role: NavUser['role']) {
@@ -46,6 +47,7 @@ describe('DashboardNav user menu: kid feature discovery', () => {
       handoff: true,
       'sick-days': true,
       notes: true,
+      pickups: true,
     }
   })
 
@@ -92,7 +94,7 @@ describe('DashboardNav user menu: kid feature discovery', () => {
       </I18nProvider>,
     )
     await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de usuario' }))
-    for (const label of ['Lista de deseos', 'Mesada y deudas', 'Entrega al cuidador', 'Días de enfermedad y medicinas', 'Notas fijadas']) {
+    for (const label of ['Lista de deseos', 'Mesada y deudas', 'Entrega al cuidador', 'Días de enfermedad y medicinas', 'Notas fijadas', 'Recogidas y entregas']) {
       expect(screen.getByRole('link', { name: label })).toBeTruthy()
     }
   })

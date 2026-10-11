@@ -104,6 +104,7 @@ describe('tab model', () => {
       '/dashboard/sick-days',
       '/dashboard/today',
       '/dashboard/inventory',
+      '/dashboard/pickups',
     ])
   })
 

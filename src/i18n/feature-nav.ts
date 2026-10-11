@@ -13,6 +13,7 @@ type FeatureNavKey =
   | 'handoff'
   | 'sick-days'
   | 'notes'
+  | 'pickups'
 
 const english: Record<FeatureNavKey, string> = {
   wishlist: 'Wishlist',
@@ -20,6 +21,7 @@ const english: Record<FeatureNavKey, string> = {
   handoff: 'Babysitter handoff',
   'sick-days': 'Sick days & meds',
   notes: 'Pinned notes',
+  pickups: 'Pickups & dropoffs',
 }
 
 const spanish: Record<FeatureNavKey, string> = {
@@ -28,6 +30,7 @@ const spanish: Record<FeatureNavKey, string> = {
   handoff: 'Entrega al cuidador',
   'sick-days': 'Días de enfermedad y medicinas',
   notes: 'Notas fijadas',
+  pickups: 'Recogidas y entregas',
 }
 
 export type FeatureNavTitleResolver = (key: FeatureKey) => string
