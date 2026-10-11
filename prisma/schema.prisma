@@ -484,6 +484,7 @@ model Chore {
   @@index([family_id, status])
   @@index([family_id, assigned_to])
   @@index([family_id, assigned_member_id])
+  @@index([family_id, assigned_member_id, due_date], map: "Chore_family_member_due_idx")
   @@index([family_id, due_date])
   @@index([recurrence_id])
 }
