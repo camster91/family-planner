@@ -501,11 +501,12 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await seedFixture(fixture);
-      await loginViaUi(page, fixture.parentEmail);
-      await setLocale(context, locale);
       let stackId: string | null = null;
       try {
+        await seedFixture(fixture);
+        await context.clearCookies();
+        await loginViaUi(page, fixture.parentEmail);
+        await setLocale(context, locale);
         await page.goto("/dashboard/chores");
         await runtimeIdentity(page, info, locale);
         await page
@@ -647,9 +648,6 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await seedFixture(fixture);
-      await loginViaUi(page, fixture.parentEmail);
-      await setLocale(context, locale);
       let writes = 0;
       page.on("request", (request) => {
         if (
@@ -659,6 +657,10 @@ for (const locale of LOCALES) {
           writes += 1;
       });
       try {
+        await seedFixture(fixture);
+        await context.clearCookies();
+        await loginViaUi(page, fixture.parentEmail);
+        await setLocale(context, locale);
         await page.goto(`/dashboard/chores/routines?occurrence_date=${DATE}`);
         await runtimeIdentity(page, info, locale);
         await expectSurface(page, info, locale, "direct-draft");
@@ -716,13 +718,14 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await seedFixture(fixture);
-      await loginViaUi(page, fixture.parentEmail);
-      await setLocale(context, locale);
       let candidateAttempts = 0;
       let postAttempts = 0;
       const posts: Array<{ key: string; body: string }> = [];
       try {
+        await seedFixture(fixture);
+        await context.clearCookies();
+        await loginViaUi(page, fixture.parentEmail);
+        await setLocale(context, locale);
         await page.route("**/api/chores/stacks/candidates**", async (route) => {
           if (route.request().method() !== "GET") return route.continue();
           candidateAttempts += 1;
@@ -824,10 +827,11 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await seedFixture(fixture);
-      await loginViaUi(page, fixture.parentEmail);
-      await setLocale(context, locale);
       try {
+        await seedFixture(fixture);
+        await context.clearCookies();
+        await loginViaUi(page, fixture.parentEmail);
+        await setLocale(context, locale);
         await page.route("**/api/chores/stacks", async (route) => {
           if (route.request().method() === "POST") {
             return route.fulfill({
