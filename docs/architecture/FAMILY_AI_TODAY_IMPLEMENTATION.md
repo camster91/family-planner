@@ -7,8 +7,11 @@ native capability.
 
 ## Implemented
 
-- `src/lib/assistant-today-context.ts` authenticates its expected actor against
-  fresh `User` and `Family` rows before invoking the narrow loader.
+- `src/lib/assistant-today-context.ts` revalidates the expected actor and
+  household against fresh `User` and `Family` rows before invoking the narrow
+  loader. This is an internal database boundary, not request authentication;
+  a future caller must authenticate the person session and apply paired-device
+  refusal before calling it.
 - `src/lib/assistant-today-loader.ts` uses direct, family-scoped allowlisted
   selects. It never calls the visual Today board, ambient settings/photos or
   weather-capable code. Teen chore SQL is constrained to the authenticated
@@ -32,8 +35,19 @@ native capability.
 - The server validates the IANA time zone, derives the local date and rejects
   an advisory client clock more than 24 hours from the server clock. Context
   expiry is 60 seconds from the server timestamp.
-- Weather is deliberately not fetched by this dormant broker. The board read
-  uses `withWeather: false`, so this slice has no external-network side effect.
+- Weather is deliberately not fetched by this dormant broker. It does not read
+  board snapshots, coordinates or weather-capable code, so this slice has no
+  external-network side effect.
+
+## Verification evidence
+
+- The guarded PostgreSQL integration suite
+  `src/lib/__tests__/assistant-today-context.integration.test.ts` passed all 10
+  tests against the disposable fixture target at commit `5b2cd12`. The cleanup
+  readback was zero owned families and zero owned users. This verifies the
+  context and loader's database isolation, role filtering, feature-off states,
+  local-day boundaries and bounded projection; it does not verify a route,
+  browser, native client, provider, or production household.
 
 ## Still gated
 
@@ -46,8 +60,6 @@ native capability.
   paired-device refusal first, then pass authoritative actor claims. A
   shared-device or elevated-device assistant route requires its own reviewed
   contract.
-- Real PostgreSQL isolation, route negatives and browser/native evidence are
-  release gates for the later activation slice. The focused unit tests use
-  mocks; the separate PostgreSQL suite is explicitly skipped unless both the
-  integration flag and disposable fixture-target guard are present. No
-  production-readiness claim is made.
+- Route negatives, browser/native evidence and provider activation remain
+  release gates for the later activation slice. No production-readiness claim
+  is made.
