@@ -26,37 +26,27 @@ const GROUP_COPY: Record<
   family: { title: 'familyTitle', subtitle: 'familySubtitle' },
 }
 
-const MOBILE_EXPANDED: Record<GroupKey, boolean> = {
+const INITIAL_EXPANDED: Record<GroupKey, boolean> = {
   core: false,
   planning: true,
   family: false,
 }
 
-const DESKTOP_EXPANDED: Record<GroupKey, boolean> = {
-  core: true,
-  planning: true,
-  family: true,
-}
-
 export default function FeaturesPage() {
   const { features, setFeature } = useFeatures()
   const copy = useFeaturesText()
-  const [pending, setPending] = React.useState<FeatureKey | null>(null)
+  const [pendingKeys, setPendingKeys] = React.useState<Set<FeatureKey>>(
+    () => new Set(),
+  )
   const pendingKeysRef = React.useRef<Set<FeatureKey>>(new Set())
   const [toast, setToast] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState('')
   const [expanded, setExpanded] =
-    React.useState<Record<GroupKey, boolean>>(MOBILE_EXPANDED)
+    React.useState<Record<GroupKey, boolean>>(INITIAL_EXPANDED)
   const [activeGroup, setActiveGroup] = React.useState<GroupKey>('planning')
   const flags = features
   const groups = groupFeatures(FEATURES)
   const normalizedQuery = query.trim().toLocaleLowerCase()
-
-  React.useEffect(() => {
-    if (!window.matchMedia?.('(max-width: 767px)').matches) {
-      setExpanded(DESKTOP_EXPANDED)
-    }
-  }, [])
 
   const groupRows = GROUP_ORDER.map((key) => {
     const title = copy(GROUP_COPY[key].title)
@@ -107,7 +97,7 @@ export default function FeaturesPage() {
     if (pendingKeysRef.current.has(feature.key)) return
     const next = !flags[feature.key]
     pendingKeysRef.current.add(feature.key)
-    setPending(feature.key)
+    setPendingKeys(new Set(pendingKeysRef.current))
     try {
       await setFeature(feature.key, next)
       setToast(
@@ -119,7 +109,7 @@ export default function FeaturesPage() {
       setTimeout(() => setToast(null), 2200)
     } finally {
       pendingKeysRef.current.delete(feature.key)
-      setPending(null)
+      setPendingKeys(new Set(pendingKeysRef.current))
     }
   }
 
@@ -222,7 +212,7 @@ export default function FeaturesPage() {
             totalCount={group.source.length}
             flags={flags}
             onToggle={toggle}
-            pending={pending}
+            pending={pendingKeys}
             expanded={normalizedQuery.length > 0 || expanded[group.key]}
             onToggleExpanded={() => toggleGroup(group.key)}
             copy={copy}
@@ -273,7 +263,7 @@ function FeatureGroup({
   totalCount: number
   flags: Record<FeatureKey, boolean>
   onToggle: (feature: FeatureMeta) => void
-  pending: FeatureKey | null
+  pending: ReadonlySet<FeatureKey>
   expanded: boolean
   onToggleExpanded: () => void
   copy: ReturnType<typeof useFeaturesText>
@@ -337,7 +327,7 @@ function FeatureGroup({
                 onToggle={() => onToggle(feature)}
                 disabled={feature.group === 'core' || needs !== undefined}
                 needsTitle={needs?.title}
-                pending={pending === feature.key}
+                pending={pending.has(feature.key)}
                 last={index === features.length - 1}
                 copy={copy}
               />

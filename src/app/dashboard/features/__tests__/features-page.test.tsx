@@ -46,15 +46,19 @@ describe('Features page switches', () => {
   })
 
   it('still toggles a feature when tapped', async () => {
+    const user = userEvent.setup()
     render(<FeaturesPage />)
-    await userEvent.click(
+    await user.click(screen.getByRole('button', { name: 'Show Core' }))
+    await user.click(
       screen.getByRole('switch', { name: 'Disable Points & streaks' }),
     )
     expect(setFeature).toHaveBeenCalledWith('gamification', false)
   })
 
-  it('describes Points & streaks without "XP"', () => {
+  it('describes Points & streaks without "XP"', async () => {
+    const user = userEvent.setup()
     render(<FeaturesPage />)
+    await user.click(screen.getByRole('button', { name: 'Show Core' }))
     expect(
       screen.getByText(
         'Points for chores, levels, streaks and a family leaderboard.',
@@ -77,6 +81,7 @@ describe('Features page switches', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear feature search' }))
     expect(document.activeElement).toBe(search)
+    await user.click(screen.getByRole('button', { name: 'Show Core' }))
     await waitFor(() =>
       expect(screen.getByText('Chores', { exact: true })).toBeTruthy(),
     )
@@ -100,6 +105,7 @@ describe('Features page switches', () => {
     await user.click(planningDisclosure)
     expect(screen.getByRole('switch', { name: 'Enable Budget' })).toBeTruthy()
     expect(screen.getAllByText('On', { exact: true }).length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('button', { name: 'Show Core' }))
     expect(
       screen.getAllByText('Locked', { exact: true }).length,
     ).toBeGreaterThan(0)
@@ -170,6 +176,7 @@ describe('Features page switches', () => {
     })
     setFeature.mockImplementation(() => request)
     render(<FeaturesPage />)
+    await user.click(screen.getByRole('button', { name: 'Show Core' }))
     const toggle = screen.getByRole('switch', {
       name: 'Disable Points & streaks',
     })
@@ -185,5 +192,32 @@ describe('Features page switches', () => {
     expect(setFeature).toHaveBeenCalledTimes(1)
     resolveRequest?.()
     await waitFor(() => expect(toggle.getAttribute('aria-disabled')).toBeNull())
+  })
+
+  it('shows each concurrently pending switch as Updating', async () => {
+    const user = userEvent.setup()
+    const requests = new Map<string, () => void>()
+    setFeature.mockImplementation(
+      (key?: string) =>
+        new Promise<undefined>((resolve) => {
+          requests.set(key ?? '', () => resolve(undefined))
+        }),
+    )
+    render(<FeaturesPage />)
+    const first = screen.getByRole('switch', { name: 'Disable Meal planning' })
+    const second = screen.getByRole('switch', { name: 'Enable Budget' })
+
+    await user.click(first)
+    await user.click(second)
+
+    expect(first.getAttribute('aria-disabled')).toBe('true')
+    expect(second.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getAllByText('Updating…', { exact: true })).toHaveLength(2)
+
+    requests.get('meals')?.()
+    await waitFor(() => expect(first.getAttribute('aria-disabled')).toBeNull())
+    expect(second.getAttribute('aria-disabled')).toBe('true')
+    requests.get('budget')?.()
+    await waitFor(() => expect(second.getAttribute('aria-disabled')).toBeNull())
   })
 })
