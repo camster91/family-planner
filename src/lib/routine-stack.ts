@@ -44,7 +44,7 @@ const draftStepSchema = z
       .max(ROUTINE_ORDER_MAX)
       .nullable()
       .optional(),
-    recurrence_id: z.string().trim().max(128).nullable().optional(),
+    recurrence_id: z.string().trim().min(1).max(128).nullable().optional(),
     is_template: z.boolean().default(false),
   })
   .strict();

@@ -42,6 +42,8 @@ type TransactionDatabase = {
   $transaction<T>(callback: (tx: unknown) => Promise<T>): Promise<T>;
 };
 
+const REPEATING_FREQUENCIES = new Set(["daily", "weekly", "monthly"]);
+
 export interface RoutineStackActor {
   familyId: string;
   userId: string;
@@ -409,6 +411,7 @@ export async function mutateRoutineStackInTx<T extends object>(
           family_id: true,
           recurrence_id: true,
           is_template: true,
+          frequency: true,
         },
       }),
     );
@@ -416,12 +419,25 @@ export async function mutateRoutineStackInTx<T extends object>(
     for (const row of existingRows) {
       const recurrenceId =
         typeof row.recurrence_id === "string" ? row.recurrence_id : null;
-      if (!recurrenceId) continue;
+      if (recurrenceId === null) continue;
+      if (recurrenceId.length === 0) {
+        throw conflict("The selected step's series identity is unavailable.");
+      }
       const anchor = anchorsById.get(recurrenceId);
+      const anchorFrequency =
+        typeof anchor?.frequency === "string" ? anchor.frequency : null;
+      const activeAnchor =
+        anchor?.is_template === true &&
+        anchorFrequency !== null &&
+        REPEATING_FREQUENCIES.has(anchorFrequency);
+      const stoppedAnchor =
+        anchor?.is_template === false && anchorFrequency === "once";
       if (
         !anchor ||
         String(anchor.family_id ?? "") !== actor.familyId ||
-        String(anchor.recurrence_id ?? "") !== recurrenceId
+        String(anchor.id ?? "") !== recurrenceId ||
+        String(anchor.recurrence_id ?? "") !== recurrenceId ||
+        (!activeAnchor && !stoppedAnchor)
       ) {
         throw conflict("The selected step's series identity is unavailable.");
       }

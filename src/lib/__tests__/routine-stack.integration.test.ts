@@ -75,6 +75,9 @@ const LEGACY_OCCURRENCE = `${PREFIX}-legacy-occurrence`;
 const ORPHAN_OCCURRENCE = `${PREFIX}-orphan-occurrence`;
 const FOREIGN_ANCHOR = `${PREFIX}-foreign-anchor`;
 const FOREIGN_OCCURRENCE = `${PREFIX}-foreign-occurrence`;
+const MALFORMED_ANCHOR = `${PREFIX}-malformed-anchor`;
+const MALFORMED_OCCURRENCE = `${PREFIX}-malformed-occurrence`;
+const EMPTY_OCCURRENCE = `${PREFIX}-empty-occurrence`;
 const OCCURRENCE_DATE = "2026-10-12";
 const OCCURRENCE = new Date(`${OCCURRENCE_DATE}T00:00:00.000Z`);
 
@@ -863,6 +866,45 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           recurrence_id: FOREIGN_ANCHOR,
           is_template: true,
         },
+        {
+          id: MALFORMED_ANCHOR,
+          family_id: FAMILY_A,
+          title: "Malformed stopped series",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: new Date("2026-10-05T00:00:00.000Z"),
+          created_by: PARENT_A,
+          frequency: "weekly",
+          weekly_days: [1],
+          recurrence_id: MALFORMED_ANCHOR,
+          is_template: false,
+        },
+        {
+          id: MALFORMED_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Malformed series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: MALFORMED_ANCHOR,
+          is_template: false,
+        },
+        {
+          id: EMPTY_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Empty series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: "",
+          is_template: false,
+        },
       ],
     });
 
@@ -923,9 +965,17 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       ]),
     );
 
-    for (const [id, recurrenceId] of [
-      [ORPHAN_OCCURRENCE, `${PREFIX}-missing-series`],
-      [FOREIGN_OCCURRENCE, FOREIGN_ANCHOR],
+    for (const { id, submittedRecurrenceId } of [
+      {
+        id: ORPHAN_OCCURRENCE,
+        submittedRecurrenceId: `${PREFIX}-missing-series`,
+      },
+      { id: FOREIGN_OCCURRENCE, submittedRecurrenceId: FOREIGN_ANCHOR },
+      {
+        id: MALFORMED_OCCURRENCE,
+        submittedRecurrenceId: MALFORMED_ANCHOR,
+      },
+      { id: EMPTY_OCCURRENCE, submittedRecurrenceId: undefined },
     ] as const) {
       await expect(
         mutateRoutineStack(
@@ -944,8 +994,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
                 due_date: OCCURRENCE_DATE,
                 frequency: "once",
                 difficulty: "medium",
-                recurrence_id: recurrenceId,
                 is_template: false,
+                ...(submittedRecurrenceId === undefined
+                  ? {}
+                  : { recurrence_id: submittedRecurrenceId }),
               },
             ],
             remove_chore_ids: [],

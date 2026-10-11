@@ -518,6 +518,16 @@ describe("routine stack transaction coordinator", () => {
         family_id: "family-b",
       }),
     },
+    {
+      label: "non-template repeating anchor",
+      seriesId: "corrupt-series",
+      anchor: seriesAnchor({
+        id: "corrupt-series",
+        recurrence_id: "corrupt-series",
+        is_template: false,
+        frequency: "weekly",
+      }),
+    },
   ])(
     "rejects a $label recurrence identity before writes",
     async ({ seriesId, anchor }) => {
@@ -544,6 +554,28 @@ describe("routine stack transaction coordinator", () => {
       expect(state.writes).toEqual([]);
     },
   );
+
+  it("rejects an empty stored series identity before writes", async () => {
+    const chore = existingChore({ recurrence_id: "" });
+    const draft = normalizeRoutineStackDraft(
+      input({
+        expected_fingerprint: fingerprintRoutineStackSnapshot([chore as never]),
+      }),
+    );
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [chore],
+    });
+
+    await expect(
+      mutateRoutineStackInTx(tx, draft, {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(state.writes).toEqual([]);
+  });
 
   it("removes a generated occurrence by stable id without rewriting its series history", async () => {
     const anchor = seriesAnchor();
