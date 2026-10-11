@@ -89,6 +89,26 @@ const COMPATIBILITY_CASES: Array<{
   },
 ];
 
+/**
+ * Compatibility accounts sign in through the real form, so give each
+ * case/project pair a dedicated TEST-NET login bucket. The Playwright config
+ * already supplies a project-wide address (10..15); page-level headers layer
+ * this address over only X-Forwarded-For and leave any other context headers
+ * untouched.
+ */
+function compatibilityClientAddress(
+  testInfo: TestInfo,
+  compatibilityCaseIndex: number,
+) {
+  const projectIndex = PROJECTS.indexOf(testInfo.project.name);
+  if (projectIndex < 0) {
+    throw new Error(
+      `Unexpected sync compatibility project: ${testInfo.project.name}`,
+    );
+  }
+  return `198.51.100.${150 + compatibilityCaseIndex * PROJECTS.length + projectIndex}`;
+}
+
 function onlyOnSomeProjects(testInfo: TestInfo) {
   test.skip(
     !PROJECTS.includes(testInfo.project.name),
@@ -233,18 +253,35 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }
   });
 
-  for (const compatibilityCase of COMPATIBILITY_CASES)
+  for (const [
+    compatibilityCaseIndex,
+    compatibilityCase,
+  ] of COMPATIBILITY_CASES.entries())
     test(`${compatibilityCase.name} queue survives reload and explicit purge without replay`, async ({
       page,
     }, testInfo) => {
       const ownedAccount = await seedAccount(testInfo, compatibilityCase);
       account = ownedAccount;
+      // The account is intentionally created and authenticated through the UI.
+      // Isolate only this compatibility login from the long shared shard while
+      // retaining the context's other configured request headers.
+      await page.setExtraHTTPHeaders({
+        "X-Forwarded-For": compatibilityClientAddress(
+          testInfo,
+          compatibilityCaseIndex,
+        ),
+      });
       // The describe-level storage state is parentA for the other journeys.
       // Drop only this context's inherited cookie before the dedicated account
       // login; calling logout here would revoke parentA's shared token.
       await page.context().clearCookies();
       await loginViaUi(page, ownedAccount.email, FIXTURE_PASSWORD);
       await expect(page).toHaveURL(/\/dashboard/);
+      await page.getByRole("button", { name: "User menu" }).click();
+      await expect(
+        page.getByText(`Sync E2E ${compatibilityCase.id}`, { exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "User menu" }).click();
       fixture = await createList(page, testInfo, ["Existing grocery"]);
       const listId = fixture.listId;
       const itemId = fixture.items["Existing grocery"];
