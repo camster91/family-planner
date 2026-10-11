@@ -406,7 +406,7 @@ function TravelPageInner() {
                 className="w-full input-apple"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="travel-start-date" className="text-subhead text-label-secondary mb-1.5 block">
                   <Calendar className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
