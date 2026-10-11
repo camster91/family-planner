@@ -300,7 +300,23 @@ for (const role of ["parent", "teen", "child"] as const) {
           // The intercepted response intentionally contains only the current
           // household row; a Family B marker must never appear here.
           await expect(pickupMain).not.toContainText("Family B");
+          const pickupViolations = (
+            await new AxeBuilder({ page }).include("#main-content").analyze()
+          ).violations.filter(
+            (v) => v.impact === "serious" || v.impact === "critical",
+          );
+          expect(pickupViolations).toEqual([]);
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+          ).toBe(true);
+          await info.attach("pickups-role-surface", {
+            body: await page.screenshot(),
+            contentType: "image/png",
+          });
           await page.goto("/dashboard/today");
+          await userMenu.click();
         }
         const violations = (
           await new AxeBuilder({ page }).include("nav").analyze()
