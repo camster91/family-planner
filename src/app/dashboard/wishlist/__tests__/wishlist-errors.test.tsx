@@ -236,3 +236,98 @@ it('reconciles a network-uncertain status write before showing an error', async 
   await waitFor(() => expect(select.value).toBe('received'))
   expect(screen.queryByRole('alert')).toBeNull()
 })
+
+it('reconciles a 5xx status response before allowing a retry', async () => {
+  let current = ITEM
+  let wishlistGets = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return { ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      wishlistGets += 1
+      return { ok: true, status: 200, json: async () => ({ items: [current] }) } as Response
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      current = { ...ITEM, status: 'received' }
+      return { ok: false, status: 503, json: async () => ({ error: 'Unavailable' }) } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'received')
+
+  await waitFor(() => expect(select.value).toBe('received'))
+  expect(wishlistGets).toBe(2)
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('does not let an older status refresh overwrite a newer item refresh', async () => {
+  const secondItem = { ...ITEM, id: 'w2', title: 'Ball' }
+  const refreshes: Array<(items: unknown[]) => void> = []
+  let wishlistGets = 0
+  global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response)
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      wishlistGets += 1
+      if (wishlistGets === 1) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ items: [ITEM, secondItem] }) } as Response)
+      }
+      return new Promise<Response>((resolve) => {
+        refreshes.push((items) =>
+          resolve({ ok: true, status: 200, json: async () => ({ items }) } as Response),
+        )
+      })
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ item: { ...ITEM, status: 'received' } }),
+      } as Response)
+    }
+    if (url === '/api/wishlist/w2/status' && method === 'PATCH') {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ item: { ...secondItem, status: 'on_the_way' } }),
+      } as Response)
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({}) } as Response)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const bikeSelect = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  const ballSelect = screen.getByRole('combobox', { name: 'Status for Ball' }) as HTMLSelectElement
+
+  await user.selectOptions(bikeSelect, 'received')
+  await waitFor(() => expect(refreshes).toHaveLength(1))
+  await user.selectOptions(ballSelect, 'on_the_way')
+  await waitFor(() => expect(refreshes).toHaveLength(2))
+
+  // The newer refresh resolves first with both committed statuses. The older
+  // response is deliberately stale and must not replace it afterward.
+  refreshes[1]([
+    { ...ITEM, status: 'received' },
+    { ...secondItem, status: 'on_the_way' },
+  ])
+  await waitFor(() => expect(ballSelect.value).toBe('on_the_way'))
+  refreshes[0]([
+    { ...ITEM, status: 'received' },
+    secondItem,
+  ])
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(ballSelect.value).toBe('on_the_way')
+})

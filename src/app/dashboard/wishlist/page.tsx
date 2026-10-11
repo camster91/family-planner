@@ -59,6 +59,13 @@ function responseMatchesStatus(
   )
 }
 
+// A 4xx response is a definitive refusal from the canonical API. A 5xx or
+// intermediary error can arrive after the status update committed, so it must
+// be reconciled before the user retries.
+function isDefinitiveStatusRefusal(status: number): boolean {
+  return Number.isInteger(status) && status >= 400 && status < 500
+}
+
 type UserRole = 'parent' | 'child' | 'teen'
 
 function WishlistContent() {
@@ -85,6 +92,7 @@ function WishlistContent() {
     () => new Set(),
   )
   const pendingStatusIdsRef = useRef<Set<string>>(new Set())
+  const itemsRequestRef = useRef(0)
   const denialReasonRef = useRef<HTMLTextAreaElement>(null)
   const { addToast } = useMaybeToast()
 
@@ -95,6 +103,7 @@ function WishlistContent() {
 
   const fetchItems = useCallback(async (options?: { showPageError?: boolean }) => {
     const showPageError = options?.showPageError ?? true
+    const requestId = ++itemsRequestRef.current
     try {
       const res = await fetch('/api/wishlist')
       if (!res.ok) throw new Error(t('wishlist.errorLoad'))
@@ -102,16 +111,22 @@ function WishlistContent() {
       if (!isRecord(data) || !Array.isArray(data.items)) {
         throw new Error(t('wishlist.errorLoad'))
       }
-      setItems(data.items as WishlistItem[])
-      setError(null)
-      return data.items as WishlistItem[]
+      const nextItems = data.items as WishlistItem[]
+      // A later refresh is authoritative even if an older request resolves
+      // afterward. Still return the parsed response to the initiating status
+      // operation so it can reconcile its own write.
+      if (requestId === itemsRequestRef.current) {
+        setItems(nextItems)
+        setError(null)
+      }
+      return nextItems
     } catch (e: unknown) {
-      if (showPageError) {
+      if (showPageError && requestId === itemsRequestRef.current) {
         setError(e instanceof Error ? e.message : t('wishlist.errorLoad'))
       }
       return null
     } finally {
-      setLoading(false)
+      if (requestId === itemsRequestRef.current) setLoading(false)
     }
   }, [t])
 
@@ -220,6 +235,13 @@ function WishlistContent() {
         return confirmed
       }
       if (!res.ok) {
+        if (!isDefinitiveStatusRefusal(res.status)) {
+          const confirmed = await reconcileStatus(id, status, normalizedReason)
+          if (!confirmed) {
+            reportStatusError(t('wishlist.statusUncertain'), errorTarget)
+          }
+          return confirmed
+        }
         reportStatusError(
           (await serverError(res)) ?? t('common.tryAgain'),
           errorTarget,
@@ -526,6 +548,7 @@ function WishlistContent() {
         title={t('wishlist.denyWish')}
         description={denialDraft?.title}
         initialFocusRef={denialReasonRef}
+        closeLabel={t('wishlist.cancel')}
       >
         <div className="space-y-4">
           <div>
