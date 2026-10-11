@@ -475,6 +475,19 @@ async function expectSurface(
   ).toEqual([]);
 }
 
+async function expectChoreListView(page: Page) {
+  // A successful editor save uses router.back(). Wait for that navigation and
+  // the mounted default view before issuing a canonical read or opening the
+  // editor again; otherwise the old route's execution context can disappear
+  // while browserFetch is still evaluating in the page.
+  await expect(page).toHaveURL(/\/dashboard\/chores$/);
+  const view = page.getByRole("group", { name: "Chore view" });
+  await expect(view).toBeVisible();
+  await expect(
+    view.getByRole("button", { name: "Chore list", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+}
+
 async function makeDraft(page: Page, fixture: Fixture, locale: Locale) {
   const text = copy[locale];
   const editor = page.getByTestId("routine-stack-editor");
@@ -567,6 +580,7 @@ for (const locale of LOCALES) {
         expect(body.stack_id).toEqual(expect.any(String));
         expect(body.fingerprint).toEqual(expect.any(String));
         stackId = body.stack_id!;
+        await expectChoreListView(page);
         await expect(page.getByRole("dialog")).toHaveCount(0);
 
         const read = await browserFetch(
@@ -648,6 +662,7 @@ for (const locale of LOCALES) {
           ? ""
           : await reorderResult.text();
         expect(reorderResult.status(), reorderBody).toBe(200);
+        await expectChoreListView(page);
         const editedRead = await browserFetch(
           page,
           `/api/chores/stacks?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${DATE}`,
@@ -676,6 +691,7 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
         expect((await unstackResponse).status()).toBe(200);
+        await expectChoreListView(page);
         const finalRead = await browserFetch(
           page,
           `/api/chores/stacks?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${DATE}`,
