@@ -172,6 +172,13 @@ describe('ChoresContent profile subjects', () => {
 
     await waitFor(() => expect(screen.getByText('Jamie · Today')).toBeTruthy())
     expect(screen.queryByText(/Unassigned/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /More actions for/ })).toBeNull()
+
+    const completeControl = screen.getByRole('checkbox', { name: 'Pack the school bag' })
+    expect(completeControl.getAttribute('aria-disabled')).toBe('true')
+    global.fetch = jest.fn() as unknown as typeof fetch
+    await userEvent.setup().click(completeControl)
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })
 

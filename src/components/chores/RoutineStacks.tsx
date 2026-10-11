@@ -8,11 +8,12 @@ import { groupChoreSeries } from '@/lib/chore-series-groups'
 import { formatDateOnly } from '@/lib/dates'
 import { RoutineIcon } from './RoutineIcon'
 import type { Chore } from '@/types'
+import type { ChoreSubjectDTO } from '@/lib/chore-profile'
 
 type Step = Chore & {
   assignee: { name: string } | null
   /** Safe display-only subject for an email-free household member. */
-  subject?: { name: string }
+  subject?: ChoreSubjectDTO
 }
 
 /** Labels are not identities: keep members and occurrences separate. */
@@ -45,7 +46,8 @@ export function RoutineStacks({ chores, userRole, currentUserId, locale, collaps
   const other = chores.filter(c => !c.routine?.trim())
   const renderStep = (chore: Step, next: boolean, context = false) => {
     const done = isDone(chore)
-    const canComplete = userRole === 'parent' || chore.assigned_to === currentUserId
+    const profileOnly = chore.subject?.kind === 'profile'
+    const canComplete = !profileOnly && (userRole === 'parent' || chore.assigned_to === currentUserId)
     return (
       <li key={chore.id} className="flex flex-wrap items-center gap-3 py-3 border-b border-[var(--surface-separator)] last:border-0">
         <RoutineIcon icon={chore.icon ?? null} className="h-8 w-8 shrink-0 text-label-primary" />
@@ -55,7 +57,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, locale, collaps
           <p className="text-footnote text-label-secondary">{chore.status === 'verified' ? 'Checked' : done ? 'Done · awaiting check' : next ? 'Up next' : 'To do'}</p>
         </div>
         {!done && canComplete && <button type="button" onClick={() => onComplete(chore.id)} className="btn-filled min-h-[44px]" aria-label={`Complete ${chore.title}`}>Done</button>}
-        {userRole === 'parent' && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={`Edit ${chore.title}`}>Edit</Link>}
+        {userRole === 'parent' && !profileOnly && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={`Edit ${chore.title}`}>Edit</Link>}
       </li>
     )
   }

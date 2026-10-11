@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import type { Chore } from "@/types";
+import type { ChoreSubjectDTO } from "@/lib/chore-profile";
 import { groupChoreSeries, choreCadence } from "@/lib/chore-series-groups";
 import { formatRelativeDueDate } from "@/lib/dates";
 
 type Row = Chore & {
   assignee: { name: string } | null;
   /** Safe display-only subject for an email-free household member. */
-  subject?: { name: string };
+  subject?: ChoreSubjectDTO;
 };
 
 /** Disclosure has no mutation: actions always target an expanded occurrence. */

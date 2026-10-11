@@ -39,6 +39,7 @@ import {
   compareChoreOrder,
 } from "@/lib/chore-paging";
 import type { Chore } from "@/types";
+import type { ChoreSubjectDTO } from "@/lib/chore-profile";
 
 type FilterMode = "today" | "week" | "all";
 
@@ -55,7 +56,7 @@ interface ChoresContentProps {
     assignee: { name: string } | null;
     creator: { name: string } | null;
     /** Safe profile subject returned by the chores API for email-free members. */
-    subject?: { name: string };
+    subject?: ChoreSubjectDTO;
     streak?: number;
   })[];
   familyMembers: { id: string; name: string; role: string; age?: number }[];
@@ -644,16 +645,10 @@ export default function ChoresContent({
     .filter((c) => c.status === "completed" || c.status === "verified")
     .sort((a, b) => compareChoreOrder(b, a));
 
-  const renderOpenChore = (chore: (typeof todayChores)[number], i: number) =>
-    now && (
-      // A visible "⋯" opens the actions (they used to be long-press
-      // only), and only the check itself completes the chore, so a
-      // parent tapping the name to edit it doesn't tick it off.
-      <LongPressRow
-        key={chore.id}
-        itemName={`“${chore.title}”`}
-        showMenuButton
-        actions={[
+  const renderOpenChore = (chore: (typeof todayChores)[number], i: number) => {
+    if (!now) return null;
+    const profileOnly = chore.subject?.kind === "profile";
+    const actions = [
           chore.recurrence_id
             ? {
                 // Moving an occurrence onto an already-expanded date violates
@@ -689,10 +684,15 @@ export default function ChoresContent({
             onClick: () => handleDeleteChore(chore.id),
             destructive: true,
           },
-        ]}
-      >
-        <CheckboxRow
+        ] as const;
+    // Profile-only chores are readable on the parent board, but protocol 2 is
+    // intentionally off. Do not expose legacy controls that can only return
+    // MEMBER_PROTOCOL_UNAVAILABLE; paired-device actions arrive with that
+    // protocol in a later vertical slice.
+    const row = (
+      <CheckboxRow
           checked={false}
+          disabled={profileOnly}
           toggleArea="control"
           onChange={() => handleCompleteChore(chore.id)}
           title={chore.title}
@@ -737,8 +737,22 @@ export default function ChoresContent({
           }
           className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
         />
+    );
+    if (profileOnly) return <div key={chore.id}>{row}</div>;
+    // A visible "⋯" opens the actions (they used to be long-press only), and
+    // only the check itself completes the chore, so tapping the name to edit
+    // it does not tick it off.
+    return (
+      <LongPressRow
+        key={chore.id}
+        itemName={`“${chore.title}”`}
+        showMenuButton
+        actions={[...actions]}
+      >
+        {row}
       </LongPressRow>
     );
+  };
 
   const SegmentedControl = ({
     value,
