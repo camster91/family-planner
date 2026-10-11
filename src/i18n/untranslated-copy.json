@@ -296,17 +296,7 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Reject",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Routines",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Send back “",
     "count": 1
   },
   {
@@ -317,16 +307,6 @@
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Verify",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Verify “",
     "count": 1
   },
   {

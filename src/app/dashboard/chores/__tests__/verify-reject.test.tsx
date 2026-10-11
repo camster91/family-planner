@@ -10,6 +10,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ChoresContent from "../ChoresContent";
 import { ToastProvider } from "@/components/ui/toast";
+import { I18nProvider } from "@/i18n";
 import { format } from "date-fns";
 
 jest.mock("next/navigation", () => ({
@@ -164,7 +165,6 @@ describe("ChoresContent parent check", () => {
   });
 
   it("Reject asks for a reason, posts decision reject with the note, and the chore is open again", async () => {
-    jest.spyOn(window, "prompt").mockReturnValue("  Toys still out ");
     replies.push({
       status: 200,
       body: {
@@ -184,6 +184,21 @@ describe("ChoresContent parent check", () => {
     await userEvent.click(
       within(queue()!).getByRole("button", { name: "Send back “Tidy room”" }),
     );
+    expect(calls).toHaveLength(0);
+    const dialog = screen.getByRole("dialog", {
+      name: "Send “Tidy room” back",
+    });
+    expect(dialog).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Cancel" }),
+    );
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "Reason (optional)" }),
+      "  Toys still out ",
+    );
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Send back" }),
+    );
 
     expect(calls).toEqual([
       {
@@ -200,16 +215,23 @@ describe("ChoresContent parent check", () => {
     expect(within(queue()!).queryByText("Tidy room")).toBeNull();
     // Back in the open list for today, tickable again.
     expect(screen.getByRole("checkbox", { name: /Tidy room/ })).toBeTruthy();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Today" }),
+      ),
+    );
   });
 
-  it("cancelling the reason prompt sends nothing", async () => {
-    jest.spyOn(window, "prompt").mockReturnValue(null);
+  it("cancelling the reason dialog sends nothing and restores focus", async () => {
     renderPage();
-    await userEvent.click(
-      within(queue()!).getByRole("button", { name: "Send back “Tidy room”" }),
-    );
+    const trigger = within(queue()!).getByRole("button", {
+      name: "Send back “Tidy room”",
+    });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(calls).toHaveLength(0);
     expect(within(queue()!).getByText("Tidy room")).toBeTruthy();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("a refused verify rolls the row back and shows the reason", async () => {
@@ -261,7 +283,6 @@ describe("ChoresContent parent check", () => {
   });
 
   it("a network failure on reject rolls back too", async () => {
-    jest.spyOn(window, "prompt").mockReturnValue("");
     replies.push("network");
     renderPage();
     await userEvent.click(
@@ -269,8 +290,147 @@ describe("ChoresContent parent check", () => {
         name: "Send back “Feed the cat”",
       }),
     );
+    const dialog = screen.getByRole("dialog", {
+      name: "Send “Feed the cat” back",
+    });
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Send back" }),
+    );
     expect(calls[0].body).toEqual({ choreId: "c1", decision: "reject" });
-    await screen.findByText("Couldn't send it back");
+    await screen.findByRole("alert");
+    expect(
+      within(dialog).getByRole("button", { name: "Try again" }),
+    ).toBeTruthy();
+    expect(
+      (within(dialog).getByRole("textbox") as HTMLTextAreaElement).value,
+    ).toBe("");
     expect(within(queue()!).getByText("Feed the cat")).toBeTruthy();
+  });
+
+  it("keeps rejection notes when a conflict can be retried", async () => {
+    replies.push({
+      status: 409,
+      body: {
+        error: "This chore changed while you were checking it.",
+        code: "CHORE_NOT_COMPLETED",
+        chore: {
+          id: "c2",
+          status: "pending",
+          photo_verified: false,
+          verified_at: null,
+          verified_notes: "Try the routine again",
+          completed_at: null,
+        },
+      },
+    });
+    replies.push({
+      status: 200,
+      body: {
+        chore: {
+          id: "c2",
+          status: "pending",
+          photo_verified: false,
+          verified_at: null,
+          verified_notes: "Try the routine again",
+          completed_at: null,
+        },
+      },
+    });
+    renderPage();
+    await userEvent.click(
+      within(queue()!).getByRole("button", {
+        name: "Send back “Tidy room”",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Send “Tidy room” back",
+    });
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "Reason (optional)" }),
+      "Try the routine again",
+    );
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Send back" }),
+    );
+    await screen.findByRole("alert");
+    expect(
+      (within(dialog).getByRole("textbox") as HTMLTextAreaElement).value,
+    ).toBe("Try the routine again");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Try again" }),
+    );
+    await screen.findByText("Sent back");
+    expect(calls).toHaveLength(2);
+    expect(calls[0].body).toEqual(calls[1].body);
+  });
+
+  it("does not send duplicate verification requests while a decision is pending", async () => {
+    let release!: (response: Response) => void;
+    global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        method: init?.method,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    }) as unknown as typeof fetch;
+    renderPage();
+    const reject = within(queue()!).getByRole("button", {
+      name: "Send back “Tidy room”",
+    });
+    await userEvent.click(reject);
+    const dialog = screen.getByRole("dialog", {
+      name: "Send “Tidy room” back",
+    });
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "Reason (optional)" }),
+      "Try the routine again",
+    );
+    const submit = within(dialog).getByRole("button", { name: "Send back" });
+    await Promise.all([userEvent.click(submit), userEvent.click(submit)]);
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    expect(calls).toHaveLength(1);
+    release({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        chore: {
+          id: "c2",
+          status: "pending",
+          photo_verified: false,
+          verified_at: null,
+          verified_notes: "Try the routine again",
+          completed_at: null,
+        },
+      }),
+    } as Response);
+    await screen.findByText("Sent back");
+  });
+
+  it("uses the Spanish verification dialog copy", async () => {
+    render(
+      <I18nProvider locale="es">
+        <ToastProvider>
+          <ChoresContent
+            chores={[completedChore("c1", "Feed the cat")]}
+            familyMembers={[{ id: "kid", name: "Casey", role: "child" }]}
+            currentUserId="parent"
+            userRole="parent"
+          />
+        </ToastProvider>
+      </I18nProvider>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Devolver “Feed the cat”" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Devolver “Feed the cat”",
+    });
+    expect(within(dialog).getByText("Motivo (opcional)")).toBeTruthy();
+    expect(
+      within(dialog).getByRole("button", { name: "Devolver" }),
+    ).toBeTruthy();
   });
 });
