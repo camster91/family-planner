@@ -26,10 +26,10 @@ const user = (role: NavUser['role']): NavUser => ({ id: 'u1', name: 'Sam Example
 
 const kidFeatureRoutes = [
   { key: 'wishlist', label: 'Wishlist', href: '/dashboard/wishlist' },
-  { key: 'allowance', label: 'Allowance', href: '/dashboard/allowance' },
-  { key: 'handoff', label: 'Handoff', href: '/dashboard/handoff' },
-  { key: 'sick-days', label: 'Sick days', href: '/dashboard/sick-days' },
-  { key: 'notes', label: 'Notes', href: '/dashboard/notes' },
+  { key: 'allowance', label: 'Allowance & IOUs', href: '/dashboard/allowance' },
+  { key: 'handoff', label: 'Babysitter handoff', href: '/dashboard/handoff' },
+  { key: 'sick-days', label: 'Sick days & meds', href: '/dashboard/sick-days' },
+  { key: 'notes', label: 'Pinned notes', href: '/dashboard/notes' },
 ] as const satisfies ReadonlyArray<{ key: FeatureKey; label: string; href: string }>
 
 async function openMenu(role: NavUser['role']) {
@@ -92,7 +92,7 @@ describe('DashboardNav user menu: kid feature discovery', () => {
       </I18nProvider>,
     )
     await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de usuario' }))
-    for (const label of ['Lista de deseos', 'Mesada', 'Entrega al cuidador', 'Días de enfermedad', 'Notas']) {
+    for (const label of ['Lista de deseos', 'Mesada y deudas', 'Entrega al cuidador', 'Días de enfermedad y medicinas', 'Notas fijadas']) {
       expect(screen.getByRole('link', { name: label })).toBeTruthy()
     }
   })

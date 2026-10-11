@@ -21,6 +21,7 @@ import DashboardNav from '../DashboardNav'
 import MorePage from '@/app/dashboard/family/more/page'
 import FamilyPage from '@/app/dashboard/family/page'
 import type { NavUser } from '@/types'
+import { I18nProvider } from '@/i18n'
 
 let mockFeatures: FamilyFeatures = defaultFeatures()
 let mockPath = '/dashboard/today'
@@ -149,6 +150,25 @@ describe('More list', () => {
     expect(titles).toContain('Allowance & IOUs')
     expect(titles).not.toContain('Budget')
     expect(screen.getByRole('link', { name: /Turn features on or off/ }).getAttribute('href')).toBe('/dashboard/features')
+  })
+
+  it('localizes More feature titles while preserving canonical destination hrefs', () => {
+    mockFeatures = { ...defaultFeatures(), inventory: true, allowance: true }
+    render(
+      <I18nProvider locale="es">
+        <MorePage />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('heading', { name: 'Más' })).toBeTruthy()
+    expect(
+      screen.getByRole('link', { name: /Inventario de alimentos/ }).getAttribute('href'),
+    ).toBe('/dashboard/inventory')
+    expect(
+      screen.getByRole('link', { name: /Mesada y deudas/ }).getAttribute('href'),
+    ).toBe('/dashboard/allowance')
+    expect(
+      screen.getByRole('link', { name: /Activar o desactivar funciones/ }).getAttribute('href'),
+    ).toBe('/dashboard/features')
   })
 
   it('the command palette offers More and Emergency', () => {
