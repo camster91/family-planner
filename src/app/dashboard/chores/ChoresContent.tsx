@@ -746,6 +746,7 @@ export default function ChoresContent({
             userRole={userRole}
             currentUserId={currentUserId}
             locale={displayLocale}
+            collapseRepeats={filter !== "today"}
             onComplete={handleCompleteChore}
           />
         ) : todayChores.length > 0 ? (
