@@ -26,6 +26,7 @@ const COPY = {
     unavailable: "Travel mode is unavailable",
     retry: "Try again",
     turnOff: "Turn off travel mode",
+    turnOn: "Turn on travel mode",
     destination: "Destination",
     save: "Save",
     refusal: "Couldn't change travel mode",
@@ -36,6 +37,7 @@ const COPY = {
     unavailable: "El modo viaje no está disponible",
     retry: "Intentar de nuevo",
     turnOff: "Desactivar modo viaje",
+    turnOn: "Activar modo viaje",
     destination: "Destino",
     save: "Guardar",
     refusal: "No se pudo cambiar el modo viaje",
@@ -126,7 +128,12 @@ for (const locale of ["en", "es"] as const) {
 
       let travelGets = 0;
       let travelPatches = 0;
-      let currentState = { ...ACTIVE };
+      let currentState: {
+        travel_mode_active: boolean;
+        travel_start_date: string | null;
+        travel_end_date: string | null;
+        travel_destination: string | null;
+      } = { ...ACTIVE };
       await page.route("**/api/family/travel", async (route) => {
         const request = route.request();
         if (request.method() === "GET") {
@@ -158,6 +165,38 @@ for (const locale of ["en", "es"] as const) {
               status: 200,
               contentType: "application/json",
               body: JSON.stringify({ travel_mode_active: "yes" }),
+            });
+            return;
+          }
+          if (travelPatches === 4) {
+            // The server applies the details before a 503 reaches the client.
+            // The follow-up GET must win without discarding the local draft or
+            // allowing a duplicate PATCH.
+            currentState = {
+              ...currentState,
+              travel_destination: "Committed after 503",
+            };
+            await route.fulfill({
+              status: 503,
+              contentType: "application/json",
+              body: JSON.stringify({ error: "upstream unavailable" }),
+            });
+            return;
+          }
+          if (travelPatches === 5) {
+            // The toggle is also committed before its response is lost. The
+            // explicit GET below must reconcile the inactive server state.
+            currentState = {
+              ...currentState,
+              travel_mode_active: false,
+              travel_start_date: null,
+              travel_end_date: null,
+              travel_destination: null,
+            };
+            await route.fulfill({
+              status: 503,
+              contentType: "application/json",
+              body: JSON.stringify({ error: "upstream unavailable" }),
             });
             return;
           }
@@ -258,6 +297,54 @@ for (const locale of ["en", "es"] as const) {
       await expect(destination).toHaveValue("Lisbon draft");
       expect(travelPatches).toBe(3);
       expect(travelGets).toBe(4);
+
+      // A 503 after the server commits details is unknown, just like a lost
+      // response. Reconciliation keeps the user's draft until they choose
+      // what to do with the confirmed server state and never retries blindly.
+      await destination.fill("Lisbon after 503");
+      await save.click();
+      await expect(
+        page.getByText(copy.uncertain, { exact: true }),
+      ).toBeVisible();
+      await expect(toggle).toBeDisabled();
+      await expect(save).toBeDisabled();
+      expect(travelPatches).toBe(4);
+      const thirdCheck = page.getByRole("button", {
+        name: copy.check,
+        exact: true,
+      });
+      await assertPrimaryTarget(thirdCheck);
+      await thirdCheck.click();
+      await expect(page.getByText(copy.uncertain, { exact: true })).toHaveCount(
+        0,
+      );
+      await expect(destination).toHaveValue("Lisbon after 503");
+      expect(travelPatches).toBe(4);
+      expect(travelGets).toBe(5);
+
+      // A 503 after a toggle commit is reconciled as well. The server's
+      // inactive state replaces the active view only after the explicit GET.
+      await toggle.click();
+      await expect(
+        page.getByText(copy.uncertain, { exact: true }),
+      ).toBeVisible();
+      await expect(toggle).toBeDisabled();
+      await expect(save).toBeDisabled();
+      expect(travelPatches).toBe(5);
+      const fourthCheck = page.getByRole("button", {
+        name: copy.check,
+        exact: true,
+      });
+      await assertPrimaryTarget(fourthCheck);
+      await fourthCheck.click();
+      await expect(page.getByText(copy.uncertain, { exact: true })).toHaveCount(
+        0,
+      );
+      await expect(
+        page.getByRole("switch", { name: copy.turnOn, exact: true }),
+      ).toBeVisible();
+      expect(travelPatches).toBe(5);
+      expect(travelGets).toBe(6);
       await assertSurface(page);
       await info.attach("travel-recovery-screen", {
         body: await page.screenshot(),
@@ -279,6 +366,8 @@ for (const locale of ["en", "es"] as const) {
             "403 refusal",
             "network unknown",
             "malformed 200 PATCH",
+            "503 after details commit",
+            "503 after toggle commit",
             "draft retained",
             "explicit GET reconciliation",
             "axe",
