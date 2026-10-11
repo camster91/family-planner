@@ -54,6 +54,7 @@ describeWithDatabase("events POST capture against Postgres", () => {
   const PARENT = "evt-route-int-parent";
   const OTHER_PARENT = "evt-route-int-other-parent";
   const priorSharedDeviceEnabled = process.env.SHARED_DEVICE_ENABLED;
+  let priorIdempotencyRandom: () => number;
   let sequence = 0;
 
   const key = (label: string) =>
@@ -115,6 +116,7 @@ describeWithDatabase("events POST capture against Postgres", () => {
     db = mod.prisma;
     POST = (await import("../route")).POST;
     idem = await import("@/lib/idempotency");
+    priorIdempotencyRandom = idem.idempotencyRuntime.random;
 
     await cleanup();
     await db.family.createMany({
@@ -180,7 +182,7 @@ describeWithDatabase("events POST capture against Postgres", () => {
 
   afterAll(async () => {
     if (!db) return;
-    idem.idempotencyRuntime.random = () => Math.random();
+    idem.idempotencyRuntime.random = priorIdempotencyRandom;
     try {
       await db.user.updateMany({
         where: { id: PARENT },
