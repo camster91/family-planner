@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ashbi.familyplanner',
-  appName: 'Family Planner',
+  appName: 'herewoven',
   webDir: 'public',
   server: {
     url: 'https://family.ashbi.ca',
