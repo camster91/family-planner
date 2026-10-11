@@ -16,7 +16,11 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page, Request, Response, TestInfo } from "@playwright/test";
 import pg from "pg";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
-import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
+import {
+  FIXTURE_EMAILS,
+  FIXTURE_IDS,
+  FIXTURE_PASSWORD,
+} from "../src/lib/fixtures/dataset";
 import { authFile, E2E_ANCHOR, E2E_BASE_URL } from "./support/env";
 import { goOffline, goOnline } from "./support/network";
 import {
@@ -34,10 +38,12 @@ const PROJECTS = ["phone-390x844", "fridge-landscape-1280x800"];
 type Fixture = { listId: string; items: Record<string, string> };
 
 const COMPATIBILITY_CASES: Array<{
+  id: string;
   name: string;
   build: (itemId: string) => Record<string, unknown>;
 }> = [
   {
+    id: "v1-ops",
     name: "an unfamiliar v1 operation",
     build: (itemId) => ({
       v: 1,
@@ -62,6 +68,7 @@ const COMPATIBILITY_CASES: Array<{
     }),
   },
   {
+    id: "v2-operations",
     name: "a future malformed operations envelope",
     build: () => ({
       v: 2,
@@ -87,6 +94,66 @@ function onlyOnSomeProjects(testInfo: TestInfo) {
     !PROJECTS.includes(testInfo.project.name),
     "sync journeys run on two representative projects",
   );
+}
+
+type OwnedAccount = { userId: string; email: string };
+
+async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
+  assertFixtureTargetAllowed(process.env);
+  const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await db.connect();
+  try {
+    return await fn(db);
+  } finally {
+    await db.end();
+  }
+}
+
+function accountFor(testInfo: TestInfo, compatibilityCase: { id: string }) {
+  const prefix = `fx_e2e_sync_${testInfo.project.name.replace(/\W+/g, "_")}_${compatibilityCase.id}`;
+  return {
+    userId: `${prefix}_parent`,
+    email: `${prefix}@example.test`,
+  } satisfies OwnedAccount;
+}
+
+async function seedAccount(
+  testInfo: TestInfo,
+  compatibilityCase: { id: string },
+): Promise<OwnedAccount> {
+  const account = accountFor(testInfo, compatibilityCase);
+  await withDb(async (db) => {
+    // Clean only this test's deterministic account and lists from an interrupted
+    // prior run. The fixture parent and household remain untouched.
+    await db.query(`DELETE FROM "List" WHERE created_by = $1`, [
+      account.userId,
+    ]);
+    await db.query(`DELETE FROM "User" WHERE id = $1`, [account.userId]);
+    const inserted = await db.query(
+      `INSERT INTO "User" (id, email, password, name, role, family_id, email_verified)
+       SELECT $1, $2, password, $3, 'parent', $4, true
+       FROM "User"
+       WHERE id = $5`,
+      [
+        account.userId,
+        account.email,
+        `Sync E2E ${compatibilityCase.id}`,
+        FIXTURE_IDS.familyA.family,
+        FIXTURE_IDS.familyA.parent,
+      ],
+    );
+    expect(inserted.rowCount).toBe(1);
+  });
+  return account;
+}
+
+async function removeAccount(account: OwnedAccount) {
+  await withDb(async (db) => {
+    await db.query(`DELETE FROM "List" WHERE created_by = $1`, [
+      account.userId,
+    ]);
+    await db.query(`DELETE FROM "User" WHERE id = $1`, [account.userId]);
+  });
 }
 
 async function createList(
@@ -145,6 +212,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
   test.use({ storageState: authFile("parentA") });
 
   let fixture: Fixture | null = null;
+  let account: OwnedAccount | null = null;
 
   test.beforeEach(async ({}, testInfo) => onlyOnSomeProjects(testInfo));
 
@@ -159,12 +227,20 @@ test.describe("offline grocery ticks: Family A parent", () => {
       expect(res.status, res.body).toBe(200);
       fixture = null;
     }
+    if (account) {
+      await removeAccount(account);
+      account = null;
+    }
   });
 
   for (const compatibilityCase of COMPATIBILITY_CASES)
     test(`${compatibilityCase.name} queue survives reload and explicit purge without replay`, async ({
       page,
     }, testInfo) => {
+      const ownedAccount = await seedAccount(testInfo, compatibilityCase);
+      account = ownedAccount;
+      await loginViaUi(page, ownedAccount.email, FIXTURE_PASSWORD);
+      await expect(page).toHaveURL(/\/dashboard/);
       fixture = await createList(page, testInfo, ["Existing grocery"]);
       const listId = fixture.listId;
       const itemId = fixture.items["Existing grocery"];
@@ -202,7 +278,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
               db.close();
             }
           },
-          { mode, raw, userId: FIXTURE_IDS.familyA.parent },
+          { mode, raw, userId: ownedAccount.userId },
         );
       const updates = trackUpdates(page);
       let purged = false;
