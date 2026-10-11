@@ -11,6 +11,7 @@ import {
   type WeatherView,
 } from './board-model'
 import { iconFor } from './weather-tile'
+import { useTodayBoardText } from '@/i18n/today-board'
 
 /**
  * The calm frame (clock, date, weather when on, the next event and tonight's
@@ -36,6 +37,7 @@ export function AmbientCover({
   photos: BoardPhoto[]
   onWake: () => void
 }) {
+  const text = useTodayBoardText()
   const [shown, setShown] = React.useState(false)
   const locale = useDisplayLocale()
   const [broken, setBroken] = React.useState<Set<string>>(() => new Set())
@@ -60,7 +62,7 @@ export function AmbientCover({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={state.ambient ? 'Calm display' : 'Night dimming'}
+      aria-label={text(state.ambient ? 'calmDisplay' : 'nightDimming')}
       data-testid="ambient-cover"
       data-ambient={state.ambient ? 'true' : 'false'}
       data-dim={state.dim ? 'true' : 'false'}
@@ -156,7 +158,7 @@ export function AmbientCover({
               type="button"
               className="btn-primary min-h-11"
             >
-              Show the board
+              {text('showBoard')}
             </button>
           </div>
         </div>
