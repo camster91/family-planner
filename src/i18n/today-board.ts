@@ -48,6 +48,15 @@ export const todayBoardEnglish = {
   comingEmpty: "Nothing on the calendar",
   dinnerLabel: "Dinner: {name}",
   planned: "planned",
+  lazyAmbientLoading: "Loading the calm display",
+  lazyAmbientError: "The calm display could not load.",
+  lazyWeatherLoading: "Loading weather",
+  lazyWeatherError: "Weather could not load.",
+  retry: "Try again",
+  showBoard: "Show the board",
+  calmDisplay: "Calm display",
+  nightDimming: "Night dimming",
+  weather: "Weather",
 } as const;
 
 export type TodayBoardMessage = keyof typeof todayBoardEnglish;
@@ -100,6 +109,15 @@ export const todayBoardSpanish: TodayBoardMessages = {
   comingEmpty: "No hay nada en el calendario",
   dinnerLabel: "Cena: {name}",
   planned: "planificada",
+  lazyAmbientLoading: "Cargando la pantalla tranquila",
+  lazyAmbientError: "No se pudo cargar la pantalla tranquila.",
+  lazyWeatherLoading: "Cargando el tiempo",
+  lazyWeatherError: "No se pudo cargar el tiempo.",
+  retry: "Intentar de nuevo",
+  showBoard: "Mostrar el panel",
+  calmDisplay: "Pantalla tranquila",
+  nightDimming: "Atenuación nocturna",
+  weather: "Tiempo",
 };
 
 export const todayBoardMessages = {

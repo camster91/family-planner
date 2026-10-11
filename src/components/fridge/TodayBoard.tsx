@@ -3,12 +3,13 @@
 import * as React from 'react'
 import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { useTodayBoardText } from '@/i18n/today-board'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Maximize2, Minimize2 } from 'lucide-react'
-import type { BoardDisplayData, TodayBoardData } from '@/app/dashboard/today/today-board-data'
+import type { BoardDisplayData, BoardPhoto, TodayBoardData } from '@/app/dashboard/today/today-board-data'
 import { COMING_UP_DAYS } from '@/lib/board-constants'
-import { DEFAULT_BOARD_DISPLAY } from '@/lib/ambient'
+import { DEFAULT_BOARD_DISPLAY, type AmbientState } from '@/lib/ambient'
 import {
   choresDueTodayByPerson,
   comingUp,
@@ -23,8 +24,10 @@ import {
   nextEvent,
   weatherView,
   itemsToUseSoon,
+  type NextEventView,
+  type WeatherView,
 } from './board-model'
-import { AmbientCover, useIdleCover } from './ambient'
+import { useIdleCover } from './ambient'
 import { SyncAnnouncer, SyncNotice, UpdatedLine } from './sync-status'
 import { useBoardSync } from './use-board-sync'
 import {
@@ -38,7 +41,6 @@ import {
 } from './regions'
 import { actionLinkClass } from './styles'
 import TodayControls from './TodayControls'
-import { WeatherTile } from './weather-tile'
 import { UseSoonRegion } from './use-soon-region'
 import { useBoardTiles, type BoardActions } from './board-actions'
 import { usePersonBoardActions } from './use-person-board-actions'
@@ -168,6 +170,184 @@ function BoardSkeleton() {
         ))}
       </div>
     </div>
+  )
+}
+
+type LazyChunkBoundaryProps = {
+  children: React.ReactNode
+  fallback: React.ReactNode
+}
+
+type LazyChunkBoundaryState = { failed: boolean }
+
+/** Turns a failed optional chunk into a local retry instead of taking down the board. */
+export class LazyChunkBoundary extends React.Component<LazyChunkBoundaryProps, LazyChunkBoundaryState> {
+  state: LazyChunkBoundaryState = { failed: false }
+
+  static getDerivedStateFromError(): LazyChunkBoundaryState {
+    return { failed: true }
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+type AmbientCoverFallbackProps = {
+  state: AmbientState
+  status: 'loading' | 'error'
+  onWake: () => void
+  onRetry?: () => void
+}
+
+/** The cover remains an accessible, inert-board surface while its optional chunk loads. */
+export function AmbientCoverFallback({ state, status, onWake, onRetry }: AmbientCoverFallbackProps) {
+  const buttonRef = React.useRef<HTMLButtonElement>(null)
+  const text = useTodayBoardText()
+
+  React.useEffect(() => {
+    buttonRef.current?.focus({ preventScroll: true })
+  }, [status])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={state.ambient ? text('calmDisplay') : text('nightDimming')}
+      aria-busy={status === 'loading' ? 'true' : undefined}
+      data-testid="ambient-cover"
+      data-ambient={state.ambient ? 'true' : 'false'}
+      data-dim={state.dim ? 'true' : 'false'}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onWake()
+      }}
+      className="fixed inset-0 z-[80] flex cursor-pointer select-none items-end justify-end bg-[#0d1117]/95 p-8 text-white"
+    >
+      <div className="relative z-10 flex flex-col items-end gap-3 text-right">
+        <p role={status === 'error' ? 'alert' : 'status'}>
+          {status === 'loading' ? text('lazyAmbientLoading') : text('lazyAmbientError')}
+        </p>
+        {status === 'error' && onRetry && (
+          <button
+            type="button"
+            className="btn-secondary min-h-11 min-w-[44px]"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onRetry()
+            }}
+          >
+            {text('retry')}
+          </button>
+        )}
+        <button ref={buttonRef} type="button" className="btn-primary min-h-11 min-w-[44px]">
+          {text('showBoard')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function WeatherTileFallback({ status, onRetry }: { status: 'loading' | 'error'; onRetry?: () => void }) {
+  const text = useTodayBoardText()
+  return (
+    <section
+      aria-busy={status === 'loading' ? 'true' : undefined}
+      aria-label={text('weather')}
+      className="flex min-h-11 min-w-0 items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-3 py-2"
+    >
+      <p role={status === 'error' ? 'alert' : 'status'}>
+        {status === 'loading' ? text('lazyWeatherLoading') : text('lazyWeatherError')}
+      </p>
+      {status === 'error' && onRetry && (
+        <button type="button" className="btn-secondary min-h-11 min-w-[44px]" onClick={onRetry}>
+          {text('retry')}
+        </button>
+      )}
+    </section>
+  )
+}
+
+function WeatherTileLoaded({ onLoaded, children }: { onLoaded: () => void; children: React.ReactNode }) {
+  React.useEffect(() => {
+    onLoaded()
+  }, [onLoaded])
+  return children
+}
+
+function createWeatherTile() {
+  return React.lazy(async () => {
+    const weatherTileModule = await import('./weather-tile')
+    return { default: weatherTileModule.WeatherTile }
+  })
+}
+
+function LazyWeatherTile({ view }: { view: WeatherView }) {
+  const [attempt, setAttempt] = React.useState(0)
+  const [WeatherTile, setWeatherTile] = React.useState(createWeatherTile)
+  const restoreFocus = React.useRef(false)
+  const weatherRegionRef = React.useRef<HTMLDivElement>(null)
+  const onLoaded = React.useCallback(() => {
+    if (!restoreFocus.current) return
+    restoreFocus.current = false
+    weatherRegionRef.current?.focus({ preventScroll: true })
+  }, [])
+  const retry = React.useCallback(() => {
+    restoreFocus.current = document.activeElement instanceof HTMLElement
+      && document.activeElement.tagName.toLowerCase() === 'button'
+    setWeatherTile(createWeatherTile())
+    setAttempt((value) => value + 1)
+  }, [])
+
+  return (
+    <div ref={weatherRegionRef} tabIndex={-1} className="min-w-0">
+      <LazyChunkBoundary
+        key={attempt}
+        fallback={<WeatherTileFallback status="error" onRetry={retry} />}
+      >
+        <React.Suspense fallback={<WeatherTileFallback status="loading" />}>
+          <WeatherTileLoaded onLoaded={onLoaded}>
+            <WeatherTile view={view} />
+          </WeatherTileLoaded>
+        </React.Suspense>
+      </LazyChunkBoundary>
+    </div>
+  )
+}
+
+function createAmbientCover() {
+  return React.lazy(() => import('./ambient-cover'))
+}
+
+function LazyAmbientCover(props: {
+  state: AmbientState
+  now: Date
+  weather: WeatherView | null
+  next: NextEventView | null
+  dinner: string | null
+  photos: BoardPhoto[]
+  onWake: () => void
+}) {
+  const [attempt, setAttempt] = React.useState(0)
+  const [AmbientCover, setAmbientCover] = React.useState(createAmbientCover)
+  const retry = React.useCallback(() => {
+    setAmbientCover(createAmbientCover())
+    setAttempt((value) => value + 1)
+  }, [])
+
+  return (
+    <LazyChunkBoundary
+      key={attempt}
+      fallback={<AmbientCoverFallback state={props.state} status="error" onWake={props.onWake} onRetry={retry} />}
+    >
+      <React.Suspense
+        fallback={<AmbientCoverFallback state={props.state} status="loading" onWake={props.onWake} />}
+      >
+        <AmbientCover {...props} />
+      </React.Suspense>
+    </LazyChunkBoundary>
   )
 }
 
@@ -356,7 +536,7 @@ export default function TodayBoard({
           <div className="flex w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
             {view?.weather && (
               <div className="w-full min-w-0 sm:w-auto">
-                <WeatherTile view={view.weather} />
+                <LazyWeatherTile view={view.weather} />
               </div>
             )}
 
@@ -433,7 +613,7 @@ export default function TodayBoard({
         )}
       </div>
       {covered && now && (
-        <AmbientCover
+        <LazyAmbientCover
           state={ambient}
           now={now}
           weather={view?.weather ?? null}
