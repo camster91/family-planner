@@ -49,6 +49,12 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
   stays current on `/dashboard/chores`; the Family tab stays current on Emergency, Features, More and every
   page listed under More.
 
+## Explore shortcut (#143)
+
+Parents can open the existing More feature hub directly through Explore in the desktop header (from `xl`, 1280px) or through Explore in the user menu at every width. Five primary tabs remain stable. Smaller tablet/phone headers keep their current width budget; the shortcut stays in the user menu there. This adds no new route or role privilege, and does not enable features. The hub still filters by existing canonical feature flags. Children and teens keep their current permitted entry points.
+
+This bounded entry-point change follows the existing navigation and Woven Grove foundations in `design/README.md`. Grouping the long More list, pinned destinations and a broader cross-device exploration flow remain separate #143/#152 design work; the shortcut is not proof of their acceptance.
+
 ## Family and More
 
 - Family: members, then a Household group with Emergency (moved here from its own tab) and More.
@@ -103,3 +109,14 @@ full authenticated navigation, provider acceptance and deployment remain gates.
 On the home and the navigation, colour marks a person or a state (done, needs a check, errors), not a
 category. The home has no coloured glyph tiles and no progress ring; Family and More use plain icons; role
 badges in Family and the user menu are neutral. Member colours on the board come with #262.
+
+### Explore visual review (2026-10-10)
+
+For #143 and the requested lowercase wordmark, Linux Chromium hosted comparisons
+at 1280×800 and 1366×768 were inspected in light and dark themes. The differences
+are confined to the header: lowercase `herewoven`, the resulting primary-link
+spacing, and the new parent Explore link. The uppercase H mark, account/search
+controls, Today content, geometry and clock masks stay unchanged. Only those four
+expected dashboard baselines were updated from the hosted runner's actual images;
+no screenshot thresholds or visual assertions were weakened. This is browser
+layout evidence, not physical-device or customer acceptance.

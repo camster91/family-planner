@@ -15,7 +15,7 @@ export default function Home() {
       <header className="marketing-header marketing-width">
         <Link href="/" aria-label={PRODUCT_BRAND.homeLabel} className="brand-wordmark">
           <BrandMark size={48} className="h-12 w-12" />
-          <span>{PRODUCT_BRAND.name}</span>
+          <span>{PRODUCT_BRAND.wordmark}</span>
         </Link>
         <nav aria-label={t('landing.mainNavigation')}>
           <Link href="#everyday" className="marketing-learn">{t('landing.seeDay')}</Link>
@@ -74,7 +74,7 @@ export default function Home() {
 
       </main>
       <footer className="marketing-footer marketing-width">
-        <span className="brand-wordmark">{PRODUCT_BRAND.name}</span>
+        <span className="brand-wordmark">{PRODUCT_BRAND.wordmark}</span>
         <p>{t('landing.footerDescription')}</p>
         <nav aria-label={t('landing.footerNavigation')}><Link href="/privacy">{t('auth.privacyPolicy')}</Link><Link href="/terms">{t('auth.termsOfService')}</Link><Link href="/login">{t('landing.signIn')}</Link></nav>
       </footer>
