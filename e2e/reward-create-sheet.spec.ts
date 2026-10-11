@@ -306,7 +306,7 @@ for (const locale of ["en", "es"] as const) {
               form.getByRole("button", { name: copy.closeLabel }),
             ).toHaveCount(0);
             await page.keyboard.press("Escape");
-            await expect(page).toHaveURL(/\/dashboard\/rewards$/);
+            await expect(page).toHaveURL(/\/dashboard\/rewards\/create$/);
           }
 
           const rewardResponsePromise = page.waitForResponse(
