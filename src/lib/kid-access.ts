@@ -51,6 +51,9 @@ export const KID_ALLOWED_PREFIXES = [
   // enforces the roles and the page hides the controls a child cannot use.
   // Gated by the `inventory` feature like every other gated page.
   '/dashboard/inventory',
+  // Pickups are a D9 shared household coordination surface: every member may
+  // read, create and mark a pickup complete; only deletion is parent-only.
+  '/dashboard/pickups',
 ] as const
 
 // Teen-only routes (owner decision O-37, 2026-10-02): teens may see the family

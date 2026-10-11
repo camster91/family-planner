@@ -7,6 +7,8 @@ import { useFeatures } from '@/components/providers/features-provider'
 import { useMaybeToast, useUndoToast } from '@/components/ui/toast'
 import { isFeatureEnabled, type FamilyFeatures, type FeatureKey } from '@/lib/features'
 import { cn } from '@/lib/utils'
+import { useFeatureDisplayCopy } from '@/i18n/feature-display'
+import { useFeatureSuggestionsText } from '@/i18n/feature-suggestions'
 import { pickFeatureSuggestionKeys } from './feature-suggestion-keys'
 import {
   featureSuggestionsStorageKey,
@@ -98,6 +100,8 @@ export interface FeatureSuggestionsProps {
 
 export default function FeatureSuggestions({ viewer, familyId, setupDone, initialPicked }: FeatureSuggestionsProps) {
   const { features, updateFeatures, canManage } = useFeatures()
+  const featureDisplay = useFeatureDisplayCopy()
+  const suggestions = useFeatureSuggestionsText()
   const showUndo = useUndoToast()
   const { addToast } = useMaybeToast()
   const getStartedHidden = useGetStartedHidden(familyId)
@@ -115,25 +119,32 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone, initia
 
   const rows = FEATURE_SUGGESTIONS.filter((s) => picked.includes(s.key))
 
-  const fail = (title: string) =>
-    addToast({ type: 'error', title, message: 'Please try again.' })
+  const fail = (message: string) =>
+    addToast({
+      type: 'error',
+      title: suggestions('updateFailedTitle'),
+      message,
+    })
 
   const turnOn = async (s: FeatureSuggestion) => {
+    const title = featureDisplay(s.key).title
     const before: Partial<FamilyFeatures> = {}
     for (const k of Object.keys(s.turnOn) as FeatureKey[]) before[k] = features[k]
     setBusy(s.key)
     try {
       await updateFeatures(s.turnOn)
     } catch {
-      fail(`Could not turn on ${s.title}`)
+      fail(suggestions('turnOnFailed', { title }))
       return
     } finally {
       setBusy(null)
     }
     showUndo({
-      title: `${s.title} turned on`,
+      title: suggestions('turnedOn', { title }),
       onUndo: () => {
-        updateFeatures(before).catch(() => fail(`Could not turn off ${s.title}`))
+        updateFeatures(before).catch(() =>
+          fail(suggestions('turnOffFailed', { title })),
+        )
       },
     })
   }
@@ -142,8 +153,8 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone, initia
     setHiddenNow(true)
     writeVisibilityHidden(featureSuggestionsStorageKey(familyId), true)
     showUndo({
-      title: 'Suggestions hidden',
-      message: 'You can turn sections on any time in Features.',
+      title: suggestions('hidden'),
+      message: suggestions('hiddenMessage'),
       onUndo: () => {
         writeVisibilityHidden(featureSuggestionsStorageKey(familyId), false)
         setHiddenNow(false)
@@ -156,25 +167,26 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone, initia
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">
-            Turn on more
+            {suggestions('heading')}
           </h2>
           <p className="mt-1 text-subhead text-label-secondary">
-            Your household starts simple. Add a section when it would help.
+            {suggestions('description')}
           </p>
         </div>
         <button
           type="button"
           onClick={notNow}
-          aria-label="Not now, hide suggestions"
+          aria-label={suggestions('hideSuggestions')}
           className="btn-plain -mr-2 -mt-1 min-h-[44px] min-w-[44px] shrink-0"
         >
-          Not now
+          {suggestions('hideButton')}
         </button>
       </div>
 
-      <ul className="mt-3 list-inset" aria-label="Sections you can turn on">
+      <ul className="mt-3 list-inset" aria-label={suggestions('sectionsLabel')}>
         {rows.map((s) => {
           const on = isFeatureEnabled(features, s.key)
+          const display = featureDisplay(s.key)
           const Icon = s.icon
           return (
             <li key={s.key} data-testid={`feature-suggestion-${s.key}`} className="row-apple min-h-[60px]">
@@ -182,28 +194,28 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone, initia
                 <Icon className="h-5 w-5 text-white" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block break-words text-body text-label-primary">{s.title}</span>
+                <span className="block break-words text-body text-label-primary">{display.title}</span>
                 <span className="block break-words text-footnote text-label-secondary">
-                  {on ? 'On for your household' : s.description}
+                  {on ? suggestions('onForHousehold') : display.description}
                 </span>
               </span>
               {on ? (
                 <Link
                   href={s.href}
-                  aria-label={`Open ${s.title}`}
+                  aria-label={`${suggestions('open')} ${display.title}`}
                   className="btn-plain min-h-[44px] min-w-[44px] shrink-0"
                 >
-                  Open
+                  {suggestions('open')}
                 </Link>
               ) : (
                 <button
                   type="button"
                   onClick={() => turnOn(s)}
                   disabled={busy !== null}
-                  aria-label={`Turn on ${s.title}`}
+                  aria-label={`${suggestions('turnOn')} ${display.title}`}
                   className="btn-tinted min-h-[44px] shrink-0 px-3"
                 >
-                  Turn on
+                  {suggestions('turnOn')}
                 </button>
               )}
             </li>
@@ -215,7 +227,7 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone, initia
         href="/dashboard/features"
         className="mt-2 inline-flex min-h-[44px] items-center gap-1 text-subhead text-[var(--accent-text)]"
       >
-        See all features
+        {suggestions('seeAll')}
         <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Link>
     </section>

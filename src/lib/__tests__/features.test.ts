@@ -11,12 +11,27 @@ import {
   isFeatureEnabled,
   normalizeFeatures,
 } from '@/lib/features'
+import { FEATURE_FLAG_META } from '@/lib/feature-flags'
 
 const ROOT = path.join(__dirname, '..', '..', '..')
 
 describe('Features page copy', () => {
   it('describes every feature in plain words parents know (no "XP")', () => {
     for (const f of FEATURES) expect(`${f.title} ${f.description}`).not.toMatch(/\bXP\b/)
+  })
+})
+
+describe('dashboard flag catalog stays aligned with feature metadata', () => {
+  it('keeps defaults, legacy fallbacks and dependencies identical', () => {
+    expect(FEATURE_FLAG_META.map(({ key }) => key)).toEqual(
+      FEATURES.map(({ key }) => key),
+    )
+    for (const flag of FEATURE_FLAG_META) {
+      const feature = FEATURES.find(({ key }) => key === flag.key)!
+      expect(flag.defaultEnabled).toBe(feature.defaultEnabled)
+      expect(flag.legacyDefault).toBe(feature.legacyDefault)
+      expect(flag.requires).toBe(feature.requires)
+    }
   })
 })
 
