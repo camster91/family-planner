@@ -81,7 +81,7 @@ Use isolated fabricated households: new/empty; busy; all 22 flags on; dependency
 
 ## Legend
 
-- **Roles.** P = parent, T = teen, C = child. "all" = every member of the household. "n/a" = no person session (public, token or device). Page roles come from `src/middleware.ts` and `src/lib/kid-access.ts`: teens and children may open only `/dashboard` (kid home) and the prefixes in `KID_ALLOWED_PREFIXES`; everything else under `/dashboard` redirects them to `/dashboard`.
+- **Roles.** P = parent, T = teen, C = child. "all" = every member of the household. "n/a" = no person session (public, token or device). Page roles come from `src/middleware.ts` and `src/lib/kid-access.ts`: children may open `/dashboard` (kid home) and the prefixes in `KID_ALLOWED_PREFIXES`; teens additionally have `TEEN_EXTRA_PREFIXES` and `TEEN_EXACT_PATHS`. Other dashboard paths redirect them home. Historical route rows below are not a substitute for these current source gates.
 - **Device cookie.** "device only" / "device + elevation" = accepts only the `fp_device` cookie (`src/lib/device-route.ts`). "refused" = `refusePairedDevice` rejects a paired tablet before person auth. "no" = person session only (`authenticateRequest`/`authenticateWithFamily`/`getServerUser` never read device cookies; the route-allowlist test guards this).
 - **Env gate.** Server kill switch or provider key; see [`CURRENT_STATE.md`](../CURRENT_STATE.md) "What is on and what is off by default". `SHARED_DEVICE_ENABLED` routes return 404 while off; calendar sync routes 404 until `isCalendarSyncEnabled()`; the scan and import routes 404 while their Anthropic key is unset.
 - **Meal/list model.** Delegates used by the route file and the `@/lib` modules it imports directly. Canonical and legacy follow ADR-0007. "—" means no meal/recipe/list table is touched at that depth (the board loader and importer are covered by hand in "Meal and list overlap").
@@ -101,6 +101,8 @@ Use isolated fabricated households: new/empty; busy; all 22 flags on; dependency
 API route files by domain (first path segment, all 151): family 24, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload, version.
 
 ## Page routes
+
+**Historical snapshot:** route roles and counts in this table have not been fully re-audited. Apply the current-source corrections above and verify current page/API policy before implementation; P-only Calendar/Meals/Settings descriptions are stale for teen access.
 
 Disposition uses the #148 classes: **1** keep with visual refactor; **2** keep but move in IA; **3** merge into another journey; **4** parent/admin only; **5** child/teen simplified; **6** deprecate after migration evidence; **7** later/feature-gated.
 
@@ -190,7 +192,7 @@ New households start simple ([O-38](../decisions/PROVISIONAL_OWNER_DECISIONS.md)
 - Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
 - 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) `GET`/`PATCH /api/users/preferences` (#286) `GET /api/audit` (#285) and `PATCH /api/family/beta-metrics` (#287) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
-- Teens and children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`); every API row below carries its per-method role from the isolation audit.
+- Children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`). Teens also have the extra prefixes and exact paths described in the current-source correction above. API rows are historical per-method observations; verify current API policy separately.
 
 ## Meal and list overlap (for ADR-0007 and #254)
 
