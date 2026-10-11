@@ -325,7 +325,7 @@ for (const locale of ["en", "es"] as const) {
     });
     await expect(dialog).toBeVisible();
     await expect(page.getByTestId("capture-availability-retry")).toBeVisible();
-    await expect(page.getByRole("alert")).toContainText(
+    await expect(dialog.getByRole("alert")).toContainText(
       locale === "es" ? "No se pudo conectar" : "could not connect",
     );
     const retry = page
