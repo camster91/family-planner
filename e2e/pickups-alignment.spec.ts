@@ -174,12 +174,31 @@ for (const locale of ["en", "es"] as const) {
         new URL(baseURL!).hostname,
       );
 
-      await context.route("**/*", (route) => {
+      const unexpectedApiMutations: string[] = [];
+      const mutatingMethods = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+      await context.route("**/*", async (route) => {
         const url = new URL(route.request().url());
-        return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
-          ["data:", "blob:"].includes(url.protocol)
-          ? route.continue()
-          : route.abort();
+        if (
+          !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
+          !["data:", "blob:"].includes(url.protocol)
+        ) {
+          await route.abort();
+          return;
+        }
+        const method = route.request().method();
+        const allowedSyntheticMutation =
+          (url.pathname === "/api/pickups" && method === "POST") ||
+          (url.pathname === `/api/pickups/${PICKUP.id}` && method === "PATCH");
+        if (
+          url.pathname.startsWith("/api/") &&
+          mutatingMethods.has(method) &&
+          !allowedSyntheticMutation
+        ) {
+          unexpectedApiMutations.push(`${method} ${url.pathname}`);
+          await route.abort();
+          return;
+        }
+        await route.continue();
       });
       await context.addInitScript(
         ({ localeKey, language, themeKey }) => {
@@ -440,6 +459,17 @@ for (const locale of ["en", "es"] as const) {
         await checkActionGeometry(page, toggle);
         await checkNoHorizontalOverflow(page);
         await checkNoBlockingA11y(page, "#main-content");
+        expect(unexpectedApiMutations).toEqual([]);
+        await info.attach("pickups-mutation-audit", {
+          body: JSON.stringify({
+            unexpectedApiMutations,
+            intercepted: {
+              post: postBodies.length,
+              patch: patchBodies.length,
+            },
+          }),
+          contentType: "application/json",
+        });
 
         await info.attach(`pickups-${locale}-${info.project.name}`, {
           body: await page.screenshot({
