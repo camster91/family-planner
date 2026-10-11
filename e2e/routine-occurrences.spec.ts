@@ -1,4 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
+import { randomUUID } from "node:crypto";
+import pg from "pg";
+import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import {
   test,
   expect,
@@ -25,19 +28,21 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
   // Own a fresh series: generated non-fixture copies from earlier local runs
   // are intentionally not removed by fixture seeding. Shared fixture state
   // must not determine this test's expected group count.
-  const title = "QA weekly routine grouping";
-  const created = await browserSend(page, "POST", "/api/chores/create", {
-    title,
-    assigned_to: FIXTURE_IDS.familyA.teen,
-    due_date: E2E_ANCHOR.toISOString().slice(0, 10),
-    difficulty: "easy",
-    frequency: "weekly",
-    points: 10,
-  });
-  expect(created.status).toBe(200);
-  const seriesId = JSON.parse(created.body).chore.id as string;
-  const ownedIds = [seriesId];
+  const title = `QA weekly routine ${randomUUID()}`;
+  const ownedIds: string[] = [];
+  let testFailure: unknown;
   try {
+    const created = await browserSend(page, "POST", "/api/chores/create", {
+      title,
+      assigned_to: FIXTURE_IDS.familyA.teen,
+      due_date: E2E_ANCHOR.toISOString().slice(0, 10),
+      difficulty: "easy",
+      frequency: "weekly",
+      points: 10,
+    });
+    expect(created.status).toBe(200);
+    const seriesId = JSON.parse(created.body).chore.id as string;
+    ownedIds.push(seriesId);
     const records = await browserFetch(page, "/api/chores?limit=200");
     expect(records.status).toBe(200);
     const series = (
@@ -108,13 +113,46 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
     await other.screenshot({
       path: test.info().outputPath("other-chores.png"),
     });
+  } catch (error) {
+    testFailure = error;
+    throw error;
   } finally {
-    // Delete only records created by this test, through the canonical API.
-    for (const choreId of ownedIds) {
-      const removed = await browserSend(page, "DELETE", "/api/chores", {
-        choreId,
-      });
-      expect(removed.status).toBe(200);
+    // Recover every test-owned row even when creation parsing, bounded GET or
+    // assertions fail. This read is fixture-guarded and scoped to this run's
+    // unique title and household; all deletions still use the canonical API.
+    const cleanupFailures: unknown[] = [];
+    let db: pg.Client | undefined;
+    try {
+      assertFixtureTargetAllowed(process.env);
+      db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+      await db.connect();
+      const rows = await db.query<{ id: string }>(
+        'SELECT id FROM "Chore" WHERE family_id = $1 AND title = $2',
+        [FIXTURE_IDS.familyA.family, title],
+      );
+      ownedIds.push(...rows.rows.map((row) => row.id));
+    } catch (error) {
+      cleanupFailures.push(error);
+    } finally {
+      if (db)
+        await db.end().catch((error: unknown) => cleanupFailures.push(error));
+    }
+    for (const choreId of new Set(ownedIds)) {
+      try {
+        const removed = await browserSend(page, "DELETE", "/api/chores", {
+          choreId,
+        });
+        expect(removed.status).toBe(200);
+      } catch (error) {
+        // Attempt later deletions even if one fails; retain the original error.
+        cleanupFailures.push(error);
+      }
+    }
+    if (cleanupFailures.length) {
+      throw new AggregateError(
+        [...(testFailure ? [testFailure] : []), ...cleanupFailures],
+        "Routine test failed to clean up all owned rows",
+      );
     }
   }
 });
