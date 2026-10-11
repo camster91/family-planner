@@ -166,6 +166,7 @@ for (const locale of ["en", "es"] as const) {
 
     const cleanFeatureAudit = await ownFeatureAudit(["handoff"]);
 
+    let featuresRestored = false;
     let handoffAttempts = 0;
     const releaseSuccessfulResponse = {
       current: null as (() => void) | null,
@@ -276,9 +277,10 @@ for (const locale of ["en", "es"] as const) {
         expect(
           (JSON.parse(canonical.body) as { features: unknown }).features,
         ).toEqual(originalFeatures);
+        featuresRestored = true;
       } finally {
         try {
-          await cleanFeatureAudit();
+          await cleanFeatureAudit(featuresRestored);
         } finally {
           await page.unroute("**/api/handoff**");
         }
