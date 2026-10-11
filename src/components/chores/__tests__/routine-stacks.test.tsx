@@ -17,6 +17,17 @@ it('keeps different members and dates apart while normalizing names and ordering
   expect(new Set(groups.map(g => g.key)).size).toBe(3)
 })
 
+it('uses durable stack identity when one occurrence spans different members', () => {
+  const groups = routineStacks([
+    step('adult-step', 1, { assigned_to: 'adult', routine_stack_id: 'stack-a' }),
+    step('child-step', 2, { assigned_to: 'child', routine_stack_id: 'stack-a' }),
+    step('other-stack', 1, { assigned_to: 'child', routine_stack_id: 'stack-b' }),
+  ])
+  expect(groups).toHaveLength(2)
+  expect(groups[0].steps.map(s => s.id)).toEqual(['adult-step', 'child-step'])
+  expect(groups[1].steps.map(s => s.id)).toEqual(['other-stack'])
+})
+
 it('shows progress, next step and all later steps without locking or marking them done', async () => {
   const complete = jest.fn()
   render(<RoutineStacks chores={[step('wash', 2), step('clear', 1, { status: 'verified' }), step('tidy', 3, { status: 'completed' }), step('prepare', 4)]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={complete} />)

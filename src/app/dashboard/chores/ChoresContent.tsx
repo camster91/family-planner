@@ -59,6 +59,7 @@ interface ChoresContentProps {
   familyMembers: { id: string; name: string; role: string; age?: number }[];
   currentUserId: string;
   userRole: string;
+  familyId?: string;
   /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
   historyCursor?: string | null;
 }
@@ -151,6 +152,7 @@ export default function ChoresContent({
   familyMembers,
   currentUserId,
   userRole,
+  familyId,
   historyCursor = null,
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
@@ -920,6 +922,7 @@ export default function ChoresContent({
             chores={filtered}
             userRole={userRole}
             currentUserId={currentUserId}
+            familyId={familyId}
             locale={displayLocale}
             collapseRepeats={filter !== "today"}
             onComplete={handleCompleteChore}
