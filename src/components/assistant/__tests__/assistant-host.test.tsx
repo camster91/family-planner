@@ -568,13 +568,14 @@ it("sends an explicit Include Today choice and keeps the draft on an unavailable
 
 it("blocks an expired Today action until an explicit fresh preview", async () => {
   const user = userEvent.setup();
-  let calls = 0;
+  let calls = 0,
+    now = 1_000;
   const expiredGenerated = new Date().toISOString();
   const expired = {
     "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
     "X-Assistant-Today-Generated-At": expiredGenerated,
     "X-Assistant-Today-Expires-At": new Date(
-      Date.parse(expiredGenerated) + 1,
+      Date.parse(expiredGenerated) + 60_000,
     ).toISOString(),
   };
   const fresh = {
@@ -584,7 +585,7 @@ it("blocks an expired Today action until an explicit fresh preview", async () =>
   };
   global.fetch = jest.fn(async () => {
     calls += 1;
-    return response(
+    const result = response(
       {
         reply: "Review this list.",
         action: { kind: "list_create", title: "Trip", type: "custom" },
@@ -592,6 +593,16 @@ it("blocks an expired Today action until an explicit fresh preview", async () =>
       true,
       calls === 1 ? expired : fresh,
     );
+    if (calls === 1) {
+      return {
+        ...result,
+        json: async () => {
+          now = 1_001;
+          return result.json();
+        },
+      };
+    }
+    return result;
   }) as any;
   render(<AssistantHost role="parent" todayContextEnabled />);
   await user.click(screen.getByRole("button", { name: "AI assistant" }));
@@ -603,27 +614,40 @@ it("blocks an expired Today action until an explicit fresh preview", async () =>
     within(dialog).getByLabelText("Your message"),
     "Plan a trip list",
   );
-  await user.click(within(dialog).getByRole("button", { name: "Send" }));
-  const confirm = await within(dialog).findByRole("button", {
-    name: "Confirm and save",
-  });
-  await waitFor(() => expect(confirm).toBeDisabled());
-  expect(
-    within(dialog).getByText(/Today context has expired/i),
-  ).toBeInTheDocument();
-  const newerDraft = "Keep this newer draft";
-  await user.type(within(dialog).getByLabelText("Your message"), newerDraft);
-  await user.click(
-    within(dialog).getByRole("button", { name: "Refresh Today context" }),
-  );
-  await waitFor(() => expect(calls).toBe(2));
-  await waitFor(() =>
+  const performanceSpy = jest
+    .spyOn(performance, "now")
+    .mockImplementation(() => now);
+  try {
+    fireEvent.submit(
+      within(dialog).getByRole("button", { name: "Send" }).closest("form")!,
+    );
+    const confirm = await within(dialog).findByRole("button", {
+      name: "Confirm and save",
+    });
+    now = 61_001;
+    fireEvent(document, new Event("visibilitychange"));
+    await waitFor(() => expect(confirm).toBeDisabled());
     expect(
-      within(dialog).getByRole("button", { name: "Confirm and save" }),
-    ).toBeEnabled(),
-  );
-  expect(within(dialog).getByLabelText("Your message")).toHaveValue(newerDraft);
-  expect(calls).toBe(2);
+      within(dialog).getByText(/Today context has expired/i),
+    ).toBeInTheDocument();
+    const newerDraft = "Keep this newer draft";
+    await user.type(within(dialog).getByLabelText("Your message"), newerDraft);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Refresh Today context" }),
+    );
+    await waitFor(() => expect(calls).toBe(2));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Confirm and save" }),
+      ).toBeEnabled(),
+    );
+    expect(within(dialog).getByLabelText("Your message")).toHaveValue(
+      newerDraft,
+    );
+    expect(calls).toBe(2);
+  } finally {
+    performanceSpy.mockRestore();
+  }
 });
 
 it("fails closed for a noncanonical or overlong freshness lease", async () => {
@@ -755,6 +779,52 @@ it("fails closed when the monotonic lease clock moves backwards", async () => {
     expect(
       within(dialog).getByText(/Today context has expired/i),
     ).toBeInTheDocument();
+  } finally {
+    performanceSpy.mockRestore();
+  }
+});
+
+it("rejects a Today response that arrives after the request-start lease", async () => {
+  const user = userEvent.setup();
+  const generated = new Date().toISOString();
+  global.fetch = jest.fn(async () =>
+    response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      {
+        "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+        "X-Assistant-Today-Generated-At": generated,
+        "X-Assistant-Today-Expires-At": new Date(
+          Date.parse(generated) + 60_000,
+        ).toISOString(),
+      },
+    ),
+  ) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  const draft = "Plan a list";
+  await user.type(within(dialog).getByLabelText("Your message"), draft);
+  const performanceSpy = jest
+    .spyOn(performance, "now")
+    .mockReturnValueOnce(1_000)
+    .mockReturnValueOnce(61_001)
+    .mockReturnValue(61_001);
+  try {
+    fireEvent.submit(
+      within(dialog).getByRole("button", { name: "Send" }).closest("form")!,
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Today context is unavailable right now.",
+    );
+    expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
+    expect(within(dialog).queryByRole("region")).toBeNull();
   } finally {
     performanceSpy.mockRestore();
   }

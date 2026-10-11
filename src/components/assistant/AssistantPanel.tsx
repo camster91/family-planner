@@ -32,7 +32,7 @@ type Message = { role: "user" | "assistant"; content: string };
 type TodayFreshness = {
   generatedAt: number;
   expiresAt: number;
-  receivedAt: number;
+  leaseStartedAt: number;
   leaseExpiresAt: number;
 };
 type Report = {
@@ -97,10 +97,18 @@ function parseIsoHeader(value: string | null): number | null {
 
 function readTodayFreshness(
   headers: Headers | undefined,
-  receivedAt: number | null,
+  leaseStartedAt: number | null,
+  responseAt: number | null,
   isVisible: boolean,
 ): TodayFreshness | null {
-  if (!headers || receivedAt === null || !isVisible) return null;
+  if (
+    !headers ||
+    leaseStartedAt === null ||
+    responseAt === null ||
+    !isVisible ||
+    responseAt < leaseStartedAt
+  )
+    return null;
   const protocol = headers.get("X-Assistant-Today-Protocol");
   if (protocol !== ASSISTANT_TODAY_PROTOCOL) return null;
   const generatedAt = parseIsoHeader(
@@ -110,11 +118,13 @@ function readTodayFreshness(
   if (generatedAt === null || expiresAt === null) return null;
   const ttl = expiresAt - generatedAt;
   if (ttl <= 0 || ttl > ASSISTANT_TODAY_MAX_TTL_MS) return null;
+  const leaseExpiresAt = leaseStartedAt + ttl;
+  if (responseAt >= leaseExpiresAt) return null;
   return {
     generatedAt,
     expiresAt,
-    receivedAt,
-    leaseExpiresAt: receivedAt + ttl,
+    leaseStartedAt,
+    leaseExpiresAt,
   };
 }
 
@@ -188,7 +198,7 @@ export default function AssistantPanel({
         visibilitySuspended.current ||
           document.visibilityState !== "visible" ||
           now === null ||
-          now < todayFreshness.receivedAt ||
+          now < todayFreshness.leaseStartedAt ||
           now >= todayFreshness.leaseExpiresAt,
       );
       return now;
@@ -275,7 +285,10 @@ export default function AssistantPanel({
     setTargets([]);
     setDeleteConfirm(false);
     voice.stop();
+    const leaseStartedAt = withToday ? monotonicNow() : null;
     try {
+      if (withToday && leaseStartedAt === null)
+        throw new AssistantCopyError("todayContextUnavailable");
       const requestBody: {
         messages: Message[];
         localNow: string;
@@ -307,11 +320,12 @@ export default function AssistantPanel({
       }
       const parsedReply = assistantReplySchema.safeParse(body);
       if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
-      const receivedAt = withToday ? monotonicNow() : null;
+      const responseAt = withToday ? monotonicNow() : null;
       const freshness = withToday
         ? readTodayFreshness(
             r.headers,
-            receivedAt,
+            leaseStartedAt,
+            responseAt,
             document.visibilityState === "visible",
           )
         : null;
@@ -382,7 +396,7 @@ export default function AssistantPanel({
       !visibilitySuspended.current &&
       document.visibilityState === "visible" &&
       now !== null &&
-      now >= todayFreshness.receivedAt &&
+      now >= todayFreshness.leaseStartedAt &&
       now < todayFreshness.leaseExpiresAt;
     if (!valid) setTodayExpired(true);
     return valid;
