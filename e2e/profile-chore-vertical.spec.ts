@@ -313,13 +313,23 @@ async function createProfileChore(
   const body = (await result.json()) as {
     chore?: {
       id?: string;
-      assigned_member_id?: string | null;
-      assigned_to?: string | null;
+      subject?: {
+        kind: string;
+        memberId?: string;
+        name?: string;
+        role?: string;
+      };
     };
   };
   expect(body.chore?.id).toBeTruthy();
-  expect(body.chore?.assigned_member_id).toBe(childId);
-  expect(body.chore?.assigned_to).toBeNull();
+  expect(body.chore?.subject).toEqual({
+    kind: "profile",
+    memberId: childId,
+    name: x.profiles[0].name,
+    role: "child",
+  });
+  expect(body.chore).not.toHaveProperty("assigned_to");
+  expect(body.chore).not.toHaveProperty("assigned_member_id");
   await page.waitForURL(/\/dashboard\/chores/);
   return body.chore!.id!;
 }
@@ -406,10 +416,18 @@ async function pairViaApi(
   );
   expect(confirm.status, confirm.body).toBe(200);
   const status = await tablet.evaluate(async (token) => {
+    const csrfToken =
+      document.cookie
+        .split("; ")
+        .find((c) => c.startsWith("csrf_token="))
+        ?.slice(11) ?? "";
     const res = await fetch("/api/device/pair/status", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": "" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
       body: JSON.stringify({ claimToken: token }),
     });
     return { status: res.status, body: await res.text() };
@@ -571,7 +589,7 @@ test.describe.serial("email-free profile chore vertical", () => {
 
       const tablet = await openContext(browser, info);
       tabletContext = tablet.context;
-      await pairViaApi(page, tablet.page, `${x.prefix} tablet`);
+      await pairViaApi(page, tablet.page, "Profile QA tablet");
       const p1 = await deviceFetch(tablet.page, "/api/device/today");
       expect(p1.status, p1.body).toBe(409);
       expect(JSON.parse(p1.body).error.code).toBe(

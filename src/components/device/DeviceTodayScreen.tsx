@@ -229,19 +229,21 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
 
   return (
     <>
-      <TodayBoard
-        data={data}
-        cachedSnapshot={cached}
-        fridgeMode
-        onRefresh={() => void loadBoard()}
-        checkVersion={checkVersion}
-        actions={parentButton ?? <span />}
-        banner={banner}
-        tileActions={actions}
-        groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
-          <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
-        ) : undefined}
-      />
+      <main>
+        <TodayBoard
+          data={data}
+          cachedSnapshot={cached}
+          fridgeMode
+          onRefresh={() => void loadBoard()}
+          checkVersion={checkVersion}
+          actions={parentButton ?? <span />}
+          banner={banner}
+          tileActions={actions}
+          groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
+            <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
+          ) : undefined}
+        />
+      </main>
       {picker}
 
       {client && elevation && settingsTransport && (
