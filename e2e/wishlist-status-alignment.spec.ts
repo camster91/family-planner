@@ -288,6 +288,8 @@ for (const locale of ["en", "es"] as const) {
       let wishlistGets = 0;
       let releasePendingPatch: (() => void) | undefined;
       let pendingPatchComplete: Promise<void> | undefined;
+      let releaseDenialPatch: (() => void) | undefined;
+      let denialPatchComplete: Promise<void> | undefined;
 
       await context.route("**/*", async (route) => {
         const url = new URL(route.request().url());
@@ -414,11 +416,25 @@ for (const locale of ["en", "es"] as const) {
             expect(body.status).toBe("denied");
             expect(body.denied_reason).toBe("Synthetic family reason");
             if (denialPatchAttempts === 1) {
-              await route.fulfill({
-                status: 403,
-                contentType: "application/json",
-                body: JSON.stringify({}),
+              let release!: () => void;
+              let complete!: () => void;
+              const pending = new Promise<void>((resolve) => {
+                release = resolve;
               });
+              denialPatchComplete = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              releaseDenialPatch = release;
+              try {
+                await pending;
+                await route.fulfill({
+                  status: 403,
+                  contentType: "application/json",
+                  body: JSON.stringify({}),
+                });
+              } finally {
+                complete();
+              }
               return;
             }
           }
@@ -531,9 +547,14 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           denialDialog.getByRole("button", { name: copy.confirm, exact: true }),
         ).toBeDisabled();
-        await expect(denialDialog.getByRole("alert")).toHaveText(copy.tryAgain);
         await expect(reason).toHaveValue("Synthetic family reason");
         await expect(denialDialog).toContainText(copy.reason);
+        // Keep the first denial request in flight until the pending lock is
+        // observed. This makes the state assertion deterministic on phones;
+        // the response is still the same fabricated 403.
+        releaseDenialPatch?.();
+        if (denialPatchComplete) await denialPatchComplete;
+        await expect(denialDialog.getByRole("alert")).toHaveText(copy.tryAgain);
         await denialDialog
           .getByRole("button", { name: copy.confirm, exact: true })
           .click();
@@ -580,6 +601,8 @@ for (const locale of ["en", "es"] as const) {
       } finally {
         releasePendingPatch?.();
         if (pendingPatchComplete) await pendingPatchComplete;
+        releaseDenialPatch?.();
+        if (denialPatchComplete) await denialPatchComplete;
         try {
           const restored = await browserSend(
             page,
