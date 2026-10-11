@@ -93,10 +93,13 @@ function NotesPageInner() {
   // Why the last save/delete failed; shown in the modal, which stays open.
   const [modalError, setModalError] = React.useState<string | null>(null)
 
-  const fetchNotes = React.useCallback(async () => {
+  const fetchNotes = React.useCallback(async (preserveError = false) => {
     try {
       setLoading(true)
-      setError(null)
+      // Keep the recovery surface mounted while a retry is in flight. This
+      // keeps the action discoverable and lets the button expose its pending
+      // state instead of replacing it with an unrelated loading screen.
+      if (!preserveError) setError(null)
       const res = await fetch('/api/notes')
       if (!res.ok) {
         throw new Error('Failed to fetch notes')
@@ -224,24 +227,31 @@ function NotesPageInner() {
       </div>
 
       {/* Content */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-[160px]" />
-          <Skeleton className="h-[160px]" />
-          <Skeleton className="h-[160px]" />
-        </div>
-      ) : error ? (
+      {error ? (
         <EmptyState
           icon={NoteIcon}
           glyphColor="gray"
           title={t('notes.errorLoad')}
           description={error}
           action={
-            <button className="btn-secondary" onClick={fetchNotes}>
-              {t('common.loading')}
+            <button
+              type="button"
+              className="btn-secondary min-h-11 min-w-11"
+              onClick={() => void fetchNotes(true)}
+              disabled={loading}
+              aria-busy={loading}
+              data-testid="notes-retry"
+            >
+              {loading ? t('notes.loading') : t('notes.retry')}
             </button>
           }
         />
+      ) : loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-[160px]" />
+          <Skeleton className="h-[160px]" />
+          <Skeleton className="h-[160px]" />
+        </div>
       ) : notes.length === 0 ? (
         <EmptyState
           icon={NoteIcon}
@@ -370,15 +380,20 @@ function NotesPageInner() {
                       type="button"
                       onClick={() => setFormColor(opt.key)}
                       className={cn(
-                        'w-10 h-10 rounded-full transition-transform',
+                        'inline-flex h-11 w-11 items-center justify-center rounded-full transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]',
                         formColor === opt.key ? 'scale-110 ring-2 ring-offset-2 ring-[var(--accent)]' : ''
                       )}
-                      style={{
-                        backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : 'var(--tint-budget)',
-                      }}
                       aria-label={opt.label}
                       aria-pressed={formColor === opt.key}
-                    />
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{
+                          backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : 'var(--tint-budget)',
+                        }}
+                      />
+                    </button>
                   ))}
                 </div>
               </div>
