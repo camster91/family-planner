@@ -114,6 +114,8 @@ Still open for #160, needing a device or emulator:
 - confirm `adb shell bmgr backupnow com.ashbi.familyplanner` and device-transfer produce no app data.
 
 ## Server compatibility
+
+The additive [native/web/API compatibility contract](NATIVE_API_COMPATIBILITY.md) defines the public capability manifest, actual shell build identity, pending-operation recovery and candidate evidence. It does not raise the supported native version minimum or activate profile-only assignments.
 The backend must support a documented window of installed Android clients. Breaking APIs/schema changes need staged compatibility. Feature flags can hide unsupported capabilities from older builds.
 
 ## Permissions
