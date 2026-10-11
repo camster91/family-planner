@@ -413,7 +413,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
                           <span
                             className={cn(
                               'text-body font-semibold tabular-nums',
-                              tx.type === 'income' ? 'text-[var(--tint-lists)]' : 'text-[var(--tint-rewards)]'
+                              tx.type === 'income' ? 'text-[var(--tint-lists-text)]' : 'text-[var(--tint-rewards-text)]'
                             )}
                           >
                             {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount, displayLocale)}
