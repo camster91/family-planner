@@ -444,6 +444,25 @@ describe('versioning and corruption', () => {
     expect(t.sent).toEqual([])
   })
 
+  it('quarantines a future container even when its envelope no longer has the v1 ops field', async () => {
+    const raw = JSON.stringify({ v: 2, operations: [{ id: op.id, action: 'future-action', v: 2, payload: { memberId: 'future-member' } }] }, null, 2)
+    const store = memoryStore(raw)
+    const write = jest.spyOn(store, 'write')
+    const remove = jest.spyOn(store, 'remove')
+    const t = setup({ store })
+
+    await t.queue.ready
+
+    expect(t.queue.requiresCompatibleClient()).toBe(true)
+    expect(t.queue.list()).toEqual([])
+    expect(t.queue.loadReport()).toEqual({ dropped: 0 })
+    await t.queue.drain()
+    expect(t.sent).toEqual([])
+    expect(write).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
+    expect(store.value).toBe(raw)
+  })
+
   it('drops unknown container versions, unknown operation versions, unknown actions and corrupt data', () => {
     expect(parseStoredQueue(JSON.stringify({ v: 99, ops: [op, op] }))).toEqual({ ops: [], dropped: 2 })
     expect(parseStoredQueue('{not json').dropped).toBe(1)
