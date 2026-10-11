@@ -497,14 +497,23 @@ for (const locale of ["en", "es"] as const) {
           .getByRole("button", { name: copy.closeForm, exact: true })
           .click();
         await expect(routeDialog).toHaveCount(0);
-        expect(
-          await page.evaluate(() => {
-            const state = window.history.state;
-            return Boolean(
-              state && typeof state === "object" && "pickupForm" in state,
-            );
-          }),
-        ).toBe(false);
+        await expect
+          .poll(async () => {
+            const pickupFormMarker = await page.evaluate(() => {
+              const state = window.history.state;
+              return Boolean(
+                state && typeof state === "object" && "pickupForm" in state,
+              );
+            });
+            return {
+              pathname: new URL(page.url()).pathname,
+              pickupFormMarker,
+            };
+          })
+          .toEqual({
+            pathname: "/dashboard/pickups",
+            pickupFormMarker: false,
+          });
         expect(await page.evaluate(() => window.history.length)).toBe(
           historyBeforeOpen + 1,
         );
