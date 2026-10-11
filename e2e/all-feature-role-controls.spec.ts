@@ -20,7 +20,7 @@ const VIEWPORTS = [
   "tablet-large-1920x1200",
   "desktop-1366x768",
 ];
-const SHORTCUTS = ["wishlist", "allowance", "handoff", "sick-days"];
+const SHORTCUTS = ["wishlist", "allowance", "handoff", "sick-days", "notes"];
 let teenState: Awaited<ReturnType<APIRequestContext["storageState"]>>;
 
 test.use({ storageState: authFile("parentA") });
