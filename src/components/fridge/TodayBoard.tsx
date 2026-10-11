@@ -238,7 +238,7 @@ export function AmbientCoverFallback({ state, status, onWake, onRetry }: Ambient
           <button
             ref={retryButtonRef}
             type="button"
-            className="btn-secondary min-h-11 min-w-[44px]"
+            className="btn-secondary min-h-11 min-w-[44px] bg-white/15 text-white border-white/50 hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
