@@ -4,11 +4,13 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronRight, Search } from "lucide-react";
 import { SearchField } from "@/components/ui/search-field";
-import { navItems } from "@/lib/nav-items";
+import { navItemDisplayName, navItems } from "@/lib/nav-items";
 import { useFeatures } from "@/components/providers/features-provider";
 import { cn } from "@/lib/utils";
 import { isFeatureEnabled } from "@/lib/features";
+import type { FeatureKey } from "@/lib/features";
 import { canRoleAccessPath } from "@/lib/kid-access";
+import { useFeatureDisplayCopy } from "@/i18n/feature-display";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -26,6 +28,19 @@ export default function CommandPalette({
   const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { features } = useFeatures();
+  const featureDisplay = useFeatureDisplayCopy();
+  const featureTitles = React.useMemo<Partial<Record<FeatureKey, string>>>(
+    () =>
+      Object.fromEntries(
+        navItems
+          .filter((item) => item.featureKey)
+          .map((item) => [
+            item.featureKey,
+            featureDisplay(item.featureKey!).title,
+          ]),
+      ),
+    [featureDisplay],
+  );
 
   React.useEffect(() => {
     if (!open) return;
@@ -57,7 +72,9 @@ export default function CommandPalette({
     if (item.featureKey && !isFeatureEnabled(features, item.featureKey)) {
       return false;
     }
-    return item.name.toLowerCase().includes(query.toLowerCase());
+    return navItemDisplayName(item, featureTitles)
+      .toLowerCase()
+      .includes(query.toLowerCase());
   });
 
   // Household search (route inventory F-3): hand the words to /dashboard/search.
@@ -188,7 +205,7 @@ export default function CommandPalette({
                     <Icon className="w-4 h-4 text-label-secondary" />
                   </div>
                   <span className="text-body text-label-primary flex-1">
-                    {item.name}
+                    {navItemDisplayName(item, featureTitles)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-label-tertiary shrink-0" />
                 </button>

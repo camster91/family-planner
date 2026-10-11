@@ -875,21 +875,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/family/more/page.tsx",
-    "text": "Features",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/more/page.tsx",
-    "text": "More",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/more/page.tsx",
-    "text": "Turn features on or off",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/family/page.tsx",
     "text": "Add Member",
     "count": 1
@@ -3680,51 +3665,6 @@
     "count": 1
   },
   {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Not now",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Not now, hide suggestions",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "On for your household",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Open",
-    "count": 2
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Sections you can turn on",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "See all features",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Turn on",
-    "count": 2
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Turn on more",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/FeatureSuggestions.tsx",
-    "text": "Your household starts simple. Add a section when it would help.",
-    "count": 1
-  },
-  {
     "file": "src/components/dashboard/GetStarted.tsx",
     "text": "Done",
     "count": 1
@@ -5267,41 +5207,6 @@
   {
     "file": "src/components/ui/error-boundary.tsx",
     "text": "Try Again",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "Ask a parent to turn it on.",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "Feature",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "is off",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "is turned off for your family.",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "Open Features",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "This feature",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/feature-gate.tsx",
-    "text": "You can turn it on in Features settings.",
     "count": 1
   },
   {

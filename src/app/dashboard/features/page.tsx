@@ -13,6 +13,7 @@ import {
   type FeatureMeta,
 } from '@/lib/features'
 import { useFeaturesText, type FeaturesMessage } from '@/i18n/features'
+import { useFeatureDisplayCopy, type FeatureDisplayCopy } from '@/i18n/feature-display'
 
 const GROUP_ORDER = ['core', 'planning', 'family'] as const
 type GroupKey = (typeof GROUP_ORDER)[number]
@@ -35,6 +36,7 @@ const INITIAL_EXPANDED: Record<GroupKey, boolean> = {
 export default function FeaturesPage() {
   const { features, setFeature } = useFeatures()
   const copy = useFeaturesText()
+  const featureDisplay = useFeatureDisplayCopy()
   const [pendingKeys, setPendingKeys] = React.useState<Set<FeatureKey>>(
     () => new Set(),
   )
@@ -55,12 +57,22 @@ export default function FeaturesPage() {
     const matching = normalizedQuery
       ? source.filter((feature) => {
           const needsTitle = feature.requires
-            ? FEATURES.find((candidate) => candidate.key === feature.requires)
-                ?.title
+            ? featureDisplay(feature.requires).title
             : undefined
+          const needsDescription = feature.requires
+            ? featureDisplay(feature.requires).description
+            : undefined
+          const display = featureDisplay(feature.key)
+          // Search accepts the canonical English metadata as an alias while
+          // the row itself remains localized. This keeps a familiar query
+          // such as "budget" useful on a Spanish device without replacing
+          // the rendered title "Presupuesto".
           return [
+            display.title,
+            display.description,
             feature.title,
             feature.description,
+            needsDescription,
             title,
             subtitle,
             needsTitle,
@@ -100,12 +112,13 @@ export default function FeaturesPage() {
     setPendingKeys(new Set(pendingKeysRef.current))
     try {
       await setFeature(feature.key, next)
+      const title = featureDisplay(feature.key).title
       setToast(
-        copy(next ? 'enabledToast' : 'disabledToast', { title: feature.title }),
+        copy(next ? 'enabledToast' : 'disabledToast', { title }),
       )
       setTimeout(() => setToast(null), 2200)
     } catch {
-      setToast(copy('updateFailed', { title: feature.title }))
+      setToast(copy('updateFailed', { title: featureDisplay(feature.key).title }))
       setTimeout(() => setToast(null), 2200)
     } finally {
       pendingKeysRef.current.delete(feature.key)
@@ -215,6 +228,7 @@ export default function FeaturesPage() {
             flags={flags}
             onToggle={toggle}
             pending={pendingKeys}
+            featureDisplay={featureDisplay}
             expanded={normalizedQuery.length > 0 || expanded[group.key]}
             onToggleExpanded={() => toggleGroup(group.key)}
             copy={copy}
@@ -254,6 +268,7 @@ function FeatureGroup({
   flags,
   onToggle,
   pending,
+  featureDisplay,
   expanded,
   onToggleExpanded,
   copy,
@@ -266,6 +281,7 @@ function FeatureGroup({
   flags: Record<FeatureKey, boolean>
   onToggle: (feature: FeatureMeta) => void
   pending: ReadonlySet<FeatureKey>
+  featureDisplay: (key: FeatureKey) => FeatureDisplayCopy
   expanded: boolean
   onToggleExpanded: () => void
   copy: ReturnType<typeof useFeaturesText>
@@ -328,7 +344,8 @@ function FeatureGroup({
                 enabled={isFeatureEnabled(flags, feature.key)}
                 onToggle={() => onToggle(feature)}
                 disabled={feature.group === 'core' || needs !== undefined}
-                needsTitle={needs?.title}
+                display={featureDisplay(feature.key)}
+                needsTitle={needs ? featureDisplay(needs.key).title : undefined}
                 pending={pending.has(feature.key)}
                 last={index === features.length - 1}
                 copy={copy}
@@ -347,6 +364,7 @@ function FeatureRow({
   onToggle,
   disabled,
   needsTitle,
+  display,
   pending,
   last,
   copy,
@@ -356,6 +374,7 @@ function FeatureRow({
   onToggle: () => void
   disabled: boolean
   needsTitle?: string
+  display: FeatureDisplayCopy
   pending: boolean
   last: boolean
   copy: ReturnType<typeof useFeaturesText>
@@ -394,7 +413,7 @@ function FeatureRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-1.5 text-body text-label-primary">
           <span className="min-w-0 flex-1 break-words leading-tight">
-            {feature.title}
+            {display.title}
           </span>
           {disabled && (
             <Lock
@@ -413,7 +432,7 @@ function FeatureRow({
           id={descriptionId}
           className="text-footnote text-label-secondary break-words line-clamp-2"
         >
-          {feature.description}
+          {display.description}
         </div>
         {needsTitle && (
           <div id={reasonId} className="text-footnote text-label-tertiary">
@@ -426,7 +445,7 @@ function FeatureRow({
         onChange={onToggle}
         disabled={disabled}
         pending={pending}
-        featureTitle={feature.title}
+        featureTitle={display.title}
         descriptionId={[descriptionId, stateId, needsTitle && reasonId]
           .filter(Boolean)
           .join(' ')}
