@@ -100,6 +100,13 @@ describe('GET /api/capture/receipt', () => {
     expect(await response.json()).toEqual({ state: 'committed', current: 'removed' })
   })
 
+  it('reports an opaque committed receipt as unknown without returning its body', async () => {
+    db.idempotencyRecord.findFirst.mockResolvedValue(record({ response_body: { success: true, private: 'redacted' } }))
+    const response = await GET(request())
+    expect(await response.json()).toEqual({ state: 'committed', current: 'unknown' })
+    expect(db.event.findUnique).not.toHaveBeenCalled()
+  })
+
   it('checks the family-scoped grocery resource for the capture action', async () => {
     db.idempotencyRecord.findFirst.mockResolvedValue(record({
       action: 'capture.grocery.add',
