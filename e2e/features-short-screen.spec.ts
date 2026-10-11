@@ -39,11 +39,13 @@ test.use({ storageState: authFile("parentA") });
 
 async function guard(context: BrowserContext, locale: "en" | "es") {
   await context.route("**/*", (route) => {
-    const url = new URL(route.request().url());
-    return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
-      ["data:", "blob:"].includes(url.protocol)
-      ? route.continue()
-      : route.abort();
+    const request = route.request();
+    const url = new URL(request.url());
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (!local) return route.abort();
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
+      return route.abort();
+    return route.continue();
   });
   await context.addInitScript(
     ({ language, localeKey, themeKey }) => {
@@ -195,7 +197,7 @@ for (const locale of ["en", "es"] as const) {
       ).toBeVisible();
       await expect(page.getByRole("switch")).toHaveCount(FEATURES.length);
       await page.getByRole("button", { name: copy.closeAll }).click();
-      await expect(page.getByRole("switch")).toHaveCount(11);
+      await expect(page.getByRole("switch")).toHaveCount(0);
 
       const search = page.getByRole("searchbox", { name: copy.search });
       await search.fill("budget");
@@ -207,7 +209,7 @@ for (const locale of ["en", "es"] as const) {
       const clear = page.getByRole("button", { name: copy.clearSearch });
       await clear.click();
       await expect(search).toBeFocused();
-      await expect(planning.getByRole("switch")).toHaveCount(11);
+      await expect(planning.getByRole("switch")).toHaveCount(0);
 
       const familyJump = groups.getByRole("button", {
         name: new RegExp(`^${copy.family}\\s·`),
