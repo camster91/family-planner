@@ -25,6 +25,8 @@ These checks do not establish account-owner linking, name-only application journ
 
 ## Activation dependencies and recovery
 
+The internal [name-only child profile command core](member-profile-commands.md) prepares atomic create/edit/archive and replay behavior. It has no route/client call site and does not satisfy the domain, compatibility, erasure or rendered activation requirements below.
+
 Before production backfill, complete common membership transitions: mappings intentionally prevent an unmanaged User household move. Existing removal and account erasure now handle copied profiles through the lifecycle contract, including removal followed by account deletion in another household. Neither unlink nor profile archive constitutes permanent erasure. Review the full member-domain erasure ledger before migrating subjects/history; do not activate until deletion, unlink/revocation, replay and recovery cannot resurrect erased information.
 
 The two account-side composite foreign keys are deferred until transaction completion in the SQL migration so family deletion can clear account membership and cascade profiles in either trigger order. Prisma cannot express that deferral or the erasure-provenance trigger; use the custom migration and database regression checks. Removal transitions mappings/links before clearing membership. Cross-table legacy-mapping/account-link agreement is not enforced by the current unique keys: lifecycle operations refuse contradictions, and the future linking transaction must reject them under common locks and verify account ownership. Dormant table presence is not evidence that linking is ready.
