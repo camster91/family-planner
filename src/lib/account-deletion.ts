@@ -609,7 +609,6 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
   { model: 'householdMemberAccountLink', scope: { kind: 'family' }, why: 'dormant verified account links (#480)' },
   { model: 'householdMemberLegacyMapping', scope: { kind: 'family' }, why: 'dormant legacy identity mappings (#480)' },
-  { model: 'householdMember', scope: { kind: 'family' }, why: 'household person profiles (#480)' },
   // 2. Tokens and links that could still reach the household.
   { model: 'familyInvite', scope: { kind: 'family' }, why: 'pending invitations' },
   { model: 'calendarOAuthState', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'OAuth states' },
@@ -634,7 +633,9 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'projectTask', scope: { kind: 'parent', relation: 'project' }, why: 'project tasks' },
   { model: 'project', scope: { kind: 'family' }, why: 'projects' },
   { model: 'choreAssignment', scope: { kind: 'family' }, why: 'chore assignments' },
+  // Member subjects use non-cascading history FKs; delete profiles after chores.
   { model: 'chore', scope: { kind: 'family' }, why: 'chores' },
+  { model: 'householdMember', scope: { kind: 'family' }, why: 'household person profiles after their subject history (#480)' },
   { model: 'habitLog', scope: { kind: 'family' }, why: 'habit logs' },
   { model: 'habit', scope: { kind: 'family' }, why: 'habits' },
   { model: 'earnedBadge', scope: { kind: 'family' }, why: 'badges' },
