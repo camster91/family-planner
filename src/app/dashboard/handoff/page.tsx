@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/i18n'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
+import { useHandoffText } from '@/i18n/handoff'
 import { isoToLocalDateTimeInput, localDateTimeToISO } from '@/lib/dates'
 import { canShareAppLink, shareAppLink } from '@/lib/native-app'
 
@@ -305,6 +306,7 @@ function HandoffForm({
         {mode === 'edit' && onDelete && (
           <button
             type="button"
+            disabled={saving}
             onClick={onDelete}
             className="min-h-[44px] px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
           >
@@ -632,6 +634,14 @@ function HandoffPageInner() {
   const [editHandoff, setEditHandoff] = React.useState<Handoff | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [userRole, setUserRole] = React.useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<Handoff | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
+  const [deleteError, setDeleteError] = React.useState<'failed' | 'network' | null>(null)
+  const createHandoffRef = React.useRef<HTMLButtonElement>(null)
+  const retryHandoffsRef = React.useRef<HTMLButtonElement>(null)
+  const cancelDeleteRef = React.useRef<HTMLButtonElement>(null)
+  const mutationRef = React.useRef(false)
+  const handoffText = useHandoffText()
   // The handoff whose share dialog is open, by id so a new link shows at once.
   const [shareId, setShareId] = React.useState<string | null>(null)
   const [makingLink, setMakingLink] = React.useState(false)
@@ -672,6 +682,8 @@ function HandoffPageInner() {
   }
 
   const handleSave = async (form: HandoffFormData) => {
+    if (mutationRef.current) return
+    mutationRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -712,27 +724,45 @@ function HandoffPageInner() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save handoff')
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
   }
 
+  const openDeleteConfirmation = () => {
+    if (!editHandoff || mutationRef.current) return
+    setDeleteError(null)
+    setDeleteTarget(editHandoff)
+  }
+
+  const closeDeleteConfirmation = () => {
+    if (mutationRef.current) return
+    setDeleteError(null)
+    setDeleteTarget(null)
+  }
+
   const handleDelete = async () => {
-    if (!editHandoff) return
-    if (!confirm(t('common.confirm') + '?')) return
-    setSaving(true)
-    setError(null)
+    const handoff = deleteTarget
+    if (!handoff || mutationRef.current) return
+    mutationRef.current = true
+    setDeleting(true)
+    setDeleteError(null)
     try {
-      const res = await fetch(`/api/handoff/${editHandoff.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/handoff/${handoff.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to delete handoff')
+        setDeleteError('failed')
+        return
       }
+      setDeleteTarget(null)
       setEditHandoff(null)
+      setHandoffs((current) => current.filter((item) => item.id !== handoff.id))
       await fetchHandoffs()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete handoff')
+      window.requestAnimationFrame(() => (retryHandoffsRef.current ?? createHandoffRef.current)?.focus())
+    } catch {
+      setDeleteError('network')
     } finally {
-      setSaving(false)
+      mutationRef.current = false
+      setDeleting(false)
     }
   }
 
@@ -776,6 +806,7 @@ function HandoffPageInner() {
   }, [printRequest])
 
   const closeModal = () => {
+    if (mutationRef.current) return
     setShowAdd(false)
     setEditHandoff(null)
     setError(null)
@@ -817,6 +848,7 @@ function HandoffPageInner() {
           </div>
           {isParent && (
             <button
+              ref={createHandoffRef}
               onClick={() => setShowAdd(true)}
               className="btn-filled px-4 py-2 rounded-lg text-subhead font-semibold flex items-center gap-1.5"
             >
@@ -829,7 +861,7 @@ function HandoffPageInner() {
         {loadError && (
           <div className="card-apple p-4 text-center text-label-secondary" role="alert">
             <p>{t('handoff.errorLoad')}</p>
-            <button type="button" onClick={retryHandoffs} className="btn-tinted mt-3 min-h-[44px]">
+            <button ref={retryHandoffsRef} type="button" onClick={retryHandoffs} className="btn-tinted mt-3 min-h-[44px]">
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
               {t('routeState.tryAgain')}
             </button>
@@ -871,23 +903,77 @@ function HandoffPageInner() {
         </div>
       </div>
 
-      <Dialog open={isParent && showAdd} onClose={closeModal} title={t('handoff.createHandoff')}>
-        <HandoffForm mode="add" onSave={handleSave} t={t} saving={saving} error={error} />
+      <Dialog
+        open={isParent && showAdd && !editHandoff}
+        onClose={saving || deleting ? undefined : closeModal}
+        title={t('handoff.createHandoff')}
+      >
+        <HandoffForm mode="add" onSave={handleSave} t={t} saving={saving || deleting} error={error} />
       </Dialog>
 
-      <Dialog open={isParent && !!editHandoff} onClose={closeModal} title={t('handoff.editHandoff')}>
+      <Dialog
+        open={isParent && !!editHandoff}
+        onClose={saving || deleting ? undefined : closeModal}
+        title={t('handoff.editHandoff')}
+      >
         {isParent && editHandoff && (
           <HandoffForm
             mode="edit"
             initial={editHandoff}
             onSave={handleSave}
-            onDelete={handleDelete}
+            onDelete={openDeleteConfirmation}
             t={t}
-            saving={saving}
+            saving={saving || deleting}
             error={error}
           />
         )}
       </Dialog>
+
+      {deleteTarget && (
+        <Dialog
+          open
+          role="alertdialog"
+          testId="remove-handoff-dialog"
+          title={handoffText('deleteTitle', { name: deleteTarget.sitter_name })}
+          description={handoffText('deleteDescription', { name: deleteTarget.sitter_name })}
+          initialFocusRef={cancelDeleteRef}
+          onClose={deleting ? undefined : closeDeleteConfirmation}
+          closeLabel={handoffText('deleteClose')}
+        >
+          <div aria-busy={deleting}>
+            {deleteError && (
+              <p role="alert" className="mb-4 text-sm text-danger-text">
+                {deleteError === 'network'
+                  ? handoffText('deleteNetworkError')
+                  : handoffText('deleteFailed')}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                ref={cancelDeleteRef}
+                type="button"
+                disabled={deleting}
+                onClick={closeDeleteConfirmation}
+                className="min-h-[44px] min-w-[44px] rounded-lg border border-input px-4 text-foreground disabled:opacity-60"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className="btn-destructive min-h-[44px] min-w-[44px] px-4 disabled:opacity-60"
+              >
+                {deleting
+                  ? handoffText('deleting')
+                  : deleteError
+                    ? t('routeState.tryAgain')
+                    : t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
 
       {isParent && (
         <ShareLinkDialog
