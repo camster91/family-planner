@@ -1,6 +1,6 @@
 # Name-only household profile command core (#480)
 
-`src/lib/household-profile-management.ts` implements internal create/edit/archive commands against the canonical HouseholdMember tables. There is no HTTP route, setup control, capability advertisement, production backfill or activation in this slice. Existing account-backed member responses remain unchanged. This is preparation for the supported domain/client migration in ADR-0009, not evidence that name-only assignments or shared journeys work yet.
+`src/lib/household-profile-management.ts` implements create/edit/archive commands against the canonical HouseholdMember tables. A dormant parent-only HTTP surface now exposes the same command through `GET|POST /api/family/profiles`, `PATCH /api/family/profiles/:id` and `POST /api/family/profiles/:id/archive`; it has no setup client, capability advertisement, protocol-2 activation, production backfill or rollout. Existing account-backed member responses remain unchanged. This is preparation for the supported domain/client migration in ADR-0009, not evidence that name-only assignments or shared journeys work yet.
 
 The caller must obtain the real personal session through the existing authentication boundary and supply its User ID, household and token version. A shared-device selected profile is never that context. The core then takes the account membership lock followed by the household lock and rechecks current role, membership, token generation and household existence before effects **and before replay**. Parent authority is required; foreign targets have the same missing-target outcome as nonexistent IDs. No new permission or elevation policy is granted.
 
@@ -18,6 +18,12 @@ The caller must obtain the real personal session through the existing authentica
 Before any route/client calls this core, complete the member-subject domain migration, supported current/old client negotiation, authenticated route/direct-API tests, assignment/rotation/points and allowed-device consumers. Each assignment must check active member status under the common membership lock so archive prevents future assignment; this command alone cannot prove that. Atomic command storage uses existing account-scoped IdempotencyRecord retention. The future linking/permanent-erasure ledger must also clear or redact identifying command responses; archive alone is not erasure. No link or permanent member-erasure endpoint exists here.
 
 The setup UI must preserve its key and draft across retries, handle conflict/revocation safely, refresh after replay and support finish-later without manufacturing an account. Figma proposal is reviewable, but rendered UI, keyboard/Back/process-death, actual API, physical hardware, deployment and family acceptance are still required. No schema narrowing, new provider, scheduler, invitation or email follows from this core.
+
+## Dormant HTTP boundary
+
+The profile routes require the existing authenticated person session and parent role. A paired-device context is refused before session authentication, and unsafe requests continue to use the repository's existing CSRF middleware. GET is household-scoped and returns only the allowlisted profile presentation fields; it never returns login email, account links, erasure ownership or credentials. Mutations require an `Idempotency-Key` and call `manageHouseholdProfile` directly so its account/household locks and replay record remain the single transaction boundary. Replays carry `Idempotency-Replayed: true`; stale revisions use a stable conflict response. No profile route changes `/api/family/members`, creates an account or invitation, advertises a capability, queues an offline action, or grants authority to a profile role.
+
+The HTTP surface is source groundwork only. Before a client calls it, complete roster onboarding, installed-client compatibility, member-subject assignment migration, direct API/household isolation evidence and shared-surface privacy review. Keep the routes disabled from navigation and capability responses until those gates are accepted.
 
 ## Scoped verification
 
