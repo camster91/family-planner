@@ -16,8 +16,10 @@ function makeTx(initial: { stack?: Row; chores?: Row[]; record?: Row } = {}) {
     queries: [] as string[],
   };
   const tx = {
-    $queryRaw: async (strings: TemplateStringsArray) => {
-      state.queries.push(Array.from(strings).join("?"));
+    $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      state.queries.push(
+        `${Array.from(strings).join("?")} ${values.map(String).join("|")}`,
+      );
       return [{ id: "family-a" }];
     },
     family: { findFirst: async () => ({ id: "family-a" }) },
@@ -171,13 +173,18 @@ describe("routine stack transaction coordinator", () => {
       routine_order: 1,
     });
     expect(state.record).toMatchObject({ response_status: 200 });
-    expect(
-      state.queries.findIndex((query) =>
-        query.includes("pg_advisory_xact_lock"),
-      ),
-    ).toBeLessThan(
-      state.queries.findIndex((query) => query.includes('"IdempotencyRecord"')),
+    const userLock = state.queries.findIndex((query) =>
+      query.includes("user-membership:parent-a"),
     );
+    const householdLock = state.queries.findIndex((query) =>
+      query.includes("household-membership:family-a"),
+    );
+    const receiptLock = state.queries.findIndex((query) =>
+      query.includes('"IdempotencyRecord"'),
+    );
+    expect(userLock).toBeGreaterThanOrEqual(0);
+    expect(userLock).toBeLessThan(householdLock);
+    expect(householdLock).toBeLessThan(receiptLock);
   });
 
   it("replays a completed key without re-running the chore write", async () => {

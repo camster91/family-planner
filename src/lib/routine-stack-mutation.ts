@@ -2,13 +2,13 @@
  * Current-occurrence routine stack coordinator.
  *
  * This module intentionally has no route or reader. A parent route can run it
- * inside its existing Prisma transaction after creating/locking its
- * IdempotencyRecord. The receipt is updated before this transaction commits;
+ * inside its existing Prisma transaction after creating its IdempotencyRecord.
+ * The coordinator owns the user, household, and receipt locks. The receipt is updated before this transaction commits;
  * the generic post-effect idempotency helper is deliberately not used here.
  */
 import crypto from "node:crypto";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
-import { lockHousehold } from "@/lib/household-lock";
+import { lockHousehold, lockUser } from "@/lib/household-lock";
 import { hashIdempotentRequest } from "@/lib/idempotency";
 import { createChoreSchema } from "@/lib/validations";
 import {
@@ -49,7 +49,7 @@ export interface RoutineStackActor {
 }
 
 export interface RoutineStackMutationOptions {
-  /** Existing in-progress IdempotencyRecord locked by the route transaction. */
+  /** IdempotencyRecord created by the route transaction; this coordinator locks it. */
   recordId?: string | null;
   /** Testable seam; production defaults to the canonical account/member check. */
   resolveAssignee?: (
@@ -216,10 +216,11 @@ function asMutationBody(value: unknown): unknown {
 }
 
 /**
- * Apply one occurrence draft against a transaction. The caller must create an
- * IdempotencyRecord in progress before invoking this function and pass its ID
- * as recordId for keyed requests; the coordinator locks and re-reads it again
- * before any domain detail is exposed or changed.
+ * Apply one occurrence draft against a transaction. The caller may create an
+ * IdempotencyRecord before invoking this function and pass its ID as recordId
+ * for keyed requests; the coordinator acquires the canonical user -> household
+ * -> receipt locks and re-reads it before any domain detail is exposed or
+ * changed.
  */
 export async function mutateRoutineStackInTx<T extends object>(
   rawTx: T,
@@ -240,9 +241,10 @@ export async function mutateRoutineStackInTx<T extends object>(
 
   const tx = rawTx as unknown as RuntimeTransaction;
   const requestHash = hashIdempotentRequest("routine-stack.mutate", draft);
-  // The route owns the canonical user lock; acquire the household lock before
-  // touching the receipt so household deletion cannot snapshot around this
-  // mutation. This matches the shared user -> household lock order.
+  // Keep the canonical membership order even when a direct caller invokes this
+  // coordinator without a route wrapper. PostgreSQL transaction advisory locks
+  // are re-entrant, so a route that already holds the user lock is safe here.
+  await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
   if (options.recordId) {
     await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${options.recordId} FOR UPDATE`;
