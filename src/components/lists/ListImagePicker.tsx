@@ -1,5 +1,9 @@
 "use client";
+
 import { useId, useRef, useState } from "react";
+import { useTranslation } from "@/i18n";
+import { listCreateMessages } from "@/i18n/list-create";
+
 export function ListImagePicker({
   value,
   onChange,
@@ -11,22 +15,25 @@ export function ListImagePicker({
   disabled?: boolean;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const id = useId(),
-    input = useRef<HTMLInputElement>(null),
-    pending = useRef(false);
-  const [uploading, setUploading] = useState(false),
-    [error, setError] = useState<string | null>(null);
+  const { locale } = useTranslation();
+  const copy = listCreateMessages[locale];
+  const id = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const pending = useRef(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   return (
     <details open className="card-apple p-4">
       <summary className="min-h-[44px] cursor-pointer text-body text-label-primary">
-        List image{" "}
+        {copy.imageTitle}{" "}
         <span className="text-footnote text-label-secondary">
-          · {value ? "Image selected" : "Optional"}
+          · {value ? copy.imageSelected : copy.imageOptional}
         </span>
       </summary>
       <div className="space-y-3 pt-2">
         <label htmlFor={id} className="sr-only">
-          Choose list image
+          {copy.chooseImage}
         </label>
         <input
           ref={input}
@@ -41,7 +48,7 @@ export function ListImagePicker({
             if (!file || disabled || pending.current) return;
             setError(null);
             if (file.size > 5 * 1024 * 1024) {
-              setError("Choose an image smaller than 5 MB.");
+              setError(copy.imageTooLarge);
               return;
             }
             pending.current = true;
@@ -55,24 +62,17 @@ export function ListImagePicker({
                 body,
               });
               const data = await response.json();
-              if (!response.ok)
-                throw new Error(
-                  data.error || "Image upload failed. Try again.",
-                );
+              if (!response.ok) throw new Error(copy.imageUploadError);
               if (
                 typeof data.url !== "string" ||
                 !/^\/api\/files\/chores\/[a-f0-9]{16}\.(jpg|jpeg|png|webp|heic)$/i.test(
                   data.url,
                 )
               )
-                throw new Error("Image upload failed. Try again.");
+                throw new Error(copy.imageUploadError);
               onChange(data.url);
-            } catch (error) {
-              setError(
-                error instanceof Error
-                  ? error.message
-                  : "Image upload failed. Try again.",
-              );
+            } catch {
+              setError(copy.imageUploadError);
             } finally {
               pending.current = false;
               setUploading(false);
@@ -85,7 +85,7 @@ export function ListImagePicker({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={value}
-              alt="Selected list image"
+              alt={copy.selectedImage}
               width={320}
               height={160}
               className="w-full max-h-40 object-contain rounded-lg bg-[var(--surface-fill)]"
@@ -99,7 +99,7 @@ export function ListImagePicker({
                 setError(null);
               }}
             >
-              Remove image
+              {copy.removeImage}
             </button>
           </div>
         )}
@@ -109,11 +109,13 @@ export function ListImagePicker({
           disabled={disabled || uploading}
           onClick={() => input.current?.click()}
         >
-          {uploading ? "Uploading…" : value ? "Replace image" : "Add image"}
+          {uploading
+            ? copy.uploadingImage
+            : value
+              ? copy.replaceImage
+              : copy.addImage}
         </button>
-        <p className="text-footnote text-label-secondary">
-          JPEG, PNG, WebP or HEIC · up to 5 MB. Shared with your household.
-        </p>
+        <p className="text-footnote text-label-secondary">{copy.fileHint}</p>
         {error && (
           <p role="alert" className="text-footnote text-[var(--danger-text)]">
             {error}

@@ -402,7 +402,9 @@ export const navItems: NavItem[] = [
     icon: Car,
     featureKey: "pickups",
   },
-  ...kidFeatureNavItems,
+  // Notes is already present above. Keep the other bounded kid discovery
+  // entries in the shared command catalog without creating duplicate hrefs.
+  ...kidFeatureNavItems.filter((item) => item.href !== "/dashboard/notes"),
   {
     name: "Travel",
     href: "/dashboard/travel",

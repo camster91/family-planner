@@ -181,7 +181,7 @@ it.each([
     expect(savingChanged.mock.calls).toEqual([[true], [false]]);
     if (outcome === "refusal")
       expect(screen.getByRole("alert").textContent).toBe(
-        "Ask a parent or teen to add a recipe.",
+        "The recipe was not accepted. Check your entries and permissions.",
       );
     if (outcome === "network") {
       expect(screen.getByRole("alert").textContent).toContain(
@@ -297,7 +297,7 @@ it.each(["network", "server", "missing recipe", "unreadable response"])(
   },
 );
 
-it("keeps a rejected create draft editable with the server refusal", async () => {
+it("keeps a rejected create draft editable without exposing server details", async () => {
   const user = userEvent.setup();
   global.fetch = jest.fn(
     async () =>
@@ -311,7 +311,10 @@ it("keeps a rejected create draft editable with the server refusal", async () =>
   await user.type(screen.getByLabelText("Recipe name"), "Soup");
   await user.click(screen.getByRole("button", { name: "Save recipe" }));
   expect(screen.getByRole("alert").textContent).toBe(
-    "Ask a parent or teen to add a recipe.",
+    "The recipe was not accepted. Check your entries and permissions.",
+  );
+  expect(screen.getByRole("alert").textContent).not.toContain(
+    "Ask a parent or teen",
   );
   expect(
     (screen.getByRole("button", { name: "Save recipe" }) as HTMLButtonElement)

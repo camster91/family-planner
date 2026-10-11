@@ -119,6 +119,7 @@ function friendlyTime(iso: string | undefined, locale: 'en' | 'es', noDate: stri
 }
 
 type RecoveryIdentity = { userId: string; familyId: string }
+type CaptureAvailability = 'available' | 'unavailable' | 'retry'
 
 function eventPayload(value: Pick<Draft | PhotoEvent, 'title' | 'start_time' | 'end_time' | 'location' | 'event_type'>) {
   return {
@@ -154,7 +155,7 @@ export function CaptureBox({
   /** Called by the shared Dialog when the sheet can be dismissed. */
   onClose?: () => void
   /** Reports the server-side setup/role gate to a launcher host. */
-  onAvailabilityChange?: (available: boolean) => void
+  onAvailabilityChange?: (availability: CaptureAvailability) => void
 } = {}) {
   const { locale, t } = useTranslation()
   const msg = (key: CaptureMessage, params?: Record<string, string | number>) =>
@@ -173,6 +174,10 @@ export function CaptureBox({
   const [error, setError] = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState<string | null>(null)
   const [unavailable, setUnavailable] = React.useState(false)
+  const [availability, setAvailability] = React.useState<'loading' | CaptureAvailability>('loading')
+  const [checkingAvailability, setCheckingAvailability] = React.useState(false)
+  const availabilityRef = React.useRef<'loading' | CaptureAvailability>('loading')
+  const focusAfterAvailabilityRef = React.useRef(false)
   // D4 (#102): children may not use capture; the API says so via `allowed`.
   const [childBlocked, setChildBlocked] = React.useState(false)
   const [photoBusy, setPhotoBusy] = React.useState(false)
@@ -200,12 +205,12 @@ export function CaptureBox({
     if (Date.now() - operation.at >= CAPTURE_RECOVERY_RETENTION_MS) throw new CaptureClientError('previewTooOld')
     return operation
   }
-  function syncRecoveryRows(rows: CaptureRecoveryEnvelope[]) {
+  const syncRecoveryRows = React.useCallback((rows: CaptureRecoveryEnvelope[]) => {
     recoveryRows.current = new Map(rows.map((row) => [row.key, row]))
     setRecoveryOperations(rows)
     const identity = recoveryIdentity.current
     if (identity) saveCaptureRecovery(window.localStorage, identity.userId, identity.familyId, rows)
-  }
+  }, [])
 
   function rememberRecovery(row: CaptureRecoveryEnvelope) {
     const next = [...recoveryRows.current.values()].filter((current) => current.key !== row.key)
@@ -257,34 +262,75 @@ export function CaptureBox({
     }
   }
 
-  // Is capture set up on this deployment?
-  React.useEffect(() => {
-    fetch('/api/capture')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d || d.allowed !== true || d.configured !== true) {
-          if (d?.allowed === false) setChildBlocked(true)
-          else setUnavailable(true)
-          onAvailabilityChange?.(false)
-          return
-        }
-        onAvailabilityChange?.(true)
-        if (d?.userId && d?.familyId) {
-          const identity = { userId: String(d.userId), familyId: String(d.familyId) }
-          const previousIdentity = recoveryIdentity.current
-          const sameIdentity = previousIdentity?.userId === identity.userId && previousIdentity.familyId === identity.familyId
-          const pending = sameIdentity ? [...recoveryRows.current.values()] : []
-          recoveryIdentity.current = identity
-          activateCaptureRecoveryStorage(window.localStorage, identity.userId, identity.familyId)
-          const persisted = loadCaptureRecovery(window.localStorage, identity.userId, identity.familyId)
-          syncRecoveryRows([...persisted, ...pending.filter((row) => !persisted.some((saved) => saved.key === row.key))])
-        }
-      })
-      .catch(() => {
+  // Is capture set up on this deployment? An explicit authenticated refusal or
+  // an explicit disabled/configured-off response is final for this mount. A
+  // network/5xx/malformed response is transient so the launcher can recover
+  // without a full page reload.
+  const checkAvailability = React.useCallback(async () => {
+    const recoveringFromTransientFailure = availabilityRef.current === 'retry'
+    setCheckingAvailability(true)
+    try {
+      const response = await fetch('/api/capture')
+      if (response.status === 401 || response.status === 403) {
         setUnavailable(true)
-        onAvailabilityChange?.(false)
-      })
-  }, [onAvailabilityChange])
+        setAvailability('unavailable')
+        onAvailabilityChange?.('unavailable')
+        return
+      }
+      if (!response.ok) throw new Error('Capture availability check failed')
+      const value: unknown = await response.json()
+      if (!value || typeof value !== 'object') throw new Error('Unreadable capture availability')
+      const data = value as { allowed?: unknown; configured?: unknown; userId?: unknown; familyId?: unknown }
+      if (typeof data.allowed !== 'boolean' || typeof data.configured !== 'boolean') {
+        throw new Error('Incomplete capture availability')
+      }
+      if (!data.allowed) {
+        setChildBlocked(true)
+        setAvailability('unavailable')
+        onAvailabilityChange?.('unavailable')
+        return
+      }
+      if (!data.configured) {
+        setUnavailable(true)
+        setAvailability('unavailable')
+        onAvailabilityChange?.('unavailable')
+        return
+      }
+      if (recoveringFromTransientFailure) focusAfterAvailabilityRef.current = true
+      setAvailability('available')
+      onAvailabilityChange?.('available')
+      if (data.userId && data.familyId) {
+        const identity = { userId: String(data.userId), familyId: String(data.familyId) }
+        const previousIdentity = recoveryIdentity.current
+        const sameIdentity = previousIdentity?.userId === identity.userId && previousIdentity.familyId === identity.familyId
+        const pending = sameIdentity ? [...recoveryRows.current.values()] : []
+        recoveryIdentity.current = identity
+        activateCaptureRecoveryStorage(window.localStorage, identity.userId, identity.familyId)
+        const persisted = loadCaptureRecovery(window.localStorage, identity.userId, identity.familyId)
+        syncRecoveryRows([...persisted, ...pending.filter((row) => !persisted.some((saved) => saved.key === row.key))])
+      }
+    } catch {
+      setAvailability('retry')
+      onAvailabilityChange?.('retry')
+    } finally {
+      setCheckingAvailability(false)
+    }
+  }, [onAvailabilityChange, syncRecoveryRows])
+
+  React.useEffect(() => {
+    void checkAvailability()
+  }, [checkAvailability])
+
+  React.useEffect(() => {
+    availabilityRef.current = availability
+  }, [availability])
+
+  React.useEffect(() => {
+    if (availability !== 'available' || !focusAfterAvailabilityRef.current) return
+    focusAfterAvailabilityRef.current = false
+    if (!open) return
+    textInputRef.current?.focus()
+  }, [availability, open])
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
     if (!row.requestHash) {
@@ -524,6 +570,22 @@ export function CaptureBox({
     return present(
       <div className="card-apple p-4 text-subhead text-label-secondary" role="note" data-testid="capture-child-blocked">
         {CAPTURE_CHILD_MESSAGE}
+      </div>,
+    )
+  }
+
+  if (availability === 'retry') {
+    return present(
+      <div className={inSheet ? 'p-1' : 'card-apple p-4'} data-testid="capture-availability-retry">
+        <p role="alert" className="text-subhead text-[var(--danger-text)]">{msg('availabilityRetry')}</p>
+        <button
+          type="button"
+          className="btn-tinted min-h-[44px] mt-3"
+          onClick={() => void checkAvailability()}
+          disabled={checkingAvailability}
+        >
+          {checkingAvailability ? msg('checking') : msg('retry')}
+        </button>
       </div>,
     )
   }

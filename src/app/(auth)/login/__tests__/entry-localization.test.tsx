@@ -7,11 +7,15 @@ import RegisterPage from "../../register/page";
 const mockPush = jest.fn();
 const mockRefresh = jest.fn();
 const mockClear = jest.fn();
+const mockClearCapture = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 jest.mock("@/lib/offline-queue-browser", () => ({
   clearAllPersonQueues: () => mockClear(),
+}));
+jest.mock("@/lib/capture-recovery-storage", () => ({
+  clearCaptureRecoveryStorage: () => mockClearCapture(),
 }));
 function Switch() {
   const { locale, setLocale } = useTranslation();
@@ -72,6 +76,7 @@ beforeEach(() => {
   mockPush.mockReset();
   mockRefresh.mockReset();
   mockClear.mockReset();
+  mockClearCapture.mockReset();
   global.fetch = jest.fn();
 });
 it("keeps autofill, focus, revealed password and token link when switching, and clears queues only once", () => {
@@ -97,6 +102,7 @@ it("keeps autofill, focus, revealed password and token link when switching, and 
     screen.getByRole("link", { name: messages.es.auth.signUp }),
   ).toHaveAttribute("href", "/register?token=synthetic%2B%20%7Btoken%7D");
   expect(mockClear).toHaveBeenCalledTimes(1);
+  expect(mockClearCapture).toHaveBeenCalledTimes(1);
   expect(fetch).not.toHaveBeenCalled();
 });
 it.each(["fallback", "network", "raw"] as const)(
@@ -144,6 +150,7 @@ it.each(["fallback", "network", "raw"] as const)(
     });
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockClearCapture).toHaveBeenCalledTimes(1);
   },
 );
 it.each([
