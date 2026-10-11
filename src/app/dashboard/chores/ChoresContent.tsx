@@ -179,6 +179,8 @@ export default function ChoresContent({
   const verificationReasonRef = React.useRef<HTMLTextAreaElement>(null);
   const verificationRetryRef = React.useRef<HTMLButtonElement>(null);
   const verificationFallbackRef = React.useRef<HTMLButtonElement>(null);
+  const verificationFallbackConsumedRef = React.useRef(0);
+  const verificationFallbackCancelledRef = React.useRef(0);
   const [verificationFallbackRequest, requestVerificationFallback] =
     React.useState(0);
   const [verificationBusyIds, setVerificationBusyIds] = React.useState(
@@ -206,13 +208,35 @@ export default function ChoresContent({
   // dialog. Dialog's passive cleanup can only restore a connected opener, so
   // wait until that cleanup has run before focusing the stable page control.
   React.useEffect(() => {
-    if (!verificationFallbackRequest || verificationDialog) return;
+    if (
+      !verificationFallbackRequest ||
+      !verificationDialog ||
+      verificationFallbackRequest <= verificationFallbackConsumedRef.current
+    )
+      return;
+    verificationFallbackCancelledRef.current = verificationFallbackRequest;
+  }, [verificationDialog, verificationFallbackRequest]);
+
+  React.useEffect(() => {
+    if (
+      !verificationFallbackRequest ||
+      verificationDialog ||
+      verificationFallbackRequest <= verificationFallbackConsumedRef.current ||
+      verificationFallbackRequest === verificationFallbackCancelledRef.current
+    )
+      return;
     let cancelled = false;
     queueMicrotask(() => {
-      if (cancelled || verificationDialog) return;
+      if (
+        cancelled ||
+        verificationDialog ||
+        verificationFallbackRequest === verificationFallbackCancelledRef.current
+      )
+        return;
       const fallback = verificationFallbackRef.current;
       if (!fallback) return;
       fallback.focus();
+      verificationFallbackConsumedRef.current = verificationFallbackRequest;
     });
     return () => {
       cancelled = true;

@@ -220,6 +220,20 @@ describe("ChoresContent parent check", () => {
         screen.getByRole("button", { name: "Today" }),
       ),
     );
+
+    const secondTrigger = within(queue()!).getByRole("button", {
+      name: "Send back “Feed the cat”",
+    });
+    await userEvent.click(secondTrigger);
+    expect(
+      screen.getByRole("dialog", { name: "Send “Feed the cat” back" }),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.activeElement).toBe(secondTrigger);
+
+    await userEvent.click(secondTrigger);
+    await userEvent.keyboard("{Escape}");
+    expect(document.activeElement).toBe(secondTrigger);
   });
 
   it("cancelling the reason dialog sends nothing and restores focus", async () => {
