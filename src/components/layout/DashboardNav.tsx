@@ -37,6 +37,7 @@ import {
 } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
 import { useTranslation } from "@/i18n";
+import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery";
 import {
   navigationMessages,
   navigationTabKey,
@@ -129,6 +130,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   }, [avatarOpen]);
 
   const handleSignOut = async () => {
+    // Capture recovery contains normalized household content and belongs only
+    // to the signed-in session. Clear it before leaving the account, even if
+    // the server logout request is unavailable offline.
+    clearCaptureRecoveryStorage(undefined);
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
       const { clearAllPersonQueues } =

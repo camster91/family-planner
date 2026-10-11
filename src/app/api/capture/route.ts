@@ -131,6 +131,10 @@ export async function GET(request: NextRequest) {
     configured: Boolean(config),
     model: config?.model ?? null,
     allowed,
+    // The browser uses this authenticated namespace to retain only confirmed
+    // recovery envelopes. It never receives provider configuration or keys.
+    userId: auth.user.id,
+    familyId: auth.user.family_id,
     ...(allowed ? {} : { message: CAPTURE_CHILD_MESSAGE }),
   })
 }
