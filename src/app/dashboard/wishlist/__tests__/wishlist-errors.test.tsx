@@ -4,7 +4,7 @@
 // Wishlist failures: no more window.alert with raw response text, and a
 // network error no longer leaves the modal buttons stuck on "...".
 import * as React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 
@@ -33,6 +33,7 @@ let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   window.alert = jest.fn()
+  window.prompt = jest.fn()
   mutationReply = async () => ({ ok: true, status: 200, json: async () => ({}) }) as Response
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -116,4 +117,122 @@ it('changing status: a failure shows an error toast instead of alert()', async (
   expect(toast.textContent).toContain('wishlist.errorStatus')
   expect(toast.textContent).toContain('Parents only')
   expect(window.alert).not.toHaveBeenCalled()
+})
+
+it('denying: uses a draft-preserving dialog instead of window.prompt', async () => {
+  mutationReply = async () =>
+    ({ ok: false, status: 403, json: async () => ({ error: 'Parents only' }) }) as Response
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Status for Bike' }), 'denied')
+
+  const dialog = screen.getByRole('dialog', { name: 'wishlist.denyWish' })
+  const reason = within(dialog).getByLabelText('wishlist.deniedReason') as HTMLTextAreaElement
+  await user.type(reason, 'It is no longer needed')
+  await user.click(within(dialog).getByRole('button', { name: 'wishlist.confirmDenial' }))
+
+  expect((await within(dialog).findByRole('alert')).textContent).toBe('Parents only')
+  expect(reason.value).toBe('It is no longer needed')
+  expect(window.prompt).not.toHaveBeenCalled()
+})
+
+it('status changes lock one item while pending and ignore a second selection', async () => {
+  let resolveStatus: (value: Response) => void = () => {}
+  let statusCalls = 0
+  let current = ITEM
+  global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response)
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ items: [current] }) } as Response)
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      statusCalls += 1
+      return new Promise<Response>((resolve) => {
+        resolveStatus = resolve
+      })
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({}) } as Response)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'received')
+  expect(select.disabled).toBe(true)
+  fireEvent.change(select, { target: { value: 'idle' } })
+  expect(statusCalls).toBe(1)
+
+  current = { ...ITEM, status: 'received' }
+  resolveStatus({
+    ok: true,
+    status: 200,
+    json: async () => ({ item: current }),
+  } as Response)
+  await waitFor(() => expect(select.disabled).toBe(false))
+  expect(select.value).toBe('received')
+})
+
+it('reconciles a malformed status response before allowing a retry', async () => {
+  let wishlistGets = 0
+  let current = ITEM
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return { ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      wishlistGets += 1
+      return { ok: true, status: 200, json: async () => ({ items: [current] }) } as Response
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      current = { ...ITEM, status: 'received' }
+      return { ok: true, status: 200, json: async () => ({ unexpected: true }) } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'received')
+
+  await waitFor(() => expect(select.value).toBe('received'))
+  expect(wishlistGets).toBe(2)
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('reconciles a network-uncertain status write before showing an error', async () => {
+  let current = ITEM
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return { ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      return { ok: true, status: 200, json: async () => ({ items: [current] }) } as Response
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      current = { ...ITEM, status: 'received' }
+      throw new TypeError('Failed to fetch')
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'received')
+
+  await waitFor(() => expect(select.value).toBe('received'))
+  expect(screen.queryByRole('alert')).toBeNull()
 })

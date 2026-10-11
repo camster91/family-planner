@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from '@/i18n'
 import { Heart, Plus, ExternalLink } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
@@ -26,6 +26,39 @@ async function serverError(res: Response): Promise<string | null> {
   return data && typeof data.error === 'string' && data.error ? data.error : null
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function matchesStatus(
+  item: WishlistItem | undefined,
+  id: string,
+  status: string,
+  deniedReason?: string,
+): boolean {
+  return Boolean(
+    item &&
+      item.id === id &&
+      item.status === status &&
+      (status !== 'denied' || item.denied_reason === deniedReason),
+  )
+}
+
+function responseMatchesStatus(
+  value: unknown,
+  id: string,
+  status: string,
+  deniedReason?: string,
+): boolean {
+  if (!isRecord(value) || !isRecord(value.item)) return false
+  const item = value.item
+  return (
+    item.id === id &&
+    item.status === status &&
+    (status !== 'denied' || item.denied_reason === deniedReason)
+  )
+}
+
 type UserRole = 'parent' | 'child' | 'teen'
 
 function WishlistContent() {
@@ -37,11 +70,22 @@ function WishlistContent() {
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [deletingItem, setDeletingItem] = useState<WishlistItem | null>(null)
+  const [denialDraft, setDenialDraft] = useState<{
+    itemId: string
+    title: string
+    reason: string
+  } | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [userRole, setUserRole] = useState<UserRole>('child')
   const [submitting, setSubmitting] = useState(false)
   // Why the open modal's last save/delete failed; the modal stays open.
   const [modalError, setModalError] = useState<string | null>(null)
+  const [statusModalError, setStatusModalError] = useState<string | null>(null)
+  const [pendingStatusIds, setPendingStatusIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+  const pendingStatusIdsRef = useRef<Set<string>>(new Set())
+  const denialReasonRef = useRef<HTMLTextAreaElement>(null)
   const { addToast } = useMaybeToast()
 
   const [formTitle, setFormTitle] = useState('')
@@ -49,14 +93,23 @@ function WishlistContent() {
   const [formDescription, setFormDescription] = useState('')
   const [formPrice, setFormPrice] = useState('')
 
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(async (options?: { showPageError?: boolean }) => {
+    const showPageError = options?.showPageError ?? true
     try {
       const res = await fetch('/api/wishlist')
       if (!res.ok) throw new Error(t('wishlist.errorLoad'))
       const data = await res.json()
-      setItems(data.items || [])
+      if (!isRecord(data) || !Array.isArray(data.items)) {
+        throw new Error(t('wishlist.errorLoad'))
+      }
+      setItems(data.items as WishlistItem[])
+      setError(null)
+      return data.items as WishlistItem[]
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t('wishlist.errorLoad'))
+      if (showPageError) {
+        setError(e instanceof Error ? e.message : t('wishlist.errorLoad'))
+      }
+      return null
     } finally {
       setLoading(false)
     }
@@ -106,22 +159,129 @@ function WishlistContent() {
     }
   }
 
-  const handleStatusChange = async (id: string, status: string, denied_reason?: string) => {
-    const body: Record<string, string> = { status }
-    if (status === 'denied' && denied_reason) body.denied_reason = denied_reason
+  const beginStatus = (id: string) => {
+    if (pendingStatusIdsRef.current.has(id)) return false
+    const next = new Set(pendingStatusIdsRef.current)
+    next.add(id)
+    pendingStatusIdsRef.current = next
+    setPendingStatusIds(next)
+    return true
+  }
+
+  const endStatus = (id: string) => {
+    const next = new Set(pendingStatusIdsRef.current)
+    next.delete(id)
+    pendingStatusIdsRef.current = next
+    setPendingStatusIds(next)
+  }
+
+  const reconcileStatus = useCallback(
+    async (id: string, status: string, deniedReason?: string) => {
+      const refreshed = await fetchItems({ showPageError: false })
+      return Boolean(
+        refreshed?.some((item) => matchesStatus(item, id, status, deniedReason)),
+      )
+    },
+    [fetchItems],
+  )
+
+  const reportStatusError = (message: string, target: 'toast' | 'modal') => {
+    if (target === 'modal') {
+      setStatusModalError(message)
+    } else {
+      addToast({ type: 'error', title: t('wishlist.errorStatus'), message })
+    }
+  }
+
+  const handleStatusChange = async (
+    id: string,
+    status: string,
+    deniedReason?: string,
+    errorTarget: 'toast' | 'modal' = 'toast',
+  ) => {
+    if (!beginStatus(id)) return false
+    const normalizedReason = status === 'denied' ? deniedReason?.trim() : undefined
     try {
-      const res = await fetch(`/api/wishlist/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        addToast({ type: 'error', title: t('wishlist.errorStatus'), message: (await serverError(res)) ?? t('common.tryAgain') })
-        return
+      let res: Response
+      try {
+        res = await fetch(`/api/wishlist/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status,
+            ...(normalizedReason ? { denied_reason: normalizedReason } : {}),
+          }),
+        })
+      } catch {
+        const confirmed = await reconcileStatus(id, status, normalizedReason)
+        if (!confirmed) {
+          reportStatusError(t('wishlist.statusUncertain'), errorTarget)
+        }
+        return confirmed
       }
-      await fetchItems()
-    } catch {
-      addToast({ type: 'error', title: t('wishlist.errorStatus'), message: t('common.networkError') })
+      if (!res.ok) {
+        reportStatusError(
+          (await serverError(res)) ?? t('common.tryAgain'),
+          errorTarget,
+        )
+        return false
+      }
+
+      const payload = await res.json().catch(() => null)
+      if (!responseMatchesStatus(payload, id, status, normalizedReason)) {
+        const confirmed = await reconcileStatus(id, status, normalizedReason)
+        if (!confirmed) {
+          reportStatusError(t('wishlist.statusUncertain'), errorTarget)
+        }
+        return confirmed
+      }
+
+      const refreshed = await fetchItems({ showPageError: false })
+      if (
+        !refreshed ||
+        !refreshed.some((item) =>
+          matchesStatus(item, id, status, normalizedReason),
+        )
+      ) {
+        addToast({
+          type: 'error',
+          title: t('wishlist.errorStatus'),
+          message: t('wishlist.statusSavedRefreshFailed'),
+        })
+      }
+      return true
+    } finally {
+      endStatus(id)
+    }
+  }
+
+  const openDenialModal = (item: WishlistItem) => {
+    setStatusModalError(null)
+    setDenialDraft({ itemId: item.id, title: item.title, reason: '' })
+  }
+
+  const closeDenialModal = () => {
+    if (denialDraft && pendingStatusIdsRef.current.has(denialDraft.itemId)) return
+    setStatusModalError(null)
+    setDenialDraft(null)
+  }
+
+  const confirmDenial = async () => {
+    if (!denialDraft) return
+    const reason = denialDraft.reason.trim()
+    if (!reason) {
+      setStatusModalError(t('wishlist.denialReasonRequired'))
+      return
+    }
+    const saved = await handleStatusChange(
+      denialDraft.itemId,
+      'denied',
+      reason,
+      'modal',
+    )
+    if (saved) {
+      setStatusModalError(null)
+      setDenialDraft(null)
     }
   }
 
@@ -305,16 +465,17 @@ function WishlistContent() {
                       {isParent && (
                         <select
                           value={item.status}
+                          disabled={pendingStatusIds.has(item.id)}
+                          aria-busy={pendingStatusIds.has(item.id) || undefined}
                           onChange={(e) => {
                             if (e.target.value === 'denied') {
-                              const reason = window.prompt(t('wishlist.deniedReason'))
-                              if (reason) handleStatusChange(item.id, e.target.value, reason)
+                              openDenialModal(item)
                             } else {
-                              handleStatusChange(item.id, e.target.value)
+                              void handleStatusChange(item.id, e.target.value)
                             }
                           }}
                           aria-label={`Status for ${item.title}`}
-                          className="text-caption-1 bg-[var(--surface-fill)] border border-[var(--surface-separator)] rounded-lg px-2 py-1"
+                          className="min-h-11 text-caption-1 bg-[var(--surface-fill)] border border-[var(--surface-separator)] rounded-lg px-2 py-1 disabled:opacity-60"
                         >
                           <option value="idle">{t('wishlist.status.idle')}</option>
                           <option value="on_the_way">{t('wishlist.status.onTheWay')}</option>
@@ -358,6 +519,65 @@ function WishlistContent() {
           </div>
         </div>
       ))}
+
+      <Dialog
+        open={!!denialDraft}
+        onClose={closeDenialModal}
+        title={t('wishlist.denyWish')}
+        description={denialDraft?.title}
+        initialFocusRef={denialReasonRef}
+      >
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="wishlist-denial-reason"
+              className="text-callout font-medium block mb-1.5"
+            >
+              {t('wishlist.deniedReason')}
+            </label>
+            <textarea
+              ref={denialReasonRef}
+              id="wishlist-denial-reason"
+              value={denialDraft?.reason ?? ''}
+              onChange={(e) =>
+                setDenialDraft((current) =>
+                  current ? { ...current, reason: e.target.value } : current,
+                )
+              }
+              maxLength={500}
+              rows={3}
+              placeholder={t('wishlist.denialReasonPlaceholder')}
+              className="w-full min-h-24 resize-none rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill)] px-4 py-3 text-body focus:border-[var(--focus-ring)] focus:outline-none"
+            />
+          </div>
+          {statusModalError && (
+            <p role="alert" className="text-footnote text-[var(--danger-text)]">
+              {statusModalError}
+            </p>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={closeDenialModal}
+              disabled={Boolean(denialDraft && pendingStatusIds.has(denialDraft.itemId))}
+              className="min-h-11 flex-1 btn-ghost rounded-xl text-body font-semibold disabled:opacity-50"
+            >
+              {t('wishlist.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmDenial()}
+              disabled={
+                !denialDraft?.reason.trim() ||
+                Boolean(denialDraft && pendingStatusIds.has(denialDraft.itemId))
+              }
+              className="min-h-11 flex-1 btn-filled rounded-xl text-body font-semibold disabled:opacity-50"
+            >
+              {t('wishlist.confirmDenial')}
+            </button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* Add Wish Modal */}
       <Dialog open={showAddModal} onClose={() => setShowAddModal(false)} title={t('wishlist.addWish')}>
