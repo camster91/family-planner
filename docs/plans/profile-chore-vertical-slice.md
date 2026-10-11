@@ -40,6 +40,33 @@ The existing typed boundary in [`src/lib/member-subject-contract.ts`](../../src/
 
 The profile subject must be one active `HouseholdMember` in the actor's family, with `archived_at IS NULL` and `erasure_user_id IS NULL`. `role` may be `child`, `teen` or `parent`; optional age must satisfy the existing bounds (child 0–17, teen 13–17, parent 18–120). A parent presentation profile is still not a parent account.
 
+### Proposed review contract: actor records, erasure and protocol
+
+This is a contract decision for the next implementation review, not an accepted production behavior. A profile-only completion has a device actor and a profile subject. It must update the one-off chore in a subject-aware transaction and write a `DeviceAuditEvent` with `device_id`, `actor_user_id = NULL` and the profile subject. It must not call the current User-only `completeChore` activity path, manufacture a User, credit the parent, or create XP, streak, reward, notification or recurring-successor records. A parent verification may write an `Activity` with the real parent's required `user_id` and the profile's subject field, but that verification event also carries no progress credit. Account-backed completion and verification remain unchanged.
+
+Every new subject-bearing history row (`Activity` and `DeviceAuditEvent`) must use a nullable `subject_member_id` plus a non-identifying `subject_member_erased BOOLEAN NOT NULL DEFAULT FALSE` marker. Profile erasure clears the nullable subject foreign key and sets the marker in the same locked transaction; it never substitutes the parent, a later same-name profile or an account ID. The marker contains no name, email or re-identifying value, is not an eligibility signal, and prevents later writes from restoring the erased subject. The existing `Chore.member_subject_erased` tombstone remains part of the same erasure ledger.
+
+Before the migration is considered complete, add both relations to the member-subject inventory/checker and to the account/profile/household deletion runbooks. The required ordering is: lock the account and all current/historic affected households; redact subject-bearing history and set its markers; clear active/future chore subject references and set their existing tombstones; then detach/archive or delete the member and its mapping/link according to the existing lifecycle order. Whole-household deletion must remove every dependent history/reference row before a `HouseholdMember` can be removed and must preserve unrelated households. Add direct FK, profile-erasure, account-deletion and whole-household regression coverage for both new relations before either gate is enabled.
+
+Profile-aware HTTP/device requests need an explicit versioned wire envelope at the route boundary. The envelope is:
+
+```json
+{ "protocol": 2, "selection": { "memberId": "opaque-member-id" } }
+```
+
+The legacy account body and `actingMemberId` remain the protocol-1 shape. A missing `protocol` is exactly protocol 1; the server must never infer protocol from the presence of `memberId`, a name or an email. Invalid, unsupported or protocol-1 profile selections return the stable refusal envelope without private identifiers:
+
+```json
+{
+  "code": "MEMBER_PROTOCOL_UNAVAILABLE",
+  "recovery": "refresh-and-retain-pending",
+  "requiredProtocol": 2,
+  "receivedProtocol": 1
+}
+```
+
+The caller retains the original key/body and may offer refresh or browser fallback. It must not translate the selection, retry it as an account action or discard a profile row. `memberProtocols: [2]` is not advertised until the schema, deletion/erasure ledger, readers, writers, native/device client and rollback evidence all pass the proof below.
+
 The request boundary must reject:
 
 - both `assigned_to` and `memberId` in one create request;
@@ -61,8 +88,8 @@ The first database migration should be additive and reversible before the new wr
 1. Change only `Chore.assigned_to` from `TEXT NOT NULL` to nullable in SQL and Prisma. Keep the existing User foreign key while `assigned_to` is present, and make the Prisma `assignee` relation optional. Do not change `ChoreAssignment.assigned_to`; no profile recurring occurrence is created in this slice.
 2. Add a `Chore` check that at least one subject exists: `assigned_to IS NOT NULL OR assigned_member_id IS NOT NULL`. Keep the existing sticky-erasure check. The trigger must allow the profile-only branch only when `assigned_to IS NULL`, the composite `(assigned_member_id, family_id)` exists, the profile is active, and no mapping/link or erasure owner is present.
 3. Preserve the existing dual-field branch: when both IDs are present, the User and member must remain in the same family and the mapping/link must point to that exact User. A canonical account row cannot be converted to a profile-only row by clearing `assigned_to` as a convenience; the new writer must explicitly choose a profile subject under the household lock.
-4. Add `Activity.subject_member_id TEXT NULL` with the same composite household foreign key and index. Keep `Activity.user_id` required for existing and parent-verify activity rows. A parent verification may record the profile subject with the real parent in `user_id`; a profile completion must not create an Activity row with a fabricated actor.
-5. Add `DeviceAuditEvent.subject_member_id TEXT NULL` with the same composite household foreign key and index. Keep `device_id` as the device actor and `actor_user_id` nullable. For a profile completion/Undo, `subject_member_id` identifies the profile and `actor_user_id` remains null; for the legacy account path the current `actingMemberId` compatibility behavior remains until its reviewed migration.
+4. Add `Activity.subject_member_id TEXT NULL` and `Activity.subject_member_erased BOOLEAN NOT NULL DEFAULT FALSE` with the same composite household foreign key and index. Keep `Activity.user_id` required for existing and parent-verify activity rows. A parent verification may record the profile subject with the real parent in `user_id`; a profile completion must use the separate device-audit path above and must not create an Activity row with a fabricated actor.
+5. Add `DeviceAuditEvent.subject_member_id TEXT NULL` and `DeviceAuditEvent.subject_member_erased BOOLEAN NOT NULL DEFAULT FALSE` with the same composite household foreign key and index. Keep `device_id` as the device actor and `actor_user_id` nullable. For a profile completion/Undo, `subject_member_id` identifies the profile and `actor_user_id` remains null; for the legacy account path the current `actingMemberId` compatibility behavior remains until its reviewed migration.
 6. Keep all existing account-only indexes, unique keys and foreign keys. Add a profile-only lookup index on `(family_id, assigned_member_id, due_date)` if the query plan requires it. Do not loosen `ChoreAssignment`, `rotation_member_ids` or any of the other 64 User-owned relations for this slice.
 
 The trigger must be tested as a database invariant, not left to API code. It must reject no subject, a foreign family, an archived/erased subject, a profile plus a mismatched User, a mapped profile with a different User, and a canonical subject cleared without the explicit erasure path. Existing legacy-only rows and existing mapped rows must continue to pass.
@@ -136,7 +163,7 @@ Profile roles are never used in this order as permission checks. A name-only par
 - Profile completion is deliberately not offline-queued. The current queue allowlist has no chore completion operation, and unknown actions/versions cannot be safely replayed. The UI must show a retryable network state and preserve no secret or raw profile payload locally. A future queue action requires its own quarantine/retention contract and capability version.
 - Every profile create and chore create/complete/verify test must prove same-key replay does not duplicate a person, chore, status transition or audit row. Changed bodies under a reused key must refuse.
 - A schema-only expand with both gates off is reversible. Before any profile rows are written, revert readers/writers and leave the additive fields in place. After profile-only rows exist, an account-only server is not a safe rollback because it requires non-null `assigned_to` and would either fail or invent a User. Rollback then means restore the compatible reader/writer candidate or restore from a verified backup; never fill the parent ID as a repair.
-- Account deletion/profile erasure must clear `assigned_member_id` and set the existing sticky `member_subject_erased` tombstone in both Chore and any new audit subject fields according to the approved erasure ledger. Retained history must not be relinked to a later same-name profile.
+- Account deletion/profile erasure must clear `assigned_member_id` and set the existing sticky `member_subject_erased` tombstone in Chore, and clear each new `subject_member_id` while setting its non-identifying `subject_member_erased` marker in Activity and DeviceAuditEvent, according to the approved erasure ledger. Retained history must not be relinked to a later same-name profile. A missing or failed redaction is a transaction failure, not permission to delete the member or continue with a partial audit.
 
 ## Required proof before enabling either gate
 
