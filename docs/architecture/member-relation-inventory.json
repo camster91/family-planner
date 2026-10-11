@@ -1,0 +1,532 @@
+[
+  {
+    "relation": "Activity.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "actor-and-member",
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+  },
+  {
+    "relation": "Allowance.from_user",
+    "fields": [
+      "from_user_id"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Allowance.to_user",
+    "fields": [
+      "to_user_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Anniversary.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Anniversary.person",
+    "fields": [
+      "person_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "AppFeedback.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "AuditLog.actor",
+    "fields": [
+      "actor_user_id"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "BudgetCategory.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "CalendarConnection.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "CalendarOAuthState.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "CalendarSubscription.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Chore.assignee",
+    "fields": [
+      "assigned_to"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Chore.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "ChoreAssignment.approver",
+    "fields": [
+      "approved_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "ChoreAssignment.assignee",
+    "fields": [
+      "assigned_to"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "ChoreAssignment.completer",
+    "fields": [
+      "completed_by"
+    ],
+    "kind": "actor-and-member",
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+  },
+  {
+    "relation": "DeviceAuditEvent.actor",
+    "fields": [
+      "actor_user_id"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "DevicePairing.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "EarnedBadge.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "EmergencyContact.person",
+    "fields": [
+      "person_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Event.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor-and-member",
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+  },
+  {
+    "relation": "FamilyGoal.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "FamilyInvite.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "FamilyLocation.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "FamilyMeal.cook",
+    "fields": [
+      "cook_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "FamilyMeal.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "GrocerySectionPreference.updater",
+    "fields": [
+      "updated_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Habit.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "HabitLog.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Handoff.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "HouseholdDevice.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "HouseholdMemberAccountLink.user",
+    "fields": [
+      "user_id",
+      "family_id"
+    ],
+    "kind": "account",
+    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate."
+  },
+  {
+    "relation": "HouseholdMemberLegacyMapping.user",
+    "fields": [
+      "user_id",
+      "family_id"
+    ],
+    "kind": "account",
+    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate."
+  },
+  {
+    "relation": "IdempotencyRecord.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "ImportJob.starter",
+    "fields": [
+      "started_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "InventoryAdjustment.actor",
+    "fields": [
+      "actor_id"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "InventoryAdjustment.undoer",
+    "fields": [
+      "undone_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "InventoryItem.adder",
+    "fields": [
+      "added_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "List.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "ListItem.adder",
+    "fields": [
+      "added_by"
+    ],
+    "kind": "actor-and-member",
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+  },
+  {
+    "relation": "ListItem.checker",
+    "fields": [
+      "checked_by"
+    ],
+    "kind": "actor-and-member",
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+  },
+  {
+    "relation": "MealPlan.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Medication.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Medication.person",
+    "fields": [
+      "person_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Message.sender",
+    "fields": [
+      "sender_id"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Notification.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "ParentElevationPin.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "Pickup.assignee",
+    "fields": [
+      "assigned_to"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Pickup.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "PinnedNote.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Project.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "ProjectTask.assignee",
+    "fields": [
+      "assigned_to"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "PushSubscription.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "Recipe.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Reward.approver",
+    "fields": [
+      "approved_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "Reward.claimer",
+    "fields": [
+      "claimed_by"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Reward.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "RewardRedemption.approver",
+    "fields": [
+      "approved_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "RewardRedemption.requester",
+    "fields": [
+      "requested_by"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "ShoppingList.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "SickDay.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "SickDay.person",
+    "fields": [
+      "person_id"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "Transaction.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+  },
+  {
+    "relation": "Upload.uploader",
+    "fields": [
+      "uploaded_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "WishlistItem.requester",
+    "fields": [
+      "requested_by"
+    ],
+    "kind": "member",
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+  },
+  {
+    "relation": "WishlistItem.status_changer",
+    "fields": [
+      "status_changed_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  }
+]
