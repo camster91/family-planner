@@ -248,6 +248,14 @@
     "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
   },
   {
+    "relation": "HouseholdMember.erasure_account",
+    "fields": [
+      "erasure_user_id"
+    ],
+    "kind": "account",
+    "migration": "Private erasure provenance for a detached archived profile, never a login/access grant or shared DTO. Ownership is established only while account and profile share a household, cannot transfer, and survives account household changes solely to remove copied identifying data on permanent account erasure. Future member-subject erasure ledger remains required before activation."
+  },
+  {
     "relation": "HouseholdMemberAccountLink.user",
     "fields": [
       "user_id",

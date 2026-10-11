@@ -265,6 +265,140 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(missing).toEqual([])
   })
 
+  it('account erasure deletes the copied profile and links without changing another household', async () => {
+    await prisma.householdMember.create({ data: { id: `${P}-a-unlinked-child`, family_id: fam('a'), name: 'Name-only fixture child' } })
+    const beforeB = await rowsOf('b')
+    await lib.deleteMemberAccount(uid('a', 'child'), { uploadDir, revokeCalendarGrant: async () => undefined })
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-member` } })).toBeNull()
+    expect(await prisma.householdMemberLegacyMapping.count({ where: { family_id: fam('a') } })).toBe(0)
+    expect(await prisma.householdMemberAccountLink.count({ where: { family_id: fam('a') } })).toBe(0)
+    expect(await rowsOf('b')).toEqual(beforeB)
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-unlinked-child` } })).not.toBeNull()
+    expect(await lib.deleteMemberAccount(uid('a', 'child'), { uploadDir })).toMatchObject({ deleted: false })
+  })
+
+  it('household removal archives the profile and detaches links before clearing account membership', async () => {
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    const beforeB = await rowsOf('b')
+    const now = new Date('2026-10-10T12:00:00Z')
+    await prisma.chore.update({ where: { id: `${P}-a-chore` }, data: { status: 'verified' } })
+    await removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, {
+      now: () => now, revokeCalendarGrant: async () => undefined,
+    })
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-member` }, select: { archived_at: true, revision: true, family_id: true } })).toEqual({ archived_at: now, revision: 1, family_id: fam('a') })
+    expect(await prisma.householdMemberLegacyMapping.count({ where: { family_id: fam('a') } })).toBe(0)
+    expect(await prisma.householdMemberAccountLink.count({ where: { family_id: fam('a') } })).toBe(0)
+    expect(await prisma.user.findUnique({ where: { id: uid('a', 'child') }, select: { family_id: true, token_version: true } })).toEqual({ family_id: null, token_version: 1 })
+    expect(await prisma.chore.findUnique({ where: { id: `${P}-a-chore` }, select: { status: true, assigned_to: true } })).toEqual({ status: 'verified', assigned_to: uid('a', 'child') })
+    expect(await rowsOf('b')).toEqual(beforeB)
+  })
+
+  it.each([false, true])('erases detached identifying profiles when an account later deletes (joined another household: %s)', async (rejoin) => {
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    await removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, { revokeCalendarGrant: async () => undefined })
+    expect((await prisma.householdMember.findUnique({ where: { id: `${P}-a-member` } }))?.erasure_user_id).toBe(uid('a', 'child'))
+    if (rejoin) {
+      await prisma.user.update({ where: { id: uid('a', 'child') }, data: { family_id: fam('b') } })
+      await prisma.householdMember.create({ data: { id: `${P}-b-rejoined-member`, family_id: fam('b'), name: 'Rejoined fixture member' } })
+      await prisma.householdMemberLegacyMapping.create({ data: { user_id: uid('a', 'child'), member_id: `${P}-b-rejoined-member`, family_id: fam('b') } })
+    }
+    await lib.deleteMemberAccount(uid('a', 'child'), { uploadDir, revokeCalendarGrant: async () => undefined })
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-member` } })).toBeNull()
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-b-rejoined-member` } })).toBeNull()
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-b-member` } })).not.toBeNull()
+    expect(await prisma.user.findUnique({ where: { id: uid('b', 'child') } })).not.toBeNull()
+  })
+
+  it('preserves a previous archive time while recording detachment erasure ownership', async () => {
+    const archived = new Date('2026-10-01T12:00:00Z')
+    await prisma.householdMember.update({ where: { id: `${P}-a-member` }, data: { archived_at: archived, revision: 2 } })
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    await removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, { revokeCalendarGrant: async () => undefined })
+    expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-member` }, select: { archived_at: true, erasure_user_id: true, revision: true } })).toEqual({ archived_at: archived, erasure_user_id: uid('a', 'child'), revision: 3 })
+  })
+
+  it('serializes concurrent erasure with opposite current/historic households without deleting other members', async () => {
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    for (const [from, to] of [['a', 'b'], ['b', 'a']]) {
+      await removeHouseholdMember({ actorId: uid(from, 'parent'), familyId: fam(from), targetId: uid(from, 'child') }, { revokeCalendarGrant: async () => undefined })
+      await prisma.user.update({ where: { id: uid(from, 'child') }, data: { family_id: fam(to) } })
+      const memberId = `${P}-${to}-rejoined-${from}`
+      await prisma.householdMember.create({ data: { id: memberId, family_id: fam(to), name: 'Concurrent rejoined fixture' } })
+      await prisma.householdMemberLegacyMapping.create({ data: { user_id: uid(from, 'child'), member_id: memberId, family_id: fam(to) } })
+    }
+    const results = await Promise.all(['a', 'b'].map((h) => lib.deleteMemberAccount(uid(h, 'child'), { uploadDir, revokeCalendarGrant: async () => undefined })))
+    expect(results.every((r) => r.deleted)).toBe(true)
+    expect(await prisma.householdMember.count({ where: { family_id: { in: HOUSEHOLDS.map(fam) } } })).toBe(0)
+    expect(await prisma.user.count({ where: { id: { in: HOUSEHOLDS.map((h) => uid(h, 'parent')) } } })).toBe(2)
+    expect(await prisma.family.count({ where: { id: { in: HOUSEHOLDS.map(fam) } } })).toBe(2)
+  })
+
+  it.each(['erase', 'remove'])('refuses contradictory identities before any %s effects', async (action) => {
+    await prisma.householdMember.create({ data: { id: `${P}-a-conflicting-member`, family_id: fam('a'), name: 'Different fixture person' } })
+    await prisma.householdMemberAccountLink.update({ where: { member_id: `${P}-a-member` }, data: { member_id: `${P}-a-conflicting-member` } })
+    const before = await rowsOf('a')
+    const revoked: string[] = []
+    const deps = { uploadDir, revokeCalendarGrant: async (grant: { id: string }) => { revoked.push(grant.id) } }
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    await expect(action === 'erase'
+      ? lib.deleteMemberAccount(uid('a', 'child'), deps)
+      : removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, deps)
+    ).rejects.toMatchObject({ code: 'IDENTITY_CONFLICT', status: 409 })
+    expect(await rowsOf('a')).toEqual(before)
+    expect(revoked).toEqual([])
+  })
+
+  it.each([
+    ['erase', 'mapping'], ['erase', 'link'], ['remove', 'mapping'], ['remove', 'link'],
+  ])('refuses %s when another account holds the selected profile %s', async (action, relation) => {
+    if (relation === 'mapping') {
+      await prisma.householdMemberLegacyMapping.update({ where: { member_id: `${P}-a-member` }, data: { user_id: uid('a', 'teen') } })
+    } else {
+      await prisma.householdMemberAccountLink.update({ where: { member_id: `${P}-a-member` }, data: { user_id: uid('a', 'teen') } })
+    }
+    const before = await rowsOf('a')
+    const revoked: string[] = []
+    const deps = { uploadDir, revokeCalendarGrant: async (grant: { id: string }) => { revoked.push(grant.id) } }
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    await expect(action === 'erase'
+      ? lib.deleteMemberAccount(uid('a', 'child'), deps)
+      : removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, deps)
+    ).rejects.toMatchObject({ code: 'IDENTITY_CONFLICT', status: 409 })
+    expect(await rowsOf('a')).toEqual(before)
+    expect(revoked).toEqual([])
+  })
+
+  it.each(['erase', 'remove'])('rolls back profile/link changes if the account %s fails', async (action) => {
+    const before = await rowsOf('a')
+    const failing = new Proxy(prisma as any, {
+      get(target, prop) {
+        if (prop !== '$transaction') return Reflect.get(target, prop)
+        return (fn: (tx: any) => Promise<unknown>, opts: unknown) => target.$transaction((tx: any) => fn(new Proxy(tx, {
+          get(t, p) {
+            if (p === 'user') return new Proxy(t.user, {
+              get(u, method) {
+                if (method === (action === 'erase' ? 'delete' : 'update')) return async () => { throw new Error('Injected account mutation failure') }
+                const value = Reflect.get(u, method)
+                return typeof value === 'function' ? value.bind(u) : value
+              },
+            })
+            const value = Reflect.get(t, p)
+            return typeof value === 'function' ? value.bind(t) : value
+          },
+        })), opts)
+      },
+    })
+    const revoked: string[] = []
+    const deps = { db: failing, uploadDir, revokeCalendarGrant: async (grant: { id: string }) => { revoked.push(grant.id) } }
+    const { removeHouseholdMember } = await import('@/lib/member-removal')
+    await expect(action === 'erase'
+      ? lib.deleteMemberAccount(uid('a', 'child'), deps)
+      : removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, deps)
+    ).rejects.toThrow('Injected account mutation failure')
+    expect(await rowsOf('a')).toEqual(before)
+    expect(revoked).toEqual([])
+  })
+
   it('whole-household delete removes every row of A, keeps B intact, removes files and invalidates tokens', async () => {
     const beforeB = await rowsOf('b')
     const parentA = uid('a', 'parent')
