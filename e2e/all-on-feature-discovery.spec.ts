@@ -1,40 +1,35 @@
 /**
- * #499: parent all-on More/Features discovery. The feature transport and the
- * server-rendered feature seed are intercepted so this QA never changes a
- * household row. Role controls already have their bounded R36 coverage in
- * all-feature-role-controls.spec.ts.
+ * #499: parent all-on More/Features discovery. This QA changes only the
+ * disposable Family A feature row through its real parent API, then restores
+ * the exact canonical map. Role controls already have their bounded R36
+ * coverage in all-feature-role-controls.spec.ts.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import type { Locator, Page, Route, TestInfo } from "@playwright/test";
+import type { Locator, Page, TestInfo } from "@playwright/test";
 import { FEATURES, type FamilyFeatures } from "../src/lib/features";
 import { moreItemsFor } from "../src/lib/nav-items";
+import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
-import { replaceFeatureSeed } from "./support/feature-seed";
-import { browserFetch, expect, test } from "./support/test";
+import { ownFeatureAudit } from "./support/feature-audit";
+import { browserFetch, browserSend, expect, test } from "./support/test";
 
 const ALL_ON: FamilyFeatures = Object.fromEntries(
   FEATURES.map((feature) => [feature.key, true]),
 ) as FamilyFeatures;
 
-const DOCUMENT_PATH = /\/dashboard\/(?:family\/more|features)(?:\?.*)?$/;
 const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+const FEATURE_KEYS = FEATURES.map((feature) => feature.key);
 
 type ApiObservation = {
   method: string;
   path: string;
   status: number;
   body?: unknown;
-};
-
-type FeatureTransport = {
-  features: FamilyFeatures;
-  api: ApiObservation[];
-  domainWrites: string[];
 };
 
 test.use({ storageState: authFile("parentA") });
@@ -104,87 +99,117 @@ async function attachRuntimeIdentity(
       locale,
       role: "parentA",
       scope:
-        "parent More and Features all-on discovery; feature API intercepted; no domain writes",
+        "parent More and Features all-on discovery; guarded Family A feature row; no domain writes",
     }),
     contentType: "application/json",
   });
   return { runtime, sourceCommit: head, sourceTree: tree };
 }
 
-async function installInterceptedFeatureTransport(
+function parseFeatureMap(body: string, label: string): FamilyFeatures {
+  const parsed = JSON.parse(body) as { features?: unknown };
+  const map = parsed.features;
+  expect(map, label).toBeDefined();
+  expect(typeof map, label).toBe("object");
+  expect(Array.isArray(map), label).toBe(false);
+  const record = map as Record<string, unknown>;
+  expect(Object.keys(record).sort(), label).toEqual([...FEATURE_KEYS].sort());
+  for (const key of FEATURE_KEYS) {
+    expect(typeof record[key], `${label}: ${key}`).toBe("boolean");
+  }
+  return record as FamilyFeatures;
+}
+
+function observeFeatureTransport(
   page: Page,
-  transport: FeatureTransport,
+  api: ApiObservation[],
+  domainWrites: string[],
 ) {
   page.on("request", (request) => {
     if (!MUTATING_METHODS.has(request.method())) return;
     const path = new URL(request.url()).pathname;
     if (path !== "/api/family/features") {
-      transport.domainWrites.push(`${request.method()} ${path}`);
+      domainWrites.push(`${request.method()} ${path}`);
     }
   });
-
-  await page.route("**/api/family/features", async (route) => {
-    const request = route.request();
+  page.on("response", (response) => {
+    const request = response.request();
     const path = new URL(request.url()).pathname;
-    if (request.method() === "GET") {
-      transport.api.push({ method: "GET", path, status: 200 });
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ features: transport.features }),
-      });
-    }
-    if (request.method() === "PATCH") {
-      const raw = request.postData() ?? "{}";
-      const body = JSON.parse(raw) as {
-        key?: string;
-        enabled?: boolean;
-        features?: Partial<FamilyFeatures>;
-      };
-      if (body.features && typeof body.features === "object") {
-        transport.features = { ...transport.features, ...body.features };
-      } else if (
-        typeof body.key === "string" &&
-        typeof body.enabled === "boolean" &&
-        FEATURES.some((feature) => feature.key === body.key)
-      ) {
-        transport.features = {
-          ...transport.features,
-          [body.key]: body.enabled,
-        };
-      } else {
-        throw new Error(`Unexpected feature PATCH body: ${raw}`);
+    if (path !== "/api/family/features") return;
+    const raw = request.postData();
+    let body: unknown;
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        body = raw;
       }
-      transport.api.push({ method: "PATCH", path, status: 200, body });
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ features: transport.features }),
-      });
     }
-    transport.api.push({ method: request.method(), path, status: 405 });
-    return route.fulfill({
-      status: 405,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "Unsupported test method" }),
-    });
-  });
-
-  await page.route(DOCUMENT_PATH, async (route: Route) => {
-    if (route.request().resourceType() !== "document") {
-      return route.continue();
-    }
-    const response = await route.fetch();
-    const body = await response.text();
-    return route.fulfill({
-      response,
-      body: replaceFeatureSeed(body, transport.features),
+    api.push({
+      method: request.method(),
+      path,
+      status: response.status(),
+      body,
     });
   });
 }
 
+async function setAndVerifyFeatures(
+  page: Page,
+  features: FamilyFeatures,
+  label: string,
+) {
+  const response = await browserSend(page, "PATCH", "/api/family/features", {
+    features,
+  });
+  expect(response.status, `${label} PATCH: ${response.body}`).toBe(200);
+  expect(parseFeatureMap(response.body, `${label} PATCH response`)).toEqual(
+    features,
+  );
+  const canonical = await browserFetch(page, "/api/family/features");
+  expect(canonical.status, `${label} GET: ${canonical.body}`).toBe(200);
+  expect(parseFeatureMap(canonical.body, `${label} canonical GET`)).toEqual(
+    features,
+  );
+}
+
+async function restoreAndVerifyFeatures(
+  page: Page,
+  originalFeatures: FamilyFeatures,
+) {
+  let response: { status: number; body: string } | undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await browserSend(page, "PATCH", "/api/family/features", {
+        features: originalFeatures,
+      });
+      if (response.status === 200 || response.status < 500) break;
+    } catch (error) {
+      if (attempt === 1) throw error;
+    }
+  }
+  expect(response, "feature restore response").toBeDefined();
+  expect(response!.status, `feature restore PATCH: ${response!.body}`).toBe(
+    200,
+  );
+  expect(
+    parseFeatureMap(response!.body, "feature restore PATCH response"),
+  ).toEqual(originalFeatures);
+  const canonical = await browserFetch(page, "/api/family/features");
+  expect(canonical.status, `feature restore GET: ${canonical.body}`).toBe(200);
+  expect(
+    parseFeatureMap(canonical.body, "feature restore canonical GET"),
+  ).toEqual(originalFeatures);
+}
+
 function expectedMore(features: FamilyFeatures) {
   return moreItemsFor("parent", features);
+}
+
+function errorSummary(error: unknown) {
+  return error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : String(error);
 }
 
 async function assertNoHorizontalOverflow(page: Page) {
@@ -322,14 +347,15 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
 for (const locale of ["en", "es"] as const) {
   test(`${locale}: parent all-on More and Features stay discoverable and dependency-aware`, async ({
     page,
+    baseURL,
   }, info) => {
     assertFixtureTargetAllowed(process.env);
-    const transport: FeatureTransport = {
-      features: { ...ALL_ON },
-      api: [],
-      domainWrites: [],
-    };
-    await installInterceptedFeatureTransport(page, transport);
+    expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
+      new URL(baseURL!).hostname,
+    );
+    const featureApi: ApiObservation[] = [];
+    const domainWrites: string[] = [];
+    observeFeatureTransport(page, featureApi, domainWrites);
     await page.addInitScript(
       ({ language, localeKey, themeKey }) => {
         localStorage.setItem(localeKey, language);
@@ -342,75 +368,143 @@ for (const locale of ["en", "es"] as const) {
       },
     );
 
-    const moreResponse = await page.goto("/dashboard/family/more");
-    expect(moreResponse?.status()).toBe(200);
-    await expect(page.locator("html")).toHaveAttribute("lang", locale);
-    if (locale === "es") {
-      await expect(page.locator("html")).toHaveClass(/dark/);
-    } else {
-      await expect(page.locator("html")).not.toHaveClass(/dark/);
+    const bootstrap = await page.goto("/dashboard");
+    expect(bootstrap?.status()).toBe(200);
+    const profileResponse = await browserFetch(page, "/api/users");
+    expect(profileResponse.status, profileResponse.body).toBe(200);
+    const profile = JSON.parse(profileResponse.body).user as {
+      id?: string;
+      family_id?: string | null;
+      role?: string;
+    };
+    expect(profile.id).toBe(FIXTURE_IDS.familyA.parent);
+    expect(profile.family_id).toBe(FIXTURE_IDS.familyA.family);
+    expect(profile.role).toBe("parent");
+    const originalResponse = await browserFetch(page, "/api/family/features");
+    expect(originalResponse.status, originalResponse.body).toBe(200);
+    const originalFeatures = parseFeatureMap(
+      originalResponse.body,
+      "original canonical GET",
+    );
+    const cleanFeatureAudit = await ownFeatureAudit(FEATURE_KEYS);
+    let testFailure: unknown;
+    let restored = false;
+    let evidence:
+      | {
+          runtime: Awaited<ReturnType<typeof attachRuntimeIdentity>>;
+          dependencyOff: FamilyFeatures;
+        }
+      | undefined;
+
+    try {
+      await setAndVerifyFeatures(page, ALL_ON, "all-on");
+      const moreResponse = await page.goto("/dashboard/family/more");
+      expect(moreResponse?.status()).toBe(200);
+      await expect(page.locator("html")).toHaveAttribute("lang", locale);
+      if (locale === "es") {
+        await expect(page.locator("html")).toHaveClass(/dark/);
+      } else {
+        await expect(page.locator("html")).not.toHaveClass(/dark/);
+      }
+      const runtime = await attachRuntimeIdentity(page, info, locale);
+      const featureResponse = await browserFetch(page, "/api/family/features");
+      expect(featureResponse.status, featureResponse.body).toBe(200);
+      expect(
+        parseFeatureMap(featureResponse.body, "all-on canonical GET"),
+      ).toEqual(ALL_ON);
+      await assertMoreSurface(page, ALL_ON);
+
+      const featuresResponse = await page.goto("/dashboard/features");
+      expect(featuresResponse?.status()).toBe(200);
+      await assertFeaturesSurface(page, ALL_ON);
+      const gamification = page.getByRole("switch", {
+        name: "Disable Points & streaks",
+        exact: true,
+      });
+      await gamification.click();
+      await expect(gamification).toHaveAttribute("aria-checked", "false");
+      await expect(
+        page.getByRole("switch", { name: "Enable Rewards", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("switch", { name: "Enable Analytics", exact: true }),
+      ).toBeDisabled();
+
+      const dependencyOff = { ...ALL_ON, gamification: false };
+      const dependencyMoreResponse = await page.goto("/dashboard/family/more");
+      expect(dependencyMoreResponse?.status()).toBe(200);
+      await assertMoreSurface(page, dependencyOff);
+      await expect(page.locator('a[href="/dashboard/rewards"]')).toHaveCount(0);
+      await expect(page.locator('a[href="/dashboard/analytics"]')).toHaveCount(
+        0,
+      );
+      evidence = { runtime, dependencyOff };
+    } catch (error) {
+      testFailure = error;
     }
-    const runtime = await attachRuntimeIdentity(page, info, locale);
-    const featureResponse = await browserFetch(page, "/api/family/features");
-    expect(featureResponse.status, featureResponse.body).toBe(200);
-    expect(JSON.parse(featureResponse.body).features).toEqual(ALL_ON);
-    await assertMoreSurface(page, ALL_ON);
 
-    const featuresResponse = await page.goto("/dashboard/features");
-    expect(featuresResponse?.status()).toBe(200);
-    await assertFeaturesSurface(page, ALL_ON);
-    const gamification = page.getByRole("switch", {
-      name: "Disable Points & streaks",
-      exact: true,
-    });
-    await gamification.click();
-    await expect(gamification).toHaveAttribute("aria-checked", "false");
-    await expect(
-      page.getByRole("switch", { name: "Enable Rewards", exact: true }),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole("switch", { name: "Enable Analytics", exact: true }),
-    ).toBeDisabled();
+    const cleanupFailures: unknown[] = [];
+    try {
+      await restoreAndVerifyFeatures(page, originalFeatures);
+      restored = true;
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    try {
+      await cleanFeatureAudit(restored);
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
 
-    const dependencyOff = { ...ALL_ON, gamification: false };
-    const dependencyMoreResponse = await page.goto("/dashboard/family/more");
-    expect(dependencyMoreResponse?.status()).toBe(200);
-    await assertMoreSurface(page, dependencyOff);
-    await expect(page.locator('a[href="/dashboard/rewards"]')).toHaveCount(0);
-    await expect(page.locator('a[href="/dashboard/analytics"]')).toHaveCount(0);
+    if (evidence) {
+      const featureObservations = featureApi.filter(
+        (observation) => observation.path === "/api/family/features",
+      );
+      try {
+        expect(
+          featureObservations.every(
+            (observation) => observation.status === 200,
+          ),
+        ).toBe(true);
+        expect(
+          featureObservations.some(
+            (observation) =>
+              observation.method === "PATCH" &&
+              (observation.body as { key?: string; enabled?: boolean })?.key ===
+                "gamification" &&
+              (observation.body as { key?: string; enabled?: boolean })
+                ?.enabled === false,
+          ),
+        ).toBe(true);
+        expect(domainWrites).toEqual([]);
+      } catch (error) {
+        testFailure = testFailure ?? error;
+      }
+      await info.attach("all-on-discovery-api-and-scope", {
+        body: JSON.stringify({
+          runtime: evidence.runtime,
+          locale,
+          allOnKeys: FEATURE_KEYS,
+          allOnMoreHrefs: expectedMore(ALL_ON).map((item) => item.href),
+          dependencyOffMoreHrefs: expectedMore(evidence.dependencyOff).map(
+            (item) => item.href,
+          ),
+          featureApi: featureObservations,
+          domainWrites,
+          restored,
+          scope:
+            "real parent feature API; guarded Family A feature row restored; no domain writes",
+        }),
+        contentType: "application/json",
+      });
+    }
 
-    const featureApi = transport.api.filter(
-      (observation) => observation.path === "/api/family/features",
-    );
-    expect(featureApi.every((observation) => observation.status === 200)).toBe(
-      true,
-    );
-    expect(
-      featureApi.some(
-        (observation) =>
-          observation.method === "PATCH" &&
-          (observation.body as { key?: string; enabled?: boolean })?.key ===
-            "gamification" &&
-          (observation.body as { key?: string; enabled?: boolean })?.enabled ===
-            false,
-      ),
-    ).toBe(true);
-    expect(transport.domainWrites).toEqual([]);
-    await info.attach("all-on-discovery-api-and-scope", {
-      body: JSON.stringify({
-        runtime,
-        locale,
-        allOnKeys: FEATURES.map((feature) => feature.key),
-        allOnMoreHrefs: expectedMore(ALL_ON).map((item) => item.href),
-        dependencyOffMoreHrefs: expectedMore(dependencyOff).map(
-          (item) => item.href,
-        ),
-        featureApi,
-        domainWrites: transport.domainWrites,
-        scope:
-          "server feature seed and feature API intercepted; no household/domain writes",
-      }),
-      contentType: "application/json",
-    });
+    if (cleanupFailures.length) {
+      throw new AggregateError(
+        [...(testFailure ? [testFailure] : []), ...cleanupFailures],
+        `All-on discovery cleanup failed: ${cleanupFailures.map(errorSummary).join("; ")}`,
+      );
+    }
+    if (testFailure) throw testFailure;
   });
 }
