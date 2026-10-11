@@ -271,6 +271,7 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.locator("html")).toHaveAttribute("lang", locale);
       if (locale === "es")
         await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+      else await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
       await runtimeIdentity(page, info, locale);
 
       const frequency = page.getByRole("button", {
