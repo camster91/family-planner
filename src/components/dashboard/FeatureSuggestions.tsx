@@ -7,6 +7,7 @@ import { useFeatures } from '@/components/providers/features-provider'
 import { useMaybeToast, useUndoToast } from '@/components/ui/toast'
 import { isFeatureEnabled, type FamilyFeatures, type FeatureKey } from '@/lib/features'
 import { cn } from '@/lib/utils'
+import { pickFeatureSuggestionKeys } from './feature-suggestion-keys'
 import {
   featureSuggestionsStorageKey,
   useFeatureSuggestionsHidden,
@@ -82,7 +83,8 @@ export const MAX_SUGGESTIONS = 3
 
 /** The suggestions to offer for these flags: popular sections that are off, at most three. */
 export function pickSuggestions(features: FamilyFeatures): FeatureSuggestion[] {
-  return FEATURE_SUGGESTIONS.filter((s) => !isFeatureEnabled(features, s.key)).slice(0, MAX_SUGGESTIONS)
+  const keys = pickFeatureSuggestionKeys(features, MAX_SUGGESTIONS)
+  return FEATURE_SUGGESTIONS.filter((s) => keys.includes(s.key))
 }
 
 export interface FeatureSuggestionsProps {
@@ -90,9 +92,11 @@ export interface FeatureSuggestionsProps {
   familyId: string
   /** All Get started steps are done (from the server). */
   setupDone: boolean
+  /** Captured by the Today wrapper before this optional card is loaded. */
+  initialPicked?: readonly FeatureKey[]
 }
 
-export default function FeatureSuggestions({ viewer, familyId, setupDone }: FeatureSuggestionsProps) {
+export default function FeatureSuggestions({ viewer, familyId, setupDone, initialPicked }: FeatureSuggestionsProps) {
   const { features, updateFeatures, canManage } = useFeatures()
   const showUndo = useUndoToast()
   const { addToast } = useMaybeToast()
@@ -101,7 +105,7 @@ export default function FeatureSuggestions({ viewer, familyId, setupDone }: Feat
   const [hiddenNow, setHiddenNow] = React.useState(false)
   // Chosen once per visit, so a row turned on stays put (as "On" with a link)
   // instead of the list reshuffling under the parent's finger.
-  const [picked] = React.useState(() => pickSuggestions(features).map((s) => s.key))
+  const [picked] = React.useState(() => initialPicked?.slice() ?? pickSuggestions(features).map((s) => s.key))
   const [busy, setBusy] = React.useState<FeatureKey | null>(null)
   const headingId = React.useId()
 

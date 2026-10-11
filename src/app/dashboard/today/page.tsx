@@ -6,12 +6,11 @@ import { prisma } from '@/lib/prisma'
 import { refreshStaleSubscriptions } from '@/lib/calendar-import/sync'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import HomeSummary from '@/components/dashboard/HomeSummary'
-import GetStarted from '@/components/dashboard/GetStarted'
-import FeatureSuggestions from '@/components/dashboard/FeatureSuggestions'
+import TodaySetup from '@/components/dashboard/TodaySetup'
 import { loadTodayBoard } from './board-snapshot'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { loadHomeSummary } from './home-summary-data'
-import { allStepsDone, loadGetStarted } from './get-started-data'
+import { loadGetStarted } from './get-started-data'
 import { isDoneStatus, isOpenStatus } from '@/lib/home-summary'
 
 export const metadata: Metadata = { title: 'Today' }
@@ -106,14 +105,7 @@ export default async function TodayBoardPage({
     <>
       <HomeSummary viewer={viewer} {...home} />
       <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} choresShownElsewhere={choresShownElsewhere} />
-      <div className="mt-6 space-y-4">
-        {getStarted && !allStepsDone(getStarted) && (
-          <GetStarted viewer={viewer} familyId={familyId} steps={getStarted} />
-        )}
-        {getStarted && (
-          <FeatureSuggestions viewer={viewer} familyId={familyId} setupDone={allStepsDone(getStarted)} />
-        )}
-      </div>
+      {getStarted && <TodaySetup viewer={viewer} familyId={familyId} steps={getStarted} />}
     </>
   )
 }

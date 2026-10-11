@@ -57,6 +57,8 @@ export const todayBoardEnglish = {
   calmDisplay: "Calm display",
   nightDimming: "Night dimming",
   weather: "Weather",
+  setupLoading: "Loading setup options",
+  setupError: "Setup options could not load.",
 } as const;
 
 export type TodayBoardMessage = keyof typeof todayBoardEnglish;
@@ -118,6 +120,8 @@ export const todayBoardSpanish: TodayBoardMessages = {
   calmDisplay: "Pantalla tranquila",
   nightDimming: "Atenuación nocturna",
   weather: "Tiempo",
+  setupLoading: "Cargando las opciones de configuración",
+  setupError: "No se pudieron cargar las opciones de configuración.",
 };
 
 export const todayBoardMessages = {
