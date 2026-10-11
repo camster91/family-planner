@@ -193,7 +193,7 @@ it("opens the rounded sheet, restores focus after releasing inert, and keeps an 
   );
 });
 
-it("localizes the launcher and sheet chrome without changing the capture controls", async () => {
+it("localizes the launcher, sheet chrome and capture controls", async () => {
   configuredFetch();
   const user = userEvent.setup();
   mount("es");
@@ -210,9 +210,10 @@ it("localizes the launcher and sheet chrome without changing the capture control
   ).toBeVisible();
   expect(
     within(dialog).getByRole("textbox", {
-      name: "What would you like to add?",
+      name: "¿Qué te gustaría añadir?",
     }),
   ).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: "Leerlo" })).toBeVisible();
 });
 
 it("blocks Escape and close while a confirmed write is pending", async () => {
