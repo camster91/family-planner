@@ -946,8 +946,15 @@ DECLARE
   family_id_attnum smallint;
   expected_keys smallint[];
   existing_keys smallint[];
+  existing_deferrable boolean;
+  existing_deferred boolean;
   existing_relkind "char";
+  existing_index_relid oid;
   existing_unique boolean;
+  existing_valid boolean;
+  existing_ready boolean;
+  existing_predicate text;
+  existing_expressions text;
   existing_index_keys smallint[];
 BEGIN
   SELECT attnum::smallint INTO id_attnum
@@ -961,26 +968,43 @@ BEGIN
   END IF;
   expected_keys := ARRAY[id_attnum, family_id_attnum]::smallint[];
 
-  SELECT conkey INTO existing_keys
+  SELECT
+    ARRAY(SELECT value::smallint FROM unnest(conkey) WITH ORDINALITY AS key(value, ord) ORDER BY ord),
+    condeferrable,
+    condeferred
+    INTO existing_keys, existing_deferrable, existing_deferred
   FROM pg_constraint
   WHERE conrelid = table_oid
     AND conname = 'RoutineStack_id_family_id_key'
     AND contype = 'u';
   IF existing_keys IS NOT NULL THEN
-    IF existing_keys <> expected_keys THEN
-      RAISE EXCEPTION 'RoutineStack_id_family_id_key exists with the wrong unique columns';
+    IF existing_keys <> expected_keys OR existing_deferrable OR existing_deferred THEN
+      RAISE EXCEPTION 'RoutineStack_id_family_id_key exists with the wrong unique constraint shape';
     END IF;
   ELSE
-    SELECT c.relkind, i.indisunique, i.indkey::smallint[]
-      INTO existing_relkind, existing_unique, existing_index_keys
+    SELECT
+      c.relkind,
+      i.indrelid,
+      i.indisunique,
+      i.indisvalid,
+      i.indisready,
+      i.indpred::text,
+      i.indexprs::text,
+      ARRAY(SELECT value::smallint FROM unnest(i.indkey::smallint[]) WITH ORDINALITY AS key(value, ord) ORDER BY ord)
+      INTO existing_relkind, existing_index_relid, existing_unique, existing_valid, existing_ready,
+        existing_predicate, existing_expressions, existing_index_keys
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     LEFT JOIN pg_index i ON i.indexrelid = c.oid
-    WHERE n.nspname = 'public' AND c.relname = 'RoutineStack_id_family_id_key';
+    WHERE n.nspname = 'public'
+      AND c.relname = 'RoutineStack_id_family_id_key';
     IF existing_relkind IS NULL THEN
       ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_id_family_id_key"
         UNIQUE ("id", "family_id");
-    ELSIF existing_relkind <> 'i' OR existing_unique IS DISTINCT FROM true
+    ELSIF existing_relkind <> 'i' OR existing_index_relid IS DISTINCT FROM table_oid
+      OR existing_unique IS DISTINCT FROM true
+      OR existing_valid IS DISTINCT FROM true OR existing_ready IS DISTINCT FROM true
+      OR existing_predicate IS NOT NULL OR existing_expressions IS NOT NULL
       OR existing_index_keys <> expected_keys THEN
       RAISE EXCEPTION 'RoutineStack_id_family_id_key exists with the wrong relation shape';
     END IF;
