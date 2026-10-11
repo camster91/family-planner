@@ -113,7 +113,7 @@ export function ProjectDetailActions({
         setDeleteError('failed')
         return
       }
-      addToast({ type: 'success', title: 'Project deleted' })
+      addToast({ type: 'success', title: projectDeleteText('deleteSuccess') })
       setDeleteOpen(false)
       router.push('/dashboard/projects')
       router.refresh()
@@ -173,7 +173,7 @@ export function ProjectDetailActions({
 
   if (isParent) {
     actions.push({
-      label: 'Delete',
+      label: projectDeleteText('deleteAction'),
       icon: Trash2,
       onClick: openDeleteConfirmation,
       loading: loading === 'delete',

@@ -10,6 +10,8 @@ export const projectDeleteEnglish = {
     "The project could not be deleted. Check your connection and try again.",
   deleteClose: "Close project deletion confirmation",
   deleteDeleting: "Deleting…",
+  deleteAction: "Delete",
+  deleteSuccess: "Project deleted",
 } as const;
 
 export type ProjectDeleteMessage = keyof typeof projectDeleteEnglish;
@@ -23,6 +25,8 @@ export const projectDeleteSpanish: Record<ProjectDeleteMessage, string> = {
     "No se pudo eliminar el proyecto. Revisa tu conexión e inténtalo de nuevo.",
   deleteClose: "Cerrar confirmación para eliminar el proyecto",
   deleteDeleting: "Eliminando…",
+  deleteAction: "Eliminar",
+  deleteSuccess: "Proyecto eliminado",
 };
 
 export const projectDeleteMessages = {

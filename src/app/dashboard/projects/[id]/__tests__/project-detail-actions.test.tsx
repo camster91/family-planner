@@ -5,7 +5,7 @@ import "@testing-library/jest-dom";
 import * as React from "react";
 import { I18nProvider } from "@/i18n";
 import { ToastProvider } from "@/components/ui/toast";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectDetailActions } from "../ProjectDetailActions";
 
@@ -30,10 +30,17 @@ function renderActions(locale: "en" | "es" = "en", isParent = true) {
   );
 }
 
-function openDelete(user: ReturnType<typeof userEvent.setup>) {
-  return user
-    .click(screen.getByRole("button", { name: "Actions" }))
-    .then(() => user.click(screen.getByRole("menuitem", { name: "Delete" })));
+function openDelete(
+  user: ReturnType<typeof userEvent.setup>,
+  locale: "en" | "es" = "en",
+) {
+  return user.click(screen.getByRole("button", { name: "Actions" })).then(() =>
+    user.click(
+      screen.getByRole("menuitem", {
+        name: locale === "es" ? "Eliminar" : "Delete",
+      }),
+    ),
+  );
 }
 
 beforeEach(() => {
@@ -121,13 +128,17 @@ describe("ProjectDetailActions deletion", () => {
     await openDelete(user);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(screen.getByRole("button", { name: "Deleting…" })).toBeDisabled();
+    const pendingSubmit = screen.getByRole("button", { name: "Deleting…" });
+    expect(pendingSubmit).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(
       screen.queryByRole("button", {
         name: "Close project deletion confirmation",
       }),
     ).not.toBeInTheDocument();
+    fireEvent.click(pendingSubmit);
+    fireEvent.click(pendingSubmit);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
     await user.keyboard("{Escape}");
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
 
@@ -139,11 +150,12 @@ describe("ProjectDetailActions deletion", () => {
 
   it("uses localized confirmation and recovery copy", async () => {
     const user = userEvent.setup();
-    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+    (global.fetch as jest.Mock)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ ok: true, status: 200 });
     renderActions("es");
 
-    await user.click(screen.getByRole("button", { name: "Actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await openDelete(user, "es");
     expect(
       screen.getByRole("alertdialog", {
         name: "¿Eliminar «Kitchen renovation»?",
@@ -157,6 +169,9 @@ describe("ProjectDetailActions deletion", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "No se pudo eliminar el proyecto. Revisa tu conexión e inténtalo de nuevo.",
     );
+
+    await user.click(screen.getByRole("button", { name: "Intentar de nuevo" }));
+    expect(await screen.findByText("Proyecto eliminado")).toBeInTheDocument();
   });
 
   it("does not expose destructive project actions to a non-parent", async () => {
