@@ -103,7 +103,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     // Capture recovery contains normalized household content and belongs only
     // to the signed-in session. Clear it before leaving the account, even if
     // the server logout request is unavailable offline.
-    clearCaptureRecoveryStorage();
+    clearCaptureRecoveryStorage(undefined);
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
       const { clearAllPersonQueues } =

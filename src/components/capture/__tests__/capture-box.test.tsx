@@ -341,3 +341,44 @@ it('checks a receipt at the six-day boundary before declaring the retry too old'
     now.mockRestore()
   }
 })
+
+it('discards an absent receipt as terminal without replaying the local request', async () => {
+  window.localStorage.clear()
+  const key = 'capture-absent-12345678'
+  window.localStorage.setItem(
+    'family-planner:capture-recovery:v1:user-a:family-a',
+    JSON.stringify([
+      {
+        version: 1,
+        key,
+        action: 'event.create',
+        requestHash: 'a'.repeat(64),
+        body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+        title: 'Dentist',
+        kind: 'event',
+        createdAt: Date.now(),
+        photo: false,
+      },
+    ]),
+  )
+  let postCount = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/events' && init?.method === 'POST') {
+      postCount += 1
+      return json(201, { event: { id: 'event-a' } })
+    }
+    if (String(url) === '/api/capture/receipt') return json(200, { state: 'absent' })
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.click(await screen.findByRole('button', { name: 'Check status for Dentist' }))
+  await screen.findByText('No saved result was found. Start a new preview.')
+  expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
+  expect(postCount).toBe(0)
+  expect(window.localStorage.getItem('family-planner:capture-recovery:v1:user-a:family-a')).toBe('[]')
+})

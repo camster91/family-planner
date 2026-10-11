@@ -280,8 +280,14 @@ export function CaptureBox({
       } else if (data.state === 'expired') {
         forgetRecovery(row.key)
         setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
+      } else if (data.state === 'absent') {
+        // A missing receipt is terminal: the server can no longer prove that
+        // this local envelope is the original write, so never keep offering a
+        // same-key retry from an orphaned or pruned client row.
+        forgetRecovery(row.key)
+        setRecoveryMessage('No saved result was found. Start a new preview.')
       } else {
-        setRecoveryMessage('No saved result was found. Retry the same request to check it.')
+        setRecoveryMessage('No saved result was found. Start a new preview.')
       }
     } catch {
       setRecoveryMessage('Could not check this capture. Try again when you have a connection.')
@@ -539,38 +545,46 @@ export function CaptureBox({
         </p>
       )}
 
-      {recoveryOperations.length > 0 && (
-        <section className="mt-4 rounded-xl border border-[var(--separator)] p-3" aria-labelledby="capture-recovery-title" data-testid="capture-recovery">
-          <h3 id="capture-recovery-title" className="text-body font-medium">Needs attention</h3>
-          <p className="text-footnote text-label-secondary mt-1">A previous add may have completed. Check its status before making a new preview.</p>
-          <ul className="mt-2 space-y-2">
-            {recoveryOperations.map((row) => {
-              const busyRecovery = recoveryBusyKey === row.key
-              return (
-                <li key={row.key} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-subhead min-w-0 truncate">{recoveryTitle(row)}</span>
-                  <span className="flex shrink-0 gap-2">
-                    <button
-                      className="btn-plain min-h-[44px] px-3"
-                      onClick={() => checkRecovery(row)}
-                      disabled={recoveryBusyKey !== null}
-                      aria-label={`Check status for ${recoveryTitle(row)}`}
-                    >
-                      {busyRecovery ? 'Checking…' : 'Check status'}
-                    </button>
-                    <button
-                      className="btn-filled min-h-[44px] px-3"
-                      onClick={() => retryRecovery(row)}
-                      disabled={recoveryBusyKey !== null || !row.requestHash}
-                      aria-label={`Retry ${recoveryTitle(row)}`}
-                    >
-                      Retry
-                    </button>
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+      {(recoveryOperations.length > 0 || recoveryMessage) && (
+        <section
+          className="mt-4 rounded-xl border border-[var(--separator)] p-3"
+          aria-labelledby={recoveryOperations.length > 0 ? 'capture-recovery-title' : undefined}
+          data-testid="capture-recovery"
+        >
+          {recoveryOperations.length > 0 && (
+            <>
+              <h3 id="capture-recovery-title" className="text-body font-medium">Needs attention</h3>
+              <p className="text-footnote text-label-secondary mt-1">A previous add may have completed. Check its status before making a new preview.</p>
+              <ul className="mt-2 space-y-2">
+                {recoveryOperations.map((row) => {
+                  const busyRecovery = recoveryBusyKey === row.key
+                  return (
+                    <li key={row.key} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-subhead min-w-0 truncate">{recoveryTitle(row)}</span>
+                      <span className="flex shrink-0 gap-2">
+                        <button
+                          className="btn-plain min-h-[44px] px-3"
+                          onClick={() => checkRecovery(row)}
+                          disabled={recoveryBusyKey !== null}
+                          aria-label={`Check status for ${recoveryTitle(row)}`}
+                        >
+                          {busyRecovery ? 'Checking…' : 'Check status'}
+                        </button>
+                        <button
+                          className="btn-filled min-h-[44px] px-3"
+                          onClick={() => retryRecovery(row)}
+                          disabled={recoveryBusyKey !== null || !row.requestHash}
+                          aria-label={`Retry ${recoveryTitle(row)}`}
+                        >
+                          Retry
+                        </button>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
           {recoveryMessage && <p role="alert" className="text-subhead text-[var(--danger-text)] mt-3">{recoveryMessage}</p>}
         </section>
       )}
