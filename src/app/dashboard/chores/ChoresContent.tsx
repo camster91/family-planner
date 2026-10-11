@@ -187,10 +187,11 @@ export default function ChoresContent({
     error: string | null;
   } | null>(null);
 
-  const scheduleVerificationFallback = React.useCallback(() => {
+  const scheduleVerificationFallback = React.useCallback((force = false) => {
     window.setTimeout(() => {
+      const active = document.activeElement;
       if (
-        document.activeElement === document.body &&
+        (force || active === document.body || !active?.isConnected) &&
         verificationFallbackRef.current?.isConnected
       ) {
         verificationFallbackRef.current.focus();
@@ -391,7 +392,7 @@ export default function ChoresContent({
           // A successful send-back removes the row that opened the dialog.
           // Return focus to a stable, 44px page control after Dialog's cleanup
           // has finished instead of leaving keyboard users on document.body.
-          scheduleVerificationFallback();
+          scheduleVerificationFallback(true);
         }
         addToast(
           decision === "approve"

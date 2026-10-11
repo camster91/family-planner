@@ -30,6 +30,7 @@ const PROJECTS = [
 ] as const;
 const LOCALES = ["en", "es"] as const;
 type Locale = (typeof LOCALES)[number];
+const FIXTURE_TIMESTAMP = E2E_ANCHOR.toISOString();
 
 type Fixture = { id: string; title: string };
 
@@ -64,7 +65,14 @@ async function seedFixture(fixture: Fixture) {
          (id, family_id, title, points, assigned_to, due_date, status, frequency,
           difficulty, created_by, created_at, completed_at)
        VALUES ($1, $2, $3, 10, $4, $5, 'completed', 'once', 'easy', $6, $5, $5)`,
-      [fixture.id, A.family, fixture.title, A.child, E2E_ANCHOR, A.parent],
+      [
+        fixture.id,
+        A.family,
+        fixture.title,
+        A.child,
+        FIXTURE_TIMESTAMP,
+        A.parent,
+      ],
     );
   });
 }
@@ -212,15 +220,16 @@ function state(
     photo_verified: false,
     verified_at: null,
     verified_notes: notes,
-    completed_at: status === "completed" ? E2E_ANCHOR.toISOString() : null,
+    completed_at: status === "completed" ? FIXTURE_TIMESTAMP : null,
   };
 }
 
-function queueFor(page: Page, title: string) {
-  return page
+function queueFor(page: Page, sendBackLabel: string) {
+  const queue = page
     .locator("section")
-    .filter({ has: page.getByText("To check", { exact: true }) })
-    .getByText(title, { exact: true })
+    .filter({ has: page.getByText("To check", { exact: true }) });
+  return queue
+    .getByRole("button", { name: sendBackLabel, exact: true })
     .locator("..")
     .locator("..");
 }
@@ -303,7 +312,10 @@ for (const locale of LOCALES) {
       await page.route("**/api/chores/verify", verifyHandler);
 
       try {
-        const row = queueFor(page, fixture.title);
+        const row = queueFor(
+          page,
+          copy.sendBackAriaLabel.replace("{title}", fixture.title),
+        );
         await expect(row).toBeVisible();
         const trigger = row.getByRole("button", {
           name: copy.sendBackAriaLabel.replace("{title}", fixture.title),
@@ -446,7 +458,10 @@ for (const locale of LOCALES) {
       await page.route("**/api/chores/verify", verifyHandler);
 
       try {
-        const row = queueFor(page, fixture.title);
+        const row = queueFor(
+          page,
+          copy.sendBackAriaLabel.replace("{title}", fixture.title),
+        );
         const trigger = row.getByRole("button", {
           name: copy.sendBackAriaLabel.replace("{title}", fixture.title),
           exact: true,
