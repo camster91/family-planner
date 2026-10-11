@@ -4,6 +4,7 @@ import {
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { lockHousehold } from "@/lib/household-lock";
+import { isDueTodaySomewhere } from "@/lib/chore-complete";
 import type { ChoreWithSubject } from "@/lib/chore-profile";
 import { readChoreSubject } from "@/lib/chore-profile";
 
@@ -109,11 +110,7 @@ export async function completeProfileChoreInTx(
       chore.rotation_member_ids.length > 0
     )
       return "profile_unavailable";
-    if (
-      chore.due_date.toISOString().slice(0, 10) !==
-      input.now.toISOString().slice(0, 10)
-    )
-      return "not_due";
+    if (!isDueTodaySomewhere(chore.due_date, input.now)) return "not_due";
     const updated = await tx.chore.updateMany({
       where: {
         id: input.choreId,
@@ -192,7 +189,7 @@ export async function reopenProfileChoreInTx(
       return "profile_unavailable";
     if (chore.status === "verified") return "verified";
     const since = new Date(input.now.getTime() - input.windowMs);
-    const audit = await tx.deviceAuditEvent.findFirst({
+    const audits = await tx.deviceAuditEvent.findMany({
       where: {
         family_id: input.familyId,
         device_id: input.deviceId,
@@ -202,6 +199,17 @@ export async function reopenProfileChoreInTx(
       },
       select: { created_at: true, metadata: true },
       orderBy: { created_at: "desc" },
+      take: 100,
+    });
+    const audit = audits.find((candidate) => {
+      const metadata = candidate.metadata as {
+        action?: unknown;
+        targetId?: unknown;
+      } | null;
+      return (
+        metadata?.action === "chore_complete" &&
+        metadata.targetId === input.choreId
+      );
     });
     const metadata = audit?.metadata as {
       action?: unknown;

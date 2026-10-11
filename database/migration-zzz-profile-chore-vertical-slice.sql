@@ -72,6 +72,21 @@ BEGIN
           AND erasure_user_id IS NULL
       )
       OR EXISTS (
+        SELECT 1 FROM "HouseholdMember"
+        WHERE id = NEW.assigned_member_id
+          AND family_id = NEW.family_id
+          AND (
+            role NOT IN ('child', 'teen', 'parent')
+            OR (
+              age IS NOT NULL AND (
+                (role = 'child' AND (age < 0 OR age > 17))
+                OR (role = 'teen' AND (age < 13 OR age > 17))
+                OR (role = 'parent' AND (age < 18 OR age > 120))
+              )
+            )
+          )
+      )
+      OR EXISTS (
         SELECT 1 FROM "HouseholdMemberLegacyMapping"
         WHERE member_id = NEW.assigned_member_id AND family_id = NEW.family_id
         UNION ALL
