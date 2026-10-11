@@ -26,7 +26,13 @@ const GROUP_COPY: Record<
   family: { title: 'familyTitle', subtitle: 'familySubtitle' },
 }
 
-const INITIAL_EXPANDED: Record<GroupKey, boolean> = {
+const MOBILE_EXPANDED: Record<GroupKey, boolean> = {
+  core: false,
+  planning: true,
+  family: false,
+}
+
+const DESKTOP_EXPANDED: Record<GroupKey, boolean> = {
   core: true,
   planning: true,
   family: true,
@@ -36,18 +42,19 @@ export default function FeaturesPage() {
   const { features, setFeature } = useFeatures()
   const copy = useFeaturesText()
   const [pending, setPending] = React.useState<FeatureKey | null>(null)
+  const pendingKeysRef = React.useRef<Set<FeatureKey>>(new Set())
   const [toast, setToast] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState('')
   const [expanded, setExpanded] =
-    React.useState<Record<GroupKey, boolean>>(INITIAL_EXPANDED)
+    React.useState<Record<GroupKey, boolean>>(MOBILE_EXPANDED)
   const [activeGroup, setActiveGroup] = React.useState<GroupKey>('planning')
   const flags = features
   const groups = groupFeatures(FEATURES)
   const normalizedQuery = query.trim().toLocaleLowerCase()
 
   React.useEffect(() => {
-    if (window.matchMedia?.('(max-width: 767px)').matches) {
-      setExpanded({ core: false, planning: true, family: false })
+    if (!window.matchMedia?.('(max-width: 767px)').matches) {
+      setExpanded(DESKTOP_EXPANDED)
     }
   }, [])
 
@@ -97,7 +104,9 @@ export default function FeaturesPage() {
     // A feature whose requirement is off (Rewards/Analytics without Points &
     // streaks, #248) cannot be toggled until that is on.
     if (feature.requires && !isFeatureEnabled(flags, feature.requires)) return
+    if (pendingKeysRef.current.has(feature.key)) return
     const next = !flags[feature.key]
+    pendingKeysRef.current.add(feature.key)
     setPending(feature.key)
     try {
       await setFeature(feature.key, next)
@@ -109,6 +118,7 @@ export default function FeaturesPage() {
       setToast(copy('updateFailed', { title: feature.title }))
       setTimeout(() => setToast(null), 2200)
     } finally {
+      pendingKeysRef.current.delete(feature.key)
       setPending(null)
     }
   }
@@ -278,7 +288,7 @@ function FeatureGroup({
           <h2
             id={headingId}
             tabIndex={-1}
-            className="text-title-3 focus:outline-none"
+            className="text-title-3 focus:outline focus:outline-[3px] focus:outline-offset-2 focus:outline-[var(--accent-text)]"
           >
             {title}
           </h2>

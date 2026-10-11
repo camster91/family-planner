@@ -22,10 +22,13 @@ export function SearchField({
   className?: string
   onSubmit?: () => void
 }) {
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
   return (
     <div className={cn('relative', className)}>
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-label-tertiary pointer-events-none" />
       <input
+        ref={inputRef}
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -36,7 +39,11 @@ export function SearchField({
       {value && (
         <button
           type="button"
-          onClick={() => onChange('')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            onChange('')
+            inputRef.current?.focus()
+          }}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
           aria-label={clearLabel || 'Clear'}
         >
