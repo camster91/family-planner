@@ -247,15 +247,13 @@ export function CaptureBox({
     fetch('/api/capture')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d && d.allowed === false) {
-          setChildBlocked(true)
+        if (!d || d.allowed !== true || d.configured !== true) {
+          if (d?.allowed === false) setChildBlocked(true)
+          else setUnavailable(true)
           onAvailabilityChange?.(false)
-        } else if (d && d.configured === false) {
-          setUnavailable(true)
-          onAvailabilityChange?.(false)
-        } else if (d) {
-          onAvailabilityChange?.(true)
+          return
         }
+        onAvailabilityChange?.(true)
         if (d?.userId && d?.familyId) {
           const identity = { userId: String(d.userId), familyId: String(d.familyId) }
           const previousIdentity = recoveryIdentity.current
@@ -267,7 +265,10 @@ export function CaptureBox({
           syncRecoveryRows([...persisted, ...pending.filter((row) => !persisted.some((saved) => saved.key === row.key))])
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        setUnavailable(true)
+        onAvailabilityChange?.(false)
+      })
   }, [onAvailabilityChange])
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {

@@ -16,8 +16,16 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   const { t } = useTranslation();
   const msg = (key: CaptureMessage) => t(key, undefined, captureMessages);
   const [open, setOpen] = React.useState(false);
-  const [available, setAvailable] = React.useState(true);
+  const [availability, setAvailability] = React.useState<
+    "loading" | "available" | "unavailable"
+  >("loading");
   const [portalReady, setPortalReady] = React.useState(false);
+  const available = availability === "available";
+
+  const handleAvailabilityChange = React.useCallback((next: boolean) => {
+    setAvailability(next ? "available" : "unavailable");
+    if (!next) setOpen(false);
+  }, []);
 
   React.useEffect(() => {
     setPortalReady(true);
@@ -59,7 +67,7 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
               open={open}
               onClose={() => setOpen(false)}
               onSaved={onSaved}
-              onAvailabilityChange={setAvailable}
+              onAvailabilityChange={handleAvailabilityChange}
             />,
             document.body,
           )

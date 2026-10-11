@@ -76,11 +76,72 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
+it("fails closed while availability is still loading", async () => {
+  let resolveGate!: (value: Response) => void;
+  global.fetch = jest.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        resolveGate = resolve;
+      }),
+  ) as unknown as typeof fetch;
+
+  mount();
+  expect(
+    screen.queryByRole("button", { name: "Open quick add" }),
+  ).not.toBeInTheDocument();
+  expect(document.body.style.overflow).toBe("");
+
+  await act(async () =>
+    resolveGate(
+      response(200, {
+        configured: true,
+        allowed: true,
+        userId: "user-a",
+        familyId: "family-a",
+      }),
+    ),
+  );
+  expect(
+    await screen.findByRole("button", { name: "Open quick add" }),
+  ).toBeVisible();
+});
+
+async function expectUnavailable(fetcher: () => Promise<Response>) {
+  global.fetch = jest.fn(fetcher) as unknown as typeof fetch;
+  mount();
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Open quick add" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(document.body.style.overflow).toBe("");
+}
+
+it("hides the launcher when capture is configured off", async () => {
+  await expectUnavailable(() =>
+    Promise.resolve(response(200, { configured: false, allowed: true })),
+  );
+});
+
+it("hides the launcher when the current role is not allowed", async () => {
+  await expectUnavailable(() =>
+    Promise.resolve(response(200, { configured: true, allowed: false })),
+  );
+});
+
+it("hides the launcher after a capability response or network failure", async () => {
+  await expectUnavailable(() => Promise.resolve(response(503, {})));
+  await expectUnavailable(() => Promise.reject(new Error("offline")));
+});
+
 it("opens the rounded sheet, restores the launcher focus, and keeps an unsent draft", async () => {
   configuredFetch();
   const user = userEvent.setup();
   mount();
-  const launcher = screen.getByRole("button", { name: "Open quick add" });
+  const launcher = await screen.findByRole("button", {
+    name: "Open quick add",
+  });
 
   await user.click(launcher);
   const dialog = screen.getByRole("dialog", { name: "Quick add" });
@@ -119,7 +180,9 @@ it("localizes the launcher and sheet chrome without changing the capture control
   configuredFetch();
   const user = userEvent.setup();
   mount("es");
-  const launcher = screen.getByRole("button", { name: "Abrir adición rápida" });
+  const launcher = await screen.findByRole("button", {
+    name: "Abrir adición rápida",
+  });
   await user.click(launcher);
   const dialog = screen.getByRole("dialog", { name: "Adición rápida" });
   expect(dialog).toHaveTextContent(
@@ -172,7 +235,9 @@ it("blocks Escape and close while a confirmed write is pending", async () => {
 
   const user = userEvent.setup();
   mount();
-  await user.click(screen.getByRole("button", { name: "Open quick add" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Open quick add" }),
+  );
   const dialog = screen.getByRole("dialog", { name: "Quick add" });
   await user.type(within(dialog).getByRole("textbox"), "dentist Tuesday");
   await user.click(within(dialog).getByRole("button", { name: "Read it" }));
