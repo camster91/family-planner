@@ -23,6 +23,11 @@ import type { BoardChore, BoardDinner, BoardEvent } from '@/app/dashboard/today/
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
 import { firstName, formatTime, type ComingUpDay, type PersonChores, type TodayEvent } from './board-model'
 import {
+  defaultTodayBoardText,
+  useTodayBoardText,
+  type TodayBoardTranslator,
+} from '@/i18n/today-board'
+import {
   actionLinkClass,
   emptyTextClass,
   headerLinkClass,
@@ -122,6 +127,7 @@ export function Region({
 
 /** Imported-calendar label (#232). Text carries the meaning; the dot is decoration. */
 function SourceLabel({ source }: { source: NonNullable<BoardEvent['source']> }) {
+  const text = useTodayBoardText()
   return (
     <span className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] text-label-secondary md:text-[16px]">
       <span
@@ -129,7 +135,7 @@ function SourceLabel({ source }: { source: NonNullable<BoardEvent['source']> }) 
         className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
         style={{ backgroundColor: source.color ?? 'var(--label-secondary)' }}
       />
-      <span className="min-w-0 break-words">From {source.name}</span>
+      <span className="min-w-0 break-words">{text('from', { name: source.name })}</span>
     </span>
   )
 }
@@ -142,11 +148,15 @@ function Tag({ children }: { children: React.ReactNode }) {
   )
 }
 
-function eventTimeLabel(e: TodayEvent, locale: string): string {
+export function eventTimeLabel(
+  e: TodayEvent,
+  locale: string,
+  text: TodayBoardTranslator = defaultTodayBoardText,
+): string {
   if (e.startedEarlier) {
     const end = new Date(e.end)
     const endsToday = end.toDateString() === new Date().toDateString()
-    return endsToday ? `Until ${formatTime(end, locale)}` : 'All day'
+    return endsToday ? text('until', { time: formatTime(end, locale) }) : text('allDay')
   }
   return formatTime(e.start, locale)
 }
@@ -168,13 +178,14 @@ function MemberSwatch({ color, className }: { color: MemberColorKey; className?:
  * field, so the board says who added it rather than implying who attends.
  */
 function AddedByLabel({ person }: { person: BoardPerson }) {
+  const text = useTodayBoardText()
   return (
     <span
       data-testid="event-member"
       className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-medium text-label-primary md:text-[16px] 2xl:text-[18px]"
     >
       <MemberSwatch color={person.color} className="h-3 w-3 2xl:h-3.5 2xl:w-3.5" />
-      <span className="min-w-0 break-words">Added by {person.name}</span>
+      <span className="min-w-0 break-words">{text('addedBy', { name: person.name })}</span>
     </span>
   )
 }
@@ -190,20 +201,21 @@ export function ScheduleRegion({
   people?: Map<string, BoardPerson>
 }) {
   const locale = useDisplayLocale()
+  const text = useTodayBoardText()
   const shown = events.slice(0, MAX_TODAY_EVENTS)
   const more = events.length - shown.length
   return (
     <Region
       id="board-today"
       area="today"
-      title="Today"
+      title={text('today')}
       icon={CalendarDays}
       glyph="calendar"
       href={calendarHref}
-      hrefLabel="open calendar"
+      hrefLabel={text('openCalendar')}
     >
       {shown.length === 0 ? (
-        <p className={emptyTextClass}>Nothing else on the calendar today.</p>
+        <p className={emptyTextClass}>{text('calendarEmpty')}</p>
       ) : (
         <ul className="divide-y divide-[var(--surface-separator)]">
           {shown.map((e) => {
@@ -211,14 +223,14 @@ export function ScheduleRegion({
             return (
               <li key={e.id} data-testid="today-event" className="flex gap-3 py-3 first:pt-0 2xl:gap-4 2xl:py-4">
                 <p className="w-[78px] min-w-[4.875em] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:min-w-[5em] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
-                  {eventTimeLabel(e, locale)}
+                  {eventTimeLabel(e, locale, text)}
                 </p>
                 <div className="min-w-0 flex-1">
                   <p className={cn(itemTextClass, 'break-words font-medium')}>{e.title}</p>
                   {(e.happeningNow || e.isTask || e.source || person) && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      {e.happeningNow && !e.startedEarlier && <Tag>Now</Tag>}
-                      {e.isTask && <Tag>Task</Tag>}
+                      {e.happeningNow && !e.startedEarlier && <Tag>{text('now')}</Tag>}
+                      {e.isTask && <Tag>{text('task')}</Tag>}
                       {person && <AddedByLabel person={person} />}
                       {e.source && <SourceLabel source={e.source} />}
                     </div>
@@ -229,7 +241,7 @@ export function ScheduleRegion({
           })}
         </ul>
       )}
-      {more > 0 && <p className={cn(metaTextClass, 'mt-3')}>{more} more later today</p>}
+      {more > 0 && <p className={cn(metaTextClass, 'mt-3')}>{text('moreLaterToday', { count: more })}</p>}
     </Region>
   )
 }
@@ -239,14 +251,17 @@ export function ScheduleRegion({
  * differs from the meal's own name, and the prep time when known. Null when
  * the meal has no recipe (free-text dinners look exactly as before).
  */
-export function dinnerRecipeLine(dinner: Pick<BoardDinner, 'recipeName' | 'recipeTitle' | 'prepMinutes'>): string | null {
+export function dinnerRecipeLine(
+  dinner: Pick<BoardDinner, 'recipeName' | 'recipeTitle' | 'prepMinutes'>,
+  text: TodayBoardTranslator = defaultTodayBoardText,
+): string | null {
   const parts: string[] = []
   const title = dinner.recipeTitle?.trim()
   // Compare with the headline actually shown, so the title never repeats.
   const name = (dinner.recipeName ?? title ?? '').trim()
-  if (title && title.toLowerCase() !== name.toLowerCase()) parts.push(`Recipe: ${title}`)
+  if (title && title.toLowerCase() !== name.toLowerCase()) parts.push(text('recipe', { title }))
   const prep = formatMinutes(dinner.prepMinutes)
-  if (prep) parts.push(`Prep ${prep}`)
+  if (prep) parts.push(text('prep', { duration: prep }))
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
@@ -255,9 +270,12 @@ export function dinnerRecipeLine(dinner: Pick<BoardDinner, 'recipeName' | 'recip
  * nothing is missing or the count is unknown (inventory off, shared device,
  * no recipe, or a recipe without ingredients).
  */
-export function missingIngredientsLine(count: number | null | undefined): string | null {
+export function missingIngredientsLine(
+  count: number | null | undefined,
+  text: TodayBoardTranslator = defaultTodayBoardText,
+): string | null {
   if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) return null
-  return `${count} ${count === 1 ? 'ingredient' : 'ingredients'} missing`
+  return text(count === 1 ? 'missingIngredientOne' : 'missingIngredientMany', { count })
 }
 
 export function DinnerRegion({
@@ -271,37 +289,38 @@ export function DinnerRegion({
   mealsHref: string | null
   featuresHref: string | null
 }) {
+  const text = useTodayBoardText()
   let body: React.ReactNode
   let action: React.ReactNode = undefined
   // Dinner is already tinted in app mode. Both normal and pressed actions
   // need opaque paper; pressed ink provides feedback without stacking tints.
   const dinnerActionClass = cn(actionLinkClass, 'bg-[var(--surface-elevated)] active:bg-[var(--surface-elevated)] active:text-label-primary')
   if (!mealsEnabled) {
-    body = <p className={emptyTextClass}>Meal planning is turned off for this household.</p>
+    body = <p className={emptyTextClass}>{text('mealPlanningOff')}</p>
     if (featuresHref) {
       action = (
         <Link href={featuresHref} className={dinnerActionClass}>
-          Turn on meal planning
+          {text('turnOnMealPlanning')}
         </Link>
       )
     }
   } else if (!dinner) {
-    body = <p className={emptyTextClass}>No dinner planned yet.</p>
+    body = <p className={emptyTextClass}>{text('dinnerEmpty')}</p>
     if (mealsHref) {
       action = (
         <Link href={mealsHref} className={dinnerActionClass}>
-          Plan dinner
+          {text('planDinner')}
         </Link>
       )
     }
   } else {
-    const recipeLine = dinnerRecipeLine(dinner)
-    const missingLine = missingIngredientsLine(dinner.missingIngredients)
+    const recipeLine = dinnerRecipeLine(dinner, text)
+    const missingLine = missingIngredientsLine(dinner.missingIngredients, text)
     // #274: the tile heading opens meals; no separate "Open meals" button.
     body = (
       <div data-testid="dinner-tonight">
         <p className="break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]">
-          {dinner.recipeName ?? dinner.recipeTitle ?? 'Dinner is planned'}
+          {dinner.recipeName ?? dinner.recipeTitle ?? text('dinnerPlanned')}
         </p>
         {recipeLine && <p className={cn(metaTextClass, 'mt-2 break-words')}>{recipeLine}</p>}
         {missingLine && (
@@ -309,7 +328,7 @@ export function DinnerRegion({
             {missingLine}
           </p>
         )}
-        {dinner.cookName && <p className={cn(metaTextClass, 'mt-2')}>Cooking: {dinner.cookName}</p>}
+        {dinner.cookName && <p className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: dinner.cookName })}</p>}
       </div>
     )
   }
@@ -317,11 +336,11 @@ export function DinnerRegion({
     <Region
       id="board-dinner"
       area="dinner"
-      title="Dinner tonight"
+      title={text('dinnerTonight')}
       icon={UtensilsCrossed}
       glyph="meals"
       href={mealsEnabled ? mealsHref : null}
-      hrefLabel="open meals"
+      hrefLabel={text('openMeals')}
       action={action}
     >
       {body}
@@ -341,6 +360,7 @@ export function GroceriesRegion({
   /** #274: tapping an item ticks it off (with Undo). Null: rows are plain text. */
   onTick?: ((item: ShoppingSnapshotItem) => void) | null
 }) {
+  const text = useTodayBoardText()
   if (!shopping) return null
   const groceriesHref = listsHref === '/dashboard/lists' ? '/dashboard/lists/groceries' : listsHref
   const more = shopping.total - shopping.items.length
@@ -348,18 +368,18 @@ export function GroceriesRegion({
     <Region
       id="board-groceries"
       area="groceries"
-      title="Groceries"
+      title={text('groceries')}
       icon={ShoppingCart}
       glyph="lists"
       href={groceriesHref}
-      hrefLabel="open grocery lists"
+      hrefLabel={text('openGroceryLists')}
       action={action}
     >
       {shopping.items.length === 0 ? (
-        <p className={emptyTextClass}>The grocery list is clear.</p>
+        <p className={emptyTextClass}>{text('groceryEmpty')}</p>
       ) : (
         <>
-          <p className={cn(metaTextClass, 'mb-2')}>{shopping.total} to buy</p>
+          <p className={cn(metaTextClass, 'mb-2')}>{text('toBuy', { count: shopping.total })}</p>
           <ul className="divide-y divide-[var(--surface-separator)]">
             {shopping.items.map((item) => {
               const content = (
@@ -378,7 +398,10 @@ export function GroceriesRegion({
                     <button
                       type="button"
                       onClick={() => onTick(item)}
-                      aria-label={`Tick off ${item.content}${item.quantity > 1 ? `, ${item.quantity}` : ''}`}
+                      aria-label={text('tickOff', {
+                        item: item.content,
+                        quantity: item.quantity > 1 ? `, ${item.quantity}` : '',
+                      })}
                       className={rowButtonClass}
                     >
                       <Circle className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7" aria-hidden="true" />
@@ -397,13 +420,13 @@ export function GroceriesRegion({
         (listsHref ? (
           <div className="mt-3">
             <Link href={groceriesHref!} className={actionLinkClass}>
-              {more} more to buy
+              {text('moreToBuy', { count: more })}
             </Link>
           </div>
         ) : (
-          <p className={cn(metaTextClass, 'mt-3')}>{more} more to buy</p>
+          <p className={cn(metaTextClass, 'mt-3')}>{text('moreToBuy', { count: more })}</p>
         ))}
-      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">All shared lists <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className="text-footnote text-label-secondary">To-dos, wishlists and custom lists</p></div>}
+      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">{text('allSharedLists')} <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className="text-footnote text-label-secondary">{text('sharedListsDescription')}</p></div>}
     </Region>
   )
 }
@@ -445,10 +468,10 @@ function Monogram({ name, color }: { name: string; color?: MemberColorKey }) {
 }
 
 /** "2 done", "2 done · 1 waiting for a parent's check". Text carries the state. */
-function doneLine(p: PersonChores): string | null {
+function doneLine(p: PersonChores, text: TodayBoardTranslator = defaultTodayBoardText): string | null {
   if (p.doneCount === 0) return null
   const waiting = p.awaitingCheckCount ?? 0
-  return waiting > 0 ? `${p.doneCount} done · ${waiting} waiting for a parent's check` : `${p.doneCount} done`
+  return waiting > 0 ? text('doneWaiting', { done: p.doneCount, waiting }) : text('done', { count: p.doneCount })
 }
 
 export function ChoresRegion({
@@ -464,26 +487,27 @@ export function ChoresRegion({
   /** Which chores this viewer may tick (own chores, or any for a parent). */
   canTick?: (chore: BoardChore) => boolean
 }) {
+  const text = useTodayBoardText()
   const names = displayNames(people)
   return (
     <Region
       id="board-chores"
       area="chores"
-      title="Chores today"
+      title={text('choresToday')}
       icon={CheckSquare}
       glyph="chore"
       href={choresHref}
-      hrefLabel="open chores"
+      hrefLabel={text('openChores')}
     >
       {people.length === 0 ? (
-        <p className={emptyTextClass}>No chores due today.</p>
+        <p className={emptyTextClass}>{text('choresEmpty')}</p>
       ) : (
         <ul className="space-y-4">
           {people.map((p) => {
             const name = names.get(p.member.id) ?? p.member.name
             const shown = p.open.slice(0, MAX_CHORES_PER_PERSON)
             const more = p.open.length - shown.length
-            const done = doneLine(p)
+            const done = doneLine(p, text)
             return (
               <li key={p.member.id} data-testid="chore-person">
                 <div className="flex items-center gap-3">
@@ -494,7 +518,7 @@ export function ChoresRegion({
                 </div>
                 <div className="pl-[56px] 2xl:pl-[68px]">
                   {p.open.length === 0 ? (
-                    <p className={cn(metaTextClass, 'mt-1')}>All done for today</p>
+                    <p className={cn(metaTextClass, 'mt-1')}>{text('allDoneToday')}</p>
                   ) : (
                     <ul className="mt-1 space-y-1">
                       {shown.map((c) => {
@@ -509,7 +533,7 @@ export function ChoresRegion({
                             )}
                             {c.title}
                             {c.status === 'in_progress' && (
-                              <span className={cn(metaTextClass, 'block')}>In progress</span>
+                              <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
                             )}
                           </span>
                         )
@@ -519,7 +543,7 @@ export function ChoresRegion({
                               <button
                                 type="button"
                                 onClick={() => onTick(c)}
-                                aria-label={`Mark ${c.title} done, ${name}`}
+                                aria-label={text('markDone', { title: c.title, name })}
                                 className={cn(rowButtonClass, 'text-left')}
                               >
                                 <Circle
@@ -534,7 +558,7 @@ export function ChoresRegion({
                           </li>
                         )
                       })}
-                      {more > 0 && <li className={metaTextClass}>{more} more</li>}
+                      {more > 0 && <li className={metaTextClass}>{text('more', { count: more })}</li>}
                     </ul>
                   )}
                   {done && (
@@ -566,19 +590,20 @@ export function ComingUpRegion({
   stackInLandscape?: boolean
 }) {
   const locale = useDisplayLocale()
+  const text = useTodayBoardText()
   return (
-    <Region id="board-coming" area="coming" title="Coming up" icon={CalendarRange} glyph="family">
+    <Region id="board-coming" area="coming" title={text('comingUp')} icon={CalendarRange} glyph="family">
       <ul className={cn('grid gap-5 sm:grid-cols-3', stackInLandscape && 'lg:landscape:grid-cols-1')}>
-        {days.map((day) => {
+        {days.map((day, dayIndex) => {
           const shown = day.events.slice(0, MAX_COMING_UP_EVENTS)
           const more = day.events.length - shown.length
           return (
             <li key={day.dayKey} data-testid="coming-up-day" className="min-w-0">
               <h3 className="text-[20px] font-semibold leading-tight text-label-primary md:text-[22px] 2xl:text-[26px]">
-                {day.label} <span className="font-normal text-label-secondary">{day.dateLabel}</span>
+                {dayIndex === 0 && day.label === 'Tomorrow' ? text('tomorrow') : day.label}{' '}<span className="font-normal text-label-secondary">{day.dateLabel}</span>
               </h3>
               {shown.length === 0 ? (
-                <p className={cn(metaTextClass, 'mt-2')}>Nothing on the calendar</p>
+                <p className={cn(metaTextClass, 'mt-2')}>{text('comingEmpty')}</p>
               ) : (
                 <ul className="mt-2 space-y-2">
                   {shown.map((e) => (
@@ -593,11 +618,11 @@ export function ComingUpRegion({
                       )}
                     </li>
                   ))}
-                  {more > 0 && <li className={metaTextClass}>{more} more</li>}
+                  {more > 0 && <li className={metaTextClass}>{text('more', { count: more })}</li>}
                 </ul>
               )}
               {mealsEnabled && day.dinner && (
-                <p className={cn(metaTextClass, 'mt-2 break-words')}>Dinner: {day.dinner.recipeName ?? day.dinner.recipeTitle ?? 'planned'}</p>
+                <p className={cn(metaTextClass, 'mt-2 break-words')}>{text('dinnerLabel', { name: day.dinner.recipeName ?? day.dinner.recipeTitle ?? text('planned') })}</p>
               )}
             </li>
           )
