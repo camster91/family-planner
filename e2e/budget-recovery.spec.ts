@@ -232,6 +232,10 @@ async function assertAccessibleAndContained(
     contentType: "application/json",
   });
   expect(violations).toEqual([]);
+  await info.attach(`${label}-screenshot`, {
+    body: await page.screenshot({ fullPage: false, animations: "disabled" }),
+    contentType: "image/png",
+  });
 }
 
 type BudgetHarness = {
