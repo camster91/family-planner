@@ -39,6 +39,14 @@ const EMPTY_DRAFT = {
   notes: "",
 };
 
+function isPickupHistoryMarker(state: unknown, marker: string): boolean {
+  return (
+    !!state &&
+    typeof state === "object" &&
+    (state as { pickupForm?: unknown }).pickupForm === marker
+  );
+}
+
 export default function PickupsPage() {
   return (
     <FeatureGate featureKey="pickups">
@@ -65,9 +73,13 @@ function PickupsPageInner() {
   const loadInFlightRef = React.useRef(false);
   const addButtonRef = React.useRef<HTMLButtonElement>(null);
   const titleRef = React.useRef<HTMLInputElement>(null);
-  const historyEntryRef = React.useRef<{ state: unknown; url: string } | null>(
-    null,
-  );
+  const historyEntryRef = React.useRef<{
+    state: unknown;
+    url: string;
+    marker: string;
+  } | null>(null);
+  const historyMarkerSequenceRef = React.useRef(0);
+  const historyCloseRef = React.useRef(false);
   const backgroundStateRef = React.useRef<{
     element: HTMLElement | null;
     inert: boolean;
@@ -121,31 +133,50 @@ function PickupsPageInner() {
       // Unlock before Dialog unmounts so its focus restoration never targets
       // a still-inert background control.
       unlockBackground();
+      const entry = historyEntryRef.current;
+      if (entry && isPickupHistoryMarker(window.history.state, entry.marker)) {
+        // The form effect pushed a marker entry. Consume it instead of
+        // replacing it with a duplicate of the page entry: replacing leaves
+        // an invisible Back step after every Cancel/Escape/save.
+        historyCloseRef.current = true;
+        window.history.back();
+      }
       setAdding(false);
     },
     [saving, unlockBackground],
   );
 
   // Keep Android/browser back useful while the form is open without putting
-  // the draft in a URL or clearing it. Programmatic close replaces the marker;
+  // the draft in a URL or clearing it. Programmatic close consumes the marker;
   // a real back navigation has already restored the previous history entry.
   React.useEffect(() => {
     if (!adding) return;
     lockBackground();
     const previous = { state: window.history.state, url: window.location.href };
-    historyEntryRef.current = previous;
+    const marker = `pickup-form-${++historyMarkerSequenceRef.current}`;
+    historyEntryRef.current = { ...previous, marker };
+    historyCloseRef.current = false;
     const state =
       previous.state && typeof previous.state === "object"
         ? previous.state
         : {};
-    window.history.pushState({ ...state, pickupForm: true }, "", previous.url);
+    window.history.pushState(
+      { ...state, pickupForm: marker },
+      "",
+      previous.url,
+    );
     const onPopState = () => {
+      if (historyCloseRef.current) return;
       if (savingRef.current) {
         const current = window.history.state;
         const currentState =
           current && typeof current === "object" ? current : {};
+        const currentEntry = historyEntryRef.current;
         window.history.pushState(
-          { ...currentState, pickupForm: true },
+          {
+            ...currentState,
+            pickupForm: currentEntry?.marker ?? marker,
+          },
           "",
           window.location.href,
         );
@@ -159,14 +190,10 @@ function PickupsPageInner() {
       window.removeEventListener("popstate", onPopState);
       unlockBackground();
       const entry = historyEntryRef.current;
-      if (
-        entry &&
-        window.history.state &&
-        typeof window.history.state === "object" &&
-        "pickupForm" in window.history.state
-      ) {
-        window.history.replaceState(entry.state, "", entry.url);
-      }
+      // A programmatic close already called history.back(). Do not replace
+      // the marker here: the replacement is the duplicate entry this effect
+      // is responsible for avoiding. A real Back has already popped it.
+      historyCloseRef.current = false;
       if (historyEntryRef.current === entry) historyEntryRef.current = null;
     };
   }, [adding, lockBackground, unlockBackground]);

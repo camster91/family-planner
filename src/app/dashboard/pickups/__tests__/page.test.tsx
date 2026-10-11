@@ -208,6 +208,32 @@ it("keeps the Spanish draft through Escape and restores focus to Add", async () 
   ).toHaveTextContent("Cancelar");
 });
 
+it("consumes the form history marker when Escape closes the draft", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest.spyOn(window.history, "back");
+  const replaceSpy = jest.spyOn(window.history, "replaceState");
+  renderPage();
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+
+  await user.keyboard("{Escape}");
+
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(backSpy).toHaveBeenCalledTimes(1);
+  });
+  expect(replaceSpy).not.toHaveBeenCalled();
+  backSpy.mockRestore();
+  replaceSpy.mockRestore();
+});
+
 it("blocks dismissal and duplicate submits while saving, then restores Add focus", async () => {
   let resolvePost: ((value: Response) => void) | undefined;
   global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -227,6 +253,7 @@ it("blocks dismissal and duplicate submits while saving, then restores Add focus
   const user = userEvent.setup();
   renderPage();
   const add = await screen.findByRole("button", { name: "Add" });
+  const backSpy = jest.spyOn(window.history, "back");
   await user.click(add);
   await user.type(screen.getByLabelText("Title"), "School pickup");
   fireEvent.change(screen.getByLabelText("When"), {
@@ -250,4 +277,6 @@ it("blocks dismissal and duplicate submits while saving, then restores Add focus
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
   expect(add).toHaveFocus();
+  expect(backSpy).toHaveBeenCalledTimes(1);
+  backSpy.mockRestore();
 });
