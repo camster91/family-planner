@@ -6,6 +6,7 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { FEATURES } from "../src/lib/features";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
+import { ownFeatureAudit } from "./support/feature-audit";
 import { authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
@@ -51,6 +52,8 @@ for (const locale of ["en", "es"] as const) {
       FEATURES.map((feature) => [feature.key, true]),
     );
     expect(Object.keys(allFeatures)).toHaveLength(22);
+    const cleanFeatureAudit = await ownFeatureAudit(Object.keys(allFeatures));
+    let featuresRestored = false;
     try {
       const enabled = await browserSend(page, "PATCH", "/api/family/features", {
         features: allFeatures,
@@ -172,7 +175,7 @@ for (const locale of ["en", "es"] as const) {
           geometry,
           violations,
           scope:
-            "parent Today board regions; no domain actions submitted; physical/shared-device acceptance separate",
+            "parent Today board regions; guarded fixture features enabled and restored with owned audit cleanup; no domain item actions submitted; physical/shared-device acceptance separate",
         }),
         contentType: "application/json",
       });
@@ -185,22 +188,32 @@ for (const locale of ["en", "es"] as const) {
         fullPage: true,
       });
     } finally {
-      let restored;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          restored = await browserSend(page, "PATCH", "/api/family/features", {
-            features: originalFeatures,
-          });
-          if (restored.status === 200 || restored.status < 500) break;
-        } catch (error) {
-          if (attempt === 1) throw error;
+      try {
+        let restored;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            restored = await browserSend(
+              page,
+              "PATCH",
+              "/api/family/features",
+              {
+                features: originalFeatures,
+              },
+            );
+            if (restored.status === 200 || restored.status < 500) break;
+          } catch (error) {
+            if (attempt === 1) throw error;
+          }
         }
+        expect(restored).toBeDefined();
+        expect(restored!.status, restored!.body).toBe(200);
+        const canonical = await browserFetch(page, "/api/family/features");
+        expect(canonical.status, canonical.body).toBe(200);
+        expect(JSON.parse(canonical.body).features).toEqual(originalFeatures);
+        featuresRestored = true;
+      } finally {
+        await cleanFeatureAudit(featuresRestored);
       }
-      expect(restored).toBeDefined();
-      expect(restored!.status, restored!.body).toBe(200);
-      const canonical = await browserFetch(page, "/api/family/features");
-      expect(canonical.status, canonical.body).toBe(200);
-      expect(JSON.parse(canonical.body).features).toEqual(originalFeatures);
     }
   });
 }
