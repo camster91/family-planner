@@ -378,14 +378,18 @@ for (const locale of ["en", "es"] as const) {
         });
         await submit.click();
         await expect.poll(() => deleteRequests.length).toBe(1);
-        await expect(submit).toBeDisabled();
+        const pendingSubmit = retryDialog.getByRole("button", {
+          name: locale === "es" ? "Eliminando…" : "Deleting…",
+          exact: true,
+        });
+        await expect(pendingSubmit).toBeDisabled();
         await expect(
           retryDialog.getByRole("button", {
             name: locale === "es" ? "Cancelar" : "Cancel",
             exact: true,
           }),
         ).toBeDisabled();
-        await submit.dispatchEvent("click");
+        await pendingSubmit.dispatchEvent("click");
         expect(deleteRequests).toHaveLength(1);
         await page.keyboard.press("Escape");
         await expect(retryDialog).toBeVisible();
