@@ -34,6 +34,8 @@ export async function loadHomeSummary(
     db.chore.findMany({
       where: {
         family_id: opts.familyId,
+        // Protocol-1 summaries remain account-only until the profile view exists.
+        assigned_to: { not: null },
         due_date: { gte: addUTCDays(start, -1), lte: addUTCDays(start, 1) },
       },
       select: { id: true, title: true, due_date: true, status: true, assigned_to: true },
@@ -49,13 +51,13 @@ export async function loadHomeSummary(
   ])
 
   return {
-    chores: chores.map((c) => ({
+    chores: chores.flatMap((c) => c.assigned_to === null ? [] : [{
       id: c.id,
       title: c.title,
       dueDay: toDateOnlyUTC(c.due_date),
       status: c.status,
       assigneeId: c.assigned_to,
-    })),
+    }]),
     members,
     toCheckCount,
     choresHref: canRoleAccessPath(opts.role, '/dashboard/chores') ? '/dashboard/chores' : null,

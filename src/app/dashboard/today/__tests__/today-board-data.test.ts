@@ -116,6 +116,19 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     expect(selectedKeys(subArgs.select).sort()).toEqual(['color', 'id', 'name'])
   })
 
+  it.each(['person', 'device'] as const)('keeps %s protocol-1 chores account-only', async (audience) => {
+    const db = mockDb({ chore: { findMany: jest.fn().mockResolvedValue([
+      { id: 'profile_only', title: 'Profile task', due_date: NOW, status: 'pending', assigned_to: null, assigned_member_id: 'member_only' },
+      { id: 'account', title: 'Account task', due_date: NOW, status: 'pending', assigned_to: 'u_child', icon: null },
+    ]) } })
+    const data = await buildTodayBoard(db as any, {
+      familyId: FAMILY, ...(audience === 'device' ? { audience } : { audience, role: 'parent' }), features: defaultFeatures(), now: NOW,
+    })
+    expect((db.chore.findMany as jest.Mock).mock.calls[0][0].where.assigned_to).toEqual({ not: null })
+    expect(data.chores.map((c) => c.assigneeId)).toEqual(['u_child'])
+    expect(JSON.stringify(data.chores)).not.toContain('member_only')
+  })
+
   it('never touches private domains', async () => {
     const db = mockDb()
     const forbidden = {

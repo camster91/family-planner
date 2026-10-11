@@ -319,7 +319,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       take: MAX_EVENTS,
     }),
     db.chore.findMany({
-      where: { family_id: familyId, due_date: { gte: windowStart, lt: windowEnd } },
+      // Protocol 1 remains account-only until the profile board/device client exists.
+      where: { family_id: familyId, assigned_to: { not: null }, due_date: { gte: windowStart, lt: windowEnd } },
       select: { id: true, title: true, due_date: true, status: true, assigned_to: true, icon: true },
       orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: MAX_CHORES,
@@ -403,8 +404,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     }),
     chores: chores
       // An assignee outside the household cannot be shown by name; skip it.
-      .filter((c) => memberIds.has(c.assigned_to))
-      .map((c) => ({
+      .flatMap((c) => c.assigned_to === null || !memberIds.has(c.assigned_to) ? [] : [{
         id: c.id,
         title: c.title,
         dueDay: toDateOnlyUTC(c.due_date),
@@ -412,7 +412,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         assigneeId: c.assigned_to,
         // Only a catalogue key leaves the server; anything else reads as no picture.
         icon: isRoutineIconKey(c.icon) ? c.icon : null,
-      })),
+      }]),
     dinners: dinners
       ? dinners.map((d) => ({
           id: d.id,
