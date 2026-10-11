@@ -18,6 +18,7 @@
 import { decryptSecret } from './secret-box'
 import { assertPublicProviderUrl } from './outbound-url'
 import { isUnsafeAddressError, safeFetch } from './safe-fetch'
+import type { AssistantTodayTransportContext } from './assistant-context-schema'
 
 // Errors whose message is safe to show to the user. Anything else is reported
 // generically so upstream response bodies never reach the client.
@@ -395,7 +396,19 @@ export async function draftFromImage(
 export async function structuredAssistantReply(
   context: { messages: Array<{ role: string; content: string }>; localNow: string; timeZone: string },
   config: CaptureConfig,
-  prompt: string
+  prompt: string,
+  todayContext?: AssistantTodayTransportContext
 ): Promise<unknown> {
-  return callModel(config, [{ type: 'text', text: JSON.stringify(context) }], prompt, true)
+  const userContent: Array<Record<string, unknown>> = [
+    { type: 'text', text: JSON.stringify(context) },
+  ]
+  if (todayContext !== undefined) {
+    // Keep Today data in a separate untrusted content block. It never enters
+    // the system prompt and cannot become provider instructions.
+    userContent.push({
+      type: 'text',
+      text: `<assistant-today-context untrusted="true">${JSON.stringify(todayContext)}</assistant-today-context>`,
+    })
+  }
+  return callModel(config, userContent, prompt, true)
 }

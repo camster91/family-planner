@@ -18,7 +18,11 @@ jest.mock("@/components/providers/features-provider", () => ({
     features: require("@/lib/features").defaultFeatures(),
   }),
 }));
-const response = (data: unknown, ok = true) => ({ ok, json: async () => data });
+const response = (
+  data: unknown,
+  ok = true,
+  headers: Record<string, string> = {},
+) => ({ ok, headers: new Headers(headers), json: async () => data });
 beforeEach(() => {
   mockMode = "";
   mockRefresh.mockClear();
@@ -524,4 +528,88 @@ it("re-localizes a static action failure after switching language", async () => 
   expect(within(dialog).getByRole("alert")).toHaveTextContent(
     "Elige un inicio válido y una hora de finalización posterior.",
   );
+});
+
+it("sends an explicit Include Today choice and keeps the draft on an unavailable response", async () => {
+  const user = userEvent.setup();
+  const calls: any[] = [];
+  global.fetch = jest.fn(async (path, options) => {
+    calls.push({ path, options });
+    return response(
+      {
+        error: "Today context is unavailable.",
+        code: "ASSISTANT_TODAY_UNAVAILABLE",
+      },
+      false,
+    );
+  }) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  const draft = "What is on today?";
+  await user.type(within(dialog).getByLabelText("Your message"), draft);
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  expect(calls).toHaveLength(1);
+  expect(JSON.parse(calls[0].options.body).includeToday).toBe(true);
+  expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
+  expect(within(dialog).getByRole("alert")).toHaveTextContent(
+    "Today context is unavailable right now.",
+  );
+});
+
+it("blocks an expired Today action until an explicit fresh preview", async () => {
+  const user = userEvent.setup();
+  let calls = 0;
+  const expired = {
+    "X-Assistant-Today-Generated-At": new Date(
+      Date.now() - 120_000,
+    ).toISOString(),
+    "X-Assistant-Today-Expires-At": new Date(Date.now() - 60_000).toISOString(),
+  };
+  const fresh = {
+    "X-Assistant-Today-Generated-At": new Date().toISOString(),
+    "X-Assistant-Today-Expires-At": new Date(Date.now() + 60_000).toISOString(),
+  };
+  global.fetch = jest.fn(async () => {
+    calls += 1;
+    return response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      calls === 1 ? expired : fresh,
+    );
+  }) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  await user.type(
+    within(dialog).getByLabelText("Your message"),
+    "Plan a trip list",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  const confirm = await within(dialog).findByRole("button", {
+    name: "Confirm and save",
+  });
+  await waitFor(() => expect(confirm).toBeDisabled());
+  expect(
+    within(dialog).getByText(/Today context has expired/i),
+  ).toBeInTheDocument();
+  await user.click(
+    within(dialog).getByRole("button", { name: "Refresh Today context" }),
+  );
+  await waitFor(() => expect(calls).toBe(2));
+  await waitFor(() =>
+    expect(
+      within(dialog).getByRole("button", { name: "Confirm and save" }),
+    ).toBeEnabled(),
+  );
+  expect(calls).toBe(2);
 });

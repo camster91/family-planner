@@ -1,9 +1,11 @@
 # Family AI Today broker implementation state
 
-This document records the dormant server-side slice for the retrieval contract
-in [`FAMILY_AI_TODAY_CONTRACT.md`](./FAMILY_AI_TODAY_CONTRACT.md). It does not
-enable Family AI, add a route, call a provider, change permissions or add a
-native capability.
+This document records the bounded server and person-chat plumbing slice for the
+retrieval contract in [`FAMILY_AI_TODAY_CONTRACT.md`](./FAMILY_AI_TODAY_CONTRACT.md).
+The capability remains dormant by default: `ASSISTANT_TODAY_ENABLED` must be
+exactly `1` for an explicit person-chat request to include Today context. This
+slice does not enable a provider in production, change permissions, add writes
+or add a native capability.
 
 ## Implemented
 
@@ -38,6 +40,21 @@ native capability.
 - Weather is deliberately not fetched by this dormant broker. It does not read
   board snapshots, coordinates or weather-capable code, so this slice has no
   external-network side effect.
+- `src/lib/assistant-context-schema.ts` is the strict transport boundary: it
+  permits only the bounded Today projection and rejects unknown fields, expired
+  envelopes and oversized collections. No IDs, feature blobs or arbitrary
+  provider instructions can enter through this shape.
+- The existing `/api/assistant` route accepts the additive `includeToday` flag.
+  When the server gate is enabled, it authenticates first, loads a fresh
+  person-scoped projection, validates it, and sends it as a separate untrusted
+  provider content block. The old request and reply shape is unchanged when
+  the flag is absent or false. Generated/expiry/protocol headers expose
+  freshness without changing the reply JSON.
+- `AssistantPanel` exposes an explicit, localized Include Today choice only
+  when the server capability is advertised. It retains the draft on an
+  unavailable context, displays freshness, and blocks confirmation after
+  expiry until the user explicitly requests a fresh preview. Existing action
+  routes, receipt/idempotency keys and confirmation controls are unchanged.
 
 ## Verification evidence
 
@@ -48,18 +65,21 @@ native capability.
   context and loader's database isolation, role filtering, feature-off states,
   local-day boundaries and bounded projection; it does not verify a route,
   browser, native client, provider, or production household.
+- The bounded route/provider/schema/panel checks are covered by the focused
+  Jest paths under `src/app/api/assistant/__tests__`,
+  `src/lib/__tests__/assistant-{provider,context-schema,today-capability,today-context}.test.ts`
+  and `src/components/assistant/__tests__/assistant-host.test.tsx`; these use
+  fabricated fixtures and provider mocks, not a live provider or household.
 
 ## Still gated
 
-- No caller imports this broker yet. The existing assistant route remains
-  unchanged and does not receive household context.
-- Provider configuration, prompt construction, response validation, action
-  proposals, confirmation, idempotency and UI freshness/retry are later
-  slices from the contract.
-- A future assistant caller must run the existing person authentication and
-  paired-device refusal first, then pass authoritative actor claims. A
-  shared-device or elevated-device assistant route requires its own reviewed
-  contract.
-- Route negatives, browser/native evidence and provider activation remain
-  release gates for the later activation slice. No production-readiness claim
-  is made.
+- The gate is intentionally off unless the server environment has the exact
+  value `ASSISTANT_TODAY_ENABLED=1`; no production flag or provider setting is
+  changed by this work.
+- This slice has focused route/provider/schema/component unit coverage only.
+  Route negatives for child and paired/shared-device refusal still depend on
+  the existing authentication boundary; no new device authority is granted.
+- Browser/rendered proof, real provider evidence, native/wake integration and
+  device capability remain separate release gates. The other 22-feature
+  journeys and full Today-board/wake/native surfaces are not accepted by this
+  plumbing slice.

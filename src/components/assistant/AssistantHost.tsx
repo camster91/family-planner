@@ -32,7 +32,13 @@ const target =
  * action clients are loaded only after a person opens one of these launchers,
  * keeping Today’s initial JavaScript small.
  */
-export default function AssistantHost({ role }: { role: string }) {
+export default function AssistantHost({
+  role,
+  todayContextEnabled = false,
+}: {
+  role: string;
+  todayContextEnabled?: boolean;
+}) {
   const pathname = usePathname();
   const params = useSearchParams();
   const { t } = useTranslation();
@@ -160,6 +166,7 @@ export default function AssistantHost({ role }: { role: string }) {
           onTabChange={setTab}
           onClose={close}
           onBusyChange={setPanelBusy}
+          todayContextEnabled={todayContextEnabled}
         />
       )}
     </>

@@ -14,6 +14,7 @@ import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures, normalizeFeatures } from "@/lib/features";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 import type { NavUser, UserRole } from "@/types";
+import { isAssistantTodayEnabled } from "@/lib/assistant-today-capability";
 
 function toUserRole(role: string | null | undefined): UserRole {
   return role === "teen" || role === "child" ? role : "parent";
@@ -159,6 +160,7 @@ export default async function DashboardLayout({
             <AssistantHost
               key={`${profile?.id}:${profile?.family_id}`}
               role={role}
+              todayContextEnabled={isAssistantTodayEnabled()}
             />
           </Suspense>
         )}
