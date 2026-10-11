@@ -58,7 +58,10 @@ export async function archiveAccountProfilesInTx(tx: any, userId: string, family
 /** Permanent account erasure removes the copied profile, never merely archives it. */
 export async function eraseAccountProfilesInTx(tx: any, userId: string, familyId: string | null): Promise<void> {
   const current = await exclusiveAccountProfiles(tx, userId, familyId)
-  const historic: Array<{ id: string }> = await tx.householdMember.findMany({ where: { erasure_user_id: userId }, select: { id: true } })
+  const historic: Array<{ id: string; family_id: string }> = await tx.householdMember.findMany({
+    where: { erasure_user_id: userId },
+    select: { id: true, family_id: true },
+  })
   const ids = [...new Set([...current, ...historic.map((p) => p.id)])].sort()
   if (ids.length === 0) return
   // Archived erasure ownership is private provenance, not current household access.
@@ -67,6 +70,29 @@ export async function eraseAccountProfilesInTx(tx: any, userId: string, familyId
     tx.householdMemberAccountLink.count({ where: { member_id: { in: ids }, user_id: { not: userId } } }),
   ])
   if (otherMappings || otherLinks) throw new HouseholdMemberIdentityConflict()
+  // Audit attribution is separate from the authenticated actor. Clear only
+  // the identifying subject, keep the row and mark its subject as erased.
+  // Scope each update by the member's household so a malformed/foreign id
+  // cannot cause a cross-household redaction. This runs before the NO ACTION
+  // member foreign keys are removed below.
+  const subjectsByFamily = new Map<string, string[]>()
+  if (familyId && current.length > 0) subjectsByFamily.set(familyId, [...current])
+  for (const profile of historic) {
+    const familySubjects = subjectsByFamily.get(profile.family_id) ?? []
+    familySubjects.push(profile.id)
+    subjectsByFamily.set(profile.family_id, familySubjects)
+  }
+  for (const [subjectFamilyId, subjectIds] of subjectsByFamily) {
+    const subjectWhere = { family_id: subjectFamilyId, subject_member_id: { in: [...new Set(subjectIds)] } }
+    await tx.activity.updateMany({
+      where: subjectWhere,
+      data: { subject_member_id: null, subject_member_erased: true },
+    })
+    await tx.deviceAuditEvent.updateMany({
+      where: subjectWhere,
+      data: { subject_member_id: null, subject_member_erased: true },
+    })
+  }
   // Explicit erasure clears only the canonical identifying subject. Preserve
   // existing legacy deletion/handover policy and never transfer earned credit.
   // The sticky tombstone prevents fixture reconciliation from adopting a later

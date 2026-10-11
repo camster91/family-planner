@@ -4,6 +4,22 @@
 
 The caller must obtain the real personal session through the existing authentication boundary and supply its User ID, household and token version. A shared-device selected profile is never that context. The core then takes the account membership lock followed by the household lock and rechecks current role, membership, token generation and household existence before effects **and before replay**. Parent authority is required; foreign targets have the same missing-target outcome as nonexistent IDs. No new permission or elevation policy is granted.
 
+## Audit-subject expand stage
+
+The current additive schema stage adds nullable `subject_member_id` and a
+sticky `subject_member_erased` tombstone to `Activity` and
+`DeviceAuditEvent`. It preserves the required `Activity.user_id` actor and
+the existing device audit actor/set-null behavior. Permanent account erasure
+clears only these member subjects before deleting the copied profile; archive,
+unlink and ordinary actor history retain them. The fields are storage and
+erasure groundwork only: no writer, profile-only assignment, setup UI,
+capability response or protocol-2 advertisement is enabled by this stage.
+
+`Chore.assigned_to` remains required. Making it nullable belongs to the next
+coherent chore reader/writer migration, with assignment, recurrence, history,
+device and installed-client compatibility evidence; this stage intentionally
+does not change that contract.
+
 ## Commands and recovery
 
 - Create takes name, an optional presentation role and optional age. The role is `child`, `teen` or `parent`, defaults to `child` for existing callers, and is never a `User.role` or authentication grant. Age is optional presentation metadata: children accept 0–17, teens 13–17, and parent profiles 18–120 when supplied; an unknown parent age may remain omitted or null, and age never infers a role or permission. Client-supplied account, email, credentials, invitation and extra fields are rejected.
