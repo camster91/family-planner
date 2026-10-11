@@ -229,6 +229,10 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByRole("switch")).toHaveCount(0);
 
       const search = page.getByRole("searchbox", { name: copy.search });
+      const searchBox = await search.boundingBox();
+      expect(searchBox).not.toBeNull();
+      expect(searchBox!.height).toBeGreaterThanOrEqual(44);
+      expect(searchBox!.width).toBeGreaterThanOrEqual(44);
       await search.fill("budget");
       await expect(page.getByText("Budget", { exact: true })).toBeVisible();
       await expect(
@@ -242,6 +246,21 @@ for (const locale of ["en", "es"] as const) {
         page.getByText(copy.noMatches, { exact: true }),
       ).toBeVisible();
       const clear = page.getByRole("button", { name: copy.clearSearch });
+      const clearBox = await clear.boundingBox();
+      expect(clearBox).not.toBeNull();
+      expect(clearBox!.height).toBeGreaterThanOrEqual(44);
+      expect(clearBox!.width).toBeGreaterThanOrEqual(44);
+      expect(
+        await clear.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return element.contains(
+            document.elementFromPoint(
+              box.x + box.width / 2,
+              box.y + box.height / 2,
+            ),
+          );
+        }),
+      ).toBe(true);
       await clear.click();
       await expect(search).toBeFocused();
       await expect(
