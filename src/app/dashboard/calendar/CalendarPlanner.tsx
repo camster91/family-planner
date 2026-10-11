@@ -42,6 +42,7 @@ export function CalendarPlanner({
   calendarSyncAvailable = false,
   refreshKey = 0,
   chooseLocalToday = false,
+  headerAction,
 }: {
   initialDate: string;
   initialView?: PlanningView;
@@ -49,6 +50,7 @@ export function CalendarPlanner({
   calendarSyncAvailable?: boolean;
   refreshKey?: unknown;
   chooseLocalToday?: boolean;
+  headerAction?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const msg = (
@@ -301,9 +303,12 @@ export function CalendarPlanner({
             </button>
           ))}
         </nav>
-        <Link href="/dashboard/calendar/create" className="btn-filled">
-          {msg("add")}
-        </Link>
+        <div className={styles.headerActions}>
+          {headerAction}
+          <Link href="/dashboard/calendar/create" className="btn-filled">
+            {msg("add")}
+          </Link>
+        </div>
       </header>
       <div className={styles.layout}>
         <aside className={styles.sources}>

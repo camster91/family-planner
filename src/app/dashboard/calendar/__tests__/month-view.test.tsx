@@ -6,12 +6,15 @@ jest.mock("../CalendarPlanner", () => ({
   CalendarPlanner: ({
     initialDate,
     chooseLocalToday,
+    headerAction,
   }: {
     initialDate: string;
     chooseLocalToday: boolean;
+    headerAction: React.ReactNode;
   }) => (
     <div data-testid="planner" data-today={String(chooseLocalToday)}>
-      {initialDate}
+      <div data-testid="planner-header-actions">{headerAction}</div>
+      <span data-testid="planner-date">{initialDate}</span>
     </div>
   ),
 }));
@@ -19,8 +22,8 @@ const mockRefresh = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mockRefresh }),
 }));
-jest.mock("@/components/capture/CaptureBox", () => ({
-  CaptureBox: ({ onSaved }: { onSaved: () => void }) => (
+jest.mock("@/components/capture/CaptureSheet", () => ({
+  CaptureSheet: ({ onSaved }: { onSaved: () => void }) => (
     <button onClick={onSaved}>capture save</button>
   ),
 }));
@@ -36,7 +39,7 @@ it("anchors legacy month URLs to their first day; implicit URLs choose viewer to
   const { rerender } = render(
     <CalendarPageClient events={[]} currentMonth={1} currentYear={2026} />,
   );
-  expect(screen.getByTestId("planner").textContent).toBe("2026-01-01");
+  expect(screen.getByTestId("planner-date").textContent).toBe("2026-01-01");
   expect(screen.getByTestId("planner").getAttribute("data-today")).toBe(
     "false",
   );
@@ -54,6 +57,9 @@ it("refreshes the canonical calendar after quick capture saves", () => {
   render(
     <CalendarPageClient events={[]} currentMonth={1} currentYear={2026} />,
   );
-  fireEvent.click(screen.getByRole("button", { name: "capture save" }));
+  const actions = screen.getByTestId("planner-header-actions");
+  const capture = screen.getByRole("button", { name: "capture save" });
+  expect(actions.contains(capture)).toBe(true);
+  fireEvent.click(capture);
   expect(mockRefresh).toHaveBeenCalled();
 });

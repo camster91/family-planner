@@ -75,10 +75,8 @@ export default function CalendarPageClient({
         canEditEvents={canEditEvents}
         calendarSyncAvailable={calendarSyncAvailable}
         refreshKey={`${refreshKey}:${JSON.stringify(events)}`}
+        headerAction={<CaptureSheet onSaved={refresh} />}
       />
-      <div className="px-4 my-5">
-        <CaptureSheet onSaved={refresh} />
-      </div>
       {importEnabled && (
         <div className="px-4 mb-5">
           <button
