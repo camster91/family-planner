@@ -136,8 +136,18 @@ describeWithDatabase("person allowance create replay integrity", () => {
     const requestKey = key("concurrent");
     const responses = await Promise.all(
       Array.from({ length: 8 }, () =>
-        idem.withIdempotency(db, requestKey, context, body, ({ recordId }) =>
-          create(db, body, actor, recordId),
+        idem.withIdempotency(
+          db,
+          requestKey,
+          context,
+          body,
+          async ({ recordId }) => {
+            // Keep the single owner in-flight while the other callers collide
+            // with its receipt. This makes the concurrent branch deterministic;
+            // the post-settlement replay below proves the stored 201 path.
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            return create(db, body, actor, recordId);
+          },
         ),
       ),
     );
