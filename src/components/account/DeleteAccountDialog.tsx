@@ -15,6 +15,7 @@ import {
 } from "./AccountDeletionStatus";
 import { downloadMyData } from "@/lib/data-export-client";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import {
   ACCOUNT_DELETE_PHRASE,
   confirmationMatches,
@@ -187,6 +188,9 @@ export default function DeleteAccountDialog({
       (res.ok || ((retried || earlierAttemptPending) && res.status === 401))
     ) {
       pendingRef.current = false;
+      // The account or household is gone; clear normalized capture titles and
+      // grocery/event bodies before the redirect or host callback runs.
+      clearCaptureRecoveryStorage(undefined);
       onDeleted(mode);
       return;
     }

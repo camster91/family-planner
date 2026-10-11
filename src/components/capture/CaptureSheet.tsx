@@ -7,6 +7,8 @@ import { useTranslation } from "@/i18n";
 import { captureMessages, type CaptureMessage } from "@/i18n/capture";
 import { CaptureBox } from "./CaptureBox";
 
+type CaptureAvailability = "available" | "unavailable" | "retry";
+
 /**
  * Calendar's compact entry point for capture. CaptureBox stays mounted after
  * the first page load so a dismissed proposal remains available, while the
@@ -17,10 +19,10 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   const msg = (key: CaptureMessage) => t(key, undefined, captureMessages);
   const [open, setOpen] = React.useState(false);
   const [availability, setAvailability] = React.useState<
-    "loading" | "available" | "unavailable"
+    "loading" | CaptureAvailability
   >("loading");
   const [portalReady, setPortalReady] = React.useState(false);
-  const available = availability === "available";
+  const available = availability === "available" || availability === "retry";
   const pageLock = React.useRef<{
     background: HTMLElement | null;
     wasInert: boolean;
@@ -43,9 +45,9 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   }, [releasePageLock]);
 
   const handleAvailabilityChange = React.useCallback(
-    (next: boolean) => {
-      setAvailability(next ? "available" : "unavailable");
-      if (!next) close();
+    (next: CaptureAvailability) => {
+      setAvailability(next);
+      if (next === "unavailable") close();
     },
     [close],
   );

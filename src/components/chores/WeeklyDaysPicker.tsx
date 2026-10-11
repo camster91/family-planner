@@ -1,5 +1,11 @@
 "use client";
-import { WEEKDAYS } from "@/lib/chore-weekdays";
+import { useTranslation } from "@/i18n";
+import {
+  formatWeeklyDays,
+  normalizedWeekdays,
+  WEEKDAYS,
+} from "@/lib/chore-weekdays";
+import { choreScheduleMessages } from "@/i18n/chore-schedule";
 
 export type WeeklyDaysPickerCopy = {
   legend?: string;
@@ -21,7 +27,25 @@ export function WeeklyDaysPicker({
   onChange: (days: number[]) => void;
   copy?: WeeklyDaysPickerCopy;
 }) {
-  const labels = { ...defaultCopy, ...copy };
+  const { locale, t } = useTranslation();
+  const localeCopy = choreScheduleMessages[locale];
+  const labels = {
+    legend: copy?.legend ?? localeCopy.weeklyLegend ?? defaultCopy.legend,
+    hint: copy?.hint ?? localeCopy.weeklyHint ?? defaultCopy.hint,
+    weekdays: { ...localeCopy.weekdayNames, ...copy?.weekdays },
+  };
+  const selectedDays = normalizedWeekdays(days);
+  const daySummary = formatWeeklyDays(selectedDays, locale);
+  const summaryKey = "choreSchedule.weeklyDays";
+  const summaryTemplate = localeCopy.weeklyDays;
+  const translatedSummary = daySummary && t(summaryKey, { days: daySummary });
+  // A picker can be rendered in a focused unit test without the app provider.
+  // Keep that isolated surface readable while the real app uses typed i18n.
+  const summary =
+    daySummary &&
+    (translatedSummary === summaryKey
+      ? summaryTemplate.replace("{days}", daySummary)
+      : translatedSummary);
   return (
     <fieldset className="space-y-2">
       <legend className="label-apple">{labels.legend}</legend>
@@ -49,6 +73,16 @@ export function WeeklyDaysPicker({
           </label>
         ))}
       </div>
+      {summary && (
+        <p
+          className="text-footnote text-label-secondary"
+          role="status"
+          aria-live="polite"
+          data-testid="weekly-schedule-summary"
+        >
+          {summary}
+        </p>
+      )}
     </fieldset>
   );
 }

@@ -106,3 +106,73 @@ it("Week also starts collapsed and counts only open dates in its filter", async 
     "3 open dates",
   );
 });
+
+it("keeps distinct recurring series on the same weekday independent", async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  const sameDayRows = [
+    row("series-a-today", "2026-10-09", {
+      title: "Take out trash",
+      recurrence_id: "series-a",
+      recurrence_weekly_days: [5],
+    }),
+    row("series-a-next", "2026-10-16", {
+      title: "Take out trash",
+      recurrence_id: "series-a",
+      recurrence_weekly_days: [5],
+    }),
+    row("series-b-today", "2026-10-09", {
+      title: "Take out trash",
+      recurrence_id: "series-b",
+      recurrence_weekly_days: [5],
+    }),
+    row("series-b-next", "2026-10-16", {
+      title: "Take out trash",
+      recurrence_id: "series-b",
+      recurrence_weekly_days: [5],
+    }),
+  ];
+  const { container } = render(
+    <ToastProvider>
+      <ChoresContent
+        chores={sameDayRows}
+        familyMembers={[{ id: "adult", name: "Alex", role: "parent" }]}
+        currentUserId="adult"
+        userRole="parent"
+      />
+    </ToastProvider>,
+  );
+
+  expect(
+    screen.getAllByRole("checkbox", { name: "Take out trash" }),
+  ).toHaveLength(2);
+  await user.click(screen.getByRole("button", { name: "All" }));
+  const series = [...container.querySelectorAll("details")];
+  expect(series).toHaveLength(2);
+  expect(
+    series.map((details) => details.querySelector("summary")?.textContent),
+  ).toEqual([
+    expect.stringContaining("Weekly · Friday"),
+    expect.stringContaining("Weekly · Friday"),
+  ]);
+
+  await user.click(series[0].querySelector("summary")!);
+  await user.click(
+    within(series[0]).getAllByRole("checkbox", { name: "Take out trash" })[0],
+  );
+  await waitFor(() =>
+    expect(
+      (global.fetch as jest.Mock).mock.calls.some(
+        ([url, init]) =>
+          url === "/api/chores/complete" &&
+          JSON.parse(init.body).choreId === "series-a-today",
+      ),
+    ).toBe(true),
+  );
+  expect(
+    (global.fetch as jest.Mock).mock.calls.some(
+      ([url, init]) =>
+        url === "/api/chores/complete" &&
+        JSON.parse(init.body).choreId === "series-b-today",
+    ),
+  ).toBe(false);
+});

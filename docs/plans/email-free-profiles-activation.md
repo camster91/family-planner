@@ -1,13 +1,13 @@
 # Email-free profiles: compatibility and domain activation plan
 
-**Scope:** reopened #480, based on `5b996a5` (2026-10-11)  
+**Scope:** reopened #480, based on `5b996a5` (2026-10-11)
 **Status:** planning only. This document does not activate a route, capability, schema writer, account link, backfill, native client, provider or production migration.
 
 This plan adds no scheduler, cron job or background worker. Profile creation, reconciliation, assignment and recovery remain request-driven or explicitly operator-run fixture/release actions; any future scheduled work needs its own approved contract.
 
-This plan turns the original #480 acceptance into a sequence that can be reviewed and released one boundary at a time. The current repository has the dormant `HouseholdMember`, legacy mapping and optional account-link tables, an internal `manageHouseholdProfile` command core, account/profile lifecycle handling, and a public capability manifest that advertises member protocol 1 only. None of those facts means that a parent can currently create a name-only child in the app or assign work to one.
+This plan turns the original #480 acceptance into a sequence that can be reviewed and released one boundary at a time. The current repository has the dormant `HouseholdMember`, legacy mapping and optional account-link tables, an internal `manageHouseholdProfile` command core, account/profile lifecycle handling, and a public capability manifest that advertises member protocol 1 only. None of those facts means that a parent can currently create a name-only profile in the app or assign work to one.
 
-The governing contracts are [ADR-0009](../architecture/adr/0009-household-members-and-login-accounts.md), the [dormant foundation rehearsal](../architecture/member-foundation-rehearsal.md), the [profile command contract](../architecture/member-profile-commands.md), the [lifecycle contract](../architecture/member-lifecycle-compatibility.md), the [chore subject compatibility contract](../architecture/chore-member-subject-compatibility.md), and [native/API compatibility](../architecture/NATIVE_API_COMPATIBILITY.md). The original acceptance remains the authority for outcome and evidence:
+The governing contracts are [ADR-0009](../architecture/adr/0009-household-members-and-login-accounts.md), the [dormant foundation rehearsal](../architecture/member-foundation-rehearsal.md), the [profile command contract](../architecture/member-profile-commands.md), the [lifecycle contract](../architecture/member-lifecycle-compatibility.md), the [chore subject compatibility contract](../architecture/chore-member-subject-compatibility.md), [the typed actor/subject boundary](../../src/lib/member-subject-contract.ts), and [native/API compatibility](../architecture/NATIVE_API_COMPATIBILITY.md). The original acceptance remains the authority for outcome and evidence:
 
 - A parent can add every family member by name, including a preschool child with no email or personal device.
 - A name-only member can receive chores and routines, participate in permitted shared-tablet actions, and retain identity/history when an account is later linked.
@@ -19,7 +19,7 @@ The governing contracts are [ADR-0009](../architecture/adr/0009-household-member
 
 ## Current boundaries
 
-The first implementation slice is a parent-controlled **child** profile. The server derives `role: "child"`; the client cannot supply a role, email, account, credentials, invitation or access policy. Adult and teen name-only profiles need a separate role/domain decision and are not implied by this plan's first API. A verified teen or parent login continues to be a normal `User` account.
+The first implementation slice preserves the full all-age profile contract: a parent may create a name-only `child`, `teen` or `parent` presentation profile with optional age metadata. The role describes how the person is presented in household features; it is never a login role, permission grant, elevation credential or authenticated actor. The server derives the family and stable profile identity, validates role/age bounds, and rejects email, account, credentials, invitation and access-policy fields. A verified teen or parent login continues to be a normal `User` account.
 
 `HouseholdMember` owns the stable household-person identity. `User` continues to own authentication, verified email, providers, sessions, token versions, push/delivery settings, elevation credentials and authenticated actor provenance. `HouseholdMemberLegacyMapping` is a deterministic compatibility mapping, not proof of an active link. `HouseholdMemberAccountLink` is reserved for a future owner-verified link flow. Names and email matches are never identity evidence.
 
@@ -28,6 +28,27 @@ The current `manageHouseholdProfile` core is deliberately internal. Before a rou
 The existing account-backed `GET /api/family/members` contract remains unchanged during migration, including its current `User`-based fields and email behavior for authenticated account members. It must not be widened by adding name-only profiles or by replacing User IDs in-place. Future name-only/profile listing uses a separate parent-scoped route and allowlisted `HouseholdMember` DTO; readers and clients must not conflate that DTO with the existing account-backed members response.
 
 The current `/api/capabilities` manifest advertises member protocol `[1]` only. Protocol 1 means account-backed IDs and existing payloads. Protocol 2 means explicit `HouseholdMember` subjects and separate optional linked-account identity; it must not be advertised until the domain and recovery gates below are complete.
+
+### Next bounded end-to-end slice
+
+The smallest useful activation path is deliberately narrower than the full 64-relation migration while preserving the all-age contract:
+
+`Add Everyone` → create one `HouseholdMember` profile → parent assigns one **one-off** chore → Today/fridge renders the profile subject → a paired device completes it → a real parent verifies it.
+
+The profile API and onboarding route remain gated until this slice has its supported reader. The chore writer accepts either the existing account target or an explicit protocol-2 `memberId`; it does not overload `assigned_to` or `actingMemberId`. For the first profile-owned write, `frequency: "once"`, recurrence, rotation, imports, rewards and offline replay remain explicitly unsupported rather than silently falling back to a User.
+
+The source dependency map is:
+
+| Boundary          | Existing source                                                                                                                | Required next contract                                                                                                                        | Explicitly deferred                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Profile/setup     | `src/lib/household-profile-http.ts`, `src/lib/household-profile-management.ts`, `OnboardingFlow.tsx`, `family/invite/page.tsx` | all-age profile DTO/create/edit/archive, no-email setup, idempotent draft/retry and Finish later                                              | account linking, invitations and mail side effects                      |
+| Chore subject     | `prisma/schema.prisma`, `src/lib/validations.ts`, `api/chores/create`, `chore-member-subject.ts`                               | nullable legacy account bridge plus active same-family `assigned_member_id`; exactly one account/profile subject; one-off profile create/read | recurrence, rotation, imports, other 64 member relations                |
+| Today/read        | `today-board-data.ts`, `board-snapshot.ts`, `components/fridge/board-model.ts`                                                 | typed account/profile subject DTO and no silent hiding; protocol-1 clients receive recoverable incompatibility                                | private/profile data outside the shared allowlist                       |
+| Paired action     | `device-writes.ts`, `api/device/chores/[id]/complete`, `use-device-board-actions.tsx`                                          | protocol-2 `memberId`, separate device actor, active-profile check, structured member attribution                                             | profile offline queue and native/store claims                           |
+| Completion/verify | `chore-complete.ts`, `api/chores/verify`, `device-audit.ts`                                                                    | actor and subject fields remain separate; parent verification works for all profile roles                                                     | User-only XP/streak/notification migration until member progress exists |
+| Compatibility     | `api/capabilities/route.ts`, `api-capabilities.ts`, `offline-queue.ts`, `NATIVE_API_COMPATIBILITY.md`                          | advertise protocol 2 only with readers/writers; protocol-1 refusal/filter and forward rollback                                                | any new queued profile operation until quarantine/retention exists      |
+
+The typed source boundary in `src/lib/member-subject-contract.ts` validates all three presentation roles, separates person/device credentials from account/profile subjects, rejects profile subjects under protocol 1, and preserves the exact legacy `actingMemberId` shape. It does not authorize a request or replace the existing database/family checks; route code must still resolve IDs under household locks.
 
 ## Activation sequence
 
@@ -66,19 +87,19 @@ Unassigned accounts remain unassigned. The rehearsal never creates an active acc
 
 Expose a narrow route around the existing command core only after the domain compatibility slice has a supported reader and erasure rule. The first route contract is:
 
-| Operation | Request | Result | Required rules |
-|---|---|---|---|
-| List | authenticated parent, current family | separate allowlisted active/archived `HouseholdMember` DTOs | current family only; no email, token, link, mapping or erasure fields; preserve `GET /api/family/members` as the existing User/account DTO |
-| Create | name, optional age, idempotency key | stable child profile | server-derived family and child role; no account, invite, password or email |
-| Edit | member ID, expected revision, name/age, idempotency key | revised profile | active name-only child only; stale revision is a generic conflict |
-| Archive | member ID, expected revision, idempotency key | archived profile | retain history; stop new assignment; no implicit unarchive or account removal |
+| Operation | Request                                                      | Result                                                      | Required rules                                                                                                                             |
+| --------- | ------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| List      | authenticated parent, current family                         | separate allowlisted active/archived `HouseholdMember` DTOs | current family only; no email, token, link, mapping or erasure fields; preserve `GET /api/family/members` as the existing User/account DTO |
+| Create    | name, presentation role, optional age, idempotency key       | stable all-age profile                                      | server-derived family; role/age bounds; no account, invite, password or email                                                              |
+| Edit      | member ID, expected revision, name/role/age, idempotency key | revised profile                                             | active unlinked profile only; role remains presentation metadata; stale revision is a generic conflict                                     |
+| Archive   | member ID, expected revision, idempotency key                | archived profile                                            | retain history; stop new assignment; no implicit unarchive or account removal                                                              |
 
 The route must authenticate a real User, lock/re-read User then household, verify parent role and token version before effect and replay, scope every target by family, and commit the idempotency record with the effect. A repeated key returns the original allowlisted result; a changed body/action/family refuses reuse; an uncertain create is refreshed by stable identity rather than retried as a new person.
 
 Onboarding then uses the route in a short adaptive sheet/detail pane:
 
 - After family creation, show the signed-in parent separately and prompt **Add everyone**.
-- Add a child by name with no email field. Save one member, refresh the roster, and offer Add another, Continue to Today and explicit Finish later.
+- Add a child, teen or parent presentation profile by name with no email field. Save one member, refresh the roster, and offer Add another, Continue to Today and explicit Finish later.
 - Keep saved members when the next draft fails. Preserve unsaved draft/key on network, timeout, conflict and process-death recovery; clear it on logout, household switch or revocation.
 - Keep Back, Close, keyboard dismissal and Android system Back deterministic. Saving disables duplicate submit and does not report success until the canonical response is committed.
 - Use original adaptive evidence for 390x844 phone, 800x1280 portrait tablet, 1280x800 fridge landscape and desktop. Report keyboard/focus, long text, empty/loading/error/offline/conflict, screen reader, 44px targets and draft recovery separately from source checks.
@@ -109,35 +130,35 @@ The 64 original relationships below are the complete explicit User-FK surface in
 
 These relationships represent the household person receiving, owning or being described by the record. Retain the User column during compatibility; after reconciliation, linked existing people carry both fields.
 
-| Relation | User field | Domain work required |
-|---|---|---|
-| `Allowance.to_user` | `to_user_id` | recipient member, balance/history and erasure policy |
-| `Anniversary.person` | `person_id` | person subject, reminders and archive behavior |
-| `Chore.assignee` | `assigned_to` | chore subject, recurrence and rotation |
-| `ChoreAssignment.assignee` | `assigned_to` | occurrence subject, completion/credit history |
-| `EarnedBadge.user` | `user_id` | badge subject, earned history and no credit transfer |
-| `EmergencyContact.person` | `person_id` | member DTO/private boundary and erasure policy |
-| `FamilyMeal.cook` | `cook_id` | cook subject and meal history |
-| `HabitLog.user` | `user_id` | habit subject, streak history and erasure policy |
-| `Medication.person` | `person_id` | private subject, role/privacy and erasure ledger |
-| `Pickup.assignee` | `assigned_to` | assignment, shared-device eligibility and history |
-| `ProjectTask.assignee` | `assigned_to` | task subject, role visibility and history |
-| `Reward.claimer` | `claimed_by` | claimant/history; never award successor credit |
-| `RewardRedemption.requester` | `requested_by` | requester/approval boundary and erasure |
-| `SickDay.person` | `person_id` | private subject, role/privacy and erasure ledger |
-| `WishlistItem.requester` | `requested_by` | requester and child/parent presentation |
+| Relation                     | User field     | Domain work required                                 |
+| ---------------------------- | -------------- | ---------------------------------------------------- |
+| `Allowance.to_user`          | `to_user_id`   | recipient member, balance/history and erasure policy |
+| `Anniversary.person`         | `person_id`    | person subject, reminders and archive behavior       |
+| `Chore.assignee`             | `assigned_to`  | chore subject, recurrence and rotation               |
+| `ChoreAssignment.assignee`   | `assigned_to`  | occurrence subject, completion/credit history        |
+| `EarnedBadge.user`           | `user_id`      | badge subject, earned history and no credit transfer |
+| `EmergencyContact.person`    | `person_id`    | member DTO/private boundary and erasure policy       |
+| `FamilyMeal.cook`            | `cook_id`      | cook subject and meal history                        |
+| `HabitLog.user`              | `user_id`      | habit subject, streak history and erasure policy     |
+| `Medication.person`          | `person_id`    | private subject, role/privacy and erasure ledger     |
+| `Pickup.assignee`            | `assigned_to`  | assignment, shared-device eligibility and history    |
+| `ProjectTask.assignee`       | `assigned_to`  | task subject, role visibility and history            |
+| `Reward.claimer`             | `claimed_by`   | claimant/history; never award successor credit       |
+| `RewardRedemption.requester` | `requested_by` | requester/approval boundary and erasure              |
+| `SickDay.person`             | `person_id`    | private subject, role/privacy and erasure ledger     |
+| `WishlistItem.requester`     | `requested_by` | requester and child/parent presentation              |
 
 ### Actor plus member attribution — keep both identities
 
 These records need a separate canonical subject/attribution field while retaining the real authenticated/device User actor. The actor proves who performed the action; the member field says for whom or under whose selected profile the allowed action was performed.
 
-| Relation | User field | Required separation |
-|---|---|---|
-| `Activity.user` | `user_id` | actor/session versus member attribution |
-| `ChoreAssignment.completer` | `completed_by` | device/personal actor versus completed subject |
-| `Event.creator` | `created_by` | actor provenance versus optional member context |
-| `ListItem.adder` | `added_by` | actor audit versus selected member context |
-| `ListItem.checker` | `checked_by` | actor audit versus member attribution |
+| Relation                    | User field     | Required separation                             |
+| --------------------------- | -------------- | ----------------------------------------------- |
+| `Activity.user`             | `user_id`      | actor/session versus member attribution         |
+| `ChoreAssignment.completer` | `completed_by` | device/personal actor versus completed subject  |
+| `Event.creator`             | `created_by`   | actor provenance versus optional member context |
+| `ListItem.adder`            | `added_by`     | actor audit versus selected member context      |
+| `ListItem.checker`          | `checked_by`   | actor audit versus member attribution           |
 
 The existing removal policy may clear nullable account actor references under its privacy rules. That must not be described as reassigning the actor or transferring credit; the canonical member subject and non-identifying history follow the reviewed per-domain erasure decision.
 
@@ -181,7 +202,7 @@ The transaction contract is:
 4. Record the verified link and revision atomically, preserving the member ID. Do not rewrite assignments/history, invent a User, change the account role, copy credentials, or send an automatic invitation.
 5. Reconcile all dual subject fields under the same transaction and publish only the allowlisted linked-account state. The link itself never grants a parent role or makes a name-only profile a login.
 
-Conversion tests must cover: name-only child to existing child account; existing mapped account to verified link; duplicate display names; wrong-account proof; foreign household; link already used by another member; member already linked; archived and erasure-owned profiles; account leaves/rejoins during conversion; stale token/revision; changed idempotency body; uncertain response replay; and provider/mail/notification counts unchanged unless the user explicitly starts a separate invitation flow.
+Conversion tests must cover: name-only profile to an existing account with a compatible presentation role; existing mapped account to verified link; duplicate display names; wrong-account proof; foreign household; link already used by another member; member already linked; archived and erasure-owned profiles; account leaves/rejoins during conversion; stale token/revision; changed idempotency body; uncertain response replay; and provider/mail/notification counts unchanged unless the user explicitly starts a separate invitation flow.
 
 Unlinking removes active access/link state under fresh authority and leaves the stable member identity and allowed history according to the domain ledger. It does not resurrect archived or erased identity, delete the login account, transfer work to the parent or silently revert canonical IDs to a different person. Rejoining an account must not adopt a same-name profile; it requires explicit reviewed conversion.
 
@@ -189,7 +210,7 @@ Unlinking removes active access/link state under fresh authority and leaves the 
 
 The paired fridge/tablet remains an authorized device session with its own household/device scope. A selected member is attribution for an allowlisted action, never a login principal. The protocol-2 device DTO must use an explicit `memberId` (or a similarly unambiguous member field) and must never overload legacy `actingMemberId`/User IDs. The server records the real device/session actor separately.
 
-Allowed shared actions must be enumerated per domain. A child can be selected for permitted chores, routines or other explicitly shared operations without seeing parent finance, addresses, messages, medical data, account settings, tokens or provider connections. Parent selection never grants parent routes or PIN/elevation authority. Device revoke, expired sessions, stale selected-member IDs and household switching must clear selection and refuse writes safely.
+Allowed shared actions must be enumerated per domain. A selected profile of any presentation role can be eligible for permitted chores, routines or other explicitly shared operations without seeing parent finance, addresses, messages, medical data, account settings, tokens or provider connections. Profile role never grants parent routes or PIN/elevation authority. Device revoke, expired sessions, stale selected-member IDs and household switching must clear selection and refuse writes safely.
 
 The family AI follows the same broker boundary. It may use selected-member context only from an allowlisted, sanitized DTO and only for an action the current personal/device role may perform. A profile selection cannot unlock private AI retrieval. AI writes use the same canonical routes, idempotency, conflict and member eligibility checks as the visible UI; no provider call receives raw private fields merely because a member was selected. Wake/voice commands are a later client surface and do not create an alternate authorization path.
 
@@ -197,16 +218,16 @@ The family AI follows the same broker boundary. It may use selected-member conte
 
 Protocol negotiation must be operational, not metadata-only:
 
-| Client/server state | Required behavior |
-|---|---|
-| Existing web/native client, protocol 1 | Continue account-backed reads/writes and existing payloads; no profile-only data is silently hidden or reassigned. |
-| New client, server protocol 1 only | Keep setup/assignment controls unavailable or use a clearly recoverable update/browser path; never send member IDs into legacy fields. |
-| New client and server protocol 2 | Use explicit member IDs, canonical readers/writers, profile eligibility and member-aware erasure rules. |
-| Missing/old `/api/capabilities`, invalid JSON or unknown manifest | Treat support as unknown; retain pending work and original key/body, refresh/recover, and do not interpret the state as permission to write. |
-| Old pending operation on new server | Parse and execute its original protocol-1 payload/hash/idempotency semantics; never rewrite it to a profile operation. |
-| New pending member operation on old server/client | Do not persist it until the queue parser can quarantine/retain unknown versions. Offer update/browser recovery; never drop, hide, replay as User or auto-retry indefinitely. |
-| Server rollback before protocol-2 writes | Disable protocol-2 entry points, retain additive schema, and continue protocol 1. |
-| Server rollback after protocol-2 records exist | Do not return to an account-only server that ignores member rows. Keep a compatible reader/dual-write server, or stop writes and recover forward from the preserved candidate/backup. |
+| Client/server state                                               | Required behavior                                                                                                                                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing web/native client, protocol 1                            | Continue account-backed reads/writes and existing payloads; no profile-only data is silently hidden or reassigned.                                                                    |
+| New client, server protocol 1 only                                | Keep setup/assignment controls unavailable or use a clearly recoverable update/browser path; never send member IDs into legacy fields.                                                |
+| New client and server protocol 2                                  | Use explicit member IDs, canonical readers/writers, profile eligibility and member-aware erasure rules.                                                                               |
+| Missing/old `/api/capabilities`, invalid JSON or unknown manifest | Treat support as unknown; retain pending work and original key/body, refresh/recover, and do not interpret the state as permission to write.                                          |
+| Old pending operation on new server                               | Parse and execute its original protocol-1 payload/hash/idempotency semantics; never rewrite it to a profile operation.                                                                |
+| New pending member operation on old server/client                 | Do not persist it until the queue parser can quarantine/retain unknown versions. Offer update/browser recovery; never drop, hide, replay as User or auto-retry indefinitely.          |
+| Server rollback before protocol-2 writes                          | Disable protocol-2 entry points, retain additive schema, and continue protocol 1.                                                                                                     |
+| Server rollback after protocol-2 records exist                    | Do not return to an account-only server that ignores member rows. Keep a compatible reader/dual-write server, or stop writes and recover forward from the preserved candidate/backup. |
 
 The existing queue parser currently drops unfamiliar container/action versions. That is a hard dependency: implement and test quarantine/retention before adding a profile operation or bumping a queue version. Preserve exact old key, body and request hash through network loss, process death, capability refresh, logout/revocation and retry. The live Capacitor shell loads the server, so web/API compatibility reaches installed clients without an APK update; native version/build evidence and real-device lifecycle evidence remain separate gates.
 
@@ -236,17 +257,17 @@ Never drop constraints, clear canonical references, reset tombstones, manufactur
 
 The following evidence is required before enabling each boundary. All tests use guarded fabricated households and separate disposable data; no production family, provider, mail recipient or real account is used.
 
-| Gate | Required proof | Exit condition |
-|---|---|---|
-| Contract/schema | Prisma/custom migration, composite family FKs, sorted startup, inventory checker, deferred deletion behavior, repeat apply | No missing/duplicate/stale relation; old columns and 64 baseline decisions unchanged |
-| Rehearsal/backfill | dry run, apply, rerun, mismatch/foreign/unassigned refusal, atomic rollback, unchanged legacy snapshot | Counts and IDs deterministic; no account/link/mail/notification side effects |
-| Profile API | parent create/list/edit/archive, strict body, idempotent replay, stale token/revision, two-household and teen/child/paired denial | Route returns only safe DTOs and never grants or creates login authority |
-| Domain subjects | every member relation above, all writers/readers, recurrence/rotation/import/completion/history, active/archive/erasure states | Both legacy and canonical subjects agree; no credit/actor transfer or mixed-family row |
-| Account conversion | owner proof, link/unlink, wrong/foreign/conflict/duplicate/rejoin, stable member/history and retries | Account role/session/credentials stay intact; mapping/link state is explicit and atomic |
-| Shared device | selected child/parent attribution, allowed action matrix, stale/revoked device, parent elevation, private route/DTO/AI negatives | Selection is attribution only; no parent/private access or hidden writes |
-| Client recovery | previous/current web/native clients, missing/unknown manifest, old queue replay, new queue quarantine, server forward/rollback | No pending work is dropped, rewritten or silently hidden |
-| UX/native | adaptive Figma/spec, phone/tablet/fridge/desktop, keyboard/Back/focus/draft/offline/conflict/Finish later, process death and revoke | Rendered and physical evidence is labeled by surface; no source-only claim substitutes for it |
-| Release | exact SHA/schema/build identity, backup/restore, normal protected CI/review, security/privacy checks | Cameron separately approves migration, merge, deployment, signing/store and customer use |
+| Gate               | Required proof                                                                                                                      | Exit condition                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Contract/schema    | Prisma/custom migration, composite family FKs, sorted startup, inventory checker, deferred deletion behavior, repeat apply          | No missing/duplicate/stale relation; old columns and 64 baseline decisions unchanged          |
+| Rehearsal/backfill | dry run, apply, rerun, mismatch/foreign/unassigned refusal, atomic rollback, unchanged legacy snapshot                              | Counts and IDs deterministic; no account/link/mail/notification side effects                  |
+| Profile API        | parent create/list/edit/archive, strict body, idempotent replay, stale token/revision, two-household and teen/child/paired denial   | Route returns only safe DTOs and never grants or creates login authority                      |
+| Domain subjects    | every member relation above, all writers/readers, recurrence/rotation/import/completion/history, active/archive/erasure states      | Both legacy and canonical subjects agree; no credit/actor transfer or mixed-family row        |
+| Account conversion | owner proof, link/unlink, wrong/foreign/conflict/duplicate/rejoin, stable member/history and retries                                | Account role/session/credentials stay intact; mapping/link state is explicit and atomic       |
+| Shared device      | selected child/parent attribution, allowed action matrix, stale/revoked device, parent elevation, private route/DTO/AI negatives    | Selection is attribution only; no parent/private access or hidden writes                      |
+| Client recovery    | previous/current web/native clients, missing/unknown manifest, old queue replay, new queue quarantine, server forward/rollback      | No pending work is dropped, rewritten or silently hidden                                      |
+| UX/native          | adaptive Figma/spec, phone/tablet/fridge/desktop, keyboard/Back/focus/draft/offline/conflict/Finish later, process death and revoke | Rendered and physical evidence is labeled by surface; no source-only claim substitutes for it |
+| Release            | exact SHA/schema/build identity, backup/restore, normal protected CI/review, security/privacy checks                                | Cameron separately approves migration, merge, deployment, signing/store and customer use      |
 
 ### Role and household matrix
 
@@ -265,9 +286,9 @@ Record direct API response/status, database snapshot before/after, notification/
 
 1. **Compatibility foundation:** finish the 64-row member/actor/account treatment and non-FK ledger; add per-domain owners and erasure decisions. Stop if any relation lacks a canonical field, actor policy or rollback rule.
 2. **Account-backed dual representation:** complete one domain at a time, beginning with chores/routines/rotation/points, while retaining required User fields. Stop if any writer can create mixed IDs or any old reader can hide canonical history.
-3. **Profile route/setup:** expose the reviewed child-only route and adaptive setup UX after package 2 has the necessary member DTO/eligibility contract. Stop on any credential/mail/link side effect, foreign-family response, duplicate retry or lost draft.
+3. **Profile route/setup:** expose the reviewed all-age route and adaptive setup UX after package 2 has the necessary member DTO/eligibility contract. Stop on any credential/mail/link side effect, foreign-family response, duplicate retry or lost draft.
 4. **Shared attribution/client protocol:** implement protocol 2 only after queue quarantine and old-client/server evidence. Stop if a selected profile affects authentication, private AI data, parent routes or elevation.
 5. **Conversion and erasure:** implement verified linking, unlink/rejoin and complete per-domain erasure ledger. Stop on unresolved ownership, history/credit ambiguity or replay resurrection.
 6. **Full acceptance:** run the matrix above across all features/devices and request Cameron's separate decisions for production migration, deployment, native/store distribution and family/customer use.
 
-Until all six packages have their exit evidence, keep `memberProtocols: [1]`, keep profile routes internal/unwired, keep production backfill and active account links off, and describe the product as account-backed with a dormant member foundation. 
+Until all six packages have their exit evidence, keep `memberProtocols: [1]`, keep profile routes internal/unwired, keep production backfill and active account links off, and describe the product as account-backed with a dormant member foundation.

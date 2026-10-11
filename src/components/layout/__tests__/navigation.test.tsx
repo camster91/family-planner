@@ -7,7 +7,15 @@ import * as React from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { defaultFeatures, type FamilyFeatures } from '@/lib/features'
 import { KID_ALLOWED_PREFIXES, canRoleAccessPath } from '@/lib/kid-access'
-import { isTabActive, moreItemsFor, tabsFor, PRIMARY_TABS, navItems, homeHrefFor } from '@/lib/nav-items'
+import {
+  isTabActive,
+  moreItemsFor,
+  tabsFor,
+  PRIMARY_TABS,
+  navItems,
+  kidFeatureNavItems,
+  homeHrefFor,
+} from '@/lib/nav-items'
 import { TabBar } from '@/components/ui/tab-bar'
 import DashboardNav from '../DashboardNav'
 import MorePage from '@/app/dashboard/family/more/page'
@@ -147,6 +155,15 @@ describe('More list', () => {
     expect(navItems.find((i) => i.name === 'More')?.href).toBe('/dashboard/family/more')
     expect(navItems.find((i) => i.name === 'Emergency')?.href).toBe('/dashboard/emergency')
     expect(navItems.find((i) => i.name === 'Today')?.href).toBe('/dashboard/today')
+  })
+
+  it('keeps one command per destination while retaining kid discovery entries', () => {
+    const hrefs = navItems.map((item) => item.href)
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+    expect(hrefs.filter((href) => href === '/dashboard/notes')).toHaveLength(1)
+    for (const item of kidFeatureNavItems) {
+      expect(hrefs).toContain(item.href)
+    }
   })
 })
 
