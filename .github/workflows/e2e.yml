@@ -369,7 +369,7 @@ jobs:
           I18N_PSEUDO_ENABLED: "0"
           DESIGN_GALLERY_ENABLED: "0"
       - name: Ordinary guarded Settings journeys
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "enabled"
@@ -378,7 +378,7 @@ jobs:
           E2E_REPORT_DIR: playwright-report/settings-ordinary-enabled
           E2E_OUTPUT_DIR: test-results/settings-ordinary-enabled
       - name: Ordinary unavailable Settings role gates
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "unavailable"
@@ -394,7 +394,7 @@ jobs:
           I18N_PSEUDO_ENABLED: "1"
           DESIGN_GALLERY_ENABLED: "1"
       - name: Expanded guarded Settings journeys
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "enabled"
@@ -403,7 +403,7 @@ jobs:
           E2E_REPORT_DIR: playwright-report/settings-expanded-enabled
           E2E_OUTPUT_DIR: test-results/settings-expanded-enabled
       - name: Expanded unavailable Settings role gates
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
+        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "unavailable"
