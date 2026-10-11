@@ -2,7 +2,8 @@
 
 import * as React from 'react'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
-import { FeatureGate } from '@/components/ui/feature-gate'
+import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
+import { FeatureOffState } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Dialog } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -15,6 +16,9 @@ interface Note {
   body: string
   color: 'yellow' | 'pink' | 'blue'
   created_at: string
+  /** Server-computed D9 permissions; absent only for older compatible clients. */
+  can_edit?: boolean
+  can_delete?: boolean
 }
 
 const noteColors = {
@@ -41,22 +45,38 @@ async function serverError(res: Response): Promise<string | null> {
   return data && typeof data.error === 'string' && data.error ? data.error : null
 }
 
-const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = [
-  { key: 'yellow', label: 'Yellow' },
-  { key: 'pink', label: 'Pink' },
-  { key: 'blue', label: 'Blue' },
-]
-
 export default function NotesPage() {
+  const enabled = useFeatureEnabled('notes')
+  return enabled ? <NotesPageInner /> : <NotesFeatureOffState />
+}
+
+function NotesFeatureOffState() {
+  const { canManage } = useFeatures()
+  const { t } = useTranslation()
+
   return (
-    <FeatureGate featureKey="notes">
-      <NotesPageInner />
-    </FeatureGate>
+    <FeatureOffState
+      featureKey="notes"
+      canManage={canManage}
+      headingLevel={1}
+      testId="notes-feature-off"
+      copy={{
+        title: t('notes.featureOffTitle'),
+        description: t('notes.featureOffDescription'),
+        askParent: t('notes.featureOffAskParent'),
+        openFeatures: t('notes.openFeatures'),
+      }}
+    />
   )
 }
 
 function NotesPageInner() {
   const { t } = useTranslation()
+  const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = [
+    { key: 'yellow', label: t('notes.colorYellow') },
+    { key: 'pink', label: t('notes.colorPink') },
+    { key: 'blue', label: t('notes.colorBlue') },
+  ]
   const [notes, setNotes] = React.useState<Note[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -237,17 +257,29 @@ function NotesPageInner() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
           {notes.map((note) => {
-            const colors = noteColors[note.color]
+            const colors = noteColors[note.color] ?? noteColors.yellow
+            const canEdit = note.can_edit ?? true
             return (
               <div
                 key={note.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openEditModal(note)}
-                onKeyDown={(e) => e.key === 'Enter' && openEditModal(note)}
+                {...(canEdit
+                  ? {
+                      role: 'button' as const,
+                      tabIndex: 0,
+                      'aria-label': note.title,
+                      onClick: () => openEditModal(note),
+                      onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openEditModal(note)
+                        }
+                      },
+                    }
+                  : {})}
                 className={cn(
                   'card-apple border-[1.5px] overflow-hidden',
-                  'flex flex-col h-[160px] cursor-pointer',
+                  'flex flex-col h-[160px]',
+                  canEdit && 'cursor-pointer',
                   colors.bg,
                   colors.border
                 )}
@@ -360,7 +392,7 @@ function NotesPageInner() {
 
             {/* Footer */}
             <div className="mt-5 flex items-center justify-between border-t border-[var(--surface-separator)] pt-4">
-              {modalState === 'edit' ? (
+              {modalState === 'edit' && (selectedNote?.can_delete ?? true) ? (
                 <button
                   type="button"
                   onClick={handleDelete}

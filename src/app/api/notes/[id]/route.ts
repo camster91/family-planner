@@ -6,6 +6,7 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { deleteNoteSchema, updateNoteSchema } from '@/lib/validations'
+import { refusePairedDevice } from '@/lib/device-route'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,9 @@ const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple']
 // PATCH - Update a note
 export async function PATCH(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -71,6 +75,9 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Remove a note
 export async function DELETE(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

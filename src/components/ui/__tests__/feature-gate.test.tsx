@@ -31,6 +31,26 @@ describe('FeatureOffState', () => {
     expect(screen.getByText(/Ask a parent to turn it on/)).toBeTruthy()
   })
 
+  it('accepts route-owned localized copy and heading metadata without changing defaults', () => {
+    render(
+      <FeatureOffState
+        featureKey="notes"
+        canManage
+        headingLevel={1}
+        testId="notes-feature-off"
+        copy={{
+          title: 'Pinned notes is off',
+          description: 'Pinned notes are off for this family.',
+          askParent: 'Ask a parent to turn on pinned notes.',
+          openFeatures: 'Open feature settings',
+        }}
+      />
+    )
+    expect(screen.getByTestId('notes-feature-off').querySelector('h1')?.textContent).toBe('Pinned notes is off')
+    expect(screen.getByText('Pinned notes are off for this family.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Open feature settings/ })).toBeTruthy()
+  })
+
   it('FeatureGate reads the role from the features provider', () => {
     const off = { ...defaultFeatures(), budget: false }
     render(

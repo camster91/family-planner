@@ -5,14 +5,25 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { createNoteSchema } from '@/lib/validations'
+import { refusePairedDevice } from '@/lib/device-route'
 
 export const dynamic = 'force-dynamic'
 
 const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple']
 
+function notePermissions(role: string, userId: string, createdBy: string) {
+  return {
+    can_edit: role === 'parent' || createdBy === userId,
+    can_delete: role === 'parent',
+  }
+}
+
 // GET - List all pinned notes for the user's family
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -24,7 +35,12 @@ export async function GET(request: NextRequest) {
       orderBy: { created_at: 'desc' },
     })
 
-    return NextResponse.json({ notes })
+    return NextResponse.json({
+      notes: notes.map((note) => ({
+        ...note,
+        ...notePermissions(auth.user.role, auth.user.id, note.created_by),
+      })),
+    })
   } catch (err) {
     logRouteError('GET /api/notes', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -34,6 +50,9 @@ export async function GET(request: NextRequest) {
 // POST - Create a new note
 export async function POST(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

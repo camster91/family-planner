@@ -38,32 +38,57 @@ function ClientFeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
 export function FeatureOffState({
   featureKey,
   canManage = true,
+  copy,
+  headingLevel = 2,
+  testId,
 }: {
   featureKey: FeatureKey
   /** False for teens and children: they cannot open Features, so no button. */
   canManage?: boolean
+  /** Optional route-owned localized copy while retaining the shared interaction. */
+  copy?: FeatureOffStateCopy
+  headingLevel?: 1 | 2
+  testId?: string
 }) {
   const meta = FEATURES.find((f) => f.key === featureKey)
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
 
   return (
-    <div className="max-w-md mx-auto py-12 text-center animate-spring-up">
+    <div data-testid={testId} className="max-w-md mx-auto py-12 text-center animate-spring-up">
       <div className="empty-state-icon mx-auto">
         <Lock className="w-9 h-9 text-white" />
       </div>
-      <h2 className="text-title-2 mb-2">{meta?.title ?? 'Feature'} is off</h2>
+      {copy ? (
+        <Heading className="text-title-2 mb-2">{copy.title}</Heading>
+      ) : (
+        <h2 className="text-title-2 mb-2">{meta?.title ?? 'Feature'} is off</h2>
+      )}
       <p className="text-body text-label-secondary mb-6">
-        {meta?.title ?? 'This feature'} is turned off for your family.{' '}
-        {canManage ? 'You can turn it on in Features settings.' : 'Ask a parent to turn it on.'}
+        {copy ? (
+          canManage ? copy.description : copy.askParent
+        ) : (
+          <>
+            {meta?.title ?? 'This feature'} is turned off for your family.{' '}
+            {canManage ? 'You can turn it on in Features settings.' : 'Ask a parent to turn it on.'}
+          </>
+        )}
       </p>
       {canManage && (
         <Link
           href="/dashboard/features"
           className="btn-filled"
         >
-          Open Features
+          {copy ? copy.openFeatures : <>Open Features</>}
           <ChevronRight className="w-4 h-4" />
         </Link>
       )}
     </div>
   )
+}
+
+export type FeatureOffStateCopy = {
+  title: string
+  description: string
+  askParent: string
+  openFeatures: string
 }

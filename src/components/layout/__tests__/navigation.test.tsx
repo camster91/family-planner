@@ -84,11 +84,12 @@ describe('tab model', () => {
     ])
   })
 
-  it('the kid allowlist is unchanged by the new shell', () => {
+  it('the kid allowlist includes the D9 notes route', () => {
     expect([...KID_ALLOWED_PREFIXES]).toEqual([
       '/dashboard/wishlist',
       '/dashboard/emergency',
       '/dashboard/lists',
+      '/dashboard/notes',
       '/dashboard/allowance',
       '/dashboard/handoff',
       '/dashboard/sick-days',
