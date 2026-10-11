@@ -1,6 +1,8 @@
 /** Static capture-recovery controls. Titles and saved content remain verbatim. */
 export const captureEnglish = {
   openQuickAdd: "Open quick add",
+  availabilityRetry:
+    "Quick add could not connect. Try again when you have a connection.",
   quickAdd: "Quick add",
   quickAddDescription:
     "Add an event, task, or grocery item by typing or taking a photo.",
@@ -89,6 +91,8 @@ export type CaptureMessage = keyof typeof captureEnglish;
 
 export const captureSpanish: Record<CaptureMessage, string> = {
   openQuickAdd: "Abrir adición rápida",
+  availabilityRetry:
+    "No se pudo conectar la adición rápida. Inténtalo de nuevo cuando tengas conexión.",
   quickAdd: "Adición rápida",
   quickAddDescription:
     "Añade un evento, una tarea o un artículo de supermercado escribiendo o tomando una foto.",

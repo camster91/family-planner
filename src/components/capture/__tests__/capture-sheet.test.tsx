@@ -130,9 +130,67 @@ it("hides the launcher when the current role is not allowed", async () => {
   );
 });
 
-it("hides the launcher after a capability response or network failure", async () => {
-  await expectUnavailable(() => Promise.resolve(response(503, {})));
-  await expectUnavailable(() => Promise.reject(new Error("offline")));
+it("keeps the launcher recoverable after a transient availability failure", async () => {
+  let attempts = 0;
+  global.fetch = jest.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url === "/api/capture" && method === "GET") {
+        attempts += 1;
+        if (attempts === 1) throw new Error("offline");
+        return response(200, {
+          configured: true,
+          allowed: true,
+          userId: "user-a",
+          familyId: "family-a",
+        });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    },
+  ) as unknown as typeof fetch;
+
+  window.localStorage.setItem(
+    "family-planner:capture-recovery:v1:user-a:family-a",
+    JSON.stringify([
+      {
+        version: 1,
+        key: "capture-retry-12345678",
+        action: "event.create",
+        requestHash: "a".repeat(64),
+        body: JSON.stringify({ title: "Dentist", event_type: "other" }),
+        title: "Dentist",
+        kind: "event",
+        createdAt: Date.now(),
+        photo: false,
+      },
+    ]),
+  );
+
+  const user = userEvent.setup();
+  mount();
+  const launcher = await screen.findByRole("button", {
+    name: "Open quick add",
+  });
+  await user.click(launcher);
+  const dialog = screen.getByRole("dialog", { name: "Quick add" });
+  expect(within(dialog).getByRole("alert")).toHaveTextContent(
+    "Quick add could not connect",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+  expect(
+    await within(dialog).findByRole("textbox", {
+      name: "What would you like to add?",
+    }),
+  ).toBeVisible();
+  expect(
+    within(dialog).getByRole("button", { name: "Retry Dentist" }),
+  ).toBeVisible();
+  expect(attempts).toBe(2);
+});
+
+it("hides the launcher for an explicit authenticated refusal", async () => {
+  await expectUnavailable(() => Promise.resolve(response(401, {})));
 });
 
 it("opens the rounded sheet, restores focus after releasing inert, and keeps an unsent draft", async () => {
