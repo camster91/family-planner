@@ -41,6 +41,9 @@ let patches: Record<string, unknown>[]
 let choreUrls: string[]
 let travelLoadFailures: number
 let choreLoadFailures: number
+let travelBodyOverride: unknown
+let choreBodyOverride: unknown
+let patchBodyOverride: unknown
 
 // The runner's zone is not ours to pick, so simulate a viewer west of UTC:
 // any local-time formatting (no explicit timeZone) lands in Toronto.
@@ -57,6 +60,9 @@ beforeEach(() => {
   choreUrls = []
   travelLoadFailures = 0
   choreLoadFailures = 0
+  travelBodyOverride = undefined
+  choreBodyOverride = undefined
+  patchBodyOverride = undefined
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
     if (url.startsWith('/api/chores')) {
       choreUrls.push(url)
@@ -64,18 +70,18 @@ beforeEach(() => {
         choreLoadFailures -= 1
         return { ok: false, status: 503, json: async () => ({ error: 'temporary chore failure' }) }
       }
-      return { ok: true, json: async () => ({ chores: CHORES }) }
+      return { ok: true, json: async () => choreBodyOverride ?? { chores: CHORES } }
     }
     if (init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body))
       patches.push(body)
-      return { ok: true, json: async () => ({ ...travelState, ...body }) }
+      return { ok: true, json: async () => patchBodyOverride ?? { ...travelState, ...body } }
     }
     if (travelLoadFailures > 0) {
       travelLoadFailures -= 1
       return { ok: false, status: 503, json: async () => ({ error: 'temporary travel failure' }) }
     }
-    return { ok: true, json: async () => travelState }
+    return { ok: true, json: async () => travelBodyOverride ?? travelState }
   }) as unknown as typeof fetch
 })
 
@@ -139,6 +145,21 @@ it('does not show an OFF control after the travel load fails and recovers with a
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
+it('treats a malformed successful travel response as unavailable until an explicit retry returns canonical state', async () => {
+  travelState = ACTIVE
+  travelBodyOverride = {}
+  renderPage()
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Travel mode is unavailable')
+  expect(screen.queryByRole('switch')).toBeNull()
+
+  travelBodyOverride = undefined
+  await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+  expect(await screen.findByRole('switch', { name: 'Turn off travel mode' })).toBeTruthy()
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 it('distinguishes unavailable trip chores from an empty trip and retries without changing the trip', async () => {
   travelState = ACTIVE
   choreLoadFailures = 1
@@ -157,6 +178,21 @@ it('distinguishes unavailable trip chores from an empty trip and retries without
     '/api/chores?from=2026-10-01&to=2026-10-05',
     '/api/chores?from=2026-10-01&to=2026-10-05',
   ])
+})
+
+it('treats a malformed successful chore response as unavailable instead of empty', async () => {
+  travelState = ACTIVE
+  choreBodyOverride = { chores: [{ id: 'c1', title: 'Water plants' }] }
+  renderPage()
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Pending chores are unavailable')
+  expect(screen.queryByText('No pending chores during this period')).toBeNull()
+
+  choreBodyOverride = undefined
+  await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+  expect(await screen.findByText('Water plants')).toBeTruthy()
+  expect(screen.queryByRole('alert')).toBeNull()
 })
 
 it('uses Spanish travel copy for controls and localized recovery feedback', async () => {
@@ -204,4 +240,27 @@ it('latches same-tick toggle and details saves while retaining the draft after r
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't change travel mode"))
   expect(destination).toHaveValue('Lisbon')
   expect(screen.getByRole('alert')).not.toHaveTextContent('Parents only')
+})
+
+it('keeps the confirmed control state and draft after a malformed successful PATCH, then recovers on an explicit save', async () => {
+  travelState = ACTIVE
+  patchBodyOverride = { travel_mode_active: 'yes' }
+  renderPage()
+
+  await screen.findByRole('switch', { name: 'Turn off travel mode' })
+  const destination = screen.getByLabelText('Destination') as HTMLInputElement
+  await userEvent.clear(destination)
+  await userEvent.type(destination, 'Lisbon')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save the trip details")
+  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeTruthy()
+  expect(screen.queryByRole('switch', { name: 'Turn on travel mode' })).toBeNull()
+  expect(destination).toHaveValue('Lisbon')
+  expect(patches).toHaveLength(1)
+
+  patchBodyOverride = ACTIVE
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(patches).toHaveLength(2))
+  expect(screen.getByRole('switch', { name: 'Turn off travel mode' })).toBeTruthy()
 })

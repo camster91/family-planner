@@ -7,7 +7,7 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { cn } from '@/lib/utils'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { useToast } from '@/components/ui/toast'
-import { formatDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { formatDateOnly, parseDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { useTravelText, type TravelMessage } from '@/i18n/travel'
 
 interface TravelState {
@@ -23,6 +23,65 @@ interface Chore {
   due_date: string
   status: string
   assignee: { name: string } | null
+}
+
+const ISO_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isTravelDate(value: unknown): value is string | null {
+  if (value === null) return true
+  if (typeof value !== 'string') return false
+  if (parseDateOnly(value)) return true
+  return ISO_DATE_TIME_RE.test(value) && Boolean(parseDateOnly(value.slice(0, 10))) && !Number.isNaN(new Date(value).getTime())
+}
+
+function parseTravelState(value: unknown): TravelState | null {
+  if (!isRecord(value)) return null
+  if (
+    typeof value.travel_mode_active !== 'boolean' ||
+    !isTravelDate(value.travel_start_date) ||
+    !isTravelDate(value.travel_end_date) ||
+    (value.travel_destination !== null && typeof value.travel_destination !== 'string')
+  ) {
+    return null
+  }
+  return {
+    travel_mode_active: value.travel_mode_active,
+    travel_start_date: value.travel_start_date,
+    travel_end_date: value.travel_end_date,
+    travel_destination: value.travel_destination,
+  }
+}
+
+function parseChore(value: unknown): Chore | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.title !== 'string' ||
+    typeof value.status !== 'string' ||
+    typeof value.due_date !== 'string' ||
+    !isTravelDate(value.due_date)
+  ) {
+    return null
+  }
+  const assignee = value.assignee
+  if (assignee !== null && (!isRecord(assignee) || typeof assignee.name !== 'string')) return null
+  return {
+    id: value.id,
+    title: value.title,
+    due_date: value.due_date,
+    status: value.status,
+    assignee: assignee as { name: string } | null,
+  }
+}
+
+function parseChoreList(value: unknown): Chore[] | null {
+  if (!isRecord(value) || !Array.isArray(value.chores)) return null
+  const chores = value.chores.map(parseChore)
+  return chores.every((chore): chore is Chore => chore !== null) ? chores : null
 }
 
 export default function TravelPage() {
@@ -66,11 +125,16 @@ function TravelPageInner() {
       if (res.ok) {
         const data = await res.json()
         if (requestId !== travelRequestRef.current) return
-        setTravel(data)
+        const parsed = parseTravelState(data)
+        if (!parsed) {
+          setLoadError(true)
+          return
+        }
+        setTravel(parsed)
         setLoadError(false)
-        setDestination(data.travel_destination ?? '')
-        setStartDate(data.travel_start_date ? toDateOnlyUTC(data.travel_start_date) : '')
-        setEndDate(data.travel_end_date ? toDateOnlyUTC(data.travel_end_date) : '')
+        setDestination(parsed.travel_destination ?? '')
+        setStartDate(parsed.travel_start_date ? toDateOnlyUTC(parsed.travel_start_date) : '')
+        setEndDate(parsed.travel_end_date ? toDateOnlyUTC(parsed.travel_end_date) : '')
       } else {
         if (requestId === travelRequestRef.current) setLoadError(true)
       }
@@ -99,7 +163,9 @@ function TravelPageInner() {
       const res = await fetch(`/api/chores?${range}`)
       if (!res.ok) throw new Error('travel chores load failed')
       const data = await res.json()
-      if (requestId === choresRequestRef.current) setPendingChores(Array.isArray(data.chores) ? data.chores : [])
+      const parsed = parseChoreList(data)
+      if (!parsed) throw new Error('travel chores response malformed')
+      if (requestId === choresRequestRef.current) setPendingChores(parsed)
     } catch {
       if (requestId === choresRequestRef.current) setChoresError(true)
     } finally {
@@ -134,7 +200,12 @@ function TravelPageInner() {
       })
       if (res.ok) {
         const data = await res.json()
-        setTravel(data)
+        const parsed = parseTravelState(data)
+        if (parsed) {
+          setTravel(parsed)
+        } else {
+          notifyFailure('toggleFailed')
+        }
       } else {
         notifyFailure('toggleFailed')
       }
@@ -162,7 +233,12 @@ function TravelPageInner() {
       })
       if (res.ok) {
         const data = await res.json()
-        setTravel(data)
+        const parsed = parseTravelState(data)
+        if (parsed) {
+          setTravel(parsed)
+        } else {
+          notifyFailure('detailsFailed')
+        }
       } else {
         notifyFailure('detailsFailed')
       }
