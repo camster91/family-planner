@@ -592,6 +592,9 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'betaMetricDaily', scope: { kind: 'family' }, why: 'beta usage counts (#287)' },
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
+  { model: 'householdMemberAccountLink', scope: { kind: 'family' }, why: 'dormant verified account links (#480)' },
+  { model: 'householdMemberLegacyMapping', scope: { kind: 'family' }, why: 'dormant legacy identity mappings (#480)' },
+  { model: 'householdMember', scope: { kind: 'family' }, why: 'household person profiles (#480)' },
   // 2. Tokens and links that could still reach the household.
   { model: 'familyInvite', scope: { kind: 'family' }, why: 'pending invitations' },
   { model: 'calendarOAuthState', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'OAuth states' },

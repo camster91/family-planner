@@ -60,6 +60,9 @@ model User {
   morning_summary_time_zone     String?
   morning_summary_sent_on       String?
   created_at                    DateTime           @default(now())
+  // Dormant #480 identity foundation; not used by auth or profile APIs.
+  household_member_mapping       HouseholdMemberLegacyMapping? @relation("LegacyMemberUser")
+  household_member_account_link  HouseholdMemberAccountLink? @relation("LinkedMemberUser")
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
   assigned_chores               Chore[]            @relation("AssignedChores")
@@ -132,6 +135,7 @@ model User {
   // Household audit history (#285). Relation field only; no new User columns.
   audit_log_entries             AuditLog[]         @relation("AuditLogActor")
 
+  @@unique([id, family_id]) // scoped reference for dormant #480 member mappings/links
   @@index([family_id])
   // Created by scripts/migrate.js for password-reset token lookups.
   @@index([reset_token])
@@ -183,6 +187,7 @@ model Family {
 
   // Relations
   members            User[]
+  household_members  HouseholdMember[]
   chores             Chore[]
   events             Event[]
   messages           Message[]
@@ -1735,4 +1740,52 @@ model AppFeedback {
  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
  @@unique([user_id, request_id])
  @@index([family_id, user_id, created_at])
+}
+
+// #480 dormant identity foundation. A member is never a User/session principal.
+model HouseholdMember {
+  id             String    @id @default(cuid())
+  family_id      String
+  name           String
+  role           String    @default("child")
+  age            Int?
+  avatar_url     String?
+  board_color    String?
+  archived_at    DateTime?
+  revision       Int       @default(0)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @default(now()) @updatedAt
+  family         Family    @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  legacy_mapping HouseholdMemberLegacyMapping?
+  account_link   HouseholdMemberAccountLink?
+
+  @@unique([id, family_id])
+  @@index([family_id, archived_at])
+}
+
+// Compatibility mapping is not an active verified account link.
+model HouseholdMemberLegacyMapping {
+  user_id    String   @id
+  member_id  String   @unique
+  family_id  String
+  created_at DateTime @default(now())
+  user       User     @relation("LegacyMemberUser", fields: [user_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  member     HouseholdMember @relation(fields: [member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, family_id])
+  @@unique([member_id, family_id])
+}
+
+// Empty until an owner-verified linking API and privacy/capability gates exist.
+model HouseholdMemberAccountLink {
+  member_id   String   @id
+  user_id     String   @unique
+  family_id   String
+  verified_at DateTime
+  created_at  DateTime @default(now())
+  user        User     @relation("LinkedMemberUser", fields: [user_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  member      HouseholdMember @relation(fields: [member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, family_id])
+  @@unique([member_id, family_id])
 }

@@ -248,6 +248,24 @@
     "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
   },
   {
+    "relation": "HouseholdMemberAccountLink.user",
+    "fields": [
+      "user_id",
+      "family_id"
+    ],
+    "kind": "account",
+    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate."
+  },
+  {
+    "relation": "HouseholdMemberLegacyMapping.user",
+    "fields": [
+      "user_id",
+      "family_id"
+    ],
+    "kind": "account",
+    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate."
+  },
+  {
     "relation": "IdempotencyRecord.user",
     "fields": [
       "user_id"
