@@ -425,3 +425,35 @@ it('localizes the saved-recovery controls without translating the saved title', 
   expect(within(recovery).getByRole('button', { name: 'Reintentar Dentist' })).toBeTruthy()
   expect(Object.keys(captureSpanish).sort()).toEqual(Object.keys(captureEnglish).sort())
 })
+
+it('localizes capture body copy while preserving dynamic titles and raw API errors', async () => {
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true })
+    }
+    if (String(url) === '/api/capture') {
+      return json(200, {
+        draft: { kind: 'event', title: 'Dentist', start_time: undefined, confidence: 'high' },
+      })
+    }
+    if (String(url) === '/api/events') return json(400, { error: 'Provider refusal: keep this detail' })
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(
+    <I18nProvider locale="es">
+      <CaptureBox />
+    </I18nProvider>,
+  )
+
+  expect(screen.getByPlaceholderText(captureSpanish.quickAddPlaceholder)).toBeTruthy()
+  const input = screen.getByRole('textbox', { name: captureSpanish.captureInputLabel })
+  await user.type(input, 'dentista mañana')
+  await user.click(screen.getByRole('button', { name: captureSpanish.readIt }))
+  await screen.findByText(captureSpanish.event)
+  expect(screen.getByText('Dentist')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: captureSpanish.addIt }))
+  await screen.findByRole('alert')
+  expect(screen.getByRole('alert').textContent).toContain('Provider refusal: keep this detail')
+})

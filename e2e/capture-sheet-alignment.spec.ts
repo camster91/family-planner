@@ -26,11 +26,13 @@ const copy = {
     launcher: "Open quick add",
     title: "Quick add",
     close: "Close quick add",
+    textbox: "What would you like to add?",
   },
   es: {
     launcher: "Abrir adición rápida",
     title: "Adición rápida",
     close: "Cerrar adición rápida",
+    textbox: "¿Qué te gustaría añadir?",
   },
 } as const;
 
@@ -183,7 +185,7 @@ for (const locale of ["en", "es"] as const) {
     });
     await expect(dialog).toBeVisible();
     await expect(
-      dialog.getByRole("textbox", { name: "What would you like to add?" }),
+      dialog.getByRole("textbox", { name: labels.textbox }),
     ).toBeFocused();
     const close = dialog.getByRole("button", {
       name: labels.close,
@@ -195,7 +197,7 @@ for (const locale of ["en", "es"] as const) {
     expect(dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     expect(dialogBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
     await dialog
-      .getByRole("textbox", { name: "What would you like to add?" })
+      .getByRole("textbox", { name: labels.textbox })
       .fill("Fixture unsent capture draft");
     await close.click();
     await expect(dialog).toHaveCount(0);
@@ -204,7 +206,7 @@ for (const locale of ["en", "es"] as const) {
     await expect(
       page
         .getByRole("dialog", { name: labels.title, exact: true })
-        .getByRole("textbox", { name: "What would you like to add?" }),
+        .getByRole("textbox", { name: labels.textbox }),
     ).toHaveValue("Fixture unsent capture draft");
 
     const violations = (

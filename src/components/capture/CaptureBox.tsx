@@ -53,6 +53,13 @@ interface PhotoEvent {
   event_type?: string
 }
 
+class CaptureClientError extends Error {
+  constructor(readonly key: CaptureMessage) {
+    super(key)
+    this.name = 'CaptureClientError'
+  }
+}
+
 // Shrink a photo before sending it to the model. A phone photo is several MB;
 // the model only needs enough detail to read dates. This keeps upload and cost
 // low, and always returns a JPEG data payload.
@@ -60,14 +67,14 @@ async function downscaleImage(file: File, maxEdge = 1600): Promise<{ base64: str
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('Could not read that file'))
+    reader.onerror = () => reject(new CaptureClientError('fileReadFailed'))
     reader.readAsDataURL(file)
   })
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image()
     el.onload = () => resolve(el)
-    el.onerror = () => reject(new Error('That file is not a readable image'))
+    el.onerror = () => reject(new CaptureClientError('imageReadFailed'))
     el.src = dataUrl
   })
 
@@ -79,17 +86,17 @@ async function downscaleImage(file: File, maxEdge = 1600): Promise<{ base64: str
   canvas.width = w
   canvas.height = h
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Could not process that image')
+  if (!ctx) throw new CaptureClientError('imageProcessFailed')
   ctx.drawImage(img, 0, 0, w, h)
 
   const out = canvas.toDataURL('image/jpeg', 0.82)
   return { base64: out.split(',')[1] || '', mimeType: 'image/jpeg' }
 }
 
-const KIND_LABEL: Record<DraftKind, string> = {
-  event: 'Event',
-  task: 'Task',
-  listitem: 'List item',
+const KIND_MESSAGE: Record<DraftKind, CaptureMessage> = {
+  event: 'event',
+  task: 'task',
+  listitem: 'listItem',
 }
 
 const KIND_ICON: Record<DraftKind, React.ElementType> = {
@@ -98,11 +105,11 @@ const KIND_ICON: Record<DraftKind, React.ElementType> = {
   listitem: ListPlus,
 }
 
-function friendlyTime(iso?: string): string {
-  if (!iso) return 'no date set'
+function friendlyTime(iso: string | undefined, locale: 'en' | 'es', noDate: string): string {
+  if (!iso) return noDate
   const d = new Date(iso)
   if (isNaN(d.getTime())) return iso
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(locale === 'es' ? 'es-ES' : 'en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -127,8 +134,8 @@ function recoveryActionFor(action: CaptureRecoveryAction): string {
   return action === 'event.create' ? '/api/events' : '/api/capture/grocery'
 }
 
-function recoveryTitle(row: CaptureRecoveryEnvelope): string {
-  return row.title || (row.kind === 'event' ? 'Calendar event' : 'Grocery item')
+function recoveryTitle(row: CaptureRecoveryEnvelope, calendarEvent: string, groceryItem: string): string {
+  return row.title || (row.kind === 'event' ? calendarEvent : groceryItem)
 }
 
 export function CaptureBox({
@@ -149,9 +156,17 @@ export function CaptureBox({
   /** Reports the server-side setup/role gate to a launcher host. */
   onAvailabilityChange?: (available: boolean) => void
 } = {}) {
-  const { t } = useTranslation()
+  const { locale, t } = useTranslation()
   const msg = (key: CaptureMessage, params?: Record<string, string | number>) =>
     t(key, params, captureMessages)
+  const localizeError = (error: unknown, fallback: CaptureMessage) =>
+    error instanceof CaptureClientError
+      ? msg(error.key)
+      : error instanceof Error
+        ? error.message
+        : msg(fallback)
+  const titleFor = (row: CaptureRecoveryEnvelope) =>
+    recoveryTitle(row, msg('calendarEvent'), msg('groceryItem'))
   const [text, setText] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [draft, setDraft] = React.useState<Draft | null>(null)
@@ -182,7 +197,7 @@ export function CaptureBox({
     }
     // Server replay retention is seven days. Never silently replay an old
     // unknown operation after that window; ask the person to check the app.
-    if (Date.now() - operation.at >= CAPTURE_RECOVERY_RETENTION_MS) throw new Error('This preview is too old to retry safely. Check the app before making a new preview.')
+    if (Date.now() - operation.at >= CAPTURE_RECOVERY_RETENTION_MS) throw new CaptureClientError('previewTooOld')
     return operation
   }
   function syncRecoveryRows(rows: CaptureRecoveryEnvelope[]) {
@@ -210,10 +225,10 @@ export function CaptureBox({
     photo: boolean,
   ): Promise<string> {
     const body = JSON.stringify(payload)
-    if (operation.body && operation.body !== body) throw new Error('This preview changed. Check the app before making a new preview.')
+    if (operation.body && operation.body !== body) throw new CaptureClientError('previewChanged')
     operation.body = body
     const requestHash = await hashCaptureRequest(action, payload)
-    if (!requestHash) throw new Error('Could not prepare a safe retry. Try again in a supported browser.')
+    if (!requestHash) throw new CaptureClientError('couldNotPrepareRetry')
     const envelope: CaptureRecoveryEnvelope = {
       version: 1,
       key: operation.key,
@@ -238,7 +253,7 @@ export function CaptureBox({
       if (response.ok) forgetRecovery(operation.key)
       return response
     } catch {
-      throw new Error('Could not confirm whether this was saved. Try again to check the same request.')
+      throw new CaptureClientError('uncertainSave')
     }
   }
 
@@ -274,7 +289,7 @@ export function CaptureBox({
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
     if (!row.requestHash) {
       forgetRecovery(row.key)
-      setRecoveryMessage('Status is unavailable for this saved request. Start a new preview after checking the app.')
+      setRecoveryMessage(msg('statusUnavailable'))
       return
     }
     setRecoveryBusyKey(row.key)
@@ -290,35 +305,35 @@ export function CaptureBox({
       const data = (await response.json().catch(() => ({}))) as { state?: string; current?: string }
       if (response.status === 409) {
         forgetRecovery(row.key)
-        setRecoveryMessage('This capture changed. Start a new preview.')
+        setRecoveryMessage(msg('captureChanged'))
       } else if (!response.ok) {
-        setRecoveryMessage('Could not check this capture. Try again when you have a connection.')
+        setRecoveryMessage(msg('couldNotCheck'))
       } else if (data.state === 'committed' && data.current === 'present') {
         forgetRecovery(row.key)
-        setSaved(`Already added “${recoveryTitle(row)}”`)
+        setSaved(msg('alreadyAdded', { title: titleFor(row) }))
         onSaved?.()
       } else if (data.state === 'committed' && data.current === 'removed') {
         forgetRecovery(row.key)
-        setRecoveryMessage('This capture was saved earlier, but it is no longer present. It was not recreated.')
+        setRecoveryMessage(msg('savedRemoved'))
       } else if (data.state === 'committed') {
         forgetRecovery(row.key)
-        setRecoveryMessage('This capture was saved earlier. Refresh the app before making a new preview.')
+        setRecoveryMessage(msg('savedEarlier'))
       } else if (data.state === 'pending') {
-        setRecoveryMessage('This capture is still being processed. Check again or retry later.')
+        setRecoveryMessage(msg('stillProcessing'))
       } else if (data.state === 'expired') {
         forgetRecovery(row.key)
-        setRecoveryMessage('This capture is too old to retry safely. Start a new preview.')
+        setRecoveryMessage(msg('captureTooOld'))
       } else if (data.state === 'absent') {
         // A missing receipt is terminal: the server can no longer prove that
         // this local envelope is the original write, so never keep offering a
         // same-key retry from an orphaned or pruned client row.
         forgetRecovery(row.key)
-        setRecoveryMessage('No saved result was found. Start a new preview.')
+        setRecoveryMessage(msg('noSavedResult'))
       } else {
-        setRecoveryMessage('No saved result was found. Start a new preview.')
+        setRecoveryMessage(msg('noSavedResult'))
       }
     } catch {
-      setRecoveryMessage('Could not check this capture. Try again when you have a connection.')
+      setRecoveryMessage(msg('couldNotCheck'))
     } finally {
       setRecoveryBusyKey(null)
     }
@@ -348,17 +363,17 @@ export function CaptureBox({
         await checkRecovery(row)
       } else if (response.status === 422) {
         forgetRecovery(row.key)
-        setRecoveryMessage('This capture changed. Start a new preview.')
+        setRecoveryMessage(msg('captureChanged'))
       } else if (response.status === 404 && row.action === 'capture.grocery.add') {
         forgetRecovery(row.key)
-        setRecoveryMessage('The grocery list changed. Start a new preview.')
+        setRecoveryMessage(msg('groceryListChanged'))
       } else if (response.status === 409) {
-        setRecoveryMessage('The original request is still being processed. Check status before retrying.')
+        setRecoveryMessage(msg('originalProcessing'))
       } else {
-        setRecoveryMessage('Could not save this capture. Try again when you have a connection.')
+        setRecoveryMessage(msg('couldNotSaveCapture'))
       }
     } catch {
-      setRecoveryMessage('Could not save this capture. Try again when you have a connection.')
+      setRecoveryMessage(msg('couldNotSaveCapture'))
     } finally {
       setRecoveryBusyKey(null)
     }
@@ -378,10 +393,10 @@ export function CaptureBox({
         body: JSON.stringify({ text: phrase }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Could not read that')
+      if (!res.ok) throw new Error(data.error || msg('couldNotRead'))
       setDraft(data.draft)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read that')
+      setError(localizeError(e, 'couldNotRead'))
     } finally {
       setBusy(false)
     }
@@ -399,21 +414,21 @@ export function CaptureBox({
         const itemRes = await postProposal('/api/capture/grocery', draft, { content: draft.title.trim(), quantity: 1 }, draft.title)
         if (!itemRes.ok) {
           const d = await itemRes.json().catch(() => ({}))
-          throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Could not add to the list')
+          throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || msg('groceryAddFailed'))
         }
       } else {
         const res = await postProposal('/api/events', draft, eventPayload(draft), draft.title)
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
-          throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Could not save')
+          throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || msg('couldNotSave'))
         }
       }
-      setSaved(`Added “${draft.title}”`)
+      setSaved(msg('addedTitle', { title: draft.title }))
       setDraft(null)
       setText('')
       onSaved?.()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save')
+      setError(localizeError(e, 'couldNotSave'))
     } finally {
       setBusy(false)
     }
@@ -437,12 +452,12 @@ export function CaptureBox({
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Could not read that photo')
+      if (!res.ok) throw new Error(data.error || msg('couldNotReadPhoto'))
       const events: PhotoEvent[] = data?.image?.events || []
       setPhotoEvents(events)
       setPhotoNote(data?.image?.note ?? null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read that photo')
+      setError(localizeError(e, 'couldNotReadPhoto'))
     } finally {
       setPhotoBusy(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -471,18 +486,16 @@ export function CaptureBox({
     }
     if (added > 0) onSaved?.()
     if (failed.length === 0) {
-      setSaved(`Added ${added} event${added === 1 ? '' : 's'}`)
+      setSaved(msg(added === 1 ? 'addedOne' : 'addedMany', { count: added }))
       setPhotoEvents(null)
       setPhotoNote(null)
     } else {
       setPhotoEvents(failed)
       if (added > 0) {
-        setSaved(`Added ${added} of ${total} events`)
-        setError(
-          `${failed.length} event${failed.length === 1 ? '' : 's'} could not be saved. Try again to check the same requests, or check the app before removing ${failed.length === 1 ? 'it' : 'them'}.`
-        )
+        setSaved(msg('addedOf', { added, total }))
+        setError(msg(failed.length === 1 ? 'couldNotSaveOne' : 'couldNotSaveMany', { count: failed.length }))
       } else {
-        setError('Could not save those events. Try again to check the same requests, or check the app before making a new preview.')
+        setError(msg('couldNotSaveEvents'))
       }
     }
     setPhotoBusy(false)
@@ -525,21 +538,21 @@ export function CaptureBox({
     <div className={inSheet ? 'p-1' : 'card-apple p-4'} data-testid="capture-box">
       {!inSheet && <div className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4 text-[var(--accent)]" />
-        <h2 className="text-headline">Quick add</h2>
+        <h2 className="text-headline">{msg('quickAdd')}</h2>
       </div>}
 
       <div className="flex gap-2">
         <input
           ref={textInputRef}
           className="input-apple flex-1"
-          placeholder="dentist Tuesday 3pm, or milk"
+          placeholder={msg('quickAddPlaceholder')}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !busy) interpret()
           }}
           disabled={busy}
-          aria-label="What would you like to add?"
+          aria-label={msg('captureInputLabel')}
         />
         <button
           className="btn-filled px-4"
@@ -549,10 +562,10 @@ export function CaptureBox({
           {busy && !draft ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-              <span className="sr-only">Reading…</span>
+              <span className="sr-only">{msg('reading')}</span>
             </>
           ) : (
-            'Read it'
+            msg('readIt')
           )}
         </button>
       </div>
@@ -569,7 +582,7 @@ export function CaptureBox({
             const f = e.target.files?.[0]
             if (f) interpretPhoto(f)
           }}
-          aria-label="Choose a photo of a flyer or timetable"
+          aria-label={msg('choosePhoto')}
         />
         <button
           className="btn-plain text-footnote inline-flex items-center gap-1.5"
@@ -581,7 +594,7 @@ export function CaptureBox({
           ) : (
             <Camera className="w-3.5 h-3.5" aria-hidden="true" />
           )}
-          {photoBusy ? 'Reading the photo…' : 'Or take a photo of a flyer'}
+          {photoBusy ? msg('readingPhoto') : msg('takePhoto')}
         </button>
       </div>
 
@@ -608,13 +621,13 @@ export function CaptureBox({
                   const busyRecovery = recoveryBusyKey === row.key
                   return (
                     <li key={row.key} className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-subhead min-w-0 truncate">{recoveryTitle(row)}</span>
+                      <span className="text-subhead min-w-0 truncate">{titleFor(row)}</span>
                       <span className="flex shrink-0 gap-2">
                         <button
                           className="btn-plain min-h-[44px] px-3"
                           onClick={() => checkRecovery(row)}
                           disabled={recoveryBusyKey !== null}
-                          aria-label={msg('checkStatusFor', { title: recoveryTitle(row) })}
+                          aria-label={msg('checkStatusFor', { title: titleFor(row) })}
                         >
                           {busyRecovery ? msg('checking') : msg('checkStatus')}
                         </button>
@@ -622,7 +635,7 @@ export function CaptureBox({
                           className="btn-filled min-h-[44px] px-3"
                           onClick={() => retryRecovery(row)}
                           disabled={recoveryBusyKey !== null || !row.requestHash}
-                          aria-label={msg('retryFor', { title: recoveryTitle(row) })}
+                          aria-label={msg('retryFor', { title: titleFor(row) })}
                         >
                           {msg('retry')}
                         </button>
@@ -641,9 +654,9 @@ export function CaptureBox({
         <div className="mt-4 rounded-xl border border-[var(--separator)] p-3">
           <div className="flex items-center gap-2 text-label-secondary text-footnote mb-1">
             <KindIcon className="w-3.5 h-3.5" />
-            {KIND_LABEL[draft.kind]}
+            {msg(KIND_MESSAGE[draft.kind])}
             {draft.confidence === 'low' && (
-              <span className="text-[var(--danger-text)]">· not sure, please check</span>
+              <span className="text-[var(--danger-text)]">{msg('lowConfidence')}</span>
             )}
           </div>
 
@@ -651,7 +664,7 @@ export function CaptureBox({
 
           {draft.kind !== 'listitem' && (
             <p className="text-subhead text-label-secondary">
-              {friendlyTime(draft.start_time)}
+              {friendlyTime(draft.start_time, locale, msg('noDate'))}
               {draft.location ? ` · ${draft.location}` : ''}
             </p>
           )}
@@ -665,17 +678,17 @@ export function CaptureBox({
               {busy ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                  <span className="sr-only">Adding…</span>
+                  <span className="sr-only">{msg('adding')}</span>
                 </>
               ) : (
-                'Add it'
+                msg('addIt')
               )}
             </button>
             <button
               className="btn-plain min-h-[44px] min-w-[44px] px-4"
               onClick={() => setDraft(null)}
               disabled={busy}
-              aria-label="Discard"
+              aria-label={msg('discard')}
             >
               <X className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -688,8 +701,8 @@ export function CaptureBox({
           <div className="flex items-center gap-2 text-label-secondary text-footnote mb-2">
             <Camera className="w-3.5 h-3.5" />
             {photoEvents.length === 0
-              ? 'No events found in that photo'
-              : `Found ${photoEvents.length} event${photoEvents.length === 1 ? '' : 's'}`}
+              ? msg('noEventsFound')
+              : msg(photoEvents.length === 1 ? 'foundOne' : 'foundMany', { count: photoEvents.length })}
           </div>
 
           {photoEvents.length > 0 && (
@@ -698,7 +711,7 @@ export function CaptureBox({
                 <li key={i} className="flex items-start gap-2">
                   <button
                     className="btn-plain -my-2 min-h-[44px] min-w-[44px] p-1 shrink-0"
-                    aria-label={`Remove ${ev.title}`}
+                    aria-label={msg('removeEvent', { title: ev.title })}
                     onClick={() =>
                       setPhotoEvents((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
                     }
@@ -708,7 +721,7 @@ export function CaptureBox({
                   <div className="min-w-0">
                     <p className="text-body">{ev.title}</p>
                     <p className="text-footnote text-label-secondary">
-                      {friendlyTime(ev.start_time)}
+                      {friendlyTime(ev.start_time, locale, msg('noDate'))}
                       {ev.location ? ` · ${ev.location}` : ''}
                     </p>
                   </div>
@@ -727,10 +740,10 @@ export function CaptureBox({
                 {photoBusy ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                    <span className="sr-only">Adding…</span>
+                    <span className="sr-only">{msg('adding')}</span>
                   </>
                 ) : (
-                  `Add ${photoEvents.length}`
+                  msg(photoEvents.length === 1 ? 'addOne' : 'addMany', { count: photoEvents.length })
                 )}
               </button>
             )}
@@ -742,7 +755,7 @@ export function CaptureBox({
               }}
               disabled={photoBusy}
             >
-              Cancel
+              {msg('cancel')}
             </button>
           </div>
         </div>
