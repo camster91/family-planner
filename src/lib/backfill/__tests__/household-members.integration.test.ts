@@ -116,6 +116,16 @@ dbDescribe('household member foundation rehearsal', () => {
     await expect(db.query('UPDATE "HouseholdMember" SET family_id = $1 WHERE id = $2', [B, 'fx_member_rehearsal_name_only'])).rejects.toMatchObject({ code: '23514' })
   })
 
+  it('restricts erasure provenance to archived same-household profiles without ownership transfer', async () => {
+    await rehearseHouseholdMembers(db, A, true)
+    const id = memberIdForLegacyUser(A, C)
+    await expect(db.query('UPDATE "HouseholdMember" SET erasure_user_id = $1 WHERE id = $2', [C, id])).rejects.toMatchObject({ code: '23514' })
+    await expect(db.query('UPDATE "HouseholdMember" SET archived_at = CURRENT_TIMESTAMP, erasure_user_id = $1 WHERE id = $2', [BP, id])).rejects.toMatchObject({ code: '23514' })
+    await db.query('UPDATE "HouseholdMember" SET archived_at = CURRENT_TIMESTAMP, erasure_user_id = $1 WHERE id = $2', [C, id])
+    await expect(db.query('UPDATE "HouseholdMember" SET erasure_user_id = $1 WHERE id = $2', [P, id])).rejects.toMatchObject({ code: '23514' })
+    await expect(db.query('UPDATE "HouseholdMember" SET archived_at = NULL WHERE id = $1', [id])).rejects.toMatchObject({ code: '23514' })
+  })
+
   it('blocks an unmanaged account household move while scoped mapping exists', async () => {
     await rehearseHouseholdMembers(db, A, true)
     await expect(db.query('UPDATE "User" SET family_id = $1 WHERE id = $2', [B, C])).rejects.toMatchObject({ code: '23503' })
