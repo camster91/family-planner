@@ -8,6 +8,25 @@ export function hasNativePlugin(name: string): boolean {
   return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable(name)
 }
 
+export type NativeBuildIdentity = {
+  platform: 'web' | 'android' | 'ios' | 'unknown'
+  version: string | null
+  build: string | null
+}
+
+/** Read installed shell identity without requesting permission or inventing a version. */
+export async function readNativeBuildIdentity(): Promise<NativeBuildIdentity> {
+  if (!Capacitor.isNativePlatform()) return { platform: 'web', version: null, build: null }
+  const rawPlatform = Capacitor.getPlatform()
+  const platform = rawPlatform === 'android' || rawPlatform === 'ios' ? rawPlatform : 'unknown'
+  if (!hasNativePlugin('App')) return { platform, version: null, build: null }
+  try {
+    const info = await App.getInfo()
+    const valid = (value: unknown) => typeof value === 'string' && /^[0-9][0-9A-Za-z.+-]{0,63}$/.test(value) ? value : null
+    return { platform, version: valid(info.version), build: valid(info.build) }
+  } catch { return { platform, version: null, build: null } }
+}
+
 /** Each subscriber owns only its own listener, including late registration. */
 export function watchNativeConnection(onChange: (connected: boolean) => void): () => void {
   if (!hasNativePlugin('Network')) return () => undefined
