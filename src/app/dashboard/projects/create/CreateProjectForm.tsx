@@ -6,15 +6,18 @@ import { ArrowLeft, PlusCircle, Check } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useTranslation } from "@/i18n";
+import { projectCreateMessages } from "@/i18n/project-create";
 
 const PRESET_COLORS = [
-  { value: "#3B82F6", label: "Blue", ring: "ring-blue-400" },
-  { value: "#EC4899", label: "Pink", ring: "ring-pink-400" },
-  { value: "#8B5CF6", label: "Purple", ring: "ring-purple-400" },
-  { value: "#10B981", label: "Green", ring: "ring-emerald-400" },
-  { value: "#F59E0B", label: "Amber", ring: "ring-amber-400" },
-  { value: "#6366F1", label: "Indigo", ring: "ring-indigo-400" },
-];
+  { value: "#3B82F6", labelKey: "colorBlue", ring: "ring-blue-400" },
+  { value: "#EC4899", labelKey: "colorPink", ring: "ring-pink-400" },
+  { value: "#8B5CF6", labelKey: "colorPurple", ring: "ring-purple-400" },
+  { value: "#10B981", labelKey: "colorGreen", ring: "ring-emerald-400" },
+  { value: "#F59E0B", labelKey: "colorAmber", ring: "ring-amber-400" },
+  { value: "#6366F1", labelKey: "colorIndigo", ring: "ring-indigo-400" },
+] as const;
+type ProjectColor = (typeof PRESET_COLORS)[number]["value"];
 
 export default function CreateProjectForm({
   inSheet = false,
@@ -25,9 +28,11 @@ export default function CreateProjectForm({
 } = {}) {
   const router = useRouter();
   const { addToast } = useToast();
+  const { locale } = useTranslation();
+  const copy = projectCreateMessages[locale];
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState(PRESET_COLORS[0].value);
+  const [color, setColor] = useState<ProjectColor>(PRESET_COLORS[0].value);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,20 +56,27 @@ export default function CreateProjectForm({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create project");
+      if (!res.ok) {
+        const serverMessage =
+          typeof data?.error === "string" && data.error.trim()
+            ? data.error
+            : copy.createFallback;
+        throw new Error(serverMessage);
+      }
+      if (!data?.project?.id) throw new Error(copy.createFallback);
 
       addToast({
         type: "success",
-        title: "Project created!",
-        message: `"${name.trim()}" is ready.`,
+        title: copy.created,
+        message: copy.createdMessage.replace("{name}", name.trim()),
       });
       router.push(`/dashboard/projects/${data.project.id}`);
       router.refresh();
     } catch (error) {
       addToast({
         type: "error",
-        title: "Failed to create project",
-        message: error instanceof Error ? error.message : "Please try again.",
+        title: copy.createError,
+        message: error instanceof Error ? error.message : copy.createFallback,
       });
     } finally {
       setLoading(false);
@@ -81,16 +93,16 @@ export default function CreateProjectForm({
               className="inline-flex items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Projects
+              {copy.back}
             </Link>
           </div>
 
           <div className="px-4">
             <h1 className="text-2xl font-bold text-label-primary">
-              New Project
+              {copy.title}
             </h1>
             <p className="text-subhead text-label-secondary mt-1">
-              Organize family goals and tasks together.
+              {copy.subtitle}
             </p>
           </div>
         </>
@@ -115,14 +127,14 @@ export default function CreateProjectForm({
                 htmlFor="name"
                 className="text-subhead text-label-secondary"
               >
-                Project Name <span className="text-danger-text">*</span>
+                {copy.name} <span className="text-danger-text">*</span>
               </label>
               <input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Backyard Garden, Spring Cleaning"
+                placeholder={copy.namePlaceholder}
                 className="input-apple"
                 required
                 autoFocus
@@ -135,20 +147,23 @@ export default function CreateProjectForm({
                 htmlFor="description"
                 className="text-subhead text-label-secondary"
               >
-                Description{" "}
-                <span className="text-label-tertiary">(optional)</span>
+                {copy.description}{" "}
+                <span className="text-label-tertiary">{copy.optional}</span>
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What's this project about?"
+                placeholder={copy.descriptionPlaceholder}
                 rows={2}
                 className="input-apple resize-none"
                 maxLength={1000}
               />
               <p className="text-caption-1 text-label-tertiary text-right">
-                {description.length}/1000
+                {copy.characterCount.replace(
+                  "{count}",
+                  String(description.length),
+                )}
               </p>
             </div>
 
@@ -157,7 +172,7 @@ export default function CreateProjectForm({
                 id="project-color-label"
                 className="text-subhead text-label-secondary"
               >
-                Accent Color
+                {copy.color}
               </p>
               <div
                 role="group"
@@ -176,8 +191,11 @@ export default function CreateProjectForm({
                         : "border-transparent hover:border-input",
                     )}
                     style={{ backgroundColor: c.value }}
-                    title={c.label}
-                    aria-label={`Color: ${c.label}`}
+                    title={copy[c.labelKey]}
+                    aria-label={copy.colorOption.replace(
+                      "{color}",
+                      copy[c.labelKey],
+                    )}
                     aria-pressed={color === c.value}
                   >
                     {color === c.value && (
@@ -212,12 +230,12 @@ export default function CreateProjectForm({
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Creating...
+                    {copy.creating}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-2">
                     <PlusCircle className="w-4 h-4" />
-                    Create Project
+                    {copy.create}
                   </span>
                 )}
               </button>
@@ -228,10 +246,7 @@ export default function CreateProjectForm({
 
       {!inSheet && (
         <div className="rounded-xl bg-surface-fill p-4 text-center mx-4">
-          <p className="text-caption-1 text-label-secondary">
-            After creating, you can add tasks, assign family members, and track
-            progress.
-          </p>
+          <p className="text-caption-1 text-label-secondary">{copy.tip}</p>
         </div>
       )}
     </div>

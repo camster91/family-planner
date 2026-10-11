@@ -4,6 +4,7 @@ import "@testing-library/jest-dom";
 import * as React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { I18nProvider } from "@/i18n";
 import CreateProjectForm from "../create/CreateProjectForm";
 import { ProjectCreateSheet } from "@/components/projects/ProjectCreateSheet";
 
@@ -99,38 +100,93 @@ it("retains the draft after a refused create so the user can retry", async () =>
   expect(push).not.toHaveBeenCalled();
 });
 
-it("blocks sheet dismissal while the project create request is pending", async () => {
+it("localizes project create labels and refusal feedback in Spanish", async () => {
   const user = userEvent.setup();
-  let finish!: (result: Response) => void;
-  global.fetch = jest.fn(
-    () =>
-      new Promise<Response>((resolve) => {
-        finish = resolve;
-      }),
-  );
+  global.fetch = jest
+    .fn()
+    .mockResolvedValue(
+      response(403, { error: "Only parents can create projects" }),
+    );
 
   render(
-    <>
-      <div data-dashboard-background>
-        <button type="button">Projects</button>
-      </div>
-      <ProjectCreateSheet />
-    </>,
+    <I18nProvider locale="es">
+      <CreateProjectForm />
+    </I18nProvider>,
   );
 
-  await user.type(screen.getByLabelText(/Project Name/), "Kitchen project");
-  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  const name = screen.getByLabelText(/Nombre del proyecto/);
+  await user.type(name, "Huerto familiar");
+  expect(screen.getByText("Color de acento")).toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: "Close and return" }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Color: Rosa" }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Crear proyecto" }));
 
-  await user.keyboard("{Escape}");
-  expect(back).not.toHaveBeenCalled();
-
-  await act(async () =>
-    finish(response(201, { project: { id: "project-2" } })),
-  );
   await waitFor(() =>
-    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-2"),
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "error",
+        title: "No se pudo crear el proyecto",
+      }),
+    ),
   );
+  expect(name).toHaveValue("Huerto familiar");
 });
+
+it.each([
+  [
+    "en",
+    "Project Name",
+    "Create Project",
+    "Close and return",
+    "Please wait for saving to finish.",
+  ],
+  [
+    "es",
+    "Nombre del proyecto",
+    "Crear proyecto",
+    "Cerrar y volver",
+    "Espera a que termine de guardarse.",
+  ],
+] as const)(
+  "blocks %s sheet dismissal while the project create request is pending",
+  async (locale, nameLabel, submitLabel, closeLabel, pendingDescription) => {
+    const user = userEvent.setup();
+    let finish!: (result: Response) => void;
+    global.fetch = jest.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+
+    render(
+      <I18nProvider locale={locale}>
+        <div data-dashboard-background>
+          <button type="button">Projects</button>
+        </div>
+        <ProjectCreateSheet />
+      </I18nProvider>,
+    );
+
+    await user.type(
+      screen.getByLabelText(new RegExp(nameLabel)),
+      "Kitchen project",
+    );
+    await user.click(screen.getByRole("button", { name: submitLabel }));
+    expect(screen.getByText(pendingDescription)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: closeLabel }),
+    ).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(back).not.toHaveBeenCalled();
+
+    await act(async () =>
+      finish(response(201, { project: { id: "project-2" } })),
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/dashboard/projects/project-2"),
+    );
+  },
+);
