@@ -1,0 +1,547 @@
+/**
+ * PostgreSQL contract checks for the routine-stack core (#499 follow-up).
+ *
+ * This suite is deliberately opt-in. It must only run against a disposable
+ * database with both explicit integration gates enabled. The normal Prisma
+ * client is used by default; ROOT-owned validation can point
+ * ROUTINE_STACK_PRISMA_CLIENT_MODULE at a generated client that contains the
+ * additive RoutineStack model without mutating this checkout's shared client.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import pg from "pg";
+import {
+  fingerprintRoutineStackSnapshot,
+  projectRoutineStackResponse,
+  routineStackResponseByteLength,
+  type RoutineStackDraft,
+} from "@/lib/routine-stack";
+import { hashIdempotentRequest } from "@/lib/idempotency";
+import {
+  mutateRoutineStack,
+  mutateRoutineStackInTx,
+  type RoutineStackActor,
+} from "@/lib/routine-stack-mutation";
+
+function looksLikeDisposableDatabase(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const localHost = new Set(["localhost", "127.0.0.1", "::1", "postgres"]);
+    const databaseName = decodeURIComponent(url.pathname.replace(/^\//, ""));
+    return (
+      localHost.has(url.hostname) &&
+      /(?:^|[-_])(ci|e2e|test|integration|routine)(?:[-_]|$)/i.test(
+        databaseName,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+const databaseSuiteEnabled =
+  process.env.RUN_DB_INTEGRATION === "1" &&
+  process.env.FIXTURES_ALLOW === "1" &&
+  process.env.NODE_ENV !== "production" &&
+  looksLikeDisposableDatabase(process.env.DATABASE_URL);
+const describeWithDatabase = databaseSuiteEnabled ? describe : describe.skip;
+
+jest.setTimeout(120_000);
+
+type Db = any;
+
+const PREFIX = `rstack-int-${process.pid}`;
+const FAMILY_A = `${PREFIX}-family-a`;
+const FAMILY_B = `${PREFIX}-family-b`;
+const PARENT_A = `${PREFIX}-parent-a`;
+const OTHER_PARENT_A = `${PREFIX}-parent-2`;
+const CHILD_A = `${PREFIX}-child-a`;
+const PARENT_B = `${PREFIX}-parent-b`;
+const STACK_A = `${PREFIX}-stack-a`;
+const STACK_FOREIGN = `${PREFIX}-stack-foreign`;
+const STACK_B = `${PREFIX}-stack-b`;
+const CHORE_A = `${PREFIX}-chore-a`;
+const CHORE_FOREIGN = `${PREFIX}-chore-foreign`;
+const CHORE_B = `${PREFIX}-chore-b`;
+const OCCURRENCE_DATE = "2026-10-12";
+const OCCURRENCE = new Date(`${OCCURRENCE_DATE}T00:00:00.000Z`);
+
+async function loadDatabase(): Promise<Db> {
+  const configuredModule = process.env.ROUTINE_STACK_PRISMA_CLIENT_MODULE;
+  const loaded = configuredModule
+    ? await import(configuredModule)
+    : await import("@/lib/prisma");
+  const candidate = loaded as {
+    prisma?: unknown;
+    default?: { prisma?: unknown } | unknown;
+  };
+  const configured =
+    candidate.prisma ??
+    (candidate.default &&
+    typeof candidate.default === "object" &&
+    "prisma" in candidate.default
+      ? (candidate.default as { prisma: unknown }).prisma
+      : candidate.default) ??
+    loaded;
+  if (!configured || typeof configured !== "object") {
+    throw new Error(
+      "Routine-stack integration needs a generated Prisma client module with a prisma export.",
+    );
+  }
+  const db = configured as Db;
+  if (!db.routineStack) {
+    throw new Error(
+      "Routine-stack integration needs the Prisma client generated from the RoutineStack schema; set ROUTINE_STACK_PRISMA_CLIENT_MODULE for the ROOT-owned client.",
+    );
+  }
+  return db;
+}
+
+async function runRoutineStackMigrationTwice(): Promise<void> {
+  const migrationPath = path.resolve(
+    process.cwd(),
+    "database/migration-routine-stacks.sql",
+  );
+  const sql = fs.readFileSync(migrationPath, "utf8");
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(sql);
+    // A repeat is part of the release contract: deployment retries must not
+    // rebuild the table, alter existing rows, or fail on duplicate constraints.
+    await client.query(sql);
+    const columns = await client.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'RoutineStack'
+       AND column_name IN ('created_by')`,
+    );
+    expect(columns.rows.map((row) => row.column_name)).toEqual(["created_by"]);
+    const constraints = await client.query<{ constraint_name: string }>(
+      `SELECT constraint_name FROM information_schema.table_constraints
+       WHERE table_schema = 'public' AND table_name = 'RoutineStack'
+       AND constraint_name IN ('RoutineStack_created_by_fkey', 'RoutineStack_id_family_id_key')
+       ORDER BY constraint_name`,
+    );
+    expect(constraints.rows.map((row) => row.constraint_name)).toEqual([
+      "RoutineStack_created_by_fkey",
+      "RoutineStack_id_family_id_key",
+    ]);
+  } finally {
+    await client.end();
+  }
+}
+
+describeWithDatabase("routine stack against disposable PostgreSQL", () => {
+  let db: Db;
+  let accountDeletion: typeof import("@/lib/account-deletion");
+  let migrationVerified = false;
+
+  const actorA: RoutineStackActor = {
+    familyId: FAMILY_A,
+    userId: PARENT_A,
+    role: "parent",
+  };
+
+  async function cleanup(): Promise<void> {
+    // Chore_routine_stack_fkey is deliberately NO ACTION: children must be
+    // removed before stack identities, mirroring the account deletion plan.
+    await db.chore.deleteMany({
+      where: { family_id: { in: [FAMILY_A, FAMILY_B] } },
+    });
+    await db.routineStack.deleteMany({
+      where: { family_id: { in: [FAMILY_A, FAMILY_B] } },
+    });
+    await db.idempotencyRecord.deleteMany({
+      where: { family_id: { in: [FAMILY_A, FAMILY_B] } },
+    });
+    await db.user.deleteMany({
+      where: { id: { in: [PARENT_A, OTHER_PARENT_A, CHILD_A, PARENT_B] } },
+    });
+    await db.family.deleteMany({ where: { id: { in: [FAMILY_A, FAMILY_B] } } });
+  }
+
+  async function seed(): Promise<void> {
+    await db.family.createMany({
+      data: [
+        {
+          id: FAMILY_A,
+          name: "Routine integration A",
+          invite_code: `${PREFIX}-invite-a`,
+        },
+        {
+          id: FAMILY_B,
+          name: "Routine integration B",
+          invite_code: `${PREFIX}-invite-b`,
+        },
+      ],
+    });
+    await db.user.createMany({
+      data: [
+        {
+          id: PARENT_A,
+          email: `${PARENT_A}@example.test`,
+          name: "Parent A",
+          role: "parent",
+          family_id: FAMILY_A,
+        },
+        {
+          id: OTHER_PARENT_A,
+          email: `${OTHER_PARENT_A}@example.test`,
+          name: "Other parent A",
+          role: "parent",
+          family_id: FAMILY_A,
+        },
+        {
+          id: CHILD_A,
+          email: `${CHILD_A}@example.test`,
+          name: "Child A",
+          role: "child",
+          family_id: FAMILY_A,
+        },
+        {
+          id: PARENT_B,
+          email: `${PARENT_B}@example.test`,
+          name: "Parent B",
+          role: "parent",
+          family_id: FAMILY_B,
+        },
+      ],
+    });
+    await db.routineStack.createMany({
+      data: [
+        {
+          id: STACK_A,
+          family_id: FAMILY_A,
+          label: "Morning",
+          fingerprint: "seed-a",
+          created_by: PARENT_A,
+        },
+        {
+          id: STACK_FOREIGN,
+          family_id: FAMILY_A,
+          label: "Foreign stack",
+          fingerprint: "seed-foreign",
+          created_by: OTHER_PARENT_A,
+        },
+        {
+          id: STACK_B,
+          family_id: FAMILY_B,
+          label: "Other household",
+          fingerprint: "seed-b",
+          created_by: PARENT_B,
+        },
+      ],
+    });
+    await db.chore.createMany({
+      data: [
+        {
+          id: CHORE_A,
+          family_id: FAMILY_A,
+          title: "Brush teeth",
+          assigned_to: CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          routine_stack_id: STACK_A,
+          routine: "Morning",
+          routine_order: 1,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CHORE_FOREIGN,
+          family_id: FAMILY_A,
+          title: "Foreign stack step",
+          assigned_to: CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: OTHER_PARENT_A,
+          routine_stack_id: STACK_FOREIGN,
+          routine: "Foreign stack",
+          routine_order: 1,
+          frequency: "once",
+          weekly_days: [],
+        },
+        {
+          id: CHORE_B,
+          family_id: FAMILY_B,
+          title: "Other household step",
+          assigned_to: PARENT_B,
+          due_date: OCCURRENCE,
+          created_by: PARENT_B,
+          routine_stack_id: STACK_B,
+          routine: "Other household",
+          routine_order: 1,
+          frequency: "once",
+          weekly_days: [],
+        },
+      ],
+    });
+  }
+
+  async function existingDraft(
+    stackId = STACK_A,
+    choreId = CHORE_A,
+  ): Promise<RoutineStackDraft> {
+    const row = await db.chore.findUniqueOrThrow({ where: { id: choreId } });
+    return {
+      scope: "occurrence",
+      family_id: FAMILY_A,
+      stack_id: stackId,
+      occurrence_date: OCCURRENCE_DATE,
+      label: "Morning",
+      steps: [
+        {
+          chore_id: choreId,
+          assigned_to: row.assigned_to,
+          assigned_member_id: row.assigned_member_id ?? null,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "medium",
+          is_template: false,
+        },
+      ],
+      remove_chore_ids: [],
+      expected_fingerprint: fingerprintRoutineStackSnapshot([row]),
+    };
+  }
+
+  function newDraft(label = "New routine"): RoutineStackDraft {
+    return {
+      scope: "occurrence",
+      family_id: FAMILY_A,
+      stack_id: null,
+      occurrence_date: OCCURRENCE_DATE,
+      label,
+      steps: [
+        {
+          title: "Pack bag",
+          description: null,
+          assigned_to: CHILD_A,
+          assigned_member_id: null,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "easy",
+          icon: null,
+          is_template: false,
+        },
+      ],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    };
+  }
+
+  async function createReceipt(
+    id: string,
+    key: string,
+    draft: RoutineStackDraft,
+    responseStatus: number | null = null,
+  ): Promise<void> {
+    await db.idempotencyRecord.create({
+      data: {
+        id,
+        scope: `user:${PARENT_A}`,
+        key,
+        family_id: FAMILY_A,
+        user_id: PARENT_A,
+        action: "routine-stack.mutate",
+        request_hash: hashIdempotentRequest("routine-stack.mutate", draft),
+        response_status: responseStatus,
+        response_body: null,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  beforeAll(async () => {
+    db = await loadDatabase();
+    accountDeletion = await import("@/lib/account-deletion");
+    await runRoutineStackMigrationTwice();
+    migrationVerified = true;
+  });
+
+  beforeEach(async () => {
+    await cleanup();
+    await seed();
+  });
+
+  afterAll(async () => {
+    if (!db) return;
+    await cleanup();
+    if (typeof db.$disconnect === "function") await db.$disconnect();
+  });
+
+  it("applies the additive migration twice without changing the contract", () => {
+    expect(migrationVerified).toBe(true);
+  });
+
+  it("hands a creator's routine identity to the successor and preserves another member's chore", async () => {
+    const result = await accountDeletion.deleteMemberAccount(PARENT_A, {
+      db,
+      uploadDir: path.join(process.cwd(), ".tmp-routine-stack-integration"),
+      removeFile: async () => undefined,
+      revokeCalendarGrant: async () => undefined,
+    });
+    expect(result.deleted).toBe(true);
+    const stack = await db.routineStack.findUniqueOrThrow({
+      where: { id: STACK_A },
+    });
+    const chore = await db.chore.findUniqueOrThrow({ where: { id: CHORE_A } });
+    expect(stack.created_by).toBe(OTHER_PARENT_A);
+    expect(chore.created_by).toBe(OTHER_PARENT_A);
+    expect(chore.assigned_to).toBe(CHILD_A);
+    expect(await db.user.findUnique({ where: { id: PARENT_A } })).toBeNull();
+  });
+
+  it("deletes occurrence chores before their stack and then removes the household", async () => {
+    const result = await accountDeletion.deleteHousehold(FAMILY_B, PARENT_B, {
+      db,
+      uploadDir: path.join(process.cwd(), ".tmp-routine-stack-integration"),
+      removeFile: async () => undefined,
+      revokeCalendarGrant: async () => undefined,
+    });
+    expect(result.deleted).toBe(true);
+    expect(await db.chore.findUnique({ where: { id: CHORE_B } })).toBeNull();
+    expect(
+      await db.routineStack.findUnique({ where: { id: STACK_B } }),
+    ).toBeNull();
+    expect(await db.family.findUnique({ where: { id: FAMILY_B } })).toBeNull();
+  });
+
+  it("refuses cross-family, cross-stack, and empty-occurrence mutations without writes", async () => {
+    const crossFamily = { ...(await existingDraft()), family_id: FAMILY_B };
+    await expect(
+      mutateRoutineStack(db, crossFamily, actorA),
+    ).rejects.toMatchObject({
+      status: 404,
+    });
+
+    const foreignDraft = {
+      ...(await existingDraft()),
+      steps: [
+        {
+          chore_id: CHORE_FOREIGN,
+          assigned_to: CHILD_A,
+          assigned_member_id: null,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once" as const,
+          difficulty: "medium" as const,
+          is_template: false,
+        },
+      ],
+      expected_fingerprint: fingerprintRoutineStackSnapshot([
+        await db.chore.findUniqueOrThrow({ where: { id: CHORE_A } }),
+      ]),
+    };
+    await expect(
+      mutateRoutineStack(db, foreignDraft, actorA),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+
+    const emptyDraft = {
+      ...(await existingDraft()),
+      steps: [],
+      remove_chore_ids: [CHORE_A],
+    };
+    await expect(
+      mutateRoutineStack(db, emptyDraft, actorA),
+    ).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(
+      await db.chore.findUniqueOrThrow({ where: { id: CHORE_A } }),
+    ).toMatchObject({
+      routine_stack_id: STACK_A,
+    });
+  });
+
+  it("accepts the compact 99-step UTF-8 response within the replay cap", () => {
+    const body = projectRoutineStackResponse({
+      stack_id: "stack",
+      version: 1,
+      fingerprint: "fingerprint",
+      steps: Array.from({ length: 99 }, (_, index) => ({
+        id: `c${index + 1}`,
+        assigned_to: `u${index + 1}`,
+        assigned_member_id: null,
+      })),
+      members: Array.from({ length: 99 }, (_, index) => ({
+        id: `u${index + 1}`,
+        role: "child",
+      })),
+    });
+    expect(body.steps).toHaveLength(99);
+    expect(routineStackResponseByteLength(body)).toBeLessThanOrEqual(8192);
+  });
+
+  it("serializes same-key writes, replays a lost response, and rejects changed payload reuse", async () => {
+    const draft = newDraft();
+    const normalized = draft;
+    const receiptId = `${PREFIX}-receipt-concurrent`;
+    await createReceipt(receiptId, `${PREFIX}-key-concurrent`, normalized);
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        mutateRoutineStack(db, normalized, actorA, { recordId: receiptId }),
+      ),
+    );
+    expect(
+      responses.filter((response) => response.status === 200),
+    ).toHaveLength(4);
+    expect(responses.filter((response) => response.replayed)).toHaveLength(3);
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(3);
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(3);
+
+    const replay = await mutateRoutineStack(db, normalized, actorA, {
+      recordId: receiptId,
+    });
+    expect(replay).toMatchObject({ status: 200, replayed: true });
+
+    const changedPayload = { ...normalized, label: "Changed payload" };
+    const changed = await mutateRoutineStack(db, changedPayload, actorA, {
+      recordId: receiptId,
+    });
+    expect(changed).toMatchObject({ status: 422 });
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(3);
+  });
+
+  it("rolls back writes after a forced post-write failure and detects fingerprint conflicts", async () => {
+    const beforeStacks = await db.routineStack.count({
+      where: { family_id: FAMILY_A },
+    });
+    const draft = newDraft("Rollback routine");
+    await expect(
+      db.$transaction(async (tx: unknown) => {
+        const result = await mutateRoutineStackInTx(
+          tx as object,
+          draft,
+          actorA,
+        );
+        expect(result.status).toBe(200);
+        throw new Error("forced response-loss rollback");
+      }),
+    ).rejects.toThrow("forced response-loss rollback");
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(beforeStacks);
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(2);
+
+    const current = await existingDraft();
+    await db.chore.update({ where: { id: CHORE_A }, data: { points: 37 } });
+    await expect(mutateRoutineStack(db, current, actorA)).rejects.toMatchObject(
+      {
+        status: 409,
+      },
+    );
+    expect(
+      await db.chore.findUniqueOrThrow({ where: { id: CHORE_A } }),
+    ).toMatchObject({
+      points: 37,
+      routine_stack_id: STACK_A,
+    });
+  });
+});
