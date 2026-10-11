@@ -148,3 +148,21 @@ Week and All show one collapsed schedule row per canonical recurring series when
 ## Short chore forms — local candidate (#453)
 
 New/Edit Chore now keep title, assignee and schedule visible. Wide layouts put essentials in two columns; narrow layouts stack them. Optional instructions, difficulty and enabled points live under Details (& points); pictures, routine and step under Pictures & routine; attachment under Photo. Native details/summary sections start closed and summarize selected values. Collapsing keeps the controls mounted and retains their state. Invalid optional inputs open their section so browser validation can reach them. Required fields never live in a collapsed section. Weekly weekday scheduling and local-day minimum dates remain in the essentials. This is the screen-shortening convention for affected forms: group by task, reveal optional complexity deliberately, retain summaries and recovery, and avoid forcing extra steps for a simple submission. Other routes are not claimed to have been rewritten.
+
+### Weekly edits: retained future occurrences (#449)
+
+When a parent changes selected weekdays, pending occurrences strictly after today
+are re-planned, including a future template or the generated occurrence being
+edited. Retaining an occurrence's identity does not retain an obsolete weekday.
+A retained pending row moves to the next selected weekday on or after its old
+calendar date. If that date is already occupied by another retained or completed
+occurrence, it advances to the next selected day; the existing series/date unique
+constraint remains intact. Today, past rows, completed/verified rows, points and
+assignee history remain unchanged. Empty legacy weekday schedules and non-weekly
+frequency edits keep their existing behavior. No schema, migration or scheduler.
+
+Rollback restores the prior re-planning helper for subsequent edits; it does not
+rewrite already saved occurrence dates or completion history. Database regressions
+cover future template/copy edits, a completed reserved date, past/today retention
+and a foreign household, alongside the existing rotation integration checks.
+Source/local checks are separate from hosted, deployed and native acceptance.

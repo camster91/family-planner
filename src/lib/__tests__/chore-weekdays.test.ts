@@ -36,7 +36,7 @@ it('expands a bounded four-week multi-day window and is idempotent', async () =>
 it('replans an unchanged weekly frequency when days change, preserving the history policy', async () => {
   const updates: any[] = [], deletes: any[] = []
   const template = {id:'t',frequency:'weekly',weekly_days:[1]}
-  const tx: any = {$queryRaw:async()=>[{locked:1}], user:{findFirst:async({where}:any)=>where.id==="kid" && where.family_id==="f" ? {id:"kid"}:null},householdMemberLegacyMapping:{findMany:async()=>[]},householdMemberAccountLink:{findMany:async()=>[]},chore:{findFirst:async()=>template,update:async (args:any)=>{updates.push(args)},deleteMany:async(args:any)=>{deletes.push(args);return {count:0}},findUnique:async()=>null}}
+  const tx: any = {$queryRaw:async()=>[{locked:1}], user:{findFirst:async({where}:any)=>where.id==="kid" && where.family_id==="f" ? {id:"kid"}:null},householdMemberLegacyMapping:{findMany:async()=>[]},householdMemberAccountLink:{findMany:async()=>[]},chore:{findFirst:async()=>template,update:async (args:any)=>{updates.push(args)},deleteMany:async(args:any)=>{deletes.push(args);return {count:0}},findUnique:async()=>null,findMany:async()=>[]}}
   await applyFrequencyEditInTx(tx,{id:'copy',family_id:'f',frequency:'once',recurrence_id:'t'},'weekly',{applyToSeries:true,weeklyDays:[1,4],now:day('2026-10-12')})
   expect(updates[0]).toMatchObject({where:{id:'t'},data:{frequency:'weekly',weekly_days:[1,4],is_template:true}})
   expect(deletes[0].where).toMatchObject({family_id:'f',recurrence_id:'t',status:'pending',id:{notIn:['t','copy']},due_date:{gte:day('2026-10-13')}})
