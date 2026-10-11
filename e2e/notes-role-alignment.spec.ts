@@ -508,6 +508,7 @@ for (const locale of ["en", "es"] as const) {
       await expect(
         page.locator(`[role="button"][aria-label="${NOTE_TITLES.parent}"]`),
       ).toBeVisible();
+      await expect(page.getByTestId("notes-retry")).toHaveCount(0);
 
       const parentCard = page.locator(
         `[role="button"][aria-label="${NOTE_TITLES.parent}"]`,

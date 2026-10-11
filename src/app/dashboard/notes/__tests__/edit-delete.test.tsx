@@ -93,7 +93,15 @@ it('keeps an open draft while a failed notes load is retried', async () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ notes: [] }),
+        json: async () => ({
+          notes: [{
+            id: 'recovered-note',
+            title: 'Recovered note',
+            body: 'Recovered after retry',
+            color: 'yellow',
+            created_at: '2026-09-01T00:00:00Z',
+          }],
+        }),
       } as Response
     }
     return mutationReply()
@@ -113,7 +121,8 @@ it('keeps an open draft while a failed notes load is retried', async () => {
   expect(getAttempts).toBe(2)
 
   releaseRetry()
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'notes.retry' })).toBeNull())
+  await waitFor(() => expect(screen.getByText('Recovered note')).toBeTruthy())
+  expect(screen.queryByRole('button', { name: 'notes.retry' })).toBeNull()
   expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Fridge note')
 })
 

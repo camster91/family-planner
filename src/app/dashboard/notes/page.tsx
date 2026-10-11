@@ -105,6 +105,10 @@ function NotesPageInner() {
         throw new Error('Failed to fetch notes')
       }
       const data = await res.json()
+      // A successful retry must leave recovery mode. Keep the prior error
+      // while the request is pending so the retry remains discoverable, then
+      // clear it only after the response body has been accepted.
+      setError(null)
       setNotes(data.notes || [])
     } catch (err) {
       console.error('Error fetching notes:', err)
