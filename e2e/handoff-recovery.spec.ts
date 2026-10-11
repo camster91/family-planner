@@ -19,16 +19,43 @@ const PROJECTS = [
 
 test.use({ storageState: authFile("parentA") });
 
-function sourceTree() {
-  const configured =
-    process.env.E2E_HANDOFF_BUILD_TREE?.trim() ||
-    process.env.E2E_SETTINGS_BUILD_TREE?.trim();
-  return (
-    configured ||
-    execFileSync("git", ["rev-parse", "HEAD^{tree}"], {
-      encoding: "utf8",
-    }).trim()
+function checkedSourceTree() {
+  const actual = execFileSync("git", ["rev-parse", "HEAD^{tree}"], {
+    encoding: "utf8",
+  }).trim();
+  const configured = process.env.E2E_HANDOFF_BUILD_TREE?.trim();
+  if (configured) expect(configured).toBe(actual);
+  return actual;
+}
+
+function checkedCommit() {
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+}
+
+function assertCleanTrackedAppSource() {
+  try {
+    execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "prisma"], {
+      stdio: "ignore",
+    });
+  } catch {
+    throw new Error(
+      "Tracked app source differs from HEAD; rebuild handoff QA from the checked-out commit.",
+    );
+  }
+}
+
+function compiledBuiltAt() {
+  const route = fs.readFileSync(
+    ".next/server/app/api/version/route.js",
+    "utf8",
   );
+  const times = [
+    ...new Set(route.match(/20\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z/g) ?? []),
+  ];
+  expect(times).toHaveLength(1);
+  return times[0]!;
 }
 
 async function runtimeIdentity(
@@ -43,13 +70,17 @@ async function runtimeIdentity(
     commit: string;
     builtAt: string;
   };
-  if (process.env.RELEASE_SHA)
-    expect(runtime.commit).toBe(process.env.RELEASE_SHA);
+  const expectedCommit = checkedCommit();
+  expect(runtime.commit).toBe(expectedCommit);
+  const releaseSha = process.env.RELEASE_SHA?.trim();
+  if (releaseSha) expect(releaseSha).toBe(expectedCommit);
+  assertCleanTrackedAppSource();
+  expect(runtime.builtAt).toBe(compiledBuiltAt());
 
   const identity = {
     runtime,
     buildId: fs.readFileSync(".next/BUILD_ID", "utf8").trim(),
-    buildTree: sourceTree(),
+    buildTree: checkedSourceTree(),
     locale,
     role: "parent",
     canonicalFeatureTransport: "PATCH /api/family/features enable and restore",
@@ -218,16 +249,33 @@ for (const locale of ["en", "es"] as const) {
       await captureState(page, info, "empty", identity);
     } finally {
       releaseSuccessfulResponse.current?.();
-      const restored = await browserSend(
-        page,
-        "PATCH",
-        "/api/family/features",
-        {
-          features: originalFeatures,
-        },
-      );
-      expect(restored.status, restored.body).toBe(200);
-      await page.unroute("**/api/handoff**");
+      try {
+        let restored;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            restored = await browserSend(
+              page,
+              "PATCH",
+              "/api/family/features",
+              {
+                features: originalFeatures,
+              },
+            );
+            if (restored.status === 200 || restored.status < 500) break;
+          } catch (error) {
+            if (attempt === 1) throw error;
+          }
+        }
+        expect(restored).toBeDefined();
+        expect(restored!.status, restored!.body).toBe(200);
+        const canonical = await browserFetch(page, "/api/family/features");
+        expect(canonical.status, canonical.body).toBe(200);
+        expect(
+          (JSON.parse(canonical.body) as { features: unknown }).features,
+        ).toEqual(originalFeatures);
+      } finally {
+        await page.unroute("**/api/handoff**");
+      }
     }
   });
 }

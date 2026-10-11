@@ -6,12 +6,28 @@
 // Share now shows the current link with a Copy button that copies inside the
 // tap; a new link is made only from an explicit, warned step.
 import * as React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 
-const mockT = (key: string) => key
-jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: mockT }) }))
+let mockLocale = 'en'
+let mockLocaleRerender: (() => void) | null = null
+const mockT = (key: string) => {
+  if (mockLocale === 'es' && key === 'handoff.errorLoad') return 'No se pudo cargar'
+  return key
+}
+jest.mock('@/i18n', () => ({
+  useTranslation: () => {
+    const [, setRender] = React.useState(0)
+    React.useEffect(() => {
+      mockLocaleRerender = () => setRender((value) => value + 1)
+      return () => {
+        mockLocaleRerender = null
+      }
+    }, [])
+    return { t: (key: string) => mockT(key) }
+  },
+}))
 jest.mock('@/components/ui/feature-gate', () => ({
   FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
@@ -32,6 +48,8 @@ beforeEach(() => {
   calls = []
   role = 'parent'
   failNextHandoffLoad = false
+  mockLocale = 'en'
+  mockLocaleRerender = null
   handoff = {
     id: 'h1',
     sitter_name: 'Sarah',
@@ -70,6 +88,20 @@ const renderPage = () =>
 const regenerateCalls = () => calls.filter((c) => c.url.endsWith('/regenerate-token'))
 
 describe('handoff share', () => {
+  it('updates a failed-load message when locale changes without refetching', async () => {
+    failNextHandoffLoad = true
+    renderPage()
+
+    expect((await screen.findByRole('alert')).textContent).toContain('handoff.errorLoad')
+    expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(1)
+
+    mockLocale = 'es'
+    act(() => mockLocaleRerender?.())
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('No se pudo cargar'))
+    expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(1)
+  })
+
   it('recovers from an initial load failure with Retry', async () => {
     failNextHandoffLoad = true
     const user = userEvent.setup()

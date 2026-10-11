@@ -624,7 +624,9 @@ function HandoffPageInner() {
   const [handoffs, setHandoffs] = React.useState<Handoff[]>([])
   const [loading, setLoading] = React.useState(true)
   // loadError: the list failed to load. error: the open modal's save/delete failed.
-  const [loadError, setLoadError] = React.useState<string | null>(null)
+  // Keep this semantic so a locale change can update the visible copy without
+  // making the canonical list request run again.
+  const [loadError, setLoadError] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
   const [editHandoff, setEditHandoff] = React.useState<Handoff | null>(null)
@@ -642,13 +644,13 @@ function HandoffPageInner() {
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
       setHandoffs(data.handoffs || [])
-      setLoadError(null)
+      setLoadError(false)
     } catch {
-      setLoadError(t('common.error'))
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   // Get user role
   React.useEffect(() => {
