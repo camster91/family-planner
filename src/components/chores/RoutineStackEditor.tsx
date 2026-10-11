@@ -1127,18 +1127,18 @@ export default function RoutineStackEditor({
       initialFocusRef={discardCancelRef}
       testId="routine-stack-discard-dialog"
     >
-      <div className="flex flex-wrap justify-end gap-3 p-5">
+      <div className="grid gap-3 p-5 sm:flex sm:flex-wrap sm:justify-end">
         <button
           ref={discardCancelRef}
           type="button"
-          className="btn-tinted min-h-[44px]"
+          className="btn-tinted min-h-[44px] w-full sm:w-auto"
           onClick={() => setDiscardAction(null)}
         >
           {msg("keepEditing")}
         </button>
         <button
           type="button"
-          className="btn-destructive min-h-[44px]"
+          className="btn-destructive min-h-[44px] w-full sm:w-auto"
           onClick={confirmDiscard}
         >
           {discardAction === "reload" ? msg("reload") : msg("discard")}

@@ -278,6 +278,11 @@ it("treats an identity conflict as a localized definitive reload", async () => {
   await user.click(reload);
   const discard = screen.getByRole("alertdialog");
   expect(discard).toBeTruthy();
+  const reloadConfirm = within(discard).getByRole("button", {
+    name: "Cargar la rutina más reciente",
+  });
+  expect(reloadConfirm.className).toEqual(expect.stringContaining("w-full"));
+  expect(reloadConfirm.className).toEqual(expect.stringContaining("sm:w-auto"));
   await user.click(
     within(discard).getByRole("button", { name: "Seguir editando" }),
   );
