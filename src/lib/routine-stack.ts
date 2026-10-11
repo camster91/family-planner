@@ -122,6 +122,12 @@ export function normalizeRoutineStackDraft(input: unknown): RoutineStackDraft {
 
   const seen = new Set<string>();
   for (const step of parsed.data.steps) {
+    if (step.is_template || step.recurrence_id) {
+      throw new RoutineStackValidationError(
+        "ROUTINE_STACK_RECURRENCE_UNSUPPORTED",
+        "Routine stacks can edit one occurrence at a time; recurring templates are not supported yet.",
+      );
+    }
     if (step.chore_id && seen.has(step.chore_id)) {
       throw new RoutineStackValidationError(
         "ROUTINE_STACK_DUPLICATE_STEP",
@@ -139,6 +145,15 @@ export function normalizeRoutineStackDraft(input: unknown): RoutineStackDraft {
       throw new RoutineStackValidationError(
         "ROUTINE_STACK_INVALID_STEP_DATE",
         "A routine step has an invalid date.",
+      );
+    }
+    if (
+      !step.chore_id &&
+      step.due_date.slice(0, 10) !== parsed.data.occurrence_date
+    ) {
+      throw new RoutineStackValidationError(
+        "ROUTINE_STACK_STEP_DATE_SCOPE",
+        "New routine steps must use the selected occurrence date.",
       );
     }
     const weekdays = normalizedWeekdays(step.weekly_days);
@@ -204,6 +219,18 @@ export interface RoutineStackSnapshotStep {
   frequency: string;
   weekly_days?: readonly number[];
   icon?: string | null;
+  points?: number;
+  photo_url?: string | null;
+  photo_verified?: boolean;
+  verified_at?: Date | string | null;
+  verified_notes?: string | null;
+  completed_at?: Date | string | null;
+  created_at?: Date | string | null;
+  created_by?: string;
+  successor_id?: string | null;
+  rotation_member_ids?: readonly string[];
+  rotation_index?: number | null;
+  routine_stack_id?: string | null;
 }
 
 function canonicalValue(value: unknown): string {
@@ -241,6 +268,18 @@ export function routineStackFingerprintInput(
       frequency: step.frequency,
       weekly_days: normalizedWeekdays(step.weekly_days),
       icon: step.icon ?? null,
+      points: step.points ?? 10,
+      photo_url: step.photo_url ?? null,
+      photo_verified: step.photo_verified === true,
+      verified_at: step.verified_at ?? null,
+      verified_notes: step.verified_notes ?? null,
+      completed_at: step.completed_at ?? null,
+      created_at: step.created_at ?? null,
+      created_by: step.created_by ?? null,
+      successor_id: step.successor_id ?? null,
+      rotation_member_ids: [...(step.rotation_member_ids ?? [])],
+      rotation_index: step.rotation_index ?? null,
+      routine_stack_id: step.routine_stack_id ?? null,
     }));
 }
 

@@ -67,6 +67,28 @@ describe("routine stack contract", () => {
         expected_fingerprint: "",
       }),
     ).toThrow(/require a weekly routine/);
+
+    expect(() =>
+      normalizeRoutineStackDraft({
+        family_id: "family-a",
+        occurrence_date: "2026-10-12",
+        label: "Morning",
+        steps: [step({ recurrence_id: "series-a", weekly_days: [] })],
+        expected_fingerprint: "",
+      }),
+    ).toThrow(/recurring templates/);
+
+    expect(() =>
+      normalizeRoutineStackDraft({
+        family_id: "family-a",
+        occurrence_date: "2026-10-12",
+        label: "Morning",
+        steps: [
+          step({ title: "New step", due_date: "2026-10-13", weekly_days: [] }),
+        ],
+        expected_fingerprint: "",
+      }),
+    ).toThrow(/selected occurrence date/);
   });
 
   it("fingerprints the selected row data independent of request ordering", () => {
@@ -105,6 +127,23 @@ describe("routine stack contract", () => {
       fingerprintRoutineStackSnapshot(
         base.map((row) =>
           row.id === "a" ? { ...row, assigned_to: "user-c" } : row,
+        ),
+      ),
+    );
+    expect(fingerprintRoutineStackSnapshot(base)).not.toBe(
+      fingerprintRoutineStackSnapshot(
+        base.map((row) =>
+          row.id === "a"
+            ? {
+                ...row,
+                points: 20,
+                photo_url: "/uploads/proof.jpg",
+                photo_verified: true,
+                verified_at: "2026-10-12T12:00:00.000Z",
+                verified_notes: "Looks good",
+                completed_at: "2026-10-12T11:00:00.000Z",
+              }
+            : row,
         ),
       ),
     );

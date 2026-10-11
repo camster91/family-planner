@@ -233,6 +233,88 @@ describe("routine stack transaction coordinator", () => {
     expect(state.writes).toEqual([]);
   });
 
+  it("requires a non-empty current fingerprint and rejects omitted occurrence rows", async () => {
+    const first = existingChore();
+    const second = existingChore({
+      id: "chore-b",
+      title: "Pack bag",
+      routine_order: 2,
+    });
+    const fullFingerprint = fingerprintRoutineStackSnapshot([
+      first as never,
+      second as never,
+    ]);
+    const { tx } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [first, second],
+    });
+
+    await expect(
+      mutateRoutineStackInTx(tx, input({ expected_fingerprint: "" }), {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    await expect(
+      mutateRoutineStackInTx(
+        tx,
+        input({ expected_fingerprint: fullFingerprint }),
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("runs canonical chore validation for a new routine step", async () => {
+    const { tx } = makeTx();
+    await expect(
+      mutateRoutineStackInTx(
+        tx,
+        {
+          family_id: "family-a",
+          occurrence_date: "2026-10-12",
+          label: "Morning",
+          steps: [
+            {
+              title: "New step",
+              assigned_to: "user-a",
+              due_date: "2026-10-12",
+              frequency: "once",
+              icon: "not-a-built-in-icon",
+            },
+          ],
+          remove_chore_ids: [],
+          expected_fingerprint: "",
+        },
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+        { resolveAssignee: async () => ({ assigned_to: "user-a" }) },
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("does not mutate an occurrence that is backed by a recurrence series", async () => {
+    const chore = existingChore({ recurrence_id: "series-a" });
+    const draft = normalizeRoutineStackDraft(
+      input({
+        expected_fingerprint: fingerprintRoutineStackSnapshot([chore as never]),
+      }),
+    );
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [chore],
+    });
+
+    await expect(
+      mutateRoutineStackInTx(tx, draft, {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(state.writes).toEqual([]);
+  });
+
   it("does not expose mutation details to a child or teen", async () => {
     const { tx, state } = makeTx();
     const result = await mutateRoutineStackInTx(tx, input(), {

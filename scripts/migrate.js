@@ -924,18 +924,20 @@ CREATE TABLE IF NOT EXISTS "RoutineStack" (
   "label" TEXT NOT NULL,
   "version" INTEGER NOT NULL DEFAULT 1,
   "fingerprint" TEXT NOT NULL,
-  "created_by" TEXT NOT NULL,
+  "created_by" TEXT,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE "RoutineStack" ALTER COLUMN "created_by" DROP NOT NULL;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_stack_id" TEXT;
 DO $$ BEGIN
   ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_family_id_fkey"
     FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TABLE "RoutineStack" DROP CONSTRAINT IF EXISTS "RoutineStack_created_by_fkey";
 DO $$ BEGIN
   ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_created_by_fkey"
-    FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_id_family_id_key"

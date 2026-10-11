@@ -8,7 +8,9 @@
  */
 import crypto from "node:crypto";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
+import { lockHousehold } from "@/lib/household-lock";
 import { hashIdempotentRequest } from "@/lib/idempotency";
+import { createChoreSchema } from "@/lib/validations";
 import {
   fingerprintRoutineStackSnapshot,
   normalizeRoutineStackDraft,
@@ -117,6 +119,35 @@ function snapshotRows(
       ? row.weekly_days.filter((day): day is number => typeof day === "number")
       : [],
     icon: typeof row.icon === "string" ? row.icon : null,
+    points: typeof row.points === "number" ? row.points : 10,
+    photo_url: typeof row.photo_url === "string" ? row.photo_url : null,
+    photo_verified: row.photo_verified === true,
+    verified_at:
+      row.verified_at instanceof Date || typeof row.verified_at === "string"
+        ? row.verified_at
+        : null,
+    verified_notes:
+      typeof row.verified_notes === "string" ? row.verified_notes : null,
+    completed_at:
+      row.completed_at instanceof Date || typeof row.completed_at === "string"
+        ? row.completed_at
+        : null,
+    created_at:
+      row.created_at instanceof Date || typeof row.created_at === "string"
+        ? row.created_at
+        : null,
+    created_by: typeof row.created_by === "string" ? row.created_by : undefined,
+    successor_id:
+      typeof row.successor_id === "string" ? row.successor_id : null,
+    rotation_member_ids: Array.isArray(row.rotation_member_ids)
+      ? row.rotation_member_ids.filter(
+          (member): member is string => typeof member === "string",
+        )
+      : [],
+    rotation_index:
+      typeof row.rotation_index === "number" ? row.rotation_index : null,
+    routine_stack_id:
+      typeof row.routine_stack_id === "string" ? row.routine_stack_id : null,
   }));
 }
 
@@ -152,13 +183,22 @@ async function lockFamily(
   if (result.length === 0) throw genericNotFound();
 }
 
+function occurrenceBounds(date: string): { start: Date; end: Date } {
+  const start = new Date(`${date}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
+
 async function lockChore(
   tx: RuntimeTransaction,
   familyId: string,
   choreId: string,
+  occurrenceDate: string,
 ): Promise<void> {
+  const { start, end } = occurrenceBounds(occurrenceDate);
   const result = rows(
-    await tx.$queryRaw`SELECT "id" FROM "Chore" WHERE "id" = ${choreId} AND "family_id" = ${familyId} FOR UPDATE`,
+    await tx.$queryRaw`SELECT "id" FROM "Chore" WHERE "id" = ${choreId} AND "family_id" = ${familyId} AND "due_date" >= ${start} AND "due_date" < ${end} FOR UPDATE`,
   );
   if (result.length === 0) throw genericNotFound();
 }
@@ -260,6 +300,9 @@ export async function mutateRoutineStackInTx<T extends object>(
     }
   }
 
+  // Household deletion acquires this advisory lock before its Family row lock.
+  // Match that order so a routine mutation cannot race the deletion snapshot.
+  await lockHousehold(tx, actor.familyId);
   await lockFamily(tx, actor.familyId);
   let stack = draft.stack_id
     ? asRecord(
@@ -270,13 +313,64 @@ export async function mutateRoutineStackInTx<T extends object>(
     : null;
   if (draft.stack_id && !stack?.id) throw genericNotFound();
 
+  if (stack?.id && !draft.expected_fingerprint) {
+    throw invalid("Reload this routine before saving it.");
+  }
+  if (!stack?.id && draft.expected_fingerprint) {
+    throw invalid("A new routine cannot include an existing fingerprint.");
+  }
+
   const selectedIds = draft.steps
     .flatMap((step) => (step.chore_id ? [step.chore_id] : []))
     .concat(draft.remove_chore_ids);
-  for (const id of selectedIds) await lockChore(tx, actor.familyId, id);
+  for (const id of selectedIds)
+    await lockChore(tx, actor.familyId, id, draft.occurrence_date);
+  const { start: occurrenceStart, end: occurrenceEnd } = occurrenceBounds(
+    draft.occurrence_date,
+  );
+  const currentStackRows = stack?.id
+    ? rows(
+        await tx.chore.findMany({
+          where: {
+            family_id: actor.familyId,
+            routine_stack_id: String(stack.id),
+            due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+          },
+          orderBy: { routine_order: "asc" },
+        }),
+      )
+    : [];
+  if (
+    stack?.id &&
+    fingerprintRoutineStackSnapshot(snapshotRows(currentStackRows)) !==
+      draft.expected_fingerprint
+  ) {
+    throw conflict();
+  }
+  if (
+    currentStackRows.some(
+      (row) => row.is_template === true || Boolean(row.recurrence_id),
+    )
+  ) {
+    throw invalid(
+      "Recurring chore templates must be edited outside an occurrence routine.",
+    );
+  }
+  if (stack?.id) {
+    const submittedIds = new Set(selectedIds);
+    if (currentStackRows.some((row) => !submittedIds.has(String(row.id)))) {
+      throw conflict(
+        "Every current routine step must be kept or removed explicitly.",
+      );
+    }
+  }
   const existingRows = rows(
     await tx.chore.findMany({
-      where: { family_id: actor.familyId, id: { in: selectedIds } },
+      where: {
+        family_id: actor.familyId,
+        id: { in: selectedIds },
+        due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+      },
       orderBy: { routine_order: "asc" },
     }),
   );
@@ -285,12 +379,13 @@ export async function mutateRoutineStackInTx<T extends object>(
   );
   if (existingRows.length !== selectedIds.length) throw genericNotFound();
   if (
-    stack &&
-    draft.expected_fingerprint &&
-    fingerprintRoutineStackSnapshot(snapshotRows(existingRows)) !==
-      draft.expected_fingerprint
+    existingRows.some(
+      (row) => row.is_template === true || Boolean(row.recurrence_id),
+    )
   ) {
-    throw conflict();
+    throw invalid(
+      "Recurring chore templates must be edited outside an occurrence routine.",
+    );
   }
   for (const row of existingRows) {
     if (!sameDate(row.due_date, draft.occurrence_date))
@@ -369,6 +464,25 @@ export async function mutateRoutineStackInTx<T extends object>(
       if (!current) throw genericNotFound();
       await tx.chore.update({ where: { id: step.chore_id }, data });
     } else {
+      const canonical = createChoreSchema.safeParse({
+        title: step.title,
+        description: step.description ?? null,
+        points: 10,
+        assigned_to: assignee.assigned_to,
+        due_date: step.due_date,
+        difficulty: step.difficulty,
+        frequency: step.frequency,
+        weekly_days: step.frequency === "weekly" ? step.weekly_days : undefined,
+        icon: step.icon ?? null,
+        routine: draft.label,
+        routine_order: index + 1,
+      });
+      if (!canonical.success) {
+        throw invalid(
+          canonical.error.issues[0]?.message ??
+            "The new routine step is not valid.",
+        );
+      }
       await tx.chore.create({
         data: {
           ...data,
@@ -397,7 +511,11 @@ export async function mutateRoutineStackInTx<T extends object>(
 
   const freshRows = rows(
     await tx.chore.findMany({
-      where: { family_id: actor.familyId, routine_stack_id: stackId },
+      where: {
+        family_id: actor.familyId,
+        routine_stack_id: stackId,
+        due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+      },
       orderBy: { routine_order: "asc" },
     }),
   );

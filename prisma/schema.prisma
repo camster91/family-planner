@@ -502,12 +502,12 @@ model RoutineStack {
   label      String
   version    Int      @default(1)
   fingerprint String
-  created_by String
+  created_by String?
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
   family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  creator User   @relation("RoutineStackCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  creator User?  @relation("RoutineStackCreator", fields: [created_by], references: [id], onDelete: SetNull)
   chores  Chore[]
 
   @@unique([id, family_id], map: "RoutineStack_id_family_id_key")
