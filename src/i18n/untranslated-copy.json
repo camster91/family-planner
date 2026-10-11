@@ -1555,11 +1555,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/[listId]/DeleteListButton.tsx",
-    "text": "Delete list",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
     "text": "Add",
     "count": 1
