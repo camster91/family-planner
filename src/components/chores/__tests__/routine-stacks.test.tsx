@@ -28,6 +28,16 @@ it('uses durable stack identity when one occurrence spans different members', ()
   expect(groups[1].steps.map(s => s.id)).toEqual(['other-stack'])
 })
 
+it('keeps one durable occurrence together when persisted labels differ', () => {
+  const groups = routineStacks([
+    step('second', 2, { routine_stack_id: 'stack-a', routine: 'Later label', assigned_to: 'child' }),
+    step('first', 1, { routine_stack_id: 'stack-a', routine: 'Original label' }),
+  ])
+  expect(groups).toHaveLength(1)
+  expect(groups[0].steps.map(s => s.id)).toEqual(['first', 'second'])
+  expect(groups[0].key).toContain('"stack-a"')
+})
+
 it('shows progress, next step and all later steps without locking or marking them done', async () => {
   const complete = jest.fn()
   render(<RoutineStacks chores={[step('wash', 2), step('clear', 1, { status: 'verified' }), step('tidy', 3, { status: 'completed' }), step('prepare', 4)]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={complete} />)

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import {
@@ -9,14 +10,9 @@ import {
   type RoutineStackMessage,
 } from "@/i18n/routine-stack";
 import { useTranslation } from "@/i18n";
-import type {
-  ParentRoutineStackCandidates,
-  ParentRoutineStackRead,
-} from "@/lib/routine-stack-api";
 
-type Candidate = ParentRoutineStackCandidates["candidates"][number];
-type AssignmentOption =
-  ParentRoutineStackCandidates["assignmentOptions"][number];
+type Candidate = ParsedCandidates["candidates"][number];
+type AssignmentOption = ParsedCandidates["assignmentOptions"][number];
 
 type DraftStep = {
   draftId: string;
@@ -45,30 +41,189 @@ type RoutineStackEditorProps = {
 
 class RoutineEditorRequestError extends Error {
   readonly status: number;
+  readonly code: string | undefined;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "RoutineEditorRequestError";
     this.status = status;
+    this.code = code;
   }
 }
 
-function displayError(error: unknown, fallback: string): string {
-  return error instanceof RoutineEditorRequestError ? error.message : fallback;
+function errorCodeFromBody(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && code.trim() ? code : undefined;
 }
 
-function messageFromBody(body: unknown, fallback: string): string {
-  if (!body || typeof body !== "object") return fallback;
-  const error = (body as { error?: unknown }).error;
-  if (!error || typeof error !== "object") return fallback;
-  const message = (error as { message?: unknown }).message;
-  return typeof message === "string" && message.trim() ? message : fallback;
+const candidateSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string(),
+    description: z.string().nullable(),
+    assigned_to: z.string().min(1),
+    assigned_member_id: z.string().nullable(),
+    due_date: z.string().min(1),
+    recurrence_id: z.string().nullable(),
+    is_template: z.literal(false),
+    routine: z.string().nullable(),
+    routine_order: z.number().int().nullable(),
+    status: z.string(),
+    frequency: z.string(),
+    weekly_days: z.array(z.number().int()),
+    difficulty: z.string().nullable(),
+    icon: z.string().nullable(),
+  })
+  .strict();
+
+const assignmentOptionSchema = z
+  .object({
+    accountId: z.string().min(1),
+    name: z.string(),
+    role: z.string(),
+  })
+  .strict();
+
+const candidatesResponseSchema = z
+  .object({
+    occurrence_date: z.string().min(1),
+    candidates: z.array(candidateSchema),
+    assignmentOptions: z.array(assignmentOptionSchema),
+    hasMore: z.boolean(),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+
+const readStepSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string(),
+    description: z.string().nullable(),
+    assigned_to: z.string().min(1),
+    assigned_member_id: z.string().nullable(),
+    member_subject_erased: z.boolean(),
+    due_date: z.string().min(1),
+    recurrence_id: z.string().nullable(),
+    is_template: z.boolean(),
+    routine: z.string().nullable(),
+    routine_order: z.number().int().nullable(),
+    status: z.string(),
+    frequency: z.string(),
+    weekly_days: z.array(z.number().int()),
+    difficulty: z.string().nullable(),
+    icon: z.string().nullable(),
+    points: z.number(),
+    photo_url: z.string().nullable(),
+    photo_verified: z.boolean(),
+    verified_at: z.string().nullable(),
+    verified_notes: z.string().nullable(),
+    completed_at: z.string().nullable(),
+  })
+  .strict();
+
+const compactResponseSchema = z
+  .object({
+    stack_id: z.string().min(1),
+    version: z.number().int(),
+    steps: z.array(
+      z.tuple([z.string().min(1), z.number().int(), z.number().int()]),
+    ),
+    assignments: z.array(z.tuple([z.string().min(1), z.string().nullable()])),
+    members: z.array(z.tuple([z.string().min(1), z.string()])),
+    fingerprint: z.string(),
+  })
+  .strict();
+
+const readResponseSchema = z
+  .object({
+    stack: z
+      .object({
+        id: z.string().min(1),
+        family_id: z.string().min(1),
+        label: z.string(),
+        version: z.number().int(),
+      })
+      .strict(),
+    occurrence_date: z.string().min(1),
+    fingerprint: z.string(),
+    steps: z.array(readStepSchema),
+    members: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          displayName: z.string(),
+          role: z.string(),
+          subjectState: z.enum(["eligible", "archived", "erased", "dormant"]),
+        })
+        .strict(),
+    ),
+    compact: compactResponseSchema,
+  })
+  .strict();
+
+type ParsedCandidates = z.infer<typeof candidatesResponseSchema>;
+type ParsedRead = z.infer<typeof readResponseSchema>;
+type SaveBody = {
+  scope: "occurrence";
+  family_id: string;
+  stack_id: string | null;
+  occurrence_date: string;
+  label: string;
+  steps: Array<Record<string, unknown>>;
+  remove_chore_ids: string[];
+  expected_fingerprint: string;
+};
+type SavePacket = Readonly<{ key: string; bytes: string }>;
+type Submission = Readonly<{
+  phase: "pending" | "unknown" | "conflict";
+  packet: SavePacket;
+}>;
+
+function localizedRequestError(
+  error: unknown,
+  msg: (key: RoutineStackMessage) => string,
+  fallback: RoutineStackMessage,
+): string {
+  if (!(error instanceof RoutineEditorRequestError)) return msg(fallback);
+  switch (error.code) {
+    case "ROUTINE_STACK_CONFLICT":
+    case "IDEMPOTENCY_KEY_REUSED":
+    case "IDEMPOTENCY_IN_PROGRESS":
+    case "IDENTITY_CONFLICT":
+      return msg("conflict");
+    case "FORBIDDEN":
+      return msg("forbidden");
+    case "ROUTINE_STACK_NOT_FOUND":
+      return msg("notFound");
+    case "ROUTINE_STACK_INVALID_DRAFT":
+    case "INVALID_JSON":
+    case "ROUTINE_STACK_INVALID_LABEL":
+    case "ROUTINE_STACK_STEP_TITLE_REQUIRED":
+    case "ROUTINE_STACK_INVALID_STEP_DATE":
+    case "ROUTINE_STACK_INVALID_DATE":
+    case "ROUTINE_STACK_FUTURE_UNSUPPORTED":
+    case "ROUTINE_STACK_RECURRENCE_UNSUPPORTED":
+    case "ROUTINE_STACK_DUPLICATE_STEP":
+    case "ROUTINE_STACK_STEP_DATE_SCOPE":
+    case "ROUTINE_STACK_DUPLICATE_WEEKDAY":
+    case "ROUTINE_STACK_WEEKDAY_REQUIRED":
+    case "ROUTINE_STACK_WEEKDAY_FREQUENCY":
+    case "ROUTINE_STACK_DUPLICATE_REMOVE":
+    case "ROUTINE_STACK_RESPONSE_TOO_LARGE":
+      return msg("invalidDraft");
+    default:
+      return msg(fallback);
+  }
 }
 
 async function requestJson<T>(
   url: string,
   init: RequestInit | undefined,
   fallback: string,
+  parse: (body: unknown) => T,
 ): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -79,10 +234,19 @@ async function requestJson<T>(
   if (!response.ok) {
     throw new RoutineEditorRequestError(
       response.status,
-      messageFromBody(body, fallback),
+      fallback,
+      errorCodeFromBody(body),
     );
   }
-  return body as T;
+  try {
+    return parse(body);
+  } catch {
+    throw new RoutineEditorRequestError(
+      response.status,
+      fallback,
+      "INVALID_RESPONSE",
+    );
+  }
 }
 
 function todayDate(): string {
@@ -124,7 +288,7 @@ function fromCandidate(candidate: Candidate, draftId: string): DraftStep {
 }
 
 function fromReadStep(
-  step: ParentRoutineStackRead["steps"][number],
+  step: ParsedRead["steps"][number],
   draftId: string,
 ): DraftStep {
   return {
@@ -179,8 +343,16 @@ export default function RoutineStackEditor({
   const [newTitle, setNewTitle] = React.useState("");
   const [newAssignee, setNewAssignee] = React.useState("");
   const [reloadVersion, setReloadVersion] = React.useState(0);
+  const [dirty, setDirty] = React.useState(false);
+  const [submission, setSubmission] = React.useState<Submission | null>(null);
+  const [discardAction, setDiscardAction] = React.useState<
+    "close" | "reload" | null
+  >(null);
   const labelRef = React.useRef<HTMLInputElement>(null);
+  const discardCancelRef = React.useRef<HTMLButtonElement>(null);
   const idempotencyKeyRef = React.useRef<string | null>(null);
+  const submissionRef = React.useRef<Submission | null>(null);
+  const dirtyRef = React.useRef(false);
   const savingRef = React.useRef(false);
   const draftIdRef = React.useRef(0);
   const initialIdsRef = React.useRef<Set<string>>(new Set());
@@ -190,18 +362,38 @@ export default function RoutineStackEditor({
     return `draft-${draftIdRef.current}`;
   }, []);
 
+  const setSubmissionState = React.useCallback((value: Submission | null) => {
+    submissionRef.current = value;
+    setSubmission(value);
+  }, []);
+
+  const markDirty = React.useCallback(() => {
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
+
+  const clearDirty = React.useCallback(() => {
+    dirtyRef.current = false;
+    setDirty(false);
+  }, []);
+
   React.useEffect(() => {
     const controller = new AbortController();
     let active = true;
     setLoading(true);
     setLoadError(null);
     setSaveError(null);
+    setSubmissionState(null);
+    idempotencyKeyRef.current = null;
+    clearDirty();
     setNextCursor(null);
     setCandidates([]);
     setAssignmentOptions([]);
     setSteps([]);
     setRemoveChoreIds([]);
     setFingerprint("");
+    setNewTitle("");
+    setNewAssignee("");
     setStackId(requestedStackId);
 
     const load = async () => {
@@ -212,25 +404,45 @@ export default function RoutineStackEditor({
         );
         candidateUrl.searchParams.set("occurrence_date", occurrenceDate);
         const requests: [
-          Promise<ParentRoutineStackCandidates>,
-          Promise<ParentRoutineStackRead> | null,
+          Promise<ParsedCandidates>,
+          Promise<ParsedRead> | null,
         ] = [
-          requestJson<ParentRoutineStackCandidates>(
+          requestJson<ParsedCandidates>(
             candidateUrl.toString(),
             { signal: controller.signal },
             msgRef.current("loadError"),
+            (body) => candidatesResponseSchema.parse(body),
           ),
           requestedStackId
-            ? requestJson<ParentRoutineStackRead>(
+            ? requestJson<ParsedRead>(
                 `/api/chores/stacks?stack_id=${encodeURIComponent(requestedStackId)}&occurrence_date=${encodeURIComponent(occurrenceDate)}`,
                 { signal: controller.signal },
                 msgRef.current("loadError"),
+                (body) => readResponseSchema.parse(body),
               )
             : null,
         ];
         const [candidateResult, stackResult] = await Promise.all(requests);
         if (!active) return;
         const stack = stackResult;
+        if (
+          candidateResult.occurrence_date !== occurrenceDate ||
+          candidateResult.candidates.some(
+            (candidate) => dateOnly(candidate.due_date) !== occurrenceDate,
+          ) ||
+          (stack &&
+            (stack.occurrence_date !== occurrenceDate ||
+              stack.stack.family_id !== familyId ||
+              stack.steps.some(
+                (step) => dateOnly(step.due_date) !== occurrenceDate,
+              )))
+        ) {
+          throw new RoutineEditorRequestError(
+            200,
+            msgRef.current("loadError"),
+            "INVALID_RESPONSE",
+          );
+        }
         setCandidates(candidateResult.candidates);
         setAssignmentOptions(candidateResult.assignmentOptions);
         setNextCursor(candidateResult.nextCursor);
@@ -244,13 +456,20 @@ export default function RoutineStackEditor({
           loadedSteps.flatMap((step) => (step.choreId ? [step.choreId] : [])),
         );
         setSteps(loadedSteps);
+        clearDirty();
       } catch (error) {
         if (
           !active ||
           (error instanceof DOMException && error.name === "AbortError")
         )
           return;
-        setLoadError(displayError(error, msgRef.current("loadError")));
+        setLoadError(
+          localizedRequestError(
+            error,
+            (key) => msgRef.current(key),
+            "loadError",
+          ),
+        );
       } finally {
         if (active) setLoading(false);
       }
@@ -263,15 +482,29 @@ export default function RoutineStackEditor({
     // The locale callback is read through msgRef so a language switch never
     // reloads the server data and discards an in-progress draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [occurrenceDate, reloadVersion, requestedStackId]);
+  }, [
+    clearDirty,
+    occurrenceDate,
+    reloadVersion,
+    requestedStackId,
+    setSubmissionState,
+  ]);
 
   React.useEffect(() => {
     if (!newAssignee && assignmentOptions[0])
       setNewAssignee(assignmentOptions[0].accountId);
   }, [assignmentOptions, newAssignee]);
 
+  const editingLocked = saving || submission !== null;
+
   const loadMore = async () => {
-    if (!nextCursor || loadingMore) return;
+    if (
+      !nextCursor ||
+      loadingMore ||
+      savingRef.current ||
+      submissionRef.current
+    )
+      return;
     setLoadingMore(true);
     setLoadError(null);
     try {
@@ -281,29 +514,33 @@ export default function RoutineStackEditor({
       );
       url.searchParams.set("occurrence_date", occurrenceDate);
       url.searchParams.set("cursor", nextCursor);
-      const result = await requestJson<ParentRoutineStackCandidates>(
+      const result = await requestJson<ParsedCandidates>(
         url.toString(),
         undefined,
         msg("loadError"),
+        (body) => candidatesResponseSchema.parse(body),
       );
       setCandidates((current) => [...current, ...result.candidates]);
       setNextCursor(result.nextCursor);
       if (result.assignmentOptions.length)
         setAssignmentOptions(result.assignmentOptions);
     } catch (error) {
-      setLoadError(displayError(error, msg("loadError")));
+      setLoadError(localizedRequestError(error, msg, "loadError"));
     } finally {
       setLoadingMore(false);
     }
   };
 
   const addCandidate = (candidate: Candidate) => {
+    if (savingRef.current || submissionRef.current) return;
     if (steps.some((step) => step.choreId === candidate.id)) return;
     setSteps((current) => [...current, fromCandidate(candidate, newDraftId())]);
     setRemoveChoreIds((current) => current.filter((id) => id !== candidate.id));
+    markDirty();
   };
 
   const addNewStep = () => {
+    if (savingRef.current || submissionRef.current) return;
     const title = newTitle.trim();
     if (!title || !newAssignee) {
       setSaveError(!title ? msg("titleRequired") : msg("assignmentRequired"));
@@ -328,9 +565,11 @@ export default function RoutineStackEditor({
     ]);
     setNewTitle("");
     setSaveError(null);
+    markDirty();
   };
 
   const removeStep = (step: DraftStep) => {
+    if (savingRef.current || submissionRef.current) return;
     if (steps.length <= 1) {
       setSaveError(msg("oneStepRequired"));
       return;
@@ -343,9 +582,11 @@ export default function RoutineStackEditor({
         current.includes(step.choreId!) ? current : [...current, step.choreId!],
       );
     }
+    markDirty();
   };
 
   const moveStep = (index: number, direction: -1 | 1) => {
+    if (savingRef.current || submissionRef.current) return;
     const target = index + direction;
     if (target < 0 || target >= steps.length) return;
     setSteps((current) => {
@@ -354,9 +595,11 @@ export default function RoutineStackEditor({
       copy.splice(target, 0, item);
       return copy;
     });
+    markDirty();
   };
 
   const changeAssignment = (draftId: string, assignedTo: string) => {
+    if (savingRef.current || submissionRef.current) return;
     setSteps((current) =>
       current.map((step) =>
         step.draftId === draftId
@@ -369,24 +612,79 @@ export default function RoutineStackEditor({
           : step,
       ),
     );
+    markDirty();
   };
 
-  const save = async (event: React.FormEvent) => {
+  const submitPacket = React.useCallback(
+    async (packet: SavePacket) => {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      setSaving(true);
+      setSaveError(null);
+      setSubmissionState({ phase: "pending", packet });
+      try {
+        await requestJson(
+          "/api/chores/stacks",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [IDEMPOTENCY_HEADER]: packet.key,
+            },
+            body: packet.bytes,
+          },
+          msg("networkError"),
+          (body) => compactResponseSchema.parse(body),
+        );
+        setSubmissionState(null);
+        idempotencyKeyRef.current = null;
+        clearDirty();
+        router.refresh();
+        if (onClose) onClose();
+        else router.back();
+      } catch (error) {
+        const requestError =
+          error instanceof RoutineEditorRequestError ? error : null;
+        if (requestError?.status === 409) {
+          setSubmissionState({ phase: "conflict", packet });
+          setSaveError(localizedRequestError(error, msg, "conflict"));
+        } else if (
+          !requestError ||
+          requestError.status >= 500 ||
+          requestError.code === "INVALID_RESPONSE"
+        ) {
+          // A network failure, 5xx, or malformed 2xx may have committed. Keep
+          // the exact packet and key so Retry can safely reconcile it.
+          setSubmissionState({ phase: "unknown", packet });
+          setSaveError(msg("unknownSave"));
+        } else {
+          // A definitive client/authorization rejection leaves the draft
+          // editable, but a new attempt receives a fresh key and bytes.
+          setSubmissionState(null);
+          idempotencyKeyRef.current = null;
+          setSaveError(localizedRequestError(error, msg, "saveError"));
+        }
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    },
+    [clearDirty, msg, onClose, router, setSubmissionState],
+  );
+
+  const save = (event: React.FormEvent) => {
     event.preventDefault();
-    if (saving || savingRef.current) return;
+    if (savingRef.current || submissionRef.current) return;
     if (!label.trim() || steps.length === 0) {
       setSaveError(
         steps.length === 0 ? msg("oneStepRequired") : msg("labelRequired"),
       );
       return;
     }
-    const key = idempotencyKeyRef.current ?? newIdempotencyKey();
+    const key = newIdempotencyKey();
     idempotencyKeyRef.current = key;
-    savingRef.current = true;
-    setSaving(true);
-    setSaveError(null);
-    const body = {
-      scope: "occurrence" as const,
+    const body: SaveBody = {
+      scope: "occurrence",
       family_id: familyId,
       stack_id: stackId,
       occurrence_date: occurrenceDate,
@@ -407,36 +705,54 @@ export default function RoutineStackEditor({
       remove_chore_ids: removeChoreIds,
       expected_fingerprint: fingerprint,
     };
-    try {
-      await requestJson(
-        "/api/chores/stacks",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [IDEMPOTENCY_HEADER]: key,
-          },
-          body: JSON.stringify(body),
-        },
-        msg("networkError"),
-      );
-      router.refresh();
-      if (onClose) onClose();
-      else router.back();
-    } catch (error) {
-      if (error instanceof RoutineEditorRequestError && error.status === 409) {
-        setSaveError(msg("conflict"));
-      } else {
-        setSaveError(displayError(error, msg("networkError")));
-      }
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
+    const packet: SavePacket = Object.freeze({
+      key,
+      bytes: JSON.stringify(body),
+    });
+    setSubmissionState({ phase: "pending", packet });
+    void submitPacket(packet);
+  };
+
+  const openDiscard = (action: "close" | "reload") => {
+    if (
+      saving ||
+      savingRef.current ||
+      submission?.phase === "pending" ||
+      submission?.phase === "unknown"
+    )
+      return;
+    setDiscardAction(action);
   };
 
   const handleClose = () => {
-    if (saving || savingRef.current) return;
+    if (saving || savingRef.current || submission) return;
+    if (dirtyRef.current) {
+      openDiscard("close");
+      return;
+    }
+    if (onClose) onClose();
+    else router.back();
+  };
+
+  const confirmDiscard = () => {
+    const action = discardAction;
+    if (
+      !action ||
+      saving ||
+      savingRef.current ||
+      submission?.phase === "pending" ||
+      submission?.phase === "unknown"
+    )
+      return;
+    setDiscardAction(null);
+    setSubmissionState(null);
+    idempotencyKeyRef.current = null;
+    clearDirty();
+    setSaveError(null);
+    if (action === "reload") {
+      setReloadVersion((value) => value + 1);
+      return;
+    }
     if (onClose) onClose();
     else router.back();
   };
@@ -459,6 +775,7 @@ export default function RoutineStackEditor({
       onSubmit={save}
       className="space-y-5"
       data-testid="routine-stack-editor"
+      data-dirty={dirty ? "true" : "false"}
     >
       {loading ? (
         <p role="status" className="py-8 text-center text-label-secondary">
@@ -493,7 +810,9 @@ export default function RoutineStackEditor({
               value={label}
               onChange={(event) => {
                 setLabel(event.target.value);
+                markDirty();
               }}
+              disabled={editingLocked}
               className="input-field w-full min-h-[44px]"
               placeholder={msg("labelPlaceholder")}
               maxLength={200}
@@ -555,6 +874,7 @@ export default function RoutineStackEditor({
                         onChange={(event) =>
                           changeAssignment(step.draftId, event.target.value)
                         }
+                        disabled={editingLocked}
                         className="input-field mt-2 min-h-[44px] w-full"
                       >
                         {assignmentOptions.map((option) => (
@@ -579,7 +899,7 @@ export default function RoutineStackEditor({
                       <button
                         type="button"
                         className="min-h-[44px] min-w-[44px] rounded-lg text-label-secondary underline disabled:opacity-40"
-                        disabled={index === 0 || saving}
+                        disabled={index === 0 || editingLocked}
                         onClick={() => moveStep(index, -1)}
                         aria-label={msg("moveUp", { title: step.title })}
                       >
@@ -588,7 +908,7 @@ export default function RoutineStackEditor({
                       <button
                         type="button"
                         className="min-h-[44px] min-w-[44px] rounded-lg text-label-secondary underline disabled:opacity-40"
-                        disabled={index === steps.length - 1 || saving}
+                        disabled={index === steps.length - 1 || editingLocked}
                         onClick={() => moveStep(index, 1)}
                         aria-label={msg("moveDown", { title: step.title })}
                       >
@@ -599,7 +919,7 @@ export default function RoutineStackEditor({
                   <button
                     type="button"
                     className="mt-2 min-h-[44px] text-footnote text-label-secondary underline disabled:opacity-40"
-                    disabled={steps.length <= 1 || saving}
+                    disabled={steps.length <= 1 || editingLocked}
                     onClick={() => removeStep(step)}
                   >
                     {msg("remove", { title: step.title })}
@@ -647,7 +967,7 @@ export default function RoutineStackEditor({
                       <button
                         type="button"
                         className="btn-tinted min-h-[44px] shrink-0"
-                        disabled={added || saving}
+                        disabled={added || editingLocked}
                         onClick={() => addCandidate(candidate)}
                       >
                         {added ? msg("added") : msg("addExisting")}
@@ -666,7 +986,7 @@ export default function RoutineStackEditor({
               <button
                 type="button"
                 className="min-h-[44px] text-body text-[var(--accent-text)] underline"
-                disabled={loadingMore || saving}
+                disabled={loadingMore || editingLocked}
                 onClick={() => void loadMore()}
               >
                 {loadingMore ? msg("loading") : msg("moreCandidates")}
@@ -690,10 +1010,14 @@ export default function RoutineStackEditor({
             <input
               id="routine-new-title"
               value={newTitle}
-              onChange={(event) => setNewTitle(event.target.value)}
+              onChange={(event) => {
+                setNewTitle(event.target.value);
+                markDirty();
+              }}
               className="input-field w-full min-h-[44px]"
               placeholder={msg("stepTitlePlaceholder")}
               maxLength={200}
+              disabled={editingLocked}
             />
             <label htmlFor="routine-new-assignee" className="sr-only">
               {msg("assignedTo")}
@@ -701,9 +1025,12 @@ export default function RoutineStackEditor({
             <select
               id="routine-new-assignee"
               value={newAssignee}
-              onChange={(event) => setNewAssignee(event.target.value)}
+              onChange={(event) => {
+                setNewAssignee(event.target.value);
+                markDirty();
+              }}
               className="input-field w-full min-h-[44px]"
-              disabled={assignmentOptions.length === 0}
+              disabled={assignmentOptions.length === 0 || editingLocked}
             >
               {assignmentOptions.length === 0 && (
                 <option value="">{msg("noAssignments")}</option>
@@ -721,7 +1048,7 @@ export default function RoutineStackEditor({
                 !newTitle.trim() ||
                 !newAssignee ||
                 steps.length >= ROUTINE_STACK_MAX_STEPS ||
-                saving
+                editingLocked
               }
               onClick={addNewStep}
             >
@@ -734,14 +1061,33 @@ export default function RoutineStackEditor({
               role="alert"
               className="rounded-xl bg-[var(--surface-fill-secondary)] p-3 text-body text-label-primary"
             >
-              {saveError}
+              <p>{saveError}</p>
+              {submission?.phase === "unknown" && (
+                <button
+                  type="button"
+                  className="btn-tinted mt-3 min-h-[44px]"
+                  disabled={saving}
+                  onClick={() => void submitPacket(submission.packet)}
+                >
+                  {msg("retrySave")}
+                </button>
+              )}
+              {submission?.phase === "conflict" && (
+                <button
+                  type="button"
+                  className="btn-tinted mt-3 min-h-[44px]"
+                  onClick={() => openDiscard("reload")}
+                >
+                  {msg("reload")}
+                </button>
+              )}
             </div>
           )}
           <div className="flex flex-wrap gap-3 border-t border-[var(--surface-separator)] pt-4">
             <button
               type="submit"
               className="btn-filled min-h-[44px] flex-1"
-              disabled={saving || steps.length === 0 || !label.trim()}
+              disabled={editingLocked || steps.length === 0 || !label.trim()}
             >
               {saving ? msg("saving") : msg("save")}
             </button>
@@ -749,7 +1095,7 @@ export default function RoutineStackEditor({
               <button
                 type="button"
                 className="btn-tinted min-h-[44px] flex-1"
-                disabled={saving}
+                disabled={editingLocked}
                 onClick={handleClose}
               >
                 {msg("cancel")}
@@ -761,35 +1107,72 @@ export default function RoutineStackEditor({
     </form>
   );
 
+  const discardDialog = discardAction ? (
+    <Dialog
+      open
+      role="alertdialog"
+      title={msg("discardTitle")}
+      description={msg("discardDescription")}
+      onClose={() => setDiscardAction(null)}
+      closeLabel={msg("close")}
+      initialFocusRef={discardCancelRef}
+      testId="routine-stack-discard-dialog"
+    >
+      <div className="flex flex-wrap justify-end gap-3 p-5">
+        <button
+          ref={discardCancelRef}
+          type="button"
+          className="btn-tinted min-h-[44px]"
+          onClick={() => setDiscardAction(null)}
+        >
+          {msg("keepEditing")}
+        </button>
+        <button
+          type="button"
+          className="btn-destructive min-h-[44px]"
+          onClick={confirmDiscard}
+        >
+          {discardAction === "reload" ? msg("reload") : msg("discard")}
+        </button>
+      </div>
+    </Dialog>
+  ) : null;
+
   if (mode === "sheet") {
     return (
-      <Dialog
-        open
-        variant="form"
-        title={title}
-        description={msg("description")}
-        onClose={saving ? undefined : handleClose}
-        closeLabel={msg("close")}
-        initialFocusRef={labelRef}
-        testId="routine-stack-sheet"
-      >
-        {content}
-      </Dialog>
+      <>
+        <Dialog
+          open
+          variant="form"
+          title={title}
+          description={msg("description")}
+          onClose={editingLocked ? undefined : handleClose}
+          closeLabel={msg("close")}
+          initialFocusRef={labelRef}
+          testId="routine-stack-sheet"
+        >
+          {content}
+        </Dialog>
+        {discardDialog}
+      </>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
-      <div className="mb-6">
-        <p className="text-footnote uppercase tracking-wide text-label-secondary">
-          {msg("occurrence")} · {occurrenceDate}
-        </p>
-        <h1 className="mt-1 text-title-1 text-label-primary">{title}</h1>
-        <p className="mt-2 text-body text-label-secondary">
-          {msg("description")}
-        </p>
-      </div>
-      {content}
-    </main>
+    <>
+      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
+        <div className="mb-6">
+          <p className="text-footnote uppercase tracking-wide text-label-secondary">
+            {msg("occurrence")} · {occurrenceDate}
+          </p>
+          <h1 className="mt-1 text-title-1 text-label-primary">{title}</h1>
+          <p className="mt-2 text-body text-label-secondary">
+            {msg("description")}
+          </p>
+        </div>
+        {content}
+      </main>
+      {discardDialog}
+    </>
   );
 }

@@ -36,8 +36,20 @@ export const routineStackEnglish = {
   loadError: "We couldn't load the routine choices. Try again.",
   retry: "Try again",
   saveError: "Routine could not save",
+  retrySave: "Retry save",
+  unknownSave:
+    "We could not confirm whether the routine was saved. Keep this draft unchanged and retry.",
   conflict:
-    "This routine changed elsewhere. Your draft is still here; retry to reload the latest copy.",
+    "This routine changed elsewhere. Reload the latest copy before trying again.",
+  reload: "Reload latest routine",
+  discardTitle: "Discard routine changes?",
+  discardDescription:
+    "Your unsaved routine changes will be cleared. This cannot be undone.",
+  keepEditing: "Keep editing",
+  discard: "Discard changes",
+  forbidden: "You do not have permission to edit this routine.",
+  notFound: "This routine is no longer available.",
+  invalidDraft: "Check the routine details and try again.",
   networkError:
     "Check your connection and try again. Your draft is still here.",
   oneStepRequired: "Keep at least one step in a routine.",
@@ -86,8 +98,20 @@ export const routineStackSpanish: RoutineStackMessages = {
   loadError: "No se pudieron cargar las opciones. Inténtalo de nuevo.",
   retry: "Intentar de nuevo",
   saveError: "No se pudo guardar la rutina",
+  retrySave: "Reintentar guardado",
+  unknownSave:
+    "No pudimos confirmar si se guardó la rutina. Conserva este borrador sin cambios y reintenta.",
   conflict:
-    "Esta rutina cambió en otro lugar. Tu borrador sigue aquí; vuelve a intentarlo para cargar la copia más reciente.",
+    "Esta rutina cambió en otro lugar. Carga la copia más reciente antes de continuar.",
+  reload: "Cargar la rutina más reciente",
+  discardTitle: "¿Descartar los cambios de la rutina?",
+  discardDescription:
+    "Se borrarán los cambios sin guardar. Esta acción no se puede deshacer.",
+  keepEditing: "Seguir editando",
+  discard: "Descartar cambios",
+  forbidden: "No tienes permiso para editar esta rutina.",
+  notFound: "Esta rutina ya no está disponible.",
+  invalidDraft: "Revisa los datos de la rutina e inténtalo de nuevo.",
   networkError:
     "Revisa tu conexión e inténtalo de nuevo. Tu borrador sigue aquí.",
   oneStepRequired: "Conserva al menos un paso en la rutina.",

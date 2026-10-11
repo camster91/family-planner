@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import * as React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import RoutineStackEditor from "../RoutineStackEditor";
@@ -93,8 +93,18 @@ const existing = {
     version: 2,
     fingerprint: "opaque-fingerprint",
     steps: [],
+    assignments: [],
     members: [],
   },
+};
+
+const saveResponse = {
+  stack_id: "stack-new",
+  version: 1,
+  steps: [],
+  assignments: [],
+  members: [],
+  fingerprint: "saved-fingerprint",
 };
 
 function renderEditor() {
@@ -121,7 +131,7 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
       const url = String(input);
       calls.push({ url, init });
       if (url.includes("/candidates")) return response(candidates);
-      return response({ stack_id: "stack-new" });
+      return response(saveResponse);
     },
   );
 
@@ -161,24 +171,22 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
   expect(back).toHaveBeenCalled();
 });
 
-it("retains an existing draft after conflict and retries with the same key and fingerprint", async () => {
+it("requires a discard confirmation before reloading after a definitive conflict", async () => {
   searchParams = new URLSearchParams(
     "stack_id=stack-a&occurrence_date=2026-10-11",
   );
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
   let postCount = 0;
+  let readCount = 0;
   fetchMock.mockImplementation(
     (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      calls.push({ url, init });
       if (url.includes("/candidates")) return response(candidates);
-      if (url.includes("/api/chores/stacks?") && !init?.method)
+      if (url.includes("/api/chores/stacks?") && !init?.method) {
+        readCount += 1;
         return response(existing);
+      }
       postCount += 1;
-      return response(
-        { error: { message: "The routine changed." } },
-        postCount === 1 ? 409 : 200,
-      );
+      return response({ error: { code: "ROUTINE_STACK_CONFLICT" } }, 409);
     },
   );
 
@@ -190,24 +198,130 @@ it("retains an existing draft after conflict and retries with the same key and f
     /changed elsewhere/,
   );
   expect(screen.getByText("Brush teeth")).toBeTruthy();
+  expect(postCount).toBe(1);
+  await user.click(
+    screen.getByRole("button", { name: "Reload latest routine" }),
+  );
+  expect(screen.getByRole("alertdialog")).toBeTruthy();
+  await user.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Reload latest routine",
+    }),
+  );
+  await waitFor(() => expect(readCount).toBe(2));
+  expect(screen.getByText("Brush teeth")).toBeTruthy();
+  expect(postCount).toBe(1);
+});
+
+it("retries malformed success with the same immutable bytes and key", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let postCount = 0;
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(candidates);
+      postCount += 1;
+      return response(postCount === 1 ? { stack_id: "incomplete" } : saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.click(screen.getByRole("button", { name: "Add" }));
   await user.click(screen.getByRole("button", { name: "Save routine" }));
+  expect(await screen.findByText(/could not confirm whether/i)).toBeTruthy();
+  expect(screen.getByLabelText("Routine name")).toHaveProperty("disabled", true);
+  await user.click(screen.getByRole("button", { name: "Retry save" }));
 
   await waitFor(() => expect(postCount).toBe(2));
   const posts = calls.filter((call) => call.init?.method === "POST");
   expect(posts[0].init?.headers).toEqual(posts[1].init?.headers);
-  expect(JSON.parse(String(posts[0].init?.body))).toEqual(
-    JSON.parse(String(posts[1].init?.body)),
-  );
-  expect(JSON.parse(String(posts[0].init?.body))).toMatchObject({
-    expected_fingerprint: "opaque-fingerprint",
+  expect(posts[0].init?.body).toBe(posts[1].init?.body);
+  expect(refresh).toHaveBeenCalled();
+  expect(back).toHaveBeenCalled();
+});
+
+it("asks before discarding dirty edits and restores the draft when kept", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
   });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  const label = screen.getByLabelText("Routine name");
+  await user.clear(label);
+  await user.type(label, "Family reset");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("alertdialog")).toBeTruthy();
+  expect(back).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(screen.getByDisplayValue("Family reset")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
+  expect(back).toHaveBeenCalled();
+});
+
+it("treats malformed candidate responses as load errors instead of an empty draft", async () => {
+  fetchMock.mockImplementation(() => response({ candidates: [] }));
+  renderEditor();
+  expect(
+    await screen.findByRole("heading", { name: "Routine could not load" }),
+  ).toBeTruthy();
+  expect(screen.queryByLabelText("Routine name")).toBeNull();
+});
+
+it("treats malformed existing-stack responses as load errors", async () => {
+  searchParams = new URLSearchParams(
+    "stack_id=stack-a&occurrence_date=2026-10-11",
+  );
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response({ stack: existing.stack, steps: existing.steps });
+  });
+  renderEditor();
+  expect(
+    await screen.findByRole("heading", { name: "Routine could not load" }),
+  ).toBeTruthy();
+  expect(screen.queryByText("Brush teeth")).toBeNull();
+});
+
+it("maps a known server code to localized copy without rendering its raw message", async () => {
+  let post = false;
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    post = true;
+    return response(
+      { error: { code: "FORBIDDEN", message: "Parent access is required." } },
+      403,
+    );
+  });
+  const user = userEvent.setup();
+  render(
+    <I18nProvider locale="es">
+      <RoutineStackEditor familyId="family-a" mode="page" />
+    </I18nProvider>,
+  );
+  await screen.findByText("Pack lunches");
+  await user.click(screen.getByRole("button", { name: "Añadir" }));
+  await user.click(screen.getByRole("button", { name: "Guardar rutina" }));
+  await waitFor(() => expect(post).toBe(true));
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "No tienes permiso para editar esta rutina.",
+  );
+  expect(screen.queryByText("Parent access is required.")).toBeNull();
 });
 
 it("uses the scoped Spanish editor labels without translating chore data", async () => {
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/candidates")) return response(candidates);
-    return response({ stack_id: "stack-new" });
+    return response(saveResponse);
   });
   render(
     <I18nProvider locale="es">

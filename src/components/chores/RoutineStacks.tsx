@@ -23,9 +23,20 @@ export function routineStacks(chores: Step[]) {
     bucket.push(chore)
     buckets.set(key, bucket)
   }
-  return [...buckets.entries()].flatMap(([key, chores]) =>
-    groupByRoutine(chores).routines.map(group => ({ ...group, key: `${key}:${group.name.toLowerCase()}` }))
-  ).sort((a, b) => a.steps[0].due_date.localeCompare(b.steps[0].due_date))
+  return [...buckets.entries()].flatMap(([key, bucket]) => {
+    // A persisted stack id is the identity. Its label may differ between
+    // steps after a partial edit, so do not split it through label grouping.
+    const durable = key.startsWith('["stack"')
+    const groups = durable
+      ? [{
+          name: bucket[0].routine?.trim() || bucket[0].title,
+          steps: [...bucket].sort((a, b) =>
+            (a.routine_order ?? Number.MAX_SAFE_INTEGER) - (b.routine_order ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id)
+          ),
+        }]
+      : groupByRoutine(bucket).routines
+    return groups.map(group => ({ ...group, key: `${key}:${durable ? 'stack' : group.name.toLowerCase()}` }))
+  }).sort((a, b) => a.steps[0].due_date.localeCompare(b.steps[0].due_date))
 }
 
 const isDone = (chore: Step) => chore.status === 'completed' || chore.status === 'verified'
