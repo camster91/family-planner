@@ -12,6 +12,7 @@ import path from "node:path";
 import pg from "pg";
 import {
   fingerprintRoutineStackSnapshot,
+  normalizeRoutineStackDraft,
   projectRoutineStackResponse,
   routineStackResponseByteLength,
   type RoutineStackDraft,
@@ -58,6 +59,9 @@ const PARENT_A = `${PREFIX}-parent-a`;
 const OTHER_PARENT_A = `${PREFIX}-parent-2`;
 const CHILD_A = `${PREFIX}-child-a`;
 const PARENT_B = `${PREFIX}-parent-b`;
+const MEMBER_PARENT_A = `${PREFIX}-member-parent-a`;
+const MEMBER_OTHER_PARENT_A = `${PREFIX}-member-parent-2`;
+const MEMBER_CHILD_A = `${PREFIX}-member-child-a`;
 const STACK_A = `${PREFIX}-stack-a`;
 const STACK_FOREIGN = `${PREFIX}-stack-foreign`;
 const STACK_B = `${PREFIX}-stack-b`;
@@ -208,6 +212,47 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         },
       ],
     });
+    await db.householdMember.createMany({
+      data: [
+        {
+          id: MEMBER_PARENT_A,
+          family_id: FAMILY_A,
+          name: "Parent A profile",
+          role: "parent",
+        },
+        {
+          id: MEMBER_OTHER_PARENT_A,
+          family_id: FAMILY_A,
+          name: "Other parent A profile",
+          role: "parent",
+        },
+        {
+          id: MEMBER_CHILD_A,
+          family_id: FAMILY_A,
+          name: "Child A profile",
+          role: "child",
+        },
+      ],
+    });
+    await db.householdMemberLegacyMapping.createMany({
+      data: [
+        {
+          member_id: MEMBER_PARENT_A,
+          user_id: PARENT_A,
+          family_id: FAMILY_A,
+        },
+        {
+          member_id: MEMBER_OTHER_PARENT_A,
+          user_id: OTHER_PARENT_A,
+          family_id: FAMILY_A,
+        },
+        {
+          member_id: MEMBER_CHILD_A,
+          user_id: CHILD_A,
+          family_id: FAMILY_A,
+        },
+      ],
+    });
     await db.routineStack.createMany({
       data: [
         {
@@ -325,6 +370,37 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           is_template: false,
         },
       ],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    };
+  }
+
+  function largeCrossMemberDraft(): RoutineStackDraft {
+    const assignees = [
+      { userId: PARENT_A, memberId: MEMBER_PARENT_A },
+      { userId: OTHER_PARENT_A, memberId: MEMBER_OTHER_PARENT_A },
+      { userId: CHILD_A, memberId: MEMBER_CHILD_A },
+    ];
+    return {
+      scope: "occurrence",
+      family_id: FAMILY_A,
+      stack_id: null,
+      occurrence_date: OCCURRENCE_DATE,
+      label: "Long cross-member routine",
+      steps: Array.from({ length: 99 }, (_, index) => {
+        const assignee = assignees[index % assignees.length];
+        return {
+          title: `Routine step ${String(index + 1).padStart(2, "0")}`,
+          description: null,
+          assigned_to: assignee.userId,
+          assigned_member_id: assignee.memberId,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once" as const,
+          difficulty: "medium" as const,
+          icon: null,
+          is_template: false,
+        };
+      }),
       remove_chore_ids: [],
       expected_fingerprint: "",
     };
@@ -456,22 +532,94 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
   });
 
   it("accepts the compact 99-step UTF-8 response within the replay cap", () => {
+    const assignees = [PARENT_A, OTHER_PARENT_A, CHILD_A];
+    const memberIds = [MEMBER_PARENT_A, MEMBER_OTHER_PARENT_A, MEMBER_CHILD_A];
     const body = projectRoutineStackResponse({
-      stack_id: "stack",
+      stack_id: STACK_A,
       version: 1,
-      fingerprint: "fingerprint",
+      fingerprint: "f".repeat(64),
       steps: Array.from({ length: 99 }, (_, index) => ({
-        id: `c${index + 1}`,
-        assigned_to: `u${index + 1}`,
-        assigned_member_id: null,
+        id: `${PREFIX}-chore-${String(index + 1).padStart(3, "0")}`,
+        assigned_to: assignees[index % assignees.length]!,
+        assigned_member_id: memberIds[index % memberIds.length]!,
       })),
-      members: Array.from({ length: 99 }, (_, index) => ({
-        id: `u${index + 1}`,
+      members: memberIds.map((id) => ({
+        id,
         role: "child",
       })),
     });
     expect(body.steps).toHaveLength(99);
+    expect(body.assignments).toHaveLength(3);
     expect(routineStackResponseByteLength(body)).toBeLessThanOrEqual(8192);
+  });
+
+  it("persists and replays a realistic 99-step cross-member mutation", async () => {
+    const input = largeCrossMemberDraft();
+    const draft = normalizeRoutineStackDraft(input);
+    const receiptId = `${PREFIX}-receipt-99`;
+    await createReceipt(receiptId, `${PREFIX}-key-99`, draft);
+    const members = [
+      { id: MEMBER_PARENT_A, role: "parent" },
+      { id: MEMBER_OTHER_PARENT_A, role: "parent" },
+      { id: MEMBER_CHILD_A, role: "child" },
+    ];
+
+    const first = await mutateRoutineStack(db, input, actorA, {
+      recordId: receiptId,
+      memberDictionary: members,
+    });
+    expect(first.status).toBe(200);
+    expect(first.replayed).toBeUndefined();
+    const firstBody = first.body as {
+      steps: readonly unknown[];
+      assignments: readonly unknown[];
+    };
+    expect(firstBody.steps).toHaveLength(99);
+    expect(firstBody.assignments).toHaveLength(3);
+    expect(routineStackResponseByteLength(first.body)).toBeLessThanOrEqual(
+      8192,
+    );
+
+    const persisted = await db.idempotencyRecord.findUniqueOrThrow({
+      where: { id: receiptId },
+    });
+    expect(persisted.response_status).toBe(200);
+    expect(persisted.response_body).toEqual(first.body);
+    expect(
+      await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+    ).toBe(3);
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(101);
+    expect(
+      await db.chore.count({
+        where: {
+          family_id: FAMILY_A,
+          routine_stack_id: (first.body as { stack_id: string }).stack_id,
+        },
+      }),
+    ).toBe(99);
+    const assignedMemberIds = await db.chore.findMany({
+      where: {
+        family_id: FAMILY_A,
+        routine_stack_id: (first.body as { stack_id: string }).stack_id,
+      },
+      select: { assigned_to: true, assigned_member_id: true },
+      orderBy: { routine_order: "asc" },
+    });
+    expect(
+      new Set(assignedMemberIds.map((row: Db) => row.assigned_to)),
+    ).toEqual(new Set([PARENT_A, OTHER_PARENT_A, CHILD_A]));
+    expect(
+      new Set(assignedMemberIds.map((row: Db) => row.assigned_member_id)),
+    ).toEqual(
+      new Set([MEMBER_PARENT_A, MEMBER_OTHER_PARENT_A, MEMBER_CHILD_A]),
+    );
+
+    const replay = await mutateRoutineStack(db, input, actorA, {
+      recordId: receiptId,
+      memberDictionary: members,
+    });
+    expect(replay).toEqual({ status: 200, body: first.body, replayed: true });
+    expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(101);
   });
 
   it("serializes same-key writes, replays a lost response, and rejects changed payload reuse", async () => {

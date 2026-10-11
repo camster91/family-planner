@@ -165,7 +165,8 @@ describe("routine stack contract", () => {
       members: [{ id: "member-a", role: "child" }],
     });
 
-    expect(response.steps).toEqual([["chore-a", 1, "user-a", "member-a"]]);
+    expect(response.steps).toEqual([["chore-a", 1, 0]]);
+    expect(response.assignments).toEqual([["user-a", "member-a"]]);
     expect(JSON.stringify(response)).not.toContain("private note");
     expect(routineStackResponseByteLength(response)).toBeLessThanOrEqual(8192);
   });

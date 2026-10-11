@@ -309,19 +309,43 @@ export interface RoutineStackCompactSource {
 }
 
 /**
+ * One unique legacy-account/canonical-subject pair used by the compact
+ * mutation receipt. Steps refer to this table by array index, so a 99-step
+ * cross-member routine does not repeat long account and subject IDs 99 times.
+ */
+export type RoutineStackCompactAssignment = readonly [string, string | null];
+
+/**
  * A compact replay-safe projection. Array positions encode display order and
- * member entries contain only canonical IDs/roles; descriptions, notes, email,
- * photo metadata and other user-authored values never enter a receipt.
+ * assignment indexes resolve through one unique legacy-account/canonical-
+ * subject table; member entries contain only canonical IDs/roles. Descriptions,
+ * notes, email, photo metadata and other user-authored values never enter a
+ * receipt.
  */
 export function projectRoutineStackResponse(
   source: RoutineStackCompactSource,
 ): {
   stack_id: string;
   version: number;
-  steps: readonly [string, number, string, string | null][];
+  steps: readonly [string, number, number][];
+  assignments: readonly RoutineStackCompactAssignment[];
   members: readonly [string, string][];
   fingerprint: string;
 } {
+  const assignments: RoutineStackCompactAssignment[] = [];
+  const assignmentIndexes = new Map<string, number>();
+  const assignmentIndexFor = (
+    assignedTo: string,
+    assignedMemberId: string | null,
+  ): number => {
+    const key = `${assignedTo}\u0000${assignedMemberId ?? ""}`;
+    const existing = assignmentIndexes.get(key);
+    if (existing !== undefined) return existing;
+    const index = assignments.length;
+    assignments.push([assignedTo, assignedMemberId]);
+    assignmentIndexes.set(key, index);
+    return index;
+  };
   const body = {
     stack_id: source.stack_id,
     version: source.version,
@@ -330,10 +354,10 @@ export function projectRoutineStackResponse(
         [
           step.id,
           index + 1,
-          step.assigned_to,
-          step.assigned_member_id ?? null,
-        ] as [string, number, string, string | null],
+          assignmentIndexFor(step.assigned_to, step.assigned_member_id ?? null),
+        ] as [string, number, number],
     ),
+    assignments,
     members: [
       ...new Map(
         (source.members ?? []).map((member) => [
