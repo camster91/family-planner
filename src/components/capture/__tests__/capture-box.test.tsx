@@ -124,7 +124,7 @@ describe('CaptureBox', () => {
     render(<CaptureBox onSaved={onSaved} />)
     await readPhoto(user)
     await user.click(screen.getByRole('button', { name: 'Add 3' }))
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Could not save those events'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Could not save those events. Try again to check the same requests'))
     expect(screen.getByRole('button', { name: 'Add 3' })).toBeTruthy()
     expect(onSaved).not.toHaveBeenCalled()
   })
@@ -152,4 +152,87 @@ describe('CaptureBox', () => {
     // 15:00 in the browser's zone, as an instant (never stored as 15:00 UTC unless the browser is on UTC).
     expect(posted.start_time).toBe(new Date('2026-10-06T15:00').toISOString())
   })
+})
+
+it('retries a lost event response with the original operation key and payload', async () => {
+  mockFetch(() => 200)
+  const original = global.fetch
+  const calls: RequestInit[] = []
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/events' && init?.method === 'POST') {
+      calls.push(init)
+      if (calls.length === 1) throw new Error('response lost after commit')
+    }
+    return original(url, init)
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.type(screen.getByLabelText('What would you like to add?'), 'dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await user.click(await screen.findByRole('button', { name: 'Add it' }))
+  await screen.findByText(/Could not confirm whether this was saved/)
+  await user.click(screen.getByRole('button', { name: 'Add it' }))
+  await screen.findByText('Added “Dentist”')
+  expect(calls).toHaveLength(2)
+  expect(new Headers(calls[0].headers).get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
+  expect(calls[1].headers).toEqual(calls[0].headers)
+  expect(calls[1].body).toBe(calls[0].body)
+})
+
+it('keeps each photo row key after partial success and an uncertain response', async () => {
+  mockFetch(() => 200)
+  const original = global.fetch
+  const attempts = new Map<string, RequestInit[]>()
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/events' && init?.method === 'POST') {
+      const title = JSON.parse(String(init.body)).title
+      const calls = attempts.get(title) || []
+      calls.push(init); attempts.set(title, calls)
+      if (title === 'Bake sale' && calls.length === 1) throw new Error('lost response')
+    }
+    return original(url, init)
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await readPhoto(user)
+  await user.click(screen.getByRole('button', { name: 'Add 3' }))
+  await screen.findByText('Added 1 of 3 events')
+  await user.click(screen.getByRole('button', { name: 'Add 2' }))
+  await screen.findByText('Added 2 events')
+  expect(attempts.get('Picture day')).toHaveLength(1)
+  const retry = attempts.get('Bake sale')!
+  expect(retry).toHaveLength(2)
+  expect(retry[1].headers).toEqual(retry[0].headers)
+  expect(retry[1].body).toBe(retry[0].body)
+  expect(attempts.get('Book fair')).toHaveLength(1)
+})
+
+it('retains the original grocery target and key after an uncertain item save', async () => {
+  const items: RequestInit[] = []
+  let listLookups = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture') return json(200, init?.method === 'POST' ? { draft: { kind: 'listitem', title: 'Milk', confidence: 'high' } } : { configured: true, allowed: true })
+    if (String(url) === '/api/lists/default-grocery') {
+      listLookups += 1
+      return json(200, { list: { id: `grocery-${listLookups}` } })
+    }
+    if (String(url) === '/api/lists/items/create') {
+      items.push(init!)
+      if (items.length === 1) throw new Error('lost response')
+      return json(200, { success: true, item: { id: 'item-1' } })
+    }
+    throw new Error('unexpected endpoint')
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.type(screen.getByLabelText('What would you like to add?'), 'add milk')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await user.click(await screen.findByRole('button', { name: 'Add it' }))
+  await screen.findByText(/Could not confirm whether this was saved/)
+  await user.click(screen.getByRole('button', { name: 'Add it' }))
+  await screen.findByText('Added “Milk”')
+  expect(listLookups).toBe(1)
+  expect(items[1].headers).toEqual(items[0].headers)
+  expect(items[1].body).toBe(items[0].body)
+  expect(JSON.parse(String(items[1].body)).listId).toBe('grocery-1')
 })
