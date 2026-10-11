@@ -111,6 +111,27 @@ describe("profile-only chore contract", () => {
     });
   });
 
+  it("refuses account rows with a conflicting second mapping or link", () => {
+    expect(
+      readChoreSubject(
+        profileRow({
+          assigned_to: "user-child",
+          assignee: {
+            id: "user-child",
+            name: "Child account",
+            family_id: "family-a",
+          },
+          assigneeMember: {
+            ...baseMember,
+            legacy_mapping: { user_id: "user-child" },
+            account_link: { user_id: "different-user" },
+          },
+        }),
+        "family-a",
+      ),
+    ).toBeNull();
+  });
+
   it("requires protocol 2 for profile creation and rejects recurring fields", () => {
     const valid = profileChoreCreateSchema.safeParse({
       protocol: 2,

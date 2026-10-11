@@ -108,13 +108,18 @@ export function readChoreSubject(
     if (!row.assignee || row.assignee.family_id !== familyId) return null;
     if (row.assigned_member_id != null) {
       const member = row.assigneeMember;
+      const linkedUsers = member
+        ? [member.legacy_mapping?.user_id, member.account_link?.user_id].filter(
+            (userId): userId is string => userId !== undefined,
+          )
+        : [];
       if (
         !member ||
         member.family_id !== familyId ||
         member.archived_at !== null ||
         member.erasure_user_id !== null ||
-        (member.legacy_mapping?.user_id !== row.assigned_to &&
-          member.account_link?.user_id !== row.assigned_to)
+        linkedUsers.length === 0 ||
+        linkedUsers.some((userId) => userId !== row.assigned_to)
       )
         return null;
     }

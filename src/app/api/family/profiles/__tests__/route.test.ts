@@ -247,6 +247,40 @@ describe("GET /api/family/profiles", () => {
     expect(JSON.stringify(body)).not.toContain("owner");
   });
 
+  it.each([
+    ["teen", 12],
+    ["parent", 17],
+    ["parent", 121],
+  ] as const)(
+    "fails closed when a stored profile age is incompatible with %s",
+    async (role, age) => {
+      db.rows("householdMember").push({
+        ...profile("profile-invalid-age", FAMILY_A, "Invalid age"),
+        role,
+        age,
+      });
+      const response = await GET(
+        req({ as: "parentA", path: "/api/family/profiles" }),
+      );
+      expect(response.status).toBe(500);
+      expect((await bodyOf(response)).error.code).toBe(
+        "PROFILE_STORAGE_INVALID",
+      );
+    },
+  );
+
+  it("fails closed instead of coercing malformed stored DTO fields", async () => {
+    db.rows("householdMember").push({
+      ...profile("profile-malformed-age", FAMILY_A, "Malformed age"),
+      age: "3",
+    });
+    const response = await GET(
+      req({ as: "parentA", path: "/api/family/profiles" }),
+    );
+    expect(response.status).toBe(500);
+    expect((await bodyOf(response)).error.code).toBe("PROFILE_STORAGE_INVALID");
+  });
+
   it.each(["teenA", "childA", "childB"] as UserKey[])(
     "%s cannot read profiles",
     async (as) => {
