@@ -1,0 +1,246 @@
+import { hashIdempotentRequest } from "@/lib/idempotency";
+import {
+  fingerprintRoutineStackSnapshot,
+  normalizeRoutineStackDraft,
+} from "@/lib/routine-stack";
+import { mutateRoutineStackInTx } from "@/lib/routine-stack-mutation";
+
+type Row = Record<string, unknown>;
+
+function makeTx(initial: { stack?: Row; chores?: Row[]; record?: Row } = {}) {
+  const state = {
+    stack: initial.stack ?? null,
+    chores: initial.chores ?? [],
+    record: initial.record ?? null,
+    writes: [] as string[],
+  };
+  const tx = {
+    $queryRaw: async () => [{ id: "family-a" }],
+    family: { findFirst: async () => ({ id: "family-a" }) },
+    routineStack: {
+      findFirst: async () => state.stack,
+      create: async ({ data }: { data: Row }) => {
+        state.stack = { ...data };
+        state.writes.push("stack.create");
+        return state.stack;
+      },
+      update: async ({ data }: { data: Row }) => {
+        state.stack = { ...(state.stack ?? {}), ...data };
+        state.writes.push("stack.update");
+        return state.stack;
+      },
+      findMany: async () => [],
+    },
+    chore: {
+      findFirst: async () => null,
+      findMany: async ({ where }: { where: Row }) => {
+        const ids = (where.id as { in?: string[] } | undefined)?.in;
+        if (ids)
+          return state.chores.filter((row) => ids.includes(String(row.id)));
+        return state.chores.filter(
+          (row) => row.routine_stack_id === where.routine_stack_id,
+        );
+      },
+      create: async ({ data }: { data: Row }) => {
+        const row = { id: `created-${state.chores.length + 1}`, ...data };
+        state.chores.push(row);
+        state.writes.push("chore.create");
+        return row;
+      },
+      update: async ({ where, data }: { where: Row; data: Row }) => {
+        const row = state.chores.find((candidate) => candidate.id === where.id);
+        if (!row) throw new Error("missing chore");
+        Object.assign(row, data);
+        state.writes.push(`chore.update:${String(where.id)}`);
+        return row;
+      },
+    },
+    idempotencyRecord: {
+      findFirst: async () => state.record,
+      update: async ({ data }: { data: Row }) => {
+        if (state.record) Object.assign(state.record, data);
+        state.writes.push("receipt.update");
+        return state.record;
+      },
+      create: async () => null,
+      findMany: async () => [],
+    },
+  };
+  return { tx, state };
+}
+
+function existingChore(overrides: Row = {}): Row {
+  return {
+    id: "chore-a",
+    family_id: "family-a",
+    title: "Brush teeth",
+    description: null,
+    assigned_to: "user-a",
+    assigned_member_id: "member-a",
+    member_subject_erased: false,
+    due_date: "2026-10-12",
+    recurrence_id: null,
+    is_template: false,
+    routine: "Morning",
+    routine_order: 1,
+    status: "pending",
+    frequency: "once",
+    weekly_days: [],
+    icon: null,
+    routine_stack_id: "stack-a",
+    ...overrides,
+  };
+}
+
+function input(overrides: Row = {}) {
+  return {
+    family_id: "family-a",
+    stack_id: "stack-a",
+    occurrence_date: "2026-10-12",
+    label: "Morning",
+    steps: [
+      {
+        chore_id: "chore-a",
+        assigned_to: "user-a",
+        assigned_member_id: "member-a",
+        due_date: "2026-10-12",
+        frequency: "once",
+      },
+    ],
+    remove_chore_ids: [],
+    expected_fingerprint: "",
+    ...overrides,
+  };
+}
+
+describe("routine stack transaction coordinator", () => {
+  it("locks the occurrence, preserves dual assignee fields, and commits the receipt with the row update", async () => {
+    const chore = existingChore();
+    const draft = normalizeRoutineStackDraft(
+      input({
+        expected_fingerprint: fingerprintRoutineStackSnapshot([chore as never]),
+      }),
+    );
+    const record = {
+      action: "routine-stack.mutate",
+      request_hash: hashIdempotentRequest("routine-stack.mutate", draft),
+      response_status: null,
+      response_body: null,
+    };
+    const { tx, state } = makeTx({
+      stack: {
+        id: "stack-a",
+        family_id: "family-a",
+        version: 2,
+        label: "Morning",
+        fingerprint: draft.expected_fingerprint,
+      },
+      chores: [chore],
+      record,
+    });
+
+    const result = await mutateRoutineStackInTx(
+      tx,
+      draft,
+      { familyId: "family-a", userId: "parent-a", role: "parent" },
+      {
+        recordId: "record-a",
+        resolveAssignee: async () => ({
+          assigned_to: "user-a",
+          assigned_member_id: "member-a",
+        }),
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(state.writes).toEqual(
+      expect.arrayContaining([
+        "chore.update:chore-a",
+        "stack.update",
+        "receipt.update",
+      ]),
+    );
+    expect(chore).toMatchObject({
+      assigned_to: "user-a",
+      assigned_member_id: "member-a",
+      routine_stack_id: "stack-a",
+      routine_order: 1,
+    });
+    expect(state.record).toMatchObject({ response_status: 200 });
+  });
+
+  it("replays a completed key without re-running the chore write", async () => {
+    const chore = existingChore();
+    const draft = normalizeRoutineStackDraft(
+      input({
+        expected_fingerprint: fingerprintRoutineStackSnapshot([chore as never]),
+      }),
+    );
+    const record = {
+      action: "routine-stack.mutate",
+      request_hash: hashIdempotentRequest("routine-stack.mutate", draft),
+      response_status: 200,
+      response_body: { stack_id: "stack-a", version: 3 },
+    };
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [chore],
+      record,
+    });
+
+    const result = await mutateRoutineStackInTx(
+      tx,
+      draft,
+      { familyId: "family-a", userId: "parent-a", role: "parent" },
+      { recordId: "record-a" },
+    );
+
+    expect(result).toMatchObject({
+      status: 200,
+      replayed: true,
+      body: record.response_body,
+    });
+    expect(state.writes).toEqual([]);
+  });
+
+  it("returns changed-payload reuse as 422 before locking domain rows", async () => {
+    const chore = existingChore();
+    const draft = normalizeRoutineStackDraft(
+      input({
+        expected_fingerprint: fingerprintRoutineStackSnapshot([chore as never]),
+      }),
+    );
+    const record = {
+      action: "routine-stack.mutate",
+      request_hash: "different-request",
+      response_status: null,
+      response_body: null,
+    };
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [chore],
+      record,
+    });
+
+    const result = await mutateRoutineStackInTx(
+      tx,
+      draft,
+      { familyId: "family-a", userId: "parent-a", role: "parent" },
+      { recordId: "record-a" },
+    );
+
+    expect(result.status).toBe(422);
+    expect(state.writes).toEqual([]);
+  });
+
+  it("does not expose mutation details to a child or teen", async () => {
+    const { tx, state } = makeTx();
+    const result = await mutateRoutineStackInTx(tx, input(), {
+      familyId: "family-a",
+      userId: "child-a",
+      role: "child",
+    });
+    expect(result.status).toBe(403);
+    expect(state.writes).toEqual([]);
+  });
+});

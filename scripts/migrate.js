@@ -914,6 +914,43 @@ CREATE INDEX IF NOT EXISTS "ProjectTask_assigned_to_idx" ON "ProjectTask"("assig
 // files create (e.g. "Anniversary" comes from migration-features.sql, so an
 // ALTER in CREATE_TABLES_SQL would fail on a fresh database). Idempotent.
 const POST_FEATURE_SQL = `
+-- ============ Routine stack identity foundation (additive) ============
+-- The migration file creates this table before this post-feature pass. Keep
+-- these expand-only guards here as well so startup remains safe when an older
+-- deployment has run the table migration but not the follow-up indexes/FK.
+CREATE TABLE IF NOT EXISTS "RoutineStack" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "fingerprint" TEXT NOT NULL,
+  "created_by" TEXT NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_stack_id" TEXT;
+DO $$ BEGIN
+  ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_family_id_fkey"
+    FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_created_by_fkey"
+    FOREIGN KEY ("created_by") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_id_family_id_key"
+    UNIQUE ("id", "family_id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Chore" ADD CONSTRAINT "Chore_routine_stack_fkey"
+    FOREIGN KEY ("routine_stack_id", "family_id") REFERENCES "RoutineStack"("id", "family_id")
+    ON DELETE NO ACTION ON UPDATE NO ACTION;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "RoutineStack_family_id_updated_at_idx"
+  ON "RoutineStack" ("family_id", "updated_at");
+CREATE INDEX IF NOT EXISTS "Chore_family_id_routine_stack_id_idx"
+  ON "Chore" ("family_id", "routine_stack_id");
+
 -- ============ Anniversary.created_by (D9, #102) ============
 -- Additive and nullable: legacy rows keep NULL and stay parent-edit-only.
 ALTER TABLE "Anniversary" ADD COLUMN IF NOT EXISTS "created_by" TEXT;
