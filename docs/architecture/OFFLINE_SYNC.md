@@ -155,9 +155,9 @@ Proof action UI: `src/app/dashboard/lists/[listId]/` (person app, Lists → a li
 - `id` is the idempotency key (random UUID), generated once when the change is queued and sent with every
   attempt, including after a reload or process restart.
 - `v` is the per-action operation version (`list-item.set-checked` is v1). The stored container also has a
-  schema version (`QUEUE_SCHEMA_VERSION = 1`). An unknown container version, operation version or action,
-  malformed data or a duplicate id is dropped on load and the page says "Some changes saved on this device
-  could not be kept." There is no migration yet because there is only one version.
+  schema version (`QUEUE_SCHEMA_VERSION = 1`). An unfamiliar positive container/action version or action
+  pauses the stored container untouched for compatible-client recovery (see below). Malformed supported
+  data or duplicate IDs retain the existing drop/report policy. No automatic protocol conversion is performed.
 - Tick `payload` holds ids and the desired state only (`{ itemId, checked }`); the parser strips
   everything else. The two explicit grocery-create allowlists above also persist submitted text;
   no other household text is retained.
@@ -420,3 +420,12 @@ item content, IDs and keys are not displayed or copied. Failed/conflicted ticks 
 existing queue; a confirmed discard removes only that operation. In-flight sends cannot be discarded.
 No new payload fields, storage version, endpoint, retry policy or device-queue access is introduced.
 This resolves browser access to unknown-row recovery; physical Android process-death remains unverified.
+
+
+## Unfamiliar stored work: compatible-client recovery (#473)
+
+The queue loader now pauses the entire existing container when it finds a positive unknown container version, action version in its own namespace, or unknown action. It leaves the original stored bytes, keys and bodies untouched. No operation is parsed for display, replayed, aged, retried, discarded or overwritten while paused; new enqueue attempts refuse with `COMPATIBLE_CLIENT_REQUIRED` before creating a key. Known rows in a mixed container also wait, preventing a normal persistence write from erasing unfamiliar rows.
+
+Personal list ticks, grocery adds, pending-tick recovery and shared grocery actions explain that pending changes need a compatible app version, are retained on this device and should not be added again. New grocery draft text stays in the form after refusal. Refreshing/updating into a compatible client is the recovery path; there is no automatic conversion, renewed key or generic request replay. Storage remains in the same per-person/device namespace, with no extra copy or telemetry payload. Sign-out/revocation still explicitly purges that namespace, including unfamiliar work.
+
+Corrupt data, wrong-namespace known actions, bounds and age rules retain their existing refusal/drop behavior when the container is readable by this client. `parseStoredQueue` is still a low-level supported-operation parser; its dropped result must not be used to overwrite an unfamiliar container. The live loader checks compatibility before calling it. Older shipped browser bundles still have the previous drop behavior: this patch cannot retroactively protect them. Do not persist new queue protocols until supported previous clients and real rollback candidates are verified. Synthetic host/browser fixtures do not establish physical-device or previous-binary acceptance.

@@ -207,7 +207,7 @@ export function isCheckedOperation(op: QueuedOperation): op is CheckedQueuedOper
   return op.action === 'list-item.set-checked' || op.action === 'device.list-item.set-checked'
 }
 
-export type QueueErrorCode = 'NOT_QUEUEABLE' | 'INVALID_PAYLOAD' | 'QUEUE_FULL'
+export type QueueErrorCode = 'NOT_QUEUEABLE' | 'INVALID_PAYLOAD' | 'QUEUE_FULL' | 'COMPATIBLE_CLIENT_REQUIRED'
 
 export class QueueError extends Error {
   readonly code: QueueErrorCode
@@ -374,6 +374,27 @@ export function serializeQueue(ops: QueuedOperation[]): string {
   return JSON.stringify({ v: QUEUE_SCHEMA_VERSION, ops })
 }
 
+/**
+ * Keep an unfamiliar stored protocol untouched for a compatible client. This
+ * is not validation or permission to replay it. A mixed container is paused
+ * in full, so writing known operations cannot erase the unknown ones.
+ */
+export function requiresCompatibleQueueClient(text: string | null, namespace: QueueNamespace['kind'] = 'person'): boolean {
+  if (text === null) return false
+  let data: unknown
+  try { data = JSON.parse(text) } catch { return false }
+  if (!isRecord(data) || !Array.isArray(data.ops)) return false
+  if (typeof data.v !== 'number' || !Number.isSafeInteger(data.v) || data.v < 1) return false
+  if (data.v !== QUEUE_SCHEMA_VERSION) return true
+  return data.ops.some(raw => {
+    if (!isRecord(raw) || typeof raw.action !== 'string' || typeof raw.v !== 'number' || !Number.isSafeInteger(raw.v) || raw.v < 1) return false
+    if (!isQueueableAction(raw.action)) return true
+    const spec = specOf(raw.action)
+    // Foreign-scope operations retain the existing refusal/drop policy.
+    return spec.namespace === namespace && raw.v !== spec.version
+  })
+}
+
 // ---------------------------------------------------------------------------
 // The queue.
 
@@ -382,6 +403,7 @@ export type OfflineQueue = ReturnType<typeof createOfflineQueue>
 export function createOfflineQueue(deps: OfflineQueueDeps) {
   const namespace = deps.namespace ?? 'person'
   let ops: QueuedOperation[] = []
+  let compatibleClientRequired = false
   let draining: Promise<void> | null = null
   let timer: unknown = null
   let disposed = false
@@ -437,7 +459,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   async function persist(): Promise<boolean> {
     // A disposed queue never writes again: after a device purge its storage was
     // deleted on purpose, and writing would recreate it with the old ids (#274).
-    if (disposed) return durable
+    if (disposed || compatibleClientRequired) return durable
     let ok = true
     try {
       if (ops.length === 0) await deps.store.remove()
@@ -483,6 +505,12 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       text = null
     }
     if (disposed) return
+    if (requiresCompatibleQueueClient(text, namespace)) {
+      compatibleClientRequired = true
+      // Do not parse, rewrite, age, send or expose unfamiliar payloads.
+      emit({ type: 'change' })
+      return
+    }
     const parsed = parseStoredQueue(text, namespace)
     ops = parsed.ops
     const aged = applyAgeRules(deps.now())
@@ -535,6 +563,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     payload: PayloadOf<A> | unknown
   ): Promise<Extract<QueuedOperation, { action: A }> & { durable: boolean }> {
     await ready
+    if (compatibleClientRequired) throw new QueueError('COMPATIBLE_CLIENT_REQUIRED')
     if (!isQueueableAction(action)) throw new QueueError('NOT_QUEUEABLE')
     const spec = specOf(action)
     if (spec.namespace !== namespace) throw new QueueError('NOT_QUEUEABLE')
@@ -635,7 +664,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     draining = (async () => {
       await ready
       try {
-        while (!disposed && deps.isOnline()) {
+        while (!disposed && !compatibleClientRequired && deps.isOnline()) {
           const now = deps.now()
           const aged = applyAgeRules(now)
           if (aged.changed) {
@@ -723,6 +752,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     }
     try {
       await deps.store.remove()
+      compatibleClientRequired = false
     } catch {
       // Nothing more to do; the store is gone or blocked.
     }
@@ -741,6 +771,8 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     diagnostics,
     resetDiagnostics,
     loadReport: () => loadReport,
+    /** Stored work remains untouched; reload with a compatible client to recover it. */
+    requiresCompatibleClient: () => compatibleClientRequired,
     /** False while queued changes exist only in memory because storage refused the last write. */
     isDurable: () => durable,
     list: snapshot,

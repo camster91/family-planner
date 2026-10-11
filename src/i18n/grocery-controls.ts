@@ -2,6 +2,8 @@
  * Item content is user-entered and must only be interpolated, never translated.
  * These keys describe display state, not persisted operation or API codes. */
 export const groceryEnglish = {
+  compatibleClient:
+    "Pending changes need a compatible app version. Refresh or update this app. They are kept on this device and won’t be sent. Don’t add them again.",
   confirmed: "Grocery add confirmed. Refreshing the list.",
   dropped:
     "Some older queued changes were removed. Check your list before adding them again.",
@@ -138,6 +140,8 @@ export const groceryEnglish = {
 
 export type GroceryMessage = keyof typeof groceryEnglish;
 export const grocerySpanish: Record<GroceryMessage, string> = {
+  compatibleClient:
+    "Los cambios pendientes necesitan una versión compatible. Actualiza esta app. Se conservan en este dispositivo y no se enviarán. No los añadas de nuevo.",
   confirmed: "Añadido confirmado. Actualizando la lista.",
   dropped:
     "Se eliminaron algunos cambios antiguos en espera. Revisa tu lista antes de añadirlos de nuevo.",

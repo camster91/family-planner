@@ -384,6 +384,66 @@ describe('versioning and corruption', () => {
     expect(JSON.parse(serializeQueue(parsed.ops))).toMatchObject({ v: QUEUE_SCHEMA_VERSION, ops: [{ id: op.id, target: 'list-item:i' }] })
   })
 
+  it.each([
+    { v: 2, ops: [op] },
+    { v: 1, ops: [op, { ...op, id: 'bbbbbbbbbbbbbbbbbbbb', v: 2 }] },
+    { v: 1, ops: [op, { ...op, id: 'bbbbbbbbbbbbbbbbbbbb', action: 'future-action' }] },
+  ])('retains unfamiliar stored work byte-for-byte without sending or overwriting it: %j', async container => {
+    const raw = JSON.stringify(container, null, 2)
+    const store = memoryStore(raw)
+    const write = jest.spyOn(store, 'write')
+    const remove = jest.spyOn(store, 'remove')
+    const t = setup({ store })
+    await t.queue.ready
+    expect(t.queue.requiresCompatibleClient()).toBe(true)
+    expect(t.queue.list()).toEqual([])
+    expect(t.queue.loadReport()).toEqual({ dropped: 0 })
+    await t.queue.drain()
+    await t.queue.handleOnline()
+    await t.queue.retry(op.id)
+    await t.queue.discard(op.id)
+    await expect(t.queue.enqueue('list-item.set-checked', tick('new'))).rejects.toMatchObject({ code: 'COMPATIBLE_CLIENT_REQUIRED' })
+    expect(t.sent).toEqual([])
+    expect(t.timers).toEqual([])
+    expect(write).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
+    expect(store.value).toBe(raw)
+    t.queue.dispose()
+    const restarted = setup({ store })
+    await restarted.queue.ready
+    await restarted.queue.drain()
+    expect(restarted.queue.requiresCompatibleClient()).toBe(true)
+    expect(restarted.sent).toEqual([])
+    expect(store.value).toBe(raw)
+    // Privacy purge is still explicit and terminal, including unfamiliar work.
+    await restarted.queue.clear()
+    expect(store.value).toBeNull()
+    expect(restarted.queue.requiresCompatibleClient()).toBe(false)
+  })
+
+  it('does not let a foreign queue action turn into replay or a compatibility grant', async () => {
+    const foreign = { ...op, action: 'device.list-item.set-checked', v: 2 }
+    const t = setup({ online: false, store: memoryStore(JSON.stringify({ v: 1, ops: [foreign, op] })) })
+    await t.queue.ready
+    expect(t.queue.requiresCompatibleClient()).toBe(false)
+    expect(t.queue.loadReport().dropped).toBe(1)
+    expect(t.queue.list().map(o => o.id)).toEqual([op.id])
+    expect(t.sent).toEqual([])
+  })
+
+  it('does not overwrite retained work if an explicit purge cannot remove storage', async () => {
+    const store = memoryStore(JSON.stringify({ v: 2, ops: [op] }))
+    jest.spyOn(store, 'remove').mockRejectedValue(new Error('blocked storage'))
+    const original = store.value
+    const t = setup({ store })
+    await t.queue.ready
+    await t.queue.clear()
+    expect(t.queue.requiresCompatibleClient()).toBe(true)
+    await expect(t.queue.enqueue('list-item.set-checked', tick('new'))).rejects.toMatchObject({ code: 'COMPATIBLE_CLIENT_REQUIRED' })
+    expect(store.value).toBe(original)
+    expect(t.sent).toEqual([])
+  })
+
   it('drops unknown container versions, unknown operation versions, unknown actions and corrupt data', () => {
     expect(parseStoredQueue(JSON.stringify({ v: 99, ops: [op, op] }))).toEqual({ ops: [], dropped: 2 })
     expect(parseStoredQueue('{not json').dropped).toBe(1)
