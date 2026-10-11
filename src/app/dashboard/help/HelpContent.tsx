@@ -1,3 +1,4 @@
+import AppDiagnostics from './AppDiagnostics'
 import SyncDiagnostics from './SyncDiagnostics'
 import * as React from 'react'
 import Link from 'next/link'
@@ -180,7 +181,7 @@ export default function HelpContent({
           </Item>
         </Section>
 
-        {userId && (role === 'parent' || role === 'teen') && <SyncDiagnostics userId={userId} />}
+        {userId && (role === 'parent' || role === 'teen') && <><SyncDiagnostics userId={userId} /><AppDiagnostics /></>}
         <Section id="help-contact" title="Contact support">
           <p className="text-label-secondary">
             Email us and we will reply within one working day.

@@ -2,6 +2,7 @@
 
 import { choreScheduleMessages } from './chore-schedule'
 import { listOverviewEnglish, listOverviewSpanish } from './list-overview'
+import { appDiagnosticsEnglish, appDiagnosticsSpanish } from './app-diagnostics'
 import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
 import { PRODUCT_BRAND } from '@/lib/brand'
@@ -13,6 +14,7 @@ import { pseudolocalizeTemplate } from './pseudo'
 // Inline messages — no external library needed
 const messages = {
   en: {
+    appDiagnostics: appDiagnosticsEnglish,
     choreSchedule: choreScheduleMessages.en,
     groceries: groceryEnglish,
     listOverview: listOverviewEnglish,
@@ -479,6 +481,7 @@ const messages = {
     },
   },
   es: {
+    appDiagnostics: appDiagnosticsSpanish,
     choreSchedule: choreScheduleMessages.es,
     groceries: grocerySpanish,
     listOverview: listOverviewSpanish,
