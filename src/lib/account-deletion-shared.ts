@@ -17,6 +17,7 @@ export type AccountDeletionCode =
   | 'PARENT_REQUIRED'
   | 'FAMILY_REQUIRED'
   | 'RATE_LIMITED'
+  | 'IDENTITY_CONFLICT'
 
 function normalize(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase()
