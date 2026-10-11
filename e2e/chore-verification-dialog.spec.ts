@@ -483,14 +483,19 @@ for (const locale of LOCALES) {
           dialog.getByRole("button", { name: copy.tryAgain, exact: true }),
         ).toBeFocused();
 
-        await Promise.all([
-          dialog
-            .getByRole("button", { name: copy.tryAgain, exact: true })
-            .click(),
-          dialog
-            .getByRole("button", { name: copy.tryAgain, exact: true })
-            .click(),
-        ]);
+        const retry = dialog.getByRole("button", {
+          name: copy.tryAgain,
+          exact: true,
+        });
+        // Dispatch both same-tick activations without waiting for the first
+        // render to disable the button. The component's synchronous ref latch
+        // must own duplicate protection; a second Playwright click otherwise
+        // waits forever on the disabled button until this test releases the
+        // first request.
+        await retry.evaluate((button) => {
+          button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
         await expect(dialog.locator("form")).toHaveAttribute(
           "aria-busy",
           "true",
@@ -525,7 +530,14 @@ for (const locale of LOCALES) {
       } finally {
         releasePendingRequest();
         if (pendingResponse) await pendingResponse;
-        await page.unroute("**/api/chores/verify", verifyHandler);
+        if (!page.isClosed()) {
+          try {
+            await page.unroute("**/api/chores/verify", verifyHandler);
+          } catch {
+            // Preserve the original timeout/assertion if the test runner has
+            // already closed the page during teardown.
+          }
+        }
       }
     });
   });

@@ -5,6 +5,7 @@ import { Calendar, Repeat, Loader2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
+import { useBudgetText } from '@/i18n/budget'
 
 interface Category {
   id: string
@@ -39,8 +40,79 @@ const FIELD_CLASS =
   'w-full min-h-[44px] px-4 py-2.5 bg-[var(--surface-secondary)] border border-[var(--surface-separator)] rounded-xl text-body text-label-primary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors placeholder:text-label-tertiary'
 const LABEL_CLASS = 'block text-subhead font-medium text-label-secondary mb-2'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isCategory(value: unknown): value is Category {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.icon === 'string' &&
+    typeof value.color === 'string' &&
+    typeof value.type === 'string' &&
+    (value.budget_limit === null || (typeof value.budget_limit === 'number' && Number.isFinite(value.budget_limit)))
+  )
+}
+
+function parseCategoriesResponse(value: unknown): Category[] | null {
+  if (!isRecord(value) || !Array.isArray(value.categories) || !value.categories.every(isCategory)) return null
+  return value.categories
+}
+
+const PERMISSION_ERROR_CODES = new Set([
+  'UNAUTHORIZED',
+  'FORBIDDEN',
+  'PARENT_REQUIRED',
+  'FAMILY_REQUIRED',
+  'DEVICE_WRITE_NOT_ALLOWED',
+  'DEVICE_WRITES_OFF',
+  'FEATURE_DISABLED',
+  'PERSON_SESSION_REQUIRED',
+])
+
+const CONFLICT_ERROR_CODES = new Set([
+  'CONFLICT',
+  'IDENTITY_CONFLICT',
+  'DUPLICATE_OPEN_ITEM',
+  'ALREADY_EXISTS',
+])
+
+function errorCode(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const code = value.trim().toUpperCase()
+    return /^[A-Z][A-Z0-9_]*$/.test(code) ? code : null
+  }
+  if (!isRecord(value)) return null
+  for (const candidate of [value.code, value.errorCode, value.error]) {
+    const code = errorCode(candidate)
+    if (code) return code
+  }
+  return null
+}
+
+function mutationErrorMessage(
+  payload: unknown,
+  status: number,
+  action: 'save' | 'delete',
+  text: ReturnType<typeof useBudgetText>
+): string {
+  const code = errorCode(payload)
+  if (status === 401 || status === 403 || (code !== null && PERMISSION_ERROR_CODES.has(code))) {
+    return text(action === 'save' ? 'saveFailed' : 'deleteFailed')
+  }
+  if (status === 409 || (code !== null && CONFLICT_ERROR_CODES.has(code))) {
+    return text(action === 'save' ? 'saveFailed' : 'deleteFailed')
+  }
+  // Never render server-controlled messages. They can be objects, English
+  // implementation details, or contain private data from another boundary.
+  return text(action === 'save' ? 'saveFailed' : 'deleteFailed')
+}
+
 export default function TransactionForm({ onClose, onSuccess, onDeleted, initialData }: TransactionFormProps) {
   const isEditing = !!initialData
+  const text = useBudgetText()
   const ids = {
     amount: useId(),
     category: useId(),
@@ -68,16 +140,43 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [categoryError, setCategoryError] = useState<'server' | 'network' | null>(null)
+  const categoryRequest = useRef({ token: 0, type: type as string, inFlight: false })
+  const submitInFlight = useRef(false)
+  const deleteInFlight = useRef(false)
+  const busy = isSubmitting || isDeleting
 
   const fetchCategories = useCallback(async () => {
+    const previous = categoryRequest.current
+    if (previous.inFlight && previous.type === type) return
+    const token = previous.token + 1
+    categoryRequest.current = { token, type, inFlight: true }
+    setIsLoadingCategories(true)
+    setCategoryError(null)
     try {
       const res = await fetch(`/api/budget/categories?type=${type}`)
-      if (res.ok) {
-        const json = await res.json()
-        setCategories(json.categories ?? [])
+      if (categoryRequest.current.token !== token) return
+      if (!res.ok) {
+        setCategoryError('server')
+        return
       }
-    } catch (err) {
-      console.error('Failed to fetch categories:', err)
+      const json = await res.json().catch(() => undefined)
+      if (categoryRequest.current.token !== token) return
+      const nextCategories = parseCategoriesResponse(json)
+      if (!nextCategories) {
+        setCategoryError('server')
+        return
+      }
+      setCategories(nextCategories)
+    } catch {
+      if (categoryRequest.current.token !== token) return
+      setCategoryError('network')
+    } finally {
+      if (categoryRequest.current.token === token) {
+        categoryRequest.current.inFlight = false
+        setIsLoadingCategories(false)
+      }
     }
   }, [type])
 
@@ -94,6 +193,8 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
     if (next === type) return
     setType(next)
     setCategoryId('')
+    setCategoryError(null)
+    setIsLoadingCategories(true)
   }
 
   // The Dialog focuses its first control (Close) on open; a new transaction
@@ -110,6 +211,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (busy || submitInFlight.current || deleteInFlight.current) return
     setError('')
 
     const numericAmount = parseFloat(amount)
@@ -118,6 +220,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
       return
     }
 
+    submitInFlight.current = true
     setIsSubmitting(true)
 
     try {
@@ -143,47 +246,54 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
       })
 
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error || 'Failed to save transaction')
+        const json = await res.json().catch(() => undefined)
+        setError(mutationErrorMessage(json, res.status, 'save', text))
+        submitInFlight.current = false
         setIsSubmitting(false)
         return
       }
 
+      submitInFlight.current = false
+      setIsSubmitting(false)
       onSuccess()
     } catch (err) {
       console.error('Failed to save:', err)
-      setError('Network error. Please try again.')
+      setError(text('saveNetworkError'))
+      submitInFlight.current = false
       setIsSubmitting(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!initialData) return
+    if (!initialData || busy || submitInFlight.current || deleteInFlight.current) return
     setError('')
+    deleteInFlight.current = true
     setIsDeleting(true)
     try {
       const res = await fetch(`/api/budget/transactions/${initialData.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error || "Couldn't delete the transaction")
+        const json = await res.json().catch(() => undefined)
+        setError(mutationErrorMessage(json, res.status, 'delete', text))
+        deleteInFlight.current = false
         setIsDeleting(false)
         setConfirmingDelete(false)
         return
       }
+      deleteInFlight.current = false
+      setIsDeleting(false)
       ;(onDeleted ?? onSuccess)()
     } catch {
-      setError('Network error. Please try again.')
+      setError(text('deleteNetworkError'))
+      deleteInFlight.current = false
       setIsDeleting(false)
       setConfirmingDelete(false)
     }
   }
 
-  const busy = isSubmitting || isDeleting
-
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       title={isEditing ? 'Edit Transaction' : 'Add Transaction'}
       testId="transaction-form"
       initialFocusRef={isEditing ? undefined : amountRef}
@@ -247,10 +357,34 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
         {/* Category */}
         <div>
           {filteredCategories.length > 0 ? (
+            <label htmlFor={ids.category} className={LABEL_CLASS}>
+              Category
+            </label>
+          ) : (
+            <p className={LABEL_CLASS}>Category</p>
+          )}
+          {isLoadingCategories && (
+            <p role="status" className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-secondary)] rounded-xl">
+              {text('loadingCategories')}
+            </p>
+          )}
+          {categoryError && (
+            <div role="alert" className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--tint-rewards)] bg-[var(--tint-rewards)]/10 px-4 py-3">
+              <p className="text-subhead text-label-primary">
+                {categoryError === 'network' ? text('categoriesNetworkError') : text('categoriesUnavailable')}
+              </p>
+              <button
+                type="button"
+                onClick={fetchCategories}
+                disabled={isLoadingCategories}
+                className="btn-ghost min-h-[44px] shrink-0 px-3"
+              >
+                {text('retryCategories')}
+              </button>
+            </div>
+          )}
+          {filteredCategories.length > 0 ? (
             <>
-              <label htmlFor={ids.category} className={LABEL_CLASS}>
-                Category
-              </label>
               <select
                 id={ids.category}
                 value={categoryId}
@@ -265,14 +399,13 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 ))}
               </select>
             </>
-          ) : (
+          ) : !isLoadingCategories && !categoryError ? (
             <>
-              <p className={LABEL_CLASS}>Category</p>
               <p className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-secondary)] rounded-xl">
-                No {type} categories yet. Create one in Category Manager.
+                {text('noCategories', { type: text(type === 'income' ? 'income' : 'expense') })}
               </p>
             </>
-          )}
+          ) : null}
         </div>
 
         {/* Description */}
@@ -382,7 +515,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
 
         {/* Actions */}
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="btn-ghost min-h-[44px] flex-1">
+          <button type="button" onClick={busy ? undefined : onClose} disabled={busy} className="btn-ghost min-h-[44px] flex-1 disabled:opacity-40">
             Cancel
           </button>
           <button

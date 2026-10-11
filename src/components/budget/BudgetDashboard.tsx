@@ -13,6 +13,7 @@ import { formatDateOnly, formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC 
 import { useMaybeToast } from '@/components/ui/toast'
 import { budgetProgress } from '@/lib/budget'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { useBudgetText } from '@/i18n/budget'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 // -----------------------------------------------------------------------
@@ -32,6 +33,112 @@ function formatCurrency(amount: number, locale: string): string {
     currency: 'USD',
     minimumFractionDigits: 2,
   }).format(Math.abs(amount))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isCategoryBreakdown(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  return (
+    (typeof value.category_id === 'string' || value.category_id === null) &&
+    typeof value.name === 'string' &&
+    typeof value.icon === 'string' &&
+    typeof value.color === 'string' &&
+    (value.budget_limit === null || isFiniteNumber(value.budget_limit)) &&
+    isFiniteNumber(value.total) &&
+    isFiniteNumber(value.percentage)
+  )
+}
+
+function isRecentTransaction(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  const category = value.category
+  const user = value.user
+  const validCategory =
+    category === null ||
+    (isRecord(category) &&
+      typeof category.id === 'string' &&
+      typeof category.name === 'string' &&
+      typeof category.icon === 'string' &&
+      typeof category.color === 'string')
+  const validUser =
+    isRecord(user) &&
+    typeof user.id === 'string' &&
+    typeof user.name === 'string' &&
+    isNullableString(user.avatar_url)
+  return (
+    typeof value.id === 'string' &&
+    isFiniteNumber(value.amount) &&
+    typeof value.type === 'string' &&
+    isNullableString(value.description) &&
+    typeof value.date === 'string' &&
+    typeof value.is_recurring === 'boolean' &&
+    isNullableString(value.recurring_interval) &&
+    validCategory &&
+    validUser
+  )
+}
+
+interface NormalizedBudgetData extends BudgetPageData {
+  monthly_trend: BudgetPageData['monthly_trend']
+}
+
+/**
+ * Validate the response before replacing the last known good dashboard.
+ * The route intentionally omits `balance` on trend rows, so fill that
+ * derived field while accepting the route's actual wire shape.
+ */
+function normalizeBudgetData(value: unknown): NormalizedBudgetData | null {
+  if (!isRecord(value)) return null
+  if (
+    typeof value.month !== 'string' ||
+    !isFiniteNumber(value.total_income) ||
+    !isFiniteNumber(value.total_expenses) ||
+    !isFiniteNumber(value.balance) ||
+    (value.budget_limit !== null && !isFiniteNumber(value.budget_limit)) ||
+    !Array.isArray(value.category_breakdown) ||
+    !value.category_breakdown.every(isCategoryBreakdown) ||
+    !Array.isArray(value.recent_transactions) ||
+    !value.recent_transactions.every(isRecentTransaction) ||
+    !Array.isArray(value.monthly_trend)
+  ) {
+    return null
+  }
+
+  const monthlyTrend = value.monthly_trend.map((entry) => {
+    if (!isRecord(entry) || typeof entry.month !== 'string' || !isFiniteNumber(entry.income) || !isFiniteNumber(entry.expenses)) {
+      return null
+    }
+    if ('balance' in entry && !isFiniteNumber(entry.balance)) return null
+    return {
+      month: entry.month,
+      income: entry.income,
+      expenses: entry.expenses,
+      balance: 'balance' in entry ? entry.balance as number : entry.income - entry.expenses,
+    }
+  })
+
+  if (monthlyTrend.some((entry) => entry === null)) return null
+  return {
+    month: value.month,
+    total_income: value.total_income,
+    total_expenses: value.total_expenses,
+    balance: value.balance,
+    budget_limit: value.budget_limit,
+    category_breakdown: value.category_breakdown as BudgetPageData['category_breakdown'],
+    recent_transactions: value.recent_transactions as BudgetPageData['recent_transactions'],
+    monthly_trend: monthlyTrend as BudgetPageData['monthly_trend'],
+  }
 }
 
 // Transaction dates are date-only values stored as UTC midnight. Group and
@@ -99,8 +206,13 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const [editing, setEditing] = React.useState<Transaction | null>(null)
   const hydrated = useHydrated()
   const { addToast } = useMaybeToast()
+  const text = useBudgetText()
   const [filter, setFilter] = React.useState<'all' | 'income' | 'expense'>('all')
   const [isLoading, setIsLoading] = React.useState(false)
+  const [refreshError, setRefreshError] = React.useState<'server' | 'network' | null>(null)
+  const refreshInFlight = React.useRef(false)
+  const refreshQueued = React.useRef(false)
+  const refreshDataRef = React.useRef<() => Promise<void>>(async () => {})
 
   // All transactions from the data
   const allTransactions = data.recent_transactions as Transaction[]
@@ -123,26 +235,46 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const ring = budgetProgress(spent, budgetLimit)
 
   const refreshData = React.useCallback(async () => {
+    if (refreshInFlight.current) {
+      // A save/delete can finish while an older refresh is still resolving.
+      // Keep that invalidation so the eventual response cannot win with stale
+      // rows from before the mutation.
+      refreshQueued.current = true
+      return
+    }
+    refreshInFlight.current = true
     setIsLoading(true)
+    setRefreshError(null)
     try {
       // Ask for the viewer's local month (O-31): without it the server picks
       // the UTC month, which is wrong for the hours around a month change.
       const res = await fetch(`/api/budget/stats?month=${localYearMonth()}`)
-      if (res.ok) {
-        const json = await res.json()
-        setData({
-          ...json,
-          monthly_trend: json.monthly_trend,
-          recent_transactions: json.recent_transactions,
-          category_breakdown: json.category_breakdown,
-        } as BudgetPageData)
+      if (!res.ok) {
+        setRefreshError('server')
+        return
       }
-    } catch (err) {
-      console.error('Failed to refresh:', err)
+      const json = await res.json().catch(() => undefined)
+      const nextData = normalizeBudgetData(json)
+      if (!nextData) {
+        setRefreshError('server')
+        return
+      }
+      setData(nextData)
+    } catch {
+      setRefreshError('network')
     } finally {
-      setIsLoading(false)
+      const shouldRefreshAgain = refreshQueued.current
+      refreshQueued.current = false
+      refreshInFlight.current = false
+      if (shouldRefreshAgain) {
+        void refreshDataRef.current()
+      } else {
+        setIsLoading(false)
+      }
     }
   }, [])
+
+  refreshDataRef.current = refreshData
 
   // The server renders the UTC month. If the viewer's local month differs
   // (e.g. the evening of the 31st west of UTC), load their month instead.
@@ -173,7 +305,14 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
         title="Budget"
         subtitle={data.month}
         trailing={
-          <button onClick={refreshData} aria-label="Refresh budget" type="button" className={cn('btn-ghost h-11 w-11 p-0', isLoading && 'opacity-50')}>
+          <button
+            onClick={refreshData}
+            aria-label={isLoading ? text('refreshingBudget') : text('refreshBudget')}
+            aria-busy={isLoading}
+            disabled={isLoading}
+            type="button"
+            className={cn('btn-ghost h-11 w-11 p-0', isLoading && 'opacity-50')}
+          >
             <RefreshCw aria-hidden="true" className={cn('w-4 h-4', isLoading && 'motion-safe:animate-spin')} />
           </button>
         }
@@ -181,6 +320,22 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
       />
 
       <div className="space-y-5 px-4">
+        {refreshError && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--tint-rewards)] bg-[var(--tint-rewards)]/10 px-4 py-3">
+            <p className="text-subhead text-label-primary">
+              {refreshError === 'network' ? text('refreshNetworkError') : text('refreshFailed')}
+            </p>
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={isLoading}
+              className="btn-ghost min-h-[44px] shrink-0 px-3"
+            >
+              {text('retryRefresh')}
+            </button>
+          </div>
+        )}
+
         {/* Progress ring + summary */}
         <div className="card-apple p-5 flex items-center gap-5">
           {ring && budgetLimit !== null && (
@@ -258,7 +413,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
                           <span
                             className={cn(
                               'text-body font-semibold tabular-nums',
-                              tx.type === 'income' ? 'text-[var(--tint-lists)]' : 'text-[var(--tint-rewards)]'
+                              tx.type === 'income' ? 'text-[var(--tint-lists-text)]' : 'text-[var(--tint-rewards-text)]'
                             )}
                           >
                             {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount, displayLocale)}

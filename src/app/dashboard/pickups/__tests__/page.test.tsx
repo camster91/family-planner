@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom";
 import * as React from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -34,14 +35,15 @@ function response(body: unknown, ok = true, status = ok ? 200 : 500) {
   return { ok, status, json: async () => body } as Response;
 }
 
-function renderPage(locale: "en" | "es" = "en") {
-  return render(
+function renderPage(locale: "en" | "es" = "en", strict = false) {
+  const page = (
     <I18nProvider locale={locale}>
       <ToastProvider>
         <PickupsPage />
       </ToastProvider>
-    </I18nProvider>,
+    </I18nProvider>
   );
+  return render(strict ? <React.StrictMode>{page}</React.StrictMode> : page);
 }
 
 beforeEach(() => {
@@ -208,6 +210,194 @@ it("keeps the Spanish draft through Escape and restores focus to Add", async () 
   ).toHaveTextContent("Cancelar");
 });
 
+it("consumes the form history marker when Escape closes the draft", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest.spyOn(window.history, "back");
+  const replaceSpy = jest.spyOn(window.history, "replaceState");
+  renderPage();
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+
+  await user.keyboard("{Escape}");
+
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(backSpy).toHaveBeenCalledTimes(1);
+  });
+  expect(replaceSpy).not.toHaveBeenCalled();
+  backSpy.mockRestore();
+  replaceSpy.mockRestore();
+});
+
+it("does not duplicate the history marker during StrictMode effect replay", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const pushSpy = jest.spyOn(window.history, "pushState");
+  renderPage("en", true);
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+
+  expect(pushSpy).toHaveBeenCalledTimes(1);
+  pushSpy.mockRestore();
+});
+
+it("keeps a pending close locked until its back traversal completes", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  renderPage();
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+  const firstMarker = (window.history.state as { pickupForm?: unknown })
+    .pickupForm;
+  await user.keyboard("{Escape}");
+  expect(
+    screen.getByRole("dialog", { name: "New pickup" }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(document.body.style.overflow).toBe("hidden");
+
+  await act(async () => {
+    window.history.replaceState({}, "", "/dashboard/pickups");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(document.body.style.overflow).toBe("");
+  await user.click(add);
+  const dialog = await screen.findByRole("dialog", { name: "New pickup" });
+  expect(dialog).toBeInTheDocument();
+  const reopenedMarker = (window.history.state as { pickupForm?: unknown })
+    .pickupForm;
+  expect(reopenedMarker).toMatch(/^pickup-form-/);
+  expect(reopenedMarker).not.toBe(firstMarker);
+  expect(backSpy).toHaveBeenCalledTimes(1);
+  backSpy.mockRestore();
+});
+
+it("consumes its marker when the form owner unmounts", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  const view = renderPage();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  view.unmount();
+
+  await waitFor(() => expect(backSpy).toHaveBeenCalledTimes(1));
+  backSpy.mockRestore();
+});
+
+it("preserves a same-URL Next entry when closing after its state changes", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  renderPage();
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+  const marker = (window.history.state as { pickupForm?: unknown }).pickupForm;
+  window.history.pushState(
+    {
+      __N: true,
+      customNextState: "preserve-me",
+      pickupForm: marker,
+    },
+    "",
+    "/dashboard/pickups",
+  );
+
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(window.history.state).toMatchObject({
+    __N: true,
+    customNextState: "preserve-me",
+  });
+  expect((window.history.state as { pickupForm?: unknown }).pickupForm).toBe(
+    undefined,
+  );
+  expect(backSpy).not.toHaveBeenCalled();
+  backSpy.mockRestore();
+});
+
+it("removes only its marker when unmount inherits a same-route Next state", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  const view = renderPage();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  const marker = (window.history.state as { pickupForm?: unknown }).pickupForm;
+  expect(marker).toEqual(expect.stringMatching(/^pickup-form-/));
+  view.unmount();
+
+  window.history.pushState(
+    {
+      __N: true,
+      customNextState: "preserve-me",
+      pickupForm: marker,
+    },
+    "",
+    "/dashboard/pickups",
+  );
+  await waitFor(() => {
+    expect((window.history.state as { pickupForm?: unknown }).pickupForm).toBe(
+      undefined,
+    );
+  });
+  expect(window.history.state).toMatchObject({
+    __N: true,
+    customNextState: "preserve-me",
+  });
+  expect(backSpy).not.toHaveBeenCalled();
+  backSpy.mockRestore();
+});
+
 it("blocks dismissal and duplicate submits while saving, then restores Add focus", async () => {
   let resolvePost: ((value: Response) => void) | undefined;
   global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -227,6 +417,7 @@ it("blocks dismissal and duplicate submits while saving, then restores Add focus
   const user = userEvent.setup();
   renderPage();
   const add = await screen.findByRole("button", { name: "Add" });
+  const backSpy = jest.spyOn(window.history, "back");
   await user.click(add);
   await user.type(screen.getByLabelText("Title"), "School pickup");
   fireEvent.change(screen.getByLabelText("When"), {
@@ -250,4 +441,6 @@ it("blocks dismissal and duplicate submits while saving, then restores Add focus
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
   expect(add).toHaveFocus();
+  expect(backSpy).toHaveBeenCalledTimes(1);
+  backSpy.mockRestore();
 });

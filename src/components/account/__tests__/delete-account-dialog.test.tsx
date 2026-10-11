@@ -10,6 +10,11 @@ import userEvent from '@testing-library/user-event'
 import DeleteAccountDialog from '../DeleteAccountDialog'
 import type { DeletionOptions } from '@/lib/account-deletion-shared'
 
+const mockClearCapture = jest.fn()
+jest.mock('@/lib/capture-recovery-storage', () => ({
+  clearCaptureRecoveryStorage: () => mockClearCapture(),
+}))
+
 type Call = { url: string; method: string; body: any; headers: Record<string, string> }
 
 const MEMBER: DeletionOptions = {
@@ -56,6 +61,7 @@ function mockApi(options: DeletionOptions | null, deleteResponses: Array<Respons
 
 beforeEach(() => {
   window.confirm = jest.fn(() => true)
+  mockClearCapture.mockReset()
 })
 
 afterEach(() => {
@@ -83,6 +89,7 @@ describe('DeleteAccountDialog', () => {
 
     await userEvent.click(submit)
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith('account'))
+    expect(mockClearCapture).toHaveBeenCalledTimes(1)
     const del = calls.filter((c) => c.method === 'DELETE')
     expect(del).toHaveLength(1)
     expect(del[0].url).toBe('/api/users')
@@ -109,6 +116,7 @@ describe('DeleteAccountDialog', () => {
 
     await userEvent.click(submit)
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith('household'))
+    expect(mockClearCapture).toHaveBeenCalledTimes(1)
     const del = calls.find((c) => c.method === 'DELETE')!
     expect(del.url).toBe('/api/family')
     expect(del.body).toEqual({ familyId: 'fam-1', password: 'secret-pw', confirmation: 'the rivers' })

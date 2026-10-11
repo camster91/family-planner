@@ -16,7 +16,11 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page, Request, Response, TestInfo } from "@playwright/test";
 import pg from "pg";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
-import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
+import {
+  FIXTURE_EMAILS,
+  FIXTURE_IDS,
+  FIXTURE_PASSWORD,
+} from "../src/lib/fixtures/dataset";
 import { authFile, E2E_ANCHOR, E2E_BASE_URL } from "./support/env";
 import { goOffline, goOnline } from "./support/network";
 import {
@@ -33,11 +37,143 @@ const PROJECTS = ["phone-390x844", "fridge-landscape-1280x800"];
 
 type Fixture = { listId: string; items: Record<string, string> };
 
+const COMPATIBILITY_CASES: Array<{
+  id: string;
+  name: string;
+  build: (itemId: string) => Record<string, unknown>;
+}> = [
+  {
+    id: "v1-ops",
+    name: "an unfamiliar v1 operation",
+    build: (itemId) => ({
+      v: 1,
+      ops: [
+        {
+          id: "original-known-key-123456",
+          action: "list-item.set-checked",
+          v: 1,
+          payload: { itemId, checked: true },
+          createdAt: Date.now(),
+          state: "pending",
+          attempts: 0,
+          nextAttemptAt: 0,
+        },
+        {
+          id: "original-future-key-123456",
+          action: "future-grocery-action",
+          v: 2,
+          payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
+        },
+      ],
+    }),
+  },
+  {
+    id: "v2-operations",
+    name: "a future malformed operations envelope",
+    build: () => ({
+      v: 2,
+      operations: [
+        {
+          id: "original-future-key-123456",
+          action: "future-grocery-action",
+          v: 2,
+          payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
+          createdAt: 1,
+          state: "pending",
+          attempts: 0,
+          nextAttemptAt: 0,
+        },
+        { malformed: true, createdAt: 1 },
+      ],
+    }),
+  },
+];
+
+/**
+ * Compatibility accounts sign in through the real form, so give each
+ * case/project pair a dedicated TEST-NET login bucket. The Playwright config
+ * already supplies a project-wide address (10..15); page-level headers layer
+ * this address over only X-Forwarded-For and leave any other context headers
+ * untouched.
+ */
+function compatibilityClientAddress(
+  testInfo: TestInfo,
+  compatibilityCaseIndex: number,
+) {
+  const projectIndex = PROJECTS.indexOf(testInfo.project.name);
+  if (projectIndex < 0) {
+    throw new Error(
+      `Unexpected sync compatibility project: ${testInfo.project.name}`,
+    );
+  }
+  return `198.51.100.${150 + compatibilityCaseIndex * PROJECTS.length + projectIndex}`;
+}
+
 function onlyOnSomeProjects(testInfo: TestInfo) {
   test.skip(
     !PROJECTS.includes(testInfo.project.name),
     "sync journeys run on two representative projects",
   );
+}
+
+type OwnedAccount = { userId: string; email: string };
+
+async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
+  assertFixtureTargetAllowed(process.env);
+  const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await db.connect();
+  try {
+    return await fn(db);
+  } finally {
+    await db.end();
+  }
+}
+
+function accountFor(testInfo: TestInfo, compatibilityCase: { id: string }) {
+  const prefix = `fx_e2e_sync_${testInfo.project.name.replace(/\W+/g, "_")}_${compatibilityCase.id}`;
+  return {
+    userId: `${prefix}_parent`,
+    email: `${prefix}@example.test`,
+  } satisfies OwnedAccount;
+}
+
+async function seedAccount(
+  testInfo: TestInfo,
+  compatibilityCase: { id: string },
+): Promise<OwnedAccount> {
+  const account = accountFor(testInfo, compatibilityCase);
+  await withDb(async (db) => {
+    // Clean only this test's deterministic account and lists from an interrupted
+    // prior run. The fixture parent and household remain untouched.
+    await db.query(`DELETE FROM "List" WHERE created_by = $1`, [
+      account.userId,
+    ]);
+    await db.query(`DELETE FROM "User" WHERE id = $1`, [account.userId]);
+    const inserted = await db.query(
+      `INSERT INTO "User" (id, email, password, name, role, family_id, email_verified)
+       SELECT $1, $2, password, $3, 'parent', $4, true
+       FROM "User"
+       WHERE id = $5`,
+      [
+        account.userId,
+        account.email,
+        `Sync E2E ${compatibilityCase.id}`,
+        FIXTURE_IDS.familyA.family,
+        FIXTURE_IDS.familyA.parent,
+      ],
+    );
+    expect(inserted.rowCount).toBe(1);
+  });
+  return account;
+}
+
+async function removeAccount(account: OwnedAccount) {
+  await withDb(async (db) => {
+    await db.query(`DELETE FROM "List" WHERE created_by = $1`, [
+      account.userId,
+    ]);
+    await db.query(`DELETE FROM "User" WHERE id = $1`, [account.userId]);
+  });
 }
 
 async function createList(
@@ -96,6 +232,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
   test.use({ storageState: authFile("parentA") });
 
   let fixture: Fixture | null = null;
+  let account: OwnedAccount | null = null;
 
   test.beforeEach(async ({}, testInfo) => onlyOnSomeProjects(testInfo));
 
@@ -110,113 +247,149 @@ test.describe("offline grocery ticks: Family A parent", () => {
       expect(res.status, res.body).toBe(200);
       fixture = null;
     }
-  });
-
-  test("unfamiliar stored queue survives reload without replay or replacement", async ({
-    page,
-  }, testInfo) => {
-    fixture = await createList(page, testInfo, ["Existing grocery"]);
-    const listId = fixture.listId;
-    const itemId = fixture.items["Existing grocery"];
-    const raw = JSON.stringify(
-      {
-        v: 1,
-        ops: [
-          {
-            id: "original-known-key-123456",
-            action: "list-item.set-checked",
-            v: 1,
-            payload: { itemId, checked: true },
-            createdAt: Date.now(),
-            state: "pending",
-            attempts: 0,
-            nextAttemptAt: 0,
-          },
-          {
-            id: "original-future-key-123456",
-            action: "future-grocery-action",
-            v: 2,
-            payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
-          },
-        ],
-      },
-      null,
-      2,
-    );
-    const storedQueue = async (mode: "write" | "read" | "remove") =>
-      page.evaluate(
-        async ({ mode, raw, userId }) => {
-          const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open("fp-sync", 1);
-            request.onupgradeneeded = () =>
-              request.result.createObjectStore("kv");
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-          });
-          try {
-            return await new Promise<string | null>((resolve, reject) => {
-              const tx = db.transaction(
-                "kv",
-                mode === "read" ? "readonly" : "readwrite",
-              );
-              const store = tx.objectStore("kv");
-              const key = `fp-sync:v1:${userId}:queue`;
-              const request =
-                mode === "write"
-                  ? store.put(raw, key)
-                  : mode === "remove"
-                    ? store.delete(key)
-                    : store.get(key);
-              tx.oncomplete = () =>
-                resolve(mode === "read" ? (request.result ?? null) : null);
-              tx.onerror = () => reject(tx.error);
-              tx.onabort = () => reject(tx.error);
-            });
-          } finally {
-            db.close();
-          }
-        },
-        { mode, raw, userId: FIXTURE_IDS.familyA.parent },
-      );
-    const updates = trackUpdates(page);
-    try {
-      await storedQueue("write");
-      await page.goto(`/dashboard/lists/${listId}`);
-      await expect(
-        page.getByText(/Pending changes need a compatible app version/).first(),
-      ).toBeVisible();
-      await expect(
-        page.getByText("PRIVATE UNFAMILIAR CONTENT", { exact: true }),
-      ).toHaveCount(0);
-      const input = page.getByRole("textbox", {
-        name: "Add an item",
-        exact: true,
-      });
-      await input.fill("Keep this unsent draft");
-      await page.getByRole("button", { name: "Add", exact: true }).click();
-      await expect(input).toHaveValue("Keep this unsent draft");
-      expect(await storedQueue("read")).toBe(raw);
-      await page.reload();
-      await expect(
-        page.getByText(/Pending changes need a compatible app version/).first(),
-      ).toBeVisible();
-      expect(await storedQueue("read")).toBe(raw);
-      expect(updates).toHaveLength(0);
-      expect((await serverItem(page, listId, itemId)).checked).toBe(false);
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-      ).toBe(true);
-      await page.screenshot({
-        path: testInfo.outputPath("queue-compatible-client-recovery.png"),
-        fullPage: true,
-      });
-    } finally {
-      await storedQueue("remove");
+    if (account) {
+      await removeAccount(account);
+      account = null;
     }
   });
+
+  for (const [
+    compatibilityCaseIndex,
+    compatibilityCase,
+  ] of COMPATIBILITY_CASES.entries())
+    test(`${compatibilityCase.name} queue survives reload and explicit purge without replay`, async ({
+      page,
+    }, testInfo) => {
+      const ownedAccount = await seedAccount(testInfo, compatibilityCase);
+      account = ownedAccount;
+      // The account is intentionally created and authenticated through the UI.
+      // Isolate only this compatibility login from the long shared shard while
+      // retaining the context's other configured request headers.
+      await page.setExtraHTTPHeaders({
+        "X-Forwarded-For": compatibilityClientAddress(
+          testInfo,
+          compatibilityCaseIndex,
+        ),
+      });
+      // The describe-level storage state is parentA for the other journeys.
+      // Drop only this context's inherited cookie before the dedicated account
+      // login; calling logout here would revoke parentA's shared token.
+      await page.context().clearCookies();
+      await loginViaUi(page, ownedAccount.email, FIXTURE_PASSWORD);
+      await expect(page).toHaveURL(/\/dashboard/);
+      await page.getByRole("button", { name: "User menu" }).click();
+      await expect(
+        page.getByText(`Sync E2E ${compatibilityCase.id}`, { exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "User menu" }).click();
+      fixture = await createList(page, testInfo, ["Existing grocery"]);
+      const listId = fixture.listId;
+      const itemId = fixture.items["Existing grocery"];
+      const raw = JSON.stringify(compatibilityCase.build(itemId), null, 2);
+      const storedQueue = async (mode: "write" | "read" | "remove") =>
+        page.evaluate(
+          async ({ mode, raw, userId }) => {
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              const request = indexedDB.open("fp-sync", 1);
+              request.onupgradeneeded = () =>
+                request.result.createObjectStore("kv");
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            try {
+              return await new Promise<string | null>((resolve, reject) => {
+                const tx = db.transaction(
+                  "kv",
+                  mode === "read" ? "readonly" : "readwrite",
+                );
+                const store = tx.objectStore("kv");
+                const key = `fp-sync:v1:${userId}:queue`;
+                const request =
+                  mode === "write"
+                    ? store.put(raw, key)
+                    : mode === "remove"
+                      ? store.delete(key)
+                      : store.get(key);
+                tx.oncomplete = () =>
+                  resolve(mode === "read" ? (request.result ?? null) : null);
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error);
+              });
+            } finally {
+              db.close();
+            }
+          },
+          { mode, raw, userId: ownedAccount.userId },
+        );
+      const updates = trackUpdates(page);
+      let purged = false;
+      try {
+        await storedQueue("write");
+        await page.goto(`/dashboard/lists/${listId}`);
+        await expect(
+          page
+            .getByText(/Pending changes need a compatible app version/)
+            .first(),
+        ).toBeVisible();
+        await expect(
+          page.getByText("PRIVATE UNFAMILIAR CONTENT", { exact: true }),
+        ).toHaveCount(0);
+        const input = page.getByRole("textbox", {
+          name: "Add an item",
+          exact: true,
+        });
+        await input.fill("Keep this unsent draft");
+        await page.getByRole("button", { name: "Add", exact: true }).click();
+        await expect(input).toHaveValue("Keep this unsent draft");
+        expect(await storedQueue("read")).toBe(raw);
+        await page.reload();
+        await expect(
+          page
+            .getByText(/Pending changes need a compatible app version/)
+            .first(),
+        ).toBeVisible();
+        expect(await storedQueue("read")).toBe(raw);
+        expect(updates).toHaveLength(0);
+        expect((await serverItem(page, listId, itemId)).checked).toBe(false);
+        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual(
+          [],
+        );
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        ).toBe(true);
+        await page.screenshot({
+          path: testInfo.outputPath("queue-compatible-client-recovery.png"),
+          fullPage: true,
+        });
+
+        // Sign-out is the explicit privacy purge. It may remove unfamiliar
+        // bytes, but nothing else may rewrite or replay them while paused.
+        const cleanup = await browserSend(page, "DELETE", "/api/lists", {
+          listId,
+        });
+        expect(cleanup.status, cleanup.body).toBe(200);
+        fixture = null;
+        await page.getByRole("button", { name: "User menu" }).click();
+        await page.getByRole("button", { name: "Sign Out" }).click();
+        await expect(page).toHaveURL(/\/login$/);
+        const leftovers = await page.evaluate(async () => {
+          const keys = Object.keys(window.localStorage).filter((key) =>
+            key.startsWith("fp-sync:"),
+          );
+          const dbs = (await indexedDB.databases?.()) ?? [];
+          const store = dbs.some((db) => db.name === "fp-sync")
+            ? "database-present"
+            : null;
+          return { keys, store };
+        });
+        expect(leftovers).toEqual({ keys: [], store: null });
+        purged = true;
+      } finally {
+        if (!purged) await storedQueue("remove");
+      }
+    });
 
   test("personal grocery add survives offline reload, flapping and a lost committed response", async ({
     page,
@@ -856,6 +1029,13 @@ test.describe("offline grocery ticks: sign-out", () => {
     browser,
   }, testInfo) => {
     onlyOnSomeProjects(testInfo);
+    // This journey deliberately starts without shared auth state and signs in
+    // through the UI. Give it its own TEST-NET client bucket so the long
+    // one-worker shard's other login journeys cannot consume the 30-attempt
+    // IP limit before this sign-out check begins.
+    await page.setExtraHTTPHeaders({
+      "X-Forwarded-For": "198.51.100.250",
+    });
     await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
     await expect(page).toHaveURL(/\/dashboard$/);
     // A teen may create lists (D9); deleting it at the end is parent-only.

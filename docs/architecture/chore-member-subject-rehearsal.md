@@ -15,7 +15,7 @@ Default dry run rolls back. Apply validates every row before writing, locks the 
 
 The database checks account/member agreement on ownership changes. Unchanged historical ownership remains writable after archive or detachment. Historical reconciliation intentionally permits archived mapped profiles with no erasure owner; this is not eligibility for new assignments. A canonical reference cannot be silently cleared. Explicit account erasure clears it and sets a sticky `member_subject_erased` tombstone before deleting the copied profile. Reconciliation cannot restore that identity. Existing legacy account-deletion policy still governs legacy actors, credits and retained history; this expansion does not transfer XP or establish complete member-only erasure.
 
-Whole-household application deletion removes assignments and chores before profiles. Direct Family cascade deletion also passes with canonical rows present. Standalone profile deletion with retained canonical history is refused by the new NO ACTION foreign keys. The independent HouseholdMember subject inventory classifies four owning relations; the existing 67 User relation inventory remains intact.
+Whole-household application deletion removes assignments, audit subjects and chores before profiles. Direct Family cascade deletion also passes with canonical rows present. Standalone profile deletion with retained canonical history is refused by the new NO ACTION foreign keys. The independent HouseholdMember subject inventory classifies six owning relations; the existing 67 User relation inventory remains intact.
 
 ## Verification and activation gates
 

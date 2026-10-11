@@ -596,7 +596,14 @@ export default function AssistantPanel({
                   </>
                 )}
                 {action.kind === "open" && (
-                  <p>{msg("open", { destination: action.destination })}</p>
+                  <p>
+                    {msg("open", {
+                      destination:
+                        action.destination === "analytics"
+                          ? msg("analytics")
+                          : action.destination,
+                    })}
+                  </p>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <button
