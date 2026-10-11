@@ -40,6 +40,12 @@ it("rejects an expired or overlarge projection", () => {
   expect(
     assistantTodayContextSchema.safeParse({
       ...context,
+      expiresAt: "2026-10-09T12:01:01.000Z",
+    }).success,
+  ).toBe(false);
+  expect(
+    assistantTodayContextSchema.safeParse({
+      ...context,
       today: {
         ...context.today,
         events: Array.from({ length: 21 }, () => ({

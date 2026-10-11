@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const ASSISTANT_TODAY_PROTOCOL = "herewoven.assistant-today.v1" as const;
+const ASSISTANT_TODAY_MAX_TTL_MS = 60_000;
 
 const boundedDate = z.string().datetime({ offset: true }).max(64);
 const boundedText = z.string().max(512);
@@ -121,7 +122,10 @@ export const assistantTodayContextSchema = z
     const generatedAt = Date.parse(value.generatedAt);
     const expiresAt = Date.parse(value.expiresAt);
     if (!Number.isFinite(generatedAt) || !Number.isFinite(expiresAt)) return;
-    if (expiresAt <= generatedAt) {
+    if (
+      expiresAt <= generatedAt ||
+      expiresAt - generatedAt > ASSISTANT_TODAY_MAX_TTL_MS
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["expiresAt"],

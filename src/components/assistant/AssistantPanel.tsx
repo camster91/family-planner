@@ -29,7 +29,12 @@ import {
 import { useVoiceDraft } from "./use-voice-draft";
 
 type Message = { role: "user" | "assistant"; content: string };
-type TodayFreshness = { generatedAt: number; expiresAt: number };
+type TodayFreshness = {
+  generatedAt: number;
+  expiresAt: number;
+  receivedAt: number;
+  leaseExpiresAt: number;
+};
 type Report = {
   id: string;
   kind: string;
@@ -39,6 +44,8 @@ type Report = {
 };
 const target =
   "min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50";
+const ASSISTANT_TODAY_PROTOCOL = "herewoven.assistant-today.v1";
+const ASSISTANT_TODAY_MAX_TTL_MS = 60_000;
 export type AssistantPanelTab = "chat" | "report" | "reports";
 
 export type AssistantPanelProps = {
@@ -80,17 +87,35 @@ function toAssistantError(
   return { kind: "copy", key: fallback };
 }
 
+function parseIsoHeader(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value)
+    return null;
+  return parsed;
+}
+
 function readTodayFreshness(
   headers: Headers | undefined,
+  receivedAt: number | null,
+  isVisible: boolean,
 ): TodayFreshness | null {
-  if (!headers) return null;
-  const generatedAt = Date.parse(
-      headers.get("X-Assistant-Today-Generated-At") ?? "",
+  if (!headers || receivedAt === null || !isVisible) return null;
+  const protocol = headers.get("X-Assistant-Today-Protocol");
+  if (protocol !== ASSISTANT_TODAY_PROTOCOL) return null;
+  const generatedAt = parseIsoHeader(
+      headers.get("X-Assistant-Today-Generated-At"),
     ),
-    expiresAt = Date.parse(headers.get("X-Assistant-Today-Expires-At") ?? "");
-  if (!Number.isFinite(generatedAt) || !Number.isFinite(expiresAt)) return null;
-  if (expiresAt <= generatedAt) return null;
-  return { generatedAt, expiresAt };
+    expiresAt = parseIsoHeader(headers.get("X-Assistant-Today-Expires-At"));
+  if (generatedAt === null || expiresAt === null) return null;
+  const ttl = expiresAt - generatedAt;
+  if (ttl <= 0 || ttl > ASSISTANT_TODAY_MAX_TTL_MS) return null;
+  return {
+    generatedAt,
+    expiresAt,
+    receivedAt,
+    leaseExpiresAt: receivedAt + ttl,
+  };
 }
 
 export default function AssistantPanel({
@@ -133,8 +158,18 @@ export default function AssistantPanel({
     actionKey = React.useRef(""),
     lock = React.useRef(false),
     consumed = React.useRef(false),
-    lastTodayRequest = React.useRef<Message[] | null>(null);
+    lastTodayRequest = React.useRef<Message[] | null>(null),
+    lastPerformanceNow = React.useRef<number | null>(null),
+    visibilitySuspended = React.useRef(false);
   const canChat = role === "parent" || role === "teen";
+  const monotonicNow = () => {
+    const now = performance.now();
+    if (!Number.isFinite(now)) return null;
+    if (lastPerformanceNow.current !== null && now < lastPerformanceNow.current)
+      return null;
+    lastPerformanceNow.current = now;
+    return now;
+  };
   const voice = useVoiceDraft(
     panelOpen && tab === "chat" && !busy,
     (t) => setText(t),
@@ -146,12 +181,45 @@ export default function AssistantPanel({
       setTodayExpired(false);
       return;
     }
-    const update = () =>
-      setTodayExpired(todayFreshness.expiresAt <= Date.now());
-    update();
-    const delay = Math.max(0, todayFreshness.expiresAt - Date.now());
-    const timer = window.setTimeout(update, delay);
-    return () => window.clearTimeout(timer);
+    visibilitySuspended.current = false;
+    const update = () => {
+      const now = monotonicNow();
+      setTodayExpired(
+        visibilitySuspended.current ||
+          document.visibilityState !== "visible" ||
+          now === null ||
+          now < todayFreshness.receivedAt ||
+          now >= todayFreshness.leaseExpiresAt,
+      );
+      return now;
+    };
+    const now = update();
+    const timer =
+      now === null
+        ? undefined
+        : window.setTimeout(
+            update,
+            Math.max(0, todayFreshness.leaseExpiresAt - now),
+          );
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        visibilitySuspended.current = true;
+        setTodayExpired(true);
+        return;
+      }
+      // A hidden/resumed tab must request a new projection. Do not revive the
+      // old lease even when its monotonic deadline has not elapsed.
+      if (visibilitySuspended.current) {
+        setTodayExpired(true);
+        return;
+      }
+      update();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [todayFreshness]);
   React.useEffect(() => {
     if (panelOpen && tab === "reports") void loadReports();
@@ -197,6 +265,7 @@ export default function AssistantPanel({
     next: Message[],
     draft: string,
     withToday: boolean,
+    preserveDraft = false,
   ) {
     if (lock.current || !canChat) return;
     lock.current = true;
@@ -238,11 +307,18 @@ export default function AssistantPanel({
       }
       const parsedReply = assistantReplySchema.safeParse(body);
       if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
-      const freshness = withToday ? readTodayFreshness(r.headers) : null;
+      const receivedAt = withToday ? monotonicNow() : null;
+      const freshness = withToday
+        ? readTodayFreshness(
+            r.headers,
+            receivedAt,
+            document.visibilityState === "visible",
+          )
+        : null;
       if (withToday && !freshness)
         throw new AssistantCopyError("todayContextUnavailable");
       const proposal = parsedReply.data;
-      setText("");
+      if (!preserveDraft) setText("");
       setMessages(
         [
           ...next,
@@ -294,17 +370,32 @@ export default function AssistantPanel({
   async function refreshTodayContext() {
     const request = lastTodayRequest.current;
     if (!request || lock.current) return;
-    await requestChat(request, text, true);
+    // The user may have typed a newer unsent question while the old preview
+    // was open. Refresh the saved request, but keep that newer draft visible.
+    await requestChat(request, text, true, true);
+  }
+  function hasValidTodayLease(): boolean {
+    if (!todayFreshness) return true;
+    const now = monotonicNow();
+    const valid =
+      !todayExpired &&
+      !visibilitySuspended.current &&
+      document.visibilityState === "visible" &&
+      now !== null &&
+      now >= todayFreshness.receivedAt &&
+      now < todayFreshness.leaseExpiresAt;
+    if (!valid) setTodayExpired(true);
+    return valid;
   }
   async function confirm() {
     if (
       !action ||
-      todayExpired ||
       lock.current ||
       consumed.current ||
       !canUseAssistantAction(action, role, features)
     )
       return;
+    if (!hasValidTodayLease()) return;
     if (action.kind === "open") {
       close();
       router.push(assistantDestination(action.destination));

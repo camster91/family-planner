@@ -21,6 +21,8 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { isAssistantTodayEnabled } from "@/lib/assistant-today-capability";
 import {
+  ASSISTANT_TODAY_PROTOCOL,
+  ASSISTANT_TODAY_TTL_MS,
   AssistantTodayInputError,
   loadAssistantTodayContext,
 } from "@/lib/assistant-today-context";
@@ -57,10 +59,21 @@ function responseHeaders(todayContext: unknown): Record<string, string> {
     expiresAt?: unknown;
   };
   if (
-    typeof context.protocol === "string" &&
+    context.protocol === ASSISTANT_TODAY_PROTOCOL &&
     typeof context.generatedAt === "string" &&
     typeof context.expiresAt === "string"
   ) {
+    const generatedAt = Date.parse(context.generatedAt);
+    const expiresAt = Date.parse(context.expiresAt);
+    if (
+      !Number.isFinite(generatedAt) ||
+      !Number.isFinite(expiresAt) ||
+      new Date(generatedAt).toISOString() !== context.generatedAt ||
+      new Date(expiresAt).toISOString() !== context.expiresAt ||
+      expiresAt <= generatedAt ||
+      expiresAt - generatedAt > ASSISTANT_TODAY_TTL_MS
+    )
+      return headers;
     headers["X-Assistant-Today-Protocol"] = context.protocol;
     headers["X-Assistant-Today-Generated-At"] = context.generatedAt;
     headers["X-Assistant-Today-Expires-At"] = context.expiresAt;
@@ -100,6 +113,34 @@ export async function POST(request: NextRequest) {
           code: "ASSISTANT_TODAY_UNAVAILABLE",
         },
         { status: 503 },
+      );
+
+    // Keep the existing provider/configuration and rate gates ahead of any
+    // Today household reads. This preserves the old path and prevents an
+    // unavailable/over-limit chat from touching the Today loader.
+    const family = await prisma!.family.findUnique({
+      where: { id: auth.user.family_id },
+      select: {
+        features: true,
+        capture_ai_key_enc: true,
+        capture_ai_base_url: true,
+        capture_ai_model: true,
+      },
+    });
+    const config = resolveCaptureConfig(family);
+    if (!config)
+      return NextResponse.json(
+        {
+          error:
+            "AI is not connected yet. Ask a parent to connect the household AI provider.",
+        },
+        { status: 503 },
+      );
+    const rate = await checkRateLimit(`assistant:${auth.user.id}`, 30, 3600000);
+    if (!rate.allowed)
+      return NextResponse.json(
+        { error: "Chat limit reached. Try again later." },
+        { status: 429 },
       );
 
     let todayContext: AssistantTodayTransportContext | undefined;
@@ -155,31 +196,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const family = await prisma!.family.findUnique({
-      where: { id: auth.user.family_id },
-      select: {
-        features: true,
-        capture_ai_key_enc: true,
-        capture_ai_base_url: true,
-        capture_ai_model: true,
-      },
-    });
-
-    const config = resolveCaptureConfig(family);
-    if (!config)
-      return NextResponse.json(
-        {
-          error:
-            "AI is not connected yet. Ask a parent to connect the household AI provider.",
-        },
-        { status: 503 },
-      );
-    const rate = await checkRateLimit(`assistant:${auth.user.id}`, 30, 3600000);
-    if (!rate.allowed)
-      return NextResponse.json(
-        { error: "Chat limit reached. Try again later." },
-        { status: 429 },
-      );
     const features = normalizeFeatures(family?.features);
     const chat = {
       messages: parsed.data.messages,

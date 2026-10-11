@@ -21,6 +21,8 @@ jest.mock("@/lib/assistant-today-capability", () => ({
   isAssistantTodayEnabled: jest.fn(() => mockTodayEnabled),
 }));
 jest.mock("@/lib/assistant-today-context", () => ({
+  ASSISTANT_TODAY_PROTOCOL: "herewoven.assistant-today.v1",
+  ASSISTANT_TODAY_TTL_MS: 60_000,
   loadAssistantTodayContext: jest.fn(),
   AssistantTodayInputError: class extends Error {
     code: string;
@@ -45,6 +47,7 @@ import {
   AssistantTodayInputError,
   loadAssistantTodayContext,
 } from "@/lib/assistant-today-context";
+import { checkRateLimit } from "@/lib/rate-limit-db";
 import type { NextRequest } from "next/server";
 const input = {
   messages: [{ role: "user", content: "Add milk" }],
@@ -166,4 +169,19 @@ it("fails closed when the fresh Today projection is unavailable", async () => {
   const result = await POST(request({ ...input, includeToday: true }));
   expect(result.status).toBe(503);
   expect(structuredAssistantReply).not.toHaveBeenCalled();
+});
+it("checks provider configuration and rate limits before Today DB loading", async () => {
+  mockTodayEnabled = true;
+  (resolveCaptureConfig as jest.Mock).mockReturnValueOnce(null);
+  expect((await POST(request({ ...input, includeToday: true }))).status).toBe(
+    503,
+  );
+  expect(loadAssistantTodayContext).not.toHaveBeenCalled();
+
+  (resolveCaptureConfig as jest.Mock).mockReturnValue({ model: "test" });
+  (checkRateLimit as jest.Mock).mockResolvedValueOnce({ allowed: false });
+  expect((await POST(request({ ...input, includeToday: true }))).status).toBe(
+    429,
+  );
+  expect(loadAssistantTodayContext).not.toHaveBeenCalled();
 });
