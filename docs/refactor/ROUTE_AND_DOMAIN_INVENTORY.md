@@ -12,7 +12,7 @@
 
 Cameron's latest direction: align UI/UX across **all features**, including all-features-on households. This supplements the historical audit below; it does not claim that old route counts, role descriptions, or every screen remain current. Source reviewed for this addition: `9e6ac899` (`src/lib/features.ts`, `src/lib/nav-items.ts`, `src/lib/kid-access.ts`, dashboard page paths, shared UI primitives and form-sheet hosts). Static inspection only; no new rendered, native, production or customer evidence.
 
-Execution owner: Codex; product owner: Cameron. Track vertical migrations in #143, foundation/component work in #152, adaptive journey acceptance in #133 and rendered evidence in #139. Preserve the existing [cross-device sequence](../product/CROSS_DEVICE_ROADMAP.md); this is its coverage contract, not a parallel roadmap. Significant flow changes use the existing [editable design file](../../design/README.md) before implementation.
+Execution owner: Codex; product owner: Cameron. Track the current all-feature continuation in #499 (preserving closed #143 acceptance/history), foundation/component work in #152, adaptive journey acceptance in #133 and rendered evidence in #139. Preserve the existing [cross-device sequence](../product/CROSS_DEVICE_ROADMAP.md); this is its coverage contract, not a parallel roadmap. Significant flow changes use the existing [editable design file](../../design/README.md) before implementation.
 
 ### One interaction system
 
