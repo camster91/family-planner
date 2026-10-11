@@ -3,9 +3,10 @@ import * as React from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RoutineStacks, routineStacks } from '../RoutineStacks'
+import { I18nProvider } from '@/i18n'
 import type { Chore } from '@/types'
 
-function step(id: string, order: number, extra: Partial<Chore> = {}) {
+function step(id: string, order: number, extra: Partial<Chore> & { assignee?: { name: string } | null } = {}) {
   return { id, family_id: 'fixture', title: id, assigned_to: 'adult', due_date: '2026-10-09', points: 0, status: 'pending' as const, frequency: 'once' as const, difficulty: 'easy' as const, created_at: '2026-10-01', assignee: { name: 'Alex' }, routine: 'Evening reset', routine_order: order, ...extra }
 }
 
@@ -57,4 +58,27 @@ it('can focus on one next step without completing or deleting the other steps', 
   expect(complete).not.toHaveBeenCalled()
   await userEvent.click(screen.getByRole('checkbox', { name: 'Focus on the next step' }))
   expect(screen.getByRole('button', { name: 'Complete second' })).toBeTruthy()
+})
+
+it('identifies unstacked repeated chores by member and date and keeps each completion canonical', async () => {
+  const complete = jest.fn()
+  const chores = [step('one', 1, { title: 'Take out trash', routine: null, recurrence_id: 'series', due_date: '2026-10-09' }), step('two', 1, { title: 'Take out trash', routine: null, recurrence_id: 'series', due_date: '2026-10-16', assigned_to: 'teen', assignee: { name: 'Sam' } })]
+  const { rerender } = render(<I18nProvider><RoutineStacks chores={chores} userRole="parent" currentUserId="adult" locale="en-CA" collapseRepeats onComplete={complete} /></I18nProvider>)
+  const other = screen.getByRole('region', { name: 'Other chores' })
+  expect(within(other).getByText('2 dates · Oct 9')).toBeTruthy()
+  expect((other.querySelector('details') as HTMLDetailsElement).open).toBe(false)
+  await userEvent.click(within(other).getByText('Expand to see dates and who does each chore'))
+  expect(within(other).getByText('Alex · Oct 9')).toBeTruthy()
+  expect(within(other).getByText('Sam · Oct 16')).toBeTruthy()
+  await userEvent.click(within(other).getAllByRole('button', { name: 'Complete Take out trash' })[1])
+  expect(complete).toHaveBeenCalledWith('two')
+  rerender(<I18nProvider><RoutineStacks chores={chores} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={complete} /></I18nProvider>)
+  expect(within(other).getAllByRole('button', { name: 'Complete Take out trash' })).toHaveLength(2)
+})
+it('never merges unrelated series or standalone same-title chores and preserves member permissions', async () => {
+  const chores = [step('one', 1, { title: 'Same', routine: null, recurrence_id: 'series-a' }), step('two', 1, { title: 'Same', routine: null, recurrence_id: 'series-b' }), step('three', 1, { title: 'Same', routine: null, assigned_to: 'someone-else' })]
+  render(<I18nProvider locale="es"><RoutineStacks chores={chores} userRole="teen" currentUserId="adult" locale="es" collapseRepeats onComplete={jest.fn()} /></I18nProvider>)
+  expect(screen.getAllByRole('button', { name: 'Complete Same' })).toHaveLength(2)
+  expect(screen.queryAllByRole('link')).toHaveLength(0)
+  expect(document.querySelectorAll('details')).toHaveLength(0)
 })

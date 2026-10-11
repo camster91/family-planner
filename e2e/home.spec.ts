@@ -32,6 +32,7 @@ const A = FIXTURE_IDS.familyA;
 const PROJECTS = [
   "phone-390x844",
   "tablet-portrait-800x1280",
+  "fridge-landscape-1280x800",
   "desktop-1366x768",
 ];
 const CHORE_ID = "fx_e2e_home_parent_chore";
@@ -85,7 +86,16 @@ test.beforeAll(async () => {
     await db.query(
       `INSERT INTO "Chore" (id, family_id, title, points, assigned_to, due_date, status, frequency, difficulty, created_by, created_at)
        VALUES ($1, $2, $3, 10, $4, $5, 'pending', 'once', 'medium', $4, $6)`,
-      [CHORE_ID, A.family, CHORE_TITLE, A.parent, anchorDay(), E2E_ANCHOR],
+      // pg serializes Date in local TZ; a timestamp-without-time-zone column
+      // then discards that offset. Bind UTC ISO text to keep the date-only day.
+      [
+        CHORE_ID,
+        A.family,
+        CHORE_TITLE,
+        A.parent,
+        anchorDay().toISOString(),
+        E2E_ANCHOR.toISOString(),
+      ],
     );
     await db.query(
       `UPDATE "Family" SET features = COALESCE(features, '{}'::jsonb) || '{"pickups":true}'::jsonb WHERE id = $1`,
@@ -101,7 +111,7 @@ test.afterAll(async () => {
 test.beforeEach(async ({}, testInfo) => {
   test.skip(
     !PROJECTS.includes(testInfo.project.name),
-    "home/shell journey runs at 390x844, 800x1280 and 1366x768",
+    "home/shell journey runs at phone, portrait tablet, fridge landscape and desktop sizes",
   );
 });
 
@@ -153,7 +163,24 @@ test.describe("Family A parent", () => {
     await expect(
       page.getByRole("link", { name: "1 chore to check" }),
     ).toBeVisible();
+    await expect(page.getByText(CHORE_TITLE, { exact: true })).toHaveCount(1);
+    const ownChore = page.getByRole("checkbox", {
+      name: new RegExp(CHORE_TITLE),
+    });
+    await expect(ownChore).toHaveCount(1);
+    expect((await ownChore.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(
+      44,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+    ).toBe(false);
     await expectNoSeriousAxe(page, testInfo, "home");
+    await page.screenshot({
+      path: testInfo.outputPath("today-single-chore.png"),
+      fullPage: true,
+    });
   });
 
   test("tapping a chore on home completes it and Undo restores it", async ({
@@ -161,6 +188,9 @@ test.describe("Family A parent", () => {
   }) => {
     await page.goto("/dashboard/today");
     const box = page.getByRole("checkbox", { name: new RegExp(CHORE_TITLE) });
+    await expect(box).toHaveCount(1);
+    // One canonical presentation: no second household-tile row for this ID.
+    await expect(page.getByText(CHORE_TITLE, { exact: true })).toHaveCount(1);
     await expect(box).toHaveAttribute("aria-checked", "false");
 
     const completed = page.waitForResponse(
@@ -313,9 +343,75 @@ test.describe("Family A child", () => {
   }) => {
     await page.goto("/dashboard/today");
     await expect(summary(page)).toHaveText("You have 1 chore left");
+    // Personal home keeps the child's task once; the remaining household tile shows Taylor.
+    await expect(page.getByTestId("home-summary")).toContainText(
+      "Tidy bedroom",
+    );
+    await expect(page.getByText("Tidy bedroom", { exact: true })).toHaveCount(
+      1,
+    );
+    await expect(page.getByTestId("region-chores")).toContainText("Taylor");
+    await expect(page.getByTestId("region-chores")).not.toContainText(
+      "Tidy bedroom",
+    );
     await expect(
       page.getByTestId("home-summary").getByRole("link"),
     ).toHaveCount(0);
+  });
+});
+
+test.describe("Personal-only household work", () => {
+  test.use({ storageState: authFile("parentB") });
+
+  test("removes the repeated tile and fills its grid area", async ({
+    page,
+  }, testInfo) => {
+    const B = FIXTURE_IDS.familyB;
+    // Isolated fixture household only; restore its canonical teen assignment.
+    await withDb((db) =>
+      db.query('UPDATE "Chore" SET assigned_to = $1 WHERE id = $2', [
+        B.parent,
+        B.chore,
+      ]),
+    );
+    try {
+      await page.goto("/dashboard/today");
+      await expect(
+        page.getByRole("checkbox", { name: /Water the plants/ }),
+      ).toHaveCount(1);
+      await expect(page.getByTestId("region-chores")).toHaveCount(0);
+      const grid = page.getByTestId("board-grid");
+      expect(
+        await grid.evaluate(
+          (element) => getComputedStyle(element).gridTemplateAreas,
+        ),
+      ).not.toContain("chores");
+      if ((page.viewportSize()?.width ?? 0) >= 1024) {
+        const gridBox = await grid.boundingBox();
+        const comingBox = await page.getByTestId("region-coming").boundingBox();
+        expect(gridBox).not.toBeNull();
+        expect(comingBox).not.toBeNull();
+        expect(Math.abs(gridBox!.width - comingBox!.width)).toBeLessThan(2);
+        expect(Math.abs(gridBox!.x - comingBox!.x)).toBeLessThan(2);
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        ),
+      ).toBe(false);
+      await expectNoSeriousAxe(page, testInfo, "personal-only-home");
+      await page.screenshot({
+        path: testInfo.outputPath("today-personal-only.png"),
+        fullPage: true,
+      });
+    } finally {
+      await withDb((db) =>
+        db.query('UPDATE "Chore" SET assigned_to = $1 WHERE id = $2', [
+          B.teen,
+          B.chore,
+        ]),
+      );
+    }
   });
 });
 

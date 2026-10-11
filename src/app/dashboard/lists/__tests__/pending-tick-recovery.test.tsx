@@ -48,6 +48,7 @@ beforeEach(() => {
   ];
   queue = {
     ready: Promise.resolve(),
+    requiresCompatibleClient: () => false,
     list: () => ops,
     subscribe: jest.fn((fn) => {
       listener = fn;
@@ -155,4 +156,17 @@ it("translates a live retry notice and open discard confirmation without subscri
     ),
   ).toBeVisible();
   expect(ops).toEqual(before.filter((op: any) => op.id !== "key-one"));
+});
+
+it("shows retained-work recovery instead of claiming there are no pending changes", async () => {
+  ops = [];
+  queue.requiresCompatibleClient = () => true;
+  render(<PendingTickRecovery userId="viewer" />);
+  fireEvent.click(screen.getByRole("button", { name: "Review waiting ticks" }));
+  await screen.findByText(/Pending changes need a compatible app version/);
+  expect(
+    screen.queryByText("No saved ticks are waiting."),
+  ).not.toBeInTheDocument();
+  expect(queue.retry).not.toHaveBeenCalled();
+  expect(queue.discard).not.toHaveBeenCalled();
 });

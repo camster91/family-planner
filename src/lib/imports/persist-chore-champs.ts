@@ -1,5 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
+import { lockHousehold } from "@/lib/household-lock";
+import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 import {
   planChoreChampsImport,
   type ChoreChampsImportPlan,
@@ -15,6 +18,25 @@ type ImportSummary = {
 
 function increment(bucket: Record<string, number>, model: string) {
   bucket[model] = (bucket[model] ?? 0) + 1;
+}
+
+async function validateImportMembershipInTx(
+  tx: Prisma.TransactionClient,
+  familyId: string,
+  startedBy: string,
+  kidToUserId: Readonly<Record<string, string>>,
+) {
+  const actor = await tx.user.findFirst({
+    where: { id: startedBy, family_id: familyId, role: "parent" },
+    select: { id: true },
+  });
+  const mappedUserIds = [...new Set(Object.values(kidToUserId))];
+  const mappedUsers = await tx.user.findMany({
+    where: { id: { in: mappedUserIds }, family_id: familyId },
+    select: { id: true },
+  });
+  if (!actor || mappedUsers.length !== mappedUserIds.length)
+    throw new HouseholdMemberIdentityConflict();
 }
 
 export async function importChoreChamps(
@@ -46,20 +68,36 @@ export async function importChoreChamps(
   if (options.dryRun !== false) return { plan, summary, jobId: null };
   if (!prisma) throw new Error("Database is not configured");
 
-  const job = await prisma.importJob.create({
-    data: {
-      family_id: options.familyId,
-      source_app: SOURCE_APP,
-      source_version: plan.sourceVersion,
-      status: "running",
-      dry_run: false,
-      started_by: options.startedBy,
-    },
+  const job = await prisma.$transaction(async (tx) => {
+    await lockHousehold(tx, options.familyId);
+    await validateImportMembershipInTx(
+      tx,
+      options.familyId,
+      options.startedBy,
+      options.kidToUserId,
+    );
+    return tx.importJob.create({
+      data: {
+        family_id: options.familyId,
+        source_app: SOURCE_APP,
+        source_version: plan.sourceVersion,
+        status: "running",
+        dry_run: false,
+        started_by: options.startedBy,
+      },
+    });
   });
 
   try {
     await prisma.$transaction(
       async (tx) => {
+        await lockHousehold(tx, options.familyId);
+        await validateImportMembershipInTx(
+          tx,
+          options.familyId,
+          options.startedBy,
+          options.kidToUserId,
+        );
         const prior = await tx.importedRecord.findMany({
           where: { family_id: options.familyId, source_app: SOURCE_APP },
         });
@@ -113,7 +151,12 @@ export async function importChoreChamps(
               title: source.title,
               description: source.description,
               points: source.points,
-              assigned_to: firstAssignment.targetUserId,
+              ...(await choreAssigneeForCreateInTx(
+                tx,
+                options.familyId,
+                firstAssignment.targetUserId,
+                { historical: !source.active },
+              )),
               due_date: firstAssignment.dueDate,
               status: source.active ? "pending" : "archived",
               frequency: source.frequency,
@@ -141,11 +184,28 @@ export async function importChoreChamps(
             });
             continue;
           }
+          const choreSubject = await tx.chore.findFirst({
+            where: { id: choreId, family_id: options.familyId },
+            select: { assigned_member_id: true },
+          });
+          if (!choreSubject) throw new HouseholdMemberIdentityConflict();
           const target = await tx.choreAssignment.create({
             data: {
               family_id: options.familyId,
               chore_id: choreId,
-              assigned_to: source.targetUserId,
+              ...(await choreAssigneeForCreateInTx(
+                tx,
+                options.familyId,
+                source.targetUserId,
+                {
+                  historical: [
+                    "completed",
+                    "verified",
+                    "approved",
+                    "archived",
+                  ].includes(source.status),
+                },
+              )),
               due_date: source.dueDate,
               status: source.status,
               completed_at: source.completedAt,

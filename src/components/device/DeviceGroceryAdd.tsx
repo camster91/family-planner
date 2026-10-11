@@ -58,6 +58,7 @@ export function DeviceGroceryAdd({
     const refreshedMissingLists = new Set<string>();
     const update = () => {
       if (!active) return;
+      if (queue.requiresCompatibleClient()) setNotice("compatibleClient");
       setOps(
         queue
           .list()
@@ -165,7 +166,10 @@ export function DeviceGroceryAdd({
       setError(
         failure instanceof QueueError && failure.code === "QUEUE_FULL"
           ? "deviceFull"
-          : "deviceQueueFailed",
+          : failure instanceof QueueError &&
+              failure.code === "COMPATIBLE_CLIENT_REQUIRED"
+            ? "compatibleClient"
+            : "deviceQueueFailed",
       );
     } finally {
       sending.current = false;

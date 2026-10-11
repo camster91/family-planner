@@ -59,6 +59,7 @@ export type DeviceErrorCode =
   | 'CHORE_NOT_DUE_TODAY'
   | 'CHORE_ALREADY_VERIFIED'
   | 'UNDO_NOT_ALLOWED'
+  | 'IDENTITY_CONFLICT'
   | 'DUPLICATE_OPEN_ITEM'
 
 const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
@@ -93,6 +94,7 @@ const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
   CHORE_NOT_DUE_TODAY: 'Only chores due today can be ticked off on the tablet.',
   CHORE_ALREADY_VERIFIED: 'A parent has already checked this chore, so it stays done.',
   UNDO_NOT_ALLOWED: 'This can only be undone on the tablet that did it, right after.',
+  IDENTITY_CONFLICT: 'Household member identity needs review before this change.',
   DUPLICATE_OPEN_ITEM: 'This item is already on the list and not yet ticked.',
 }
 

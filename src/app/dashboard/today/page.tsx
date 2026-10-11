@@ -12,6 +12,7 @@ import { loadTodayBoard } from './board-snapshot'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { loadHomeSummary } from './home-summary-data'
 import { allStepsDone, loadGetStarted } from './get-started-data'
+import { isDoneStatus, isOpenStatus } from '@/lib/home-summary'
 
 export const metadata: Metadata = { title: 'Today' }
 
@@ -94,10 +95,17 @@ export default async function TodayBoardPage({
   const viewer = { id: sessionUser.id, role: user.role }
   if (!home) return <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />
 
+  // Own chore rows already have completion/reopen/Undo in the personal summary.
+  // Exclude only those exact IDs from the household tile, not every chore for
+  // this member: the two bounded reads can contain different sets of rows.
+  const choresShownElsewhere = home.chores
+    .filter((chore) => chore.assigneeId === viewer.id && (isOpenStatus(chore.status) || isDoneStatus(chore.status)))
+    .map((chore) => chore.id)
+
   return (
     <>
       <HomeSummary viewer={viewer} {...home} />
-      <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />
+      <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} choresShownElsewhere={choresShownElsewhere} />
       <div className="mt-6 space-y-4">
         {getStarted && !allStepsDone(getStarted) && (
           <GetStarted viewer={viewer} familyId={familyId} steps={getStarted} />

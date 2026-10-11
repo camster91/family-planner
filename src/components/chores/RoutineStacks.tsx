@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { groupByRoutine, ROUTINE_ORDER_MAX } from '@/lib/routine-icons'
+import { useTranslation } from '@/i18n'
+import { groupChoreSeries } from '@/lib/chore-series-groups'
 import { formatDateOnly } from '@/lib/dates'
 import { RoutineIcon } from './RoutineIcon'
 import type { Chore } from '@/types'
@@ -25,17 +27,19 @@ export function routineStacks(chores: Step[]) {
 
 const isDone = (chore: Step) => chore.status === 'completed' || chore.status === 'verified'
 
-export function RoutineStacks({ chores, userRole, currentUserId, locale, onComplete }: {
+export function RoutineStacks({ chores, userRole, currentUserId, locale, collapseRepeats = false, onComplete }: {
   chores: Step[]
   userRole: string
   currentUserId: string
   locale: string
+  collapseRepeats?: boolean
   onComplete: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const [focusNext, setFocusNext] = useState(false)
   const stacks = routineStacks(chores)
   const other = chores.filter(c => !c.routine?.trim())
-  const renderStep = (chore: Step, next: boolean) => {
+  const renderStep = (chore: Step, next: boolean, context = false) => {
     const done = isDone(chore)
     const canComplete = userRole === 'parent' || chore.assigned_to === currentUserId
     return (
@@ -43,6 +47,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, locale, onCompl
         <RoutineIcon icon={chore.icon ?? null} className="h-8 w-8 shrink-0 text-label-primary" />
         <div className="flex-1 min-w-[120px] [overflow-wrap:anywhere]">
           <p className="text-body text-label-primary">{chore.routine_order ? `${chore.routine_order}. ` : ''}{chore.title}</p>
+          {context && <p className="text-footnote text-label-secondary">{chore.assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(chore.due_date, undefined, locale)}</p>}
           <p className="text-footnote text-label-secondary">{chore.status === 'verified' ? 'Checked' : done ? 'Done · awaiting check' : next ? 'Up next' : 'To do'}</p>
         </div>
         {!done && canComplete && <button type="button" onClick={() => onComplete(chore.id)} className="btn-filled min-h-[44px]" aria-label={`Complete ${chore.title}`}>Done</button>}
@@ -68,7 +73,19 @@ export function RoutineStacks({ chores, userRole, currentUserId, locale, onCompl
           {userRole === 'parent' && lastOrder < ROUTINE_ORDER_MAX && <Link className="inline-flex items-center min-h-[44px] text-[var(--accent)] underline text-body" href={`/dashboard/chores/create?${new URLSearchParams({ routine: stack.name, step: String(lastOrder + 1), member: stack.steps[0].assigned_to, date: stack.steps[0].due_date.slice(0, 10) })}`}>Add step</Link>}
         </section>
       })}
-      {other.length > 0 && <section className="list-inset px-4" aria-label="Other chores"><h2 className="section-header">Other chores</h2><ul>{other.map(c => renderStep(c, false))}</ul></section>}
+      {other.length > 0 && <section className="list-inset px-4" aria-label="Other chores"><h2 className="section-header">Other chores</h2><ul>{(collapseRepeats ? groupChoreSeries(other) : other.map(c => ({ key: c.id, steps: [c], repeating: false }))).map(group => {
+        if (!group.repeating || group.steps.length < 2) return renderStep(group.steps[0], false, true)
+        return <li key={group.key} className="border-b border-[var(--surface-separator)] last:border-0">
+          <details>
+            <summary className="min-h-[44px] py-3 cursor-pointer text-label-primary [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
+              <span className="text-body font-medium">{group.steps[0].title}</span>
+              <span className="block text-footnote text-label-secondary">{t('routineViews.dates', { count: group.steps.length })} · {formatDateOnly(group.steps[0].due_date, undefined, locale)}</span>
+              <span className="block text-footnote text-label-secondary">{t('routineViews.expand')}</span>
+            </summary>
+            <ul>{group.steps.map(c => renderStep(c, false, true))}</ul>
+          </details>
+        </li>
+      })}</ul></section>}
     </div>
   )
 }

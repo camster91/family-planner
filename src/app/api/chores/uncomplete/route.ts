@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { uncompleteChoreSchema } from '@/lib/validations'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
+import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ success: true, choreId, status: 'pending' })
   } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/uncomplete', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

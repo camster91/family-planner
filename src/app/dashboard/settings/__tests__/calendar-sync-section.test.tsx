@@ -55,7 +55,6 @@ function mockApi(listStatus = 200, connections: unknown[] = [MINE]) {
     if (method === 'DELETE') return json(200, { success: true, removed_events: 2 })
     return json(404, {})
   }) as unknown as typeof fetch
-  window.confirm = jest.fn(() => true)
   return calls
 }
 
@@ -82,6 +81,7 @@ describe('CalendarSyncSection', () => {
     expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ calendar_id: 'primary' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Disconnect Google Calendar' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
     await waitFor(() => expect(screen.getByText('Disconnected Google Calendar.')).toBeTruthy())
     expect(calls.some((c) => c.method === 'DELETE' && c.url === '/api/calendar/sync-connections/conn-1')).toBe(true)
   })

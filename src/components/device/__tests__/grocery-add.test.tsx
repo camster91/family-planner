@@ -340,3 +340,16 @@ it("changes language without clearing a device draft, reattributing a queued add
   act(() => changeLocale("en"));
   await screen.findByText("Item added to the grocery list.");
 });
+
+it("keeps unfamiliar shared work and refuses a new add without losing its draft", async () => {
+  const original = JSON.stringify({ v: 2, ops: [{ id: "original-key-123456", action: "device.list-item.add", v: 2, payload: { content: "PRIVATE UNKNOWN TEXT" } }] });
+  const { request } = setup({ initial: original });
+  await screen.findByText(/Pending changes need a compatible app version/);
+  expect(screen.queryByText("PRIVATE UNKNOWN TEXT")).not.toBeInTheDocument();
+  await add("Keep this shared draft");
+  expect(screen.getByRole("textbox", { name: "Item" })).toHaveValue("Keep this shared draft");
+  expect(saved).toBe(original);
+  expect(request).not.toHaveBeenCalled();
+  await act(async () => changeLocale("es"));
+  expect(screen.getAllByText(/Los cambios pendientes necesitan una versión compatible/).length).toBeGreaterThan(0);
+});

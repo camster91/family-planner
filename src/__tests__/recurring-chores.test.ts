@@ -90,7 +90,19 @@ const chore = {
   },
 }
 
-const txClient = { chore }
+// These are unmigrated legacy fixture accounts: no canonical links/mappings.
+const txClient = {
+  chore,
+  $queryRaw: async () => [{ locked: 1 }],
+  user: {
+    findFirst: async ({ where }: { where: { id: string; family_id: string } }) =>
+      ['kid', 'parent'].includes(where.id) && where.family_id === FAM
+        ? { id: where.id, family_id: FAM, role: where.id === 'parent' ? 'parent' : 'child' }
+        : null,
+  },
+  householdMemberLegacyMapping: { findMany: async () => [] },
+  householdMemberAccountLink: { findMany: async () => [] },
+}
 
 jest.mock('@/lib/prisma', () => ({
   prisma: {
@@ -329,7 +341,7 @@ describe('series keep going after the first window (no scheduler)', () => {
     Object.assign(r, data)
     return { count: 1 }
   }
-  const completionTx = { chore: { ...chore, updateMany }, activity: { create: async () => ({}) } }
+  const completionTx = { ...txClient, chore: { ...chore, updateMany }, activity: { create: async () => ({}) } }
   const db = { chore: {}, $transaction: async (fn: (tx: unknown) => unknown) => fn(completionTx), $executeRaw: async () => 0 }
 
   function asCompletable(r: Row): CompletableChore {

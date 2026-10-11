@@ -5,6 +5,9 @@
 // host hint comes back from the API.
 
 import { useCallback, useEffect, useState } from "react";
+import CalendarRemovalDialog, {
+  focusCalendarSection,
+} from "./CalendarRemovalDialog";
 import SettingsDisclosure from "./SettingsDisclosure";
 import SettingsIcon from "./SettingsIcon";
 import {
@@ -78,6 +81,7 @@ export default function CalendarSubscriptionsSection() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [color, setColor] = useState(COLORS[0].value);
+  const [removing, setRemoving] = useState<Subscription | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<SettingsFeedback | null>(null);
   const [notice, setNotice] = useState<SettingsFeedback | null>(null);
@@ -194,8 +198,6 @@ export default function CalendarSubscriptionsSection() {
   };
 
   const remove = async (sub: Subscription) => {
-    if (!window.confirm(copy("removeSubscriptionConfirm", { name: sub.name })))
-      return;
     setBusy(`remove:${sub.id}`);
     setError(null);
     setNotice(null);
@@ -210,6 +212,8 @@ export default function CalendarSubscriptionsSection() {
         return;
       }
       setSubs((prev) => prev.filter((s) => s.id !== sub.id));
+      setRemoving(null);
+      focusCalendarSection("calendar-subscriptions-heading");
       setNotice(settingsFeedback("removedSubscription", { name: sub.name }));
     } catch {
       setError(settingsFeedback("removeCalendarFailed"));
@@ -325,7 +329,10 @@ export default function CalendarSubscriptionsSection() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(sub)}
+                    onClick={() => {
+                      setError(null);
+                      setRemoving(sub);
+                    }}
                     disabled={busy !== null}
                     className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[var(--danger-tint)] text-danger-text hover:bg-[var(--danger-tint)]"
                     aria-label={copy("removeLabel", { name: sub.name })}
@@ -423,7 +430,7 @@ export default function CalendarSubscriptionsSection() {
       </form>
 
       <div aria-live="polite" className="mt-3">
-        {error && (
+        {error && !removing && (
           <p className="text-sm text-danger-text">
             <SettingsText feedback={error} />
           </p>
@@ -434,6 +441,22 @@ export default function CalendarSubscriptionsSection() {
           </p>
         )}
       </div>
+      {removing && (
+        <CalendarRemovalDialog
+          title={copy("removeLabel", { name: removing.name })}
+          description={copy("removeSubscriptionConfirm", {
+            name: removing.name,
+          })}
+          action={copy("remove")}
+          busy={busy !== null}
+          error={error}
+          onCancel={() => {
+            setRemoving(null);
+            setError(null);
+          }}
+          onConfirm={() => void remove(removing)}
+        />
+      )}
     </SettingsDisclosure>
   );
 }

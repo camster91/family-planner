@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslation } from '@/i18n'
+
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { useListVersionSync } from './use-list-version-sync'
@@ -591,7 +593,7 @@ export default function ListDetailClient({
       />
 
       {/* Add item field */}
-      <PersonGroceryAdd userId={userId} listId={listId} allowNew={isGrocery} />
+      <PersonGroceryAdd userId={userId} listId={listId} allowNew={isGrocery} showCompatibilityNotice={false} />
       {!isGrocery && (
       <div className="card-apple px-4 py-3">
         <div className="flex items-center gap-3">
@@ -752,7 +754,9 @@ export function SyncBanner({
   notice: SyncNotice
   onDismiss: () => void
 }) {
+  const { t } = useTranslation()
   const noticeText: Record<Exclude<SyncNotice, null>, string> = {
+    'compatible-client': t('groceries.compatibleClient'),
     'queue-full': 'Too many changes are waiting to sync. Reconnect, then try again.',
     'signed-out': 'You were signed out, so changes made offline were not saved.',
     dropped: 'Some changes saved on this device could not be kept.',

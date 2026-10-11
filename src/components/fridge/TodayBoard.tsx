@@ -65,6 +65,14 @@ const GRID_APP_WITH_SLOT = [
   'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"chores_chores"_"usesoon_usesoon"_"coming_coming"]',
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"chores_coming_coming"_"usesoon_usesoon_usesoon"]',
 ].join(' ')
+const GRID_APP_WITHOUT_CHORES = [
+  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"coming_coming"]',
+  'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"coming_coming_coming"]',
+].join(' ')
+const GRID_APP_WITH_SLOT_WITHOUT_CHORES = [
+  'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"usesoon_usesoon"_"coming_coming"]',
+  'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"coming_coming_coming"_"usesoon_usesoon_usesoon"]',
+].join(' ')
 const GRID_FRIDGE =
   'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:overflow-y-auto'
 const GRID_FRIDGE_WITH_SLOT =
@@ -77,10 +85,12 @@ const GRID_FRIDGE_WITH_SLOT =
 const USE_SOON_SLOT_FIT =
   'lg:landscape:flex lg:landscape:flex-col lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:flex-1 lg:landscape:[&>section]:overflow-y-auto'
 
-export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean): string {
+export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean, hasChores = true): string {
   return [
     GRID_BASE,
-    hasUseSoon ? GRID_APP_WITH_SLOT : GRID_APP,
+    fridgeMode || hasChores
+      ? (hasUseSoon ? GRID_APP_WITH_SLOT : GRID_APP)
+      : (hasUseSoon ? GRID_APP_WITH_SLOT_WITHOUT_CHORES : GRID_APP_WITHOUT_CHORES),
     fridgeMode && (hasUseSoon ? GRID_FRIDGE_WITH_SLOT : GRID_FRIDGE),
   ]
     .filter(Boolean)
@@ -173,8 +183,11 @@ export default function TodayBoard({
   viewer,
   tileActions,
   groceryAction,
+  choresShownElsewhere,
 }: {
   data: TodayBoardData
+  /** Exact chore IDs rendered by the personal home summary. Ignored in fridge mode. */
+  choresShownElsewhere?: readonly string[]
   /** Persisted device snapshot: display its server generation age, not mount time. */
   cachedSnapshot?: boolean
   fridgeMode: boolean
@@ -272,14 +285,22 @@ export default function TodayBoard({
     return {
       today: eventsLeftToday(data.events, now),
       dinner: dinnerOn(data.dinners, today),
-      chores: choresDueTodayByPerson(tiles.chores, withColors, now),
+      chores: choresDueTodayByPerson(
+        !fridgeMode && choresShownElsewhere?.length
+          ? tiles.chores.filter((chore) => !choresShownElsewhere.includes(chore.id))
+          : tiles.chores,
+        withColors,
+        now
+      ),
       comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS, displayLocale),
       people,
       weather: weatherView(data.weather, now),
       useSoon: itemsToUseSoon(data.useSoon, now),
       next: nextEvent(data.events, now, displayLocale),
     }
-  }, [data, now, tiles.chores, displayLocale])
+  }, [data, now, tiles.chores, displayLocale, fridgeMode, choresShownElsewhere])
+
+  const showChores = fridgeMode || !choresShownElsewhere?.length || Boolean(view?.chores.length)
 
   // "Use soon" tile (#263): only when there is something to use (null otherwise).
   const useSoonSlot =
@@ -382,7 +403,7 @@ export default function TodayBoard({
         <SyncAnnouncer message={announcement} testId="board-sync-announce" />
 
         {view ? (
-          <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot))}>
+          <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot), showChores)}>
             <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} />
             <DinnerRegion
               dinner={view.dinner}
@@ -390,12 +411,15 @@ export default function TodayBoard({
               mealsHref={data.links.meals}
               featuresHref={data.links.features}
             />
-            <ChoresRegion
-              people={view.chores}
-              choresHref={data.links.chores}
-              onTick={tiles.tickChore}
-              canTick={tiles.canTickChore}
-            />
+            {/* A personal summary may already contain all today's chore rows. */}
+            {showChores && (
+              <ChoresRegion
+                people={view.chores}
+                choresHref={data.links.chores}
+                onTick={tiles.tickChore}
+                canTick={tiles.canTickChore}
+              />
+            )}
             <GroceriesRegion shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} action={groceryAction} />
             <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
             {useSoonSlot && (

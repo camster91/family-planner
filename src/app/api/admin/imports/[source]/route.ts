@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 
 export const dynamic = "force-dynamic";
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
@@ -97,6 +98,11 @@ export async function POST(
       status: parsed.data.dryRun ? 200 : 201,
     });
   } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict)
+      return NextResponse.json(
+        { error: error.message, code: "IDENTITY_CONFLICT" },
+        { status: 409 },
+      );
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid source export", details: error.flatten() },

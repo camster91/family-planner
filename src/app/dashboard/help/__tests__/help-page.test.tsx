@@ -160,4 +160,5 @@ describe('DashboardNav user menu: Help', () => {
 it('does not expose personal sync diagnostics to a child', () => {
   render(<HelpContent role="child" userId="child-viewer" />)
   expect(screen.queryByRole('button', { name: 'View sync details' })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'appDiagnostics.title' })).toBeNull()
 })

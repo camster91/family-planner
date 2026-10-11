@@ -56,6 +56,7 @@ import { auditSummary, writeAuditLog, type AuditEntry } from '@/lib/household-au
 import { CLEARED_ELEVATION, revokeDeviceInTransaction } from '@/lib/device-session'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { dropMemberFromRotationsInTx } from '@/lib/chore-rotation'
+import { canonicalChoreAssigneeInTx } from '@/lib/chore-member-subject'
 import { archiveAccountProfilesInTx, HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import {
   HOUSEHOLD_CLEARED_REFERENCES,
@@ -193,14 +194,35 @@ export async function removeHouseholdMember(
       await tx.choreAssignment.deleteMany({
         where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
       })
+      const openChores = { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } }
+      const canonicalOpen: Array<{ id: string; assigned_member_id: string | null }> = await tx.chore.findMany({
+        where: { ...openChores, assigned_member_id: { not: null } },
+        select: { id: true, assigned_member_id: true },
+      })
+      const canonicalIds = canonicalOpen.filter((row) => row.assigned_member_id).map((row) => row.id)
+      if (canonicalIds.length) {
+        let assignee
+        try {
+          assignee = await canonicalChoreAssigneeInTx(tx, familyId, actorId)
+        } catch (error) {
+          if (error instanceof HouseholdMemberIdentityConflict) throw new MemberRemovalError('IDENTITY_CONFLICT', 409, error.message)
+          throw error
+        }
+        await tx.chore.updateMany({ where: { ...openChores, id: { in: canonicalIds } }, data: assignee })
+      }
       await tx.chore.updateMany({
-        where: { family_id: familyId, assigned_to: target.id, status: { notIn: FINISHED_STATUSES } },
+        where: { ...openChores, id: { notIn: canonicalIds } },
         data: { assigned_to: actorId },
       })
       // Take turns (O-39): they leave every rotation in the household; the
       // order carries on with the person after them. Copies already made
       // follow the open-chore rule just above.
-      await dropMemberFromRotationsInTx(tx, familyId, target.id)
+      try {
+        await dropMemberFromRotationsInTx(tx, familyId, target.id)
+      } catch (error) {
+        if (error instanceof HouseholdMemberIdentityConflict) throw new MemberRemovalError('IDENTITY_CONFLICT', 409, error.message)
+        throw error
+      }
 
       // Household content they created: handed to the removing parent.
       for (const [model, column] of HOUSEHOLD_HANDOVER_COLUMNS) {

@@ -35,6 +35,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     const current = ++generation.current;
     const update = () => {
       if (!active) return;
+      if (queue.requiresCompatibleClient()) setMessage("compatibleClient");
       setOps(
         queue
           .list()
@@ -128,7 +129,13 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
         {!loaded ? (
           <p role="status">{t("groceries.ticksLoading")}</p>
         ) : ops.length === 0 ? (
-          <p role="status">{t("groceries.ticksEmpty")}</p>
+          <p role="status">
+            {t(
+              message === "compatibleClient"
+                ? "groceries.compatibleClient"
+                : "groceries.ticksEmpty",
+            )}
+          </p>
         ) : (
           <ul className="space-y-4">
             {ops.map((op, index) => (
@@ -189,7 +196,9 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
           </ul>
         )}
         <p role="status" className="text-sm text-label-secondary">
-          {message ? t(`groceries.${message}`) : ""}
+          {message && !(ops.length === 0 && message === "compatibleClient")
+            ? t(`groceries.${message}`)
+            : ""}
         </p>
         <Dialog
           closeLabel={t("groceries.close")}

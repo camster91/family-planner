@@ -18,7 +18,7 @@ jest.mock('@/lib/notifications-server', () => {
 import { POST as verifyChore } from '../route'
 import { removeHouseholdMember } from '@/lib/member-removal'
 import { notificationServiceServer } from '@/lib/notifications-server'
-import { FAMILY_A, db, req } from '@/__tests__/helpers/two-household'
+import { FAMILY_A, db, fakePrisma, req } from '@/__tests__/helpers/two-household'
 
 const send = notificationServiceServer.sendNotification as jest.Mock
 
@@ -80,5 +80,80 @@ describe('POST /api/chores/verify with an assignee outside the household', () =>
     expect((await verifyChore(req({ as: 'parentA', body: { choreId: 'chore-a' } }))).status).toBe(200)
     expect(db.find('user', 'child-a')!.xp).toBeGreaterThan(xpBefore)
     expect(send.mock.calls.some((c: any[]) => c[0].userId === 'child-a')).toBe(true)
+  })
+
+  it('does not relink an erased canonical subject to its retained legacy account', async () => {
+    const chore = db.find('chore', 'chore-a')!
+    chore.status = 'completed'
+    chore.member_subject_erased = true
+    chore.assigned_member_id = null
+    const xpBefore = db.find('user', 'child-a')!.xp
+
+    const res = await verifyChore(req({ as: 'parentA', body: { choreId: chore.id } }))
+
+    expect(res.status).toBe(200)
+    expect(chore.status).toBe('verified')
+    expect(db.find('user', 'child-a')!.xp).toBe(xpBefore)
+    expect(send.mock.calls.filter((c: any[]) => c[0].userId === 'child-a')).toHaveLength(0)
+  })
+
+  it('approval rechecks membership after the preflight read before awarding or notifying', async () => {
+    db.find('chore', 'chore-a')!.status = 'completed'
+    const original = fakePrisma.chore.findUnique
+    let calls = 0
+    const spy = jest.spyOn(fakePrisma.chore, 'findUnique').mockImplementation(async (args: any) => {
+      const row = await original(args)
+      if (++calls === 1) db.find('user', 'child-a')!.family_id = null
+      return row
+    })
+
+    try {
+      const res = await verifyChore(req({ as: 'parentA', body: { choreId: 'chore-a' } }))
+      expect(res.status).toBe(200)
+      expect(db.find('chore', 'chore-a')!.status).toBe('verified')
+      expect(send.mock.calls.filter((c: any[]) => c[0].userId === 'child-a')).toHaveLength(0)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('rejection rechecks membership and hands off without notifying a member removed after preflight', async () => {
+    db.find('chore', 'chore-a')!.status = 'completed'
+    const original = fakePrisma.chore.findUnique
+    let calls = 0
+    const spy = jest.spyOn(fakePrisma.chore, 'findUnique').mockImplementation(async (args: any) => {
+      const row = await original(args)
+      if (++calls === 1) db.find('user', 'child-a')!.family_id = null
+      return row
+    })
+
+    try {
+      const res = await verifyChore(req({ as: 'parentA', body: { choreId: 'chore-a', decision: 'reject' } }))
+      expect(res.status).toBe(200)
+      expect(db.find('chore', 'chore-a')).toMatchObject({ status: 'pending', assigned_to: 'parent-a' })
+      expect(send.mock.calls.filter((c: any[]) => c[0].userId === 'child-a')).toHaveLength(0)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('rechecks the parent role after preflight before changing the chore', async () => {
+    db.find('chore', 'chore-a')!.status = 'completed'
+    const original = fakePrisma.chore.findUnique
+    let calls = 0
+    const spy = jest.spyOn(fakePrisma.chore, 'findUnique').mockImplementation(async (args: any) => {
+      const row = await original(args)
+      if (++calls === 1) db.find('user', 'parent-a')!.role = 'child'
+      return row
+    })
+
+    try {
+      const res = await verifyChore(req({ as: 'parentA', body: { choreId: 'chore-a' } }))
+      expect(res.status).toBe(403)
+      expect(db.find('chore', 'chore-a')!.status).toBe('completed')
+      expect(send).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

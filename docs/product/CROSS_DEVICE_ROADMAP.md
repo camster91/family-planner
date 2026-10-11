@@ -163,6 +163,8 @@ Targets below are proposed release criteria; measure baseline and refine through
 
 ## QA and release matrix
 
+The [all-feature UX alignment contract](../refactor/ROUTE_AND_DOMAIN_INVENTORY.md#all-feature-ux-alignment-contract--2026-10-11) defines per-feature coverage, supporting flows, shared interaction rules and the evidence required for each vertical migration. It supplements this sequence under #143/#152/#133/#139; it does not mark features migrated.
+
 Use fabricated isolated households: empty/new; two adults plus email-free preschool child and teen; all features on; busy multi-week schedules/recurrences; long names/text and localization; large lists/images; multiple groceries/custom lists; provider disabled/failing; slow/offline/reconnected devices. Cross every affected journey with parent/teen/child/shared authorization, light/dark/night, keyboard/screen reader and meaningful viewport boundaries.
 
 Core journeys: add everyone; later account conversion; day/month recurrence and routines; occurrence snooze/undo; calendar create/edit/duration/return refresh/provider disconnect; recipe import/curate/plan/groceries; task review; personalization/reset; image HEIC/failure; notification snooze; AI answer/proposal/confirm/conflict/undo; pairing/revocation; offline concurrent edits.
@@ -180,3 +182,11 @@ Android restricts background foreground-service starts and while-in-use micropho
 ## Next bounded action
 
 Fix #457's reproduced Calendar return-refresh behavior and verify create/edit/close/reload in the isolated household; retain and finish the approved lowercase wordmark change separately. Then address capture replay integrity and #471 before expanding AI writes. Name-only profiles and the adaptive design specification follow as larger reviewed slices. No remaining feature/native issue is closed by this planning document.
+
+### App identity support slice (#473)
+
+The Help app-details card uses the existing shared card, typography, disclosure and 44px action patterns. Reading is deliberate, has a pending state and bounded native/server waits, and offers a selectable local report with an explicit Copy action. English and Spanish copy use the central dictionary. The existing parent/teen Help boundary excludes children.
+
+The report distinguishes installed binary platform/version/build/id and measured App/Network/Share plugin presence from the public loaded server version/commit/build timestamp. Plugin presence is not permission or feature readiness. No family/account identifier, raw exception, provider setting, automatic export or persistent report is included. Older App bridges, offline servers and /api/version 404 remain usable partial reports. /api/version retains its exact three-key response.
+
+This is support evidence only. It does not implement the versioned capability handshake, minimum-client policy, queued-write compatibility, or current/previous-client physical matrix required to close #473. Rollback removes the optional Help card and helper without a data migration or installed-shell change.

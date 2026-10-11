@@ -19,6 +19,8 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 import { expandSeriesInTx, nextDueDate as nextDueDateForCompletion } from '@/lib/recurringChores'
 import { toDateOnlyUTC } from '@/lib/dates'
 import { recordBetaMetric } from '@/lib/beta-metrics'
+import { choreAssigneeForCreateInTx } from '@/lib/chore-member-subject'
+import { lockHousehold } from '@/lib/household-lock'
 
 type Db = Pick<PrismaClient, 'chore' | '$transaction' | '$executeRaw'>
 
@@ -30,6 +32,7 @@ export const COMPLETABLE_CHORE_SELECT = {
   description: true,
   points: true,
   assigned_to: true,
+  assigned_member_id: true,
   due_date: true,
   status: true,
   frequency: true,
@@ -62,15 +65,18 @@ export async function findHouseholdChore(
  */
 export async function completeChore(
   db: Db,
-  chore: CompletableChore,
+  requestedChore: CompletableChore,
   actor: { id: string; name: string },
   options: { photoValue?: string | null; now?: Date } = {}
 ): Promise<boolean> {
   const now = options.now ?? new Date()
   const photoValue = options.photoValue ?? null
   const completed = await db.$transaction(async (tx) => {
+    await lockHousehold(tx, requestedChore.family_id)
+    const chore = await tx.chore.findFirst({ where: { id: requestedChore.id, family_id: requestedChore.family_id }, select: COMPLETABLE_CHORE_SELECT })
+    if (!chore) return false
     const updateResult = await tx.chore.updateMany({
-      where: { id: chore.id, status: { in: ['pending', 'in_progress', 'overdue'] } },
+      where: { id: chore.id, family_id: chore.family_id, status: { in: ['pending', 'in_progress', 'overdue'] } },
       data: {
         status: 'completed',
         completed_at: now,
@@ -106,7 +112,7 @@ export async function completeChore(
             title: chore.title,
             description: chore.description,
             points: chore.points,
-            assigned_to: chore.assigned_to,
+            ...(await choreAssigneeForCreateInTx(tx, chore.family_id, chore.assigned_to, { requireCanonical: !!chore.assigned_member_id })),
             due_date: nextDueDate,
             status: 'pending',
             frequency: 'once',
@@ -125,7 +131,7 @@ export async function completeChore(
     return true
   })
   // Beta usage counts (#287): after the commit, person and tablet alike; never throws.
-  if (completed) await recordBetaMetric(db, chore.family_id, 'chore_completed', { now })
+  if (completed) await recordBetaMetric(db, requestedChore.family_id, 'chore_completed', { now })
   return completed
 }
 
