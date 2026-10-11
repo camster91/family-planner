@@ -2,9 +2,9 @@
  * #514/#499: Projects create form and intercepted sheet.
  *
  * The parent fixture enables Projects through its guarded feature endpoint for
- * this journey. Project POSTs are deliberately intercepted with synthetic
- * refusal, pending and success responses, so this spec never creates a real
- * Project row. GETs, identity and feature restoration use the authenticated
+ * this journey. The refusal POST is deliberately synthetic; the pending retry proceeds to the
+ * real authenticated API, reads back its persisted Project, and deletes only
+ * the returned owned ID. GETs, identity and feature restoration also use the
  * loopback app exactly as the browser would.
  */
 import AxeBuilder from "@axe-core/playwright";
@@ -239,7 +239,7 @@ for (const locale of ["en", "es"] as const) {
               form.getByRole("button", { name: copy.closeLabel }),
             ).toHaveCount(0);
             await page.keyboard.press("Escape");
-            await expect(page).toHaveURL(/\/dashboard\/projects$/);
+            await expect(page).toHaveURL(/\/dashboard\/projects\/create$/);
           } else {
             await expect(
               form.getByRole("button", { name: copy.creating }),
