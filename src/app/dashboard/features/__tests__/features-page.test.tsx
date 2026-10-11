@@ -4,7 +4,7 @@
 // Features page switches: the tap target is the 44px-tall button, while the
 // switch picture inside stays the familiar 51x31 track (AGENTS.md >= 44x44).
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import FeaturesPage from '../page'
 
@@ -75,7 +75,8 @@ describe('Features page switches', () => {
     expect(screen.queryByText('Chores', { exact: true })).toBeNull()
     expect(setFeature).not.toHaveBeenCalled()
 
-    await user.clear(search)
+    await user.click(screen.getByRole('button', { name: 'Clear feature search' }))
+    expect(document.activeElement).toBe(search)
     await waitFor(() =>
       expect(screen.getByText('Chores', { exact: true })).toBeTruthy(),
     )
@@ -87,6 +88,9 @@ describe('Features page switches', () => {
     const planningDisclosure = screen.getByRole('button', {
       name: 'Hide Planning',
     })
+    expect(
+      document.getElementById('feature-group-heading-planning')?.className,
+    ).toContain('focus:outline')
     expect(planningDisclosure.getAttribute('aria-expanded')).toBe('true')
 
     await user.click(planningDisclosure)
@@ -171,7 +175,8 @@ describe('Features page switches', () => {
     })
     toggle.focus()
 
-    await user.click(toggle)
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-disabled')).toBe('true')
     expect(toggle.hasAttribute('disabled')).toBe(false)
     expect(document.activeElement).toBe(toggle)
