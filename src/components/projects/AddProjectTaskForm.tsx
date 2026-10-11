@@ -41,7 +41,11 @@ export function AddProjectTaskForm({ projectId, familyMembers = [] }: AddProject
   }, [open])
 
   const close = () => {
+    if (saving) return
     setOpen(false)
+    setTitle('')
+    setDueDate('')
+    setAssignee('')
     setError(null)
     // Back to the button that opened the form, so keyboard focus is not lost.
     requestAnimationFrame(() => openerRef.current?.focus())
@@ -183,7 +187,8 @@ export function AddProjectTaskForm({ projectId, familyMembers = [] }: AddProject
         <button
           type="button"
           onClick={close}
-          className={`inline-flex min-h-[44px] min-w-[44px] items-center rounded-full bg-[var(--surface-fill)] px-5 text-[15px] font-medium text-label-primary ${FOCUS}`}
+          disabled={saving}
+          className={`inline-flex min-h-[44px] min-w-[44px] items-center rounded-full bg-[var(--surface-fill)] px-5 text-[15px] font-medium text-label-primary disabled:opacity-60 ${FOCUS}`}
         >
           Done
         </button>

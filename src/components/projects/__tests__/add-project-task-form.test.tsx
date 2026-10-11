@@ -4,6 +4,7 @@
 // "Add task" on an existing project (route inventory F-5, #289): the in-app
 // caller of POST /api/projects/[id]/tasks.
 import * as React from 'react'
+import '@testing-library/jest-dom'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AddProjectTaskForm } from '../AddProjectTaskForm'
@@ -167,14 +168,43 @@ it('offline: says so, disables the save and sends nothing', async () => {
   expect(save.disabled).toBe(false)
 })
 
-it('Done closes the form and returns focus to "Add task"', async () => {
+it('Done discards the whole draft, sends nothing and returns focus to "Add task"', async () => {
   const user = userEvent.setup()
   renderForm()
   await openForm(user)
+  await user.type(screen.getByLabelText('Task'), 'Abandoned task')
+  await user.type(screen.getByLabelText(/Due date/), '2026-10-12')
+  await user.selectOptions(screen.getByLabelText(/Who's doing it/), 'u-kid')
   await user.click(screen.getByRole('button', { name: 'Done' }))
   const opener = screen.getByRole('button', { name: 'Add task' })
   expect(screen.queryByRole('form')).toBeNull()
   await waitFor(() => expect(document.activeElement).toBe(opener))
+  await openForm(user)
+  expect(screen.getByLabelText('Task')).toHaveValue('')
+  expect(screen.getByLabelText(/Due date/)).toHaveValue('')
+  expect(screen.getByLabelText(/Who's doing it/)).toHaveValue('')
+  expect(calls).toHaveLength(0)
+})
+
+it('keeps the form open while saving so a late failure cannot lose the draft', async () => {
+  let resolveSave!: (response: Response) => void
+  global.fetch = jest.fn(() => new Promise<Response>((resolve) => { resolveSave = resolve }))
+  const user = userEvent.setup()
+  renderForm()
+  await openForm(user)
+  await user.type(screen.getByLabelText('Task'), 'Paint fence')
+  await user.type(screen.getByLabelText(/Due date/), '2026-10-12')
+  await user.selectOptions(screen.getByLabelText(/Who's doing it/), 'u-kid')
+  await user.click(screen.getByRole('button', { name: 'Add task' }))
+  expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Done' }))
+  expect(screen.getByRole('form', { name: 'Add task' })).toBeTruthy()
+  await act(async () => resolveSave({ ok: false, json: async () => ({ error: 'Please try again.' }) } as Response))
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  expect(screen.getByLabelText('Task')).toHaveValue('Paint fence')
+  expect(screen.getByLabelText(/Due date/)).toHaveValue('2026-10-12')
+  expect(screen.getByLabelText(/Who's doing it/)).toHaveValue('u-kid')
+  expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled()
 })
 
 it('without household members there is no assignee picker', async () => {
