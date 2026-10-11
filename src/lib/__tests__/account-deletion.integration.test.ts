@@ -136,7 +136,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     // Messages, notifications, activity
     await db.message.create({ data: { id: id('msg'), family_id: f, sender_id: parent, content: 'hi', read_by: [child] } })
     await db.notification.create({ data: { id: id('notif'), user_id: child, title: 't', message: 'm', type: 'system' } })
-    await db.activity.create({ data: { id: id('act'), family_id: f, user_id: parent, type: 'x', title: 'x' } })
+    await db.activity.create({ data: { id: id('act'), family_id: f, user_id: parent, subject_member_id: id('member'), type: 'x', title: 'x' } })
     // Lists and budget
     await db.list.create({ data: { id: id('list'), family_id: f, name: 'Groceries', type: 'grocery', created_by: parent } })
     await db.listItem.create({ data: { id: id('item'), list_id: id('list'), content: 'Milk', added_by: teen, checked_by: parent } })
@@ -178,7 +178,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     })
     await db.devicePairing.create({ data: { id: id('pairing'), family_id: f, code_hash: id('code'), label: 'Hall', created_by: parent, expires_at: later } })
     await db.parentElevationPin.create({ data: { user_id: parent, family_id: f, pin_hash: 'x' } })
-    await db.deviceAuditEvent.create({ data: { id: id('audit'), family_id: f, device_id: id('device'), actor_user_id: parent, type: 'x' } })
+    await db.deviceAuditEvent.create({ data: { id: id('audit'), family_id: f, device_id: id('device'), actor_user_id: parent, subject_member_id: id('member'), type: 'x' } })
     // Household audit history (#285): a parent's change and the child's join.
     await db.auditLog.createMany({
       data: [
@@ -272,6 +272,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-member` } })).toBeNull()
     expect(await prisma.householdMemberLegacyMapping.count({ where: { family_id: fam('a') } })).toBe(0)
     expect(await prisma.householdMemberAccountLink.count({ where: { family_id: fam('a') } })).toBe(0)
+    expect(await prisma.activity.findUnique({ where: { id: `${P}-a-act` }, select: { subject_member_id: true, subject_member_erased: true } })).toEqual({ subject_member_id: null, subject_member_erased: true })
+    expect(await prisma.deviceAuditEvent.findUnique({ where: { id: `${P}-a-audit` }, select: { actor_user_id: true, subject_member_id: true, subject_member_erased: true } })).toEqual({ actor_user_id: uid('a', 'parent'), subject_member_id: null, subject_member_erased: true })
     expect(await rowsOf('b')).toEqual(beforeB)
     expect(await prisma.householdMember.findUnique({ where: { id: `${P}-a-unlinked-child` } })).not.toBeNull()
     expect(await lib.deleteMemberAccount(uid('a', 'child'), { uploadDir })).toMatchObject({ deleted: false })
