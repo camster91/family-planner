@@ -7,7 +7,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import type { Locator, Page, TestInfo } from "@playwright/test";
+import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
 import { FEATURES, type FamilyFeatures } from "../src/lib/features";
 import { moreItemsFor } from "../src/lib/nav-items";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
@@ -24,6 +24,10 @@ const ALL_ON: FamilyFeatures = Object.fromEntries(
 
 const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 const FEATURE_KEYS = FEATURES.map((feature) => feature.key);
+const ALLOWED_MUTATIONS = new Set([
+  "PATCH /api/family/features",
+  "POST /api/auth/login",
+]);
 
 type ApiObservation = {
   method: string;
@@ -128,9 +132,8 @@ function observeFeatureTransport(
   page.on("request", (request) => {
     if (!MUTATING_METHODS.has(request.method())) return;
     const path = new URL(request.url()).pathname;
-    if (path !== "/api/family/features") {
-      domainWrites.push(`${request.method()} ${path}`);
-    }
+    const mutation = `${request.method()} ${path}`;
+    if (!ALLOWED_MUTATIONS.has(mutation)) domainWrites.push(mutation);
   });
   page.on("response", (response) => {
     const request = response.request();
@@ -151,6 +154,32 @@ function observeFeatureTransport(
       status: response.status(),
       body,
     });
+  });
+}
+
+async function installRequestFirewall(
+  context: BrowserContext,
+  blockedMutations: string[],
+) {
+  await context.route("**/*", (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    const local =
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
+      ["data:", "blob:"].includes(url.protocol);
+    if (!local) {
+      if (MUTATING_METHODS.has(method)) {
+        blockedMutations.push(`${method} ${url.origin}${url.pathname}`);
+      }
+      return route.abort();
+    }
+
+    if (!MUTATING_METHODS.has(method)) return route.continue();
+    const mutation = `${method} ${url.pathname}`;
+    if (ALLOWED_MUTATIONS.has(mutation)) return route.continue();
+    blockedMutations.push(mutation);
+    return route.abort();
   });
 }
 
@@ -347,6 +376,7 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
 for (const locale of ["en", "es"] as const) {
   test(`${locale}: parent all-on More and Features stay discoverable and dependency-aware`, async ({
     page,
+    context,
     baseURL,
   }, info) => {
     assertFixtureTargetAllowed(process.env);
@@ -355,6 +385,8 @@ for (const locale of ["en", "es"] as const) {
     );
     const featureApi: ApiObservation[] = [];
     const domainWrites: string[] = [];
+    const blockedMutations: string[] = [];
+    await installRequestFirewall(context, blockedMutations);
     observeFeatureTransport(page, featureApi, domainWrites);
     await page.addInitScript(
       ({ language, localeKey, themeKey }) => {
@@ -477,6 +509,7 @@ for (const locale of ["en", "es"] as const) {
           ),
         ).toBe(true);
         expect(domainWrites).toEqual([]);
+        expect(blockedMutations).toEqual([]);
       } catch (error) {
         testFailure = testFailure ?? error;
       }
@@ -491,6 +524,7 @@ for (const locale of ["en", "es"] as const) {
           ),
           featureApi: featureObservations,
           domainWrites,
+          blockedMutations,
           restored,
           scope:
             "real parent feature API; guarded Family A feature row restored; no domain writes",
