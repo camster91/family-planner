@@ -28,8 +28,10 @@ export async function ownFeatureAudit(keys: string[]) {
     throw error;
   }
   const priorIds = new Set(baseline.map((row) => row.id));
-  return async () => {
+  return async (restored: boolean) => {
     try {
+      // A failed restore keeps its audit evidence; only release the connection.
+      if (!restored) return;
       assertFixtureTargetAllowed(process.env);
       const current = await rows();
       const owned = current.filter((row) => !priorIds.has(row.id));
