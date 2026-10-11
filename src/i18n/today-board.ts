@@ -59,6 +59,21 @@ export const todayBoardEnglish = {
   weather: "Weather",
   setupLoading: "Loading setup options",
   setupError: "Setup options could not load.",
+  todayQuickActions: "Today quick actions",
+  addEvent: "Add event",
+  addChore: "Add chore",
+  groceriesAction: "Groceries",
+  planMeals: "Plan meals",
+  allLists: "All lists",
+  todayControls: "Today controls",
+  refreshNow: "Refresh now",
+  reconnectToRefresh: "Reconnect to refresh.",
+  householdFeatures: "Household features",
+  mySettings: "My settings",
+  todayBoardLoading: "Loading today's board",
+  time: "Time: ",
+  exitFridgeMode: "Exit fridge mode",
+  fridgeMode: "Fridge mode",
 } as const;
 
 export type TodayBoardMessage = keyof typeof todayBoardEnglish;
@@ -122,6 +137,21 @@ export const todayBoardSpanish: TodayBoardMessages = {
   weather: "Tiempo",
   setupLoading: "Cargando las opciones de configuración",
   setupError: "No se pudieron cargar las opciones de configuración.",
+  todayQuickActions: "Acciones rápidas de hoy",
+  addEvent: "Añadir evento",
+  addChore: "Añadir tarea",
+  groceriesAction: "Alimentos",
+  planMeals: "Planear comidas",
+  allLists: "Todas las listas",
+  todayControls: "Controles de hoy",
+  refreshNow: "Actualizar ahora",
+  reconnectToRefresh: "Conéctate para actualizar.",
+  householdFeatures: "Funciones del hogar",
+  mySettings: "Mis ajustes",
+  todayBoardLoading: "Cargando el panel de hoy",
+  time: "Hora: ",
+  exitFridgeMode: "Salir del modo frigorífico",
+  fridgeMode: "Modo frigorífico",
 };
 
 export const todayBoardMessages = {
