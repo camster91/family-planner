@@ -100,6 +100,7 @@ it("maps every canonical feature to a fixed safe destination and gates it", () =
     "allowance",
     "handoff",
     "sick-days",
+    "pickups",
   ]);
   for (const feature of FEATURES) {
     const action = {
