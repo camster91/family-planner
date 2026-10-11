@@ -1,10 +1,7 @@
 "use client";
 import { useTranslation } from "@/i18n";
-import { useLocalNow } from "@/components/ui/use-hydrated";
-import { formatDateOnly, parseDateOnly, toDateOnlyLocal } from "@/lib/dates";
 import {
   formatWeeklyDays,
-  nextSelectedWeekday,
   normalizedWeekdays,
   WEEKDAYS,
 } from "@/lib/chore-weekdays";
@@ -30,34 +27,24 @@ export function WeeklyDaysPicker({
   onChange: (days: number[]) => void;
   copy?: WeeklyDaysPickerCopy;
 }) {
-  const labels = { ...defaultCopy, ...copy };
   const { locale, t } = useTranslation();
-  const now = useLocalNow();
+  const localeCopy = choreScheduleMessages[locale];
+  const labels = {
+    legend: copy?.legend ?? localeCopy.weeklyLegend ?? defaultCopy.legend,
+    hint: copy?.hint ?? localeCopy.weeklyHint ?? defaultCopy.hint,
+    weekdays: copy?.weekdays ?? localeCopy.weekdayNames,
+  };
   const selectedDays = normalizedWeekdays(days);
-  const today = now ? parseDateOnly(toDateOnlyLocal(now)) : null;
-  const nextDate = today
-    ? nextSelectedWeekday(today, selectedDays, true)
-    : null;
   const daySummary = formatWeeklyDays(selectedDays, locale);
-  const dateSummary = nextDate
-    ? formatDateOnly(nextDate, undefined, locale === "es" ? "es-ES" : "en-CA")
-    : null;
-  const summaryKey = dateSummary
-    ? "choreSchedule.weeklySummary"
-    : "choreSchedule.weeklyDays";
-  const summaryTemplate = dateSummary
-    ? choreScheduleMessages[locale].weeklySummary
-    : choreScheduleMessages[locale].weeklyDays;
-  const translatedSummary =
-    daySummary && t(summaryKey, { days: daySummary, date: dateSummary ?? "" });
+  const summaryKey = "choreSchedule.weeklyDays";
+  const summaryTemplate = localeCopy.weeklyDays;
+  const translatedSummary = daySummary && t(summaryKey, { days: daySummary });
   // A picker can be rendered in a focused unit test without the app provider.
   // Keep that isolated surface readable while the real app uses typed i18n.
   const summary =
     daySummary &&
     (translatedSummary === summaryKey
-      ? summaryTemplate
-          .replace("{days}", daySummary)
-          .replace("{date}", dateSummary ?? "")
+      ? summaryTemplate.replace("{days}", daySummary)
       : translatedSummary);
   return (
     <fieldset className="space-y-2">
