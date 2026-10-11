@@ -6,8 +6,9 @@
  * - `requireElevation`: elevated device routes (`X-Device-Elevation`).
  * - `refusePairedDevice`: person routes a paired tablet may not use yet.
  * - `requireDeviceManager`: parent-only person routes (`/api/family/devices/*`,
- *   `/api/users/elevation-pin`). Reads ONLY `session_token`; device cookies are
- *   ignored, so a tablet can never manage devices.
+ *   `/api/users/elevation-pin`). Authenticates `session_token` only after checking paired-device context.
+ *   Device-only requests retain 401; a live device plus a lingering person
+ *   cookie is refused with 403, so a tablet can never manage devices.
  */
 import type { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
